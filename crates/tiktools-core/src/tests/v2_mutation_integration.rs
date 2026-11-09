@@ -224,6 +224,71 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert!(sync
         .with_v2_reconciliation_barrier(&proof, |_| Ok(()))
         .is_err());
+    // The old local review may be discarded: confirmation reconstructs the
+    // candidate from SQLite for this host lifetime.
+    let runtime_review = source
+        .review_reconciled_runtime("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    // Confirmation is a separate local observation; it cannot trust the
+    // runtime that was present during the earlier review.
+    core.plugins.stop("acme.hotkeys").unwrap();
+    assert!(source.confirm_reconciled_runtime(&runtime_review).is_err());
+    assert_eq!(
+        core.db
+            .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+            .unwrap()
+            .unwrap()
+            .runtime_epoch,
+        None
+    );
+    core.plugins.start("acme.hotkeys").unwrap();
+    core.db
+        .set_plugin_state_with_sync_intent(
+            "aaa.other",
+            true,
+            false,
+            Some(crate::db::LocalPluginSyncIntent {
+                origin: &origin,
+                account_id: "alice",
+                config_generation: 42,
+                version: Some("1.0.0"),
+            }),
+        )
+        .unwrap();
+    let connection = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
+    connection.execute_batch("CREATE TRIGGER reject_confirmation BEFORE UPDATE ON plugin_sync_outbox WHEN NEW.runtime_epoch IS NOT NULL BEGIN SELECT RAISE(ABORT, 'injected'); END;").unwrap();
+    assert!(source.confirm_reconciled_runtime(&runtime_review).is_err());
+    assert_eq!(
+        core.db
+            .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+            .unwrap()
+            .unwrap()
+            .runtime_epoch,
+        None
+    );
+    connection
+        .execute_batch("DROP TRIGGER reject_confirmation")
+        .unwrap();
+    drop(connection);
+    source.confirm_reconciled_runtime(&runtime_review).unwrap();
+    let confirmed = core
+        .db
+        .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        confirmed.runtime_epoch.as_deref(),
+        Some(core.sync.runtime_epoch().unwrap())
+    );
+    assert_eq!(
+        core.db
+            .next_plugin_sync_intent(&origin, "alice")
+            .unwrap()
+            .unwrap()
+            .plugin_id,
+        "aaa.other"
+    );
     core.shutdown().await;
     drop(source);
     server.abort();
@@ -277,6 +342,81 @@ async fn legacy_remote_selection_does_not_create_local_reconciliation_marker() {
         .unwrap());
     assert!(!core.db.has_untracked_plugin_sync().unwrap());
     core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn reconciled_runtime_confirmation_can_be_rebuilt_after_host_restart() {
+    let state = Arc::new(FakePluginState::default());
+    let (first, _, root) = core_with_fake_plugins(state, &["acme.hotkeys"]);
+    let paths = first.db.paths().clone();
+    first
+        .db
+        .set_plugin_state_with_sync_intent(
+            "acme.hotkeys",
+            true,
+            true,
+            Some(crate::db::LocalPluginSyncIntent {
+                origin: "https://cloud.example",
+                account_id: "alice",
+                config_generation: 7,
+                version: Some("1.0.0"),
+            }),
+        )
+        .unwrap();
+    first.set_plugin_activation("acme.hotkeys", true, true);
+    first.plugins.start("acme.hotkeys").unwrap();
+    let source = crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(
+        &first,
+        "https://cloud.example",
+        "alice",
+    );
+    let review = source
+        .review_reconciled_runtime("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    source.confirm_reconciled_runtime(&review).unwrap();
+    let old_epoch = first.sync.runtime_epoch().unwrap().to_owned();
+    first.shutdown().await;
+    drop(source);
+    drop(first);
+
+    let (manager, manager_root) =
+        fake_hotkey_manager(Arc::new(FakePluginState::default()), &["acme.hotkeys"]);
+    let mut restarted = AppCore::with_paths(
+        Arc::new(RecordingEmitter::default()),
+        Arc::new(NoopMediaHost),
+        paths,
+    );
+    restarted.plugins = Arc::new(manager);
+    let restarted = Arc::new(restarted);
+    restarted.set_plugin_activation("acme.hotkeys", true, true);
+    restarted.plugins.start("acme.hotkeys").unwrap();
+    let source = crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(
+        &restarted,
+        "https://cloud.example",
+        "alice",
+    );
+    let review = source
+        .review_reconciled_runtime("acme.hotkeys")
+        .unwrap()
+        .unwrap();
+    source.confirm_reconciled_runtime(&review).unwrap();
+    let new_epoch = restarted.sync.runtime_epoch().unwrap();
+    assert_ne!(new_epoch, old_epoch);
+    assert_eq!(
+        restarted
+            .db
+            .plugin_sync_intent_for("https://cloud.example", "alice", "acme.hotkeys")
+            .unwrap()
+            .unwrap()
+            .runtime_epoch
+            .as_deref(),
+        Some(new_epoch)
+    );
+    restarted.shutdown().await;
+    drop(source);
+    let _ = std::fs::remove_dir_all(manager_root);
     let _ = std::fs::remove_dir_all(root);
 }
 

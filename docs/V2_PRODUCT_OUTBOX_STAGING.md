@@ -152,8 +152,14 @@ The native local-review adapter can consume the callback's non-serializable
 admission without reacquiring the exclusive lease. It checks the canonical
 source directory, origin and account, then revalidates the exact source,
 version and runtime before transferring the marker into a runtime-unconfirmed
-outbox entry. This remains private: an explicit user choice, runtime
-confirmation, all legacy writers, and product/UI integration are still needed.
+outbox entry. A separate native confirmation can recheck that exact candidate
+against the current host's runtime and source under the exclusive lease; a
+failed observation leaves the entry unconfirmed. This confirmation does not
+grant Cloud consent or stage a request. Restart requires a new runtime
+observation. A local test reconstructs the candidate from SQLite in a second
+host instance and confirms it with a new runtime epoch; it does not simulate
+an operating-system process crash. This remains private: an explicit user
+choice, all legacy writers, and product/UI integration are still needed.
 The native adapter can now capture an opaque local selection review and
 recheck the same source revision, installed version, runtime observation and
 host lifetime under the invocation and exclusive emission fences. It does not

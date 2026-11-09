@@ -313,12 +313,33 @@ impl DatabaseManager {
         origin: &str,
         account: &str,
     ) -> Result<Option<PluginSyncOutboxEntry>, DatabaseError> {
+        self.find_plugin_sync_intent(origin, account, None)
+    }
+
+    pub(crate) fn plugin_sync_intent_for(
+        &self,
+        origin: &str,
+        account: &str,
+        plugin_id: &str,
+    ) -> Result<Option<PluginSyncOutboxEntry>, DatabaseError> {
+        if !valid_text(plugin_id, 128) {
+            return Err(DatabaseError::Invalid("invalid plugin sync source".into()));
+        }
+        self.find_plugin_sync_intent(origin, account, Some(plugin_id))
+    }
+
+    fn find_plugin_sync_intent(
+        &self,
+        origin: &str,
+        account: &str,
+        plugin_id: Option<&str>,
+    ) -> Result<Option<PluginSyncOutboxEntry>, DatabaseError> {
         let db = self.open(&self.automation_path())?;
         let entry = db.query_row(
             "SELECT o.origin,o.account_id,o.plugin_id,o.generation,s.generation,o.config_generation,o.version,o.enabled,o.runtime_epoch
              FROM plugin_sync_outbox o LEFT JOIN plugin_sync_source_versions s ON s.plugin_id=o.plugin_id
-             WHERE o.origin=?1 AND o.account_id=?2 ORDER BY o.plugin_id COLLATE BINARY LIMIT 1",
-            params![origin, account], |row| {
+             WHERE o.origin=?1 AND o.account_id=?2 AND (?3 IS NULL OR o.plugin_id=?3) ORDER BY o.plugin_id COLLATE BINARY LIMIT 1",
+            params![origin, account, plugin_id], |row| {
                 let raw: Option<i64> = row.get(7)?;
                 let source: Option<i64> = row.get(4)?;
                 let config: Option<String> = row.get(5)?;

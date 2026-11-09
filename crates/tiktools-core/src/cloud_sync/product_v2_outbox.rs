@@ -25,6 +25,13 @@ pub(crate) struct LocalUntrackedSelectionReview {
     runtime_epoch: String,
 }
 
+/// Local observation of a durable candidate; reconstructed after restart.
+/// It carries no Cloud authorization and does not stage or send a request.
+pub(crate) struct ReconciledRuntimeReview {
+    entry: crate::db::PluginSyncOutboxEntry,
+    runtime_epoch: String,
+}
+
 impl<'a> SqliteV2ProductSource<'a> {
     pub(crate) fn new(core: &'a AppCore, origin: &'a str, account: &'a str) -> Self {
         Self {
@@ -111,6 +118,147 @@ impl<'a> SqliteV2ProductSource<'a> {
         )
         .map_err(|_| WorkspaceCoordError::Ineligible)?
         .ok_or(WorkspaceCoordError::Ineligible)
+    }
+
+    /// Reconstruct a local runtime observation from a durable candidate.
+    /// The source must still match and no local marker may remain for it.
+    #[allow(dead_code)]
+    pub(crate) fn review_reconciled_runtime(
+        &self,
+        id: &str,
+    ) -> Result<Option<ReconciledRuntimeReview>, SyncCoordError> {
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(unavailable());
+        }
+        let runtime = self
+            .core
+            .try_plugin_sync_runtime_guard()
+            .map_err(|_| unavailable())?;
+        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+            self.core.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| unavailable())?;
+        let _lease = fence.try_untracked_edit().map_err(|_| unavailable())?;
+        if self
+            .core
+            .db
+            .review_untracked_plugin(id)
+            .map_err(|_| unavailable())?
+            .is_some()
+        {
+            return Err(unavailable());
+        }
+        let Some(entry) = self
+            .core
+            .db
+            .plugin_sync_intent_for(self.origin, self.account, id)
+            .map_err(|_| unavailable())?
+        else {
+            return Ok(None);
+        };
+        let (Some(version), Some(enabled)) = (entry.version.as_deref(), entry.enabled) else {
+            return Err(unavailable());
+        };
+        if entry.generation <= 0
+            || entry.generation != entry.source_generation
+            || !runtime.matches_selection(id, version, enabled)
+        {
+            return Err(unavailable());
+        }
+        let epoch = self.core.sync.runtime_epoch().map_err(|_| unavailable())?;
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(unavailable());
+        }
+        Ok(Some(ReconciledRuntimeReview {
+            entry,
+            runtime_epoch: epoch.to_owned(),
+        }))
+    }
+
+    /// Confirm the exact reconciled outbox candidate against this host's
+    /// current runtime. This performs no Cloud operation and grants no
+    /// consent; the later staging path must independently recheck identity
+    /// and consent. A failed confirmation leaves the durable candidate for
+    /// explicit retry rather than rebuilding or replaying the local edit.
+    #[allow(dead_code)]
+    pub(crate) fn confirm_reconciled_runtime(
+        &self,
+        review: &ReconciledRuntimeReview,
+    ) -> Result<(), SyncCoordError> {
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(unavailable());
+        }
+        let runtime = self
+            .core
+            .try_plugin_sync_runtime_guard()
+            .map_err(|_| unavailable())?;
+        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+            self.core.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| unavailable())?;
+        let _lease = fence.try_untracked_edit().map_err(|_| unavailable())?;
+        let epoch = self.core.sync.runtime_epoch().map_err(|_| unavailable())?;
+        let (Some(version), Some(enabled)) =
+            (review.entry.version.as_deref(), review.entry.enabled)
+        else {
+            return Err(unavailable());
+        };
+        if epoch != review.runtime_epoch
+            || review.entry.origin != self.origin
+            || review.entry.account_id != self.account
+            || !runtime.matches_selection(&review.entry.plugin_id, version, enabled)
+        {
+            return Err(unavailable());
+        }
+        let entry = self
+            .core
+            .db
+            .plugin_sync_intent_for(self.origin, self.account, &review.entry.plugin_id)
+            .map_err(|_| unavailable())?
+            .ok_or_else(unavailable)?;
+        if entry != review.entry
+            || entry.generation != entry.source_generation
+            || self
+                .core
+                .db
+                .review_untracked_plugin(&entry.plugin_id)
+                .map_err(|_| unavailable())?
+                .is_some()
+            || self
+                .core
+                .shutdown_started
+                .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(unavailable());
+        }
+        if !self
+            .core
+            .db
+            .confirm_plugin_sync_runtime(&entry, epoch)
+            .map_err(|_| unavailable())?
+        {
+            return Err(unavailable());
+        }
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(unavailable());
+        }
+        Ok(())
     }
 
     fn with_untracked_source<T>(
