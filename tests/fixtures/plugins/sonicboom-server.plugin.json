@@ -4,9 +4,6 @@
   "name": "SonicBoom Server",
   "version": "1.0.0",
   "publisher": "tiktools",
-  "metadata": {
-    "publisher": "tiktools"
-  },
   "license": "MIT",
   "engines": { "tiktools": ">=0.3.3, <5.0.0" },
   "categories": ["audio", "integrations"],
