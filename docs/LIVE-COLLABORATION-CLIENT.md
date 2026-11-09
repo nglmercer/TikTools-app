@@ -154,10 +154,17 @@ This is polling, not durable replay or a complete LIVE archive.
 The gap indicator covers retained-history loss, stream resets, and known
 ingress drops attributable to the selected creator's stamped native
 connection. That ingress warning remains visible for the lifetime of the
-in-memory creator stream; it reports no event counts. Some loss still cannot
-be attributed, including upstream broadcast lag (which carries no connection
-generation) and abrupt worker termination. Activity can therefore be missing
-even when no gap is shown.
+in-memory creator stream; it reports no event counts. Broadcast lag can be
+attributed when its entire skipped range is covered by the bounded native
+generation journal. Contention, expired history, ambiguous identities and
+abrupt worker termination may still prevent attribution. Activity can
+therefore be missing even when no gap is shown; the panel always says so.
+When native discovery cannot verify that the selected room belongs to the
+requested creator, the local LIVE can continue but its events and scoped
+status are unavailable to creator-restricted controllers. Owner rules still
+receive the local activity without a verified `creator` field; rules depending
+on that field may not match. The input cannot authorize delegated rules or
+actions, including through an Owner-emitted child event.
 
 The LIVE activity panel can filter its bounded, locally displayed
 entries by kind and search author, nickname or text. Filters do not query the

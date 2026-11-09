@@ -78,6 +78,7 @@ it('lets a restricted moderator switch between allowed creator histories', async
   try {
     await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('alice activity');
+    expect(wrapper.text()).toContain('Some events may be missing even when no warning is shown.');
     const selector = wrapper.findAll('select')[0]!;
     expect(selector.findAll('option').map((item) => item.text())).toEqual(['alice', 'bob']);
     await selector.setValue('bob');

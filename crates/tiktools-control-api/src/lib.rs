@@ -506,6 +506,20 @@ impl ControlApi {
                 {
                     return Err(context::forbidden());
                 }
+                if method == "live.status" {
+                    let verified = result
+                        .get("uniqueId")
+                        .and_then(Value::as_str)
+                        .zip(result.get("roomId").and_then(Value::as_str))
+                        .zip(result.get("connectionId").and_then(Value::as_str))
+                        .is_some_and(|((creator, room), connection)| {
+                            self.core
+                                .live_status_matches_verified_scope(creator, room, connection)
+                        });
+                    if !verified {
+                        return Err(context::forbidden());
+                    }
+                }
             }
         }
         Ok(())

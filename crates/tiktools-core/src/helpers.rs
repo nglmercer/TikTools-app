@@ -353,6 +353,8 @@ pub(crate) struct LiveContext {
     pub(crate) unique_id: String,
     pub(crate) room_id: String,
     pub(crate) connection_id: String,
+    /// Native discovery tied this exact creator to the selected room.
+    pub(crate) creator_verified: bool,
 }
 
 #[cfg(feature = "native-tiktok")]

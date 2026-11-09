@@ -37,6 +37,7 @@ pub struct StampedClientEvent {
 pub(super) struct EventSender {
     legacy: broadcast::Sender<ClientEvent>,
     stamped: broadcast::Sender<StampedClientEvent>,
+    loss: crate::loss_tracking::LossTracker,
 }
 
 impl EventSender {
@@ -44,6 +45,7 @@ impl EventSender {
         Self {
             legacy: broadcast::channel(512).0,
             stamped: broadcast::channel(512).0,
+            loss: crate::loss_tracking::LossTracker::default(),
         }
     }
     pub(super) fn send(&self, generation: u64, event: ClientEvent) {
@@ -52,13 +54,17 @@ impl EventSender {
         if self.legacy.receiver_count() > 0 {
             let _ = self.legacy.send(event.clone());
         }
-        let _ = self.stamped.send(StampedClientEvent { generation, event });
+        self.loss.send(&self.stamped, generation, event);
     }
     pub(super) fn subscribe(&self) -> broadcast::Receiver<ClientEvent> {
         self.legacy.subscribe()
     }
     pub(super) fn subscribe_stamped(&self) -> broadcast::Receiver<StampedClientEvent> {
         self.stamped.subscribe()
+    }
+
+    pub(super) fn subscribe_stamped_with_loss(&self) -> crate::TrackedReceiver {
+        self.loss.subscribe(&self.stamped)
     }
 }
 
@@ -242,6 +248,7 @@ mod tests {
     fn info() -> ConnectionInfo {
         ConnectionInfo {
             unique_id: "test".into(),
+            verified_creator: Some("test".into()),
             room_id: "1".into(),
             title: String::new(),
             nickname: "test".into(),

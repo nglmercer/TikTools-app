@@ -362,11 +362,35 @@ struct FeedHistoryState {
     /// Host-only bindings; event payload JSON never supplies these values.
     live_generations: std::collections::BTreeMap<u64, String>,
     pending_ingress_gaps: std::collections::BTreeSet<u64>,
+    unverified_generations: std::collections::BTreeSet<u64>,
+    unverified_expired_through: Option<u64>,
     scoped_unavailable: bool,
 }
 type FeedHistory = Arc<Mutex<FeedHistoryState>>;
 
 impl FeedHistoryState {
+    #[cfg(feature = "native-tiktok")]
+    fn rejects_generation(&self, generation: u64) -> bool {
+        self.unverified_generations.contains(&generation)
+            || self
+                .unverified_expired_through
+                .is_some_and(|old| generation <= old)
+    }
+
+    #[cfg(feature = "native-tiktok")]
+    fn reject_generation(&mut self, generation: u64) {
+        self.live_generations.remove(&generation);
+        self.pending_ingress_gaps.remove(&generation);
+        self.unverified_generations.insert(generation);
+        if self.unverified_generations.len() > 128 {
+            if let Some(evicted) = self.unverified_generations.pop_first() {
+                self.unverified_expired_through = Some(
+                    self.unverified_expired_through
+                        .map_or(evicted, |old| old.max(evicted)),
+                );
+            }
+        }
+    }
     fn creator_stream<F>(
         &mut self,
         creator: &str,
@@ -498,7 +522,7 @@ impl EventBus {
     }
 
     /// Bind a native transport generation to a creator obtained from its
-    /// stamped Connected event or a matching trusted connection context.
+    /// stamped Connected event after its room identity has been verified.
     /// Only the ingress pipeline may call this; payload fields are untrusted.
     #[cfg(feature = "native-tiktok")]
     pub(crate) fn bind_live_generation(&self, generation: u64, creator: &str) {
@@ -508,7 +532,7 @@ impl EventBus {
         // Match the publication lock order: sequence, then history.
         let sequence = *self.ui_sequence.lock().unwrap_or_else(|e| e.into_inner());
         let mut history = self.feed_history.lock().unwrap_or_else(|e| e.into_inner());
-        if history.scoped_unavailable {
+        if history.rejects_generation(generation) {
             return;
         }
         if history
@@ -519,6 +543,7 @@ impl EventBus {
             // An ambiguous generation must never send another creator's
             // loss indication to this caller.
             history.scoped_unavailable = true;
+            history.reject_generation(generation);
             return;
         }
         history
@@ -537,13 +562,37 @@ impl EventBus {
         }
     }
 
+    /// Mark a native generation as lacking a verified room/creator binding.
+    /// A later event must not turn its caller-supplied label into authority.
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn reject_unverified_live_generation(&self, generation: u64) {
+        let mut history = self.feed_history.lock().unwrap_or_else(|e| e.into_inner());
+        if history.live_generations.contains_key(&generation) {
+            // A conflicting lifecycle for one generation makes previous
+            // attribution ambiguous; do not serve a potentially mixed feed.
+            history.scoped_unavailable = true;
+        }
+        history.reject_generation(generation);
+    }
+
+    /// Only native Connected evidence may authorize a creator-scoped path.
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn is_verified_live_generation(&self, generation: u64, creator: &str) -> bool {
+        let history = self.feed_history.lock().unwrap_or_else(|e| e.into_inner());
+        !history.rejects_generation(generation)
+            && history
+                .live_generations
+                .get(&generation)
+                .is_some_and(|id| id == creator)
+    }
+
     /// Record loss for its stamped native generation without exposing counts.
     /// Unknown generations stay pending until a trusted identity is observed.
     #[cfg(feature = "native-tiktok")]
     pub(crate) fn record_live_ingress_gap(&self, generation: u64) {
         let sequence = *self.ui_sequence.lock().unwrap_or_else(|e| e.into_inner());
         let mut history = self.feed_history.lock().unwrap_or_else(|e| e.into_inner());
-        if history.scoped_unavailable {
+        if history.scoped_unavailable || history.rejects_generation(generation) {
             return;
         }
         if let Some(creator) = history.live_generations.get(&generation).cloned() {
@@ -1653,6 +1702,23 @@ mod feed_history_tests {
         assert!(bus.creator_feed("alice", None, 0, 64, 2048).is_err());
     }
 
+    #[cfg(feature = "native-tiktok")]
+    #[test]
+    fn unverified_generation_never_binds_pending_or_future_loss() {
+        let bus = EventBus::new(2);
+        bus.record_live_ingress_gap(7);
+        bus.reject_unverified_live_generation(7);
+        bus.bind_live_generation(7, "alice");
+        bus.record_live_ingress_gap(7);
+        assert!(!bus.is_verified_live_generation(7, "alice"));
+        let alice = bus.creator_feed("alice", None, 0, 64, 2048).unwrap();
+        assert!(!alice.gap);
+        assert!(alice.events.is_empty());
+        bus.bind_live_generation(8, "bob");
+        assert!(bus.is_verified_live_generation(8, "bob"));
+        assert!(!bus.creator_feed("bob", None, 0, 64, 2048).unwrap().gap);
+    }
+
     #[test]
     fn creator_feed_entropy_failure_is_explicit_and_does_not_disable_local_history() {
         let bus = EventBus::new(2);
@@ -1663,6 +1729,16 @@ mod feed_history_tests {
         publish_creator(&bus, "alice", "still in local history");
         assert!(bus.creator_feed("alice", None, 0, 64, 2048).is_err());
         assert_eq!(bus.feed_backfill(0, 64).events.len(), 1);
+        #[cfg(feature = "native-tiktok")]
+        {
+            // Entropy failure only disables the feed, not an independently
+            // verified native creator or Owner automation context.
+            bus.bind_live_generation(3, "alice");
+            assert!(bus.is_verified_live_generation(3, "alice"));
+            bus.bind_live_generation(3, "bob");
+            assert!(!bus.is_verified_live_generation(3, "alice"));
+            assert!(!bus.is_verified_live_generation(3, "bob"));
+        }
     }
 
     #[test]

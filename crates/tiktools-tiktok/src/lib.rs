@@ -24,8 +24,10 @@ use thiserror::Error;
 use tokio::sync::broadcast;
 
 mod lifecycle;
+mod loss_tracking;
 mod retry;
 pub use lifecycle::{ConnectionSnapshot, ConnectionState, StampedClientEvent};
+pub use loss_tracking::{LostGeneration, TrackedReceiveError, TrackedReceiver};
 
 pub mod discovery;
 pub mod events;
@@ -55,6 +57,10 @@ pub struct DiscoveryResult {
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionInfo {
     pub unique_id: String,
+    /// Native-only evidence that discovery tied this creator to this room.
+    /// RPC/JSON input cannot supply this authority.
+    #[serde(skip)]
+    pub verified_creator: Option<String>,
     pub room_id: String,
     pub title: String,
     pub nickname: String,
@@ -476,6 +482,12 @@ impl NativeTikTokClient {
         self.events.subscribe_stamped()
     }
 
+    /// Subscribe to the same bounded broadcast with advisory, generation-
+    /// scoped attribution for skipped events when its history is sufficient.
+    pub fn subscribe_stamped_with_loss(&self) -> TrackedReceiver {
+        self.events.subscribe_stamped_with_loss()
+    }
+
     pub fn connection_snapshot(&self) -> ConnectionSnapshot {
         self.owner.snapshot()
     }
@@ -717,14 +729,19 @@ async fn initialize_connection(
         .await?;
     tracing::info!(room_id = %room_id, "TikTok live WebSocket connected");
 
+    let verified_creator =
+        verified_room_creator(&unique_id, &room_id, room_info.as_ref(), lookup.as_ref());
     let info = ConnectionInfo {
-        unique_id: room_info
-            .as_ref()
-            .and_then(|info| {
-                (!info.owner.unique_id.is_empty()).then(|| info.owner.unique_id.clone())
-            })
-            .or_else(|| lookup.as_ref().map(|room| room.unique_id.clone()))
-            .unwrap_or_else(|| unique_id.clone()),
+        unique_id: verified_creator.clone().unwrap_or_else(|| {
+            room_info
+                .as_ref()
+                .and_then(|info| {
+                    (!info.owner.unique_id.is_empty()).then(|| info.owner.unique_id.clone())
+                })
+                .or_else(|| lookup.as_ref().map(|room| room.unique_id.clone()))
+                .unwrap_or_else(|| unique_id.clone())
+        }),
+        verified_creator,
         room_id: room_id.clone(),
         title: room_info
             .as_ref()
@@ -1041,6 +1058,142 @@ fn gift_info(gift: ttl_sign_core::Gift) -> GiftInfo {
 fn clean_unique_id(value: &str) -> Option<String> {
     let value = value.trim().trim_start_matches('@');
     (!value.is_empty()).then_some(value.to_owned())
+}
+
+/// Only discovery results bound to the selected room can authorize a
+/// creator-scoped controller or delegated execution. The requested handle and
+/// a caller-provided room id are not evidence of each other's identity.
+fn verified_room_creator(
+    requested: &str,
+    selected_room: &str,
+    info: Option<&ttl_sign_core::room::RoomInfo>,
+    lookup: Option<&ttl_sign_core::room::RoomLookup>,
+) -> Option<String> {
+    let requested = clean_unique_id(requested)?;
+    if requested.len() > 256 || requested.chars().any(char::is_control) {
+        return None;
+    }
+    let lookup_creator = match lookup {
+        Some(found) => {
+            if !found.is_live() || found.room_id != selected_room {
+                return None;
+            }
+            let owner = clean_unique_id(&found.unique_id)?;
+            if owner != requested {
+                return None;
+            }
+            Some(owner)
+        }
+        None => None,
+    };
+    match info {
+        Some(found) => {
+            if found.room_id != selected_room {
+                return None;
+            }
+            let owner = clean_unique_id(&found.owner.unique_id)?;
+            if owner != requested {
+                return None;
+            }
+            if lookup_creator
+                .as_ref()
+                .is_some_and(|lookup| lookup != &owner)
+            {
+                return None;
+            }
+            Some(owner)
+        }
+        None => lookup_creator,
+    }
+}
+
+#[cfg(test)]
+mod verified_room_tests {
+    use super::*;
+    use ttl_sign_core::room::{RoomInfo, RoomLookup, RoomOwner};
+
+    #[test]
+    fn selected_room_and_owner_must_both_match_discovery() {
+        let room = "7300000000000000001";
+        let lookup = RoomLookup {
+            unique_id: "alice".into(),
+            room_id: room.into(),
+            nickname: String::new(),
+            status: 2,
+            title: String::new(),
+        };
+        let mut info = RoomInfo {
+            room_id: room.into(),
+            owner: RoomOwner {
+                unique_id: "alice".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        assert_eq!(verified_room_creator("alice", room, None, None), None);
+        assert_eq!(
+            verified_room_creator("alice", room, None, Some(&lookup)).as_deref(),
+            Some("alice")
+        );
+        assert_eq!(
+            verified_room_creator("alice", room, Some(&info), None).as_deref(),
+            Some("alice")
+        );
+        assert_eq!(
+            verified_room_creator("alice", room, Some(&info), Some(&lookup)).as_deref(),
+            Some("alice")
+        );
+        info.room_id = "7300000000000000002".into();
+        assert_eq!(
+            verified_room_creator("alice", room, Some(&info), Some(&lookup)),
+            None
+        );
+        info.room_id = room.into();
+        info.owner.unique_id = "bob".into();
+        assert_eq!(
+            verified_room_creator("alice", room, Some(&info), None),
+            None
+        );
+        assert_eq!(
+            verified_room_creator("alice", room, Some(&info), Some(&lookup)),
+            None
+        );
+        info.owner.unique_id.clear();
+        assert_eq!(
+            verified_room_creator("alice", room, Some(&info), Some(&lookup)),
+            None
+        );
+        let mut wrong = lookup.clone();
+        wrong.room_id = "7300000000000000002".into();
+        assert_eq!(
+            verified_room_creator("alice", room, None, Some(&wrong)),
+            None
+        );
+        wrong = lookup.clone();
+        wrong.unique_id = "bob".into();
+        assert_eq!(
+            verified_room_creator("alice", room, None, Some(&wrong)),
+            None
+        );
+        wrong = lookup;
+        wrong.status = 4;
+        assert_eq!(
+            verified_room_creator("alice", room, None, Some(&wrong)),
+            None
+        );
+    }
+
+    #[test]
+    fn connection_json_cannot_create_native_identity_evidence() {
+        let info: ConnectionInfo = serde_json::from_value(serde_json::json!({
+            "uniqueId": "alice", "verifiedCreator": "alice", "roomId": "room",
+            "title": "", "nickname": "", "avatarUrl": null,
+            "viewers": 0, "totalUsers": 0, "gifts": []
+        }))
+        .unwrap();
+        assert_eq!(info.unique_id, "alice");
+        assert!(info.verified_creator.is_none());
+    }
 }
 
 fn default_preset() -> ttl_sign_core::Preset {

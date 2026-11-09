@@ -7,7 +7,11 @@ use std::{
 use super::*;
 #[cfg(feature = "persistence")]
 mod approved_observer;
-#[cfg(all(feature = "cloud-auth", feature = "persistence", feature = "plugin-install"))]
+#[cfg(all(
+    feature = "cloud-auth",
+    feature = "persistence",
+    feature = "plugin-install"
+))]
 mod v2_mutation_integration;
 use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
@@ -374,6 +378,7 @@ async fn native_avatar_reaches_ui_points_and_room_tops() {
             unique_id: "creator".to_owned(),
             room_id: "room-1".to_owned(),
             connection_id: "connection-1".to_owned(),
+            creator_verified: true,
         });
 
     // Unit boundary: the UI shape and the automation user both carry it.
@@ -382,7 +387,10 @@ async fn native_avatar_reaches_ui_points_and_room_tops() {
         comment: "hello".to_owned(),
         ..Default::default()
     }));
-    let (ui_event, _, options, _) = core.ui_event_and_points(&chat).expect("chat maps");
+    let captured = recover_rwlock_read(&core.connection_context, "test context").clone();
+    let (ui_event, _, options, _) = core
+        .ui_event_and_points(&chat, captured.as_ref())
+        .expect("chat maps");
     assert_eq!(ui_event["avatarUrl"], AVATAR);
     assert_eq!(options.avatar_url.as_deref(), Some(AVATAR));
     let automation = core.normalize_native_event(&chat).expect("chat normalizes");
@@ -3005,6 +3013,7 @@ async fn committed_point_awards_feed_points_rankings() {
         unique_id: "creator".into(),
         room_id: "room".into(),
         connection_id: "session".into(),
+        creator_verified: true,
     };
     core.ranking_create(Definition {
         schema_version: 1,

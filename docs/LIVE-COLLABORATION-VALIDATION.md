@@ -52,9 +52,14 @@ among the current grant's creators and clears old rows on a scope or connection
 change; it polls every two seconds and retains at most 100 displayed rows.
 
 The gap flag also reports known ingress drops attributable to a stamped native
-generation. The pump binds a generation from its native Connected event, and
-the worker can bind from a matching trusted context; event JSON cannot bind a
-creator. A drop observed first remains pending until that generation is bound.
+generation. The pump binds a generation only when native discovery verified
+both the selected room and the requested creator. A room-info response must
+name that exact room and owner; a valid user lookup must name the same room
+and creator. A caller-provided handle, including when explicit-room metadata
+fails, remains a display label and cannot grant a scoped feed or delegated
+execution. Provenance is private native metadata and cannot be supplied by
+JSON. Unknown or rejected generations do not become trusted by later events.
+A drop observed first remains pending until that generation is verified.
 Each bound creator stream keeps a sticky warning without counts until its
 bounded in-memory stream is evicted or the process restarts. Conflicting
 generation bindings or more than 128 unresolved generations make the scoped
@@ -62,10 +67,25 @@ feed unavailable, rather than attributing loss to an uncertain creator.
 The 128 most recent generation bindings are retained; a later loss for an
 evicted generation again waits for a trusted binding. This is a conservative
 signal: a dropped packet can be a type omitted from the scoped projection.
-Upstream `broadcast::Lagged` has no generation and cannot be attributed safely;
-loss of unknown generations that never bind, an aborted worker's remaining
-items, and process failure may also go unreported. A false gap result does not
+The native broadcast uses a bounded journal of generation runs and native
+Connected identities to attribute a skipped range when it is completely
+covered. It preserves the original broadcast and never waits for bookkeeping
+on the sending path. Concurrent untracked sends, lost history, ambiguous or
+evicted identities produce an unattributable loss, never an inferred creator.
+Loss of unknown generations that never bind, an aborted worker's remaining
+items, and process failure may also go unreported. The UI always warns that
+events can be missing even when no gap is shown. A false gap result does not
 prove a complete LIVE archive.
+
+An unverified room remains available locally, but its supplied handle cannot
+authorize scoped status, feed or delegated effects. Owner rules receive an
+event without a creator field and cannot promote that event to delegated
+authority. Creator-scoped aggregation and competition participation remain
+unavailable until identity is verified. Connection and disconnection paths
+recheck generation evidence after asynchronous work; a contradiction during
+an already-started local metadata write can still leave local session or
+creator metadata. These checks are not an atomic fence against a later
+generation change.
 
 Executed evidence: five EventBus cases cover creator isolation, independent
 retention, pending and ambiguous loss, forged JSON and entropy failure; 17
@@ -78,6 +98,19 @@ stale connection rejection. Thirteen focused frontend model/component cases
 cover selection, switching after a feed error, stale in-flight pages, cursor resets and rendering; Vue type
 checking also passed. These use local fixtures and do not prove a real TikTok
 LIVE, two physical PCs, sustained-load behavior, or durable feed replay.
+
+Seven focused native-journal tests cover the unchanged broadcast, overload
+across creator generations, bounded-history eviction, conflicting identities,
+unverified labels, contended senders, and subscriptions racing an in-flight
+untracked send. A Core test confirms an attributed loss warns only its matching
+creator and an unattributed loss does not disclose another creator's activity.
+Another Core fixture runs in an isolated subprocess, injects a Connected-state
+snapshot only in test code, delivers native Connected through the real admission and worker, and
+checks that only the exact verified creator, room and current generation pass
+the scoped status predicate. It also checks disconnect, replacement and an
+unverified fallback. A separate ControlApi test with a real scoped grant
+rejects an unverified status. These fixtures do not establish a positive
+ControlApi-to-TikTok connection or replace physical two-device acceptance.
 
 ## Remote heartbeat cancellation
 

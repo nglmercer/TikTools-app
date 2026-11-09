@@ -58,13 +58,19 @@ impl AppCore {
             unique_id: info.unique_id.clone(),
             room_id: info.room_id.clone(),
             connection_id: format!("connection-{sequence}"),
+            creator_verified: info.verified_creator.as_deref() == Some(info.unique_id.as_str())
+                && self
+                    .events
+                    .is_verified_live_generation(sequence, &info.unique_id),
         };
         *recover_rwlock_write(&self.connection_context, "connection context") =
             Some(context.clone());
 
         #[cfg(feature = "persistence")]
-        self.write_live_session(&info.unique_id, Some(info.room_id.as_str()), true)
-            .await;
+        if context.creator_verified {
+            self.write_live_session(&info.unique_id, Some(info.room_id.as_str()), true)
+                .await;
+        }
 
         let gifts = info
             .gifts
@@ -84,21 +90,24 @@ impl AppCore {
             let database = Arc::clone(&self.db);
             let info_for_db = info.clone();
             let gifts_for_db = gifts.clone();
+            let creator_verified = context.creator_verified;
             match tokio::time::timeout(
                 Duration::from_secs(2),
                 tokio::task::spawn_blocking(move || {
                     // Creator/creator-list reads fed only the removed legacy
                     // pushes; the frontend now refreshes via RPC on
                     // `creator.changed`. The writes below are still needed.
-                    if let Err(error) = database.save_creator(
-                        &info_for_db.unique_id,
-                        Some(&info_for_db.room_id),
-                        Some(&info_for_db.nickname),
-                        info_for_db.avatar_url.as_deref(),
-                        Some(&info_for_db.title),
-                        Some(&info_for_db.unique_id),
-                    ) {
-                        tracing::warn!(%error, "could not persist connected creator");
+                    if creator_verified {
+                        if let Err(error) = database.save_creator(
+                            &info_for_db.unique_id,
+                            Some(&info_for_db.room_id),
+                            Some(&info_for_db.nickname),
+                            info_for_db.avatar_url.as_deref(),
+                            Some(&info_for_db.title),
+                            Some(&info_for_db.unique_id),
+                        ) {
+                            tracing::warn!(%error, "could not persist connected creator");
+                        }
                     }
                     let app_state = database
                         .load_app_state()
@@ -140,6 +149,10 @@ impl AppCore {
         if self.live.connection_snapshot().generation != sequence {
             return;
         }
+        let creator_verified = context.creator_verified
+            && self
+                .events
+                .is_verified_live_generation(sequence, &context.unique_id);
         self.events
             .publish_domain(crate::events::DomainEvent::LiveConnected {
                 unique_id: Some(info.unique_id.clone()),
@@ -147,12 +160,14 @@ impl AppCore {
             });
         // Re-send a snapshot when attaching to an existing LIVE room so
         // reconnects restore its ranking without replaying every like.
-        self.events
-            .publish_domain(crate::events::DomainEvent::LiveLikesRanking {
-                creator_id: context.unique_id.clone(),
-                room_id: context.room_id.clone(),
-                leaders: self.live_totals.like_leaderboard(&context),
-            });
+        if creator_verified {
+            self.events
+                .publish_domain(crate::events::DomainEvent::LiveLikesRanking {
+                    creator_id: context.unique_id.clone(),
+                    room_id: context.room_id.clone(),
+                    leaders: self.live_totals.like_leaderboard(&context),
+                });
+        }
         self.events
             .publish_domain(crate::events::DomainEvent::CreatorChanged {
                 unique_id: Some(info.unique_id.clone()),
@@ -170,17 +185,26 @@ impl AppCore {
         self.events
             .publish_domain(crate::events::DomainEvent::GiftsCatalog { gifts });
 
-        self.queue_automation_event(AutomationEvent::owner(
-            self.make_automation_event(
+        let connected_data = serde_json::to_value(crate::contracts::ConnectionAutomationData {
+            unique_id: info.unique_id,
+            room_id: info.room_id,
+        })
+        .expect("connection automation data must serialize");
+        let connected = if creator_verified {
+            self.make_automation_event_with_context(
                 "tiktok.connected",
-                serde_json::to_value(crate::contracts::ConnectionAutomationData {
-                    unique_id: info.unique_id,
-                    room_id: info.room_id,
-                })
-                .expect("connection automation data must serialize"),
+                connected_data,
                 None,
-            ),
-        ));
+                &context,
+            )
+        } else {
+            self.make_automation_event_without_context("tiktok.connected", connected_data, None)
+        };
+        self.queue_automation_event(if creator_verified {
+            AutomationEvent::owner(connected)
+        } else {
+            AutomationEvent::owner_without_delegation(connected)
+        });
     }
     #[cfg(feature = "native-tiktok")]
     pub(crate) async fn handle_live_event(self: &Arc<Self>, event: NativeLiveEvent) {
@@ -207,8 +231,42 @@ impl AppCore {
         if self.live_dedup.check_duplicate(&event) {
             return None;
         }
-        let context = recover_rwlock_read(&self.connection_context, "connection context").clone();
-        let totals = self.live_totals.observe(&event, context.as_ref());
+        let raw_context = recover_rwlock_read(&self.connection_context, "connection context")
+            .clone()
+            .filter(|context| {
+                generation.is_none_or(|generation| {
+                    context.connection_id == format!("connection-{generation}")
+                })
+            });
+        let context = raw_context.clone().filter(|context| {
+            context.creator_verified
+                && generation.is_none_or(|generation| {
+                    self.events
+                        .is_verified_live_generation(generation, &context.unique_id)
+                })
+        });
+        // Local high-water marks must not merge unrelated unverified rooms,
+        // but their caller-provided creator label is never authority. If the
+        // context is missing entirely, isolate by the native generation.
+        let totals_context = context
+            .clone()
+            .or_else(|| {
+                raw_context.as_ref().map(|local| LiveContext {
+                    unique_id: String::new(),
+                    room_id: local.room_id.clone(),
+                    connection_id: local.connection_id.clone(),
+                    creator_verified: false,
+                })
+            })
+            .or_else(|| {
+                generation.map(|generation| LiveContext {
+                    unique_id: String::new(),
+                    room_id: format!("unattributed-generation-{generation}"),
+                    connection_id: format!("connection-{generation}"),
+                    creator_verified: false,
+                })
+            });
+        let totals = self.live_totals.observe(&event, totals_context.as_ref());
         // The replay guard and LiveTotals precede this adapter. Gift streaks
         // contribute only their accepted increments, never repeat totals.
         if let Some(context) = context.as_ref() {
@@ -404,7 +462,9 @@ impl AppCore {
             }
             tracing::warn!(msg_id = %event.msg_id(), "gift aggregate capacity exhausted; original preserved without guessing quantities");
         }
-        let mut automation = self.normalize_native_event(&event);
+        // Use the same verified generation snapshot throughout. Rereading
+        // the mutable presentation context here could attach another room.
+        let mut automation = self.normalize_native_event_with_context(&event, context.as_ref());
         let correlation = automation
             .as_ref()
             .and_then(|event| event["id"].as_str())
@@ -418,7 +478,11 @@ impl AppCore {
         // Originals are delivered before any persistence work. Backfill only
         // reads their journal; it never calls this admission path again.
         if let Some(automation) = automation {
-            let envelope = AutomationEvent::owner(automation);
+            let envelope = if context.is_some() {
+                AutomationEvent::owner(automation)
+            } else {
+                AutomationEvent::owner_without_delegation(automation)
+            };
             #[cfg(feature = "persistence")]
             let envelope = match context.as_ref().and_then(|context| {
                 crate::services::effects::EffectExecution::native(&event, context).ok()
@@ -432,7 +496,7 @@ impl AppCore {
             self.queue_automation_event(envelope);
         }
         let points = if let Some((mut ui, action, mut options, reason)) =
-            self.ui_event_and_points(&event)
+            self.ui_event_and_points(&event, context.as_ref())
         {
             ui["correlationId"] = json!(correlation);
             // Presentation-only snapshot: automation and points still consume
@@ -481,13 +545,13 @@ impl AppCore {
                         .filter(|c| c.connection_id == format!("connection-{generation}"))
                 })
                 .map(|c| c.unique_id.as_str());
-            if let (Some(generation), Some(creator)) = (generation, creator) {
-                self.events.bind_live_generation(generation, creator);
-            } else if let Some(generation) = generation {
-                // The global UI still receives the event, but a mismatched or
-                // absent context prevents scoped delivery. Attribute that
-                // loss only through the native generation binding.
-                self.events.record_live_ingress_gap(generation);
+            if creator.is_none() {
+                if let Some(generation) = generation {
+                    // The global UI still receives the event, but a mismatched or
+                    // absent context prevents scoped delivery. Attribute that
+                    // loss only through the native generation binding.
+                    self.events.record_live_ingress_gap(generation);
+                }
             }
             self.events.publish_live_event_from_creator(ui, creator);
             if let (tiktools_tiktok::events::CanonicalLiveEvent::Like(like), Some(context)) =
@@ -1149,10 +1213,16 @@ impl AppCore {
                             None,
                             context,
                         ),
-                        None => self.make_automation_event("points.awarded", data, None),
+                        None => {
+                            self.make_automation_event_without_context("points.awarded", data, None)
+                        }
                     };
                     event["id"] = json!(format!("points-awarded-{}", effect.correlation));
-                    self.queue_automation_event(AutomationEvent::owner(event));
+                    self.queue_automation_event(if effect.context.is_some() {
+                        AutomationEvent::owner(event)
+                    } else {
+                        AutomationEvent::owner_without_delegation(event)
+                    });
                 }
                 self.emit_leaderboard_if_due();
             }

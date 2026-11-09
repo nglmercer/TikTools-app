@@ -56,6 +56,21 @@ fn deadline_from_env(name: &str, fallback: Duration) -> Duration {
         .unwrap_or(fallback)
 }
 
+#[cfg(feature = "native-tiktok")]
+fn mark_scoped_broadcast_loss(
+    events: &crate::EventBus,
+    generations: Option<Vec<tiktools_tiktok::LostGeneration>>,
+) {
+    if let Some(generations) = generations {
+        for lost in generations {
+            if let Some(creator) = &lost.creator {
+                events.bind_live_generation(lost.generation, creator);
+            }
+            events.record_live_ingress_gap(lost.generation);
+        }
+    }
+}
+
 impl AppCore {
     #[cfg(feature = "native-tiktok")]
     pub(crate) fn start_live_event_pump(self: &Arc<Self>) {
@@ -68,7 +83,7 @@ impl AppCore {
         if self.live_pump_started.swap(true, Ordering::AcqRel) {
             return;
         }
-        let mut receiver = self.live.subscribe_stamped();
+        let mut receiver = self.live.subscribe_stamped_with_loss();
         let pump_core = Arc::clone(self);
         let lag_core = Arc::clone(self);
         tracing::info!("native TikTok event pump started");
@@ -97,7 +112,8 @@ impl AppCore {
                         // counted instead of vanishing with this task.
                         admit_stamped_event(&pump_core, &sender, event).await;
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(count)) => {
+                    Err(tiktools_tiktok::TrackedReceiveError::Lagged { count, generations }) => {
+                        mark_scoped_broadcast_loss(&lag_core.events, generations);
                         lag_core.live_ingress.lagged.fetch_add(1, Ordering::Relaxed);
                         lag_core.record_event_gap();
                         lag_core.aggregations.ingress_loss(count);
@@ -108,7 +124,7 @@ impl AppCore {
                             .mark_like_ingress_loss(context.as_ref());
                         tracing::warn!(count, "native TikTok event receiver lagged; analytics and event stream incomplete")
                     }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    Err(tiktools_tiktok::TrackedReceiveError::Closed) => {
                         tracing::warn!("native TikTok event stream closed");
                         break;
                     }
@@ -225,6 +241,25 @@ mod tests {
     struct NoopEmitter;
     impl HostEmitter for NoopEmitter {
         fn emit(&self, _: HostMessage) {}
+    }
+
+    #[test]
+    fn broadcast_loss_marks_only_its_verified_creator() {
+        let bus = EventBus::new(16);
+        super::mark_scoped_broadcast_loss(
+            &bus,
+            Some(vec![tiktools_tiktok::LostGeneration {
+                generation: 1,
+                creator: Some("alice".into()),
+            }]),
+        );
+        let alice = bus.creator_feed("alice", None, 0, 64, 2048).unwrap();
+        let bob = bus.creator_feed("bob", None, 0, 64, 2048).unwrap();
+        assert!(alice.gap);
+        assert!(!bob.gap);
+        // Unattributable overload must not reveal another creator's activity.
+        super::mark_scoped_broadcast_loss(&bus, None);
+        assert!(!bus.creator_feed("bob", None, 0, 64, 2048).unwrap().gap);
     }
 
     /// Registers a stand-in for the pump that mirrors its shutdown

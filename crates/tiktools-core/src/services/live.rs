@@ -15,6 +15,8 @@ pub struct LiveService {
     connected: AtomicBool,
     #[cfg(feature = "native-tiktok")]
     client: Arc<NativeTikTokClient>,
+    #[cfg(all(test, feature = "native-tiktok"))]
+    snapshot_override: std::sync::RwLock<Option<tiktools_tiktok::ConnectionSnapshot>>,
 }
 
 impl Default for LiveService {
@@ -32,6 +34,8 @@ impl LiveService {
     pub fn with_native_config(config: NativeTikTokConfig) -> Self {
         Self {
             client: Arc::new(NativeTikTokClient::new(config)),
+            #[cfg(test)]
+            snapshot_override: std::sync::RwLock::new(None),
         }
     }
 
@@ -45,7 +49,7 @@ impl LiveService {
     pub fn is_connected(&self) -> bool {
         #[cfg(feature = "native-tiktok")]
         {
-            self.client.connection_snapshot().state == tiktools_tiktok::ConnectionState::Connected
+            self.connection_snapshot().state == tiktools_tiktok::ConnectionState::Connected
         }
         #[cfg(not(feature = "native-tiktok"))]
         {
@@ -59,15 +63,25 @@ impl LiveService {
     }
 
     #[cfg(feature = "native-tiktok")]
-    pub(crate) fn subscribe_stamped(
-        &self,
-    ) -> tokio::sync::broadcast::Receiver<tiktools_tiktok::StampedClientEvent> {
-        self.client.subscribe_stamped()
+    pub(crate) fn subscribe_stamped_with_loss(&self) -> tiktools_tiktok::TrackedReceiver {
+        self.client.subscribe_stamped_with_loss()
     }
 
     #[cfg(feature = "native-tiktok")]
     pub fn connection_snapshot(&self) -> tiktools_tiktok::ConnectionSnapshot {
+        #[cfg(test)]
+        if let Some(snapshot) = *self.snapshot_override.read().unwrap() {
+            return snapshot;
+        }
         self.client.connection_snapshot()
+    }
+
+    #[cfg(all(test, feature = "native-tiktok"))]
+    pub(crate) fn set_connection_snapshot_for_test(
+        &self,
+        snapshot: tiktools_tiktok::ConnectionSnapshot,
+    ) {
+        *self.snapshot_override.write().unwrap() = Some(snapshot);
     }
 
     #[cfg(feature = "native-tiktok")]

@@ -167,21 +167,52 @@ impl AppCore {
     pub(crate) async fn publish_disconnected_event(self: &Arc<Self>) {
         let context = recover_rwlock_write(&self.connection_context, "connection context").take();
         let Some(context) = context else { return };
+        #[cfg(feature = "native-tiktok")]
+        let creator_verified = context.creator_verified
+            && context
+                .connection_id
+                .strip_prefix("connection-")
+                .and_then(|value| value.parse::<u64>().ok())
+                .is_some_and(|generation| {
+                    context.connection_id == format!("connection-{generation}")
+                        && self
+                            .events
+                            .is_verified_live_generation(generation, &context.unique_id)
+                });
+        #[cfg(not(feature = "native-tiktok"))]
+        let creator_verified = context.creator_verified;
         #[cfg(feature = "persistence")]
-        self.write_live_session(&context.unique_id, None, false)
-            .await;
-        self.publish_automation_event(AutomationEvent::owner(
-            self.make_automation_event_with_context(
-                "tiktok.disconnected",
-                serde_json::to_value(crate::contracts::ConnectionAutomationData {
-                    unique_id: context.unique_id.clone(),
-                    room_id: context.room_id.clone(),
-                })
-                .expect("disconnection automation data must serialize"),
-                None,
-                &context,
-            ),
-        ))
+        if creator_verified {
+            self.write_live_session(&context.unique_id, None, false)
+                .await;
+        }
+        #[cfg(feature = "native-tiktok")]
+        let creator_verified = creator_verified
+            && context
+                .connection_id
+                .strip_prefix("connection-")
+                .and_then(|value| value.parse::<u64>().ok())
+                .is_some_and(|generation| {
+                    context.connection_id == format!("connection-{generation}")
+                        && self
+                            .events
+                            .is_verified_live_generation(generation, &context.unique_id)
+                });
+        let data = serde_json::to_value(crate::contracts::ConnectionAutomationData {
+            unique_id: context.unique_id.clone(),
+            room_id: context.room_id.clone(),
+        })
+        .expect("disconnection automation data must serialize");
+        let event = if creator_verified {
+            self.make_automation_event_with_context("tiktok.disconnected", data, None, &context)
+        } else {
+            self.make_automation_event_without_context("tiktok.disconnected", data, None)
+        };
+        self.publish_automation_event(if creator_verified {
+            AutomationEvent::owner(event)
+        } else {
+            AutomationEvent::owner_without_delegation(event)
+        })
         .await;
     }
 }

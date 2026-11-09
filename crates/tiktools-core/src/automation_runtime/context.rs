@@ -21,6 +21,9 @@ pub(crate) struct ExecutionContext {
     authority: Authority,
     depth: u8,
     script_flow: bool,
+    // A native event without a verified creator may run the Owner's rules,
+    // but must never gain delegated authority through a saved rule or emit.
+    allow_delegation: bool,
     #[cfg(feature = "persistence")]
     execution: Option<crate::services::effects::EffectExecution>,
 }
@@ -32,15 +35,22 @@ impl ExecutionContext {
             authority: Authority::Owner,
             depth: 0,
             script_flow: false,
+            allow_delegation: true,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
         }
+    }
+    pub(crate) fn owner_without_delegation() -> Self {
+        let mut context = Self::owner();
+        context.allow_delegation = false;
+        context
     }
     pub(crate) fn denied() -> Self {
         Self {
             authority: Authority::Denied,
             depth: 0,
             script_flow: false,
+            allow_delegation: true,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
         }
@@ -57,6 +67,7 @@ impl ExecutionContext {
             authority: Authority::Restricted(subjects),
             depth: 0,
             script_flow: false,
+            allow_delegation: true,
             #[cfg(feature = "persistence")]
             execution: crate::services::effects::EffectExecution::fresh().ok(),
         })
@@ -83,6 +94,7 @@ impl ExecutionContext {
             authority: self.authority.clone(),
             depth,
             script_flow: self.script_flow,
+            allow_delegation: self.allow_delegation,
             #[cfg(feature = "persistence")]
             execution: self.execution.clone(),
         })
@@ -133,10 +145,15 @@ impl ExecutionContext {
                 }
             }
         };
+        let allow_delegation = self.allow_delegation && other.allow_delegation;
+        if !allow_delegation && !matches!(authority, Authority::Owner | Authority::Denied) {
+            return Err("unverified LIVE input cannot authorize delegated execution");
+        }
         Ok(Self {
             authority,
             depth: self.depth.max(other.depth),
             script_flow: self.script_flow || other.script_flow,
+            allow_delegation,
             #[cfg(feature = "persistence")]
             execution: self.execution.clone(),
         })
@@ -453,6 +470,7 @@ impl AppCore {
                 },
                 depth: 0,
                 script_flow: false,
+                allow_delegation: true,
                 #[cfg(feature = "persistence")]
                 execution: crate::services::effects::EffectExecution::fresh().ok(),
             })

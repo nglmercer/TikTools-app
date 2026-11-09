@@ -422,6 +422,7 @@ fn native_roots_survive_reconnect_and_restart_but_distinguish_source_room_and_ty
         unique_id: "creator".into(),
         room_id: "room-1".into(),
         connection_id: "connection-a".into(),
+        creator_verified: true,
     };
     let original = key(&EffectExecution::native(&event, &context).unwrap());
     ticket(&f.journal, original.clone())

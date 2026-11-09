@@ -22,6 +22,7 @@ impl AppCore {
     pub(crate) fn ui_event_and_points(
         &self,
         event: &NativeLiveEvent,
+        context: Option<&LiveContext>,
     ) -> Option<(serde_json::Value, PointAction, AwardOptions, &'static str)> {
         let user = native_user(event)?;
         let unique_id = clean_unique_id(&user.unique_id).unwrap_or_else(|| "viewer".to_owned());
@@ -178,9 +179,7 @@ impl AppCore {
         // `msgId` to drop the replay instead of re-triggering the
         // event. String form keeps large snowflake ids JS-safe.
         if let Some(object) = ui_event.as_object_mut() {
-            if let Some(context) =
-                recover_rwlock_read(&self.connection_context, "connection context").as_ref()
-            {
+            if let Some(context) = context {
                 object.insert("roomId".to_owned(), json!(context.room_id));
                 object.insert("creatorId".to_owned(), json!(context.unique_id));
             }
@@ -191,12 +190,23 @@ impl AppCore {
         Some((ui_event, action, options, reason))
     }
     #[cfg(feature = "native-tiktok")]
+    #[cfg(test)]
     pub(crate) fn normalize_native_event(
         &self,
         event: &NativeLiveEvent,
     ) -> Option<serde_json::Value> {
         let context =
             recover_rwlock_read(&self.connection_context, "connection context").clone()?;
+        context.creator_verified.then_some(())?;
+        self.normalize_native_event_with_context(event, Some(&context))
+    }
+
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn normalize_native_event_with_context(
+        &self,
+        event: &NativeLiveEvent,
+        context: Option<&LiveContext>,
+    ) -> Option<serde_json::Value> {
         let (event_type, data, user) = match &event.base {
             tiktools_tiktok::events::CanonicalLiveEvent::Chat(chat) => (
                 "tiktok.chat",
@@ -300,28 +310,26 @@ impl AppCore {
             ),
             tiktools_tiktok::events::CanonicalLiveEvent::Unknown { .. } => return None,
         };
-        Some(self.make_automation_event_with_context(event_type, data, user, &context))
+        Some(match context {
+            Some(context) => {
+                self.make_automation_event_with_context(event_type, data, user, context)
+            }
+            None => self.make_automation_event_without_context(event_type, data, user),
+        })
     }
-    #[cfg(feature = "native-tiktok")]
-    pub(crate) fn make_automation_event(
+    pub(crate) fn make_automation_event_without_context(
         &self,
         event_type: &str,
         data: serde_json::Value,
         user: Option<serde_json::Value>,
     ) -> serde_json::Value {
-        let context = recover_rwlock_read(&self.connection_context, "connection context").clone();
-        match context {
-            Some(context) => {
-                self.make_automation_event_with_context(event_type, data, user, &context)
-            }
-            None => json!({
+        json!({
                 "id": format!("{}-{}", event_type.replace('.', "-"), self.next_sequence()),
                 "type": event_type,
                 "timestamp": now_millis(),
                 "data": data,
                 "user": user
-            }),
-        }
+        })
     }
     pub(crate) fn make_automation_event_with_context(
         &self,
@@ -365,6 +373,7 @@ mod regression_tests {
             unique_id: "batch-test-creator".into(),
             room_id: "batch-test-room".into(),
             connection_id: "batch-test-connection".into(),
+            creator_verified: true,
         });
         core.automation.replace_snapshot(&json!({
             "actions": [
@@ -445,6 +454,7 @@ mod regression_tests {
             unique_id: "batch-test-creator".into(),
             room_id: "batch-test-room".into(),
             connection_id: "batch-test-connection".into(),
+            creator_verified: true,
         };
         let leaders = core.live_totals.like_leaderboard(&context);
         assert_eq!(leaders.len(), 1);
@@ -496,10 +506,12 @@ mod regression_tests {
     #[tokio::test]
     async fn deeply_nested_live_gift_reaches_ui_and_original_automation() {
         let core = Arc::new(AppCore::new(Arc::new(Emitter)));
+        core.events.bind_live_generation(7, "fixture-creator");
         *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
             unique_id: "fixture-creator".into(),
             room_id: "fixture-room".into(),
             connection_id: "connection-7".into(),
+            creator_verified: true,
         });
         let mut receiver = core.events.subscribe_projection();
         let events = tiktools_tiktok::events::decode_batch(
@@ -509,6 +521,22 @@ mod regression_tests {
         .unwrap();
         assert_eq!(events.len(), 1);
         let mut gift = events.into_iter().next().unwrap();
+        let captured = recover_rwlock_read(&core.connection_context, "test context")
+            .clone()
+            .unwrap();
+        *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
+            unique_id: "other-creator".into(),
+            room_id: "other-room".into(),
+            connection_id: "connection-8".into(),
+            creator_verified: true,
+        });
+        let (old_ui, _, _, _) = core.ui_event_and_points(&gift, Some(&captured)).unwrap();
+        assert_eq!(old_ui["creatorId"], "fixture-creator");
+        assert_eq!(old_ui["roomId"], "fixture-room");
+        let (unknown_ui, _, _, _) = core.ui_event_and_points(&gift, None).unwrap();
+        assert!(unknown_ui.get("creatorId").is_none());
+        assert!(unknown_ui.get("roomId").is_none());
+        *recover_rwlock_write(&core.connection_context, "test context") = Some(captured);
         let effect = core
             .prepare_live_event_with_generation(gift.clone(), Some(7))
             .unwrap();
@@ -533,6 +561,7 @@ mod regression_tests {
             unique_id: "fixture-creator".into(),
             room_id: "new-room".into(),
             connection_id: "connection-8".into(),
+            creator_verified: true,
         });
         gift.metadata.msg_id += 1;
         assert!(core
@@ -590,6 +619,7 @@ mod regression_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "connection".into(),
+            creator_verified: true,
         });
         let fixtures: [(&str, &[u8], &str); 3] = [
             (

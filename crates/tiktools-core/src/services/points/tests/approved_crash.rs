@@ -40,6 +40,7 @@ fn key() -> ApprovedPointsKey {
         unique_id: "crash-creator".into(),
         room_id: "crash-room".into(),
         connection_id: format!("process-{}", std::process::id()),
+        creator_verified: true,
     };
     EffectExecution::native(&event, &context)
         .unwrap()

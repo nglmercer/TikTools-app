@@ -35,6 +35,7 @@ impl AppCore {
                 generation: self.connection_sequence.load(Ordering::Acquire),
                 event: ClientEvent::Connected(tiktools_tiktok::ConnectionInfo {
                     unique_id: "synthetic-benchmark".to_owned(),
+                    verified_creator: Some("synthetic-benchmark".to_owned()),
                     room_id: "benchmark".to_owned(),
                     title: "Synthetic benchmark".to_owned(),
                     nickname: "Benchmark".to_owned(),
