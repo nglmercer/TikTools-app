@@ -46,6 +46,14 @@ absence with revision zero/retained tombstone. The inspection carries an opaque
 native token bound to epoch, connection, host instance, grant, family and ID.
 Only the latest inspection is valid.
 
+The optional field-based builder can prepare a disabled points action for a
+specific viewer or the viewer named by each triggering event. The latter uses
+the fixed public `event.user.uniqueId` template; it does not execute or submit
+the action. The host and owner still review and approve the saved definition,
+and each execution requires an event containing a viewer and the current
+viewer/points grants and limits. Preview, local save and host submission remain
+separate explicit steps.
+
 **Use this status as base** requires explicit confirmation. It chooses create
 for an absent target and replacement for an existing one, preserving your text.
 It does not save or send. **Save proposal on this PC** separately confirms

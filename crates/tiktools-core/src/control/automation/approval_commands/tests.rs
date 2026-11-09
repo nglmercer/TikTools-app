@@ -615,6 +615,21 @@ async fn dynamic_viewer_and_rounded_delta_are_checked_at_the_real_points_sink() 
         "error"
     );
     assert_eq!(f.points("bob"), 0.0);
+    let mut missing = input("alice");
+    missing["user"].as_object_mut().unwrap().remove("uniqueId");
+    assert_eq!(
+        crate::services::automation_approval_policy::render_template(
+            "{{event.user.uniqueId}}",
+            &missing,
+            256,
+        )
+        .unwrap(),
+        "",
+        "missing identity must never become a literal points target"
+    );
+    assert_eq!(execute(&f, "points", &missing).await["status"], "error");
+    assert_eq!(f.points("alice"), 2.0);
+    assert!(f.core().points_viewer("{{event.user.uniqueId}}").is_err());
     let mut rounded = grant();
     rounded.max_points_delta = Some(0.006);
     let rounded_author = f.pair(rounded);

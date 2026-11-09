@@ -140,6 +140,46 @@ it('prepares a literal-viewer points proposal only after explicit preview', asyn
   } finally { f.wrapper.unmount(); f.model.stop(); }
 });
 
+it('prepares points for the viewer in each triggering event, without sending or activating them', async () => {
+  const f = await setup('action');
+  try {
+    f.model.edit('existing private draft');
+    await f.wrapper.get('select').setValue('core.points');
+    await f.wrapper.findAll('select')[1]!.setValue('event');
+    const inputs = f.wrapper.findAll('input');
+    await inputs[0]!.setValue('Reward the participant');
+    await inputs[1]!.setValue('5');
+    expect(f.wrapper.text()).toContain('permissions are checked on every execution');
+    expect(f.wrapper.text()).toContain('this draft does not adjust points');
+    await f.button('Prepare draft').trigger('click');
+    expect(f.wrapper.get('dialog[open]').text()).toContain('{{event.user.uniqueId}}');
+    expect(f.model.text.value).toBe('existing private draft');
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(JSON.parse(f.model.text.value)).toEqual({ id: 'author.example', name: 'Reward the participant', enabled: false,
+      typeId: 'core.points', config: { uniqueId: '{{event.user.uniqueId}}', delta: 5 }, schemaVersion: 2 });
+    expect(f.model.saved.value).toBeNull();
+    expect(f.calls.map((call) => call.method)).toEqual(['controller.proposals.list']);
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
+it('invalidates a points preview when changing from the triggering viewer to a specific one', async () => {
+  const f = await setup('action');
+  try {
+    const original = f.model.text.value;
+    await f.wrapper.get('select').setValue('core.points');
+    await f.wrapper.findAll('select')[1]!.setValue('event');
+    await f.wrapper.findAll('input')[0]!.setValue('Reward');
+    await f.wrapper.findAll('input')[1]!.setValue('5');
+    await f.button('Prepare draft').trigger('click');
+    await f.wrapper.findAll('select')[1]!.setValue('specific');
+    expect(f.dialogButton('Use this draft').attributes('disabled')).toBeDefined();
+    await f.dialogButton('Use this draft').trigger('click');
+    expect(f.model.text.value).toBe(original);
+    expect(f.send).not.toHaveBeenCalled();
+  } finally { f.wrapper.unmount(); f.model.stop(); }
+});
+
 it('rejects dynamic, invalid, and excessive points targets without changing the draft', async () => {
   const f = await setup('action');
   try {

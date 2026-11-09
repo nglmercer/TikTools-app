@@ -11,6 +11,8 @@ const labels = computed(() => locale.value === 'es' ? {
   title: 'Crear una propuesta con campos', note: 'Genera un borrador inactivo. Antes de enviarlo tendrás que guardarlo y revisar el estado del anfitrión.',
   name: 'Nombre', actionType: 'Tipo de acción', log: 'Registrar un mensaje', delay: 'Esperar', points: 'Ajustar puntos de un espectador', message: 'Mensaje', milliseconds: 'Milisegundos',
   viewer: 'ID exacto del espectador', delta: 'Cambio de puntos', pointsNote: 'Usa un ID literal, sin @ ni variables. El propietario y el anfitrión deben aprobar el efecto y los permisos para ese espectador; este borrador no ajusta puntos.',
+  viewerTarget: 'Espectador que recibe el ajuste', specificViewer: 'Un espectador concreto', triggeringViewer: 'Quien origine el evento',
+  dynamicPointsNote: 'El ID se tomará de cada evento. El evento debe contener un espectador y sus permisos se comprobarán en cada ejecución. El propietario debe revisar y aprobar la definición; este borrador no ajusta puntos.',
   trigger: 'Cuándo ocurre', chat: 'Mensaje en el chat', gift: 'Regalo', like: 'Me gusta', follow: 'Seguir', share: 'Compartir', join: 'Ingreso',
   contains: 'El mensaje contiene (opcional)', actionId: 'ID de acción (opcional)', cooldown: 'Espera entre ejecuciones (ms)',
   actionNote: 'El anfitrión verificará el acceso a la acción. Sin una acción vinculada, el evento no hará nada.',
@@ -24,6 +26,8 @@ const labels = computed(() => locale.value === 'es' ? {
   title: 'Create a proposal with fields', note: 'Generate a disabled draft. Before sending, save it and inspect the host status.',
   name: 'Name', actionType: 'Action type', log: 'Log a message', delay: 'Wait', points: 'Adjust a viewer’s points', message: 'Message', milliseconds: 'Milliseconds',
   viewer: 'Exact viewer ID', delta: 'Points change', pointsNote: 'Use a literal ID without @ or variables. The owner and host must approve the effect and permissions for that viewer; this draft does not adjust points.',
+  viewerTarget: 'Viewer receiving the adjustment', specificViewer: 'A specific viewer', triggeringViewer: 'Viewer who triggers the event',
+  dynamicPointsNote: 'The ID comes from each event. The event must contain a viewer, and permissions are checked on every execution. The owner must review and approve the definition; this draft does not adjust points.',
   trigger: 'When it happens', chat: 'Chat message', gift: 'Gift', like: 'Like', follow: 'Follow', share: 'Share', join: 'Join',
   contains: 'Message contains (optional)', actionId: 'Action ID (optional)', cooldown: 'Delay between runs (ms)',
   actionNote: 'The host checks access to the action. Without a linked action, the event will do nothing.',
@@ -40,6 +44,7 @@ const actionType = ref<'core.log' | 'core.delay' | 'core.points'>('core.log');
 const message = ref('');
 const milliseconds = ref('1000');
 const viewer = ref('');
+const viewerTarget = ref<'specific' | 'event'>('specific');
 const delta = ref('');
 const trigger = ref<'tiktok.chat' | 'tiktok.gift' | 'tiktok.like' | 'tiktok.follow' | 'tiktok.share' | 'tiktok.join'>('tiktok.chat');
 const contains = ref('');
@@ -88,8 +93,9 @@ const draft = computed<string | null>(() => {
     }
     if (actionType.value === 'core.points') {
       const amount = pointsChange(delta.value);
-      if (!literalViewer(viewer.value) || amount === null) return null;
-      return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.points', config: { uniqueId: viewer.value, delta: amount }, schemaVersion: 2 }, null, 2);
+      if (amount === null || !['specific', 'event'].includes(viewerTarget.value) || (viewerTarget.value === 'specific' && !literalViewer(viewer.value))) return null;
+      const uniqueId = viewerTarget.value === 'event' ? '{{event.user.uniqueId}}' : viewer.value;
+      return JSON.stringify({ id, name: name.value, enabled: false, typeId: 'core.points', config: { uniqueId, delta: amount }, schemaVersion: 2 }, null, 2);
     }
     return null;
   }
@@ -119,7 +125,7 @@ function apply(): void {
 // Source and form state are both private to the current connection/selection.
 watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.id.value], () => {
   capture.value = null; name.value = ''; message.value = ''; actionId.value = ''; actionSearch.value = ''; contains.value = ''; viewer.value = ''; delta.value = '';
-  actionType.value = 'core.log'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0';
+  actionType.value = 'core.log'; viewerTarget.value = 'specific'; milliseconds.value = '1000'; trigger.value = 'tiktok.chat'; cooldown.value = '0';
 }, { flush: 'sync' });
 </script>
 
@@ -134,7 +140,8 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
         <label v-if="actionType === 'core.log'">{{ labels.message }}<input v-model="message" maxlength="8192" :disabled="model.busy.value"></label>
         <label v-else-if="actionType === 'core.delay'">{{ labels.milliseconds }}<input v-model="milliseconds" type="number" min="0" max="60000" step="1" :disabled="model.busy.value"></label>
         <template v-else>
-          <label>{{ labels.viewer }}<input v-model="viewer" maxlength="128" spellcheck="false" autocomplete="off" :disabled="model.busy.value"></label>
+          <label>{{ labels.viewerTarget }}<select v-model="viewerTarget" :disabled="model.busy.value"><option value="specific">{{ labels.specificViewer }}</option><option value="event">{{ labels.triggeringViewer }}</option></select></label>
+          <label v-if="viewerTarget === 'specific'">{{ labels.viewer }}<input v-model="viewer" maxlength="128" spellcheck="false" autocomplete="off" :disabled="model.busy.value"></label>
           <label>{{ labels.delta }}<input v-model="delta" type="number" min="-1000000000" max="1000000000" step="any" :disabled="model.busy.value"></label>
         </template>
       </template>
@@ -159,7 +166,7 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
       <p v-if="matchingActions.length > 50">{{ labels.actionLimit }}</p>
     </section>
     <p v-if="model.kind.value === 'event'">{{ labels.actionNote }}</p>
-    <p v-if="model.kind.value === 'action' && actionType === 'core.points'">{{ labels.pointsNote }}</p>
+    <p v-if="model.kind.value === 'action' && actionType === 'core.points'">{{ viewerTarget === 'event' ? labels.dynamicPointsNote : labels.pointsNote }}</p>
     <p v-if="draft === null" role="status">{{ labels.invalid }}</p>
     <button type="button" :disabled="draft === null || !model.prepare('save')" @click="prepare">{{ labels.generate }}</button>
   </details>
