@@ -233,6 +233,95 @@ async fn tls_streams_filter_state_and_sequences_then_resume_the_same_session_aft
 }
 
 #[tokio::test]
+async fn independent_controllers_receive_scoped_changes_and_revocation_over_tls() {
+    use tiktools_collaboration::{Capability, ResourceKind};
+    let _env = ENV.lock().await;
+    let fixture = Fixture::new(true).await;
+    fixture
+        .core
+        .workflow_save(json!({"id":"shared","name":"Shared","enabled":true}))
+        .unwrap();
+    fixture
+        .core
+        .workflow_save(json!({"id":"private","name":"Owner private","enabled":true}))
+        .unwrap();
+    audit_revision(&fixture, "shared", "1").await;
+    let scoped: std::collections::BTreeMap<ResourceKind, std::collections::BTreeSet<String>> =
+        [(ResourceKind::Workflow, ["shared".into()].into())].into();
+    let moderator = fixture
+        .native(Grant {
+            capabilities: [Capability::WorkflowsRead, Capability::WorkflowsToggle].into(),
+            resources: scoped.clone(),
+            ..Grant::default()
+        })
+        .await;
+    let observer = fixture
+        .native(Grant {
+            capabilities: [Capability::WorkflowsRead].into(),
+            resources: scoped,
+            ..Grant::default()
+        })
+        .await;
+    assert_ne!(moderator.principal_id, observer.principal_id);
+    let mut sender = fixture.socket(&moderator.access_token).await;
+    let mut viewer = fixture.socket(&observer.access_token).await;
+    fixture.hello(&mut sender).await;
+    fixture.hello(&mut viewer).await;
+    let sub = rpc(
+        &mut viewer,
+        2,
+        "collaboration.subscribe",
+        json!({"domains":["workflows"]}),
+    )
+    .await;
+    let subscription = sub["result"]["subscriptionId"].clone();
+    assert!(subscription.is_string(), "{sub}");
+    let snapshot = rpc(
+        &mut viewer,
+        3,
+        "collaboration.snapshot",
+        json!({"subscriptionId":subscription}),
+    )
+    .await;
+    assert_eq!(snapshot["result"]["workflows"].as_array().unwrap().len(), 1);
+    assert_eq!(snapshot["result"]["workflows"][0]["id"], "shared");
+    let baseline = snapshot["result"]["throughSequence"]
+        .as_str()
+        .unwrap()
+        .parse::<u64>()
+        .unwrap();
+    let command = rpc_meta(&mut sender, 2, "workflows.disable", json!({"id":"shared"}),
+        Some(json!({"commandId":"moderator-disable-1","hostInstanceId":fixture.service.instance_id(),"expectedRevision":"1"}))).await;
+    assert_eq!(command["result"], json!({"id":"shared","enabled":false}));
+    let event = stream_event(&mut viewer).await;
+    assert_eq!(event["resource"]["id"], "shared");
+    assert_eq!(event["resource"]["revision"], "2");
+    assert_eq!(event["sequence"], (baseline + 1).to_string());
+    assert!(!event.to_string().contains("moderator-disable-1"));
+    assert!(!event.to_string().contains("Owner private"));
+    assert_eq!(
+        fixture.core.workflow_get("shared").unwrap()["enabled"],
+        false
+    );
+    assert_eq!(
+        fixture.core.workflow_get("private").unwrap()["enabled"],
+        true
+    );
+    fixture
+        .service
+        .revoke_session(&moderator.session_id, "local-owner")
+        .unwrap();
+    closed(&mut sender).await;
+    assert_eq!(
+        rpc(&mut viewer, 4, "workflows.get", json!({"id":"private"})).await["error"]["code"],
+        "forbidden"
+    );
+    assert!(rpc(&mut viewer, 5, "workflows.list", json!({})).await["result"].is_object());
+    viewer.close(None).await.unwrap();
+    fixture.finish().await;
+}
+
+#[tokio::test]
 async fn small_frame_snapshot_pages_remain_immutable_and_incomplete_disconnect_requires_resync() {
     let _env = ENV.lock().await;
     let fixture = Fixture::configured(true, |c| {

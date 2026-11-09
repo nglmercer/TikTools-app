@@ -37,6 +37,16 @@ The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
 authority through downstream rules. Broader remote activation, delegated plugin
 execution, HTTP response emission and full product acceptance remain pending.
 
+## Independent controllers over TLS
+
+An isolated local gateway test pairs two distinct native principals over TLS.
+One disables a permitted workflow and the other receives the next scoped
+subscription revision. The event omits the first principal's command ID and
+private workflow details. Revoking the first session closes its socket while
+the second retains its own access and cannot read the private workflow. This
+validates the gateway and host on one machine; physical two-PC, real TikTok
+LIVE and Desktop controller acceptance remain pending.
+
 ## Atomic Owner library transitions — latest extension
 
 The eight closed `automation.library.submit` operations cover profile creation,
