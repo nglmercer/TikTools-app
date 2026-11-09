@@ -367,6 +367,303 @@ struct ProductUploadFixture {
     consent: u128,
     expire_eligibility: Option<Arc<std::sync::atomic::AtomicBool>>,
 }
+
+#[tokio::test]
+async fn product_recovery_rebases_only_latest_staged_decision_without_replaying() {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+    struct Source {
+        generation: AtomicU64,
+        enabled: AtomicBool,
+    }
+    impl crate::V2ProductUploadSource for Source {
+        fn with_fenced_upload(
+            &self,
+            decision: &crate::V2ProductDecision,
+            admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+        ) -> Result<(), WorkspaceCoordError> {
+            let mut expected = selection();
+            expected.enabled = self.enabled.load(Ordering::SeqCst);
+            if decision.source_generation != self.generation.load(Ordering::SeqCst)
+                || decision.config_generation != 42
+                || decision.selection.as_ref() != Some(&expected)
+            {
+                return Err(WorkspaceStateError::StaleReview.into());
+            }
+            admit()
+        }
+    }
+
+    let server = start_server().await;
+    let session = Arc::new(connect(&server, "device-a").await);
+    let temp = tempfile::tempdir().unwrap();
+    let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
+    coordinator.bootstrap(&[], None).unwrap();
+    let target = key("plugin-selections", "acme.plugin");
+    let mut decision = crate::V2ProductDecision {
+        origin: server.origin.clone(),
+        account_id: "account-a".into(),
+        config_generation: 42,
+        source_generation: 7,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(selection()),
+    };
+    let first =
+        WorkspaceEdit::Put(serde_json::to_value(decision.selection.as_ref().unwrap()).unwrap());
+    coordinator
+        .stage_product_decision(
+            target.clone(),
+            first.clone(),
+            7,
+            &decision.digest().unwrap(),
+        )
+        .unwrap();
+    let eligibility =
+        WorkspaceEligibility::new(session.clone(), || true).with_test_publication_guard();
+    let source = Source {
+        generation: AtomicU64::new(7),
+        enabled: AtomicBool::new(false),
+    };
+    let admission = ProductUploadAdmission {
+        source: &source,
+        config_generation: 42,
+    };
+    server.remote.lock().unwrap().lose_next_write = true;
+    assert!(coordinator
+        .sync_product_guarded(&session, &eligibility, &admission)
+        .await
+        .is_err());
+    assert_eq!(server.remote.lock().unwrap().writes(), 1);
+    let original = pending(&coordinator, &target).pending.unwrap();
+    assert_eq!(original.status, WorkspacePendingStatus::Unconfirmed);
+    assert_eq!(original.edit, first);
+
+    // A newer durable source decision cannot replace the frozen uncertain
+    // request, but its own receipt is the only proof eligible for recovery.
+    decision.source_generation = 8;
+    decision.selection.as_mut().unwrap().enabled = true;
+    let latest =
+        WorkspaceEdit::Put(serde_json::to_value(decision.selection.as_ref().unwrap()).unwrap());
+    let (latest_generation, staged) = coordinator
+        .stage_product_decision(
+            target.clone(),
+            latest.clone(),
+            8,
+            &decision.digest().unwrap(),
+        )
+        .unwrap();
+    assert!(staged);
+    let entry = pending(&coordinator, &target);
+    assert_eq!(entry.pending.as_ref(), Some(&original));
+    assert_eq!(entry.next.as_ref().unwrap().edit, latest);
+    let review = coordinator
+        .review_product_guarded(&session, &target, &eligibility)
+        .await
+        .unwrap();
+    assert_eq!(review.local_generation(), latest_generation);
+
+    // The old source cannot approve even an otherwise-current review.
+    let before = coordinator.snapshot().unwrap();
+    assert!(matches!(
+        coordinator
+            .resolve_product_keep_local_guarded(&session, &review, &eligibility, &admission)
+            .await,
+        Err(WorkspaceCoordError::State(WorkspaceStateError::StaleReview))
+    ));
+    let after = coordinator.snapshot().unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    assert_eq!(server.remote.lock().unwrap().writes(), 1);
+
+    source.generation.store(8, Ordering::SeqCst);
+    source.enabled.store(true, Ordering::SeqCst);
+    coordinator
+        .resolve_product_keep_local_guarded(&session, &review, &eligibility, &admission)
+        .await
+        .unwrap();
+    let entry = pending(&coordinator, &target);
+    assert!(entry.next.is_none());
+    let rebased = entry.pending.unwrap();
+    assert_eq!(rebased.status, WorkspacePendingStatus::Queued);
+    assert_eq!(rebased.local_generation, latest_generation);
+    assert_eq!(rebased.edit, latest);
+    let proof = coordinator
+        .snapshot()
+        .unwrap()
+        .state
+        .product_queued_proof(&target)
+        .unwrap();
+    assert_eq!(proof.source_generation(), 8);
+    assert_eq!(proof.edit(), &latest);
+    assert_eq!(
+        server.remote.lock().unwrap().writes(),
+        1,
+        "review and rebase never resend"
+    );
+    // A later, separate dispatcher run may send the explicitly rebased value.
+    assert_eq!(
+        coordinator
+            .sync_product_guarded(&session, &eligibility, &admission)
+            .await
+            .unwrap()
+            .pushed,
+        1
+    );
+    assert_eq!(server.remote.lock().unwrap().writes(), 2);
+}
+
+#[tokio::test]
+async fn product_uncertain_keep_local_requires_fresh_review_source_and_publication_permit() {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+    let server = start_server().await;
+    let session = Arc::new(connect(&server, "device-a").await);
+    let temp = tempfile::tempdir().unwrap();
+    let coordinator = coordinator(&temp.path().join("private"), &server, "account-a");
+    coordinator.bootstrap(&[], None).unwrap();
+    let target = key("plugin-selections", "acme.plugin");
+    let decision = crate::V2ProductDecision {
+        origin: server.origin.clone(),
+        account_id: "account-a".into(),
+        config_generation: 42,
+        source_generation: 7,
+        plugin_id: "acme.plugin".into(),
+        selection: Some(selection()),
+    };
+    coordinator
+        .stage_product_decision(
+            target.clone(),
+            WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
+            7,
+            &decision.digest().unwrap(),
+        )
+        .unwrap();
+    let current = Arc::new(AtomicBool::new(true));
+    let deny_publication = Arc::new(AtomicBool::new(false));
+    let check = current.clone();
+    let guard_current = current.clone();
+    let deny = deny_publication.clone();
+    let eligibility =
+        WorkspaceEligibility::new(session.clone(), move || check.load(Ordering::SeqCst))
+            .with_publication_guard(move |publish| {
+                if deny.swap(false, Ordering::SeqCst) {
+                    guard_current.store(false, Ordering::SeqCst);
+                }
+                if !guard_current.load(Ordering::SeqCst) {
+                    return Err(WorkspaceCoordError::Ineligible);
+                }
+                publish()
+            });
+    let source = ProductUploadFixture {
+        generation: AtomicU64::new(7),
+        consent: 42,
+        expire_eligibility: None,
+    };
+    let admission = ProductUploadAdmission {
+        source: &source,
+        config_generation: 42,
+    };
+    server.remote.lock().unwrap().lose_next_write = true;
+    assert!(coordinator
+        .sync_product_guarded(&session, &eligibility, &admission)
+        .await
+        .is_err());
+    assert_eq!(
+        pending(&coordinator, &target).pending.unwrap().status,
+        WorkspacePendingStatus::Unconfirmed
+    );
+    assert_eq!(server.remote.lock().unwrap().writes(), 1);
+
+    // A logout/consent change at the actual rename must not publish the
+    // newly fetched private record or change the uncertain ticket.
+    let before = coordinator.snapshot().unwrap();
+    deny_publication.store(true, Ordering::SeqCst);
+    assert!(matches!(
+        coordinator
+            .review_product_guarded(&session, &target, &eligibility)
+            .await,
+        Err(WorkspaceCoordError::Ineligible)
+    ));
+    let after = coordinator.snapshot().unwrap();
+    assert_eq!(after.generation, before.generation);
+    assert_eq!(after.state, before.state);
+    current.store(true, Ordering::SeqCst);
+    let review = coordinator
+        .review_product_guarded(&session, &target, &eligibility)
+        .await
+        .unwrap();
+    assert!(review.remote().is_some());
+    // Generic resolution cannot consume a product-bound review or drop it
+    // as a Cloud-accept decision without a separate application journal.
+    assert!(coordinator
+        .resolve_guarded(&session, &review, false, &eligibility)
+        .await
+        .is_err());
+    let reviewed = coordinator.snapshot().unwrap();
+    source.generation.store(8, Ordering::SeqCst);
+    assert!(coordinator
+        .resolve_product_keep_local_guarded(&session, &review, &eligibility, &admission)
+        .await
+        .is_err());
+    assert_eq!(coordinator.snapshot().unwrap().state, reviewed.state);
+    source.generation.store(7, Ordering::SeqCst);
+    let mut changed = selection();
+    changed.enabled = true;
+    server.remote.lock().unwrap().put(
+        "account-a",
+        target.clone(),
+        Some(serde_json::to_value(changed).unwrap()),
+    );
+    assert!(matches!(
+        coordinator
+            .resolve_product_keep_local_guarded(&session, &review, &eligibility, &admission)
+            .await,
+        Err(WorkspaceCoordError::State(WorkspaceStateError::StaleReview))
+    ));
+    assert_eq!(coordinator.snapshot().unwrap().state, reviewed.state);
+    let review = coordinator
+        .review_product_guarded(&session, &target, &eligibility)
+        .await
+        .unwrap();
+    let reviewed = coordinator.snapshot().unwrap();
+    deny_publication.store(true, Ordering::SeqCst);
+    assert!(matches!(
+        coordinator
+            .resolve_product_keep_local_guarded(&session, &review, &eligibility, &admission)
+            .await,
+        Err(WorkspaceCoordError::Ineligible)
+    ));
+    assert_eq!(coordinator.snapshot().unwrap().state, reviewed.state);
+    current.store(true, Ordering::SeqCst);
+    coordinator
+        .resolve_product_keep_local_guarded(&session, &review, &eligibility, &admission)
+        .await
+        .unwrap();
+    assert_eq!(
+        pending(&coordinator, &target).pending.unwrap().status,
+        WorkspacePendingStatus::Queued
+    );
+    assert!(coordinator
+        .snapshot()
+        .unwrap()
+        .state
+        .product_queued_proof(&target)
+        .is_some());
+    assert_eq!(
+        server.remote.lock().unwrap().writes(),
+        1,
+        "review and rebase must not resend"
+    );
+    assert_eq!(
+        coordinator
+            .sync_product_guarded(&session, &eligibility, &admission)
+            .await
+            .unwrap()
+            .pushed,
+        1
+    );
+    assert_eq!(server.remote.lock().unwrap().writes(), 2);
+}
 impl crate::V2ProductUploadSource for ProductUploadFixture {
     fn with_fenced_upload(
         &self,

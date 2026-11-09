@@ -28,3 +28,19 @@ Before enabling product integration, all local plugin mutations and package oper
 For product dispatch, pull state, push acknowledgements and conflict results are prepared and fsynced under the workspace CAS lock before acquiring an exact-session permit. With the cooperative v2 protocol lease still held to exclude consent changes, the permit covers only the final atomic rename; logout that wins before that permit prevents publication. A push whose response cannot be recorded under the captured session remains `Unconfirmed`, even if the server processed it, and requires explicit review. The account mutex is not held during preparation or rename. A rename syscall that does not return can still delay logout while the identity permit is held; directory fsync follows after the permit is released. These guarantees do not fence noncooperative filesystem writers and do not close the request-emission window described above.
 
 A local HTTP integration test holds both successful and conflicting responses while the real CloudAuth manager logs out or replaces its session. In all four transitions the persisted request remains unconfirmed; control cases with the original session record the acknowledgement or conflict. This does not establish the full product workflow or physical two-device acceptance.
+
+An internal workspace recovery primitive now supports an explicit keep-local
+rebase after an uncertain write or conflict. The comparison is obtained from
+a fresh authenticated read and publication is fenced by the captured session
+and consent; the later choice must still match another live read, the original
+product receipt and the current native source under its short mutation fence.
+When an uncertain write has a newer staged edit, the receipt and review must
+identify that newer decision; the original request is not resent during review.
+The resulting edit is queued, but the choice itself neither retries HTTP nor
+changes the local runtime. Accepting Cloud data and recovering local effects
+still require a separate durable application journal and are not enabled by
+this primitive. It is private and is not yet wired to a product review UI.
+An eventual adapter must hold the appropriate v2 protocol lease, use the
+session/consent publication guard, run blocking filesystem and source checks
+on a bounded worker, propagate cancellation and give the review a limited
+lifetime. Direct calls to these primitives do not supply those guarantees.

@@ -142,6 +142,7 @@ pub struct WorkspaceReview {
     read: WorkspaceRead,
     generation: u64,
     entry: WorkspaceEntry,
+    product_proof: Option<WorkspaceProductProof>,
 }
 impl WorkspaceReview {
     pub fn target(&self) -> &WorkspaceKey {
@@ -387,18 +388,28 @@ impl WorkspaceCoordinator {
             .state
             .product_queued_proof(target)
             .ok_or(WorkspaceStateError::StaleReview)?;
+        self.admit_product_proof(&proof, eligibility, admission, operation)
+    }
+
+    fn admit_product_proof<T>(
+        &self,
+        proof: &WorkspaceProductProof,
+        eligibility: &WorkspaceEligibility,
+        admission: &ProductUploadAdmission<'_>,
+        operation: impl FnOnce(&WorkspaceProductProof) -> Result<T, WorkspaceCoordError>,
+    ) -> Result<T, WorkspaceCoordError> {
         let decision = crate::V2ProductDecision::from_proof(
             &self.origin,
             &self.account_id,
             admission.config_generation,
-            &proof,
+            proof,
         )?;
         let mut operation = Some(operation);
         let mut result = None;
         let mut admit = || {
             let operation = operation.take().ok_or(WorkspaceStateError::StaleReview)?;
             eligibility.check()?;
-            result = Some(operation(&proof)?);
+            result = Some(operation(proof)?);
             Ok(())
         };
         admission.source.with_fenced_upload(&decision, &mut admit)?;
@@ -643,7 +654,7 @@ impl WorkspaceCoordinator {
         session: &Session,
         target: &WorkspaceKey,
     ) -> Result<WorkspaceReview, WorkspaceCoordError> {
-        self.review_inner(session, target, None).await
+        self.review_inner(session, target, None, None).await
     }
     pub async fn review_guarded(
         &self,
@@ -651,13 +662,37 @@ impl WorkspaceCoordinator {
         target: &WorkspaceKey,
         eligibility: &WorkspaceEligibility,
     ) -> Result<WorkspaceReview, WorkspaceCoordError> {
-        self.review_inner(session, target, Some(eligibility)).await
+        self.review_inner(session, target, Some(eligibility), None)
+            .await
+    }
+
+    /// Capture a private product recovery comparison. It can only authorize a
+    /// later explicit keep-local rebase under the matching native source
+    /// fence; it never applies a remote value or resends a request itself.
+    #[allow(dead_code)] // Product review integration is not enabled yet.
+    pub(crate) async fn review_product_guarded(
+        &self,
+        session: &Session,
+        target: &WorkspaceKey,
+        eligibility: &WorkspaceEligibility,
+    ) -> Result<WorkspaceReview, WorkspaceCoordError> {
+        if eligibility.publication.is_none() {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let proof = self
+            .snapshot()?
+            .state
+            .product_recovery_proof(target)
+            .ok_or(WorkspaceStateError::StaleReview)?;
+        self.review_inner(session, target, Some(eligibility), Some(proof))
+            .await
     }
     async fn review_inner(
         &self,
         session: &Session,
         target: &WorkspaceKey,
         eligibility: Option<&WorkspaceEligibility>,
+        product_proof: Option<WorkspaceProductProof>,
     ) -> Result<WorkspaceReview, WorkspaceCoordError> {
         self.identity(session)?;
         check_eligibility(eligibility, session)?;
@@ -668,11 +703,22 @@ impl WorkspaceCoordinator {
         check_eligibility(eligibility, session)?;
         let read = session.workspace_read_for_resolution(target).await?;
         check_eligibility(eligibility, session)?;
-        self.update(|state| {
+        let observe = |state: &mut WorkspaceState| {
+            if let Some(proof) = &product_proof {
+                state.verify_product_recovery(proof)?;
+            }
             state.observe_read(&read)?;
             Ok(())
-        })?;
+        };
+        if product_proof.is_some() {
+            self.update_product(eligibility.ok_or(WorkspaceCoordError::Ineligible)?, observe)?;
+        } else {
+            self.update(observe)?;
+        }
         let state = self.snapshot()?.state;
+        if let Some(proof) = &product_proof {
+            state.verify_product_recovery(proof)?;
+        }
         let generation = state
             .local_generation(target)
             .ok_or(WorkspaceStateError::NoPendingEdit)?;
@@ -689,6 +735,7 @@ impl WorkspaceCoordinator {
             read,
             generation,
             entry,
+            product_proof,
         })
     }
     /// Choice is bound to the compared local generation and a new live read.
@@ -699,7 +746,8 @@ impl WorkspaceCoordinator {
         review: &WorkspaceReview,
         keep_local: bool,
     ) -> Result<(), WorkspaceCoordError> {
-        self.resolve_inner(session, review, keep_local, None).await
+        self.resolve_inner(session, review, keep_local, None, None)
+            .await
     }
     pub async fn resolve_guarded(
         &self,
@@ -708,7 +756,25 @@ impl WorkspaceCoordinator {
         keep_local: bool,
         eligibility: &WorkspaceEligibility,
     ) -> Result<(), WorkspaceCoordError> {
-        self.resolve_inner(session, review, keep_local, Some(eligibility))
+        self.resolve_inner(session, review, keep_local, Some(eligibility), None)
+            .await
+    }
+
+    /// An explicit keep-local choice only rebases the durable pending edit;
+    /// it does not apply Cloud state or send a request. Both the exact source
+    /// and session/consent publication fences are required through the save.
+    #[allow(dead_code)] // Product review integration is not enabled yet.
+    pub(crate) async fn resolve_product_keep_local_guarded(
+        &self,
+        session: &Session,
+        review: &WorkspaceReview,
+        eligibility: &WorkspaceEligibility,
+        admission: &ProductUploadAdmission<'_>,
+    ) -> Result<(), WorkspaceCoordError> {
+        if eligibility.publication.is_none() || review.product_proof.is_none() {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        self.resolve_inner(session, review, true, Some(eligibility), Some(admission))
             .await
     }
     async fn resolve_inner(
@@ -717,6 +783,7 @@ impl WorkspaceCoordinator {
         review: &WorkspaceReview,
         keep_local: bool,
         eligibility: Option<&WorkspaceEligibility>,
+        product: Option<&ProductUploadAdmission<'_>>,
     ) -> Result<(), WorkspaceCoordError> {
         self.identity(session)?;
         check_eligibility(eligibility, session)?;
@@ -734,6 +801,11 @@ impl WorkspaceCoordinator {
         if !Arc::ptr_eq(&review.binding, &self.binding) {
             return Err(WorkspaceStateError::StaleReview.into());
         }
+        // A product-bound review must never fall back to generic resolution,
+        // which has no source or atomic session publication fence.
+        if review.product_proof.is_some() != product.is_some() {
+            return Err(WorkspaceStateError::StaleReview.into());
+        }
         let _operation = self
             .store
             .try_operation_lock()?
@@ -746,8 +818,11 @@ impl WorkspaceCoordinator {
         if fresh.record() != review.read.record() {
             return Err(WorkspaceStateError::StaleReview.into());
         }
-        self.update(|state| {
+        let change = |state: &mut WorkspaceState| {
             check_eligibility(eligibility, session)?;
+            if let Some(proof) = &review.product_proof {
+                state.verify_product_recovery(proof)?;
+            }
             let current = state
                 .entry(review.target())
                 .ok_or(WorkspaceStateError::NoPendingEdit)?;
@@ -761,7 +836,21 @@ impl WorkspaceCoordinator {
                 keep_local,
             )?;
             Ok(())
-        })
+        };
+        if let Some(product) = product {
+            let eligibility = eligibility.ok_or(WorkspaceCoordError::Ineligible)?;
+            self.admit_product_proof(
+                review
+                    .product_proof
+                    .as_ref()
+                    .ok_or(WorkspaceStateError::StaleReview)?,
+                eligibility,
+                product,
+                |_| self.update_product(eligibility, change),
+            )
+        } else {
+            self.update(change)
+        }
     }
     /// Explicit 410 recovery reads a consistent snapshot and atomically
     /// replaces only the fetched cloud baseline. No application source changes.

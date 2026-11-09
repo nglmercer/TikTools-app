@@ -146,7 +146,7 @@ struct WorkspaceProductReceipt {
     workspace_generation: u64,
 }
 
-/// Non-deserializable snapshot of the source receipt for one queued edit.
+/// Non-deserializable snapshot of the source receipt for one product edit.
 /// This is evidence to compare under the product source fence, not authority
 /// to send or apply anything by itself.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -250,6 +250,40 @@ impl WorkspaceState {
     /// Recheck an opaque proof against the current state while source is fenced.
     pub fn verify_product_queued(&self, proof: &WorkspaceProductProof) -> Result<()> {
         if self.product_queued_proof(proof.target()).as_ref() != Some(proof) {
+            return Err(WorkspaceStateError::StaleReview);
+        }
+        Ok(())
+    }
+
+    /// Capture the exact latest product decision while its prior upload needs
+    /// an explicit conflict or uncertain-outcome review. A newer staged edit
+    /// supersedes the original intent, and only its own receipt can authorize
+    /// a rebase. A receipt on its own is never permission to resend.
+    pub fn product_recovery_proof(&self, target: &WorkspaceKey) -> Option<WorkspaceProductProof> {
+        let receipt = self
+            .product_receipts
+            .binary_search_by(|r| r.target.cmp(target))
+            .ok()
+            .and_then(|index| self.product_receipts.get(index))?;
+        let entry = self.entry(target)?;
+        let pending = entry.pending.as_ref()?;
+        if !matches!(
+            pending.status,
+            WorkspacePendingStatus::Unconfirmed | WorkspacePendingStatus::Conflict
+        ) {
+            return None;
+        }
+        let (edit, generation) = match &entry.next {
+            Some(next) => (&next.edit, next.local_generation),
+            None => (&pending.edit, pending.local_generation),
+        };
+        (generation == receipt.workspace_generation && edit == &receipt.edit)
+            .then(|| WorkspaceProductProof(receipt.clone()))
+    }
+
+    /// Recheck an opaque recovery proof immediately before changing state.
+    pub fn verify_product_recovery(&self, proof: &WorkspaceProductProof) -> Result<()> {
+        if self.product_recovery_proof(proof.target()).as_ref() != Some(proof) {
             return Err(WorkspaceStateError::StaleReview);
         }
         Ok(())

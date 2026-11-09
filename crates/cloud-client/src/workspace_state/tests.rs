@@ -645,7 +645,8 @@ fn product_decision_receipt_survives_restart_and_snapshot_rebuild_without_restag
     );
     assert_eq!(s, after_rebuild);
     let ticket = s.prepare_push(&target).unwrap();
-    s.acknowledge(&ticket, record("acme.plugin", 1, true)).unwrap();
+    s.acknowledge(&ticket, record("acme.plugin", 1, true))
+        .unwrap();
     assert!(s.pending_keys().is_empty());
     let after_delivery = s.clone();
     assert_eq!(
@@ -658,4 +659,35 @@ fn product_decision_receipt_survives_restart_and_snapshot_rebuild_without_restag
         .stage_product_decision(target, edit, 8, &"b".repeat(64))
         .unwrap();
     assert!(staged);
+}
+
+#[test]
+fn product_recovery_proof_tracks_only_the_latest_uncertain_decision() {
+    let mut s = state();
+    s.mark_bootstrap_complete();
+    let target = key("acme.plugin");
+    let first = WorkspaceEdit::Put(selection("acme.plugin", true));
+    let later = WorkspaceEdit::Put(selection("acme.plugin", false));
+    s.stage_product_decision(target.clone(), first, 7, &"a".repeat(64))
+        .unwrap();
+    assert!(s.product_recovery_proof(&target).is_none());
+    s.prepare_push(&target).unwrap();
+    let original = s.product_recovery_proof(&target).unwrap();
+    assert_eq!(original.source_generation(), 7);
+    s.stage_product_decision(target.clone(), later.clone(), 8, &"b".repeat(64))
+        .unwrap();
+    assert!(s.verify_product_recovery(&original).is_err());
+    let latest = s.product_recovery_proof(&target).unwrap();
+    assert_eq!(latest.source_generation(), 8);
+    assert_eq!(latest.edit(), &later);
+    let reloaded: WorkspaceState =
+        serde_json::from_slice(&serde_json::to_vec(&s).unwrap()).unwrap();
+    assert_eq!(reloaded.product_recovery_proof(&target), Some(latest));
+    // A generic newer local edit is not covered by an older product receipt.
+    s.stage(
+        target.clone(),
+        WorkspaceEdit::Put(selection("acme.plugin", true)),
+    )
+    .unwrap();
+    assert!(s.product_recovery_proof(&target).is_none());
 }
