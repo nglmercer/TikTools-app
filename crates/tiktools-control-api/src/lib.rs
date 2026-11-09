@@ -176,10 +176,12 @@ impl ControlApi {
             "competitions.summary",
             policy::RemotePolicy::Capability(RemoteCapability::CompetitionsRead),
         );
-        router.set_remote_policy(
-            "automation.disable",
-            policy::RemotePolicy::Capability(RemoteCapability::AutomationToggle),
-        );
+        for name in ["automation.disable", "automation.enable"] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::AutomationToggle),
+            );
+        }
         router.set_remote_policy(
             "automation.delete",
             policy::RemotePolicy::Capability(RemoteCapability::AutomationEdit),

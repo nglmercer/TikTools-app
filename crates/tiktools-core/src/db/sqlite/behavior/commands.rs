@@ -132,3 +132,158 @@ impl DatabaseManager {
         })
     }
 }
+
+impl DatabaseManager {
+    /// Commit activation only while the caller and every saved author remain
+    /// current, and only if the complete post-write closure is permitted.
+    pub(crate) fn execute_reusable_behavior_activation(
+        &self,
+        operation: &AutomationMutation,
+        command: &super::super::CommandTransaction,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+    ) -> Result<(Versioned<Value>, bool), DatabaseError> {
+        use crate::services::automation_manifest::{
+            self as manifest, ManifestSubject, ManifestSubjects,
+        };
+        if !operation.is_remote_activation() {
+            return Err(DatabaseError::CommandAuthorization(
+                crate::collaboration::Error::Forbidden,
+            ));
+        }
+        let auth = command
+            .authorization
+            .as_ref()
+            .ok_or(DatabaseError::CommandAuthorization(
+                crate::collaboration::Error::Forbidden,
+            ))?;
+        command
+            .request
+            .validate()
+            .map_err(|_| DatabaseError::Invalid("invalid command metadata".into()))?;
+        let hash = super::super::commands::payload_hash(
+            operation.method(),
+            &operation.params(),
+            &command.request.expected_revision,
+        )?;
+        let mut db = self.open(&self.automation_path())?;
+        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let identity = operation
+            .authorize_remote(auth)
+            .map_err(DatabaseError::CommandAuthorization)?;
+        if identity.principal_id != command.principal_id
+            || identity.session_id != command.session_id
+        {
+            return Err(DatabaseError::CommandAuthorization(
+                crate::collaboration::Error::Forbidden,
+            ));
+        }
+        super::super::commands::prune(&tx)?;
+        if let Some(result) = super::super::commands::replay(&tx, command, &hash)? {
+            tx.commit()?;
+            return Ok((result, false));
+        }
+        let (kind, id) = operation.target();
+        // Existing authoring ownership and dependency rules also prevent an
+        // activation from changing an Owner or another author's graph.
+        let author = provenance::authorize_authoring(&tx, kind.table(), id, auth)?;
+        let before = review::snapshot(&tx, kind.table(), id)?;
+        if before.value.get("record").is_none_or(Value::is_null) {
+            return Err(DatabaseError::NotFound);
+        }
+        let mut required = manifest::required_subjects(&before)
+            .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
+        let caller_pair = (command.principal_id.clone(), command.session_id.clone());
+        if !required.contains(&caller_pair) {
+            required.push(caller_pair);
+        }
+        let batch = service
+            .execution_authorizations(&required)
+            .map_err(DatabaseError::CommandAuthorization)?;
+        batch
+            .with_current(|identities| {
+                let caller = identities
+                    .iter()
+                    .find(|subject| {
+                        subject.principal_id() == command.principal_id
+                            && subject.session_id() == command.session_id
+                    })
+                    .ok_or(DatabaseError::CommandAuthorization(
+                        crate::collaboration::Error::Forbidden,
+                    ))?;
+                let current = operation
+                    .authorize_remote(auth)
+                    .map_err(DatabaseError::CommandAuthorization)?;
+                if current.principal_id != author.identity.principal_id
+                    || current.session_id != command.session_id
+                    || current.grant_revision != caller.grant_revision()
+                    || current.grant != *caller.grant()
+                {
+                    return Err(DatabaseError::CommandAuthorization(
+                        crate::collaboration::Error::Forbidden,
+                    ));
+                }
+                let result = set_enabled(
+                    &tx,
+                    kind.table(),
+                    id,
+                    true,
+                    Some(&command.request.expected_revision),
+                )?;
+                let after = review::snapshot(&tx, kind.table(), id)?;
+                let authors = manifest::required_subjects(&after)
+                    .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
+                let selected: Vec<_> = identities
+                    .iter()
+                    .filter(|identity| {
+                        authors.iter().any(|(p, s)| {
+                            p == identity.principal_id() && s == identity.session_id()
+                        })
+                    })
+                    .cloned()
+                    .collect();
+                let subjects: Vec<_> = selected
+                    .iter()
+                    .map(|identity| ManifestSubject {
+                        principal_id: identity.principal_id(),
+                        session_id: identity.session_id(),
+                        grant_revision: identity.grant_revision(),
+                        configuration_revision: identity.configuration_revision(),
+                        grant: identity.grant(),
+                    })
+                    .collect();
+                let built = manifest::build(
+                    &after,
+                    ManifestSubjects {
+                        host_id: service.host_id(),
+                        subjects: &subjects,
+                    },
+                )
+                .map_err(|_| DatabaseError::Invalid("invalid execution review".into()))?;
+                crate::services::automation_approval_policy::reusable_preflight(&built, &selected)
+                    .map_err(|_| {
+                        DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden)
+                    })?;
+                let result = result.map(|_| json!({"kind":kind,"id":id,"enabled":true}));
+                let result = super::super::commands::finish(
+                    &tx,
+                    command,
+                    &hash,
+                    operation.method(),
+                    &command.request.expected_revision,
+                    result,
+                )?;
+                for identity in identities {
+                    identity
+                        .check_deadline()
+                        .map_err(DatabaseError::CommandAuthorization)?;
+                }
+                operation
+                    .authorize_remote(auth)
+                    .map_err(DatabaseError::CommandAuthorization)?;
+                tx.commit()?;
+                Ok((result, true))
+            })
+            .map_err(DatabaseError::CommandAuthorization)?
+    }
+}

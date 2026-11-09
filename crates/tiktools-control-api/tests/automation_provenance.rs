@@ -206,7 +206,7 @@ fn assert_pending(response: &RpcResponse, kind: &str, id: &str, revision: &str) 
 }
 
 #[tokio::test]
-async fn stored_reusable_policy_does_not_yet_enable_remote_definitions() {
+async fn stored_reusable_policy_enables_saved_remote_definition() {
     use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
     let f = Fixture::new();
     let mut author_grant = grant(&["action:draft"]);
@@ -216,7 +216,8 @@ async fn stored_reusable_policy_does_not_yet_enable_remote_definitions() {
     });
     let author = f.pair(author_grant);
     let instance = f.instance();
-    let mut enabled = draft("action", "draft");
+    let clean = json!({"id":"draft","name":"Log","enabled":false,"typeId":"core.log","config":{"message":"hello"}});
+    let mut enabled = clean.clone();
     enabled["enabled"] = true.into();
     let rejected = f
         .remote(
@@ -231,11 +232,23 @@ async fn stored_reusable_policy_does_not_yet_enable_remote_definitions() {
         .remote(
             &author,
             "automation.create",
-            json!({"kind":"action","record":draft("action", "draft")}),
+            json!({"kind":"action","record":clean}),
             metadata(&instance, "disabled-create", "0"),
         )
         .await;
     assert_pending(&created, "action", "draft", "1");
+    let preview = f
+        .owner(
+            "automation.delegation.preflight",
+            json!({"kind":"action","id":"draft"}),
+            Value::Null,
+        )
+        .await;
+    assert_eq!(
+        preview.result.as_ref().unwrap()["eligible"],
+        true,
+        "{preview:?}"
+    );
     let enable = f
         .remote(
             &author,
@@ -244,7 +257,11 @@ async fn stored_reusable_policy_does_not_yet_enable_remote_definitions() {
             metadata(&instance, "enable-draft", "1"),
         )
         .await;
-    assert_eq!(enable.error.unwrap().code, "forbidden");
+    assert!(enable.is_ok(), "{enable:?}");
+    assert_eq!(
+        enable.result.unwrap(),
+        json!({"kind":"action","id":"draft","enabled":true})
+    );
     assert_delegated(
         &f.authority("action", "draft").await,
         &author,

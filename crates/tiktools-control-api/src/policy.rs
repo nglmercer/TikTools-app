@@ -89,6 +89,23 @@ pub(crate) fn automation_result_allowed(
                             .is_some_and(|id| grant.allows_automation(family, id))
                     })
         }
+        "automation.enable" => {
+            result.as_object().is_some_and(|o| {
+                o.len() == 3
+                    && o.keys()
+                        .all(|k| matches!(k.as_str(), "kind" | "id" | "enabled"))
+            }) && result.get("enabled") == Some(&serde_json::Value::Bool(true))
+                && result
+                    .get("kind")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(AutomationFamily::from_scope)
+                    .is_some_and(|family| {
+                        result
+                            .get("id")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|id| grant.allows_automation(family, id))
+                    })
+        }
         "automation.disable" | "automation.delete" => {
             result.as_object().is_some_and(|o| o.len() == 2)
                 && result

@@ -18,43 +18,34 @@ and [full collaboration contract](LIVE-COLLABORATION-SPEC.md) remain authoritati
 
 ## Target: one-time delegated automation authority
 
-The owner should be able to authorize an identified moderator or agent once,
-then let that subject create, change and activate automations within the granted
-scope without approving each definition. This target is **not implemented**:
-current proposals are still disabled and need the existing per-closure approval
-or owner adoption. Removing a client confirmation does not change that host
-boundary.
+The owner can configure an optional `automationDelegation` for a moderator or
+agent, with explicit effect classes and dynamic-target permission. Existing
+grants omit it and are not elevated. The grant editor exposes the policy, and
+resource restrictions and effect-specific limits continue to apply. Older
+clients may reject grants containing the new field; mixed-version compatibility
+has not yet been established.
 
-The grant contract now reserves an optional `automationDelegation` with a closed
-set of effect classes and an explicit dynamic-target flag. Old grants omit it;
-grant validation requires the automation read/edit/toggle capabilities and the
-corresponding effect capability where applicable. Grant revisions persist and
-revoke the field like other permissions. The grant editor preserves the field in
-advanced JSON but offers no enablement control. **This field is not an execution
-permit:** no runtime or remote activation consumes it yet, and it must not be
-presented to users as working preauthorization. Clients predating the field may
-reject an advanced grant containing it; do not use it in a deployed mixed-version
-environment until the complete feature and compatibility path are implemented.
+The host now permits a remote author to activate an existing saved action or
+event through `automation.enable` when the complete post-activation closure
+satisfies every saved author's current reusable policy. The command uses the
+existing durable receipt and expected revision. It holds the business writer
+and the current collaboration identities through the commit, checks author
+ownership and dependent graph restrictions, and rolls back on an unsupported or
+out-of-scope closure. A remote activation does not convert provenance to Owner.
+The graphical controller does not yet expose this activation operation. Remote
+creates and edits remain disabled drafts, so a complete editing experience is
+still pending.
 
-An owner-only `automation.delegation.preflight` read now checks the trusted saved
-closure against current subject identities, their reusable policies, resource
-restrictions and the existing closed effect classifier. It returns an advisory
-`eligible` and reason with `executionAuthorized: false`; it neither activates
-definitions nor creates a runtime permit, and its snapshot cannot authorize a
-later dispatch. Remote callers cannot invoke it. Final admission, automatic
-activation, effect-time rechecks and the user-facing policy editor remain open.
-The preflight also rebuilds the complete closure from the currently installed
-runtime index and compares it with the database-derived manifest. An absent or
-different runtime view reports `runtime_view_changed`; this remains a point-in-
-time check and does not replace the final execution fence.
+Runtime event dispatch captures the saved closure, resolves its authors and
+checks current reusable policies before claiming a cooldown or executing an
+effect. The retained permit binds the exact definitions, identity and grant
+revisions; dispatch and effect sinks recheck the current chain. Revocation stops
+subsequent effects. Unverified LIVE ingress does not acquire delegated
+execution authority.
 
-The runtime now has an internal reusable-policy candidate constructor that
-captures saved definitions and dependencies and can create the existing scoped
-execution permit after checking current subjects and policies. The permit pins
-the runtime index, exact definition generations, grant revisions and session
-identity; tests exercise definition replacement, restoration and grant
-revocation. This constructor is not yet selected by event matching or remote
-activation, so it does not by itself enable delegated automations.
+The owner-only `automation.delegation.preflight` remains advisory. It compares
+trusted database and runtime views and returns `eligible` and a reason with
+`executionAuthorized: false`; it cannot authorize a later command or dispatch.
 
 Implement this as an explicit, revocable owner-managed delegation policy, not
 as an implicit consequence of `automation.edit` or a role name. Existing grants

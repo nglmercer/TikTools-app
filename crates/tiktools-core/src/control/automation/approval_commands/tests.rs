@@ -863,7 +863,32 @@ async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
         (AutomationKind::Action, "reusable-points"),
         (AutomationKind::Event, "reusable-event"),
     ] {
-        f.core().automation_set_enabled(kind, id, true).unwrap();
+        let revision = f
+            .core()
+            .automation_get_versioned(kind, id)
+            .unwrap()
+            .resource_versions[0]
+            .revision
+            .clone();
+        let request = f.request(&revision);
+        let operation = || AutomationMutation::SetEnabled {
+            kind,
+            id: id.into(),
+            enabled: true,
+        };
+        let first = f
+            .core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                request.clone(),
+                operation(),
+            )
+            .unwrap();
+        let replay = f
+            .core()
+            .automation_command(CommandCaller::Remote(auth.clone()), request, operation())
+            .unwrap();
+        assert_eq!(first.resource_versions, replay.resource_versions);
         f.assert_delegated(kind, id);
     }
     let preflight = f
@@ -909,4 +934,105 @@ async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
         .run_automation_event(AutomationEvent::owner(input("alice")))
         .await;
     assert_eq!(f.points("alice"), 2.0);
+}
+
+#[test]
+fn remote_activation_requires_reusable_policy_and_author_ownership() {
+    let f = Fixture::new();
+    let mut no_policy = grant();
+    no_policy.capabilities.insert(Capability::AutomationToggle);
+    let auth = f.pair(no_policy);
+    f.draft(&auth, AutomationKind::Action, log("unpermitted", "hello"));
+    let revision = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "unpermitted")
+        .unwrap()
+        .resource_versions[0]
+        .revision
+        .clone();
+    let result = f.core().automation_command(
+        CommandCaller::Remote(auth),
+        f.request(&revision),
+        AutomationMutation::SetEnabled {
+            kind: AutomationKind::Action,
+            id: "unpermitted".into(),
+            enabled: true,
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(
+        f.body(AutomationKind::Action, "unpermitted")["enabled"],
+        false
+    );
+    assert_eq!(
+        f.core()
+            .automation_get_versioned(AutomationKind::Action, "unpermitted")
+            .unwrap()
+            .resource_versions[0]
+            .revision,
+        revision
+    );
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+    });
+    let other = f.pair(permitted);
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(other),
+            f.request(&revision),
+            AutomationMutation::SetEnabled {
+                kind: AutomationKind::Action,
+                id: "unpermitted".into(),
+                enabled: true
+            }
+        )
+        .is_err());
+    assert_eq!(
+        f.body(AutomationKind::Action, "unpermitted")["enabled"],
+        false
+    );
+}
+
+#[test]
+fn remote_activation_rejects_effects_outside_reusable_grant() {
+    let f = Fixture::new();
+    let mut limited = grant();
+    limited.capabilities.insert(Capability::AutomationToggle);
+    limited.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+    });
+    let auth = f.pair(limited);
+    f.draft(
+        &auth,
+        AutomationKind::Action,
+        points("outside-policy", "alice", 1.0),
+    );
+    let before = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "outside-policy")
+        .unwrap();
+    let revision = &before.resource_versions[0].revision;
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth),
+            f.request(revision),
+            AutomationMutation::SetEnabled {
+                kind: AutomationKind::Action,
+                id: "outside-policy".into(),
+                enabled: true
+            },
+        )
+        .is_err());
+    let after = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "outside-policy")
+        .unwrap();
+    assert_eq!(before.value, after.value);
+    assert_eq!(before.resource_versions, after.resource_versions);
 }
