@@ -197,6 +197,99 @@ fn grant() -> Grant {
 }
 
 #[test]
+fn competition_generation_rechecks_all_saved_operators_and_current_scope() {
+    let f = Fixture::new();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::CompetitionsRead, Capability::CompetitionsManage]);
+    allowed
+        .resources
+        .insert(ResourceKind::Competition, ["competition-a".into()].into());
+    let first = f.pair(allowed.clone()).snapshot().unwrap();
+    let second = f.pair(allowed.clone()).snapshot().unwrap();
+    let db = rusqlite::Connection::open(f.paths.automation_database()).unwrap();
+    db.execute(
+        "CREATE TABLE competition_admission_fixture(value INTEGER)",
+        [],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO competition_execution_generations VALUES('competition-a',1,'delegated')",
+        [],
+    )
+    .unwrap();
+    for identity in [&first, &second] {
+        db.execute(
+            "INSERT INTO competition_execution_subjects VALUES('competition-a',1,?1,?2,?3)",
+            rusqlite::params![
+                identity.principal_id,
+                identity.session_id,
+                identity.grant_revision
+            ],
+        )
+        .unwrap();
+    }
+    let service = f.core().collaboration().unwrap();
+    let check = || {
+        f.core()
+            .db
+            .with_competition_delegation(&service, "competition-a", 1, |_, subjects| {
+                Ok(subjects.len())
+            })
+    };
+    assert_eq!(check().unwrap(), 2);
+    f.core()
+        .db
+        .with_competition_delegation(&service, "competition-a", 1, |tx, _| {
+            tx.execute("INSERT INTO competition_admission_fixture VALUES(1)", [])?;
+            Ok(())
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_delegation(&service, "competition-b", 1, |_, _| Ok(()))
+        .is_err());
+    let mut changed = allowed.clone();
+    changed.capabilities.insert(Capability::CommandsRead);
+    service
+        .set_grant(GrantSet {
+            principal_id: first.principal_id.clone(),
+            expected_revision: first.grant_revision.clone(),
+            grant: changed,
+        })
+        .unwrap();
+    assert_eq!(check().unwrap(), 2);
+    allowed.capabilities.remove(&Capability::CompetitionsManage);
+    service
+        .set_grant(GrantSet {
+            principal_id: second.principal_id,
+            expected_revision: second.grant_revision,
+            grant: allowed,
+        })
+        .unwrap();
+    assert!(check().is_err());
+    assert!(f
+        .core()
+        .db
+        .with_competition_delegation(&service, "competition-a", 1, |tx, _| {
+            tx.execute("INSERT INTO competition_admission_fixture VALUES(2)", [])?;
+            Ok(())
+        })
+        .is_err());
+    assert_eq!(
+        db.query_row(
+            "SELECT count(*) FROM competition_admission_fixture",
+            [],
+            |row| row.get::<_, i64>(0)
+        )
+        .unwrap(),
+        1
+    );
+}
+
+#[test]
 fn shared_moderator_edit_requires_explicit_transfer_and_source_grants() {
     let f = Fixture::new();
     let author = f.pair(grant());

@@ -7,8 +7,15 @@ generations are seeded once as Owner; missing or inconsistent metadata after
 migration is not repaired by inferring Owner. Local starts record their origin
 in the lifecycle transaction, and winner dispatch refuses delegated or missing
 origins until scoped delegated execution is available. This is a prerequisite,
-not remote start/resume: subject admission, propagation through competition
+not remote start/resume: command admission, propagation through competition
 events and delayed effects, and recovery are still required.
+
+An internal generation admission now reconstructs every saved moderator,
+checks the current competition scope, and holds both the business transaction
+and collaboration lock through commit. Unrelated grant revisions can advance
+without invalidating the stored identity; a missing, expired or revoked grant
+denies admission. This primitive is not wired to remote start/resume or to the
+external-effect dispatcher and is not itself an effect authorization.
 
 The host now reserves competition creation, definition and lifecycle changes in
 the coordination outbox. The competition stream supplies scoped summary
