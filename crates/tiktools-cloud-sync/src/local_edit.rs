@@ -17,6 +17,24 @@ pub struct V1LocalEditContext {
 }
 
 impl SyncCoordinator {
+    /// Run a short, synchronous native package-journal transaction while the
+    /// shared cross-process mutation admission is held. Package mutations are
+    /// global to the host, so this boundary does not capture an account,
+    /// acquire the CloudAuth mutex, or grant permission to change files.
+    ///
+    /// The caller must take its plugin invocation gate first, and must not
+    /// perform filesystem operations, await, re-enter this coordinator, or
+    /// call an unbounded callback while admission is held. A package journal
+    /// must remain durable while file effects run outside this closure.
+    pub fn with_package_journal_admission<R>(
+        &self,
+        operation: impl FnOnce() -> R,
+    ) -> Result<R, SyncCoordError> {
+        let lease = self.protocol.try_v1()?;
+        let _admission = lease.try_admission()?;
+        Ok(operation())
+    }
+
     /// Execute a short, synchronous local transaction while opt-in and the
     /// remembered account identity are stable. `None` means opt-out or no
     /// remembered identity; account transitions and lock contention are
@@ -102,6 +120,26 @@ mod tests {
         );
         let sync = SyncCoordinator::new(auth, dir.path().join("sync")).unwrap();
         (dir, sync)
+    }
+
+    #[test]
+    fn package_journal_admission_excludes_other_mutations_without_holding_auth() {
+        let (_dir, sync) = coordinator();
+        let peer =
+            SyncCoordinator::new(sync.auth.clone(), sync.config_path.parent().unwrap()).unwrap();
+        sync.with_package_journal_admission(|| {
+            assert!(sync.auth.try_sync_identity().is_ok());
+            assert!(matches!(
+                peer.with_package_journal_admission(|| ()),
+                Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+            ));
+            assert!(matches!(
+                peer.with_v1_local_edit(|_| ()),
+                Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+            ));
+        })
+        .unwrap();
+        assert!(peer.with_package_journal_admission(|| ()).is_ok());
     }
 
     #[test]

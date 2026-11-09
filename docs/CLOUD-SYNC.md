@@ -125,6 +125,12 @@ or completed two-Desktop v2 product workflow is claimed.
 3. `sync.now` pulls cursor pages (auto-rebuild from a snapshot on 410),
    pushes staged edits (409 marks a conflict, never overwrites), persists
    the generation-checked state, and returns remote records.
+   Ordinary feeds longer than the 200-page run limit checkpoint the pulled
+   pages and require a retry before any pending upload. A cursor-expiry rebuild
+   is currently all-or-nothing: more than 200 snapshot pages or 200 catch-up
+   pages returns `TooManyPages` without updating the old state. Repeating it
+   cannot advance an oversized rebuild; restartable snapshot recovery remains
+   required before claiming support for that volume.
 4. The core applies each remote record **only to already-installed plugins**
    (enabled flag; tombstone disables). Unknown plugins are skipped, versions
    never trigger installs, and applying never re-stages — that is what

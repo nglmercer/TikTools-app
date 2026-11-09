@@ -1,5 +1,7 @@
 //! Coordinator tests against a mock Cloud speaking the real sync protocol.
 
+mod remote_apply_tests;
+
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
@@ -1837,6 +1839,9 @@ struct MockInner {
     cursor: i64,
     expire_once: bool,
     fail_sync: bool,
+    pull_requests: usize,
+    rebuild_requests: usize,
+    page_size: Option<usize>,
 }
 
 struct MockSync {
@@ -1885,6 +1890,9 @@ impl MockSync {
             cursor: 0,
             expire_once: false,
             fail_sync: false,
+            pull_requests: 0,
+            rebuild_requests: 0,
+            page_size: None,
         }));
         let held_write = Arc::new(HeldWrite::default());
         let held_export = Arc::new(HeldExport::default());
@@ -2078,6 +2086,7 @@ fn route(
             serde_json::json!({"id": state.account_id, "email": "user@example.com"}),
         ),
         ("GET", "/api/v1/native/sync/changes") => {
+            state.pull_requests += 1;
             let cursor: i64 = query
                 .split('&')
                 .find_map(|p| p.strip_prefix("cursor="))
@@ -2107,8 +2116,19 @@ fn route(
                 })
                 .collect();
             changes.sort_by_key(|(rev, _, _)| *rev);
+            let limit = state.page_size.unwrap_or(usize::MAX);
+            let more = changes.len() > limit;
+            let next_cursor = if more {
+                changes
+                    .get(limit.saturating_sub(1))
+                    .map(|change| change.0)
+                    .unwrap_or(cursor)
+            } else {
+                state.cursor
+            };
             let payload: Vec<serde_json::Value> = changes
                 .into_iter()
+                .take(limit)
                 .map(|(_, key, r)| {
                     serde_json::json!({
                         "collection": "plugin-selections",
@@ -2123,10 +2143,11 @@ fn route(
                 200,
                 // NOTE: the engine's Page struct uses snake_case with no
                 // rename_all; only this endpoint speaks snake_case.
-                serde_json::json!({"changes": payload, "cursor": state.cursor, "has_more": false}),
+                serde_json::json!({"changes": payload, "cursor": next_cursor, "has_more": more}),
             )
         }
         ("GET", "/api/v1/native/sync/head") => {
+            state.rebuild_requests += 1;
             json(200, serde_json::json!({"cursor": state.cursor}))
         }
         ("GET", "/api/v1/native/sync/export") => {
@@ -2521,8 +2542,20 @@ async fn expired_cursor_rebuilds_from_snapshot() {
     assert!(sync
         .record_local_change("acme.late", "1.0.0", true)
         .unwrap());
+    let (pulls_before, rebuilds_before) = {
+        let state = mock.inner.lock().unwrap();
+        (state.pull_requests, state.rebuild_requests)
+    };
     let outcome = sync.sync_now().await.unwrap();
     assert_eq!(outcome.pushed, 1);
+    assert_eq!(outcome.pulled, 1);
+    {
+        let state = mock.inner.lock().unwrap();
+        assert_eq!(state.rebuild_requests - rebuilds_before, 1);
+        // The initial 410 and the rebuild's catch-up read are both necessary;
+        // no extra probe or post-rebuild poll should be dispatched.
+        assert_eq!(state.pull_requests - pulls_before, 2);
+    }
     let keys: HashSet<_> = outcome.remote.into_iter().map(|r| r.key).collect();
     assert!(keys.contains("acme.keep"));
     assert!(keys.contains("acme.late"));
@@ -2573,9 +2606,15 @@ async fn duplicate_pulls_are_idempotent() {
         .unwrap());
     let first = sync.sync_now().await.unwrap();
     let second = sync.sync_now().await.unwrap();
-    assert_eq!(second.pulled, 0);
+    // Push acknowledges the record but does not advance the feed cursor.
+    // The next run must count its own echoed change exactly once.
+    assert_eq!(second.pulled, 1);
     assert_eq!(second.pushed, 0);
     assert_eq!(first.remote, second.remote);
+    let third = sync.sync_now().await.unwrap();
+    assert_eq!(third.pulled, 0);
+    assert_eq!(third.pushed, 0);
+    assert_eq!(second.remote, third.remote);
     mock.stop();
 }
 

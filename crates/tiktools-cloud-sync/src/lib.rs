@@ -30,6 +30,8 @@ mod local_edit;
 pub use local_edit::V1LocalEditContext;
 mod product_outbox;
 pub use product_outbox::{V1ConflictSourceProof, V1OutboxCandidate, V1ProductOutbox};
+mod product_remote_apply;
+pub use product_remote_apply::V1RemoteApplyReview;
 #[doc(hidden)]
 pub mod consent_generation;
 mod product_conflict;
@@ -89,6 +91,8 @@ pub struct SyncStatus {
 /// Outcome of one [`SyncCoordinator::sync_now`] run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncOutcome {
+    /// Feed and snapshot records consumed in this run, including the final
+    /// page and any records read while rebuilding after cursor expiry.
     pub pulled: usize,
     pub pushed: usize,
     pub conflicts: Vec<String>,
@@ -686,24 +690,40 @@ impl SyncCoordinator {
             lease.ensure_no_uncertain(&session.instance_origin(), session.account_id())?;
             Ok(())
         })?;
-        let mut snapshot = self.load_or_reset(&session, lease, config).await?;
+        let mut snapshot = self.load_or_reset(&session, lease)?;
         let mut pulled = 0usize;
         // Pull until the server reports no more changes, rebuilding from a
         // snapshot when the cursor expired mid-stream.
+        let mut complete = false;
         for _ in 0..MAX_PULL_PAGES {
             match self
-                .guarded_sync_io(&session, config, session.pull_page(&mut snapshot.state))
+                .guarded_sync_io(
+                    &session,
+                    config,
+                    session.pull_page_with_count(&mut snapshot.state),
+                )
                 .await
             {
-                Ok(false) => break,
-                Ok(true) => {
-                    pulled += 1;
-                    continue;
+                Ok((more, count)) => {
+                    pulled = pulled.checked_add(count).ok_or(SyncError::Protocol)?;
+                    if !more {
+                        complete = true;
+                        break;
+                    }
                 }
                 Err(SyncCoordError::Engine(SyncError::CursorExpired)) => {
-                    self.guarded_sync_io(&session, config, session.rebuild(&mut snapshot.state))
+                    let count = self
+                        .guarded_sync_io(
+                            &session,
+                            config,
+                            session.rebuild_with_count(&mut snapshot.state),
+                        )
                         .await?;
-                    continue;
+                    pulled = pulled.checked_add(count).ok_or(SyncError::Protocol)?;
+                    // `rebuild_with_count` already pulls its own follow-up
+                    // changes until the server says the feed is complete.
+                    complete = true;
+                    break;
                 }
                 Err(SyncCoordError::Engine(SyncError::WrongAccount)) => {
                     // Never delete another identity's durable state.
@@ -717,6 +737,12 @@ impl SyncCoordinator {
                     return Err(error);
                 }
             }
+        }
+        if !complete {
+            // Preserve safely validated pages so a backlog larger than the
+            // per-run bound can make progress without admitting any upload.
+            self.save_product_checkpoint(lease, &session, config, snapshot, outbox, None)?;
+            return Err(SyncError::TooManyPages.into());
         }
         // Push staged edits in key order for deterministic behavior.
         // Conflicts stay staged for explicit resolution; anything else
@@ -788,11 +814,10 @@ impl SyncCoordinator {
     }
 
     /// Load this identity's legacy state without replacing another account.
-    async fn load_or_reset(
+    fn load_or_reset(
         &self,
         session: &Arc<cloud_client::Session>,
         lease: &protocol_fence::V1Lease,
-        config: SyncConfig,
     ) -> Result<cloud_client::StateSnapshot, SyncCoordError> {
         let fresh = session.new_state();
         let (store, _) = lease.legacy_store(&fresh.origin, &fresh.account_id)?;
@@ -803,32 +828,13 @@ impl SyncCoordinator {
                 state: fresh,
             });
         }
-        let mut snapshot = snapshot.expect("checked above");
+        let snapshot = snapshot.expect("checked above");
         if snapshot.state.origin != fresh.origin || snapshot.state.account_id != fresh.account_id {
             return Err(SyncCoordError::Store(StoreError::WrongIdentity));
         }
-        // Probe identity through the engine: a cheap no-op pull fails with
-        // WrongAccount when the file belongs to someone else. A fresh
-        // cursor-0 state pulls everything, so only probe when work exists.
-        let probe_needed = snapshot.state.cursor > 0 || !snapshot.state.entries.is_empty();
-        if probe_needed {
-            let mut probe = snapshot.state.clone();
-            // A zero-change pull still verifies the account server-side.
-            match self
-                .guarded_sync_io(session, config, session.pull_page(&mut probe))
-                .await
-            {
-                Ok(_) => {
-                    snapshot.state = probe;
-                    return Ok(snapshot);
-                }
-                Err(SyncCoordError::Engine(SyncError::WrongAccount)) => {
-                    return Err(SyncError::WrongAccount.into())
-                }
-                Err(SyncCoordError::StaleReview) => return Err(SyncCoordError::StaleReview),
-                Err(_) => return Ok(snapshot),
-            }
-        }
+        // The actual guarded pull immediately following this load verifies
+        // the account. A separate probe would consume changes (and can hide a
+        // one-shot cursor-expiry response) before the sync loop sees them.
         Ok(snapshot)
     }
 
