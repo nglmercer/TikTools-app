@@ -328,6 +328,34 @@ impl ApprovalCandidate {
         self.authorize_with_inherited(identities, &operators, Some(fence.clone()), None)
     }
 
+    /// Inherit every prior author and operator for a chained saved rule.
+    pub(crate) fn authorize_competition_chain(
+        self,
+        admission: &crate::db::CompetitionExecutionAdmission<'_>,
+        inherited: &[(String, String)],
+    ) -> Result<RuntimeApprovalPermit, &'static str> {
+        if self.approval.is_some()
+            || admission.winner().is_none()
+            || admission
+                .fence()
+                .subjects()
+                .iter()
+                .any(|operator| !inherited.contains(operator))
+            || admission
+                .identities()
+                .iter()
+                .any(|identity| identity.host_id() != admission.fence().host_id())
+        {
+            return Err("competition chain binding is unavailable");
+        }
+        self.authorize_with_inherited(
+            admission.identities(),
+            inherited,
+            Some(admission.fence().clone()),
+            None,
+        )
+    }
+
     /// Classify the effective winner action, including the exact saved input
     /// overrides, while the winner outbox and competition fence are held.
     #[allow(dead_code)]
@@ -558,6 +586,42 @@ impl AutomationService {
         )
         .is_ok_and(|actual| actual == *expected)
     }
+    /// Capture a fresh reusable closure for a matched scoped rule, including
+    /// Owner definitions. Its complete effect set must be authorized by all
+    /// inherited subjects; the matched generation cannot be substituted.
+    pub(crate) fn competition_rule_candidate(
+        &self,
+        record: &MatchedRecord,
+    ) -> Option<ApprovalCandidate> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if index.catalog_epoch != Some(record.catalog_epoch) {
+            return None;
+        }
+        let id = record.definition.get("id")?.as_str()?;
+        let (review, definitions) =
+            capture_review(&index, AutomationFamily::Event, &record.definition)?;
+        if record.generation != Some(definitions.first()?.generation)
+            || record.definition.get("enabled").and_then(Value::as_bool) != Some(true)
+            || record.actions.iter().any(|action| {
+                !definitions.iter().any(|fence| {
+                    fence.family == AutomationFamily::Action
+                        && fence.generation == action.generation
+                        && fence.definition == action.definition
+                })
+            })
+        {
+            return None;
+        }
+        Some(ApprovalCandidate {
+            index_identity: index.identity.clone(),
+            approval_key: ("event".into(), id.into()),
+            approval: None,
+            review,
+            definitions,
+            catalog_epoch: record.catalog_epoch,
+        })
+    }
+
     pub(crate) fn owner_rule_fence(&self, record: &MatchedRecord) -> Option<RuntimeOwnerRuleFence> {
         let index = recover_rwlock_read(&self.index, "automation index");
         if !index.authority_available

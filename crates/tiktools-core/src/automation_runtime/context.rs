@@ -581,7 +581,13 @@ impl AppCore {
     ) -> Result<ExecutionContext, &'static str> {
         #[cfg(feature = "persistence")]
         {
-            let context = if let Some(candidate) = record.approval_candidate() {
+            let context = if incoming.is_competition_winner() {
+                let candidate = self
+                    .automation
+                    .competition_rule_candidate(record)
+                    .ok_or("saved competition rule is unavailable")?;
+                self.approved_candidate_context(candidate, incoming).await?
+            } else if let Some(candidate) = record.approval_candidate() {
                 self.approved_candidate_context(candidate, incoming).await?
             } else if incoming.is_approved() {
                 let fence = self
@@ -646,18 +652,68 @@ impl AppCore {
         if candidate.requires_scoped_input() && !incoming.is_approved() {
             return Err("this saved approval requires approved scoped input");
         }
+        let inherited_competition = match (
+            &incoming.competition,
+            &incoming.competition_winner,
+            &incoming.authority,
+        ) {
+            (Some(fence), Some(claim), Authority::Approved { subjects, .. }) => {
+                let inherited = subjects
+                    .snapshot()
+                    .map_err(|_| "saved execution subjects are unavailable")?
+                    .iter()
+                    .map(|identity| {
+                        (
+                            identity.principal_id().to_owned(),
+                            identity.session_id().to_owned(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                Some((fence.clone(), claim.clone(), inherited))
+            }
+            _ => None,
+        };
         let core = self.clone();
         let approved = tokio::task::spawn_blocking(move || {
             let required = candidate.required_subjects()?;
             let service = core
                 .collaboration()
                 .map_err(|_| "saved execution subjects are unavailable")?;
-            let subjects = service
-                .execution_authorizations(&required)
-                .map_err(|_| "saved execution subjects are unavailable")?;
-            let permit = subjects
-                .with_current(|identities| candidate.authorize(identities))
-                .map_err(|_| "saved execution subjects are unavailable")??;
+            let (subjects, permit) = if let Some((fence, claim, inherited)) = inherited_competition
+            {
+                let mut all = inherited.clone();
+                for subject in &required {
+                    if !all.contains(subject) {
+                        all.push(subject.clone());
+                    }
+                }
+                let subjects = service
+                    .execution_authorizations(&all)
+                    .map_err(|_| "saved execution subjects are unavailable")?;
+                let permit = core
+                    .db
+                    .with_competition_winner_admission(
+                        &service,
+                        &fence,
+                        &claim,
+                        &all,
+                        |_, _, admission, _| {
+                            candidate
+                                .authorize_competition_chain(admission, &inherited)
+                                .map_err(|error| crate::db::DatabaseError::Invalid(error.into()))
+                        },
+                    )
+                    .map_err(|_| "competition chain authorization is unavailable")?;
+                (subjects, permit)
+            } else {
+                let subjects = service
+                    .execution_authorizations(&required)
+                    .map_err(|_| "saved execution subjects are unavailable")?;
+                let permit = subjects
+                    .with_current(|identities| candidate.authorize(identities))
+                    .map_err(|_| "saved execution subjects are unavailable")??;
+                (subjects, permit)
+            };
             Ok::<_, &'static str>(ExecutionContext {
                 authority: Authority::Approved {
                     subjects,

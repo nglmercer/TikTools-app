@@ -460,7 +460,7 @@ pub(super) fn build_with_inherited_subjects(
     if entries[0].record.is_none() {
         return Err(ManifestError::MissingPrimary);
     }
-    if inherited.len() > 16 {
+    if inherited.len() > DEPENDENCIES + 1 {
         return Err(ManifestError::InvalidSubjects);
     }
     let mut expected: BTreeSet<_> = identities(&entries).into_iter().collect();

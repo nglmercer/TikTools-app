@@ -2546,10 +2546,10 @@ async fn competition_winner_actions_execute_with_current_delegation() {
         Candidate, CompetitionKind, Definition, OptionDefinition, ResultRecord, Selection,
         SelectionMode, TiePolicy, Transition, WinnerAction,
     };
-    for mode in 0..4 {
+    for mode in 0..5 {
         let is_points = mode == 1;
         let is_audio = mode == 2;
-        let is_emit = mode == 3;
+        let is_emit = mode >= 3;
         let mut f = Fixture::new();
         let audio_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         if is_audio {
@@ -2574,6 +2574,16 @@ async fn competition_winner_actions_execute_with_current_delegation() {
         f.core()
             .automation_create(AutomationKind::Action, action)
             .unwrap();
+        if is_emit {
+            let mut child = points("child-points", "alice", 2.0);
+            child["enabled"] = true.into();
+            f.core()
+                .automation_create(AutomationKind::Action, child)
+                .unwrap();
+            f.core().automation_create(AutomationKind::Event,
+                json!({"id":"child-rule","name":"Child","enabled":true,"trigger":"overlay.alert","actionIds":["child-points"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1})
+            ).unwrap();
+        }
         let mut allowed = grant();
         allowed.capabilities.extend([
             Capability::AutomationToggle,
@@ -2619,6 +2629,14 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             allow_other_author_edits: false,
             allow_other_author_source: false,
         });
+        if mode == 3 {
+            allowed
+                .automation_delegation
+                .as_mut()
+                .unwrap()
+                .effects
+                .insert(DelegatedAutomationEffect::Points);
+        }
         let operator = f.pair(allowed.clone()).snapshot().unwrap();
         let winner_action = WinnerAction {
             action_id: "winner-action".into(),
@@ -2734,6 +2752,7 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             assert_eq!(audio_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
         } else if is_emit {
             assert_eq!(run["summary"], "emit overlay.alert");
+            assert_eq!(f.points("alice"), if mode == 3 { 2.0 } else { 0.0 });
         } else {
             assert_eq!(run["summary"], "winner override");
         }
