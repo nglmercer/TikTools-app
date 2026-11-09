@@ -100,6 +100,12 @@ session/opt-in invalidation and a local-source fence. Guard
 checks cannot recall an HTTP request already dispatched, or replace an atomic
 local-application consent fence.
 
+CloudAuth now provides a private-gate synchronous callback for a future local
+commit bound to one exact session. Account transitions on the same manager or
+its clones wait asynchronously until that callback returns, and a transition
+already in progress refuses admission. This does not fence independent managers,
+other processes or consent changes; it is not yet connected to cutover.
+
 An in-progress private preview reads a coherent SQLite snapshot including
 deleted source generations and compares it with catalog selections, the
 activation map, session and consent. It rejects partial catalog scans, package

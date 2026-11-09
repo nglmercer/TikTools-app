@@ -16,7 +16,7 @@ use std::{
 use cloud_client::{LoginAttempt, LoginResult, Session, SyncError};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{oneshot, Mutex, RwLock};
 
 use crate::resolve_cloud_origin;
 
@@ -191,6 +191,9 @@ fn normalized_origin(raw: &str) -> Option<String> {
 #[derive(Clone)]
 pub struct CloudAuth {
     inner: Arc<Mutex<Inner>>,
+    /// An async gate independent of the account mutex. Account transitions
+    /// wait asynchronously while a bounded native commit owns a read lease.
+    identity_gate: Arc<RwLock<()>>,
     store: Arc<dyn TokenStore>,
     sidecar: PathBuf,
     transitions: Arc<AtomicUsize>,
@@ -553,6 +556,7 @@ impl CloudAuth {
                 epoch: 0,
                 offline_identity_allowed: true,
             })),
+            identity_gate: Arc::new(RwLock::new(())),
             store,
             sidecar,
             transitions: Arc::new(AtomicUsize::new(0)),
@@ -752,6 +756,27 @@ impl CloudAuth {
             .unwrap_or(false)
     }
 
+    /// Run a bounded synchronous local commit while this exact session is
+    /// stable. The account mutex is used only for the initial comparison and
+    /// is released before the callback. The private gate cannot escape the
+    /// callback; returning a future does not extend its protection. A pending
+    /// transition fails admission, while a later transition waits asynchronously.
+    /// The callback must not perform network work or synchronously wait for
+    /// a transition of this manager, which needs the exclusive gate. Run
+    /// potentially slow disk operations off async executor threads. This fences this manager
+    /// and its clones, not separately constructed managers or processes.
+    pub fn with_current_session_permit<R>(
+        &self,
+        captured: &Arc<Session>,
+        operation: impl FnOnce() -> R,
+    ) -> Result<R, SessionBusy> {
+        let _gate = self.identity_gate.try_read().map_err(|_| SessionBusy)?;
+        if !self.is_current_session(captured) {
+            return Err(SessionBusy);
+        }
+        Ok(operation())
+    }
+
     /// Last signed-in `(origin, account_id)` from the nonsecret sidecar, if
     /// any. Needs no live session, so offline staging can target the right
     /// identity; the sync engine still re-validates on use.
@@ -769,6 +794,7 @@ impl CloudAuth {
         if self.transitions.load(Ordering::SeqCst) != 1 {
             return Err(AuthError::AlreadyInProgress);
         }
+        let _identity = self.identity_gate.write().await;
         let mut inner = self.inner.lock().await;
         if self.transitions.load(Ordering::SeqCst) != 1 {
             return Err(AuthError::AlreadyInProgress);
@@ -816,6 +842,7 @@ impl CloudAuth {
             return Err(AuthError::AlreadyInProgress);
         }
         let (origin, epoch) = {
+            let _identity = self.identity_gate.write().await;
             let mut inner = self.inner.lock().await;
             if self.transitions.load(Ordering::SeqCst) != 1 {
                 return Err(AuthError::AlreadyInProgress);
@@ -851,6 +878,7 @@ impl CloudAuth {
         let browser_url = attempt.browser_url().to_string();
         let (cancel_tx, cancel_rx) = oneshot::channel();
         {
+            let _identity = self.identity_gate.write().await;
             let mut inner = self.inner.lock().await;
             if inner.session.is_some() || login_waiting(&inner) || inner.epoch != epoch {
                 return Err(AuthError::AlreadyInProgress);
@@ -936,6 +964,7 @@ impl CloudAuth {
         let _transition = TransitionGuard::begin(&self.transitions);
         invalidation.notify();
         let (attempt, cancel_rx, origin, epoch) = {
+            let _identity = self.identity_gate.write().await;
             let mut inner = self.inner.lock().await;
             check_login_reservation(&inner, operation)?;
             let mut pending = inner.pending.take().ok_or(AuthError::NoLoginInProgress)?;
@@ -947,6 +976,7 @@ impl CloudAuth {
         let cancel_rx = cancel_rx.unwrap_or_else(|| oneshot::channel::<()>().1);
         let result = attempt.complete(LOGIN_TIMEOUT, cancel_rx).await;
         let finished = self.finish_login(origin, result, epoch).await;
+        let identity = self.identity_gate.write().await;
         let mut inner = self.inner.lock().await;
         if inner.epoch == epoch {
             inner.cancel_tx = None;
@@ -954,6 +984,7 @@ impl CloudAuth {
             inner.active_login_legacy = false;
         }
         drop(inner);
+        drop(identity);
         finished?;
         Ok(self.status().await)
     }
@@ -969,6 +1000,7 @@ impl CloudAuth {
         operation: Option<&str>,
     ) -> Result<AccountStatus, AuthError> {
         let _transition = TransitionGuard::begin(&self.transitions);
+        let identity = self.identity_gate.write().await;
         let mut inner = self.inner.lock().await;
         if operation.is_none()
             && inner.active_login_reservation.is_some()
@@ -982,6 +1014,7 @@ impl CloudAuth {
                 inner.login_reservations.remove(id);
             }
             drop(inner);
+            drop(identity);
             return Ok(self.status().await);
         }
         let had_reservation = inner.active_login_reservation.take().is_some();
@@ -997,6 +1030,7 @@ impl CloudAuth {
             .ok_or_else(|| AuthError::Failed("account generation exhausted".into()))?;
         inner.last_error = Some("login cancelled".to_owned());
         drop(inner);
+        drop(identity);
         Ok(self.status().await)
     }
 
@@ -1069,6 +1103,7 @@ impl CloudAuth {
                 })
             }
         });
+        let identity = self.identity_gate.write().await;
         let mut inner = self.inner.lock().await;
         if inner.epoch != epoch || login_waiting(&inner) || inner.session.is_some() {
             return Err(AuthError::Cancelled);
@@ -1080,6 +1115,7 @@ impl CloudAuth {
         inner.offline_identity_allowed = true;
         inner.last_error = None;
         drop(inner);
+        drop(identity);
         Ok(self.status().await)
     }
 
@@ -1090,6 +1126,7 @@ impl CloudAuth {
         let _transition = TransitionGuard::begin(&self.transitions);
         invalidation.notify();
         let (configured_origin, session) = {
+            let _identity = self.identity_gate.write().await;
             let mut inner = self.inner.lock().await;
             inner.epoch = inner
                 .epoch
@@ -1199,6 +1236,7 @@ impl CloudAuth {
         let LoginResult { session, .. } = result.map_err(map_session_error)?;
         let account_id = session.account_id().to_owned();
         let mut credential = {
+            let _identity = self.identity_gate.write().await;
             let mut inner = self.inner.lock().await;
             if inner.epoch != epoch {
                 return Err(AuthError::Cancelled);
@@ -1223,6 +1261,7 @@ impl CloudAuth {
                 .as_ref()
                 .and_then(|profile| profile.display_name.clone()),
         };
+        let identity = self.identity_gate.write().await;
         let mut inner = self.inner.lock().await;
         if inner.epoch != epoch || inner.session.is_some() {
             return Err(AuthError::Cancelled);
@@ -1248,6 +1287,7 @@ impl CloudAuth {
         inner.last_error = None;
         credential.armed = false;
         drop(inner);
+        drop(identity);
         Ok(self.status().await)
     }
 }

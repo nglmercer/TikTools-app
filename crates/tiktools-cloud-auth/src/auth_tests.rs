@@ -355,10 +355,25 @@ async fn captured_session_is_invalid_after_logout_and_same_account_login() {
     deliver_callback(&begun.browser_url, "first-session").await;
     waiter.await.unwrap().unwrap();
     let first = auth.session().await.unwrap();
+    {
+        assert!(auth
+            .clone()
+            .with_current_session_permit(&first, || ())
+            .is_ok());
+        let independent = manager(
+            &dir,
+            Some(mock.origin.clone()),
+            Arc::new(MemoryTokenStore::new()),
+        );
+        assert!(independent
+            .with_current_session_permit(&first, || ())
+            .is_err());
+    }
     assert!(auth.is_current_session(&first));
     assert!(auth.clone().is_current_session(&first));
     auth.logout().await.unwrap();
     assert!(!auth.is_current_session(&first));
+    assert!(auth.with_current_session_permit(&first, || ()).is_err());
     let begun = auth.begin_login().await.unwrap();
     let waiter = spawn_complete(&auth);
     deliver_callback(&begun.browser_url, "second-session").await;
@@ -367,7 +382,81 @@ async fn captured_session_is_invalid_after_logout_and_same_account_login() {
     assert_eq!(first.account_id(), second.account_id());
     assert!(!auth.is_current_session(&first));
     assert!(auth.is_current_session(&second));
+    assert!(auth.with_current_session_permit(&first, || ()).is_err());
+    assert!(auth.with_current_session_permit(&second, || ()).is_ok());
     auth.logout().await.unwrap();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn session_permit_defers_logout_without_holding_account_mutex() {
+    let dir = TempDir::new("session-permit");
+    let mock = MockCloud::start("permit-account").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "permit-session").await;
+    waiter.await.unwrap().unwrap();
+    let session = auth.session().await.unwrap();
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let holding_auth = auth.clone();
+    let holding_session = session.clone();
+    let worker = tokio::task::spawn_blocking(move || {
+        holding_auth
+            .with_current_session_permit(&holding_session, || {
+                ready_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+            })
+            .unwrap();
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(3), ready_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!logout.is_finished());
+    // The identity permit does not own the account mutex; unrelated reads
+    // stay responsive while logout waits asynchronously for the commit.
+    let status = tokio::time::timeout(std::time::Duration::from_secs(1), auth.status())
+        .await
+        .unwrap();
+    assert_eq!(status.state, AccountState::SignedIn);
+    assert!(auth.with_current_session_permit(&session, || ()).is_err());
+    // Cancellation while queued must release both the pending-writer slot
+    // and transition flag without changing the still-current session.
+    logout.abort();
+    assert!(logout.await.unwrap_err().is_cancelled());
+    assert!(auth.with_current_session_permit(&session, || ()).is_ok());
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!logout.is_finished());
+    release_tx.send(()).unwrap();
+    worker.await.unwrap();
+    assert_eq!(
+        logout.await.unwrap().unwrap().state,
+        AccountState::SignedOut
+    );
+    assert!(auth.with_current_session_permit(&session, || ()).is_err());
     mock.stop();
 }
 
