@@ -1,0 +1,16 @@
+export default {
+  title: 'Diagnóstico', viewLogs: 'Ver logs', session: 'Solo esta sesión de la interfaz. Datos sensibles ocultos; el historial se reinicia al recargar.',
+  search: 'Buscar en diagnóstico', allSources: 'Todas las fuentes', allLevels: 'Todos los niveles',
+  info: 'Información', warning: 'Aviso', error: 'Error', empty: 'No hay entradas coincidentes.',
+  copyAll: 'Copiar todo', copyFiltered: 'Copiar filtrados', copyEntry: 'Copiar entrada', export: 'Exportar TXT', clear: 'Limpiar historial',
+  copied: 'Copiado con los datos sensibles ocultos.', copyFailed: 'Portapapeles no disponible. Selecciona y copia el texto de abajo.',
+  exportFailed: 'No se pudo exportar. Puedes copiar el texto.', exported: 'Exportación solicitada.',
+  cleared: 'Historial limpio. El estado de las conexiones no ha cambiado.', dropped: '{count} entradas antiguas eliminadas por el límite de retención.',
+  missing: 'Esta entrada ya no está guardada. Se muestra el historial coincidente.',
+  repeated: 'Repetido {count} veces', last: 'Última aparición', back: 'Volver', close: 'Cerrar diagnóstico',
+  minimize: 'Minimizar', restore: 'Restaurar', move: 'Mover panel (arrastra o usa las flechas)', reset: 'Restablecer posición', fullPage: 'Abrir página completa',
+  newEntries: '{count} entradas nuevas', filterEntity: 'Filtro de entidad: {entity}', resetFilters: 'Restablecer filtros',
+  connectionFailed: 'Falló la conexión', monitorFailed: 'El monitor requiere atención', accountFailed: 'El inicio de sesión requiere atención',
+  syncFailed: 'La sincronización requiere atención', updateFailed: 'La actualización requiere atención', updaterUnavailable: 'Actualización automática no disponible aquí',
+  discoveryFailed: 'No se pudieron cargar las salas', sources: { live: 'TikTok LIVE', monitor: 'Monitor LIVE', discovery: 'Explorador de salas', plugins: 'Plugins', account: 'Cuenta Cloud', sync: 'Sincronización Cloud', updates: 'Actualizaciones', transport: 'Conexión con el host' },
+};

@@ -1,0 +1,53 @@
+import { onUnmounted, watch } from 'vue';
+import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
+import { useDiscoveryStore } from '@/entities/live-room/model/discovery-store.ts';
+import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
+import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
+import { useSyncStore } from '@/entities/cloud-sync/model/sync-store.ts';
+import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
+import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { diagnosticLog, diagnosticView, type DiagnosticSource } from '@/shared/diagnostics/log.ts';
+
+/** Mounted once by AppShell, not by error components; navigation never duplicates entries. */
+export function useDiagnostics(): void {
+  const client = useControlClient();
+  const connection = useConnectionStore();
+  const discovery = useDiscoveryStore();
+  const plugins = usePluginsStore();
+  const account = useAccountStore();
+  const sync = useSyncStore();
+  const updater = useAppUpdaterStore();
+  const secrets = (): string[] => [connection.cookie, ...connection.cookie.split(';').map((part) => part.slice(part.indexOf('=') + 1).trim())].filter(Boolean);
+  function error(source: DiagnosticSource, code: string, message: string | null | undefined): void {
+    if (message) diagnosticLog.record({ source, code, message, level: 'error' }, secrets());
+  }
+  watch(() => connection.error, (message) => error('live', 'live.error', message), { immediate: true, flush: 'sync' });
+  watch(() => connection.status, (state, previous) => {
+    if (state !== previous && state !== 'error') diagnosticLog.record({ source: 'live', code: `live.${state}`, level: 'info', message: state });
+  });
+  watch(() => connection.monitorError || connection.monitorStatus?.lastError, (message) => error('monitor', 'monitor.error', message), { immediate: true, flush: 'sync' });
+  watch(() => discovery.error, (message) => error('discovery', 'discovery.error', message), { immediate: true, flush: 'sync' });
+  watch(() => plugins.pluginConnections, (connections, previous) => {
+    for (const [id, result] of Object.entries(connections)) {
+      if (previous?.[id] === result) continue;
+      diagnosticLog.record({
+        source: 'plugins', entityId: id, level: result.ok ? 'info' : 'error',
+        code: result.ok ? 'plugins.health.ok' : 'plugins.health.failed',
+        message: result.error || (result.ok ? 'Connection succeeded' : 'Connection failed'),
+        details: [result.details, `Latency: ${result.latencyMs} ms`,
+          result.reachable === undefined ? '' : `Reachable: ${result.reachable}`,
+          result.gameplayReady === undefined ? '' : `Gameplay ready: ${result.gameplayReady}`].filter(Boolean).join('\n'),
+      }, secrets());
+    }
+  }, { immediate: true, flush: 'sync' });
+  watch(() => account.error, (message) => error('account', 'cloud.account', message), { immediate: true, flush: 'sync' });
+  watch(() => sync.error, (message) => error('sync', 'cloud.sync', message), { immediate: true, flush: 'sync' });
+  watch(() => updater.error || updater.status?.error?.message, (message) => {
+    if (!message) return;
+    diagnosticLog.record({ source: 'updates', code: 'updates.status', message,
+      level: /unavailable in this host/i.test(message) ? 'info' : 'error' }, secrets());
+  }, { immediate: true, flush: 'sync' });
+  const offTransport = client.onTransportError((message) => error('transport', 'transport.error', message));
+  const offGap = client.onGap((count) => diagnosticLog.record({ source: 'transport', code: 'events.gap', level: 'warning', message: `Event stream resynchronized; reported gap: ${count}` }));
+  onUnmounted(() => { offTransport(); offGap(); diagnosticView.open.value = false; diagnosticLog.clear(); });
+}

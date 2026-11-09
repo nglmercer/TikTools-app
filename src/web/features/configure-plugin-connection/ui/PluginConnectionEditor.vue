@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { JsonObject } from '../../../../automation/types.ts';
@@ -172,6 +173,12 @@ onMounted(() => {
         v-if="summary && connection?.ok"
         class="connection-editor__url"
       >{{ t('plugins.connection.connectedTo', { url }) }}</span>
+      <DiagnosticStatusAction
+        v-else-if="connection && !connection.ok"
+        :label="statusText"
+        source="plugins"
+        :entity-id="pluginId"
+      />
       <span v-else>{{ statusText }}</span>
       <span
         v-if="saveState !== 'idle'"
@@ -202,7 +209,7 @@ onMounted(() => {
       {{ connection.gameplayReady ? t('plugins.connection.gameplayReady') : t('connections.servers.apiNotReady') }}
     </p>
     <p
-      v-if="connection?.details && !dirty"
+      v-if="connection?.ok && connection.details && !dirty"
       class="connection-editor__details"
       :class="{ 'connection-editor__details--ok': connection.ok }"
       role="status"
@@ -240,11 +247,11 @@ onMounted(() => {
 
     <template v-else>
       <p
-        v-if="connection && !connection.ok && !dirty && !urlInvalid && connection.error && !needsAuthorization"
+        v-if="connection && !connection.ok && !dirty && !urlInvalid && connection.error && !needsAuthorization && guided && !connection.reachable && !advanced"
         class="connection-editor__details"
         role="status"
       >
-        {{ guided && !connection.reachable && !advanced ? t('plugins.connection.openGuided', { name: pluginName }) : connection.error }}
+        {{ t('plugins.connection.openGuided', { name: pluginName }) }}
       </p>
       <BaseSchemaForm
         v-if="settings && !(supportsTokenImport && working)"

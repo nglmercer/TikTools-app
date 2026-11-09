@@ -13,6 +13,18 @@ function status(overrides: Partial<UpdateStatus> = {}): UpdateStatus {
 }
 
 describe('AppUpdater', () => {
+  it('treats unsupported hosts as informational and keeps manual download available', () => {
+    const { client } = createFakeControlClient(() => ({}));
+    const harness = createStoreHarness(client);
+    const store = harness.use(useAppUpdaterStore);
+    store.error = 'desktop application updater is unavailable in this host';
+    const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
+    expect(wrapper.get('.diagnostic-action').classes()).toContain('diagnostic-action--info');
+    expect(wrapper.text()).toContain('Automatic updates unavailable here');
+    expect(wrapper.text()).not.toContain('desktop application updater is unavailable');
+    expect(wrapper.find('a.app-updater__url').exists()).toBe(true);
+  });
+
   it('shows the installed version and manual fallback, and saves the channel', async () => {
     const { client, calls } = createFakeControlClient((method) => {
       if (method === 'app.state.get') return { state: { 'app.update.preferences': JSON.stringify({ automaticChecks: false }) } };

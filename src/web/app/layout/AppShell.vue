@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { useDiagnostics } from '../model/use-diagnostics.ts';
+import DiagnosticsPanel from '@/shared/diagnostics/DiagnosticsPanel.vue';
+import { diagnosticLog } from '@/shared/diagnostics/log.ts';
+import { useDiagnosticNavigation } from '@/shared/diagnostics/navigation.ts';
 import { storeToRefs } from 'pinia';
-import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
+import { computed, markRaw, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { isConnectionOnlyPage, pluginNavId } from '../../../automation/plugins/declarative.ts';
@@ -33,6 +37,9 @@ import { useAppRuntime } from '../model/use-app-runtime.ts';
 import { tabFromRoute, tabLocation } from '../router/tab-routes.ts';
 
 useAppRuntime();
+useDiagnostics();
+const diagnosticNavigation = useDiagnosticNavigation();
+const { unread } = diagnosticLog;
 
 const { t } = useI18n();
 const route = useRoute();
@@ -202,13 +209,7 @@ function connect(): void {
   }
 }
 
-function openConnectionSetup(): void {
-  drawerOpen.value = false;
-  void router.push(tabLocation('connect')).then(async () => {
-    await nextTick();
-    document.getElementById('live-handle')?.focus();
-  });
-}
+
 </script>
 
 <template>
@@ -219,16 +220,7 @@ function openConnectionSetup(): void {
       @dismiss="plugins.dismissPluginProgress()"
     />
     <BaseNotification
-      v-if="connection.error && routeTab !== 'connect'"
-      class="app-layout__notice"
-      tone="error"
-      :message="connection.error"
-      :action-label="t('navigation.connections')"
-      @action="openConnectionSetup"
-      @dismiss="connection.error = ''"
-    />
-    <BaseNotification
-      v-else-if="appUpdater.preferencesLoaded && appUpdater.preferences.notifications && appUpdater.status?.channel === appUpdater.preferences.channel && appUpdater.status?.state === 'available' && appUpdater.status.availableVersion && dismissedUpdate !== appUpdater.status.availableVersion"
+      v-if="appUpdater.preferencesLoaded && appUpdater.preferences.notifications && appUpdater.status?.channel === appUpdater.preferences.channel && appUpdater.status?.state === 'available' && appUpdater.status.availableVersion && dismissedUpdate !== appUpdater.status.availableVersion"
       class="app-layout__notice"
       :message="t('appUpdater.available', { version: appUpdater.status.availableVersion })"
       :action-label="t('appUpdater.title')"
@@ -282,6 +274,17 @@ function openConnectionSetup(): void {
         <RouterView />
       </main>
     </div>
+    <button
+      v-if="route.path !== '/debug'"
+      class="diagnostic-launcher"
+      @click="diagnosticNavigation.open()"
+    >
+      {{ t('diagnostics.title') }}<span
+        v-if="unread"
+        aria-live="polite"
+      > · {{ unread }}</span>
+    </button>
+    <DiagnosticsPanel />
     <AppStatusBar
       :status="status"
       :creator="activeCreator"
@@ -297,6 +300,7 @@ function openConnectionSetup(): void {
 </template>
 
 <style scoped>
+.diagnostic-launcher { position:fixed; right:16px; bottom:48px; z-index:90; padding:8px 12px; border-radius:20px; color:var(--color-text); background:var(--color-bg-secondary, #20242d); border:1px solid var(--color-border); cursor:pointer; }
 .app-layout {
   display: flex;
   flex-direction: column;
@@ -396,7 +400,8 @@ function openConnectionSetup(): void {
 }
 
 @media (width < 900px) {
-  .app-layout {
+  .diagnostic-launcher { position:fixed; right:16px; bottom:48px; z-index:90; padding:8px 12px; border-radius:20px; color:var(--color-text); background:var(--color-bg-secondary, #20242d); border:1px solid var(--color-border); cursor:pointer; }
+.app-layout {
     height: 100dvh;
   }
 

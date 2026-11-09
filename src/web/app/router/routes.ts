@@ -12,6 +12,7 @@ export const routes: RouteRecordRaw[] = [
     path: '/',
     component: () => import('../layout/AppShell.vue'),
     children: [
+      { path: 'debug', name: 'debug', component: () => import('@/pages/debug/ui/DebugPage.vue') },
       { path: '', name: 'home', redirect: () => tabLocation((loadViewState().tab as AppTab | undefined) ?? 'feed') },
       { path: 'feed', name: 'feed', meta: { tab: 'feed' }, component: () => import('@/pages/feed/ui/FeedPage.vue') },
       { path: 'points', name: 'points', meta: { tab: 'points' }, component: () => import('@/pages/points/ui/PointsPage.vue') },

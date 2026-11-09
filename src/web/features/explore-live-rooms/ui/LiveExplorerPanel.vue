@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { storeToRefs } from 'pinia';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -129,8 +130,13 @@ const retryable = computed(() => status.value === 'error' || status.value === 'r
           {{ t('connections.explore.dismiss') }}
         </BaseButton>
       </div>
+      <DiagnosticStatusAction
+        v-if="status === 'error'"
+        :label="t('diagnostics.discoveryFailed')"
+        source="discovery"
+      />
       <p
-        v-if="statusMessage"
+        v-else-if="statusMessage"
         class="live-explorer__status"
         role="status"
       >
