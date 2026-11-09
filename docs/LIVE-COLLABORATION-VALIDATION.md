@@ -37,6 +37,16 @@ The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
 authority through downstream rules. Broader remote activation, delegated plugin
 execution, HTTP response emission and full product acceptance remain pending.
 
+## Remote heartbeat cancellation
+
+Socket heartbeat reauthentication now stops waiting when the gateway shuts down
+or the five-second check deadline expires. Blocking checks that outlive either
+condition retain a process-wide permit until they actually finish, limiting
+accumulation across gateway restarts. The focused unit tests cover cancellation,
+timeout, retained capacity and recovery after the blocked check completes; the
+independent-controller TLS integration test also passed. These checks do not
+establish a global shutdown deadline for every gateway operation.
+
 ## Independent controllers over TLS
 
 An isolated local gateway test pairs two distinct native principals over TLS.

@@ -12,11 +12,39 @@ use axum::{
 };
 use serde_json::Value;
 use std::{
-    sync::Arc,
+    sync::{Arc, OnceLock},
     time::{Duration, Instant},
 };
 use tiktools_control_api::{ApiError, RemoteSession, RequestContext, RpcId, RpcResponse};
+use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
+use tokio_util::sync::CancellationToken;
+
+// A cancelled or timed-out blocking check may still be running. Keep its
+// permit until the blocking job actually exits, across gateway restarts.
+fn heartbeat_slots() -> Arc<Semaphore> {
+    static SLOTS: OnceLock<Arc<Semaphore>> = OnceLock::new();
+    Arc::clone(SLOTS.get_or_init(|| Arc::new(Semaphore::new(64))))
+}
+
+async fn heartbeat_check(
+    stopping: &CancellationToken,
+    slots: Arc<Semaphore>,
+    timeout: Duration,
+    operation: impl FnOnce() -> bool + Send + 'static,
+) -> bool {
+    tokio::select! {
+        biased;
+        _ = stopping.cancelled() => false,
+        result = tokio::time::timeout(timeout, async move {
+            let Ok(permit) = slots.acquire_owned().await else { return false };
+            tokio::task::spawn_blocking(move || {
+                let _permit = permit;
+                operation()
+            }).await.unwrap_or(false)
+        }) => result.unwrap_or(false),
+    }
+}
 
 pub(crate) async fn upgrade(
     ExtractState(state): ExtractState<Arc<State>>,
@@ -75,7 +103,7 @@ async fn run(mut socket: WebSocket, state: Arc<State>, authentication: Authentic
             },
             _=heartbeat.tick()=>{
                 let service=Arc::clone(&state.service);let token=authentication.token.clone();let browser=authentication.browser;
-                if !matches!(tokio::task::spawn_blocking(move||service.authenticate_live(&token,browser,true)).await,Ok(Ok(_))){break;}
+                if !heartbeat_check(&state.stopping, heartbeat_slots(), Duration::from_secs(5), move || service.authenticate_live(&token,browser,true).is_ok()).await {break;}
                 if !matches!(tokio::time::timeout(Duration::from_secs(5),socket.send(Message::Ping(Vec::new().into()))).await,Ok(Ok(()))){break;}
                 continue;
             },
@@ -206,6 +234,7 @@ mod tests {
     use super::*;
     use crate::MAX_FRAME;
     use serde_json::json;
+    use std::sync::mpsc;
     #[test]
     fn output_is_bounded_before_json_frame_allocation() {
         let response =
@@ -213,5 +242,80 @@ mod tests {
         let mut output = LimitedWriter(Vec::new(), MAX_FRAME);
         assert!(serde_json::to_writer(&mut output, &response).is_err());
         assert!(output.0.len() <= MAX_FRAME);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn heartbeat_shutdown_is_prompt_and_stalled_worker_keeps_its_slot() {
+        let stopping = CancellationToken::new();
+        let slots = Arc::new(Semaphore::new(1));
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let task = {
+            let stopping = stopping.clone();
+            let slots = Arc::clone(&slots);
+            tokio::spawn(async move {
+                heartbeat_check(&stopping, slots, Duration::from_secs(30), move || {
+                    let _ = ready_tx.send(());
+                    release_rx.recv().is_ok()
+                })
+                .await
+            })
+        };
+        tokio::time::timeout(Duration::from_secs(2), ready_rx)
+            .await
+            .unwrap()
+            .unwrap();
+        stopping.cancel();
+        assert!(!tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap());
+        assert!(slots.clone().try_acquire_owned().is_err());
+        release_tx.send(()).unwrap();
+        let permit = tokio::time::timeout(Duration::from_secs(2), slots.acquire_owned())
+            .await
+            .unwrap()
+            .unwrap();
+        drop(permit);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn heartbeat_timeout_bounds_stalled_checks_and_recovers_capacity() {
+        let stopping = CancellationToken::new();
+        let slots = Arc::new(Semaphore::new(1));
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let slow = {
+            let stopping = stopping.clone();
+            let slots = Arc::clone(&slots);
+            tokio::spawn(async move {
+                heartbeat_check(&stopping, slots, Duration::from_millis(200), move || {
+                    let _ = ready_tx.send(());
+                    release_rx.recv().is_ok()
+                })
+                .await
+            })
+        };
+        tokio::time::timeout(Duration::from_secs(2), ready_rx)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(!slow.await.unwrap());
+        assert!(
+            !heartbeat_check(
+                &stopping,
+                Arc::clone(&slots),
+                Duration::from_millis(50),
+                || true
+            )
+            .await
+        );
+        release_tx.send(()).unwrap();
+        let permit = tokio::time::timeout(Duration::from_secs(2), slots.clone().acquire_owned())
+            .await
+            .unwrap()
+            .unwrap();
+        drop(permit);
+        assert!(heartbeat_check(&stopping, slots, Duration::from_secs(1), || true).await);
     }
 }
