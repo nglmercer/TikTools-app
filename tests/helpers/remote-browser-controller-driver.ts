@@ -44,10 +44,12 @@ try {
   await replacement.locator('#open-app').click();
   const liveStatus = replacement.getByRole('region', { name: /Host LIVE|LIVE del anfitrión/ });
   await liveStatus.getByText(/Not connected to LIVE|Sin conexión al LIVE/).waitFor({ timeout: 20_000 });
+  await replacement.getByText('Browser feed message').waitFor({ timeout: 20_000 });
   if (await replacement.getByRole('button', { name: /Host updated/ }).count()) throw new Error('LIVE-only observer received workflow');
   if (leaked) throw new Error('invitation secret appeared in a request');
   mark('replacement-ready');
   await liveStatus.waitFor({ state: 'hidden', timeout: 20_000 });
+  await replacement.getByText('Browser feed message').waitFor({ state: 'hidden', timeout: 20_000 });
   mark('cleared');
 } catch (error) {
   const description = error instanceof Error ? error.message : 'browser fixture failed';

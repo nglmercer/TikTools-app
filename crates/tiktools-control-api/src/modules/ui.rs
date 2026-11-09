@@ -23,7 +23,109 @@ pub struct CreatorFeedParams {
     pub limit: Option<usize>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BrowserFeedParams {
+    pub after: String,
+}
+
+fn display_text(value: &str, max: usize) -> String {
+    value
+        .chars()
+        .filter(|c| !c.is_control() || matches!(c, '\n' | '\t'))
+        .take(max)
+        .collect()
+}
+
+fn browser_feed(
+    page: FeedBackfill,
+    after: u64,
+    budget: usize,
+) -> Result<serde_json::Value, ApiError> {
+    let mut events = Vec::with_capacity(page.events.len());
+    let mut previous = after;
+    let mut used = 512usize;
+    for entry in page.events {
+        let event = entry
+            .event
+            .as_object()
+            .ok_or_else(|| ApiError::new("protocol", "invalid feed event"))?;
+        let kind = event
+            .get("kind")
+            .and_then(|v| v.as_str())
+            .filter(|kind| matches!(*kind, "chat" | "gift" | "like" | "member" | "social"))
+            .ok_or_else(|| ApiError::new("protocol", "invalid feed event"))?;
+        let author = event
+            .get("author")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ApiError::new("protocol", "invalid feed event"))?;
+        let text = event
+            .get("text")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| ApiError::new("protocol", "invalid feed event"))?;
+        let nickname = match event.get("nickname") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(serde_json::Value::String(v)) => Some(display_text(v, 128)),
+            _ => return Err(ApiError::new("protocol", "invalid feed event")),
+        };
+        let displayed = display_text(author, 128);
+        let lookup = (author == displayed
+            && !author.is_empty()
+            && author != "viewer"
+            && author.len() <= 128
+            && author.trim() == author
+            && !author.starts_with('@')
+            && !author.contains('*')
+            && !author.chars().any(char::is_control))
+        .then_some(author);
+        let projected = serde_json::json!({"cursor":entry.cursor.to_string(),"kind":kind,"author":displayed,"authorLookupId":lookup,"nickname":nickname,"text":display_text(text,2048)});
+        let size = serde_json::to_vec(&projected)
+            .map_err(|_| ApiError::new("protocol", "invalid feed event"))?
+            .len()
+            + 1;
+        if used.saturating_add(size) > budget {
+            if events.is_empty() {
+                return Err(ApiError::new(
+                    "too_large",
+                    "feed event exceeds connection budget",
+                ));
+            }
+            break;
+        }
+        used += size;
+        previous = entry.cursor;
+        events.push(projected);
+    }
+    let next = if after > page.latest_cursor {
+        0
+    } else {
+        previous
+    };
+    Ok(
+        serde_json::json!({"oldestCursor":page.oldest_cursor.to_string(),"latestCursor":page.latest_cursor.to_string(),"nextCursor":next.to_string(),"gap":page.gap || (after == 0 && page.oldest_cursor > 1),"truncated":next != 0 && next < page.latest_cursor,"events":events}),
+    )
+}
+
 pub fn register(router: &mut ControlRouter) {
+    router.register_contextual::<BrowserFeedParams, serde_json::Value, _, _>(
+        "ui.feed.browser",
+        "Bounded browser-safe LIVE history",
+        |core: Arc<AppCore>, context, params: BrowserFeedParams| async move {
+            let after = params
+                .after
+                .parse::<u64>()
+                .ok()
+                .filter(|n| n.to_string() == params.after)
+                .ok_or_else(|| ApiError::invalid_params("invalid feed cursor"))?;
+            let budget = match context {
+                crate::RequestContext::Remote(session) => session
+                    .connection_limits()
+                    .map_or(512 * 1024, |limits| limits.frame_bytes / 2),
+                _ => 512 * 1024,
+            };
+            browser_feed(core.events.feed_backfill(after, 64), after, budget)
+        },
+    );
     router.register_contextual::<CreatorFeedParams, tiktools_core::events::CreatorFeedPage, _, _>(
         "ui.feed.creator",
         "Creator-scoped bounded LIVE history",
@@ -85,4 +187,46 @@ pub fn register(router: &mut ControlRouter) {
                 .feed_backfill(params.after, params.limit.unwrap_or(512)))
         },
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn browser_feed_preserves_large_cursors_and_sanitizes_display() {
+        let page = FeedBackfill {
+            oldest_cursor: 9_007_199_254_740_993,
+            latest_cursor: 9_007_199_254_740_993,
+            depth: 1,
+            gap: false,
+            truncated: false,
+            events: vec![tiktools_core::events::FeedEntry {
+                cursor: 9_007_199_254_740_993,
+                event: serde_json::json!({"kind":"chat", "author":"ali\u{0}ce", "text":"hello\u{0}world", "secret":"hidden"}),
+            }],
+        };
+        let result = browser_feed(page, 0, 4096).unwrap();
+        assert_eq!(result["latestCursor"], "9007199254740993");
+        assert_eq!(result["events"][0]["author"], "alice");
+        assert!(result["events"][0]["authorLookupId"].is_null());
+        assert_eq!(result["events"][0]["text"], "helloworld");
+        assert!(result["events"][0].get("secret").is_none());
+    }
+    #[test]
+    fn browser_feed_pages_to_connection_budget_without_skipping() {
+        let entries = (1..=4).map(|cursor| tiktools_core::events::FeedEntry { cursor,
+            event: serde_json::json!({"kind":"chat", "author":"viewer1", "text":"x".repeat(400)}) }).collect();
+        let page = FeedBackfill {
+            oldest_cursor: 1,
+            latest_cursor: 4,
+            depth: 4,
+            gap: false,
+            truncated: false,
+            events: entries,
+        };
+        let result = browser_feed(page, 0, 1600).unwrap();
+        assert_eq!(result["events"].as_array().unwrap().len(), 2);
+        assert_eq!(result["nextCursor"], "2");
+        assert_eq!(result["truncated"], true);
+    }
 }

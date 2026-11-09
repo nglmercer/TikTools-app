@@ -1599,6 +1599,7 @@ async fn live_resource_restrictions_do_not_expose_another_creator_or_unscoped_hi
     let credentials = fixture.native(grant).await;
     let mut socket = fixture.socket(&credentials.access_token).await;
     let hello = fixture.hello(&mut socket).await;
+    assert_eq!(rpc(&mut socket, 5, "ui.feed.browser", json!({"after":"0"})).await["error"]["code"], "forbidden");
     assert_eq!(
         hello["result"]["resourceRestrictions"]["live"][0],
         "allowed-creator"
@@ -1623,7 +1624,7 @@ async fn live_resource_restrictions_do_not_expose_another_creator_or_unscoped_hi
             .as_array()
             .unwrap()
             .iter()
-            .any(|method| method["name"] == "ui.feed.backfill")
+            .any(|method| method["name"] == "ui.feed.backfill" || method["name"] == "ui.feed.browser")
     );
     drop(socket);
     fixture.finish().await;
@@ -1887,6 +1888,7 @@ async fn browser_controller_pairs_reads_live_updates_and_clears_on_revocation() 
     }
     let _env = ENV.lock().await;
     let fixture = Fixture::new(true).await;
+    fixture.core.events.publish_live_event_from_creator(json!({"kind":"chat","author":"viewer1","text":"Browser feed message"}), Some("creator"));
     fixture
         .core
         .workflow_save(json!({"id":"welcome","name":"Host initial","enabled":true}))

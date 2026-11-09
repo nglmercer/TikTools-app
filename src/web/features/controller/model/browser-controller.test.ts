@@ -38,6 +38,8 @@ function fixture(read: (options?: ControlCallOptions) => unknown = (options) => 
     if (method === 'collaboration.snapshot') return { subscriptionId: 'sub', snapshotId: 'snapshot', hostInstanceId: 'instance', grantRevision: '3', throughSequence: '0', domains: ['workflows'], workflows: [{ id: 'welcome', name: 'Original', enabled: true }], resourceVersions: [version('1')], nextPageToken: null };
     if (method === 'workflows.get') return read(options);
     if (method === 'live.status') return { connected: true, uniqueId: 'creator', roomId: 'room', connectionId: 'live-connection', native: true };
+    if (method === 'ui.feed.browser') return { oldestCursor: '9007199254740993', latestCursor: '9007199254740993', nextCursor: '9007199254740993', gap: true, truncated: false, events: [] };
+    if (method === 'ui.feed.creator') return { creatorId: 'creator', streamId: 'a'.repeat(32), oldestCursor: '0', latestCursor: '0', nextCursor: '0', gap: false, truncated: false, events: [] };
     throw new Error(`Unexpected network method: ${method}`);
   });
   const client = createBrowserControllerClient(remote, transport, 'https://host.test');
@@ -141,6 +143,24 @@ test('LIVE status rejects an unauthorized creator and a replaced browser session
   changed.client.detach();
 });
 
+test('browser feed preserves cursor strings and enforces creator restrictions', async () => {
+  const features = { ...initial.features, browserFeed: true, creatorFeed: true };
+  const f = fixture(undefined, { ...initial, capabilities: ['live.read'], features, resourceRestrictions: {} });
+  const status = await connected(f);
+  const page = await f.client.call<{ latestCursor: string }>('controller.live.feed', { epoch: status.epoch, connectionId: 'connection', after: '9007199254740993' });
+  expect(page.latestCursor).toBe('9007199254740993');
+  expect(f.calls.at(-1)?.params).toEqual({ after: '9007199254740993' });
+  f.client.detach();
+  const restricted = fixture(undefined, { ...initial, capabilities: ['live.read'], features, resourceRestrictions: { live: ['creator'] } });
+  const current = await connected(restricted);
+  const base = { epoch: current.epoch, connectionId: 'connection', after: '0' };
+  await expect(restricted.client.call('controller.live.feed', base)).rejects.toMatchObject({ code: 'forbidden' });
+  await expect(restricted.client.call('controller.live.feed', { ...base, creatorId: 'other', streamId: null })).rejects.toMatchObject({ code: 'forbidden' });
+  const scoped = await restricted.client.call<{ creatorId: string }>('controller.live.feed', { ...base, creatorId: 'creator', streamId: null });
+  expect(scoped.creatorId).toBe('creator');
+  restricted.client.detach();
+});
+
 test('browser controller screen displays the scoped view and clears it on disconnect', async () => {
   i18n.global.locale.value = 'en';
   const f = fixture();
@@ -148,7 +168,7 @@ test('browser controller screen displays the scoped view and clears it on discon
   try {
     await flushPromises();
     expect(wrapper.text()).toContain('Original');
-    expect(wrapper.text()).toContain('The web view supports workflow and LIVE status reads according to your permissions.');
+    expect(wrapper.text()).toContain('The web view supports workflow and LIVE activity reads according to your permissions.');
     expect(wrapper.text()).not.toContain('Saved profiles');
     expect(wrapper.text()).not.toContain('Connect to another PC');
     expect(wrapper.text()).not.toContain('Disable workflow');

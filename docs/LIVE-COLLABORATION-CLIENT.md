@@ -35,8 +35,11 @@ after recovery, refreshes invalidated records against their host revisions,
 and clears it on disconnect or a sequence gap. It deliberately exposes no
 browser write commands, local profiles, persistent drafts, or other domain
 controls. It also projects the host's current LIVE connection status for a
-`live.read` grant, including LIVE-only observers without workflow access;
-the browser does not yet expose the LIVE feed. An explicitly enabled gateway build can embed and serve this mode
+`live.read` grant, including LIVE-only observers without workflow access.
+The bounded, read-only LIVE feed uses decimal cursor strings and honors creator
+restrictions; it is polled and is not a durable event stream. An individual
+event exceeding the connection's response budget fails the read explicitly.
+An explicitly enabled gateway build can embed and serve this mode
 after browser pairing over HTTPS. The browser session is rechecked before
 publishing workflow data and periodically while connected; another pairing tab
 also sends an advisory session-change notification. Clearing after a cookie

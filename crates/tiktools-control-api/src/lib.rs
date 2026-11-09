@@ -150,6 +150,7 @@ impl ControlApi {
             "live.status",
             "live.monitor.status",
             "ui.feed.backfill",
+            "ui.feed.browser",
             "ui.feed.creator",
         ] {
             router.set_remote_policy(
@@ -250,7 +251,7 @@ impl ControlApi {
             .authorize(session)?;
         // Shared backfill is not filtered by creator. Use a scoped projection
         // before exposing history under a creator-restricted LIVE grant.
-        if method == "ui.feed.backfill"
+        if matches!(method, "ui.feed.backfill" | "ui.feed.browser")
             && session
                 .grant()?
                 .resources

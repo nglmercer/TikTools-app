@@ -7,8 +7,11 @@ With `dist/web` built and the opt-in `browser-app` feature enabled, the ignored
 test ran against real Chromium and a local TLS gateway. It paired an approved
 browser, loaded the embedded controller, observed a host workflow update,
 paired a LIVE-only replacement in another tab, checked that the original view
-cleared, observed the disconnected LIVE status without a workflow subscription,
-and checked that revocation cleared the replacement view. The gateway credential
+cleared, observed disconnected LIVE status and a fixture chat message without a
+workflow subscription, and checked that revocation cleared the replacement
+view. The creator-restricted gateway test denies the unscoped browser feed;
+focused tests cover decimal cursors, filtered fields and response-budget paging.
+The gateway credential
 test also exercises authenticated app/asset delivery, source-map exclusion and
 revocation. Type checking, lint and 31 focused browser tests passed. This is a
 local fixture; it does not establish physical two-PC or actual TikTok LIVE

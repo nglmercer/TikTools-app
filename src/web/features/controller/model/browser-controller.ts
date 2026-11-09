@@ -15,8 +15,8 @@ function revision(value: unknown): bigint {
   return number;
 }
 
-/** Browser-local bridge for the existing controller UI. Only workflow reads
- * are exposed until browser command journaling and the other domains exist. */
+/** Browser-local bridge for scoped workflow and LIVE reads. Commands require
+ * browser journaling and are not exposed by this bridge. */
 export function createBrowserControllerClient(remote: ControlClient, transport: RemoteBrowserTransport, origin: string): ControlClient {
   const url = new URL(origin);
   if (url.origin !== origin || url.protocol !== 'https:' || url.username || url.password) throw new Error('Invalid browser host origin');
@@ -41,7 +41,9 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
       principalId: hello.principalId, sessionId: hello.sessionId, grantRevision: hello.grantRevision,
       // Advertise only domains that this browser bridge actually implements.
       capabilities: hello.capabilities.filter((capability) => capability === 'workflows.read' || capability === 'live.read'),
-      features: { subscriptions: true, workflowDisable: false, workflowDelete: false, workflowSave: false, workflowEnable: false, liveFeedSupported: false },
+      features: { subscriptions: true, workflowDisable: false, workflowDelete: false, workflowSave: false, workflowEnable: false,
+        liveFeedSupported: hello.features['browserFeed'] === true,
+        creatorFeed: hello.features['creatorFeed'] === true },
       resourceRestrictions: Object.fromEntries(['workflow', 'live'].filter((kind) =>
         Object.prototype.hasOwnProperty.call(hello!.resourceRestrictions, kind))
         .map((kind) => [kind, [...hello!.resourceRestrictions[kind]!]])),
@@ -174,6 +176,28 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
         if (allowed !== undefined && (typeof value['uniqueId'] !== 'string' || !allowed.includes(value['uniqueId']))) throw fail('forbidden', 'LIVE creator is not permitted');
         if (!await transport.verifySession() || !matches(generation, expected)) throw fail('stale_view', 'LIVE view changed');
         return { epoch: String(generation), connectionId: expected.connectionId, connected: value['connected'], uniqueId: value['uniqueId'], native: value['native'] } as T;
+      }
+      if (method === 'controller.live.feed') {
+        const expected = hello; const generation = epoch;
+        if (!expected || !matches(generation, expected) || !expected.capabilities.includes('live.read') || expected.features['browserFeed'] !== true ||
+            params['epoch'] !== String(epoch) || params['connectionId'] !== expected.connectionId) throw fail('stale_view', 'LIVE view changed');
+        const after = params['after']; const creator = params['creatorId']; const stream = params['streamId'];
+        if (typeof after !== 'string' || !/^(0|[1-9][0-9]{0,19})$/.test(after) || BigInt(after) > 18446744073709551615n) throw fail('invalid_params', 'Invalid LIVE cursor');
+        const restrictions = expected.resourceRestrictions['live'];
+        let value: unknown;
+        if (creator !== undefined) {
+          if (expected.features['creatorFeed'] !== true || typeof creator !== 'string' || !creator || creator.trim() !== creator ||
+              encoder.encode(creator).length > 256 || /\p{Cc}/u.test(creator) || (restrictions !== undefined && !restrictions.includes(creator)) ||
+              !(stream === null || (typeof stream === 'string' && /^[0-9a-f]{32}$/.test(stream))) || (stream === null && after !== '0')) throw fail('forbidden', 'LIVE creator is not permitted');
+          value = await remote.call('ui.feed.creator', { creatorId: creator, streamId: stream, after, limit: 64 });
+          if (!object(value) || value['creatorId'] !== creator) throw fail('protocol', 'Invalid LIVE feed');
+        } else {
+          if (restrictions !== undefined || stream !== undefined) throw fail('forbidden', 'LIVE feed is not permitted');
+          value = await remote.call('ui.feed.browser', { after });
+          if (!object(value)) throw fail('protocol', 'Invalid LIVE feed');
+        }
+        if (!await transport.verifySession() || !matches(generation, expected)) throw fail('stale_view', 'LIVE view changed');
+        return { ...value, epoch: String(generation), connectionId: expected.connectionId } as T;
       }
       if (method === 'controller.workflows') {
         if (phase !== 'ready' || params['epoch'] !== String(epoch) || params['viewRevision'] !== String(viewRevision)) throw fail('stale_view', 'Workflow view changed');
