@@ -12,22 +12,22 @@ const dialog = ref<ProposalConfirmation | null>(null);
 const open = computed({ get: () => dialog.value !== null, set: (value: boolean) => { if (!value) dialog.value = null; } });
 const current = computed(() => dialog.value !== null && props.model.current(dialog.value));
 const labels = computed(() => locale.value === 'es' ? {
-  title: 'Propuestas de automatización', note: 'Envía una definición inactiva para que el propietario la revise. El anfitrión solo devuelve un resumen; el texto editable es tu copia local.',
+  title: 'Automatizaciones', note: 'El anfitrión devuelve un resumen; el texto editable es tu copia local. Puedes aplicar la definición activa si tu permiso lo permite.',
   family: 'Tipo de propuesta', action: 'Acción', event: 'Evento', id: 'ID de la propuesta', start: 'Preparar propuesta nueva', stored: 'Copias guardadas en esta PC',
   load: 'Abrir copia guardada', inspect: 'Consultar estado actual', missing: 'No existe una definición actual para este ID.', present: 'Existe una definición actual. Solo su autor puede proponer cambios; el anfitrión comprobará el acceso.',
   base: 'Revisión base', mode: 'Operación', create: 'Crear', update: 'Reemplazar', useBase: 'Usar este estado como base', json: 'JSON de tu propuesta',
-  save: 'Guardar propuesta en esta PC', send: 'Enviar propuesta para revisión', remove: 'Eliminar copia guardada', unsaved: 'Este texto tiene cambios sin guardar.', matches: 'El texto coincide con la copia guardada.',
+  save: 'Guardar propuesta en esta PC', send: 'Enviar propuesta para revisión', sendActive: 'Aplicar activa', remove: 'Eliminar copia guardada', unsaved: 'Este texto tiene cambios sin guardar.', matches: 'El texto coincide con la copia guardada.',
   saveTitle: '¿Guardar la propuesta en esta PC?', saveNote: 'Se conservará el texto completo, incluidos los valores sensibles que contenga, en el perfil privado de este controlador.',
   sendTitle: '¿Enviar esta propuesta al anfitrión?', sendNote: 'Se enviará una sola vez la copia guardada que se muestra. Debe estar inactiva. El propietario deberá revisar y adoptar la definición antes de ejecutarla.',
   removeTitle: '¿Eliminar la copia guardada?', removeNote: 'Se eliminará el texto guardado en esta PC. El texto abierto se conserva hasta cerrar o cambiar de perfil.',
   baseTitle: '¿Cambiar la base de reemplazo?', baseNote: 'La revisión consultada será la nueva base de esta propuesta. Compara su estado, revisa tu texto y guarda esta elección antes de enviar.',
   changed: 'La propuesta o el acceso cambió. Cierra la confirmación y vuelve a revisarla.', limit: 'Máximo: 256 KiB. El JSON debe incluir el mismo ID y enabled: false.', retry: 'Actualizar copias guardadas',
 } : {
-  title: 'Automation proposals', note: 'Submit a disabled definition for owner review. The host returns only a summary; the editable text is your local copy.',
+  title: 'Automations', note: 'The host returns a summary; the editable text is your local copy. You can apply the definition active if your grant allows it.',
   family: 'Proposal type', action: 'Action', event: 'Event', id: 'Proposal ID', start: 'Prepare new proposal', stored: 'Copies saved on this PC',
   load: 'Open saved copy', inspect: 'Inspect current status', missing: 'No current definition exists for this ID.', present: 'A current definition exists. Only its author can propose changes; the host will check access.',
   base: 'Base revision', mode: 'Operation', create: 'Create', update: 'Replace', useBase: 'Use this status as base', json: 'Your proposal JSON',
-  save: 'Save proposal on this PC', send: 'Send proposal for review', remove: 'Remove saved copy', unsaved: 'This text has unsaved changes.', matches: 'The text matches the saved copy.',
+  save: 'Save proposal on this PC', send: 'Send proposal for review', sendActive: 'Apply active', remove: 'Remove saved copy', unsaved: 'This text has unsaved changes.', matches: 'The text matches the saved copy.',
   saveTitle: 'Save this proposal on this PC?', saveNote: 'The complete text, including any sensitive values it contains, will be retained in this controller’s private profile.',
   sendTitle: 'Send this proposal to the host?', sendNote: 'The saved copy shown is sent once. It must be disabled. The owner must review and adopt the definition before it can run.',
   removeTitle: 'Remove the saved copy?', removeNote: 'The text saved on this PC will be removed. The open text stays until you close or change the profile.',
@@ -39,7 +39,7 @@ async function load(kind: 'action' | 'event', id: string): Promise<void> { if (p
 async function request(operation: ProposalConfirmation['operation']): Promise<void> {
   const capture = props.model.prepare(operation);
   if (!capture) return;
-  if (operation === 'send') {
+  if (operation !== 'remove') {
     if (props.model.current(capture)) await props.model.confirm(capture);
   } else dialog.value = capture;
 }
@@ -141,7 +141,7 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
         :disabled="model.busy.value"
         @input="model.edit(($event.target as HTMLTextAreaElement).value)"
       /></label>
-      <p>{{ labels.limit }}</p><p role="status">
+      <p>{{ labels.limit }}</p><p>{{ labels.saveNote }}</p><p role="status">
         {{ model.matches.value ? labels.matches : labels.unsaved }}
       </p>
       <div class="actions">
@@ -162,6 +162,12 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
           @click="request('send')"
         >
           {{ labels.send }}
+        </button>
+        <button
+          v-if="model.canSendActive.value"
+          @click="request('send-active')"
+        >
+          {{ labels.sendActive }}
         </button>
       </div>
     </template>

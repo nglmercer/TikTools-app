@@ -13,7 +13,7 @@ use std::{
 
 const BYTES: u64 = 64 * 1024;
 const HISTORY: usize = 16;
-const VERSION: u32 = 5;
+const VERSION: u32 = 6;
 pub fn timestamp() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -56,6 +56,10 @@ pub enum Operation {
     UpdateEventDraft,
     CreateActionDraft,
     UpdateActionDraft,
+    CreateEventActive,
+    UpdateEventActive,
+    CreateActionActive,
+    UpdateActionActive,
 }
 impl Operation {
     pub fn method(self) -> &'static str {
@@ -66,8 +70,14 @@ impl Operation {
             Self::DisableEvent => "automation.disable",
             Self::EnableEvent | Self::EnableAction => "automation.enable",
             Self::DeleteEvent => "automation.delete",
-            Self::CreateEventDraft | Self::CreateActionDraft => "automation.create",
-            Self::UpdateEventDraft | Self::UpdateActionDraft => "automation.update",
+            Self::CreateEventDraft
+            | Self::CreateActionDraft
+            | Self::CreateEventActive
+            | Self::CreateActionActive => "automation.create",
+            Self::UpdateEventDraft
+            | Self::UpdateActionDraft
+            | Self::UpdateEventActive
+            | Self::UpdateActionActive => "automation.update",
         }
     }
     pub fn feature(self) -> &'static str {
@@ -81,6 +91,10 @@ impl Operation {
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
             | Self::UpdateActionDraft => "automationDrafts",
+            Self::CreateEventActive
+            | Self::UpdateEventActive
+            | Self::CreateActionActive
+            | Self::UpdateActionActive => "automationReusableWrite",
         }
     }
     pub fn capability(self) -> tiktools_collaboration::Capability {
@@ -95,7 +109,11 @@ impl Operation {
             Self::CreateEventDraft
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
-            | Self::UpdateActionDraft => tiktools_collaboration::Capability::AutomationEdit,
+            | Self::UpdateActionDraft
+            | Self::CreateEventActive
+            | Self::UpdateEventActive
+            | Self::CreateActionActive
+            | Self::UpdateActionActive => tiktools_collaboration::Capability::AutomationEdit,
         }
     }
     pub fn kind(self) -> tiktools_collaboration::ResourceKind {
@@ -108,17 +126,32 @@ impl Operation {
             | Self::CreateEventDraft
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
-            | Self::UpdateActionDraft => tiktools_collaboration::ResourceKind::Automation,
+            | Self::UpdateActionDraft
+            | Self::CreateEventActive
+            | Self::UpdateEventActive
+            | Self::CreateActionActive
+            | Self::UpdateActionActive => tiktools_collaboration::ResourceKind::Automation,
             Self::Disable | Self::Delete => tiktools_collaboration::ResourceKind::Workflow,
         }
     }
     pub fn scope(self) -> &'static str {
         if matches!(
             self,
-            Self::EnableAction | Self::CreateActionDraft | Self::UpdateActionDraft
+            Self::EnableAction
+                | Self::CreateActionDraft
+                | Self::UpdateActionDraft
+                | Self::CreateActionActive
+                | Self::UpdateActionActive
         ) {
             "action"
-        } else if self.is_event() || matches!(self, Self::CreateEventDraft | Self::UpdateEventDraft)
+        } else if self.is_event()
+            || matches!(
+                self,
+                Self::CreateEventDraft
+                    | Self::UpdateEventDraft
+                    | Self::CreateEventActive
+                    | Self::UpdateEventActive
+            )
         {
             "event"
         } else {
@@ -147,6 +180,19 @@ impl Operation {
                 | Self::UpdateEventDraft
                 | Self::CreateActionDraft
                 | Self::UpdateActionDraft
+                | Self::CreateEventActive
+                | Self::UpdateEventActive
+                | Self::CreateActionActive
+                | Self::UpdateActionActive
+        )
+    }
+    pub fn is_active_proposal(self) -> bool {
+        matches!(
+            self,
+            Self::CreateEventActive
+                | Self::UpdateEventActive
+                | Self::CreateActionActive
+                | Self::UpdateActionActive
         )
     }
     pub fn proposal_family(self) -> Option<tiktools_collaboration::AutomationFamily> {
@@ -166,6 +212,10 @@ impl Operation {
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
             | Self::UpdateActionDraft => matches!(version, 4..=VERSION),
+            Self::CreateEventActive
+            | Self::UpdateEventActive
+            | Self::CreateActionActive
+            | Self::UpdateActionActive => matches!(version, 6..=VERSION),
         }
     }
 }
@@ -203,7 +253,10 @@ impl Intent {
                             || n == 0
                                 && matches!(
                                     self.operation,
-                                    Operation::UpdateEventDraft | Operation::UpdateActionDraft
+                                    Operation::UpdateEventDraft
+                                        | Operation::UpdateActionDraft
+                                        | Operation::UpdateEventActive
+                                        | Operation::UpdateActionActive
                                 )
                     })
             {

@@ -19,7 +19,7 @@ request!(Read {#[serde(default)] pub offset:usize,pub kind:Option<AutomationFami
 request!(Save {pub kind:AutomationFamily,pub id:String,pub expected_store_revision:String,pub mode:ProposalMode,pub base_revision:String,pub text:String,pub acknowledge_storage:bool,});
 request!(Delete {pub kind:AutomationFamily,pub id:String,pub expected_store_revision:String,});
 request!(Inspect {pub kind:AutomationFamily,pub id:String,});
-request!(Submit {pub kind:AutomationFamily,pub id:String,pub inspection_id:String,pub expected_store_revision:String,pub acknowledge_proposal:bool,});
+request!(Submit {pub kind:AutomationFamily,pub id:String,pub inspection_id:String,pub expected_store_revision:String,pub acknowledge_proposal:bool,#[serde(default)] pub active:bool,});
 #[derive(Clone)]
 pub(super) struct Inspection {
     token: String,
@@ -340,7 +340,7 @@ pub(super) async fn mutate(shared: &Shared, p: Submit) -> Result<(), ClientError
             ));
         }
     }
-    let record: Value = serde_json::from_str(&d.text)
+    let mut record: Value = serde_json::from_str(&d.text)
         .map_err(|_| fail("invalid_params", "proposal must be a JSON object"))?;
     if !record.is_object()
         || record.get("id").and_then(Value::as_str) != Some(p.id.as_str())
@@ -359,11 +359,27 @@ pub(super) async fn mutate(shared: &Shared, p: Submit) -> Result<(), ClientError
             "proposal must match its saved ID and family and be explicitly disabled",
         ));
     }
-    let operation = match (d.mode, p.kind) {
-        (ProposalMode::Create, AutomationFamily::Event) => Operation::CreateEventDraft,
-        (ProposalMode::Update, AutomationFamily::Event) => Operation::UpdateEventDraft,
-        (ProposalMode::Create, AutomationFamily::Action) => Operation::CreateActionDraft,
-        (ProposalMode::Update, AutomationFamily::Action) => Operation::UpdateActionDraft,
+    if p.active {
+        let hello = s.remote.hello();
+        if hello.features.get("automationReusableWrite") != Some(&true)
+            || !hello.capabilities.contains(&Capability::AutomationToggle)
+        {
+            return Err(fail(
+                "forbidden",
+                "active automation authoring is unavailable",
+            ));
+        }
+        record["enabled"] = Value::Bool(true);
+    }
+    let operation = match (d.mode, p.kind, p.active) {
+        (ProposalMode::Create, AutomationFamily::Event, false) => Operation::CreateEventDraft,
+        (ProposalMode::Update, AutomationFamily::Event, false) => Operation::UpdateEventDraft,
+        (ProposalMode::Create, AutomationFamily::Action, false) => Operation::CreateActionDraft,
+        (ProposalMode::Update, AutomationFamily::Action, false) => Operation::UpdateActionDraft,
+        (ProposalMode::Create, AutomationFamily::Event, true) => Operation::CreateEventActive,
+        (ProposalMode::Update, AutomationFamily::Event, true) => Operation::UpdateEventActive,
+        (ProposalMode::Create, AutomationFamily::Action, true) => Operation::CreateActionActive,
+        (ProposalMode::Update, AutomationFamily::Action, true) => Operation::UpdateActionActive,
     };
     let params = if d.mode == ProposalMode::Create {
         json!({"kind":p.kind,"record":record})

@@ -221,6 +221,10 @@ pub fn register(router: &mut ControlRouter) {
                         cfg!(feature = "persistence") && reusable_automation,
                     ),
                     (
+                        "automationReusableWrite".into(),
+                        cfg!(feature = "persistence") && reusable_automation,
+                    ),
+                    (
                         "automationEventDeactivate".into(),
                         cfg!(feature = "persistence"),
                     ),

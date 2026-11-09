@@ -609,3 +609,66 @@ async fn tls_moderator_proposal_requires_owner_approval_and_stops_after_grant_ch
     c.disconnect().await;
     f.finish().await;
 }
+
+#[tokio::test]
+async fn native_proposals_create_and_edit_active_definitions_with_reusable_grant() {
+    use tiktools_collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::LiveRead]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+    });
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(allowed).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let c = Controller::new(manager);
+    c.connect("desk").await.unwrap();
+    let mut store_revision = "0".to_string();
+    for (kind, mode, base, name) in [
+        ("action", "create", "0", "first"),
+        ("action", "update", "1", "changed"),
+        ("event", "create", "0", "chat"),
+    ] {
+        let inspected = inspect(&c, kind).await;
+        let mut body = record(kind, name);
+        if kind == "action" {
+            body["config"] = json!({"message":"hello"});
+        }
+        let saved = save(&c, kind, mode, base, &store_revision, &body.to_string()).await;
+        store_revision = saved["storeRevision"].as_str().unwrap().into();
+        let mut input = submit(&c, kind, &inspected, &store_revision);
+        input["active"] = true.into();
+        let result = c
+            .manage("controller.proposals.submit", input)
+            .await
+            .unwrap();
+        assert!(result["pending"].is_null());
+        assert_eq!(
+            result["recent"][0]["intent"]["operation"],
+            format!("{mode}-{kind}-active")
+        );
+        let family = if kind == "action" {
+            AutomationKind::Action
+        } else {
+            AutomationKind::Event
+        };
+        let host = f.core.automation_get(family, "same").unwrap();
+        assert_eq!(host["enabled"], true);
+        assert_eq!(host["name"], name);
+    }
+    c.disconnect().await;
+    f.finish().await;
+}

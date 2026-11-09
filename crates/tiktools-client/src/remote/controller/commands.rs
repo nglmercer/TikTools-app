@@ -220,8 +220,9 @@ fn validate_success(
     if intent.operation.is_proposal() {
         if result.as_object().is_none_or(|o| o.len() != 4)
             || result.get("kind").and_then(Value::as_str) != Some(intent.operation.scope())
-            || result.get("enabled") != Some(&Value::Bool(false))
-            || result.get("pendingReview") != Some(&Value::Bool(true))
+            || result.get("enabled") != Some(&Value::Bool(intent.operation.is_active_proposal()))
+            || result.get("pendingReview")
+                != Some(&Value::Bool(!intent.operation.is_active_proposal()))
             || after == 0
             || after > i64::MAX as u64
             || before.checked_add(1) != Some(after)
@@ -254,7 +255,11 @@ fn validate_success(
         Operation::CreateEventDraft
         | Operation::UpdateEventDraft
         | Operation::CreateActionDraft
-        | Operation::UpdateActionDraft => unreachable!(),
+        | Operation::UpdateActionDraft
+        | Operation::CreateEventActive
+        | Operation::UpdateEventActive
+        | Operation::CreateActionActive
+        | Operation::UpdateActionActive => unreachable!(),
     };
     if after
         != before

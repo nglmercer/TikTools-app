@@ -10,7 +10,7 @@ export interface ProposalDraft { kind: Family; id: string; mode: Mode; baseRevis
 interface ProposalRow extends Omit<ProposalDraft, 'text'> { textBytes: number }
 interface Inspection extends Identity { inspectionId: string; kind: Family; id: string; revision: string; summary: AutomationSummary | null }
 export interface ProposalConfirmation extends Identity {
-  operation: 'save' | 'send' | 'remove' | 'base'; binding: string; origin: string; hostId: string;
+  operation: 'save' | 'send' | 'send-active' | 'remove' | 'base'; binding: string; origin: string; hostId: string;
   kind: Family; id: string; mode: Mode; baseRevision: string; text: string; storeRevision: string; inspectionId: string | null;
 }
 interface Dependencies { status: Ref<ControllerStatus>; blocked: () => boolean; journalMatches: () => boolean; send: (method: string, params: Record<string, unknown>) => Promise<boolean> }
@@ -39,6 +39,7 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   const matches = computed(() => !!saved.value && saved.value.kind === kind.value && saved.value.id === id.value && saved.value.mode === mode.value && saved.value.baseRevision === baseRevision.value && saved.value.text === text.value);
   const inspected = computed(() => !!inspection.value && inspection.value.kind === kind.value && inspection.value.id === id.value && inspection.value.revision === baseRevision.value && (inspection.value.summary !== null) === (mode.value === 'update'));
   const canSend = computed(() => editable.value && !busy.value && matches.value && inspected.value && !deps.blocked() && deps.journalMatches() && deps.status.value.hello?.capabilities.includes('automation.edit') === true && deps.status.value.hello.features['automationDrafts'] === true);
+  const canSendActive = computed(() => canSend.value && deps.status.value.hello?.features['automationReusableWrite'] === true && deps.status.value.hello.capabilities.includes('automation.toggle'));
   function reset(): void { generation += 1; rows.value = []; saved.value = null; inspection.value = null; storeRevision.value = null; text.value = ''; id.value = ''; baseRevision.value = '0'; mode.value = 'create'; error.value = ''; busy.value = false; loaded = ''; }
   const unwatch = watch(identityKey, reset, { flush: 'sync' });
   function active(g: number, b: string): boolean { return !disposed && generation === g && identityKey.value === b && allowed.value; }
@@ -107,7 +108,7 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   function edit(value: string): void { if (editable.value && !busy.value) text.value = value; }
   function prepare(operation: ProposalConfirmation['operation']): ProposalConfirmation | null {
     const s = deps.status.value; const fence = identity(s);
-    if (!editable.value || busy.value || !fence || !s.origin || !s.hello || storeRevision.value === null || !revision(baseRevision.value) || (mode.value === 'update' && baseRevision.value === '0') || encoder.encode(text.value).length > 256 * 1024 || (operation === 'send' && !canSend.value) || (operation === 'remove' && !saved.value) || (operation === 'base' && !inspection.value)) return null;
+    if (!editable.value || busy.value || !fence || !s.origin || !s.hello || storeRevision.value === null || !revision(baseRevision.value) || (mode.value === 'update' && baseRevision.value === '0') || encoder.encode(text.value).length > 256 * 1024 || (operation === 'send' && !canSend.value) || (operation === 'send-active' && !canSendActive.value) || (operation === 'remove' && !saved.value) || (operation === 'base' && !inspection.value)) return null;
     return { ...fence, operation, binding: identityKey.value, origin: s.origin, hostId: s.hello.hostId, kind: kind.value, id: id.value, mode: mode.value, baseRevision: baseRevision.value, text: text.value, storeRevision: storeRevision.value, inspectionId: inspection.value?.inspectionId ?? null };
   }
   function current(t: ProposalConfirmation): boolean {
@@ -117,8 +118,8 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
   async function confirm(t: ProposalConfirmation): Promise<void> {
     if (!current(t)) return;
     if (t.operation === 'base') { const i = inspection.value!; baseRevision.value = i.revision; mode.value = i.summary === null ? 'create' : 'update'; return; }
-    if (t.operation === 'send') {
-      const accepted = await deps.send('controller.proposals.submit', { epoch: t.epoch, connectionId: t.connectionId, hostInstanceId: t.hostInstanceId, grantRevision: t.grantRevision, kind: t.kind, id: t.id, inspectionId: t.inspectionId, expectedStoreRevision: t.storeRevision, acknowledgeProposal: true });
+    if (t.operation === 'send' || t.operation === 'send-active') {
+      const accepted = await deps.send('controller.proposals.submit', { epoch: t.epoch, connectionId: t.connectionId, hostInstanceId: t.hostInstanceId, grantRevision: t.grantRevision, kind: t.kind, id: t.id, inspectionId: t.inspectionId, expectedStoreRevision: t.storeRevision, acknowledgeProposal: true, ...(t.operation === 'send-active' ? { active: true } : {}) });
       if (accepted && identityKey.value === t.binding) inspection.value = null;
       return;
     }
@@ -130,6 +131,6 @@ export function createProposalModel(control: ControlClient, deps: Dependencies) 
     await refresh();
   }
   function stop(): void { disposed = true; unwatch(); reset(); }
-  return { kind, id, mode, baseRevision, text, rows, saved, inspection, storeRevision, busy, error, identityKey, allowed, editable, matches, inspected, canSend, refresh, reloadInventory, reset, select, load, inspect, edit, prepare, current, confirm, stop };
+  return { kind, id, mode, baseRevision, text, rows, saved, inspection, storeRevision, busy, error, identityKey, allowed, editable, matches, inspected, canSend, canSendActive, refresh, reloadInventory, reset, select, load, inspect, edit, prepare, current, confirm, stop };
 }
 export type ProposalModel = ReturnType<typeof createProposalModel>;

@@ -74,3 +74,17 @@ it('ignores an older selected private read after profile loss', async () => {
   release({ ...oldIdentity, storeRevision: '1', draft: { kind: 'action', id: 'same', mode: 'create', baseRevision: '0', text: 'delayed secret', updatedAt: 1 } });
   await loading; expect(f.model.text.value).toBe(''); expect(f.model.saved.value).toBeNull(); expect(f.model.busy.value).toBe(false);
 });
+
+it('sends an active change only when the host advertises the reusable grant', async () => {
+  const f = fixture(); await ready(f);
+  expect(f.model.prepare('send-active')).toBeNull();
+  f.status.value.hello!.capabilities.push('automation.toggle');
+  f.status.value.hello!.features['automationReusableWrite'] = true;
+  // Changing grant capabilities clears the editor; inspect and save again.
+  await ready(f);
+  const target = f.model.prepare('send-active')!;
+  expect(target).not.toBeNull();
+  await f.model.confirm(target);
+  expect(f.send).toHaveBeenCalledExactlyOnceWith('controller.proposals.submit', expect.objectContaining({ kind: 'action', id: 'same', active: true, expectedStoreRevision: '2' }));
+  expect(f.model.prepare('send-active')).toBeNull();
+});
