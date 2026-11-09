@@ -3,6 +3,7 @@ use tiktools_control_api::modules::sync::{
     CloudLibraryDocument, CloudLibraryPage, CloudLibraryQuery, CloudLibraryRead, SyncNowResult,
     SyncRecoveryOutcome, SyncRecoveryReview, SyncResolveParams, SyncStatusResult,
     SyncUncertainResolveParams, SyncUncertainReviewParams, WorkspaceV2Discovery,
+    WorkspaceV2SyncResult,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
@@ -17,6 +18,7 @@ pub(crate) const METHODS: &[&str] = &[
     "sync.uncertain.review",
     "sync.uncertain.resolve",
     "sync.v2.discover",
+    "sync.v2.now",
     "cloudLibrary.list",
     "cloudLibrary.read",
 ];
@@ -40,6 +42,10 @@ impl TikToolsClient {
         request: CloudLibraryRead,
     ) -> Result<CloudLibraryDocument, ClientError> {
         self.call("cloudLibrary.read", request).await
+    }
+
+    pub async fn sync_v2_now(&self) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.now", Empty::default()).await
     }
 
     pub async fn sync_v2_discover(&self) -> Result<WorkspaceV2Discovery, ClientError> {

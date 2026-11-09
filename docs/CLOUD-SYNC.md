@@ -19,6 +19,14 @@ uses v1. Explicit cutover, product RPC/UI, reviewed local application and actual
 two-Desktop v2 acceptance are pending. The components, flow and historical
 validation sections below describe v1.
 
+An explicit local-Owner `sync.v2.now` operation can stage confirmed plugin
+intents and run a bounded v2 network pass for an identity that has already
+completed the guarded cutover and enabled account-scoped consent. It caches
+downloaded records without applying them locally. It does not select v2,
+replace the existing `sync.now` operation, or complete the product UI and
+two-device workflow. `workspacePending` counts workspace edits; `moreQueued`
+also signals additional local intents or a bounded network pass.
+
 The reviewed sibling RemakeBackend commit is `cb37900`, including canonical
 registry shards and bounded v2 capability discovery in the SDK, following bounded
 catalog pagination in `9f7e642`, catalog compatibility in `995d496`, integrity

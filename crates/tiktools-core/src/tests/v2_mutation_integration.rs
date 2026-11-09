@@ -79,6 +79,18 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
                     ("200 OK", json!({"writeEpoch":"7","epochRequired":true}))
                 } else if line.starts_with("POST /api/v2/sync/write-barrier ") {
                     ("200 OK", json!({"writeEpoch":"8"}))
+                } else if line.starts_with("GET /api/v2/sync/changes?") {
+                    ("200 OK", json!({"changes":[],"cursor":0,"has_more":false}))
+                } else if line
+                    .starts_with("PUT /api/v2/sync/collections/plugin-selections/acme.hotkeys ")
+                    && request
+                        .to_ascii_lowercase()
+                        .contains("x-workspace-write-epoch: 7")
+                {
+                    (
+                        "200 OK",
+                        json!({"collection":"plugin-selections","key":"acme.hotkeys","revision":1,"deleted":false,"value":{"schemaVersion":1,"pluginId":"acme.hotkeys","version":"1.0.0","enabled":true}}),
+                    )
                 } else {
                     ("404 Not Found", json!({}))
                 };
@@ -143,14 +155,16 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         }
     }
 
-    core.plugin_set_enabled("acme.hotkeys", false).unwrap();
+    core.plugin_set_enabled_with_untracked_intent("acme.hotkeys", false)
+        .unwrap();
     let source =
         crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, &origin, "alice");
     let stale = source
         .review_untracked_selection("acme.hotkeys")
         .unwrap()
         .unwrap();
-    core.plugin_set_enabled("acme.hotkeys", true).unwrap();
+    core.plugin_set_enabled_with_untracked_intent("acme.hotkeys", true)
+        .unwrap();
     let proof = sync
         .prepare_v2_reconciliation_barrier(session.clone(), "acme.hotkeys".into())
         .await
@@ -425,14 +439,20 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         .unwrap()
         .unwrap();
     source.confirm_reconciled_runtime(&runtime_review).unwrap();
-    sync.stage_v2_product_decision(&source).unwrap();
+    drop(source);
+    Arc::get_mut(&mut core).unwrap().cloud = Arc::new(
+        crate::cloud_account::CloudAccount::with_test_auth(auth.clone()),
+    );
+    let result = core.sync_v2_now().await.unwrap();
     assert!(core
         .db
         .plugin_sync_intent_for(&origin, "alice", "acme.hotkeys")
         .unwrap()
         .is_none());
+    assert_eq!(result.pushed, 1);
+    assert_eq!(result.workspace_pending, 0);
+    assert!(!result.more_queued);
     core.shutdown().await;
-    drop(source);
     server.abort();
     let _ = std::fs::remove_dir_all(root);
 }

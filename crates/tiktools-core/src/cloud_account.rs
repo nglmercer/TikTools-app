@@ -17,6 +17,11 @@ pub(crate) struct CloudAccount {
 }
 
 impl CloudAccount {
+    #[cfg(test)]
+    pub(crate) fn with_test_auth(auth: CloudAuth) -> Self {
+        Self { auth }
+    }
+
     pub(crate) fn new(paths: &AppPaths, events: &EventBus) -> Self {
         let store: Arc<dyn TokenStore> = Arc::new(OsTokenStore::new());
         let events = events.clone();

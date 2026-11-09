@@ -108,6 +108,7 @@ pub use cloud_library::{
 #[cfg(feature = "cloud-auth")]
 pub use cloud_sync::{
     SyncNowResult, SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncRecoveryValue,
+    WorkspaceV2SyncResult,
 };
 #[cfg(feature = "cloud-auth")]
 pub use cloud_workspace::{WorkspaceV2Discovery, WorkspaceV2DiscoveryState};

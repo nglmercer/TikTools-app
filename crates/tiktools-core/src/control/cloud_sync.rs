@@ -29,6 +29,22 @@ pub struct SyncNowResult {
     pub application_deferred: bool,
 }
 
+/// A v2 network pass persists its cache but does not apply Cloud records to
+/// local plugins or automation definitions.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceV2SyncResult {
+    pub pushed: usize,
+    pub pulled: usize,
+    /// Pending edits in the v2 workspace; additional SQLite intents may be
+    /// indicated by `more_queued`.
+    pub workspace_pending: usize,
+    /// Cached records available for application or review.
+    pub available_records: usize,
+    pub conflicts: Vec<String>,
+    pub more_queued: bool,
+}
+
 /// A nonsecret projection of a single selection shown during explicit review.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -165,6 +181,127 @@ impl AppCore {
             conflicts: outcome.conflicts,
             application_deferred: skipped != 0,
         })
+    }
+
+    /// Explicit v2 pass for an already selected, account-scoped product
+    /// protocol. It never performs migration or applies downloaded records.
+    pub async fn sync_v2_now(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<WorkspaceV2SyncResult, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            use tiktools_cloud_sync::ProductLocalEditContext;
+            let core = self.clone();
+            let selected = tokio::task::spawn_blocking(move || {
+                core.sync
+                    .coordinator()
+                    .map_err(|_| OperationError::unavailable("Cloud sync storage is unavailable"))?
+                    .with_product_local_edit(|context| context)
+                    .map_err(sync_error)
+            })
+            .await
+            .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))??;
+            let ProductLocalEditContext::V2(Some(identity)) = selected else {
+                return Err(OperationError::unavailable(
+                    "Cloud v2 is not enabled for the current account",
+                ));
+            };
+            if self.cloud.auth().session().await.is_none() {
+                let _ = self.cloud.auth().restore().await;
+            }
+            let session = self
+                .cloud
+                .auth()
+                .session()
+                .await
+                .ok_or_else(|| OperationError::unavailable("Cloud sign-in is required"))?;
+            if session.instance_origin() != identity.origin
+                || session.account_id() != identity.account_id
+            {
+                return Err(OperationError::conflict("Cloud account changed; try again"));
+            }
+            let coordinator = self.sync_coordinator()?.clone();
+            let epoch = coordinator
+                .capture_v2_config_epoch(&session)
+                .ok_or_else(|| OperationError::conflict("Cloud sync setting changed; try again"))?;
+            let core = self.clone();
+            let origin = identity.origin.clone();
+            let account = identity.account_id.clone();
+            let outbox_more =
+                tokio::task::spawn_blocking(move || -> Result<bool, OperationError> {
+                    let coordinator = core.sync.coordinator().map_err(|_| {
+                        OperationError::unavailable("Cloud sync storage is unavailable")
+                    })?;
+                    let source = crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(
+                        &core, &origin, &account,
+                    );
+                    for _ in 0..50 {
+                        if core
+                            .db
+                            .next_plugin_sync_intent(&origin, &account)
+                            .map_err(|_| {
+                                OperationError::unavailable("Local sync queue is unavailable")
+                            })?
+                            .is_none()
+                        {
+                            return Ok(false);
+                        }
+                        coordinator
+                            .stage_v2_product_decision(&source)
+                            .map_err(sync_error)?;
+                    }
+                    Ok(core
+                        .db
+                        .next_plugin_sync_intent(&origin, &account)
+                        .map_err(|_| {
+                            OperationError::unavailable("Local sync queue is unavailable")
+                        })?
+                        .is_some())
+                })
+                .await
+                .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))??;
+            let source = std::sync::Arc::new(
+                crate::cloud_sync::product_v2_outbox::OwnedSqliteV2UploadSource::new(
+                    self.clone(),
+                    identity.origin,
+                    identity.account_id,
+                ),
+            );
+            let outcome = coordinator
+                .sync_v2_product(session.clone(), source)
+                .await
+                .map_err(|_| {
+                    OperationError::unavailable(
+                        "Cloud v2 sync could not complete; pending changes were retained",
+                    )
+                })?;
+            self.cloud
+                .auth()
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
+                .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
+                .then_some(())
+                .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
+            Ok(WorkspaceV2SyncResult {
+                pushed: outcome.pushed,
+                pulled: outcome.pulled,
+                workspace_pending: outcome.pending,
+                available_records: outcome.remote.len(),
+                conflicts: outcome
+                    .conflicts
+                    .into_iter()
+                    .map(|key| format!("{}/{}", key.collection, key.key))
+                    .collect(),
+                more_queued: outbox_more || outcome.more_queued,
+            })
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            Err(OperationError::unavailable(
+                "Cloud v2 sync requires persistence",
+            ))
+        }
     }
 
     /// Keep both sides of a conflict until source-fenced recovery can bind the

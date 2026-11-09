@@ -217,7 +217,8 @@ impl SyncCoordinator {
     /// Product-only dispatcher. The source must fence and validate each
     /// receipt immediately before its durable prepare; queued workspace data
     /// without a matching native decision is never automatically sent.
-    /// This is not yet wired to product RPC or local application.
+    /// The explicit product RPC caches fetched records but does not apply them
+    /// to local sources.
     pub async fn sync_v2_product(
         &self,
         session: Arc<cloud_client::Session>,

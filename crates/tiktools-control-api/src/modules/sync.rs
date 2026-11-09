@@ -12,6 +12,7 @@ pub use tiktools_core::control::{
     CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus, SyncNowResult,
     SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, WorkspaceV2Discovery,
+    WorkspaceV2SyncResult,
 };
 use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
 
@@ -130,6 +131,12 @@ pub fn register(router: &mut ControlRouter) {
                 .map(|status| SyncStatusResult { status })
                 .map_err(map_error)
         },
+    );
+    router.register_typed::<Empty, WorkspaceV2SyncResult, _, _>(
+        "sync.v2.now",
+        "Synchronize an already selected v2 workspace without applying Cloud records",
+        true,
+        |core: Arc<AppCore>, _| async move { core.sync_v2_now().await.map_err(map_error) },
     );
     router.register_typed::<Empty, SyncNowResult, _, _>(
         "sync.now",
