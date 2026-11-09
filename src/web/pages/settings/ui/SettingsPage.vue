@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDiagnostics.vue';
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
+import CloudLibrary from '@/features/cloud-library/ui/CloudLibrary.vue';
 import CloudSyncEditor from '@/features/cloud-sync/ui/CloudSyncEditor.vue';
 import CollaborationEditor from '@/features/manage-collaboration/ui/CollaborationEditor.vue';
 import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
@@ -90,6 +91,7 @@ const locale = computed<Locale>({
       <template v-else-if="section === 'account'">
         <CloudAccountEditor />
         <CloudSyncEditor />
+        <CloudLibrary />
       </template>
       <template v-else-if="section === 'collaboration'">
         <CollaborationEditor />

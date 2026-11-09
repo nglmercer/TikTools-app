@@ -11,6 +11,15 @@ export default {
   automationApproval,
   definitionRecovery,
   libraryRecovery,
+  cloudLibrary: {
+    title: 'Cloud library', description: 'Browse Cloud documents. Viewing a document does not import or activate it.',
+    scope: 'Library', public: 'Public', mine: 'My documents', kind: 'Type', all: 'All', template: 'Template', profile: 'Profile',
+    query: 'Search', search: 'Search', signIn: 'Sign in or wait for the account check to view your documents.', loading: 'Loading Cloud documents…',
+    unavailable: 'Cloud documents could not be loaded. Try again.', empty: 'No documents found.',
+    revision: 'Revision {revision}', pages: 'Cloud library pages', previous: 'Previous', next: 'Next',
+    event: 'Event: {name}', actions: 'Actions', templates: 'Templates',
+    status: { draft: 'Draft', pending: 'Pending review', published: 'Published', rejected: 'Rejected', withdrawn: 'Withdrawn' },
+  },
   common: {
     ok: 'OK',
     cancel: 'Cancel',

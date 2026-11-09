@@ -13,6 +13,15 @@ export default {
   automationApproval,
   definitionRecovery,
   libraryRecovery,
+  cloudLibrary: {
+    title: 'Biblioteca Cloud', description: 'Explora documentos Cloud. Ver un documento no lo importa ni lo activa.',
+    scope: 'Biblioteca', public: 'Pública', mine: 'Mis documentos', kind: 'Tipo', all: 'Todos', template: 'Plantilla', profile: 'Perfil',
+    query: 'Buscar', search: 'Buscar', signIn: 'Inicia sesión o espera a que se compruebe la cuenta para ver tus documentos.', loading: 'Cargando documentos Cloud…',
+    unavailable: 'No se pudieron cargar los documentos Cloud. Inténtalo de nuevo.', empty: 'No se encontraron documentos.',
+    revision: 'Revisión {revision}', pages: 'Páginas de la biblioteca Cloud', previous: 'Anterior', next: 'Siguiente',
+    event: 'Evento: {name}', actions: 'Acciones', templates: 'Plantillas',
+    status: { draft: 'Borrador', pending: 'Pendiente de revisión', published: 'Publicado', rejected: 'Rechazado', withdrawn: 'Retirado' },
+  },
   common: {
     ok: 'Aceptar',
     cancel: 'Cancelar',
