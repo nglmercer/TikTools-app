@@ -838,6 +838,280 @@ mod external;
 mod scoped_flow;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_multi_author_event_chain_requires_both_current_topic_grants() {
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::EventsEmit]);
+    permitted.max_points_delta = Some(5.0);
+    permitted.effects.emit_topics.insert("overlay.alert".into());
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Emit,
+            DelegatedAutomationEffect::Points,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    let other = f.pair(permitted.clone());
+    let other_identity = other.snapshot().unwrap();
+    let definitions = [
+        (
+            AutomationKind::Action,
+            json!({"id":"send","name":"Send","enabled":true,"typeId":"core.emit","config":{"type":"overlay.alert","data":{"comment":"{{event.data.comment}}"}}}),
+        ),
+        (
+            AutomationKind::Action,
+            json!({"id":"reward","name":"Reward","enabled":true,"typeId":"core.points","config":{"uniqueId":"alice","delta":2}}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"root","name":"Root","enabled":true,"trigger":"tiktok.chat","actionIds":["send"]}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"child","name":"Child","enabled":true,"trigger":"overlay.alert","actionIds":["reward"]}),
+        ),
+    ];
+    for (index, (kind, record)) in definitions.into_iter().enumerate() {
+        let author = if index == 1 || index == 3 {
+            &other
+        } else {
+            &auth
+        };
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(author.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    f.core()
+        .run_automation_event(AutomationEvent::owner_without_delegation(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        0.0,
+        "unverified input cannot start the chain"
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "runs: {:?}",
+        f.core().automation_runs()
+    );
+    let mut direct = input("alice");
+    direct["type"] = "overlay.alert".into();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(direct))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "owner input cannot impersonate scoped emission"
+    );
+    let mut narrowed = permitted.clone();
+    narrowed.effects.emit_topics.clear();
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: other_identity.principal_id.clone(),
+            expected_revision: other_identity.grant_revision,
+            grant: narrowed,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "child author must retain the topic grant"
+    );
+    let revision = f
+        .core()
+        .collaboration()
+        .unwrap()
+        .principal(&other_identity.principal_id)
+        .unwrap()
+        .grant_revision;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: other_identity.principal_id,
+            expected_revision: revision,
+            grant: permitted.clone(),
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        4.0,
+        "restoring the child's grant permits the chain again"
+    );
+    permitted.effects.emit_topics.clear();
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: permitted,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        4.0,
+        "parent author topic revocation must stop later events"
+    );
+    f.core().shutdown().await;
+}
+
+#[cfg(feature = "native-tiktok")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_ingress_drives_reusable_internal_event_chain_until_topic_revoked() {
+    use std::sync::atomic::Ordering;
+    use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::EventsEmit]);
+    permitted.max_points_delta = Some(5.0);
+    permitted.effects.emit_topics.insert("overlay.alert".into());
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Emit,
+            DelegatedAutomationEffect::Points,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    for (kind, record) in [
+        (
+            AutomationKind::Action,
+            json!({"id":"send","name":"Send","enabled":true,"typeId":"core.emit","config":{"type":"overlay.alert","data":{"comment":"{{event.data.comment}}"}}}),
+        ),
+        (
+            AutomationKind::Action,
+            json!({"id":"reward","name":"Reward","enabled":true,"typeId":"core.points","config":{"uniqueId":"alice","delta":2}}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"root","name":"Root","enabled":true,"trigger":"tiktok.chat","actionIds":["send"]}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"child","name":"Child","enabled":true,"trigger":"overlay.alert","actionIds":["reward"]}),
+        ),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    let core = f.core().clone();
+    *crate::recover_rwlock_write(&core.connection_context, "test connection") =
+        Some(crate::LiveContext {
+            unique_id: "creator".into(),
+            room_id: "room".into(),
+            connection_id: "connection-17".into(),
+            creator_verified: true,
+        });
+    let dispatch = |id| {
+        let before = core
+            .automation_state
+            .events_completed
+            .load(Ordering::Relaxed);
+        let native = crate::NativeLiveEvent {
+            base: CanonicalLiveEvent::Chat(ChatEvent {
+                user: EventUser {
+                    unique_id: "alice".into(),
+                    nickname: "Alice".into(),
+                    ..Default::default()
+                },
+                comment: "hello".into(),
+                ..Default::default()
+            }),
+            metadata: EventMetadata {
+                method: "WebcastChatMessage".into(),
+                msg_id: id,
+                is_history: false,
+            },
+            gift: None,
+        };
+        assert!(core
+            .prepare_live_event_with_generation(native, Some(17))
+            .is_some());
+        before
+    };
+    async fn wait_done(core: &Arc<AppCore>, before: u64) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while core
+                .automation_state
+                .events_completed
+                .load(Ordering::Relaxed)
+                <= before
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("native event dispatch did not finish");
+    }
+    wait_done(&core, dispatch(1)).await;
+    assert_eq!(
+        f.points("alice"),
+        0.0,
+        "an unverified generation cannot start the chain"
+    );
+    core.events.bind_live_generation(17, "creator");
+    // The emitted child and its root each complete once; wait for both before
+    // measuring the next native event so an earlier completion cannot satisfy it.
+    wait_done(&core, dispatch(2) + 1).await;
+    assert_eq!(f.points("alice"), 2.0, "runs: {:?}", core.automation_runs());
+    permitted.effects.emit_topics.clear();
+    core.collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: permitted,
+        })
+        .unwrap();
+    wait_done(&core, dispatch(3)).await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "topic revocation must stop later native events"
+    );
+    core.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
     let f = Fixture::new();
     let mut permitted = grant();

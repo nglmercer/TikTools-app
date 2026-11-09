@@ -50,6 +50,14 @@ API integration creates an active chat-to-emit-to-custom-event chain under a
 single reusable grant and rejects an ungranted topic. This proves admission and
 storage, not a physical LIVE or delivery of an actual TikTok event.
 
+Core runtime tests now execute that kind of chain through an internal event to a
+points adjustment. A two-author fixture checks that removing either author's
+topic grant stops the relevant chain and restoring the child author's grant
+allows a later event to run. Another test injects a constructed native chat
+event: an unverified generation cannot start the chain, a host-injected verified
+generation runs it, and topic revocation stops subsequent events. These tests
+do not connect to TikTok or prove two physical computers can collaborate.
+
 ## Reusable grant: native ingress and two controllers
 
 A native TikTok chat fixture now traverses `prepare_live_event_with_generation`
