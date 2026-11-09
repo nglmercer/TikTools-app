@@ -12,6 +12,23 @@ release acceptance remain pending. See the [client guide](LIVE-COLLABORATION-CLI
 [host contract](LIVE-COLLABORATION-SPEC.md) and
 [executed checks](LIVE-COLLABORATION-VALIDATION.md).
 
+## Browser journal foundation
+
+An experimental IndexedDB journal now provides identity-bound workflow intents,
+strict-durability transaction requests, bounded history and an explicit
+reviewed-unknown result. A transaction checks the stored schema and atomically
+allows only one pending intent per origin/host/principal/session across tabs.
+It stores neither credentials nor workflow bodies. Chromium tests cover
+concurrent tabs, reload, aborted transactions and corrupt records.
+
+This storage primitive is not wired to browser commands. A completed IndexedDB
+transaction is not proof against browser data clearing, eviction, device loss or
+every platform's power-loss behavior. Before enabling mutations, the controller
+still needs storage-loss detection and recovery policy, permission-filtered
+views, identity and connection fences, verified host receipts/outcome queries,
+explicit review and end-to-end crash/lost-reply tests. Browser actions remain
+disabled until that complete path is in place.
+
 ## Automation events
 
 The **Host automations** board shows closed event/action summaries under the
