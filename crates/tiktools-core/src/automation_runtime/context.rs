@@ -28,6 +28,8 @@ pub(crate) struct ExecutionContext {
     execution: Option<crate::services::effects::EffectExecution>,
     #[cfg(feature = "persistence")]
     competition: Option<crate::db::CompetitionExecutionFence>,
+    #[cfg(feature = "persistence")]
+    competition_winner: Option<tiktools_competitions::ActionClaim>,
 }
 impl ExecutionContext {
     /// Only explicit trusted host/Owner producers use this constructor. Never
@@ -42,6 +44,8 @@ impl ExecutionContext {
             execution: crate::services::effects::EffectExecution::fresh().ok(),
             #[cfg(feature = "persistence")]
             competition: None,
+            #[cfg(feature = "persistence")]
+            competition_winner: None,
         }
     }
     pub(crate) fn owner_without_delegation() -> Self {
@@ -59,6 +63,8 @@ impl ExecutionContext {
             execution: crate::services::effects::EffectExecution::fresh().ok(),
             #[cfg(feature = "persistence")]
             competition: None,
+            #[cfg(feature = "persistence")]
+            competition_winner: None,
         }
     }
     #[cfg_attr(not(feature = "persistence"), allow(dead_code))]
@@ -78,6 +84,8 @@ impl ExecutionContext {
             execution: crate::services::effects::EffectExecution::fresh().ok(),
             #[cfg(feature = "persistence")]
             competition: None,
+            #[cfg(feature = "persistence")]
+            competition_winner: None,
         })
     }
     /// Records an inherited competition binding without making it an effect
@@ -118,6 +126,8 @@ impl ExecutionContext {
             execution: self.execution.clone(),
             #[cfg(feature = "persistence")]
             competition: self.competition.clone(),
+            #[cfg(feature = "persistence")]
+            competition_winner: self.competition_winner.clone(),
         })
     }
     /// Owner is neutral; denied is absorbing; restricted subjects are combined
@@ -176,6 +186,12 @@ impl ExecutionContext {
             (Some(fence), _) | (_, Some(fence)) => Some(fence.clone()),
             _ => None,
         };
+        #[cfg(feature = "persistence")]
+        let competition_winner = match (&self.competition_winner, &other.competition_winner) {
+            (Some(a), Some(b)) if a != b => return Err("competition winner bindings conflict"),
+            (Some(claim), _) | (_, Some(claim)) => Some(claim.clone()),
+            _ => None,
+        };
         Ok(Self {
             authority,
             depth: self.depth.max(other.depth),
@@ -185,6 +201,8 @@ impl ExecutionContext {
             execution: self.execution.clone(),
             #[cfg(feature = "persistence")]
             competition,
+            #[cfg(feature = "persistence")]
+            competition_winner,
         })
     }
     /// Revalidates identity/lifetime only. This does not approve definitions,
@@ -262,6 +280,61 @@ impl ExecutionContext {
         }
         let _ = (action, automation, apply);
         Err("delegated execution approval is unavailable".into())
+    }
+
+    /// Revalidate the immutable winner, current operators and every saved
+    /// automation author at the effect boundary under one business writer.
+    #[cfg(feature = "persistence")]
+    pub(crate) fn with_competition_action<R>(
+        &self,
+        core: &AppCore,
+        action: &serde_json::Value,
+        apply: impl FnOnce(&[crate::collaboration::ExecutionIdentity]) -> Result<R, String>,
+    ) -> Result<R, String> {
+        let (
+            Some(fence),
+            Some(claim),
+            Authority::Approved {
+                subjects,
+                permits,
+                owner_rules,
+            },
+        ) = (&self.competition, &self.competition_winner, &self.authority)
+        else {
+            return Err("competition winner authority is unavailable".into());
+        };
+        let additional = subjects
+            .snapshot()
+            .map_err(|_| "saved execution subjects are unavailable")?
+            .iter()
+            .map(|id| (id.principal_id().to_owned(), id.session_id().to_owned()))
+            .collect::<Vec<_>>();
+        let service = core
+            .collaboration()
+            .map_err(|_| "collaboration is unavailable")?;
+        core.db
+            .with_competition_winner_admission(
+                &service,
+                fence,
+                claim,
+                &additional,
+                |_, identities, admission, _| {
+                    core.automation
+                        .with_current_competition_approvals(
+                            admission,
+                            permits,
+                            owner_rules,
+                            action,
+                            || apply(identities),
+                        )
+                        .map_err(crate::db::DatabaseError::Invalid)
+                },
+            )
+            .map_err(|error| error.to_string())
+    }
+    #[cfg(feature = "persistence")]
+    pub(crate) fn is_competition_winner(&self) -> bool {
+        self.competition_winner.is_some()
     }
 
     /// Retain every inherited subject/definition fence during scoped event
@@ -504,11 +577,84 @@ impl AppCore {
                 execution: crate::services::effects::EffectExecution::fresh().ok(),
                 #[cfg(feature = "persistence")]
                 competition: None,
+                #[cfg(feature = "persistence")]
+                competition_winner: None,
             })
         })
         .await
         .map_err(|_| "execution approval resolution failed")??;
         incoming.intersect(&approved)
+    }
+
+    #[cfg(feature = "persistence")]
+    pub(crate) async fn competition_winner_execution_context(
+        self: &std::sync::Arc<Self>,
+        claim: tiktools_competitions::ActionClaim,
+        action: serde_json::Value,
+    ) -> Result<ExecutionContext, &'static str> {
+        let core = self.clone();
+        tokio::task::spawn_blocking(move || {
+            let service = core
+                .collaboration()
+                .map_err(|_| "collaboration is unavailable")?;
+            let fence = core
+                .db
+                .capture_competition_execution_fence(
+                    &service,
+                    &claim.competition_id,
+                    claim.generation,
+                )
+                .map_err(|_| "competition authority is unavailable")?;
+            let candidate = core
+                .automation
+                .competition_action_candidate(&claim.action.action_id)
+                .ok_or("winner action is unavailable")?;
+            let required = candidate.required_subjects()?;
+            let mut all = fence.subjects();
+            for subject in &required {
+                if !all.contains(subject) {
+                    all.push(subject.clone());
+                }
+            }
+            let subjects = service
+                .execution_authorizations(&all)
+                .map_err(|_| "saved execution subjects are unavailable")?;
+            let permit = core
+                .db
+                .with_competition_winner_admission(
+                    &service,
+                    &fence,
+                    &claim,
+                    &required,
+                    |_, _, admission, _| {
+                        let permit = candidate
+                            .authorize_competition_winner(admission)
+                            .map_err(|error| crate::db::DatabaseError::Invalid(error.into()))?;
+                        if !permit.authorizes_action(&action) {
+                            return Err(crate::db::DatabaseError::Invalid(
+                                "winner action has changed".into(),
+                            ));
+                        }
+                        Ok(permit)
+                    },
+                )
+                .map_err(|_| "winner action authorization is unavailable")?;
+            Ok(ExecutionContext {
+                authority: Authority::Approved {
+                    subjects,
+                    permits: vec![permit],
+                    owner_rules: Vec::new(),
+                },
+                depth: 0,
+                script_flow: false,
+                allow_delegation: true,
+                execution: crate::services::effects::EffectExecution::fresh().ok(),
+                competition: Some(fence),
+                competition_winner: Some(claim),
+            })
+        })
+        .await
+        .map_err(|_| "winner authorization task failed")?
     }
 
     /// Retain trusted saved authors even on rejected manual/inline paths. A
@@ -527,6 +673,11 @@ impl AppCore {
         {
             // A retained permit may already cover this exact saved action as
             // part of its pinned closure. Recheck the full chain before reuse.
+            if incoming.is_competition_winner() {
+                // The core effect guard validates the exact winner and permit
+                // under the business writer before any effect is admitted.
+                return Ok(incoming.clone());
+            }
             if incoming.is_approved()
                 && incoming
                     .with_current_subjects(action, &self.automation, |_| Ok(()))

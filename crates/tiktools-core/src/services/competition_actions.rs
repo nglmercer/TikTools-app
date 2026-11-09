@@ -111,8 +111,8 @@ impl AppCore {
     }
 
     async fn execute_competition_action(self: &Arc<Self>, claim: ActionClaim) {
-        // A remote generation must never fall through to Owner execution. Its
-        // saved subjects require a separately approved delegated dispatcher.
+        // Delegated generations retain their saved subjects and never fall
+        // through to the Owner executor.
         let db = self.db.clone();
         let origin_id = claim.competition_id.clone();
         let origin_generation = claim.generation;
@@ -120,7 +120,7 @@ impl AppCore {
             db.competition_execution_is_owner(&origin_id, origin_generation)
         })
         .await;
-        if !matches!(owner, Ok(Ok(true))) {
+        if !matches!(owner, Ok(Ok(_))) {
             let db = self.db.clone();
             let id = claim.competition_id;
             let generation = claim.generation;
@@ -139,6 +139,7 @@ impl AppCore {
             }
             return;
         }
+        let owner = matches!(owner, Ok(Ok(true)));
         let core = Arc::clone(self);
         let lookup = claim.clone();
         let prepared = tokio::task::spawn_blocking(move || -> Result<_, &'static str> {
@@ -206,6 +207,35 @@ impl AppCore {
                 return;
             }
         };
+        let context = if owner {
+            crate::automation_runtime::context::ExecutionContext::owner()
+        } else {
+            match self
+                .competition_winner_execution_context(claim.clone(), action.clone())
+                .await
+            {
+                Ok(context) => context,
+                Err(reason) => {
+                    let db = self.db.clone();
+                    let id = claim.competition_id;
+                    let generation = claim.generation;
+                    let persisted = tokio::task::spawn_blocking(move || {
+                        db.record_competition_action_outcome(
+                            &id,
+                            generation,
+                            tiktools_competitions::ActionStatus::Failed,
+                            Some("authority_unavailable"),
+                            crate::now_millis().min(i64::MAX as u64) as i64,
+                        )
+                    })
+                    .await;
+                    if !matches!(persisted, Ok(Ok(true))) {
+                        tracing::error!(%reason, "competition authority failure could not be persisted");
+                    }
+                    return;
+                }
+            }
+        };
         let interrupted = async {
             while !self.shutdown_started.load(Ordering::Acquire) {
                 tokio::time::sleep(Duration::from_millis(50)).await;
@@ -214,7 +244,7 @@ impl AppCore {
         let run = tokio::select! {
             biased;
             _ = interrupted => None,
-            run = self.execute_action(&action, &event, None, false) => Some(run),
+            run = self.execute_action_with_context(&action, &event, None, &context, false) => Some(run),
         };
         let interrupted = run.is_none();
         let succeeded = run.as_ref().is_some_and(|value| {

@@ -2539,3 +2539,146 @@ fn owner_action_edit_rejects_unscoped_or_unsupported_dependent_events() {
         );
     }
 }
+
+#[tokio::test]
+async fn competition_winner_log_executes_with_current_delegation() {
+    use tiktools_competitions::{
+        Candidate, CompetitionKind, Definition, OptionDefinition, ResultRecord, Selection,
+        SelectionMode, TiePolicy, Transition, WinnerAction,
+    };
+    let f = Fixture::new();
+    let mut action = log("winner-action", "original");
+    action["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, action)
+        .unwrap();
+    let mut allowed = grant();
+    allowed.capabilities.extend([
+        Capability::AutomationToggle,
+        Capability::CompetitionsRead,
+        Capability::CompetitionsManage,
+    ]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let operator = f.pair(allowed.clone()).snapshot().unwrap();
+    let winner_action = WinnerAction {
+        action_id: "winner-action".into(),
+        inputs: json!({"message":"winner override"}),
+    };
+    let definition = Definition {
+        schema_version: 1,
+        id: "shared".into(),
+        name: "Shared".into(),
+        kind: CompetitionKind::Poll,
+        ranking_id: "rank".into(),
+        options: vec![OptionDefinition {
+            id: "a".into(),
+            label: "A".into(),
+            commands: vec![],
+            gift_ids: vec![],
+            image_url: None,
+            on_win: Some(winner_action.clone()),
+        }],
+        selection_mode: SelectionMode::WeightedRandom,
+        tie_policy: TiePolicy::Stable,
+        duration_ms: Some(10),
+        vote_limit: 1,
+        allow_switch: false,
+        minimum_participants: 1,
+        target_score: None,
+        on_user_win: None,
+    };
+    let db = &f.core().db;
+    db.insert_competition_definition(&definition).unwrap();
+    db.transition_competition("shared", Transition::Start, 100)
+        .unwrap();
+    db.transition_competition("shared", Transition::Expire, 110)
+        .unwrap();
+    let result = ResultRecord {
+        schema_version: 1,
+        competition_id: "shared".into(),
+        generation: 1,
+        ranking_id: "rank".into(),
+        ranking_revision: 1,
+        finalized_at: 123,
+        selection: Selection {
+            mode: SelectionMode::WeightedRandom,
+            tie_policy: TiePolicy::Stable,
+            eligible: vec![Candidate {
+                key: "a".into(),
+                weight: 1,
+            }],
+            winner: Some("a".into()),
+        },
+    };
+    db.store_competition_result(&result, Some(&winner_action))
+        .unwrap();
+    let connection = rusqlite::Connection::open(f.paths.automation_database()).unwrap();
+    connection
+        .execute(
+            "INSERT OR IGNORE INTO competition_control_revisions VALUES('shared',1,0)",
+            [],
+        )
+        .unwrap();
+    connection.execute("UPDATE competition_execution_generations SET origin='delegated' WHERE competition_id='shared' AND generation=1", []).unwrap();
+    connection
+        .execute(
+            "INSERT INTO competition_execution_subjects VALUES('shared',1,?1,?2,?3)",
+            rusqlite::params![
+                operator.principal_id,
+                operator.session_id,
+                operator.grant_revision
+            ],
+        )
+        .unwrap();
+    drop(connection);
+    let claim = db
+        .claim_competition_action("shared", 1, 124)
+        .unwrap()
+        .unwrap();
+    let mut effective = f
+        .core()
+        .automation_get(AutomationKind::Action, "winner-action")
+        .unwrap();
+    effective["config"]["message"] = json!("winner override");
+    let context = f
+        .core()
+        .competition_winner_execution_context(claim, effective.clone())
+        .await
+        .unwrap();
+    let run = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        f.core().execute_action_with_context(
+            &effective,
+            &json!({"type":"competition.winner.selected","data":{}}),
+            None,
+            &context,
+            false,
+        ),
+    )
+    .await
+    .unwrap();
+    assert_eq!(run["status"], "ok", "{run}");
+    assert_eq!(run["summary"], "winner override");
+    allowed.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: operator.principal_id,
+            expected_revision: operator.grant_revision,
+            grant: allowed,
+        })
+        .unwrap();
+    let run = f
+        .core()
+        .execute_action_with_context(&effective, &json!({}), None, &context, false)
+        .await;
+    assert_eq!(run["status"], "error");
+}

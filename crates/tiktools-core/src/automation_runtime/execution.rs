@@ -483,13 +483,18 @@ impl AppCore {
         #[cfg(feature = "persistence")]
         {
             let _writer = self.automation_gate().map_err(|error| error.to_string())?;
-            context.with_current_subjects(action, &self.automation, |identities| {
+            let admit = |identities: &[crate::collaboration::ExecutionIdentity]| {
                 if self.is_shutdown() {
                     return Err("host is shutting down".into());
                 }
                 Self::check_core_subjects(action, identities)?;
                 apply(identities)
-            })
+            };
+            if context.is_competition_winner() {
+                context.with_competition_action(self, action, admit)
+            } else {
+                context.with_current_subjects(action, &self.automation, admit)
+            }
         }
         #[cfg(not(feature = "persistence"))]
         {
