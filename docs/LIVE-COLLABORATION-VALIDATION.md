@@ -1,5 +1,23 @@
 # LIVE collaboration implementation evidence
 
+## Embedded browser workflow controller
+
+With `dist/web` built and the opt-in `browser-app` feature enabled, the ignored
+`browser_controller_pairs_reads_live_updates_and_clears_on_revocation` gateway
+test ran against real Chromium and a local TLS gateway. It paired an approved
+browser, loaded the embedded controller, observed a host workflow update,
+paired a replacement in another tab, checked that the original view cleared,
+and checked that revocation cleared the replacement view. The gateway credential
+test also exercises authenticated app/asset delivery, source-map exclusion and
+revocation. Type checking, lint and 31 focused browser tests passed. This is a
+local fixture; it does not establish physical two-PC or actual TikTok LIVE
+acceptance. Cross-tab detection is advisory and periodic, not atomic.
+
+```bash
+bunx vite build
+CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=2 cargo test --locked --offline -p tiktools-remote --features browser-app --test gateway browser_controller_pairs_reads_live_updates_and_clears_on_revocation -- --ignored
+```
+
 Date: 2026-11-08.
 Status: persistent identity/policy, transactional workflow commands, recoverable
 metadata delivery/audit, workflow snapshot/replay, scoped durable remote

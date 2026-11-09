@@ -67,6 +67,38 @@ test('rejects an identity change between session bootstrap and socket negotiatio
   expect(() => transport.send('{}')).toThrow('unavailable');
 });
 
+test('a changed browser cookie invalidates the current connection', async () => {
+  const other = { ...session, identity: { ...session.identity, sessionId: 'session-b' } };
+  const fetcher = vi.fn().mockResolvedValueOnce(ok(session)).mockResolvedValueOnce(ok({})).mockResolvedValueOnce(ok(other));
+  const socket = new Socket();
+  const transport = createRemoteBrowserTransport({ fetch: fetcher as unknown as typeof fetch, socket: () => socket as unknown as WebSocket });
+  const lost = vi.fn(); transport.onConnectionLost(lost);
+  const connecting = transport.connect(); await flush(); socket.open(); await connecting;
+  await expect(transport.verifySession()).resolves.toBe(false);
+  expect(socket.readyState).toBe(3);
+  expect(transport.currentHello()).toBeUndefined();
+  expect(lost).toHaveBeenCalledOnce();
+  transport.detach();
+});
+
+test('a late session check cannot invalidate a newer connection', async () => {
+  let finish!: (value: Response) => void;
+  const pending = new Promise<Response>((resolve) => { finish = resolve; });
+  const fetcher = vi.fn().mockResolvedValueOnce(ok(session)).mockResolvedValueOnce(ok({})).mockReturnValueOnce(pending)
+    .mockResolvedValueOnce(ok(session)).mockResolvedValueOnce(ok({}));
+  const sockets: Socket[] = [];
+  const transport = createRemoteBrowserTransport({ fetch: fetcher as unknown as typeof fetch, socket: () => { const socket = new Socket(); sockets.push(socket); return socket as unknown as WebSocket; } });
+  const first = transport.connect(); await flush(); sockets[0]!.open(); await first;
+  const staleCheck = transport.verifySession();
+  transport.disconnect();
+  const second = transport.connect(); await flush(); sockets[1]!.open(); await second;
+  finish(ok({ ...session, identity: { ...session.identity, sessionId: 'old-other' } }));
+  await expect(staleCheck).resolves.toBe(false);
+  expect(transport.currentHello()?.sessionId).toBe('session-a');
+  expect(sockets[1]!.readyState).toBe(1);
+  transport.detach();
+});
+
 test('rejects malformed grants or limits before exposing a ready connection', async () => {
   for (const invalid of [
     { ...negotiation, limits: { ...negotiation.limits, frameBytes: 1024 * 1024 + 1 } },

@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "Authenticated TLS remote transport for one existing TikTools control host"
 
+[features]
+browser-app = []
+
 [dependencies]
 tiktools-control-api = { path = "../tiktools-control-api" }
 tiktools-collaboration = { path = "../tiktools-collaboration" }

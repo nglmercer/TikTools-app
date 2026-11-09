@@ -28,6 +28,7 @@ function fixture(read: (options?: ControlCallOptions) => unknown = (options) => 
   const transport = {
     connect: async () => { active = { ...initial }; return active; },
     currentHello: () => active,
+    verifySession: async () => active !== undefined,
     disconnect: () => { if (active) { active = undefined; for (const fn of losses) fn('lost'); } },
     onReliableEvent: (fn: (event: unknown) => void) => { events.add(fn); return () => events.delete(fn); },
     onConnectionLost: (fn: (reason: string) => void) => { losses.add(fn); return () => losses.delete(fn); },
@@ -39,7 +40,7 @@ function fixture(read: (options?: ControlCallOptions) => unknown = (options) => 
     throw new Error(`Unexpected network method: ${method}`);
   });
   const client = createBrowserControllerClient(remote, transport, 'https://host.test');
-  return { client, calls, emit: (value: unknown) => { for (const fn of events) fn(value); }, lose: () => transport.disconnect() };
+  return { client, calls, transport, emit: (value: unknown) => { for (const fn of events) fn(value); }, lose: () => transport.disconnect() };
 }
 async function connected(f: ReturnType<typeof fixture>) {
   f.client.attach();
@@ -104,6 +105,16 @@ test('malformed remote revisions clear the view instead of applying them', async
   const f = fixture((options) => { options?.onMetadata?.({ resourceVersions: [version('0')] }); return { id: 'welcome' }; });
   await connected(f); f.emit(event('1')); await flush();
   expect((await f.client.call<{ phase: string }>('controller.status')).phase).toBe('failed');
+  f.client.detach();
+});
+
+test('a changed browser session blocks publication of a fetched update', async () => {
+  const f = fixture(); let checks = 0;
+  f.transport.verifySession = async () => ++checks === 1;
+  const status = await connected(f);
+  f.emit(event('1')); await flush();
+  expect((await f.client.call<ControllerStatus>('controller.status')).phase).toBe('failed');
+  await expect(f.client.call('controller.workflows', { epoch: status.epoch, viewRevision: status.viewRevision, offset: 0 })).rejects.toMatchObject({ code: 'stale_view' });
   f.client.detach();
 });
 

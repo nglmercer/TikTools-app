@@ -4,8 +4,8 @@ use crate::{
 };
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State as ExtractState,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::HeaderMap,
     response::Response,
@@ -147,7 +147,10 @@ async fn run(mut socket: WebSocket, state: Arc<State>, authentication: Authentic
                         let response=RpcResponse::error(id,ApiError::new("protocol_incompatible","negotiate collaboration.hello first"));
                         let _=send(&mut socket,&response,max_frame).await;break;
                     }
-                    let response=state.api.execute_value_with_context(&context,&value).await;
+                    let mut response=state.api.execute_value_with_context(&context,&value).await;
+                    if let Some(features)=response.result.as_mut().and_then(|value|value.get_mut("features")).and_then(serde_json::Value::as_object_mut) {
+                        features.insert("browserApp".into(),serde_json::Value::Bool(crate::http::browser_app_enabled(&state)));
+                    }
                     if response.error.as_ref().is_some_and(|error|error.code=="protocol_incompatible"){
                         let _=send(&mut socket,&response,max_frame).await;break;
                     }
@@ -266,10 +269,12 @@ mod tests {
             .unwrap()
             .unwrap();
         stopping.cancel();
-        assert!(!tokio::time::timeout(Duration::from_secs(1), task)
-            .await
-            .unwrap()
-            .unwrap());
+        assert!(
+            !tokio::time::timeout(Duration::from_secs(1), task)
+                .await
+                .unwrap()
+                .unwrap()
+        );
         assert!(slots.clone().try_acquire_owned().is_err());
         release_tx.send(()).unwrap();
         let permit = tokio::time::timeout(Duration::from_secs(2), slots.acquire_owned())

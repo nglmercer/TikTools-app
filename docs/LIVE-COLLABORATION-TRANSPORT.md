@@ -26,6 +26,18 @@ fresh idle startup does not create a collaboration database or bind a remote
 socket. Workflow changes lazily open the private database for their audit index,
 even when remote access is disabled.
 
+The optional `remote-browser-app` host feature embeds the previously built
+`dist/web` bundle. Run `bunx vite build` before compiling a desktop or CLI host
+with that feature. On HTTPS only, approved browser sessions can load
+`/remote/v1/app` and its compiled assets; the invitation page advertises the
+link when available. The build accepts bounded, allowlisted flat assets and
+excludes source maps. Requests require a browser session and retain the gateway's
+origin checks. Browser workflow views recheck the session before publishing
+data and every two seconds while connected. A same-origin broadcast accelerates
+checks when another pairing tab changes the cookie, but delivery is advisory
+and background timer throttling can extend the visibility window. This is not
+an atomic cross-tab session-change guarantee.
+
 Owner settings use revision-checked configuration, private invitation display,
 approval and per-session/principal revocation. Status reports the active direct
 TLS fingerprint and per-session socket counts. These are owner-only diagnostics;

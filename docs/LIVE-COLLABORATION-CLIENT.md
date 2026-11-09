@@ -22,8 +22,6 @@ gaps invalidate the connection, and reconnection never replays requests.
 Credentials and CSRF values are not written to browser storage. Unit tests use
 mock fetch and sockets and exercise the existing control-client response
 adapter. The native controller bridge cannot simply be reused in a browser.
-The gateway does not yet serve the app bundle or connect the pairing flow;
-real-browser gateway acceptance remains outstanding.
 An experimental browser workflow recovery primitive now retains the complete
 reliable event envelope, verifies all snapshot pages and workflow restrictions
 before exposing a baseline, buffers bounded events through capture, requires
@@ -36,9 +34,25 @@ browser-local adapter for read-only workflows. The adapter exposes a view only
 after recovery, refreshes invalidated records against their host revisions,
 and clears it on disconnect or a sequence gap. It deliberately exposes no
 browser write commands, local profiles, persistent drafts, or other domain
-controls. The remote gateway does not yet serve or advertise this mode; these
-changes alone do not make the browser app available. Mocked Vue/transport tests
-do not replace a browser-to-gateway or physical two-PC acceptance test.
+controls. An explicitly enabled gateway build can embed and serve this mode
+after browser pairing over HTTPS. The browser session is rechecked before
+publishing workflow data and periodically while connected; another pairing tab
+also sends an advisory session-change notification. Clearing after a cookie
+change is not atomic, and background tabs may delay periodic checks. Physical
+two-PC and actual LIVE acceptance remain outstanding.
+
+To include the browser controller, build the web bundle before compiling the
+host with the opt-in feature:
+
+```bash
+bunx vite build
+cargo build -p tiktools-desktop --locked --features remote-browser-app
+```
+
+For a headless host, use `-p tiktools-cli --features remote-browser-app`.
+Pairing displays the app link only when the gateway advertises the feature over
+HTTPS. The browser grant must include `workflows.read` for the workflow view.
+The browser controller remains experimental and read-only.
 
 ## Build and connect
 

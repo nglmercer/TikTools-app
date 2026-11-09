@@ -24,6 +24,7 @@ export interface RemoteBrowserTransport extends ControlTransport {
   connect(): Promise<RemoteBrowserHello>;
   disconnect(): void;
   currentHello(): RemoteBrowserHello | undefined;
+  verifySession(): Promise<boolean>;
   /** Raw envelope, including subscription, resource and sequence metadata. */
   onReliableEvent(handler: (event: unknown) => void): () => void;
   /** Also fires on explicit detach so private projections can be cleared. */
@@ -114,6 +115,15 @@ export function createRemoteBrowserTransport(options: {
   let disconnected: ((reason: string) => void) | undefined;
   let reconnected: (() => void) | undefined;
   let missedDisconnect: string | undefined;
+  let verification: { epoch: number; promise: Promise<boolean> } | undefined;
+  let sessionTimer: ReturnType<typeof setInterval> | undefined;
+  let channel: BroadcastChannel | undefined;
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel('tiktools-remote-session-v1');
+      channel.onmessage = (event) => { if (event.data === 'session-changed' && ready) void verifySession(); };
+    }
+  } catch { /* periodic verification remains active */ }
   const reliableListeners = new Set<(event: unknown) => void>();
   const lossListeners = new Set<(reason: string) => void>();
   const buffered: string[] = [];
@@ -124,6 +134,8 @@ export function createRemoteBrowserTransport(options: {
   function close(reason: string, notify: boolean): void {
     ++generation;
     abort?.abort(); abort = undefined;
+    clearInterval(sessionTimer); sessionTimer = undefined;
+    verification = undefined;
     const previous = socket; socket = undefined;
     const wasReady = ready !== undefined;
     ready = undefined;
@@ -137,6 +149,42 @@ export function createRemoteBrowserTransport(options: {
       if (disconnected) disconnected(reason);
       else missedDisconnect = reason;
     }
+  }
+  async function verifySession(): Promise<boolean> {
+    const expected = ready;
+    const controller = abort;
+    const epoch = generation;
+    if (!expected || !controller || controller.signal.aborted) return false;
+    if (verification?.epoch === epoch) return verification.promise;
+    const promise = (async (): Promise<boolean> => {
+      const check = new AbortController();
+      const cancel = (): void => check.abort();
+      controller.signal.addEventListener('abort', cancel, { once: true });
+      const deadline = setTimeout(cancel, 3000);
+      try {
+        const response = await fetcher('/remote/v1/session', {
+          credentials: 'same-origin', mode: 'same-origin', redirect: 'error', cache: 'no-store', signal: check.signal,
+        });
+        if (!response.ok) throw new Error('remote session unavailable');
+        const value: unknown = await response.json();
+        if (!record(value)) throw new Error('invalid browser session');
+        const observed = identity(value['identity']);
+        if (epoch !== generation || ready !== expected) return false;
+        if (observed.principalId !== expected.principalId || observed.sessionId !== expected.sessionId || observed.grantRevision !== expected.grantRevision) {
+          throw new Error('remote session changed');
+        }
+        return true;
+      } catch {
+        if (epoch === generation && ready === expected) close('remote browser session changed or could not be verified', true);
+        return false;
+      } finally {
+        clearTimeout(deadline);
+        controller.signal.removeEventListener('abort', cancel);
+        if (verification?.epoch === epoch) verification = undefined;
+      }
+    })();
+    verification = { epoch, promise };
+    return promise;
   }
   async function connect(): Promise<RemoteBrowserHello> {
     if (opening || ready) throw new Error('remote connection already active');
@@ -188,6 +236,7 @@ export function createRemoteBrowserTransport(options: {
               const negotiated = hello(value['result'], expected);
               settled = true;
               ready = negotiated;
+              sessionTimer = setInterval(() => { void verifySession(); }, 2000);
               controller.signal.removeEventListener('abort', cancelled);
               resolve(negotiated);
             } catch { fail('remote negotiation failed'); close('remote negotiation failed', true); }
@@ -238,6 +287,7 @@ export function createRemoteBrowserTransport(options: {
     connect,
     disconnect() { close('remote browser disconnected', true); },
     currentHello() { return ready; },
+    verifySession,
     onReliableEvent(handler) {
       reliableListeners.add(handler);
       return () => { reliableListeners.delete(handler); };
@@ -268,6 +318,7 @@ export function createRemoteBrowserTransport(options: {
       receive = undefined; disconnected = undefined; reconnected = undefined;
       missedDisconnect = undefined;
       reliableListeners.clear(); lossListeners.clear();
+      channel?.close(); channel = undefined;
     },
   };
 }

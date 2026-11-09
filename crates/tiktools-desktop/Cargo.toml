@@ -10,6 +10,7 @@ description = "Thin Winit/Wry desktop host for TikTools"
 default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth", "remote-control", "remote-client"]
 remote-client = ["dep:tiktools-client"]
 remote-control = ["persistence", "dep:tiktools-remote"]
+remote-browser-app = ["remote-control", "tiktools-remote/browser-app"]
 devtools = ["wry/devtools"]
 live-benchmark = ["tiktools-core/live-benchmark"]
 plugin-install = ["tiktools-core/plugin-install"]

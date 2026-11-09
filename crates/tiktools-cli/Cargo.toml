@@ -15,6 +15,7 @@ default = ["cloud-auth", "remote-client"]
 remote-client = ["tiktools-client/remote-profiles", "dep:rpassword", "dep:zeroize", "dep:url"]
 local-web = ["dep:axum", "dep:rand"]
 remote-control = ["dep:tiktools-remote"]
+remote-browser-app = ["remote-control", "tiktools-remote/browser-app"]
 cloud-auth = [
     "tiktools-core/cloud-auth",
     "tiktools-control-api/cloud-auth",

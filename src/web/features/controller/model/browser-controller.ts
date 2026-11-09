@@ -78,6 +78,10 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
           if (!(error instanceof ControlCallError) || error.code !== 'workflow_not_found' || !object(error.data)) throw error;
           graph = null; versions = error.data['resourceVersions'];
         }
+        if (!await transport.verifySession()) {
+          if (matches(generation, expected)) { invalidate('transport', 'failed'); transport.disconnect(); }
+          return;
+        }
         if (!matches(generation, expected) || recovery !== stream) return;
         if (!Array.isArray(versions)) throw fail('protocol', 'Missing workflow version');
         const found = versions.filter((item): item is ResourceVersion => object(item) && item['kind'] === 'workflow' && item['scope'] === 'host' && item['id'] === event.resource.id && typeof item['revision'] === 'string');
@@ -116,6 +120,7 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
       });
       recovery = stream;
       await stream.start();
+      if (!await transport.verifySession()) throw fail('transport', 'Browser session changed');
       if (!attached || generation !== epoch || transport.currentHello() !== negotiated || recovery !== stream) throw fail('cancelled', 'Browser connection was replaced');
       const baseline = stream.baseline();
       if (!baseline) throw fail('resync_required', 'Workflow baseline unavailable');
