@@ -31,6 +31,23 @@ pub enum ProductLocalEditContext {
 }
 
 impl SyncCoordinator {
+    /// Run a local package source reservation while protocol admission is
+    /// held. A scoped v2 preference remains tracked if it is disabled; legacy
+    /// installations do not gain a v2 marker merely by installing a package.
+    pub fn with_package_sync_marker<R>(
+        &self,
+        operation: impl FnOnce(bool) -> R,
+    ) -> Result<R, SyncCoordError> {
+        let lease = self.protocol.try_v1()?;
+        let _admission = lease.try_admission()?;
+        let config = self.read_staging_config()?;
+        match (config.version, config.scope.is_some()) {
+            (1, _) => Ok(operation(self.protocol.has_any_protocol_record()?)),
+            (2, true) => Ok(operation(true)),
+            _ => Err(SyncCoordError::StaleReview),
+        }
+    }
+
     /// A missing or damaged preference after initialization is not opt-out.
     /// Both staging paths use this strict reader before reporting no queue.
     pub(crate) fn read_staging_config(&self) -> Result<SyncConfig, SyncCoordError> {

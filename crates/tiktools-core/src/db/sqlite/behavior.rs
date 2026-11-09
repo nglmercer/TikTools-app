@@ -236,6 +236,25 @@ impl DatabaseManager {
     /// failed install remains a fresh source decision and keeps the fence.
     #[cfg(feature = "plugin-install")]
     pub(crate) fn invalidate_plugin_package_source(&self, id: &str) -> Result<i64, DatabaseError> {
+        self.invalidate_plugin_package_source_inner(id, false)
+    }
+
+    /// Preserve an account-independent dirty marker before any package file
+    /// can change. A later reconciliation decides which account may sync it.
+    #[cfg(all(feature = "plugin-install", feature = "cloud-auth"))]
+    pub(crate) fn invalidate_plugin_package_source_untracked(
+        &self,
+        id: &str,
+    ) -> Result<i64, DatabaseError> {
+        self.invalidate_plugin_package_source_inner(id, true)
+    }
+
+    #[cfg(feature = "plugin-install")]
+    fn invalidate_plugin_package_source_inner(
+        &self,
+        id: &str,
+        mark_untracked: bool,
+    ) -> Result<i64, DatabaseError> {
         if !tiktools_plugin_api::manifest::is_valid_plugin_id(id) {
             return Err(DatabaseError::Invalid("invalid plugin package id".into()));
         }
@@ -243,6 +262,14 @@ impl DatabaseManager {
         connection.execute_batch("PRAGMA synchronous=FULL;")?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let generation = advance_plugin_source(&tx, id)?;
+        if mark_untracked {
+            tx.execute("INSERT INTO plugin_sync_untracked_local(plugin_id,generation) VALUES (?1,?2) ON CONFLICT(plugin_id) DO UPDATE SET generation=excluded.generation", params![id, generation])?;
+        } else {
+            tx.execute(
+                "UPDATE plugin_sync_untracked_local SET generation=?2 WHERE plugin_id=?1",
+                params![id, generation],
+            )?;
+        }
         tx.commit()?;
         Ok(generation)
     }
@@ -271,7 +298,11 @@ impl DatabaseManager {
                 "invalid package source reservation".into(),
             ));
         }
-        advance_plugin_source(&tx, id)?;
+        let final_generation = advance_plugin_source(&tx, id)?;
+        tx.execute(
+            "UPDATE plugin_sync_untracked_local SET generation=?2 WHERE plugin_id=?1",
+            params![id, final_generation],
+        )?;
         let matched = current == Some(generation);
         if matched {
             tx.execute("DELETE FROM behavior_plugins WHERE id=?1", [id])?;

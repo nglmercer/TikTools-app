@@ -395,6 +395,22 @@ impl ProtocolFence {
         }
     }
 
+    /// Package source changes affect every account, including an account that
+    /// is currently signed out. Conservatively retain a marker if any
+    /// account has entered v2 preparation or completed cutover.
+    pub(crate) fn has_any_protocol_record(&self) -> Result<bool, ProtocolFenceError> {
+        for item in std::fs::read_dir(&self.dir)? {
+            let name = item?.file_name();
+            if name
+                .to_str()
+                .is_some_and(|name| name.starts_with("protocol-") && name.ends_with(".json"))
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     pub fn try_v2(&self, origin: &str, account: &str) -> Result<V2Lease, ProtocolFenceError> {
         let file = self.lock_file()?;
         match FileExt::try_lock_shared(&file) {

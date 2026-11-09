@@ -334,6 +334,37 @@ pub(crate) fn try_product_mutation_lease(
     })
 }
 
+/// Called while holding the invocation and product emission leases. The
+/// dirty marker is durable before package I/O and carries no Cloud identity.
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+pub(crate) fn reserve_package_sync_source(
+    core: &crate::AppCore,
+    id: &str,
+) -> Result<i64, InstallError> {
+    let Ok(sync) = core.sync.coordinator() else {
+        return core
+            .db
+            .invalidate_plugin_package_source_untracked(id)
+            .map_err(InstallError::io);
+    };
+    let attempted = std::cell::Cell::new(false);
+    match sync.with_package_sync_marker(|mark_untracked| {
+        attempted.set(true);
+        if mark_untracked {
+            core.db.invalidate_plugin_package_source_untracked(id)
+        } else {
+            core.db.invalidate_plugin_package_source(id)
+        }
+    }) {
+        Ok(result) => result.map_err(InstallError::io),
+        Err(_) if !attempted.get() => core
+            .db
+            .invalidate_plugin_package_source_untracked(id)
+            .map_err(InstallError::io),
+        Err(error) => Err(InstallError::io(error)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -623,6 +654,33 @@ mod tests {
             Arc::new(NoopMediaHost),
             paths.clone(),
         ));
+        #[cfg(feature = "cloud-auth")]
+        {
+            core.sync.coordinator().unwrap().set_enabled(false).unwrap();
+            assert!(!core
+                .sync
+                .coordinator()
+                .unwrap()
+                .with_package_sync_marker(|mark| mark)
+                .unwrap());
+            let marker = paths.data.join("cloud-sync/protocol-other-account.json");
+            std::fs::write(&marker, "{}").unwrap();
+            assert!(core
+                .sync
+                .coordinator()
+                .unwrap()
+                .with_package_sync_marker(|mark| mark)
+                .unwrap());
+            std::fs::remove_file(marker).unwrap();
+            std::fs::write(paths.data.join("cloud-sync/cloud-sync.json"), serde_json::to_vec(&serde_json::json!({"version":2,"enabled":true,"generation":42,"scope":vec![1u8; 32]})).unwrap()).unwrap();
+            core.sync.coordinator().unwrap().set_enabled(false).unwrap();
+            assert!(core
+                .sync
+                .coordinator()
+                .unwrap()
+                .with_package_sync_marker(|mark| mark)
+                .unwrap());
+        }
         let first = package_fixture(&root, "1.0.0");
         let second = package_fixture(&root, "2.0.0");
         let third = package_fixture(&root, "3.0.0");
@@ -659,8 +717,26 @@ mod tests {
         db.execute_batch("DROP TRIGGER fail_package_fence;")
             .unwrap();
         drop(db);
+        #[cfg(feature = "cloud-auth")]
+        {
+            let db = rusqlite::Connection::open(&database_path).unwrap();
+            db.execute_batch("CREATE TRIGGER fail_package_marker BEFORE INSERT ON plugin_sync_untracked_local BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
+            drop(db);
+            assert!(core.install_plugin(&first, false).is_err());
+            assert_eq!(source(), 1);
+            assert!(!core.db.paths().plugins.join("acme.package").exists());
+            let db = rusqlite::Connection::open(&database_path).unwrap();
+            db.execute_batch("DROP TRIGGER fail_package_marker")
+                .unwrap();
+        }
         core.install_plugin(&first, false).unwrap();
         assert_eq!(source(), 3);
+        #[cfg(feature = "cloud-auth")]
+        {
+            let connection = rusqlite::Connection::open(&database_path).unwrap();
+            let marker: i64 = connection.query_row("SELECT generation FROM plugin_sync_untracked_local WHERE plugin_id='acme.package'", [], |row| row.get(0)).unwrap();
+            assert_eq!(marker, source());
+        }
         assert_eq!(
             core.plugins.get("acme.package").unwrap().manifest.version,
             "1.0.0"
@@ -727,6 +803,12 @@ mod tests {
         ));
         core.uninstall_plugin("acme.package", false).unwrap();
         assert_eq!(source(), 12);
+        #[cfg(feature = "cloud-auth")]
+        {
+            let connection = rusqlite::Connection::open(&database_path).unwrap();
+            let marker: i64 = connection.query_row("SELECT generation FROM plugin_sync_untracked_local WHERE plugin_id='acme.package'", [], |row| row.get(0)).unwrap();
+            assert_eq!(marker, source());
+        }
         assert!(!core.db.paths().plugins.join("acme.package").exists());
         let db = rusqlite::Connection::open(core.db.paths().automation_database()).unwrap();
         let count: i64 = db

@@ -645,7 +645,9 @@ impl AppCore {
             })?;
         #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
         let _source_lease = plugin_packages::try_product_mutation_lease(self)?;
-        #[cfg(feature = "persistence")]
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        plugin_packages::reserve_package_sync_source(self, &prepared.manifest.id)?;
+        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
         self.db
             .invalidate_plugin_package_source(&prepared.manifest.id)
             .map_err(tiktools_plugin_installer::InstallError::io)?;
@@ -703,7 +705,9 @@ impl AppCore {
         let data = purge_data
             .then(|| plugin_packages::plugin_data_dir(self.db.paths(), id))
             .flatten();
-        #[cfg(feature = "persistence")]
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let source_generation = plugin_packages::reserve_package_sync_source(self, id)?;
+        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
         let source_generation = self
             .db
             .invalidate_plugin_package_source(id)

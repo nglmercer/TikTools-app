@@ -567,7 +567,11 @@ impl SyncCoordinator {
                 lease.ensure_v1(&origin, &account)?;
             }
         }
-        self.write_new_consent(enabled, self.read_config().generation, None)?;
+        let previous = self.read_config();
+        // Retain the account-scoped protocol identity while disabled, so
+        // local package changes remain discoverable for a later v2 resume.
+        let scope = if enabled { None } else { previous.scope };
+        self.write_new_consent(enabled, previous.generation, scope)?;
         drop(lease);
         Ok(self.status_blocking())
     }

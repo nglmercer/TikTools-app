@@ -234,7 +234,9 @@ impl AppCore {
                         })?;
                 #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
                 let _source_lease = crate::plugin_packages::try_product_mutation_lease(&worker_core)?;
-                #[cfg(feature = "persistence")]
+                #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+                crate::plugin_packages::reserve_package_sync_source(&worker_core, &plugin_id)?;
+                #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
                 worker_core
                     .db
                     .invalidate_plugin_package_source(&plugin_id)
@@ -871,7 +873,9 @@ impl AppCore {
             })?;
             #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
             let _source_lease = crate::plugin_packages::try_product_mutation_lease(&core)?;
-            #[cfg(feature = "persistence")]
+            #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+            crate::plugin_packages::reserve_package_sync_source(&core, &prepared.manifest.id)?;
+            #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
             core.db
                 .invalidate_plugin_package_source(&prepared.manifest.id)
                 .map_err(InstallError::io)?;

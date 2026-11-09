@@ -36,6 +36,14 @@ candidate pending edits, conflicts and v1-only records. It rechecks the native
 source, legacy snapshot, session and consent before returning. It is an
 informational snapshot, not a cutover authorization: the application cannot
 yet execute migration, and later changes require a fresh preview.
+When scoped v2 consent or an account's v2 protocol record exists, package install, update, rollback and removal
+reserve an account-independent dirty marker before filesystem mutation. The
+marker survives failures and follows the source generation; pending v2 uploads
+remain blocked until the package and runtime are reconciled. Normal legacy
+installs do not create this marker solely because sync was never enabled; if
+protocol admission is unavailable, the local operation conservatively marks
+the change. Package
+reconciliation and automatic delivery are still pending.
 
 The reviewed sibling RemakeBackend commit is `cb37900`, including canonical
 registry shards and bounded v2 capability discovery in the SDK, following bounded
