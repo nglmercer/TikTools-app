@@ -34,6 +34,40 @@ fn assert_staged_decision(workspace: &WorkspaceCoordinator, decision: &V2Product
 }
 
 #[tokio::test]
+async fn public_start_stop_exclude_product_emission_until_runtime_changes_finish() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
+    let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+        core.db.paths().data.join("plugin-sync-emission"),
+    )
+    .unwrap();
+    let request = fence.try_emission().unwrap();
+    assert!(core.plugin_start("acme.hotkeys").is_err());
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    drop(request);
+    let checked = Arc::new(AtomicBool::new(false));
+    let observed = checked.clone();
+    let runtime_fence = fence.clone();
+    *runtime.on_load.lock().unwrap() = Some(Box::new(move || {
+        observed.store(
+            runtime_fence.try_emission().is_err(),
+            AtomicOrdering::SeqCst,
+        );
+    }));
+    core.plugin_start("acme.hotkeys").unwrap();
+    assert!(checked.load(AtomicOrdering::SeqCst));
+    let request = fence.try_emission().unwrap();
+    assert!(core.plugin_stop("acme.hotkeys").is_err());
+    assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+    drop(request);
+    core.plugin_stop("acme.hotkeys").unwrap();
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(fence.try_emission().is_ok());
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn v2_without_identity_records_untracked_change_under_emission_fence() {
     let runtime = Arc::new(FakePluginState::default());
     let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
