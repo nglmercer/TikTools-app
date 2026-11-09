@@ -227,7 +227,7 @@ TikTok event interfaces or a second event registry in the frontend.
 
 ## Adding a control method
 
-1. Implement the operation on `AppCore` in `crates/tiktools-core/src/control.rs`,
+1. Implement the operation on `AppCore` in `crates/tiktools-core/src/control/`,
    returning values (never emitting UI messages) with bounded validation.
 2. Register a typed method (`Params` + `Result` with `Serialize`,
    `Deserialize`, `JsonSchema`) in `crates/tiktools-control-api/src/modules/`.

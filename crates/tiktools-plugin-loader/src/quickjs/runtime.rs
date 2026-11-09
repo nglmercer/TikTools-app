@@ -245,7 +245,9 @@ fn events_push_for(
     }
     Some(Arc::new(EventsPush {
         plugin_id: manifest.id.clone(),
-        declared: declared_event_types(manifest).into_iter().collect::<HashSet<_>>(),
+        declared: declared_event_types(manifest)
+            .into_iter()
+            .collect::<HashSet<_>>(),
         tx: emit_tx,
     }))
 }
@@ -378,7 +380,8 @@ fn run_vm_owner(args: VmOwnerArgs) -> Result<(), PluginLoaderError> {
         native_addons = native_addons.len(),
         "napi-vm guest load started"
     );
-    let fail = |ready: &std_mpsc::Sender<Result<(), PluginLoaderError>>, error: PluginLoaderError| {
+    let fail = |ready: &std_mpsc::Sender<Result<(), PluginLoaderError>>,
+                error: PluginLoaderError| {
         tracing::warn!(
             plugin = %name,
             elapsed_ms = load_started.elapsed().as_millis() as u64,

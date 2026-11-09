@@ -217,11 +217,7 @@ impl Env {
     /// Borrows the value behind a handle (no reference is taken).
     pub(super) fn get(&self, handle: Handle) -> Result<qjs::JSValue, i32> {
         let index = (handle as usize).wrapping_sub(1);
-        self.handles
-            .borrow()
-            .get(index)
-            .copied()
-            .ok_or(INVALID_ARG)
+        self.handles.borrow().get(index).copied().ok_or(INVALID_ARG)
     }
 
     /// Opens a handle scope; the token is the arena length to restore.
@@ -256,19 +252,16 @@ impl Env {
     /// Promotes `value` into the slot reserved by an escapable scope.
     pub(super) fn escape(&self, token: usize, value: qjs::JSValue) -> Result<Handle, i32> {
         let mut scopes = self.scopes.borrow_mut();
-        let scope = scopes
-            .get_mut(token.wrapping_sub(1))
-            .ok_or(INVALID_ARG)?;
+        let scope = scopes.get_mut(token.wrapping_sub(1)).ok_or(INVALID_ARG)?;
         let slot = scope.escape_slot.ok_or(INVALID_ARG)?;
         if scope.escaped {
             return Err(ESCAPE_CALLED_TWICE);
         }
         scope.escaped = true;
         let mut handles = self.handles.borrow_mut();
-        let old = std::mem::replace(
-            &mut handles[slot],
-            unsafe { qjs::JS_DupValue(self.ctx, value) },
-        );
+        let old = std::mem::replace(&mut handles[slot], unsafe {
+            qjs::JS_DupValue(self.ctx, value)
+        });
         unsafe { qjs::JS_FreeValue(self.ctx, old) };
         Ok((slot + 1) as Handle)
     }
@@ -361,11 +354,9 @@ impl Env {
             }
         }
         self.run_finalizers();
-        let (data, finalize, hint) = self.instance_data.replace((
-            std::ptr::null_mut(),
-            None,
-            std::ptr::null_mut(),
-        ));
+        let (data, finalize, hint) =
+            self.instance_data
+                .replace((std::ptr::null_mut(), None, std::ptr::null_mut()));
         if let Some(finalize) = finalize {
             let this = self as *const Env as *mut Env;
             unsafe { finalize(this, data, hint) };

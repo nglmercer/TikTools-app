@@ -57,9 +57,9 @@ desktop implementation sends host messages to the UI thread through
 `EventLoopProxy`; only that thread calls `WebView::evaluate_script`.
 
 Plugin calls converge at the SDK's typed request/result boundary. Core keeps
-plugin lifecycle and polling in `plugin_runtime.rs`, capability-checked host
+plugin lifecycle and polling in `plugin_runtime/`, capability-checked host
 effects in `plugin_intents.rs`, and general automation orchestration in
-`automation_runtime.rs`. The SDK compatibility decoder is the only place that
+`automation_runtime/`. The SDK compatibility decoder is the only place that
 translates legacy `emit` and `playAudio` response keys.
 
 ## Desktop lifecycle
@@ -95,7 +95,7 @@ AppCore → DomainEvent → WebView / CLI / IPC / agents
 
 `src/shared/messages.ts` remains the specification for host-push shapes.
 Rust mirrors the legacy request side in
-`crates/tiktools-core/src/ipc/messages.rs`, but the `IpcRouter`
+`crates/tiktools-core/src/ipc/messages/`, but the `IpcRouter`
 `PageMessage` path is only an explicitly marked compatibility layer: each
 legacy message adapts onto the same authoritative control operations, and
 no new legacy variants are accepted.

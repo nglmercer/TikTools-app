@@ -36,7 +36,9 @@ struct Inner {
 }
 
 /// Owns update jobs and verified bytes; neither URLs nor paths are accepted
-/// from clients. Installation is intentionally not exposed by this service.
+/// from clients. Installation is only reserved through
+/// [`AppUpdater::prepare_install`], which the desktop calls after native
+/// user confirmation; the install itself runs from the returned plan.
 pub struct AppUpdater {
     inner: Mutex<Inner>,
     key: Option<String>,

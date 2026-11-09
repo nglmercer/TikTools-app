@@ -125,7 +125,9 @@ unsafe extern "C" fn ctor_call(
     magic: c_int,
 ) -> JSValue {
     let rec = {
-        let table = CONSTRUCTORS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let table = CONSTRUCTORS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         match table.get(magic as usize) {
             Some(rec) => *rec as *const FnRecord,
             None => return qjs::JS_UNDEFINED,
@@ -162,7 +164,9 @@ pub(super) fn new_constructor(env: &Env, name: &str, cb: Callback, data: *mut c_
         data,
     }));
     let index = {
-        let mut table = CONSTRUCTORS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut table = CONSTRUCTORS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         table.push(rec as usize);
         table.len() - 1
     };
@@ -175,8 +179,13 @@ pub(super) fn new_constructor(env: &Env, name: &str, cb: Callback, data: *mut c_
         );
         let function_proto = qjs::JS_GetPropertyStr(env.ctx, function_ctor, c"prototype".as_ptr());
         qjs::JS_FreeValue(env.ctx, function_ctor);
-        let func: unsafe extern "C" fn(*mut JSContext, JSValue, c_int, *mut JSValue, c_int) -> JSValue =
-            ctor_call;
+        let func: unsafe extern "C" fn(
+            *mut JSContext,
+            JSValue,
+            c_int,
+            *mut JSValue,
+            c_int,
+        ) -> JSValue = ctor_call;
         let cfunc: qjs::JSCFunction = std::mem::transmute(func);
         let value = qjs::JS_NewCFunction3(
             env.ctx,
@@ -244,11 +253,13 @@ pub(super) unsafe fn finalize_external(value: JSValue) {
     if env.dead.get() {
         unsafe { cb(rec.env, rec.data, rec.hint) };
     } else {
-        env.finalizers.borrow_mut().push_back(super::env::PendingFinalizer {
-            cb: Some(cb),
-            data: rec.data,
-            hint: rec.hint,
-        });
+        env.finalizers
+            .borrow_mut()
+            .push_back(super::env::PendingFinalizer {
+                cb: Some(cb),
+                data: rec.data,
+                hint: rec.hint,
+            });
     }
 }
 
@@ -331,7 +342,9 @@ pub(super) fn report_uncaught(env: &Env) {
             let text = if cstr.is_null() {
                 "exception".to_owned()
             } else {
-                let owned = std::ffi::CStr::from_ptr(cstr).to_string_lossy().into_owned();
+                let owned = std::ffi::CStr::from_ptr(cstr)
+                    .to_string_lossy()
+                    .into_owned();
                 qjs::JS_FreeCString(env.ctx, cstr);
                 owned
             };
@@ -377,7 +390,9 @@ pub(super) fn register_tsfn(tsfn: *mut Tsfn) {
 }
 
 fn unregister_tsfn(tsfn: *mut Tsfn) -> bool {
-    let mut live = LIVE_TSFN.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut live = LIVE_TSFN
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     match live.iter().position(|entry| *entry == tsfn as usize) {
         Some(position) => {
             live.swap_remove(position);
@@ -409,7 +424,10 @@ pub(super) unsafe fn dispatch_tsfn(ptr: *mut c_void) {
     let env = unsafe { &*t.env };
     loop {
         let (item, aborted) = {
-            let mut state = t.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut state = t
+                .state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             match state.queue.pop_front() {
                 Some(item) => {
                     t.cv.notify_all();
@@ -424,7 +442,14 @@ pub(super) unsafe fn dispatch_tsfn(ptr: *mut c_void) {
         if aborted {
             // Give the addon a chance to free the data (null env, no JS).
             if let Some(call_js) = t.call_js {
-                unsafe { call_js(std::ptr::null_mut(), std::ptr::null_mut(), t.context, item as *mut c_void) };
+                unsafe {
+                    call_js(
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        t.context,
+                        item as *mut c_void,
+                    )
+                };
             }
             continue;
         }
@@ -438,7 +463,8 @@ pub(super) unsafe fn dispatch_tsfn(ptr: *mut c_void) {
                 };
                 call_js(t.env, callback, t.context, item as *mut c_void);
             } else if !qjs::JS_IsUndefined(t.func) {
-                let result = qjs::JS_Call(env.ctx, t.func, qjs::JS_UNDEFINED, 0, std::ptr::null_mut());
+                let result =
+                    qjs::JS_Call(env.ctx, t.func, qjs::JS_UNDEFINED, 0, std::ptr::null_mut());
                 if qjs::JS_IsException(result) {
                     env.capture_exception();
                 } else {
@@ -450,7 +476,10 @@ pub(super) unsafe fn dispatch_tsfn(ptr: *mut c_void) {
         report_uncaught(env);
     }
     let finishing = {
-        let state = t.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let state = t
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         state.closing && state.queue.is_empty()
     };
     if finishing {
@@ -481,7 +510,10 @@ pub(super) unsafe fn shutdown_env(env: &Env) {
     for tsfn in live {
         let t = unsafe { &*(tsfn as *mut Tsfn) };
         {
-            let mut state = t.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut state = t
+                .state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             state.closing = true;
             state.aborted = true;
         }
@@ -494,7 +526,14 @@ pub(super) unsafe fn shutdown_env(env: &Env) {
                 .drain(..)
                 .collect();
             for item in items {
-                unsafe { call_js(std::ptr::null_mut(), std::ptr::null_mut(), t.context, item as *mut c_void) };
+                unsafe {
+                    call_js(
+                        std::ptr::null_mut(),
+                        std::ptr::null_mut(),
+                        t.context,
+                        item as *mut c_void,
+                    )
+                };
             }
         }
         unsafe { finish_tsfn(tsfn as *mut Tsfn) };

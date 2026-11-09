@@ -40,9 +40,6 @@ impl VerifiedPackage {
     pub fn is_empty(&self) -> bool {
         self.bytes.is_empty()
     }
-    // Kept private until the lifecycle integration can guarantee that the
-    // updater's process-exiting install call happens after graceful shutdown.
-    #[allow(dead_code)]
     pub(crate) fn into_bytes(self) -> Vec<u8> {
         self.bytes
     }

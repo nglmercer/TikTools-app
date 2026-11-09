@@ -26,14 +26,14 @@
 mod events;
 mod host;
 mod modules;
-mod native;
 #[cfg(node_api_host)]
 mod napi;
+mod native;
 mod runtime;
 mod timers;
 
-pub use runtime::{native_addons_allowed, QuickJsPluginRuntime};
 pub(crate) use runtime::untrusted_native_addons;
+pub use runtime::{native_addons_allowed, QuickJsPluginRuntime};
 
 /// Renders a QuickJS error as `Name: message` (plus the stack when the
 /// thrown value is an `Error`).

@@ -19,7 +19,10 @@ fn number(value: f64) -> JSValue {
 
 macro_rules! simple_out {
     ($name:ident, $body:expr) => {
-        pub(in super::super) unsafe extern "C" fn $name(env: Environment, result: *mut Handle) -> i32 {
+        pub(in super::super) unsafe extern "C" fn $name(
+            env: Environment,
+            result: *mut Handle,
+        ) -> i32 {
             run(env, |env| {
                 let value: JSValue = $body(env);
                 put(result, env.push(value))
@@ -32,20 +35,40 @@ simple_out!(api_get_undefined, |_: &Env| qjs::JS_UNDEFINED);
 simple_out!(api_get_null, |_: &Env| qjs::JS_NULL);
 simple_out!(api_get_global, super::global);
 
-pub(in super::super) unsafe extern "C" fn api_get_boolean(env: Environment, value: bool, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_boolean(
+    env: Environment,
+    value: bool,
+    result: *mut Handle,
+) -> i32 {
     run(env, |env| put(result, env.push(bool_value(value))))
 }
 
-pub(in super::super) unsafe extern "C" fn api_create_double(env: Environment, value: f64, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_create_double(
+    env: Environment,
+    value: f64,
+    result: *mut Handle,
+) -> i32 {
     run(env, |env| put(result, env.push(number(value))))
 }
-pub(in super::super) unsafe extern "C" fn api_create_int32(env: Environment, value: i32, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_create_int32(
+    env: Environment,
+    value: i32,
+    result: *mut Handle,
+) -> i32 {
     run(env, |env| put(result, env.push(number(f64::from(value)))))
 }
-pub(in super::super) unsafe extern "C" fn api_create_uint32(env: Environment, value: u32, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_create_uint32(
+    env: Environment,
+    value: u32,
+    result: *mut Handle,
+) -> i32 {
     run(env, |env| put(result, env.push(number(f64::from(value)))))
 }
-pub(in super::super) unsafe extern "C" fn api_create_int64(env: Environment, value: i64, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_create_int64(
+    env: Environment,
+    value: i64,
+    result: *mut Handle,
+) -> i32 {
     run(env, |env| put(result, env.push(number(value as f64))))
 }
 
@@ -87,14 +110,20 @@ pub(in super::super) unsafe extern "C" fn api_create_string_utf16(
         let units = unsafe { read_units(text, length)? };
         put(
             result,
-            env.push(unsafe { qjs::JS_NewStringUTF16(env.ctx, units.as_ptr(), units.len() as u64) }),
+            env.push(unsafe {
+                qjs::JS_NewStringUTF16(env.ctx, units.as_ptr(), units.len() as u64)
+            }),
         )
     })
 }
 
 unsafe fn read_units<'a>(text: *const u16, length: usize) -> Result<&'a [u16], i32> {
     if text.is_null() {
-        return if length == 0 { Ok(&[]) } else { Err(INVALID_ARG) };
+        return if length == 0 {
+            Ok(&[])
+        } else {
+            Err(INVALID_ARG)
+        };
     }
     let length = if length == AUTO_LENGTH {
         let mut n = 0;
@@ -298,7 +327,11 @@ pub(in super::super) unsafe extern "C" fn api_create_external_string_utf16(
 
 // ----- symbols --------------------------------------------------------
 
-pub(in super::super) unsafe extern "C" fn api_create_symbol(env: Environment, description: Handle, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_create_symbol(
+    env: Environment,
+    description: Handle,
+    result: *mut Handle,
+) -> i32 {
     run(env, |env| {
         let text = if description.is_null() {
             CString::default()
@@ -306,7 +339,10 @@ pub(in super::super) unsafe extern "C" fn api_create_symbol(env: Environment, de
             let bytes = string_bytes(env, env.get(description)?)?;
             CString::new(bytes).unwrap_or_default()
         };
-        put(result, env.push(unsafe { qjs::JS_NewSymbol(env.ctx, text.as_ptr(), false) }))
+        put(
+            result,
+            env.push(unsafe { qjs::JS_NewSymbol(env.ctx, text.as_ptr(), false) }),
+        )
     })
 }
 
@@ -319,13 +355,20 @@ pub(in super::super) unsafe extern "C" fn api_node_api_symbol_for(
     run(env, |env| {
         let bytes = unsafe { read_bytes(text, length)? };
         let name = CString::new(bytes).map_err(|_| INVALID_ARG)?;
-        put(result, env.push(unsafe { qjs::JS_NewSymbol(env.ctx, name.as_ptr(), true) }))
+        put(
+            result,
+            env.push(unsafe { qjs::JS_NewSymbol(env.ctx, name.as_ptr(), true) }),
+        )
     })
 }
 
 // ----- typeof / getters -----------------------------------------------
 
-pub(in super::super) unsafe extern "C" fn api_typeof_value(env: Environment, value: Handle, result: *mut i32) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_typeof_value(
+    env: Environment,
+    value: Handle,
+    result: *mut i32,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
         let kind = unsafe {
@@ -370,7 +413,11 @@ pub(in super::super) unsafe extern "C" fn api_create_external(
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_value_external(env: Environment, value: Handle, result: *mut *mut c_void) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_value_external(
+    env: Environment,
+    value: Handle,
+    result: *mut *mut c_void,
+) -> i32 {
     run(env, |env| {
         let rec = external_rec(env, env.get(value)?).ok_or(INVALID_ARG)?;
         put(result, rec.data)
@@ -388,27 +435,51 @@ fn to_f64(env: &Env, value: JSValue) -> Result<f64, i32> {
     Ok(out)
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_value_double(env: Environment, value: Handle, result: *mut f64) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_value_double(
+    env: Environment,
+    value: Handle,
+    result: *mut f64,
+) -> i32 {
     run(env, |env| put(result, to_f64(env, env.get(value)?)?))
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_value_int32(env: Environment, value: Handle, result: *mut i32) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_value_int32(
+    env: Environment,
+    value: Handle,
+    result: *mut i32,
+) -> i32 {
     run(env, |env| {
         let number = to_f64(env, env.get(value)?)?;
-        let out = if number.is_finite() { (number as i64) as i32 } else { 0 };
+        let out = if number.is_finite() {
+            (number as i64) as i32
+        } else {
+            0
+        };
         put(result, out)
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_value_uint32(env: Environment, value: Handle, result: *mut u32) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_value_uint32(
+    env: Environment,
+    value: Handle,
+    result: *mut u32,
+) -> i32 {
     run(env, |env| {
         let number = to_f64(env, env.get(value)?)?;
-        let out = if number.is_finite() { (number as i64) as u32 } else { 0 };
+        let out = if number.is_finite() {
+            (number as i64) as u32
+        } else {
+            0
+        };
         put(result, out)
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_value_int64(env: Environment, value: Handle, result: *mut i64) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_value_int64(
+    env: Environment,
+    value: Handle,
+    result: *mut i64,
+) -> i32 {
     run(env, |env| {
         let number = to_f64(env, env.get(value)?)?;
         let out = if number.is_finite() { number as i64 } else { 0 };
@@ -416,7 +487,11 @@ pub(in super::super) unsafe extern "C" fn api_get_value_int64(env: Environment, 
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_value_bool(env: Environment, value: Handle, result: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_value_bool(
+    env: Environment,
+    value: Handle,
+    result: *mut bool,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
         if !unsafe { qjs::JS_IsBool(value) } {
@@ -428,29 +503,50 @@ pub(in super::super) unsafe extern "C" fn api_get_value_bool(env: Environment, v
 
 // ----- coercion -------------------------------------------------------
 
-pub(in super::super) unsafe extern "C" fn api_coerce_to_bool(env: Environment, value: Handle, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_coerce_to_bool(
+    env: Environment,
+    value: Handle,
+    result: *mut Handle,
+) -> i32 {
     run_js(env, |env| {
         let flag = unsafe { qjs::JS_ToBool(env.ctx, env.get(value)?) };
-        put(result, env.push(bool_value(super::check_int(env, flag)? > 0)))
+        put(
+            result,
+            env.push(bool_value(super::check_int(env, flag)? > 0)),
+        )
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_coerce_to_number(env: Environment, value: Handle, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_coerce_to_number(
+    env: Environment,
+    value: Handle,
+    result: *mut Handle,
+) -> i32 {
     run_js(env, |env| {
         let mut out = 0.0;
-        super::check_int(env, unsafe { qjs::JS_ToFloat64(env.ctx, &mut out, env.get(value)?) })?;
+        super::check_int(env, unsafe {
+            qjs::JS_ToFloat64(env.ctx, &mut out, env.get(value)?)
+        })?;
         put(result, env.push(number(out)))
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_coerce_to_string(env: Environment, value: Handle, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_coerce_to_string(
+    env: Environment,
+    value: Handle,
+    result: *mut Handle,
+) -> i32 {
     run_js(env, |env| {
         let string = unsafe { qjs::JS_ToString(env.ctx, env.get(value)?) };
         put(result, env.push(check(env, string)?))
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_coerce_to_object(env: Environment, value: Handle, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_coerce_to_object(
+    env: Environment,
+    value: Handle,
+    result: *mut Handle,
+) -> i32 {
     run_js(env, |env| {
         let value = env.get(value)?;
         if unsafe { qjs::JS_IsUndefined(value) || qjs::JS_IsNull(value) } {
@@ -461,12 +557,18 @@ pub(in super::super) unsafe extern "C" fn api_coerce_to_object(env: Environment,
         }
         let ctor = Owned::new(env, global_get(env, c"Object"));
         let mut args = [value];
-        let object = unsafe { qjs::JS_Call(env.ctx, ctor.value, qjs::JS_UNDEFINED, 1, args.as_mut_ptr()) };
+        let object =
+            unsafe { qjs::JS_Call(env.ctx, ctor.value, qjs::JS_UNDEFINED, 1, args.as_mut_ptr()) };
         put(result, env.push(check(env, object)?))
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_strict_equals(env: Environment, a: Handle, b: Handle, result: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_strict_equals(
+    env: Environment,
+    a: Handle,
+    b: Handle,
+    result: *mut bool,
+) -> i32 {
     run(env, |env| {
         let (a, b) = (env.get(a)?, env.get(b)?);
         let same = unsafe { qjs::JS_IsStrictEqual(env.ctx, a, b) };
@@ -476,11 +578,29 @@ pub(in super::super) unsafe extern "C" fn api_strict_equals(env: Environment, a:
 
 // ----- bigint ---------------------------------------------------------
 
-pub(in super::super) unsafe extern "C" fn api_create_bigint_int64(env: Environment, value: i64, result: *mut Handle) -> i32 {
-    run(env, |env| put(result, env.push(unsafe { qjs::JS_NewBigInt64(env.ctx, value) })))
+pub(in super::super) unsafe extern "C" fn api_create_bigint_int64(
+    env: Environment,
+    value: i64,
+    result: *mut Handle,
+) -> i32 {
+    run(env, |env| {
+        put(
+            result,
+            env.push(unsafe { qjs::JS_NewBigInt64(env.ctx, value) }),
+        )
+    })
 }
-pub(in super::super) unsafe extern "C" fn api_create_bigint_uint64(env: Environment, value: u64, result: *mut Handle) -> i32 {
-    run(env, |env| put(result, env.push(unsafe { qjs::JS_NewBigUint64(env.ctx, value) })))
+pub(in super::super) unsafe extern "C" fn api_create_bigint_uint64(
+    env: Environment,
+    value: u64,
+    result: *mut Handle,
+) -> i32 {
+    run(env, |env| {
+        put(
+            result,
+            env.push(unsafe { qjs::JS_NewBigUint64(env.ctx, value) }),
+        )
+    })
 }
 
 /// Builds a BigInt from sign and little-endian 64-bit words by evaluating
@@ -496,7 +616,11 @@ pub(in super::super) unsafe extern "C" fn api_create_bigint_words(
         if count > i32::MAX as usize / 64 || (words.is_null() && count > 0) {
             return Err(INVALID_ARG);
         }
-        let words = if count == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(words, count) } };
+        let words = if count == 0 {
+            &[][..]
+        } else {
+            unsafe { std::slice::from_raw_parts(words, count) }
+        };
         let mut hex = String::from("0x0");
         for word in words.iter().rev() {
             hex.push_str(&format!("{word:016x}"));
@@ -504,7 +628,8 @@ pub(in super::super) unsafe extern "C" fn api_create_bigint_words(
         let ctor = Owned::new(env, global_get(env, c"BigInt"));
         let text = Owned::new(env, new_string(env, &hex));
         let mut args = [text.value];
-        let big = unsafe { qjs::JS_Call(env.ctx, ctor.value, qjs::JS_UNDEFINED, 1, args.as_mut_ptr()) };
+        let big =
+            unsafe { qjs::JS_Call(env.ctx, ctor.value, qjs::JS_UNDEFINED, 1, args.as_mut_ptr()) };
         let mut big = Owned::new(env, check(env, big)?);
         if sign != 0 && !words.iter().all(|w| *w == 0) {
             let zero = unsafe { qjs::JS_NewBigInt64(env.ctx, 0) };
@@ -512,7 +637,15 @@ pub(in super::super) unsafe extern "C" fn api_create_bigint_words(
                 let zero = Owned::new(env, zero);
                 let mut args = [zero.value, big.value];
                 let minus = Owned::new(env, super::eval(env, "(a, b) => a - b")?);
-                let value = unsafe { qjs::JS_Call(env.ctx, minus.value, qjs::JS_UNDEFINED, 2, args.as_mut_ptr()) };
+                let value = unsafe {
+                    qjs::JS_Call(
+                        env.ctx,
+                        minus.value,
+                        qjs::JS_UNDEFINED,
+                        2,
+                        args.as_mut_ptr(),
+                    )
+                };
                 check(env, value)?
             };
             big = Owned::new(env, negated);
@@ -526,7 +659,10 @@ fn bigint_text(env: &Env, value: JSValue) -> Result<String, i32> {
     if !unsafe { qjs::JS_IsBigInt(value) } {
         return Err(BIGINT_EXPECTED);
     }
-    let string = Owned::new(env, check(env, unsafe { qjs::JS_ToString(env.ctx, value) })?);
+    let string = Owned::new(
+        env,
+        check(env, unsafe { qjs::JS_ToString(env.ctx, value) })?,
+    );
     Ok(String::from_utf8_lossy(&string_bytes(env, string.value)?).into_owned())
 }
 
@@ -554,13 +690,26 @@ fn decimal_to_words(text: &str) -> (bool, Vec<u64>) {
     (negative, words)
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_value_bigint_int64(env: Environment, value: Handle, out: *mut i64, lossless: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_value_bigint_int64(
+    env: Environment,
+    value: Handle,
+    out: *mut i64,
+    lossless: *mut bool,
+) -> i32 {
     run(env, |env| {
         let (negative, words) = decimal_to_words(&bigint_text(env, env.get(value)?)?);
         let low = words[0];
-        let signed = if negative { (low as i64).wrapping_neg() } else { low as i64 };
+        let signed = if negative {
+            (low as i64).wrapping_neg()
+        } else {
+            low as i64
+        };
         let exact = words.len() == 1
-            && if negative { low <= 1 << 63 } else { low < 1 << 63 }
+            && if negative {
+                low <= 1 << 63
+            } else {
+                low < 1 << 63
+            }
             || words == [0];
         if out.is_null() || lossless.is_null() {
             return Err(INVALID_ARG);
@@ -573,7 +722,12 @@ pub(in super::super) unsafe extern "C" fn api_get_value_bigint_int64(env: Enviro
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_value_bigint_uint64(env: Environment, value: Handle, out: *mut u64, lossless: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_value_bigint_uint64(
+    env: Environment,
+    value: Handle,
+    out: *mut u64,
+    lossless: *mut bool,
+) -> i32 {
     run(env, |env| {
         let (negative, words) = decimal_to_words(&bigint_text(env, env.get(value)?)?);
         let low = words[0];
@@ -622,13 +776,29 @@ pub(in super::super) unsafe extern "C" fn api_get_value_bigint_words(
 
 // ----- dates ----------------------------------------------------------
 
-pub(in super::super) unsafe extern "C" fn api_create_date(env: Environment, time: f64, result: *mut Handle) -> i32 {
-    run(env, |env| put(result, env.push(unsafe { qjs::JS_NewDate(env.ctx, time) })))
+pub(in super::super) unsafe extern "C" fn api_create_date(
+    env: Environment,
+    time: f64,
+    result: *mut Handle,
+) -> i32 {
+    run(env, |env| {
+        put(result, env.push(unsafe { qjs::JS_NewDate(env.ctx, time) }))
+    })
 }
-pub(in super::super) unsafe extern "C" fn api_is_date(env: Environment, value: Handle, result: *mut bool) -> i32 {
-    run(env, |env| put(result, unsafe { qjs::JS_IsDate(env.get(value)?) }))
+pub(in super::super) unsafe extern "C" fn api_is_date(
+    env: Environment,
+    value: Handle,
+    result: *mut bool,
+) -> i32 {
+    run(env, |env| {
+        put(result, unsafe { qjs::JS_IsDate(env.get(value)?) })
+    })
 }
-pub(in super::super) unsafe extern "C" fn api_get_date_value(env: Environment, value: Handle, result: *mut f64) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_date_value(
+    env: Environment,
+    value: Handle,
+    result: *mut f64,
+) -> i32 {
     run_js(env, |env| {
         let value = env.get(value)?;
         if !unsafe { qjs::JS_IsDate(value) } {

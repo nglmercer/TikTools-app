@@ -31,7 +31,11 @@ struct ExternalBuffer {
     hint: *mut c_void,
 }
 
-unsafe extern "C" fn free_external(_rt: *mut qjs::JSRuntime, opaque: *mut c_void, ptr: *mut c_void) {
+unsafe extern "C" fn free_external(
+    _rt: *mut qjs::JSRuntime,
+    opaque: *mut c_void,
+    ptr: *mut c_void,
+) {
     let rec = unsafe { Box::from_raw(opaque as *mut ExternalBuffer) };
     if let Some(noenv) = rec.noenv {
         unsafe { noenv(ptr, rec.hint) };
@@ -54,7 +58,16 @@ fn new_owned_arraybuffer(env: &Env, len: usize, shared: bool) -> Result<(JSValue
     if data.is_null() {
         return Err(GENERIC_FAILURE);
     }
-    let value = unsafe { qjs::JS_NewArrayBuffer(env.ctx, data, len as u64, Some(free_owned), len as *mut c_void, shared) };
+    let value = unsafe {
+        qjs::JS_NewArrayBuffer(
+            env.ctx,
+            data,
+            len as u64,
+            Some(free_owned),
+            len as *mut c_void,
+            shared,
+        )
+    };
     if unsafe { qjs::JS_IsException(value) } {
         unsafe { dealloc(data, layout(len)) };
         return Err(env.capture_exception());
@@ -77,7 +90,16 @@ fn new_external_arraybuffer(
         noenv,
         hint,
     }));
-    let value = unsafe { qjs::JS_NewArrayBuffer(env.ctx, data.cast(), len as u64, Some(free_external), rec.cast(), shared) };
+    let value = unsafe {
+        qjs::JS_NewArrayBuffer(
+            env.ctx,
+            data.cast(),
+            len as u64,
+            Some(free_external),
+            rec.cast(),
+            shared,
+        )
+    };
     if unsafe { qjs::JS_IsException(value) } {
         drop(unsafe { Box::from_raw(rec) });
         return Err(env.capture_exception());
@@ -85,7 +107,12 @@ fn new_external_arraybuffer(
     Ok(value)
 }
 
-pub(in super::super) unsafe extern "C" fn api_create_arraybuffer(env: Environment, len: usize, data: *mut *mut c_void, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_create_arraybuffer(
+    env: Environment,
+    len: usize,
+    data: *mut *mut c_void,
+    result: *mut Handle,
+) -> i32 {
     run_js(env, |env| {
         let (value, ptr) = new_owned_arraybuffer(env, len, false)?;
         if !data.is_null() {
@@ -95,7 +122,12 @@ pub(in super::super) unsafe extern "C" fn api_create_arraybuffer(env: Environmen
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_create_sharedarraybuffer(env: Environment, len: usize, data: *mut *mut c_void, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_create_sharedarraybuffer(
+    env: Environment,
+    len: usize,
+    data: *mut *mut c_void,
+    result: *mut Handle,
+) -> i32 {
     run_js(env, |env| {
         let (value, ptr) = new_owned_arraybuffer(env, len, true)?;
         if !data.is_null() {
@@ -141,14 +173,26 @@ fn is_instance_of(env: &Env, value: JSValue, global_name: &std::ffi::CStr) -> bo
     unsafe { qjs::JS_IsInstanceOf(env.ctx, value, ctor.value) > 0 }
 }
 
-pub(in super::super) unsafe extern "C" fn api_is_arraybuffer(env: Environment, value: Handle, result: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_is_arraybuffer(
+    env: Environment,
+    value: Handle,
+    result: *mut bool,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
-        put(result, unsafe { qjs::JS_IsArrayBuffer(value) } && !is_instance_of(env, value, c"SharedArrayBuffer"))
+        put(
+            result,
+            unsafe { qjs::JS_IsArrayBuffer(value) }
+                && !is_instance_of(env, value, c"SharedArrayBuffer"),
+        )
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_is_sharedarraybuffer(env: Environment, value: Handle, result: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_is_sharedarraybuffer(
+    env: Environment,
+    value: Handle,
+    result: *mut bool,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
         put(result, is_instance_of(env, value, c"SharedArrayBuffer"))
@@ -164,7 +208,12 @@ fn buffer_bytes(env: &Env, buffer: JSValue) -> Result<(*mut u8, usize), i32> {
     Ok((ptr, size as usize))
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_arraybuffer_info(env: Environment, value: Handle, data: *mut *mut c_void, len: *mut usize) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_arraybuffer_info(
+    env: Environment,
+    value: Handle,
+    data: *mut *mut c_void,
+    len: *mut usize,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
         if !unsafe { qjs::JS_IsArrayBuffer(value) } {
@@ -181,7 +230,10 @@ pub(in super::super) unsafe extern "C" fn api_get_arraybuffer_info(env: Environm
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_detach_arraybuffer(env: Environment, value: Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_detach_arraybuffer(
+    env: Environment,
+    value: Handle,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
         if !unsafe { qjs::JS_IsArrayBuffer(value) } {
@@ -192,14 +244,23 @@ pub(in super::super) unsafe extern "C" fn api_detach_arraybuffer(env: Environmen
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_is_detached_arraybuffer(env: Environment, value: Handle, result: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_is_detached_arraybuffer(
+    env: Environment,
+    value: Handle,
+    result: *mut bool,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
         if !unsafe { qjs::JS_IsArrayBuffer(value) } {
             return put(result, false);
         }
-        let detached = Owned::new(env, unsafe { qjs::JS_GetPropertyStr(env.ctx, value, c"detached".as_ptr()) });
-        put(result, unsafe { qjs::JS_ToBool(env.ctx, detached.value) } > 0)
+        let detached = Owned::new(env, unsafe {
+            qjs::JS_GetPropertyStr(env.ctx, value, c"detached".as_ptr())
+        });
+        put(
+            result,
+            unsafe { qjs::JS_ToBool(env.ctx, detached.value) } > 0,
+        )
     })
 }
 
@@ -234,9 +295,17 @@ fn throw_range(env: &Env, message: &str) -> i32 {
     }
 }
 
-fn make_typed_array(env: &Env, qjs_kind: qjs::JSTypedArrayEnum, buffer: JSValue, offset: usize, length: usize) -> Result<JSValue, i32> {
+fn make_typed_array(
+    env: &Env,
+    qjs_kind: qjs::JSTypedArrayEnum,
+    buffer: JSValue,
+    offset: usize,
+    length: usize,
+) -> Result<JSValue, i32> {
     let mut args = [buffer, number(offset as f64), number(length as f64)];
-    check(env, unsafe { qjs::JS_NewTypedArray(env.ctx, 3, args.as_mut_ptr(), qjs_kind) })
+    check(env, unsafe {
+        qjs::JS_NewTypedArray(env.ctx, 3, args.as_mut_ptr(), qjs_kind)
+    })
 }
 
 pub(in super::super) unsafe extern "C" fn api_create_typedarray(
@@ -248,36 +317,72 @@ pub(in super::super) unsafe extern "C" fn api_create_typedarray(
     result: *mut Handle,
 ) -> i32 {
     run_js(env, |env| {
-        let (_, qjs_kind, size) = *KINDS.iter().find(|entry| entry.0 == kind).ok_or(INVALID_ARG)?;
+        let (_, qjs_kind, size) = *KINDS
+            .iter()
+            .find(|entry| entry.0 == kind)
+            .ok_or(INVALID_ARG)?;
         let buffer = env.get(buffer)?;
         if !unsafe { qjs::JS_IsArrayBuffer(buffer) } {
             return Err(INVALID_ARG);
         }
-        if size > 1 && offset % size != 0 {
-            return Err(throw_range(env, &format!("start offset of typed array should be a multiple of {size}")));
+        if size > 1 && !offset.is_multiple_of(size) {
+            return Err(throw_range(
+                env,
+                &format!("start offset of typed array should be a multiple of {size}"),
+            ));
         }
         let (_, total) = buffer_bytes(env, buffer)?;
-        if length.checked_mul(size).and_then(|bytes| bytes.checked_add(offset)).is_none_or(|end| end > total) {
+        if length
+            .checked_mul(size)
+            .and_then(|bytes| bytes.checked_add(offset))
+            .is_none_or(|end| end > total)
+        {
             return Err(throw_range(env, "Invalid typed array length"));
         }
-        put(result, env.push(make_typed_array(env, qjs_kind, buffer, offset, length)?))
+        put(
+            result,
+            env.push(make_typed_array(env, qjs_kind, buffer, offset, length)?),
+        )
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_is_typedarray(env: Environment, value: Handle, result: *mut bool) -> i32 {
-    run(env, |env| put(result, unsafe { qjs::JS_GetTypedArrayType(env.get(value)?) } >= 0))
+pub(in super::super) unsafe extern "C" fn api_is_typedarray(
+    env: Environment,
+    value: Handle,
+    result: *mut bool,
+) -> i32 {
+    run(env, |env| {
+        put(
+            result,
+            unsafe { qjs::JS_GetTypedArrayType(env.get(value)?) } >= 0,
+        )
+    })
 }
 
 /// (buffer handle value, byte offset, byte length, element size, napi kind)
-fn typed_array_parts(env: &Env, value: JSValue) -> Result<(JSValue, usize, usize, usize, i32), i32> {
+fn typed_array_parts(
+    env: &Env,
+    value: JSValue,
+) -> Result<(JSValue, usize, usize, usize, i32), i32> {
     let qjs_kind = unsafe { qjs::JS_GetTypedArrayType(value) };
     if qjs_kind < 0 {
         return Err(INVALID_ARG);
     }
-    let kind = KINDS.iter().find(|entry| entry.1 as i64 == i64::from(qjs_kind)).map_or(1, |entry| entry.0);
+    let kind = KINDS
+        .iter()
+        .find(|entry| entry.1 as i64 == i64::from(qjs_kind))
+        .map_or(1, |entry| entry.0);
     let (mut offset, mut byte_length, mut bpe) = (0_u64, 0_u64, 0_u64);
-    let buffer = check(env, unsafe { qjs::JS_GetTypedArrayBuffer(env.ctx, value, &mut offset, &mut byte_length, &mut bpe) })?;
-    Ok((buffer, offset as usize, byte_length as usize, (bpe as usize).max(1), kind))
+    let buffer = check(env, unsafe {
+        qjs::JS_GetTypedArrayBuffer(env.ctx, value, &mut offset, &mut byte_length, &mut bpe)
+    })?;
+    Ok((
+        buffer,
+        offset as usize,
+        byte_length as usize,
+        (bpe as usize).max(1),
+        kind,
+    ))
 }
 
 pub(in super::super) unsafe extern "C" fn api_get_typedarray_info(
@@ -290,7 +395,8 @@ pub(in super::super) unsafe extern "C" fn api_get_typedarray_info(
     byte_offset: *mut usize,
 ) -> i32 {
     run(env, |env| {
-        let (buffer, offset, byte_length, bpe, napi_kind) = typed_array_parts(env, env.get(value)?)?;
+        let (buffer, offset, byte_length, bpe, napi_kind) =
+            typed_array_parts(env, env.get(value)?)?;
         let buffer = Owned::new(env, buffer);
         if !kind.is_null() {
             unsafe { kind.write(napi_kind) };
@@ -300,7 +406,13 @@ pub(in super::super) unsafe extern "C" fn api_get_typedarray_info(
         }
         if !data.is_null() {
             let (ptr, _) = buffer_bytes(env, buffer.value)?;
-            unsafe { data.write(if ptr.is_null() { ptr.cast() } else { ptr.add(offset).cast() }) };
+            unsafe {
+                data.write(if ptr.is_null() {
+                    ptr.cast()
+                } else {
+                    ptr.add(offset).cast()
+                })
+            };
         }
         if !byte_offset.is_null() {
             unsafe { byte_offset.write(offset) };
@@ -340,17 +452,28 @@ pub(in super::super) unsafe extern "C" fn api_create_dataview(
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_is_dataview(env: Environment, value: Handle, result: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_is_dataview(
+    env: Environment,
+    value: Handle,
+    result: *mut bool,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
-        put(result, is_object(value) && is_instance_of(env, value, c"DataView"))
+        put(
+            result,
+            is_object(value) && is_instance_of(env, value, c"DataView"),
+        )
     })
 }
 
 fn prop_usize(env: &Env, object: JSValue, name: &std::ffi::CStr) -> Result<usize, i32> {
-    let value = Owned::new(env, unsafe { qjs::JS_GetPropertyStr(env.ctx, object, name.as_ptr()) });
+    let value = Owned::new(env, unsafe {
+        qjs::JS_GetPropertyStr(env.ctx, object, name.as_ptr())
+    });
     let mut out = 0.0;
-    check_int(env, unsafe { qjs::JS_ToFloat64(env.ctx, &mut out, value.value) })?;
+    check_int(env, unsafe {
+        qjs::JS_ToFloat64(env.ctx, &mut out, value.value)
+    })?;
     Ok(out as usize)
 }
 
@@ -369,13 +492,21 @@ pub(in super::super) unsafe extern "C" fn api_get_dataview_info(
         }
         let length = prop_usize(env, view, c"byteLength")?;
         let offset = prop_usize(env, view, c"byteOffset")?;
-        let buffer = Owned::new(env, unsafe { qjs::JS_GetPropertyStr(env.ctx, view, c"buffer".as_ptr()) });
+        let buffer = Owned::new(env, unsafe {
+            qjs::JS_GetPropertyStr(env.ctx, view, c"buffer".as_ptr())
+        });
         if !byte_length.is_null() {
             unsafe { byte_length.write(length) };
         }
         if !data.is_null() {
             let (ptr, _) = buffer_bytes(env, buffer.value)?;
-            unsafe { data.write(if ptr.is_null() { ptr.cast() } else { ptr.add(offset).cast() }) };
+            unsafe {
+                data.write(if ptr.is_null() {
+                    ptr.cast()
+                } else {
+                    ptr.add(offset).cast()
+                })
+            };
         }
         if !byte_offset.is_null() {
             unsafe { byte_offset.write(offset) };
@@ -392,11 +523,22 @@ pub(in super::super) unsafe extern "C" fn api_get_dataview_info(
 fn new_buffer(env: &Env, len: usize) -> Result<(JSValue, *mut u8), i32> {
     let (buffer, ptr) = new_owned_arraybuffer(env, len, false)?;
     let buffer = Owned::new(env, buffer);
-    let view = make_typed_array(env, qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_UINT8, buffer.value, 0, len)?;
+    let view = make_typed_array(
+        env,
+        qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_UINT8,
+        buffer.value,
+        0,
+        len,
+    )?;
     Ok((view, ptr))
 }
 
-pub(in super::super) unsafe extern "C" fn api_create_buffer(env: Environment, len: usize, data: *mut *mut c_void, result: *mut Handle) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_create_buffer(
+    env: Environment,
+    len: usize,
+    data: *mut *mut c_void,
+    result: *mut Handle,
+) -> i32 {
     run_js(env, |env| {
         let (view, ptr) = new_buffer(env, len)?;
         if !data.is_null() {
@@ -437,8 +579,17 @@ pub(in super::super) unsafe extern "C" fn api_create_external_buffer(
     result: *mut Handle,
 ) -> i32 {
     run_js(env, |env| {
-        let buffer = Owned::new(env, new_external_arraybuffer(env, data, len, finalize, None, hint, false)?);
-        let view = make_typed_array(env, qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_UINT8, buffer.value, 0, len)?;
+        let buffer = Owned::new(
+            env,
+            new_external_arraybuffer(env, data, len, finalize, None, hint, false)?,
+        );
+        let view = make_typed_array(
+            env,
+            qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_UINT8,
+            buffer.value,
+            0,
+            len,
+        )?;
         put(result, env.push(view))
     })
 }
@@ -459,26 +610,48 @@ pub(in super::super) unsafe extern "C" fn api_create_buffer_from_arraybuffer(
         if length.checked_add(offset).is_none_or(|end| end > total) {
             return Err(throw_range(env, "The byte offset + length is out of range"));
         }
-        let view = make_typed_array(env, qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_UINT8, buffer, offset, length)?;
+        let view = make_typed_array(
+            env,
+            qjs::JSTypedArrayEnum_JS_TYPED_ARRAY_UINT8,
+            buffer,
+            offset,
+            length,
+        )?;
         put(result, env.push(view))
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_is_buffer(env: Environment, value: Handle, result: *mut bool) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_is_buffer(
+    env: Environment,
+    value: Handle,
+    result: *mut bool,
+) -> i32 {
     run(env, |env| {
         let value = env.get(value)?;
-        let is_view = unsafe { qjs::JS_GetTypedArrayType(value) } >= 0 || (is_object(value) && is_instance_of(env, value, c"DataView"));
+        let is_view = unsafe { qjs::JS_GetTypedArrayType(value) } >= 0
+            || (is_object(value) && is_instance_of(env, value, c"DataView"));
         put(result, is_view)
     })
 }
 
-pub(in super::super) unsafe extern "C" fn api_get_buffer_info(env: Environment, value: Handle, data: *mut *mut c_void, len: *mut usize) -> i32 {
+pub(in super::super) unsafe extern "C" fn api_get_buffer_info(
+    env: Environment,
+    value: Handle,
+    data: *mut *mut c_void,
+    len: *mut usize,
+) -> i32 {
     run(env, |env| {
         let (buffer, offset, byte_length, _, _) = typed_array_parts(env, env.get(value)?)?;
         let buffer = Owned::new(env, buffer);
         let (ptr, _) = buffer_bytes(env, buffer.value)?;
         if !data.is_null() {
-            unsafe { data.write(if ptr.is_null() { ptr.cast() } else { ptr.add(offset).cast() }) };
+            unsafe {
+                data.write(if ptr.is_null() {
+                    ptr.cast()
+                } else {
+                    ptr.add(offset).cast()
+                })
+            };
         }
         if !len.is_null() {
             unsafe { len.write(byte_length) };

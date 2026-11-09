@@ -305,9 +305,9 @@ fn condition_matches(key: &str, mode: Mode) -> bool {
 fn condition_target(value: &serde_json::Value, mode: Mode) -> Option<String> {
     match value {
         serde_json::Value::String(target) => Some(target.clone()),
-        serde_json::Value::Array(items) => items
-            .iter()
-            .find_map(|item| condition_target(item, mode)),
+        serde_json::Value::Array(items) => {
+            items.iter().find_map(|item| condition_target(item, mode))
+        }
         serde_json::Value::Object(map) => map
             .iter()
             .filter(|(key, _)| condition_matches(key, mode))
@@ -318,9 +318,9 @@ fn condition_target(value: &serde_json::Value, mode: Mode) -> Option<String> {
 
 fn exports_target(exports: &serde_json::Value, key: &str, mode: Mode) -> Option<String> {
     match exports {
-        serde_json::Value::String(_) | serde_json::Value::Array(_) => {
-            (key == ".").then(|| condition_target(exports, mode)).flatten()
-        }
+        serde_json::Value::String(_) | serde_json::Value::Array(_) => (key == ".")
+            .then(|| condition_target(exports, mode))
+            .flatten(),
         serde_json::Value::Object(map) => {
             let has_subpaths = map.keys().any(|key| key.starts_with('.'));
             if has_subpaths {
@@ -371,8 +371,9 @@ fn looks_like_esm(source: &str) -> bool {
             return true;
         }
         if let Some(rest) = line.strip_prefix("import") {
-            return rest.starts_with(|c: char| c.is_whitespace() || c == '{' || c == '*' || c == '"' || c == '\'')
-                && !rest.trim_start().starts_with('(');
+            return rest.starts_with(|c: char| {
+                c.is_whitespace() || c == '{' || c == '*' || c == '"' || c == '\''
+            }) && !rest.trim_start().starts_with('(');
         }
         if let Some(rest) = line.strip_prefix("export") {
             return rest.starts_with(|c: char| c.is_whitespace() || c == '{' || c == '*');
@@ -446,7 +447,8 @@ fn path_from_url_or_path(value: &str) -> PathBuf {
 fn base_dir_of(shared: &HostShared, base: &str) -> PathBuf {
     let path = Path::new(base);
     if path.is_absolute() {
-        path.parent().map_or_else(|| shared.root.clone(), Path::to_owned)
+        path.parent()
+            .map_or_else(|| shared.root.clone(), Path::to_owned)
     } else {
         shared.root.clone()
     }
@@ -532,7 +534,8 @@ fn declare_file<'js>(
             ))
         }
         Some("json") => {
-            let text = read_source(path).map_err(|message| Exception::throw_message(ctx, &message))?;
+            let text =
+                read_source(path).map_err(|message| Exception::throw_message(ctx, &message))?;
             ctx.json_parse(text.as_str())?; // validate before declaring
             return Module::declare(ctx.clone(), name, format!("export default {text};"));
         }
@@ -582,7 +585,9 @@ fn run_commonjs<'js>(
         .modules
         .borrow_mut()
         .insert(path.to_owned(), Persistent::save(ctx, module.clone()));
-    let dir = path.parent().map_or_else(|| shared.root.clone(), Path::to_owned);
+    let dir = path
+        .parent()
+        .map_or_else(|| shared.root.clone(), Path::to_owned);
     let require = make_require(ctx, shared, dir.clone())?;
     let wrapper: Function = ctx.eval(format!(
         "(function (exports, require, module, __filename, __dirname) {{{source}\n}})"
@@ -619,7 +624,9 @@ fn require_spec<'js>(
     spec: &str,
 ) -> rquickjs::Result<Value<'js>> {
     match resolve_specifier(shared, base_dir, spec, Mode::Require) {
-        Ok(Resolved::Builtin(EVENTS_CAPABILITY)) => events_object(ctx, shared).map(Object::into_value),
+        Ok(Resolved::Builtin(EVENTS_CAPABILITY)) => {
+            events_object(ctx, shared).map(Object::into_value)
+        }
         Ok(Resolved::Builtin(_)) => node_module_object(ctx, shared).map(Object::into_value),
         Ok(Resolved::Alias(alias)) => load_alias(ctx, shared, &alias),
         Ok(Resolved::File(path)) => require_file(ctx, shared, &path, spec),
@@ -639,7 +646,8 @@ fn require_file<'js>(
             &format!("native addon `{spec}` is not allowlisted"),
         )),
         Some("json") => {
-            let text = read_source(path).map_err(|message| Exception::throw_message(ctx, &message))?;
+            let text =
+                read_source(path).map_err(|message| Exception::throw_message(ctx, &message))?;
             ctx.json_parse(text.as_str())
         }
         _ => {
@@ -717,8 +725,7 @@ fn to_json<'js>(
     value: Option<Value<'js>>,
     what: &str,
 ) -> rquickjs::Result<serde_json::Value> {
-    let not_serializable =
-        || Exception::throw_message(ctx, &format!("{what} is not serializable"));
+    let not_serializable = || Exception::throw_message(ctx, &format!("{what} is not serializable"));
     let Some(value) = value else {
         return Err(not_serializable());
     };
@@ -743,7 +750,8 @@ fn node_module_object<'js>(
             let dir = if path.is_dir() {
                 path
             } else {
-                path.parent().map_or_else(|| shared.root.clone(), Path::to_owned)
+                path.parent()
+                    .map_or_else(|| shared.root.clone(), Path::to_owned)
             };
             if !dir.starts_with(&shared.root) {
                 return Err(Exception::throw_message(
@@ -797,8 +805,8 @@ impl ModuleDef for NodeModuleModule {
 
 fn is_identifier(name: &str) -> bool {
     const RESERVED: [&str; 14] = [
-        "default", "class", "function", "var", "let", "const", "new", "delete", "import",
-        "export", "return", "if", "else", "this",
+        "default", "class", "function", "var", "let", "const", "new", "delete", "import", "export",
+        "return", "if", "else", "this",
     ];
     let mut chars = name.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_' || c == '$')
@@ -874,7 +882,13 @@ mod tests {
     }
 
     fn shared(root: &Path) -> Rc<HostShared> {
-        HostShared::new("test".to_owned(), root.to_owned(), HashMap::new(), None, std::sync::Arc::new(|| {}))
+        HostShared::new(
+            "test".to_owned(),
+            root.to_owned(),
+            HashMap::new(),
+            None,
+            std::sync::Arc::new(|| {}),
+        )
     }
 
     #[test]

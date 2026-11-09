@@ -33,10 +33,11 @@ pub enum PluginRuntimeKind {
     /// Host-interpreted declarative package (schema v3): HTTP actions,
     /// option sources, templates, and pages with no executable entry.
     Declarative,
-    /// TypeScript-first plugin compiled to JavaScript and executed through
-    /// the `napi-vm` interpreter (`napi_vm::RustPluginHost`). Guest code is
-    /// sandboxed by the VM with deny-by-default capabilities; explicitly
-    /// allowlisted `.node` addons are trusted native code, not sandboxed.
+    /// TypeScript-first plugin compiled to JavaScript and executed by the
+    /// host's embedded QuickJS runtime (the serialized `napi-vm` name is kept
+    /// for manifest compatibility). Guest code is sandboxed by the VM with
+    /// deny-by-default capabilities; explicitly allowlisted `.node` addons
+    /// are trusted native code, not sandboxed.
     #[serde(rename = "napi-vm")]
     NapiVm,
 }

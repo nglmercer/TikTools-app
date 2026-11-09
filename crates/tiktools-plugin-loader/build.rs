@@ -49,7 +49,10 @@ fn main() {
         command
             .args(["/nologo", "/O2", "/LD", "/TC"])
             .arg("native/node_api_shim.c")
-            .arg(format!("/Fo{}", out_dir.join("node_api_shim.obj").display()))
+            .arg(format!(
+                "/Fo{}",
+                out_dir.join("node_api_shim.obj").display()
+            ))
             .arg("/link")
             .arg(format!("/IMPLIB:{}", out_dir.join("node.lib").display()))
             .arg(format!("/OUT:{}", library.display()));
@@ -68,12 +71,21 @@ fn main() {
                 out_dir.join("libnode.exe.a").display()
             ));
         }
-        command.arg("native/node_api_shim.c").arg("-o").arg(&library);
+        command
+            .arg("native/node_api_shim.c")
+            .arg("-o")
+            .arg(&library);
     }
     let status = command.status().unwrap_or_else(|error| {
         panic!("the Node-API host needs a C compiler: could not run '{compiler_name}': {error}")
     });
-    assert!(status.success(), "failed to compile the Node-API symbol shim");
-    println!("cargo::rustc-env=TIKTOOLS_NODE_API_SHIM_PATH={}", library.display());
+    assert!(
+        status.success(),
+        "failed to compile the Node-API symbol shim"
+    );
+    println!(
+        "cargo::rustc-env=TIKTOOLS_NODE_API_SHIM_PATH={}",
+        library.display()
+    );
     println!("cargo::rustc-cfg=node_api_host");
 }

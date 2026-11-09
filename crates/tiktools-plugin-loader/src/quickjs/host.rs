@@ -84,7 +84,10 @@ impl QuickJsHost {
             })));
         }
         let shared = HostShared::new(name.clone(), root, aliases, events, wake);
-        runtime.set_loader(PluginResolver(Rc::clone(&shared)), PluginLoader(Rc::clone(&shared)));
+        runtime.set_loader(
+            PluginResolver(Rc::clone(&shared)),
+            PluginLoader(Rc::clone(&shared)),
+        );
         let context = Context::full(&runtime).map_err(|error| error.to_string())?;
         let timers: SharedTimers = Rc::default();
 
@@ -116,8 +119,8 @@ impl QuickJsHost {
             ctx.store_userdata(SharedHandle(Rc::clone(&shared)))
                 .map_err(|_| "plugin state could not be stored".to_owned())?;
             install_globals(&ctx, &timers, &name).map_err(|error| describe_error(&ctx, error))?;
-            let module =
-                super::modules::declare_entry(&ctx, &shared, &entry).map_err(|e| describe_error(&ctx, e))?;
+            let module = super::modules::declare_entry(&ctx, &shared, &entry)
+                .map_err(|e| describe_error(&ctx, e))?;
             let (module, promise) = module.eval().map_err(|e| describe_error(&ctx, e))?;
             settle(&ctx, &timers, &shared, &name, promise.into_value())?;
             let namespace = module.namespace().map_err(|e| describe_error(&ctx, e))?;
@@ -129,7 +132,15 @@ impl QuickJsHost {
                 None => namespace,
             };
             let hook_context = hook_context(&ctx, &name, &version, None)?;
-            call_hook(&ctx, &timers, &shared, &name, &plugin, "onLoad", hook_context)?;
+            call_hook(
+                &ctx,
+                &timers,
+                &shared,
+                &name,
+                &plugin,
+                "onLoad",
+                hook_context,
+            )?;
             Ok(Persistent::save(&ctx, plugin))
         })?;
         self.plugin = Some(plugin);
@@ -161,32 +172,33 @@ impl QuickJsHost {
         let shared = Rc::clone(&self.shared);
         let name = self.name.clone();
         self.reset_budget();
-        let outcome = self.context.with(|ctx| -> Result<serde_json::Value, String> {
-            let plugin = plugin.restore(&ctx).map_err(|e| describe_error(&ctx, e))?;
-            let function: Value = plugin
-                .get("call")
-                .map_err(|e| describe_error(&ctx, e))?;
-            let Some(function) = function.into_function() else {
-                return Err("plugin must export call(request, context)".to_owned());
-            };
-            let request = ctx
-                .json_parse(request.to_string())
-                .map_err(|e| describe_error(&ctx, e))?;
-            let call_context = ctx
-                .json_parse(call_context.to_string())
-                .map_err(|e| describe_error(&ctx, e))?;
-            let result: Value = function
-                .call((This(plugin), request, call_context))
-                .map_err(|e| describe_error(&ctx, e))?;
-            let result = settle(&ctx, &timers, &shared, &name, result)?;
-            let text = ctx
-                .json_stringify(result)
-                .map_err(|e| describe_error(&ctx, e))?
-                .ok_or_else(|| "plugin call returned no result".to_owned())?
-                .to_string()
-                .map_err(|e| describe_error(&ctx, e))?;
-            serde_json::from_str(&text).map_err(|error| format!("call result is not JSON: {error}"))
-        });
+        let outcome = self
+            .context
+            .with(|ctx| -> Result<serde_json::Value, String> {
+                let plugin = plugin.restore(&ctx).map_err(|e| describe_error(&ctx, e))?;
+                let function: Value = plugin.get("call").map_err(|e| describe_error(&ctx, e))?;
+                let Some(function) = function.into_function() else {
+                    return Err("plugin must export call(request, context)".to_owned());
+                };
+                let request = ctx
+                    .json_parse(request.to_string())
+                    .map_err(|e| describe_error(&ctx, e))?;
+                let call_context = ctx
+                    .json_parse(call_context.to_string())
+                    .map_err(|e| describe_error(&ctx, e))?;
+                let result: Value = function
+                    .call((This(plugin), request, call_context))
+                    .map_err(|e| describe_error(&ctx, e))?;
+                let result = settle(&ctx, &timers, &shared, &name, result)?;
+                let text = ctx
+                    .json_stringify(result)
+                    .map_err(|e| describe_error(&ctx, e))?
+                    .ok_or_else(|| "plugin call returned no result".to_owned())?
+                    .to_string()
+                    .map_err(|e| describe_error(&ctx, e))?;
+                serde_json::from_str(&text)
+                    .map_err(|error| format!("call result is not JSON: {error}"))
+            });
         match outcome {
             Err(_) if self.budget_exhausted() => Err(BUDGET_MESSAGE.to_owned()),
             other => other,
@@ -220,7 +232,15 @@ impl QuickJsHost {
                 self.context.with(|ctx| -> Result<(), String> {
                     let plugin = plugin.restore(&ctx).map_err(|e| describe_error(&ctx, e))?;
                     let hook_context = hook_context(&ctx, &name, &version, Some("unload"))?;
-                    call_hook(&ctx, &timers, &shared, &name, &plugin, "onUnload", hook_context)
+                    call_hook(
+                        &ctx,
+                        &timers,
+                        &shared,
+                        &name,
+                        &plugin,
+                        "onUnload",
+                        hook_context,
+                    )
                 })
             }
         };
@@ -386,7 +406,8 @@ mod tests {
 
     #[test]
     fn guests_get_text_codecs_timers_and_console() {
-        let dir = std::env::temp_dir().join(format!("tiktools-host-globals-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("tiktools-host-globals-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             dir.join("index.js"),
