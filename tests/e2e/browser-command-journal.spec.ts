@@ -3,6 +3,31 @@ import { expect, test } from '@playwright/test';
 const binding = { origin: 'https://host.example', hostId: 'host', principalId: 'principal', sessionId: 'session' };
 const modulePath = '/features/controller/model/browser-command-journal.ts';
 
+test('a second tab cannot review or send while a command owns the session lock', async ({ page, context, baseURL }) => {
+  await context.route('https://host.example/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === '/__journal-test') await route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Journal fixture</title>' });
+    else await route.fulfill({ response: await context.request.get(new URL(path, baseURL).href) });
+  });
+  await page.goto('https://host.example/__journal-test');
+  const other = await context.newPage(); await other.goto('https://host.example/__journal-test');
+  await page.evaluate(async ({ modulePath, binding }) => {
+    const journal = await import(/* @vite-ignore */ modulePath);
+    const state = window as unknown as { release: () => void; acquired: boolean; finished: boolean };
+    const hold = new Promise<void>((resolve) => { state.release = resolve; });
+    void journal.withBrowserCommandLock(binding, async () => { state.acquired = true; await hold; }).then(() => { state.finished = true; });
+  }, { modulePath, binding });
+  await page.waitForFunction(() => (window as unknown as { acquired: boolean }).acquired);
+  const tryLock = () => other.evaluate(async ({ modulePath, binding }) => {
+    const journal = await import(/* @vite-ignore */ modulePath);
+    try { await journal.withBrowserCommandLock(binding, async () => {}); return true; } catch { return false; }
+  }, { modulePath, binding });
+  expect(await tryLock()).toBe(false);
+  await page.evaluate(() => (window as unknown as { release: () => void }).release());
+  await page.waitForFunction(() => (window as unknown as { finished: boolean }).finished);
+  expect(await tryLock()).toBe(true);
+});
+
 test('missing journal blocks operations until explicit storage loss review', async ({ page, context }) => {
   await context.route('**/__journal-test', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Journal fixture</title>' }));
   await page.goto('/__journal-test');

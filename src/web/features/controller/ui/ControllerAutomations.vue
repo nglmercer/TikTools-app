@@ -1,31 +1,28 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { AutomationModel, AutomationRow, AutomationTarget, EventOperation } from '../model/automations.ts';
-import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
+import type { AutomationModel, AutomationRow, EventOperation } from '../model/automations.ts';
 const props = defineProps<{ model: AutomationModel; epoch: string; busy: boolean }>();
 const { locale } = useI18n();
 const text = computed(() => locale.value === 'es' ? {
-  title: 'Automatizaciones del anfitrión', note: 'Se muestra el estado configurado. Las definiciones pendientes de revisión no se ejecutan, aunque estén marcadas activas.',
+  title: 'Automatizaciones del anfitrión', note: 'Se muestra el estado configurado. Las definiciones pendientes de revisión no se ejecutan. Las acciones ya iniciadas pueden terminar tras desactivar un evento.',
   event: 'Evento', action: 'Acción', enabled: 'Activo', disabled: 'Inactivo', empty: 'No hay automatizaciones disponibles para este acceso.', loading: 'Recuperando estado de automatizaciones…',
   disable: 'Desactivar evento', delete: 'Eliminar evento', disableTitle: '¿Desactivar este evento en el anfitrión?', deleteTitle: '¿Eliminar este evento del anfitrión?',
   disableMessage: 'El evento completo dejará de estar activo. El anfitrión confirmará el cambio para la revisión indicada. Las acciones ya iniciadas pueden terminar.',
   deleteMessage: 'Se eliminará el evento completo del anfitrión para la revisión indicada. Las acciones ya iniciadas pueden terminar.',
   revision: 'Revisión', changed: 'El estado o el acceso cambió. Cierra esta confirmación y revisa el evento de nuevo.',
 } : {
-  title: 'Host automations', note: 'Configured status is shown. Definitions awaiting review do not run, even if marked enabled.',
+  title: 'Host automations', note: 'Configured status is shown. Definitions awaiting review do not run. Actions already started may finish after an event is disabled.',
   event: 'Event', action: 'Action', enabled: 'Enabled', disabled: 'Disabled', empty: 'No automations are available for this access.', loading: 'Recovering automation status…',
   disable: 'Disable event', delete: 'Delete event', disableTitle: 'Disable this event on the host?', deleteTitle: 'Delete this event from the host?',
   disableMessage: 'The complete event will become inactive. The host must confirm the change for the revision shown. Already started actions may finish.',
   deleteMessage: 'The complete event will be removed from the host for the revision shown. Already started actions may finish.',
   revision: 'Revision', changed: 'The state or access changed. Close this confirmation and review the event again.',
 });
-const target = ref<AutomationTarget | null>(null);
-const open = computed({ get: () => target.value !== null, set: (value: boolean) => { if (!value) target.value = null; } });
-const current = computed(() => target.value !== null && props.model.current(target.value));
-function request(item: AutomationRow, operation: EventOperation): void { target.value = props.model.prepare(item, operation); }
-async function confirm(): Promise<void> { const submitted = target.value; if (!submitted || !current.value) return; target.value = null; await props.model.change(submitted); }
-watch([() => props.epoch, () => props.model.identity.value, () => props.model.allowed.value], () => { target.value = null; });
+async function request(item: AutomationRow, operation: EventOperation): Promise<void> {
+  const target = props.model.prepare(item, operation);
+  if (target && props.model.current(target)) await props.model.change(target);
+}
 </script>
 
 <template>
@@ -83,27 +80,6 @@ watch([() => props.epoch, () => props.model.identity.value, () => props.model.al
       </ul>
     </template>
   </section>
-  <BaseConfirmDialog
-    v-model:open="open"
-    :title="target?.operation === 'delete-event' ? text.deleteTitle : text.disableTitle"
-    :message="target?.operation === 'delete-event' ? text.deleteMessage : text.disableMessage"
-    :confirm-label="target?.operation === 'delete-event' ? text.delete : text.disable"
-    :busy="busy || !current"
-    danger
-    @confirm="confirm"
-  >
-    <template v-if="target">
-      <code>{{ target.origin }}</code><code>Host {{ target.hostId }}</code>
-      <p>{{ target.name }} · {{ text.event }} {{ target.id }}</p>
-      <p>{{ text.revision }} {{ target.expectedRevision }}</p>
-      <p
-        v-if="!current"
-        role="status"
-      >
-        {{ text.changed }}
-      </p>
-    </template>
-  </BaseConfirmDialog>
 </template>
 
 <style scoped>

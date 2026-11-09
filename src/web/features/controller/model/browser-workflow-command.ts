@@ -1,20 +1,20 @@
 import { callWithMeta, type ControlClient } from '@/shared/api/control-client.ts';
 import type { RemoteBrowserHello, RemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
-import { beginBrowserCommand, finishBrowserCommand, withBrowserCommandJournal, type BrowserCommandBinding, type BrowserCommandIntent } from './browser-command-journal.ts';
+import { beginBrowserCommand, finishBrowserCommand, withBrowserCommandJournal, withBrowserCommandLock, type BrowserCommandBinding, type BrowserCommandIntent } from './browser-command-journal.ts';
 import { verifyBrowserWorkflowOutcome } from './browser-command-recovery.ts';
 
 export type BrowserWorkflowTarget = { operation: 'disable' | 'delete'; resourceId: string; expectedRevision: string };
 
 /** Prepare, persist, recheck and send one confirmed intent. Transport errors and
  * unverifiable replies leave the original ID pending; this never retries. The
- * calling view must fence the exact selected row and its revision. This helper
- * is not yet connected to UI actions or a storage-loss recovery policy. */
+ * calling view must fence the exact selected row and its revision. */
 export async function sendBrowserWorkflowCommand(options: {
   remote: ControlClient; transport: RemoteBrowserTransport; expected: RemoteBrowserHello;
   binding: BrowserCommandBinding; target: BrowserWorkflowTarget; isCurrent: () => boolean;
 }): Promise<void> {
   const { remote, transport, expected, isCurrent } = options;
   const binding = { ...options.binding }; const target = { ...options.target };
+  return withBrowserCommandLock(binding, async () => {
   const identity = (): boolean => transport.currentHello() === expected && binding.origin === globalThis.location.origin &&
     binding.hostId === expected.hostId && binding.principalId === expected.principalId && binding.sessionId === expected.sessionId;
   const allowed = (): boolean => identity() && isCurrent() && expected.capabilities.includes('workflows.read') &&
@@ -47,5 +47,6 @@ export async function sendBrowserWorkflowCommand(options: {
   await withBrowserCommandJournal(binding, (journal) => {
     if (!identity() || !journal.pending || JSON.stringify(journal.pending) !== JSON.stringify(intent)) throw new Error('pending command changed');
     finishBrowserCommand(journal, intent.commandId, { outcome: 'succeeded', revision, errorCode: null, recordedAt: Date.now() });
+  });
   });
 }

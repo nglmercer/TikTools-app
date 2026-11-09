@@ -50,13 +50,8 @@ for (const locale of ['en', 'es'] as const) {
     await expect(page.getByText(text.create, { exact: false })).toBeVisible();
     await page.getByRole('spinbutton', { name: text.amount, exact: true }).fill('3');
     await page.getByRole('button', { name: text.adjust, exact: true }).click();
-    const dialog = page.getByRole('dialog'); await expect(dialog).toContainText(origin); await expect(dialog).toContainText('host-A');
-    await expect(dialog).toContainText('new-viewer · 3 Gems'); await expect(dialog).toContainText(text.create);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `/home/meme/.cache/tiktools-test-runs/controller-points-${locale}.png` });
-    await dialog.getByRole('button', { name: text.cancel, exact: true }).click();
-    await page.getByRole('button', { name: text.adjust, exact: true }).click();
-    await dialog.getByRole('button', { name: text.adjust, exact: true }).click();
     await page.getByText(text.history, { exact: true }).click();
     await expect(page.getByText(text.requested, { exact: true })).toBeVisible();
     await expect(page.getByText(text.effective, { exact: false })).toBeVisible();

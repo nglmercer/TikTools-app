@@ -89,7 +89,6 @@ try {
   }, commandId);
   await page.getByRole('button', { name: /UI workflow/ }).click();
   await page.getByRole('button', { name: /Disable workflow|Desactivar workflow/ }).click();
-  await page.getByRole('dialog').getByRole('button', { name: /Disable workflow|Desactivar workflow/ }).click();
   await page.getByRole('button', { name: /Disable workflow|Desactivar workflow/ }).waitFor({ state: 'hidden', timeout: 20_000 });
   mark('commands-complete');
   const replacement = await context.newPage();

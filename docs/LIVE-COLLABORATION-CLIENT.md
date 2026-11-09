@@ -5,7 +5,7 @@ permits scoped reads, workflow/event disable/delete, disabled automation drafts
 and additive points commands in
 [the transport guide](LIVE-COLLABORATION-TRANSPORT.md).
 The desktop has isolated workflow/points controls and a summary-only automation
-board with durable whole-event disable/delete confirmation. A separate native
+board with durable whole-event disable/delete commands. A separate native
 JSON editor retains private author copies and submits disabled proposals through
 the shared durable coordinator. Complete domain UI, activation and delegated
 execution remain incomplete. See the
@@ -33,7 +33,7 @@ The existing controller screen now has a `remote-web` build mode backed by a
 browser-local adapter for workflows. The adapter exposes a view only
 after recovery, refreshes invalidated records against their host revisions,
 and clears it on disconnect or a sequence gap. It exposes browser workflow
-disable/delete with explicit confirmation and a local command
+disable/delete under the granted permissions and a local command
 journal; local profiles, persistent drafts and other browser domain writes are
 not available. It also projects the host's current LIVE connection status for a
 `live.read` grant, including LIVE-only observers without workflow access.

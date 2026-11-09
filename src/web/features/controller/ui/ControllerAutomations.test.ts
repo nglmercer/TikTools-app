@@ -36,13 +36,6 @@ it.each(['en', 'es'] as const)('reviews a complete event and retains uncertain c
     expect(wrapper.find('textarea').exists()).toBe(false);
     expect(calls.some((c) => c.method === 'controller.automation.command')).toBe(false);
     await board.findAll('button').find((b) => b.text() === words.disable)!.trigger('click'); await flushPromises();
-    const dialog = () => wrapper.get('dialog[open]');
-    expect(dialog().text()).toContain('https://host.example'); expect(dialog().text()).toContain('host-A');
-    expect(dialog().text()).toContain('event label'); expect(dialog().text()).toContain(words.revision); expect(dialog().text()).toContain(words.started);
-    await dialog().findAll('button').find((b) => b.text() === words.cancel)!.trigger('click'); await flushPromises();
-    expect(calls.some((c) => c.method === 'controller.automation.command')).toBe(false);
-    await board.findAll('button').find((b) => b.text() === words.disable)!.trigger('click'); await flushPromises();
-    await dialog().findAll('button').find((b) => b.text() === words.disable)!.trigger('click'); await flushPromises();
     expect(calls.filter((c) => c.method === 'controller.automation.command')).toHaveLength(1);
     expect(wrapper.text()).toContain(words.unknown); expect(wrapper.get('.controller__journal').text()).toContain(words.disable);
     expect(wrapper.get('.controller__journal').text()).not.toContain(locale === 'es' ? 'Desactivar workflow' : 'Disable workflow');
@@ -51,7 +44,7 @@ it.each(['en', 'es'] as const)('reviews a complete event and retains uncertain c
   } finally { wrapper.unmount(); }
 });
 
-it.each(['grant', 'read', 'connection'] as const)('removes captured event labels from an open dialog after %s changes', async (change) => {
+it.each(['grant', 'read', 'connection'] as const)('removes inaccessible event labels after %s changes', async (change) => {
   await activateLocale('en');
   const { createControllerModel } = await import('../model/controller.ts');
   const { default: ControllerAutomations } = await import('./ControllerAutomations.vue');
@@ -69,13 +62,7 @@ it.each(['grant', 'read', 'connection'] as const)('removes captured event labels
   const model = createControllerModel(client); await model.start();
   const wrapper = mount(ControllerAutomations, { props: { model: model.automation, epoch: '1', busy: false }, global: { plugins: [i18n] } });
   try {
-    await wrapper.findAll('button').find((b) => b.text() === 'Delete event')!.trigger('click'); await flushPromises();
-    expect(wrapper.get('dialog[open]').text()).toContain('Captured private event label');
-    // A same-grant definition change retains its captured comparison and
-    // disables confirmation. Authority/connection loss closes it entirely.
-    status.automationRevision = '2'; rows[0]!.version.revision = '2'; await model.refresh(); await flushPromises();
-    expect(wrapper.get('dialog[open]').text()).toContain('state or access changed');
-    expect(wrapper.get('dialog[open]').findAll('button').find((b) => b.text() === 'Delete event')!.attributes('disabled')).toBeDefined();
+    expect(wrapper.text()).toContain('Captured private event label');
     if (change === 'grant') { status.hello!.grantRevision = '2'; status.hello!.resourceRestrictions = { automation: [] }; rows = []; }
     if (change === 'read') status.hello!.capabilities = [];
     if (change === 'connection') { status.hello!.connectionId = 'new-connection'; rows = []; }

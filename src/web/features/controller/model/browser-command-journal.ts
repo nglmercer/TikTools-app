@@ -28,6 +28,15 @@ function validResult(v: unknown): v is BrowserCommandResult {
     (v['outcome'] !== 'reviewed-unknown' || v['errorCode'] === null);
 }
 const keyFor = (b: BrowserCommandBinding): string => JSON.stringify([b.origin, b.hostId, b.principalId, b.sessionId]);
+/** Serialize the whole command lifecycle across same-origin tabs, including
+ * the network wait. A missing lock implementation fails closed. */
+export async function withBrowserCommandLock<T>(binding: BrowserCommandBinding, action: () => Promise<T>): Promise<T> {
+  if (!validBinding(binding) || !globalThis.navigator?.locks) throw new Error('command lock unavailable');
+  return navigator.locks.request(`tiktools-command-v1:${keyFor(binding)}`, { mode: 'exclusive', ifAvailable: true }, async (lock) => {
+    if (!lock) throw new Error('command is active in another tab');
+    return action();
+  });
+}
 function decode(v: unknown, binding: BrowserCommandBinding): Stored {
   const key = keyFor(binding);
   if (v === undefined) return { version: 1, key, binding: { ...binding }, pending: null, recent: [] };

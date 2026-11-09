@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
-import { createControllerModel, type CommandTarget, type PointsTarget, type PendingCommand, type ProfileForgetTarget, type RemoteProfile, type ReviewTarget, type WorkflowOperation } from '../model/controller.ts';
+import { createControllerModel, type PendingCommand, type ProfileForgetTarget, type RemoteProfile, type ReviewTarget, type WorkflowOperation } from '../model/controller.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import ControllerAutomations from './ControllerAutomations.vue';
 import ControllerProposals from './ControllerProposals.vue';
@@ -19,9 +19,9 @@ const { status, profiles, rows, points, pointsError, pointsAllowed, error, busy,
 const { supported: draftsSupported, error: draftError, busy: draftBusy, loading: draftLoading } = model.draftStorage;
 const { locale } = useI18n();
 const labels = computed(() => locale.value === 'es' ? {
-  title: 'Control remoto', controlling: 'Controlando', profiles: 'Perfiles guardados', connect: 'Conectar', disconnect: 'Desconectar', pair: 'Conectar a otra PC', origin: 'Dirección HTTPS del anfitrión', profile: 'Nombre del perfil', label: 'Nombre de este dispositivo', invite: 'Invitación o enlace privado', fingerprint: 'Huella SHA-256 aprobada (opcional)', verify: 'Comparé esta huella con el propietario', probe: 'Ver huella sin verificar', unverified: 'Huella sin verificar: compárala con el propietario antes de aprobarla.', submit: 'Solicitar acceso', pending: 'Esperando aprobación del propietario. Solicitud:', workflows: 'Workflows del anfitrión', empty: 'No hay workflows disponibles para este acceso.', draft: 'Borrador local', keep: 'El borrador se conserva al reconectar. No se envía al anfitrión.', conflict: 'El anfitrión cambió este workflow; tu borrador se conservó.', discard: 'Descartar borrador', readOnly: 'Guardar y activar definiciones todavía no está disponible. Los cambios permitidos requieren confirmación del anfitrión.', rights: 'Permisos efectivos', noProfiles: 'Crea un perfil para conectar con el anfitrión.', idle: 'Desconectado', pairing: 'Esperando aprobación', connecting: 'Conectando', ready: 'Conectado', reconnecting: 'Reconectando; recuperando estado', failed: 'No se pudo conectar', hidden: 'Los datos del anfitrión aparecerán al recuperar la conexión.',
+  title: 'Control remoto', controlling: 'Controlando', profiles: 'Perfiles guardados', connect: 'Conectar', disconnect: 'Desconectar', pair: 'Conectar a otra PC', origin: 'Dirección HTTPS del anfitrión', profile: 'Nombre del perfil', label: 'Nombre de este dispositivo', invite: 'Invitación o enlace privado', fingerprint: 'Huella SHA-256 aprobada (opcional)', verify: 'Comparé esta huella con el propietario', probe: 'Ver huella sin verificar', unverified: 'Huella sin verificar: compárala con el propietario antes de aprobarla.', submit: 'Solicitar acceso', pending: 'Esperando aprobación del propietario. Solicitud:', workflows: 'Workflows del anfitrión', empty: 'No hay workflows disponibles para este acceso.', draft: 'Borrador local', keep: 'El borrador se conserva al reconectar. No se envía al anfitrión.', conflict: 'El anfitrión cambió este workflow; tu borrador se conservó.', discard: 'Descartar borrador', readOnly: 'Guardar y activar definiciones todavía no está disponible. Los cambios permitidos se aplican con los permisos concedidos.', rights: 'Permisos efectivos', noProfiles: 'Crea un perfil para conectar con el anfitrión.', idle: 'Desconectado', pairing: 'Esperando aprobación', connecting: 'Conectando', ready: 'Conectado', reconnecting: 'Reconectando; recuperando estado', failed: 'No se pudo conectar', hidden: 'Los datos del anfitrión aparecerán al recuperar la conexión.',
 } : {
-  title: 'Remote controller', controlling: 'Controlling', profiles: 'Saved profiles', connect: 'Connect', disconnect: 'Disconnect', pair: 'Connect to another PC', origin: 'Host HTTPS address', profile: 'Profile name', label: 'This device name', invite: 'Private invitation or join link', fingerprint: 'Approved SHA-256 fingerprint (optional)', verify: 'I compared this fingerprint with the owner', probe: 'Inspect unverified fingerprint', unverified: 'Unverified fingerprint: compare it with the owner before approving it.', submit: 'Request access', pending: 'Waiting for owner approval. Request:', workflows: 'Host workflows', empty: 'No workflows are available for this access.', draft: 'Local draft', keep: 'Drafts survive reconnection. They are not sent to the host.', conflict: 'The host changed this workflow; your draft was retained.', discard: 'Discard draft', readOnly: 'Saving and enabling definitions are not available yet. Permitted changes require host confirmation.', rights: 'Effective permissions', noProfiles: 'Create a profile to connect to the host.', idle: 'Disconnected', pairing: 'Waiting for approval', connecting: 'Connecting', ready: 'Connected', reconnecting: 'Reconnecting; recovering state', failed: 'Connection failed', hidden: 'Host data will appear after the connection recovers.',
+  title: 'Remote controller', controlling: 'Controlling', profiles: 'Saved profiles', connect: 'Connect', disconnect: 'Disconnect', pair: 'Connect to another PC', origin: 'Host HTTPS address', profile: 'Profile name', label: 'This device name', invite: 'Private invitation or join link', fingerprint: 'Approved SHA-256 fingerprint (optional)', verify: 'I compared this fingerprint with the owner', probe: 'Inspect unverified fingerprint', unverified: 'Unverified fingerprint: compare it with the owner before approving it.', submit: 'Request access', pending: 'Waiting for owner approval. Request:', workflows: 'Host workflows', empty: 'No workflows are available for this access.', draft: 'Local draft', keep: 'Drafts survive reconnection. They are not sent to the host.', conflict: 'The host changed this workflow; your draft was retained.', discard: 'Discard draft', readOnly: 'Saving and enabling definitions are not available yet. Permitted changes use the granted permissions.', rights: 'Effective permissions', noProfiles: 'Create a profile to connect to the host.', idle: 'Disconnected', pairing: 'Waiting for approval', connecting: 'Connecting', ready: 'Connected', reconnecting: 'Reconnecting; recovering state', failed: 'Connection failed', hidden: 'Host data will appear after the connection recovers.',
 });
 const phase = computed(() => labels.value[status.value.phase as 'idle' | 'pairing' | 'connecting' | 'ready' | 'reconnecting' | 'failed'] ?? status.value.phase);
 const snapshotBudgetHelp = computed(() => locale.value === 'es'
@@ -101,12 +101,12 @@ const draftErrorText = computed(() => {
   return 'Saved drafts are unavailable. Keep your unsaved text and review the local copy again.';
 });
 const pointId = computed(() => points.value?.selectedId ?? '');
-function requestPoints(): void {
+async function requestPoints(): Promise<void> {
   if (!String(pointAmount.value).trim()) return;
   const target = model.preparePoints(pointId.value, Number(pointAmount.value));
-  if (target) confirmation.value = { kind: 'points', target };
+  if (target && await model.adjustPoints(target)) pointAmount.value = '';
 }
-type Confirmation = { kind:'draft';target:DraftSaveTarget;origin:string;hostId:string } | { kind:'points';target:PointsTarget } | { kind:'mutation';target:CommandTarget } | { kind:'review';target:ReviewTarget;intent:PendingCommand;origin:string;hostId:string } | { kind:'forget';target:ProfileForgetTarget };
+type Confirmation = { kind:'draft';target:DraftSaveTarget;origin:string;hostId:string } | { kind:'review';target:ReviewTarget;intent:PendingCommand;origin:string;hostId:string } | { kind:'forget';target:ProfileForgetTarget };
 const confirmation = ref<Confirmation | null>(null);
 const storageReview = ref<string | null>(null);
 const storageIdentity = () => JSON.stringify([status.value.epoch, status.value.origin, status.value.hello?.hostId, status.value.hello?.principalId, status.value.hello?.sessionId]);
@@ -119,7 +119,7 @@ async function initializeBrowserJournal(): Promise<void> {
   await model.refresh();
 }
 const confirmOpen = computed({get:()=>confirmation.value!==null,set:(open:boolean)=>{if(!open)confirmation.value=null;}});
-const confirmationCurrent = computed(()=>!!confirmation.value && (confirmation.value.kind==='draft' ? model.draftStorage.current(confirmation.value.target) : confirmation.value.kind==='points' ? model.pointsIsCurrent(confirmation.value.target) : confirmation.value.kind==='mutation' ? model.commandIsCurrent(confirmation.value.target) : confirmation.value.kind==='forget' ? model.profileForgetCurrent(confirmation.value.target) : model.reviewIsCurrent(confirmation.value.target)));
+const confirmationCurrent = computed(()=>!!confirmation.value && (confirmation.value.kind==='draft' ? model.draftStorage.current(confirmation.value.target) : confirmation.value.kind==='forget' ? model.profileForgetCurrent(confirmation.value.target) : model.reviewIsCurrent(confirmation.value.target)));
 function requestForget(profile: RemoteProfile): void {
   const target = model.prepareForget(profile);
   if (target) confirmation.value = { kind: 'forget', target };
@@ -128,8 +128,8 @@ function requestSaveDraft(): void {
   const target=model.draftStorage.prepare(selected.value);
   if(target && status.value.hello && status.value.origin)confirmation.value={kind:'draft',target,origin:status.value.origin,hostId:status.value.hello.hostId};
 }
-function requestChange(operation:WorkflowOperation): void {
-  if(!row.value)return;const target=model.prepareCommand(row.value,operation);if(target)confirmation.value={kind:'mutation',target};
+async function requestChange(operation:WorkflowOperation): Promise<void> {
+  if(!row.value)return;const target=model.prepareCommand(row.value,operation);if(target)await model.changeWorkflow(target);
 }
 function requestReview(): void {
   const target=model.prepareReview();const journal=status.value.commandJournal;
@@ -137,7 +137,7 @@ function requestReview(): void {
 }
 async function confirmCommand(): Promise<void> {
   const item=confirmation.value;if(!item||!confirmationCurrent.value)return;confirmation.value=null;
-  if(item.kind==='draft')await model.draftStorage.save(item.target);else if(item.kind==='points') {if(await model.adjustPoints(item.target))pointAmount.value='';}else if(item.kind==='mutation')await model.changeWorkflow(item.target);else if(item.kind==='forget')await model.forgetProfile(item.target);else await model.reviewUnknown(item.target);
+  if(item.kind==='draft')await model.draftStorage.save(item.target);else if(item.kind==='forget')await model.forgetProfile(item.target);else await model.reviewUnknown(item.target);
 }
 watch(() => JSON.stringify([status.value.epoch, status.value.origin, status.value.hello?.connectionId,
   status.value.hello?.hostId, status.value.hello?.hostInstanceId, status.value.hello?.principalId,
@@ -520,7 +520,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     >
       <h2>{{ labels.workflows }}</h2>
       <p>
-        {{ props.browserMode ? (locale === 'es' ? 'Las acciones disponibles dependen de tus permisos y requieren confirmación.' : 'Available actions depend on your permissions and require confirmation.') : labels.readOnly }}
+        {{ props.browserMode ? (locale === 'es' ? 'Las acciones disponibles dependen de los permisos concedidos.' : 'Available actions depend on the permissions granted.') : labels.readOnly }}
       </p>
       <p v-if="!rows.length">
         {{ labels.empty }}
@@ -670,9 +670,9 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     </p>
     <BaseConfirmDialog
       v-model:open="confirmOpen"
-      :title="confirmation?.kind === 'draft' ? dft.title : confirmation?.kind === 'forget' ? forgetLabels.title : confirmation?.kind === 'points' ? pts.confirm : confirmation?.kind === 'review' ? cmd.reviewTitle : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.deleteTitle : cmd.disableTitle"
-      :message="confirmation?.kind === 'draft' ? dft.consent : confirmation?.kind === 'forget' ? forgetLabels.message : confirmation?.kind === 'points' ? pts.note : confirmation?.kind === 'review' ? cmd.reviewMessage : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? (props.browserMode ? (locale === 'es' ? 'Se eliminará el workflow del anfitrión con la revisión indicada.' : 'The workflow will be removed from the host using the revision shown.') : cmd.deleteMessage) : cmd.disableMessage"
-      :confirm-label="confirmation?.kind === 'draft' ? dft.save : confirmation?.kind === 'forget' ? forgetLabels.action : confirmation?.kind === 'points' ? pts.adjust : confirmation?.kind === 'review' ? cmd.reviewed : confirmation?.kind === 'mutation' && confirmation.target.operation === 'delete' ? cmd.delete : cmd.disable"
+      :title="confirmation?.kind === 'draft' ? dft.title : confirmation?.kind === 'forget' ? forgetLabels.title : cmd.reviewTitle"
+      :message="confirmation?.kind === 'draft' ? dft.consent : confirmation?.kind === 'forget' ? forgetLabels.message : cmd.reviewMessage"
+      :confirm-label="confirmation?.kind === 'draft' ? dft.save : confirmation?.kind === 'forget' ? forgetLabels.action : cmd.reviewed"
       :busy="commandSending || busy || draftBusy || !confirmationCurrent"
       :danger="confirmation?.kind !== 'draft'"
       @confirm="confirmCommand"
@@ -683,17 +683,6 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       <template v-else-if="confirmation?.kind === 'draft'">
         <code>{{ confirmation.origin }}</code><code>Host {{ confirmation.hostId }}</code>
         <p>{{ confirmation.target.id }} · {{ dft.base }} {{ confirmation.target.revision }}</p>
-      </template>
-      <template v-else-if="confirmation?.kind === 'points'">
-        <code>{{ confirmation.target.origin }}</code><code>Host {{ confirmation.target.hostId }}</code>
-        <p>{{ confirmation.target.uniqueId }} · {{ confirmation.target.delta }} {{ confirmation.target.currencyName }}</p>
-        <p v-if="confirmation.target.creates">
-          {{ pts.create }}
-        </p>
-      </template>
-      <template v-else-if="confirmation?.kind === 'mutation'">
-        <code>{{ confirmation.target.origin }}</code><code>Host {{ confirmation.target.hostId }}</code>
-        <p>{{ confirmation.target.id }} · {{ cmd.revision }} {{ confirmation.target.expectedRevision }}</p>
       </template>
       <template v-else-if="confirmation?.kind === 'review'">
         <code>{{ confirmation.origin }}</code><code>Host {{ confirmation.hostId }}</code>

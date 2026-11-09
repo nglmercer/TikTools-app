@@ -2,7 +2,7 @@ import { ControlCallError, type ControlClient, type ResourceVersion, type RpcPar
 import type { RemoteBrowserHello, RemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
 import { createBrowserWorkflowRecovery, type BrowserWorkflowRow } from './browser-workflow-recovery.ts';
 import type { ControllerStatus } from './controller.ts';
-import { finishBrowserCommand, initializeBrowserCommandJournal, withBrowserCommandJournal, type BrowserCommandBinding } from './browser-command-journal.ts';
+import { finishBrowserCommand, initializeBrowserCommandJournal, withBrowserCommandJournal, withBrowserCommandLock, type BrowserCommandBinding } from './browser-command-journal.ts';
 import { recoverBrowserWorkflowCommand } from './browser-command-recovery.ts';
 import { sendBrowserWorkflowCommand } from './browser-workflow-command.ts';
 
@@ -70,6 +70,7 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
     const expected = hello; const generation = epoch;
     if (!expected || !matches(generation, expected) || !hasCommands(expected)) return status();
     const binding = bindingFor(expected);
+    if (!globalThis.navigator?.locks) return { ...status(), commandJournal: { binding: { ...binding, profileId: 'browser' }, pending: null, unavailable: true, recent: [] } };
     try {
       const journal = await withBrowserCommandJournal(binding, (value) => structuredClone(value));
       if (!await transport.verifySession() || !matches(generation, expected)) return status();
@@ -193,7 +194,10 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
         try {
           if (method === 'controller.command.initialize') {
             if (params['acknowledgeStorageLoss'] !== true || !await transport.verifySession() || !matches(generation, expected)) throw fail('stale_view', 'Storage review changed');
-            await initializeBrowserCommandJournal(binding, true);
+            await withBrowserCommandLock(binding, async () => {
+              if (!matches(generation, expected)) throw fail('stale_view', 'Storage review changed');
+              await initializeBrowserCommandJournal(binding, true);
+            });
           } else if (method === 'controller.workflow.command') {
             const operation = params['operation']; const id = params['id']; const expectedRevision = params['expectedRevision']; const capturedView = params['viewRevision'];
             if ((operation !== 'disable' && operation !== 'delete') || typeof id !== 'string' || typeof expectedRevision !== 'string') throw fail('invalid_params', 'Invalid workflow command');
@@ -206,9 +210,12 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
             if (method === 'controller.command.resolve') await recoverBrowserWorkflowCommand(remote, transport, expected, binding, commandId);
             else {
               if (params['acknowledgeUnknown'] !== true) throw fail('invalid_params', 'Review required');
-              await withBrowserCommandJournal(binding, (journal) => {
-                if (!matches(generation, expected) || !journal.pending || journal.pending.commandId !== commandId || !permitted(expected, journal.pending.resourceId)) throw fail('stale_view', 'Pending command changed');
-                finishBrowserCommand(journal, commandId, { outcome: 'reviewed-unknown', revision: null, errorCode: null, recordedAt: Date.now() });
+              await withBrowserCommandLock(binding, async () => {
+                if (!await transport.verifySession() || !matches(generation, expected)) throw fail('stale_view', 'Pending command changed');
+                await withBrowserCommandJournal(binding, (journal) => {
+                  if (!matches(generation, expected) || !journal.pending || journal.pending.commandId !== commandId || !permitted(expected, journal.pending.resourceId)) throw fail('stale_view', 'Pending command changed');
+                  finishBrowserCommand(journal, commandId, { outcome: 'reviewed-unknown', revision: null, errorCode: null, recordedAt: Date.now() });
+                });
               });
             }
           }

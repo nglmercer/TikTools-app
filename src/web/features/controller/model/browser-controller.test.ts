@@ -168,7 +168,7 @@ test('browser controller screen displays the scoped view and clears it on discon
   try {
     await flushPromises();
     expect(wrapper.text()).toContain('Original');
-    expect(wrapper.text()).toContain('Available actions depend on your permissions and require confirmation.');
+    expect(wrapper.text()).toContain('Available actions depend on the permissions granted.');
     expect(wrapper.text()).not.toContain('Saved profiles');
     expect(wrapper.text()).not.toContain('Connect to another PC');
     expect(wrapper.text()).not.toContain('Disable workflow');

@@ -1,6 +1,6 @@
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import type { RemoteBrowserHello, RemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
-import { finishBrowserCommand, withBrowserCommandJournal, type BrowserCommandBinding, type BrowserCommandIntent } from './browser-command-journal.ts';
+import { finishBrowserCommand, withBrowserCommandJournal, withBrowserCommandLock, type BrowserCommandBinding, type BrowserCommandIntent } from './browser-command-journal.ts';
 
 const object = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const decimal = (v: unknown): v is string => typeof v === 'string' && /^(0|[1-9][0-9]{0,18})$/.test(v) && BigInt(v) <= 9223372036854775807n;
@@ -33,11 +33,12 @@ export function verifyBrowserWorkflowOutcome(intent: BrowserCommandIntent, princ
 }
 
 /** Resolves one pending ID without replaying its mutation. A failed/unknown or
- * inaccessible outcome remains pending. Callers still need UI and storage-loss
- * policy before enabling browser mutations. */
+ * inaccessible outcome remains pending. */
 export async function recoverBrowserWorkflowCommand(
   remote: ControlClient, transport: RemoteBrowserTransport, expected: RemoteBrowserHello, binding: BrowserCommandBinding, commandId: string,
 ): Promise<'resolved' | 'pending'> {
+  binding = { ...binding };
+  return withBrowserCommandLock(binding, async () => {
   const current = (): boolean => transport.currentHello() === expected && binding.origin === globalThis.location.origin && binding.hostId === expected.hostId &&
     binding.principalId === expected.principalId && binding.sessionId === expected.sessionId;
   if (!current() || !expected.capabilities.includes('commands.read') || !await transport.verifySession() || !current()) throw new Error('browser session changed');
@@ -57,4 +58,5 @@ export async function recoverBrowserWorkflowCommand(
     finishBrowserCommand(journal, commandId, { outcome: 'succeeded', revision, errorCode: null, recordedAt: Date.now() });
   });
   return 'resolved';
+  });
 }

@@ -110,7 +110,7 @@ it('starts in controller scope and clears the private invitation after submissio
   } finally { wrapper.unmount(); }
 });
 
-it('requires a host-bound confirmation and blocks changes until an unknown command is explicitly reviewed', async () => {
+it('sends an authorized change once and blocks changes until an unknown command is explicitly reviewed', async () => {
   i18n.global.locale.value = 'en';
   const current: ControllerStatus = { epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://host.example', errorCode: null,
     hello: { hostId: 'host-A', principalId: 'moderator', sessionId: 'device', hostInstanceId: 'instance', capabilities: ['workflows.read', 'workflows.toggle', 'workflows.edit', 'commands.read'], features: { workflowDisable: true, workflowDelete: true } },
@@ -130,13 +130,8 @@ it('requires a host-bound confirmation and blocks changes until an unknown comma
   try {
     await flushPromises(); await button('Owner workflow · 1').trigger('click');
     await wrapper.get('textarea').setValue('private local draft');
-    await button('Disable workflow').trigger('click'); await flushPromises();
-    expect(wrapper.get('dialog[open]').text()).toContain('https://host.example');
-    expect(wrapper.get('dialog[open]').text()).toContain('host-A');
-    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Cancel')!.trigger('click'); await flushPromises();
     expect(calls.some((c) => c.method === 'controller.workflow.command')).toBe(false);
     await button('Delete workflow').trigger('click'); await flushPromises();
-    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Delete workflow')!.trigger('click'); await flushPromises();
     expect(calls.filter((c) => c.method === 'controller.workflow.command')).toHaveLength(1);
     expect(calls.find((c) => c.method === 'controller.workflow.command')?.params).toEqual({ epoch: '1', viewRevision: '1', id: 'welcome', expectedRevision: '1', operation: 'delete' });
     expect(button('Delete workflow').attributes('disabled')).toBeDefined();

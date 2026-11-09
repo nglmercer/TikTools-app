@@ -18,6 +18,9 @@ An experimental IndexedDB journal now provides identity-bound workflow intents,
 strict-durability transaction requests, bounded history and an explicit
 reviewed-unknown result. A transaction checks the stored schema and atomically
 allows only one pending intent per origin/host/principal/session across tabs.
+Browser Web Locks also serialize dispatch, outcome checks and unknown-outcome
+review across tabs while an operation is in flight. If Web Locks are unavailable
+or the session lock is held, the operation fails without sending a command.
 It stores neither credentials nor workflow bodies. Chromium tests cover
 concurrent tabs, reload, aborted transactions and corrupt records.
 An absent record now fails closed for reads, dispatch and recovery. Creating it
@@ -45,7 +48,7 @@ coordinator against the host: it disabled a workflow, discarded the received
 reply for a deletion, reloaded the browser page and recovered the same command ID from the host. This
 simulates a lost reply after receipt; it is not a process-crash test.
 
-The browser workflow screen uses these helpers for explicitly confirmed
+The browser workflow screen uses these helpers for authorized
 disable/delete actions and presents pending recovery and unknown-outcome review.
 A completed IndexedDB
 transaction is not proof against browser data clearing, eviction, device loss or
@@ -58,10 +61,10 @@ users must review host state if local storage disappears.
 
 The **Host automations** board shows closed event/action summaries under the
 current read grant. Actions remain read-only. Choose **Disable event** or
-**Delete event** on a complete event and confirm its host, name, raw ID and exact
-base revision. A points refresh does not invalidate this confirmation. Event,
-connection, identity or grant changes require review again; loss of read access
-hides rows and closes any captured confirmation.
+**Delete event** on a complete event. The action is sent once under the already
+approved grant, with the selected host, event and exact base revision. Event,
+connection, identity or grant changes invalidate the target; loss of read access
+hides rows.
 
 The native bridge creates `disable-event` / `delete-event` intents with fixed
 `automation` resource kind and `event` scope. They share the same pending gate
@@ -232,9 +235,9 @@ Connect the isolated desktop controller to an approved profile. The owner must
 grant `workflows.read`, the exact workflow resource and `workflows.toggle` for
 deactivation or `workflows.edit` for deletion. Reviewer presets remain read-only.
 The host must advertise the corresponding implemented feature. Select a workflow
-and choose **Disable workflow** or **Delete workflow**. The confirmation shows
-the exact host origin/identity, workflow ID and expected revision. If the view
-changes, review it again; the client never silently changes that precondition.
+and choose **Disable workflow** or **Delete workflow**. The action is sent once
+under the existing grant with the selected host identity and expected revision.
+If the view changes, review it again; the client never silently changes that precondition.
 
 Only Rust creates the command ID and chooses the host instance from its active
 connection. Before sending, it durably writes an intent. There is one unresolved
@@ -252,7 +255,7 @@ Reconnection/profile reopen also attempts that read. An unknown, expired,
 forbidden or unavailable result keeps the intent. **Review unknown outcome**
 requires a separate confirmation: it archives the ID as reviewed unknown,
 without claiming failure or undoing anything. Any later mutation is a new,
-separately confirmed operation against current state.
+separately initiated operation against current state.
 
 The panel shows native processing, the pending ID and the latest 16 resolved
 metadata records. A persistence failure blocks mutations until the profile is
