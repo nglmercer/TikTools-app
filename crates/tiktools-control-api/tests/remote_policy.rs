@@ -203,6 +203,12 @@ fn every_unclassified_registry_method_is_denied_and_only_completed_mutations_are
                 | "automation.get"
                 | "automation.disable"
                 | "automation.delete"
+                | "automation.enable"
+                | "automation.source.get"
+                | "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
         ) {
             assert_eq!(
                 policy,
@@ -221,6 +227,11 @@ fn every_unclassified_registry_method_is_denied_and_only_completed_mutations_are
                     | "automation.delete"
                     | "automation.create"
                     | "automation.update"
+                    | "automation.enable"
+                    | "competitions.start"
+                    | "competitions.resume"
+                    | "competitions.pause"
+                    | "competitions.cancel"
             ));
             assert!(meta.durable_commands);
             assert_eq!(

@@ -94,7 +94,13 @@ async fn tls_streams_filter_state_and_sequences_then_resume_the_same_session_aft
     assert_eq!(hello["result"]["features"]["subscriptions"], true);
     assert_eq!(
         hello["result"]["subscriptionDomains"],
-        json!(["workflows", "points", "automation", "commands"])
+        json!([
+            "workflows",
+            "points",
+            "automation",
+            "competitions",
+            "commands"
+        ])
     );
     assert_eq!(
         rpc(
@@ -1094,7 +1100,13 @@ async fn tls_points_lost_ack_recovers_original_outcome_without_reapplying_or_exp
     let hello = fixture.hello(&mut first).await;
     assert_eq!(
         hello["result"]["subscriptionDomains"],
-        json!(["workflows", "points", "automation", "commands"])
+        json!([
+            "workflows",
+            "points",
+            "automation",
+            "competitions",
+            "commands"
+        ])
     );
     let meta =
         json!({"commandId":"points-over-tls","hostInstanceId":fixture.service.instance_id()});

@@ -88,7 +88,12 @@ impl PluginInvoker {
         request: &Value,
         timeout: Duration,
     ) -> Result<Option<(u64, Value)>, InvokeError> {
-        let generation = self.start_generation(plugin_id).await?;
+        // Background polling observes only an already-running generation. A
+        // plugin the user disabled (or whose worker is gone) must not be
+        // restarted by the periodic poll.
+        let Some(generation) = self.plugins.running_generation(plugin_id) else {
+            return Ok(None);
+        };
         let Some(delivery) = self
             .plugins
             .try_reserve_event_delivery(plugin_id, generation)
@@ -156,7 +161,7 @@ impl PluginInvoker {
             })
     }
 
-    async fn call_started(
+    pub(crate) async fn call_started(
         &self,
         plugin_id: &str,
         request: &Value,

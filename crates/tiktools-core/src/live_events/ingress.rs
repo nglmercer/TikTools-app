@@ -729,6 +729,40 @@ mod tests {
         fn emit(&self, _: HostMessage) {}
     }
 
+    /// Builds a core whose databases live in a fresh temp directory. The
+    /// default `AppCore::new` writes to the user's real data root, which made
+    /// these tests share (and leak) points state across runs.
+    pub(super) fn isolated_core(emitter: Arc<dyn HostEmitter>) -> Arc<AppCore> {
+        let root = std::env::temp_dir().join(format!(
+            "tiktools-ingress-test-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = crate::AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("absent"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root,
+        };
+        paths.ensure_directories().unwrap();
+        for p in [
+            paths.points_database(),
+            paths.automation_database(),
+            paths.analytics_database(),
+        ] {
+            std::fs::File::create(p).unwrap();
+        }
+        Arc::new(AppCore::with_paths(
+            emitter,
+            Arc::new(crate::NoopMediaHost),
+            paths,
+        ))
+    }
+
     fn user() -> EventUser {
         EventUser {
             id: 7,
@@ -778,7 +812,7 @@ mod tests {
 
     #[tokio::test]
     async fn saturated_ingress_attributes_gap_to_stamped_creator_across_reconnect() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(1);
         let stamped = |generation, event| tiktools_tiktok::StampedClientEvent { generation, event };
         admit_stamped_event(&core, &sender, stamped(1, connected("alice"))).await;
@@ -824,7 +858,7 @@ mod tests {
 
     #[tokio::test]
     async fn unresolved_shed_loss_is_bound_only_after_matching_connected_event() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(1);
         sender
             .send(IngressItem {
@@ -883,7 +917,7 @@ mod tests {
 
     #[tokio::test]
     async fn unverified_connected_label_never_authorizes_scoped_feed_or_execution_context() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
         let mut unverified = connected("alice");
         if let ClientEvent::Connected(info) = &mut unverified {
@@ -935,7 +969,7 @@ mod tests {
 
     #[tokio::test]
     async fn contradictory_connected_identity_never_authorizes_lifecycle_events() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let mut projection = core.events.subscribe_projection();
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
         for event in [connected("alice"), connected("bob")] {
@@ -1089,9 +1123,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn unavailable_scoped_feed_does_not_discard_verified_owner_context() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+    #[tokio::test]
+    async fn unavailable_scoped_feed_does_not_discard_verified_owner_context() {
+        let core = isolated_core(Arc::new(NoopEmitter));
         for generation in 100..229 {
             core.events.record_live_ingress_gap(generation);
         }
@@ -1142,7 +1176,7 @@ mod tests {
 
     #[tokio::test]
     async fn unverified_rooms_keep_distinct_local_combo_high_water_without_scoped_authority() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let mut gift = gift_final();
         if let CanonicalLiveEvent::Gift(value) = &mut gift.base {
             value.group_id = 123;
@@ -1245,7 +1279,7 @@ mod tests {
 
     #[tokio::test]
     async fn full_queue_sheds_data_without_blocking_admission() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         // Capacity 1 held by an unreceived item: every further data event
         // meets a full queue.
         let (sender, _held) = tokio::sync::mpsc::channel::<IngressItem>(1);
@@ -1319,7 +1353,7 @@ mod tests {
     /// bounded (the queue never exceeds its capacity).
     #[tokio::test]
     async fn sustained_overload_sheds_with_exact_accounting() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, _held) = tokio::sync::mpsc::channel::<IngressItem>(INGRESS_QUEUE_CAPACITY);
         // Occupy the queue the same way a stalled worker would: the held
         // receiver never drains, so every further admit meets pressure.
@@ -1369,7 +1403,7 @@ mod tests {
     /// payloads, no detached task.
     #[tokio::test]
     async fn saturated_queue_drains_and_joins_on_shutdown() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(64);
         // Admit through the real path (the sole production sender), so the
         // queue gauge pairs exactly with worker takes. Stamps read
@@ -1400,7 +1434,7 @@ mod tests {
 
     #[tokio::test]
     async fn stale_queued_events_report_loss_only_for_their_creator() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
         for (generation, event) in [
             (1, connected("alice")),
@@ -1436,7 +1470,7 @@ mod tests {
 
     #[tokio::test]
     async fn worker_fences_stale_generations_and_joins() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         // A newer connection exists: the queued item belongs to the old one.
         core.connection_sequence.store(4, Ordering::Release);
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
@@ -1478,7 +1512,7 @@ mod tests {
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn concurrent_consumption_never_underflows_admission_gauge() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(64);
         let consumer_core = Arc::clone(&core);
         let consumer = tokio::spawn(async move {
@@ -1514,7 +1548,7 @@ mod tests {
 
     #[tokio::test]
     async fn cancelled_full_queue_releases_payloads_and_accounting() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, receiver) = tokio::sync::mpsc::channel(64);
         for _ in 0..64 {
             admit_event(&core, &sender, ClientEvent::Event(chat())).await;
@@ -1530,7 +1564,7 @@ mod tests {
     }
     #[tokio::test]
     async fn admission_preserves_original_generation_before_connected_processing() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, mut receiver) = tokio::sync::mpsc::channel(8);
         for event in [
             ClientEvent::Reconnecting {
@@ -1562,7 +1596,7 @@ mod tests {
 
     #[tokio::test]
     async fn superseded_disconnect_cannot_clear_new_session() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         core.connection_sequence.store(9, Ordering::Release);
         *recover_rwlock_write(&core.connection_context, "connection context") = Some(LiveContext {
             unique_id: "new".into(),
@@ -1604,7 +1638,7 @@ mod tests {
     /// released, nothing is lost, and the accounting closes exactly.
     #[tokio::test]
     async fn graceful_shutdown_drains_thousands_of_accepted_events() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(INGRESS_QUEUE_CAPACITY);
         for _ in 0..INGRESS_QUEUE_CAPACITY {
             admit_event(&core, &sender, ClientEvent::Event(chat())).await;
@@ -1649,7 +1683,7 @@ mod tests {
     /// buffered is released *and counted*, so the invariant still holds.
     #[tokio::test]
     async fn emergency_stop_accounts_every_released_queue_payload() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(64);
         for _ in 0..64 {
             admit_event(&core, &sender, ClientEvent::Event(chat())).await;
@@ -1667,7 +1701,7 @@ mod tests {
 
     #[tokio::test]
     async fn shutdown_with_empty_queue_exits_cleanly() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
         drop(sender);
         tokio::time::timeout(
@@ -1691,7 +1725,7 @@ mod tests {
     /// stops, and is counted as never admitted — not silently swallowed.
     #[tokio::test]
     async fn admission_stop_releases_event_waiting_on_queue_reservation() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, _held) = tokio::sync::mpsc::channel::<IngressItem>(1);
         sender
             .send(IngressItem {
@@ -1732,7 +1766,7 @@ mod tests {
     /// or explicitly counted, and the consumer settles the invariant.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn admission_stop_while_producer_admits_accounts_every_event() {
-        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let core = isolated_core(Arc::new(NoopEmitter));
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(64);
         let consumer_core = Arc::clone(&core);
         let consumer = tokio::spawn(async move {
@@ -1803,6 +1837,7 @@ mod tests {
 
 #[cfg(test)]
 mod effects_tests {
+    use super::tests::isolated_core;
     use super::*;
     use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
     struct Emitter;
@@ -1811,7 +1846,7 @@ mod effects_tests {
     }
     #[tokio::test]
     async fn stalled_persistence_never_hides_originals_and_saturation_is_accounted() {
-        let core = Arc::new(AppCore::new(Arc::new(Emitter)));
+        let core = isolated_core(Arc::new(Emitter));
         core.live_points_work
             .stall_for_test(Duration::from_millis(200));
         let (sender, receiver) = tokio::sync::mpsc::channel(INGRESS_QUEUE_CAPACITY);

@@ -1806,6 +1806,9 @@ async fn fast_poll_events_publish_before_slow_sibling_completes() {
         .unwrap()
         .insert("slow".to_owned(), Arc::clone(&gate));
     let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["fast", "slow"]);
+    // Production starts enabled event subscribers before the first poll;
+    // polling never starts a plugin on its own.
+    core.start_enabled_event_subscribers();
     let mut domain = core.events.subscribe_domain();
 
     let poll = tokio::spawn({

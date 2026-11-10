@@ -141,6 +141,11 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
                 .map(|_| ())
                 .map_err(invalid)
         }
+        "ui.feed.browser" => {
+            tiktools_control_api::modules::ui::BrowserFeedParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
         "analytics.summary" => AnalyticsSummaryParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
@@ -198,6 +203,9 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
             .map(|_| ())
             .map_err(invalid),
         "automation.review" => AutomationGetParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "automation.source.get" => AutomationGetParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
         "automation.manifest.get" | "automation.delegation.preflight" => {
@@ -488,6 +496,27 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         | "sync.v2.now" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.resolve" => validate::<SyncResolveParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.migrate" | "sync.v2.rebuild" | "sync.v2.conflict.list" => {
+            validate::<Empty>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.conflict.review" => {
+            validate::<tiktools_control_api::modules::sync::SyncV2ConflictReviewParams>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.conflict.resolve" => {
+            validate::<tiktools_control_api::modules::sync::SyncV2ConflictResolveParams>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.stagePluginSettings" => {
+            validate::<tiktools_control_api::modules::sync::SyncV2StagePluginSettingsParams>(params)
+        }
+        // Preferences are a JSON object; `null` must not validate.
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.stagePreferences" => {
+            validate::<serde_json::Map<String, serde_json::Value>>(params)
+        }
         #[cfg(feature = "cloud-auth")]
         "sync.uncertain.review" => validate::<SyncUncertainReviewParams>(params),
         #[cfg(feature = "cloud-auth")]

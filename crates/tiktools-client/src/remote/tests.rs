@@ -663,11 +663,9 @@ async fn tls_controllers_recover_family_scoped_automation_summaries_and_exact_ev
         .contains("Hidden private label"));
     assert_eq!(other_stream.baseline().unwrap().automation.len(), 1);
     let sdk = TikToolsClient::Remote(remote.clone());
-    for method in [
-        "automation.disable",
-        "automation.delete",
-        "automation.enable",
-    ] {
+    // Scoped moderators with `AutomationToggle` may disable granted actions
+    // (e5ca27b1); delete and enable stay forbidden for actions.
+    for method in ["automation.delete", "automation.enable"] {
         let denied = sdk
             .call_with_meta::<_, serde_json::Value>(
                 method,
