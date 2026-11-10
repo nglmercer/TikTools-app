@@ -28,6 +28,8 @@ pub mod cloud_integrations;
 pub mod cloud_publisher;
 #[cfg(feature = "cloud-auth")]
 pub mod cloud_sync;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod cloud_teams;
 mod helpers;
 mod hotkey_bindings;
 pub mod input_access;
@@ -238,6 +240,8 @@ pub struct AppCore {
     pub(crate) sync: Arc<cloud_sync::CloudSync>,
     #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
     pub(crate) publisher: Arc<cloud_publisher::CloudPublisher>,
+    #[cfg(all(feature = "cloud-auth", feature = "http"))]
+    pub(crate) teams: Arc<cloud_teams::CloudTeams>,
 }
 
 impl AppCore {
@@ -363,6 +367,8 @@ impl AppCore {
         let sync = Arc::new(cloud_sync::CloudSync::new(&paths, cloud.auth()));
         #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
         let publisher = Arc::new(cloud_publisher::CloudPublisher::new(&paths));
+        #[cfg(all(feature = "cloud-auth", feature = "http"))]
+        let teams = Arc::new(cloud_teams::CloudTeams::new(&paths));
         #[cfg(feature = "plugin-install")]
         if let Err(error) = &packages {
             tracing::warn!(%error, "plugin package management is unavailable");
@@ -545,6 +551,8 @@ impl AppCore {
             sync,
             #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
             publisher,
+            #[cfg(all(feature = "cloud-auth", feature = "http"))]
+            teams,
         };
         #[cfg(feature = "http")]
         if let Some(message) = core.http_client_error.clone() {

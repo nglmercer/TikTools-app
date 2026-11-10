@@ -32,6 +32,8 @@ pub mod settings;
 #[cfg(feature = "cloud-auth")]
 pub mod sync;
 pub mod system;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod teams;
 pub mod ui;
 pub mod updates;
 pub mod widgets;

@@ -70,6 +70,8 @@ pub(crate) use competitions::bound_ranking_presentation;
 mod cloud_catalog;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 mod cloud_integrations;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+mod cloud_teams;
 mod globals;
 mod helpers;
 mod live;

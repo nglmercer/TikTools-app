@@ -7,6 +7,7 @@ import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDia
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
 import CloudLibrary from '@/features/cloud-library/ui/CloudLibrary.vue';
 import CloudConnections from '@/features/cloud-integrations/ui/CloudConnections.vue';
+import CloudTeams from '@/features/cloud-teams/ui/CloudTeams.vue';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import CloudSyncEditor from '@/features/cloud-sync/ui/CloudSyncEditor.vue';
 import CollaborationEditor from '@/features/manage-collaboration/ui/CollaborationEditor.vue';
@@ -40,6 +41,7 @@ const route = useRoute();
 const capabilities = useCapabilityStore();
 // Connections appear only when the host announces them; an unknown answer keeps the panel hidden.
 const connectionsAvailable = computed(() => capabilities.supports('integrations.connections') === true);
+const teamsAvailable = computed(() => capabilities.supports('teams.hosts.list') === true);
 const router = useRouter();
 const localeStore = useLocaleStore();
 
@@ -118,6 +120,7 @@ const locale = computed<Locale>({
         <CloudAccountEditor />
         <CloudSyncEditor />
         <CloudLibrary />
+        <CloudTeams v-if="teamsAvailable" />
         <CloudConnections v-if="connectionsAvailable" />
         <SettingsDisclosure :title="t('settingsLayout.diagnostics')">
           <CloudAccountDiagnostics />
