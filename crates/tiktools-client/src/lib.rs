@@ -28,6 +28,7 @@ pub mod competitions;
 pub mod creators;
 pub mod gifts;
 pub mod globals;
+pub mod integrations;
 pub mod live;
 pub mod media;
 pub mod packages;
@@ -195,6 +196,8 @@ impl TikToolsClient {
             plugins::METHODS,
             #[cfg(feature = "cloud-auth")]
             publishers::METHODS,
+            #[cfg(feature = "cloud-auth")]
+            integrations::METHODS,
             points::METHODS,
             rankings::METHODS,
             registry::METHODS,

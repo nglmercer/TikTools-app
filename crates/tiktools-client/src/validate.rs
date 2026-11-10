@@ -37,6 +37,8 @@ use tiktools_control_api::modules::gifts::GiftDebugParams;
 use tiktools_control_api::modules::globals::{
     GlobalsDeleteParams, GlobalsGetParams, GlobalsSetParams,
 };
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::integrations::{IntegrationConnectParams, IntegrationIdParams};
 use tiktools_control_api::modules::live::{
     LiveChannelsParams, LiveConnectParams, LiveMonitorStartParams, LivePickParams,
 };
@@ -528,6 +530,14 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "cloudLibrary.read" => validate::<CloudLibraryRead>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.uncertain.resolve" => validate::<SyncUncertainResolveParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "integrations.connections" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "integrations.connect" => validate::<IntegrationConnectParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "integrations.events" | "integrations.disconnect" => {
+            validate::<IntegrationIdParams>(params)
+        }
         #[cfg(feature = "cloud-auth")]
         "publisher.list" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]

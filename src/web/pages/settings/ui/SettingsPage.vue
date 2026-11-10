@@ -6,6 +6,8 @@ import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDiagnostics.vue';
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
 import CloudLibrary from '@/features/cloud-library/ui/CloudLibrary.vue';
+import CloudConnections from '@/features/cloud-integrations/ui/CloudConnections.vue';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import CloudSyncEditor from '@/features/cloud-sync/ui/CloudSyncEditor.vue';
 import CollaborationEditor from '@/features/manage-collaboration/ui/CollaborationEditor.vue';
 import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
@@ -35,6 +37,9 @@ const legacySections: Record<string, SettingsSection> = { globals: 'general', up
 
 const { t } = useI18n();
 const route = useRoute();
+const capabilities = useCapabilityStore();
+// Connections appear only when the host announces them; an unknown answer keeps the panel hidden.
+const connectionsAvailable = computed(() => capabilities.supports('integrations.connections') === true);
 const router = useRouter();
 const localeStore = useLocaleStore();
 
@@ -113,6 +118,7 @@ const locale = computed<Locale>({
         <CloudAccountEditor />
         <CloudSyncEditor />
         <CloudLibrary />
+        <CloudConnections v-if="connectionsAvailable" />
         <SettingsDisclosure :title="t('settingsLayout.diagnostics')">
           <CloudAccountDiagnostics />
         </SettingsDisclosure>

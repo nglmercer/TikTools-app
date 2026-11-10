@@ -68,6 +68,8 @@ pub use commands::{CommandCaller, WorkflowMutation};
 pub(crate) use competitions::bound_ranking_presentation;
 #[cfg(feature = "plugin-install")]
 mod cloud_catalog;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+mod cloud_integrations;
 mod globals;
 mod helpers;
 mod live;

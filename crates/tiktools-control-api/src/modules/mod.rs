@@ -13,6 +13,8 @@ pub mod competitions;
 pub mod creators;
 pub mod gifts;
 pub mod globals;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod integrations;
 pub mod live;
 pub mod media;
 #[cfg(feature = "plugin-install")]

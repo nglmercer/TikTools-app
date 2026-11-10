@@ -22,6 +22,8 @@ pub use tiktools_collaboration as collaboration;
 mod automation_runtime;
 #[cfg(feature = "cloud-auth")]
 pub mod cloud_account;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod cloud_integrations;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 pub mod cloud_publisher;
 #[cfg(feature = "cloud-auth")]
