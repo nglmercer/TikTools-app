@@ -279,28 +279,11 @@ impl V1ProductOutbox for NoProductOutbox {
 // call continues from the durable journal before any upload is dispatched.
 const MAX_DRAIN: usize = 64;
 
-#[cfg(test)]
-mod proof_tests {
-    use super::V1ConflictSourceProof;
-
-    #[test]
-    fn conflict_source_proof_requires_a_positive_generation_and_native_epoch() {
-        assert!(V1ConflictSourceProof::new(0, "a".repeat(64)).is_none());
-        assert!(V1ConflictSourceProof::new(1, "A".repeat(64)).is_none());
-        assert!(V1ConflictSourceProof::new(1, "a".repeat(63)).is_none());
-        assert_eq!(
-            V1ConflictSourceProof::new(42, "a".repeat(64))
-                .unwrap()
-                .generation(),
-            42
-        );
-    }
-}
-
 impl SyncCoordinator {
     /// No checkpoint may advance JSON while a cross-store decision is
     /// unresolved. The shared admission lease closes the race between the
     /// journal check and the state/marker commit.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn save_product_checkpoint(
         &self,
         lease: &V1Lease,
@@ -341,6 +324,7 @@ impl SyncCoordinator {
     /// select one not yet attempted and publish its uncertainty marker. The
     /// lease is dropped before HTTP. Edits admitted after this point remain
     /// pending for a later admission; this is not a local-application fence.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn admit_product_upload(
         &self,
         lease: &V1Lease,
@@ -474,5 +458,23 @@ impl SyncCoordinator {
             Ok(lease.prepare_upload(&snapshot, &key)?)
         })?;
         Ok((snapshot, Some((key, marker))))
+    }
+}
+
+#[cfg(test)]
+mod proof_tests {
+    use super::V1ConflictSourceProof;
+
+    #[test]
+    fn conflict_source_proof_requires_a_positive_generation_and_native_epoch() {
+        assert!(V1ConflictSourceProof::new(0, "a".repeat(64)).is_none());
+        assert!(V1ConflictSourceProof::new(1, "A".repeat(64)).is_none());
+        assert!(V1ConflictSourceProof::new(1, "a".repeat(63)).is_none());
+        assert_eq!(
+            V1ConflictSourceProof::new(42, "a".repeat(64))
+                .unwrap()
+                .generation(),
+            42
+        );
     }
 }

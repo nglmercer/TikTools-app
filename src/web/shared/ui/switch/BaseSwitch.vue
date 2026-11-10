@@ -36,7 +36,7 @@ const { rootAttrs, controlAttrs } = useSplitAttrs();
 .base-switch__thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--color-text-muted); transition: transform var(--duration-fast); }
 .base-switch__input:checked + .base-switch__track { border-color: var(--color-border-selected); background: var(--color-accent); }
 .base-switch__input:checked + .base-switch__track .base-switch__thumb { transform: translateX(14px); background: var(--color-text-on-accent); }
-.base-switch__input:focus-visible + .base-switch__track { box-shadow: var(--focus-ring); }
+.base-switch__input:focus-visible + .base-switch__track { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
 .base-switch--disabled { color: var(--color-text-disabled); cursor: default; opacity: .65; }
 @media (prefers-reduced-motion: reduce) { .base-switch__thumb { transition: none; } }
 </style>

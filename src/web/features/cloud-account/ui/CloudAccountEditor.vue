@@ -2,6 +2,8 @@
 import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
+import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
@@ -49,27 +51,28 @@ onMounted(() => {
         {{ t('account.unconfigured') }}
       </p>
       <template v-else-if="state === 'signed-in'">
-        <div class="cloud-account__identity">
-          <span class="cloud-account__name">{{ name }}</span>
-          <span
-            v-if="handle"
-            class="cloud-account__muted"
-          >{{ handle }}</span>
-          <span class="cloud-account__status">{{ t('account.signedIn') }}</span>
-        </div>
-        <DiagnosticStatusAction
-          v-if="error"
-          :label="error"
-          source="account"
-        />
-        <div class="cloud-account__actions">
+        <SettingsRow
+          :label="name ?? t('account.signedIn')"
+          :description="handle ?? undefined"
+        >
+          <template #status>
+            <BaseStatus
+              :label="t('account.signedIn')"
+              tone="success"
+            />
+          </template>
           <BaseButton
             :disabled="account.working"
             @click="account.logout()"
           >
             {{ t('account.signOut') }}
           </BaseButton>
-        </div>
+        </SettingsRow>
+        <DiagnosticStatusAction
+          v-if="error"
+          :label="error"
+          source="account"
+        />
       </template>
       <template v-else>
         <DiagnosticStatusAction
@@ -115,21 +118,6 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-
-.cloud-account__identity {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.cloud-account__name {
-  font-weight: var(--font-weight-semibold);
-}
-
-.cloud-account__status {
-  color: var(--color-success);
-  font-size: var(--font-size-sm);
 }
 
 .cloud-account__muted {

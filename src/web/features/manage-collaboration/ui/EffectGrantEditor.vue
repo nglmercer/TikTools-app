@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import { useI18n } from 'vue-i18n';
 import type { AudioEffectGrant, EffectGrants, HttpEffectGrant } from '@/entities/collaboration/api/types.ts';
 import { splitIds } from '@/entities/collaboration/lib/grants.ts';
 import { publicEffectRenderFields } from '@/entities/collaboration/lib/effects.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
 
 defineProps<{ disabled?: boolean }>();
@@ -32,7 +33,9 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
 <template>
   <div class="effect-grant-editor">
     <p>{{ t('collaboration.effectRulesHint') }}</p>
-    <details><summary>{{ t('collaboration.publicEffectFields') }}</summary><pre>{{ publicEffectRenderFields.join('\n') }}</pre></details>
+    <SettingsDisclosure :title="t('collaboration.publicEffectFields')">
+      <pre>{{ publicEffectRenderFields.join('\n') }}</pre>
+    </SettingsDisclosure>
     <fieldset
       v-for="(rule, index) in model?.http ?? []"
       :key="`http-${index}`"
@@ -72,20 +75,20 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
         :value="rule.maxResponseBytes"
         @input="patchHttp(index, { maxResponseBytes: numeric($event) })"
       ></label>
-      <BaseCheckbox
+      <BaseSwitch
         :model-value="rule.allowTextBody"
         :disabled="disabled"
         @update:model-value="patchHttp(index, { allowTextBody: $event })"
       >
         {{ t('collaboration.allowTextBody') }}
-      </BaseCheckbox>
-      <BaseCheckbox
+      </BaseSwitch>
+      <BaseSwitch
         :model-value="rule.allowPrivateNetwork"
         :disabled="disabled"
         @update:model-value="patchHttp(index, { allowPrivateNetwork: $event })"
       >
         {{ t('collaboration.allowPrivateNetwork') }}
-      </BaseCheckbox>
+      </BaseSwitch>
       <BaseButton
         :disabled="disabled"
         @click="remove('http', index)"
@@ -122,7 +125,7 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
         :value="rule.maxVolume"
         @input="patchAudio(index, { maxVolume: numeric($event) })"
       ></label>
-      <BaseCheckbox
+      <BaseSwitch
         v-for="overlap in (['allow', 'restart', 'drop'] as const)"
         :key="overlap"
         :model-value="rule.overlaps.includes(overlap)"
@@ -130,7 +133,7 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
         @update:model-value="patchAudio(index, { overlaps: $event ? [...rule.overlaps, overlap] : rule.overlaps.filter((v) => v !== overlap) })"
       >
         {{ t(`collaboration.effectOverlaps.${overlap}`) }}
-      </BaseCheckbox>
+      </BaseSwitch>
       <BaseButton
         :disabled="disabled"
         @click="remove('audio', index)"

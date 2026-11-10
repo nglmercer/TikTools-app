@@ -503,7 +503,7 @@ impl ProtocolFence {
         }
         let record: ProtocolRecord =
             serde_json::from_slice(&data).map_err(|_| StoreError::InvalidState)?;
-        if !matches!(record.format_version, 1 | 2 | 3)
+        if !matches!(record.format_version, 1..=3)
             || record.origin != origin
             || record.account_id != account
             || record.candidate_sha256.len() != 64

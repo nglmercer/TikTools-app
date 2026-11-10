@@ -18,6 +18,7 @@ const props = withDefaults(
     suggestionsFor?: (key: string) => readonly SchemaSuggestion[];
     openMediaPicker?: OpenMediaPicker;
     disabled?: boolean;
+    switches?: boolean;
   }>(),
   { uiHints: undefined, fieldOptions: () => ({}), fieldErrors: () => ({}), suggestionsFor: undefined, openMediaPicker: undefined },
 );
@@ -51,6 +52,7 @@ function update(field: SchemaFieldDescriptor, value: JsonValue): void {
       :suggestions-for="suggestionsFor"
       :open-media-picker="openMediaPicker"
       :disabled="disabled"
+      :switches="switches"
       @update="update"
     />
     <BaseDisclosure
@@ -67,6 +69,7 @@ function update(field: SchemaFieldDescriptor, value: JsonValue): void {
         :suggestions-for="suggestionsFor"
         :open-media-picker="openMediaPicker"
         :disabled="disabled"
+        :switches="switches"
         @update="update"
       />
     </BaseDisclosure>

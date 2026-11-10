@@ -413,7 +413,7 @@ mod tests {
             "account".into(),
             &[selection(true)],
             Some(&snapshot),
-            &[receipt.clone()],
+            std::slice::from_ref(&receipt),
         )
         .unwrap();
         let entry = &preview.entries()[0];
@@ -490,7 +490,7 @@ mod tests {
             "account".into(),
             &[selection(false)],
             Some(&snapshot),
-            &[receipt.clone()],
+            std::slice::from_ref(&receipt),
         )
         .unwrap();
         assert_eq!(

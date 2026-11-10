@@ -184,9 +184,9 @@ describe('PluginsPage', () => {
       const { wrapper } = await mountPage();
       await wrapper.get('.plugin-catalog__item').trigger('pointerdown');
       expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
-      expect(wrapper.find('.plugin-catalog').exists()).toBe(false);
-      await wrapper.get('.plugins-page__back').trigger('click');
-      expect(wrapper.find('.plugin-details').exists()).toBe(false);
+      expect(wrapper.get('.master-detail__master').attributes('hidden')).toBeDefined();
+      await wrapper.get('.master-detail__back button').trigger('click');
+      expect(wrapper.get('.master-detail__detail').attributes('hidden')).toBeDefined();
       expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
       await wrapper.get('.plugin-catalog__item').trigger('pointerdown');
       expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');

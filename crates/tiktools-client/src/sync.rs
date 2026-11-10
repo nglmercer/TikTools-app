@@ -5,6 +5,10 @@ use tiktools_control_api::modules::sync::{
     SyncUncertainResolveParams, SyncUncertainReviewParams, WorkspaceV2Discovery,
     WorkspaceV2Preview, WorkspaceV2SyncResult,
 };
+use tiktools_control_api::modules::sync::{
+    SyncV2ConflictResolveParams, SyncV2ConflictReviewParams, SyncV2StagePluginSettingsParams,
+    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, WorkspaceV2Migration,
+};
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
 
@@ -21,6 +25,13 @@ pub(crate) const METHODS: &[&str] = &[
     "sync.v2.selected",
     "sync.v2.preview",
     "sync.v2.now",
+    "sync.v2.migrate",
+    "sync.v2.rebuild",
+    "sync.v2.stagePreferences",
+    "sync.v2.stagePluginSettings",
+    "sync.v2.conflict.list",
+    "sync.v2.conflict.review",
+    "sync.v2.conflict.resolve",
     "cloudLibrary.list",
     "cloudLibrary.read",
 ];
@@ -100,5 +111,47 @@ impl TikToolsClient {
         params: SyncResolveParams,
     ) -> Result<SyncStatusResult, ClientError> {
         self.call(SYNC_RESOLVE, params).await
+    }
+}
+
+impl TikToolsClient {
+    pub async fn sync_v2_migrate(&self) -> Result<WorkspaceV2Migration, ClientError> {
+        self.call("sync.v2.migrate", Empty::default()).await
+    }
+
+    pub async fn sync_v2_rebuild(&self) -> Result<(), ClientError> {
+        self.call("sync.v2.rebuild", Empty::default()).await
+    }
+
+    pub async fn sync_v2_stage_preferences(
+        &self,
+        preferences: serde_json::Value,
+    ) -> Result<(), ClientError> {
+        self.call("sync.v2.stagePreferences", preferences).await
+    }
+
+    pub async fn sync_v2_stage_plugin_settings(
+        &self,
+        params: SyncV2StagePluginSettingsParams,
+    ) -> Result<(), ClientError> {
+        self.call("sync.v2.stagePluginSettings", params).await
+    }
+
+    pub async fn sync_v2_conflict_list(&self) -> Result<Vec<V2ConflictTarget>, ClientError> {
+        self.call("sync.v2.conflict.list", Empty::default()).await
+    }
+
+    pub async fn sync_v2_conflict_review(
+        &self,
+        params: SyncV2ConflictReviewParams,
+    ) -> Result<V2ConflictReview, ClientError> {
+        self.call("sync.v2.conflict.review", params).await
+    }
+
+    pub async fn sync_v2_conflict_resolve(
+        &self,
+        params: SyncV2ConflictResolveParams,
+    ) -> Result<V2ConflictOutcome, ClientError> {
+        self.call("sync.v2.conflict.resolve", params).await
     }
 }

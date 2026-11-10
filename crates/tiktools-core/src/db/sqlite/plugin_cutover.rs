@@ -2,6 +2,7 @@
 //!
 //! This records SQLite state, not the filesystem or running workers. Callers
 //! must also fence package/runtime mutations and the account/consent epoch.
+#[cfg_attr(not(test), allow(unused_imports))]
 use rusqlite::{params, TransactionBehavior};
 
 use super::{DatabaseError, DatabaseManager};

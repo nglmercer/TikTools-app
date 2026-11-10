@@ -1,125 +1,102 @@
-# UI Kit — Quick Reference (canonical `src/web/components/ui/fields/`)
+# UI kit and layout patterns
 
-All primitives share the same controlled API + imperative `getValue/setValue` via `ref`.
-FieldShell is the sole owner of label, required marker, info tooltip,
-description/error, border, background, radius, focus ring, disabled state
-and size. Never wrap a field in `FormField`/`FieldRow` — pass `label`,
-`hint`, `description` and `error` straight to the field.
+The current Vue kit lives in `src/web/shared/ui/`. Import individual components
+through `@/shared/ui/...`. `app/styles/tokens.css` owns visual values. `/ui-kit`
+is a development-only interactive catalogue; its sample data is demonstration
+content, not a connection to the user's account or plugins.
 
-## Installation
-Already imported in `src/web/styles.css` via `ui.css`. No new deps.
+## Visual language and density
 
-## Primitives
+Use flat `--color-bg-app`, `--color-bg-panel`, `--color-bg-panel-header` and
+`--color-bg-field` surfaces, 1px semantic borders and 2–3px token radii. Use
+`--color-accent` for selection/primary actions and semantic status colors for
+meaning. Do not add gradients, per-feature hex colors, pill cards or large
+shadows. Floating surfaces use `--shadow-popup`; ordinary panels have no shadow.
+Use `--color-border-focus` for visible keyboard focus. Color never replaces a
+status label or action name.
 
-```vue
-import { FieldShell, InputGroup } from './components/ui/fields/index.ts';
-import { TextField, SearchField, NumberField, SelectField, PasswordField, TemplateField } from './components/ui/fields/index.ts';
-import { Checkbox, Switch } from './components/ui/Checkbox.vue';
-import { Card, Badge, Alert, EmptyState, Chip, ChipGroup } from './components/ui/Card.vue';
-import { Button } from './components/ui/Button.vue';
-import { DataTable, type Column } from './components/ui/Table.vue';
-import { Page, PageHeader, SplitLayout, StatCard, StatGrid } from './components/ui/Page.vue';
-import { IconSelect } from './components/ui/IconSelect.vue';
-import { MultiSelect } from './components/ui/MultiSelect.vue';
-```
+Desktop controls are compact. On coarse-pointer devices (including hybrid
+laptops), or below 700px, control height tokens become 44px; the application
+chrome grows with them. Layout and input density are independent:
 
-`TextInput` / `NumberInput` / `Select` / `PasswordInput` / `SearchInput`
-remain as thin compatibility shims over the canonical fields. New code
-should import the `*Field` directly.
+- Below 600px, forms stack labels above controls.
+- Below 900px, workspaces use list/detail navigation and the sidebar drawer.
+- Diagnostics retain their dedicated page below 768px.
+- Features may use another breakpoint when their content requires it; explain
+  that reason instead of overriding a shared component's internal layout.
 
-## Form — same `value/onValueChange` everywhere
+Support reduced motion. Inputs on phones retain 16px text to avoid browser
+zoom. Never hide a required action behind hover on touch devices.
 
-```vue
-// Text (prefix @, label owned by the field itself)
-const userRef = useRef<TextFieldHandle>(null);
-<TextField id="user" value={user} onValueChange={setUser} label="Usuario del Creador" hint="El @ es opcional" prefix="@" placeholder="handle" error={err} />
-userRef.current?.getValue() // "crizthplay"
-userRef.current?.setValue("other")
-userRef.current?.clear()
+## Existing primitives: extend rather than duplicate
 
-// Number with stepper + suffix
-<NumberField value={bonus} onValueChange={setBonus} label="Bonus" min={0} max={500} step={5} suffix="%" />
+| Need | Component |
+| --- | --- |
+| Action / icon action | `button/BaseButton.vue`, `button/BaseIconButton.vue` |
+| Text / secret / numeric input | `text-field/BaseTextField.vue`, `spin-box/BaseSpinBox.vue` |
+| Selection | `combo-box/BaseComboBox.vue`, `search-select/`, `segmented/`, `tabs/` |
+| Form layout | `form/BaseFormGrid.vue`, `form/BaseFormRow.vue` |
+| Semantically related settings | `group-box/BaseGroupBox.vue` (fieldset/legend) |
+| Workspace region | `panel/BasePanel.vue` |
+| Collection | `list/BaseList.vue`, `table/BaseTable.vue` |
+| Modal confirmation | `dialog/BaseDialog.vue`, `dialog/BaseConfirmDialog.vue` |
+| Empty result / inline notice | `empty-state/BaseEmptyState.vue`, `alert/BaseAlert.vue` |
+| Command toolbar | `toolbar/BaseToolbar.vue` (arrow-key button navigation) |
+| Resizable panes | `splitter/BaseSplitter.vue` (pointer and keyboard) |
 
-// Native select (OS popup; custom icon lists use IconSelect)
-<SelectField value={locale} onValueChange={setLocale} label="Language" options={[{value:'en',label:'English'}]} />
+Controlled fields use Vue `v-model`; keep domain validation in the feature.
+`BaseFormRow` owns the visible label and field help/error. Associate help and
+error with the actual input, not its decorative wrapper. Do not duplicate
+labels in both a wrapper and a field. Composite controls need a group label.
+The row’s `required` adds its marker and ARIA semantics; native HTML constraint
+validation remains owned by the actual input.
 
-// Icon select (custom listbox on the shared AutocompletePopover)
-<IconSelect value={voice} onChange={setVoice} label="Voice" ariaLabel="Voice" options={voiceOptions} />
+`BasePanel` accepts `title`, `subtitle`, `flush` and `headerLayout` (`auto`,
+`inline`, `stacked`). Slots are default body, `actions` and `footer`. `auto`
+wraps actions and stacks them on narrow screens; `inline` is an explicit
+opt-in for headers whose contents fit. Titles may wrap without losing text.
 
-// ComboBox: TextField with options (recents, dynamic lists).
-// Focus-empty opens, typing filters, pick commits — same popover,
-// same field-anchored sizing as every autocomplete.
-<TextField value={creator} onValueChange={setCreator} label="Creator" options={recentOptions} onOptionPick={connect} />
+## Shared compositions
 
-// Checkbox / Switch
-<Checkbox checked={enabled} onCheckedChange={setEnabled} label="Puntos por Like" />
-<Switch checked={enabled} onCheckedChange={setEnabled} label="Activo" />
+- `status/BaseStatus.vue`: labelled semantic state. Keep domain state-to-tone
+  mapping in the feature. `BaseStatusAction` adds an accessible action;
+  diagnostics navigation remains in `DiagnosticStatusAction`.
+- `floating-panel/BaseFloatingPanel.vue`: nonmodal movable surface with keyboard
+  movement, viewport limits and focus restoration. Do not replace consent
+  dialogs with it. Feed it translated labels; never trap focus as a modal.
+- `layout/MasterDetailLayout.vue`: desktop splitter and narrow master/detail
+  presentation. Keep both subtrees alive across layout changes so drafts are
+  retained. `back` is a request; the feature owns dirty-draft confirmation.
+- `collection-toolbar/CollectionToolbar.vue`: labelled group with `search`,
+  default/filter and `actions` slots and optional count. Unlike a command
+  toolbar, native inputs keep ordinary Tab navigation.
+- `settings-row/SettingsRow.vue`: consistent setting label, description,
+  control and optional supplementary content. Use it inside a group; keep
+  settings writes in the feature's handler/store.
 
-// Search (with clear button)
-<SearchField value={q} onValueChange={setQ} label="Search" placeholder="Buscar…" />
-```
+## Ownership and migration
 
-Dropdowns (`SelectField` native popup excluded) share one floating
-primitive: `AutocompletePopover` + `autocomplete-list` classes. Field-
-anchored popups match the anchor control width and clamp only to the
-viewport/global maximum. Caret-anchored template autocomplete uses a
-compact preferred width. Do not add per-input popup CSS.
+`shared/ui` has no account, plugin, router or store knowledge. Features own
+operations/permissions, entities own contracts/state, widgets compose domain
+features, and pages choose layout. Plugin-specific UI remains isolated behind
+the existing declarative renderer or sandbox/broker boundary; shared visual
+patterns never add privileges.
 
-## Card / Page
+The initial migrations cover diagnostic/status surfaces, Plugins and
+Automations workspaces, settings/updater/Cloud, and Rankings form wrappers.
+Cloud views display only values exposed by the existing contracts: no invented
+base/local/cloud comparison, device roster or sync capability. Conflict choices,
+permission consent, overwrite confirmation and validation remain explicit.
 
-```vue
-<Page narrow>
-  <Card title="Conectar a TikTok LIVE" subtitle="..." icon={<IconRadio />}>
-    ...
-  </Card>
-</Page>
+## Verification for each change
 
-<Page>
-  <PageHeader title="Analíticas y Métricas" subtitle="..." icon={<IconBarChart/>} meta={<Badge>80 eventos</Badge>} />
-  <StatGrid>
-    <StatCard icon={<IconChat/>} value={10} label="Chats" tone="cyan" />
-  </StatGrid>
-  <DataTable ... />
-</Page>
-
-<SplitLayout left={<ConfigForm />} right={<LeaderboardTable />} />
-```
-
-## Table — one component for leaderboard + analytics ranking
-
-```vue
-const cols: Column<ViewerRecord>[] = [
-  { key:'rank', header:'Puesto', width:'48px', render:(_r,i)=> <RankBadge rank={i+1}/> },
-  { key:'viewer', header:'Espectador', render:(r)=> <span>@{r.uniqueId}</span> },
-  { key:'level', header:'Nivel', width:'72px', align:'center', render:(r)=> <Badge tone="cyan">N.º {r.level}</Badge> },
-  { key:'points', header:'Puntos', width:'88px', align:'right', render:(r)=> <span style={{color:'var(--tt-pink)',fontWeight:700}}>{r.points}</span> },
-];
-
-<DataTable
-  columns={cols}
-  data={filtered}
-  rowKey="uniqueId"
-  stickyHeader
-  emptyState={<EmptyState title="Sin datos" description="Conecta a un LIVE..." />}
-  rowClassName={(_,i)=> i<3 ? `top-rank-${i+1}` : undefined}
-/>
-```
-
-## Button
-
-```vue
-<Button variant="primary" block>Conectar al LIVE</Button>
-<Button variant="soft" size="sm" icon={<IconLock size={14} />} tooltip="Guest mode is fast & anonymous">Cookie de sesión</Button>
-<Button variant="cyan" icon={<IconDice/>} iconOnly tooltip="Pick Random LIVE" />
-<Button variant="danger" icon={<IconTrash/>} />
-```
-
-## Migration Checklist
-- [ ] Replace `connect-card`/`tikfinity-card`/`stats-card-large` → `<Card>`
-- [ ] Replace `input[type=text]`/`tikfinity-number-input`/`feed-search-wrap` → `TextField`/`NumberField`/`SearchField` with `label`/`hint`/`error` props directly (no `FormField` wrapper)
-- [ ] Replace `tikfinity-toggle-row` → `<Checkbox/>` + `<NumberField/>` with direct labels
-- [ ] Replace `tikfinity-table` + analytics flex list → `<DataTable>`
-- [ ] Replace `.error-banner`/`.recent-chip`/inline styles → `<Alert>`/`<Chip>`/`<Badge>`
-- [ ] Wrap each view in `<Page>` (`narrow` for Connect/Settings)
-
-See [Development Guide](DEVELOPMENT.md) for frontend conventions, current view ownership, and the validation checklist.
+1. Add the relevant interactive states to `/ui-kit` (EN/ES): populated, empty,
+   loading, invalid and disabled as applicable.
+2. Test behavior that can regress: keyboard/focus, field associations, retained
+   drafts/selection, return navigation, disabled operations and consent.
+3. Run `bun x --no-install vitest run`, `bun x --no-install vue-tsc --noEmit`,
+   `bun x --no-install eslint src/web --max-warnings=0`, and
+   `bun scripts/task.ts frontend-build`.
+4. Inspect actual desktop and mobile UI in EN/ES, long labels, touch targets,
+   reduced motion, zoom/reflow and overflow. Label demonstration fixtures as
+   such; do not present them as a successful live integration.

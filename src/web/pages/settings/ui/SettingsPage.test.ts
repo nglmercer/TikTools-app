@@ -6,6 +6,7 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import SettingsPage from './SettingsPage.vue';
+import { collaborationStatus, emptyCollaborationPage } from '@/shared/lib/testing/collaboration.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -15,7 +16,7 @@ async function mountPage(query = '') {
     routes: [{ path: '/settings', component: defineComponent({ render: () => null }) }],
   });
   await router.push(`/settings${query}`);
-  const { client } = createFakeControlClient(() => ({ globals: { commandPort: '46665' } }));
+  const { client } = createFakeControlClient(method => method === 'collaboration.status' ? collaborationStatus() : method.startsWith('collaboration.') ? emptyCollaborationPage(method) : ({ globals: { commandPort: '46665' } }));
   const wrapper = mountWithPlugins(SettingsPage, {
     attachTo: document.body,
     global: {
@@ -29,42 +30,57 @@ async function mountPage(query = '') {
 describe('SettingsPage', () => {
   it('opens the general section with the language selector by default', async () => {
     const { wrapper } = await mountPage();
-    expect(wrapper.get('[role="option"][aria-selected="true"]').text()).toBe('General');
+    expect(wrapper.get('[role="option"][aria-selected="true"]').text()).toBe('GeneralLanguage and application');
     expect(wrapper.get('legend').text()).toBe('Language');
     expect(wrapper.get('#settings-language').text()).toContain('English');
+    expect(wrapper.find('#app-update-automatic[role=switch]').exists()).toBe(true);
+    expect(wrapper.get('#app-update-automatic').attributes('aria-label')).toBeTruthy();
+  });
+
+  it('uses a complete mobile section selector and preserves route navigation', async () => {
+    const { wrapper, router } = await mountPage();
+    const select = wrapper.get('.settings-page__mobile-nav select');
+    await select.setValue('collaboration'); await flushPromises();
+    expect(router.currentRoute.value.query.section).toBe('collaboration');
+    expect(wrapper.get('h1').text()).toBe('Collaboration');
+    expect(select.findAll('option').map(option => option.text())).toContain('Plugins');
   });
 
   it('lists the simplified sections', async () => {
     const { wrapper } = await mountPage();
     expect(wrapper.findAll('[role="option"]').map((option) => option.text())).toEqual([
-      'General',
-      'Account',
-      'Collaboration',
-      'Updates',
-      'Advanced',
+      'GeneralLanguage and application',
+      'PluginsSources and updates',
+      'Account & CloudSession and synchronization',
+      'CollaborationDevices and access',
     ]);
   });
 
   it('switches the section through the route query', async () => {
     const { wrapper, router } = await mountPage();
-    await wrapper.findAll('[role="option"]').find((item) => item.text() === 'Advanced')!.trigger('pointerdown');
+    await wrapper.findAll('[role="option"]').find((item) => item.text().startsWith('Plugins'))!.trigger('pointerdown');
     await flushPromises();
-    expect(router.currentRoute.value.query.section).toBe('advanced');
-    expect(wrapper.findAll('legend').map((legend) => legend.text())).toContain('Runtime globals');
-    expect(wrapper.text()).toContain('{{ globals.key }}');
+    expect(router.currentRoute.value.query.section).toBe('plugins');
+    expect(wrapper.findAll('legend').map((legend) => legend.text())).toContain('Plugin updates');
+    expect(wrapper.find('#plugin-sources-url').exists()).toBe(false);
+    expect(wrapper.find('details, summary').exists()).toBe(false);
+    expect(wrapper.findAll('input[type=checkbox]').every(input => input.attributes('role') === 'switch')).toBe(true);
   });
 
   it('does not expose source enrollment and retains the local package policy', async () => {
     const { wrapper } = await mountPage('?section=advanced');
     expect(wrapper.find('#plugin-sources-url').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Add a registry');
+    const plugins = await mountPage('?section=plugins');
+    expect(plugins.wrapper.text()).toContain('Allow local package installation');
     const updates = await mountPage('?section=updates');
-    expect(updates.wrapper.text()).toContain('Allow local package installation');
+    expect(updates.wrapper.get('[role="option"][aria-selected="true"]').text()).toBe('GeneralLanguage and application');
+    expect(updates.wrapper.find('#app-update-automatic').exists()).toBe(true);
   });
 
-  it('maps legacy section links to Advanced', async () => {
+  it('opens runtime variables through legacy globals links', async () => {
     const { wrapper } = await mountPage('?section=globals');
-    expect(wrapper.get('[role="option"][aria-selected="true"]').text()).toBe('Advanced');
+    expect(wrapper.get('[role="option"][aria-selected="true"]').text()).toBe('GeneralLanguage and application');
     expect(wrapper.findAll('input').map((input) => input.element.value)).toContain('commandPort');
   });
 

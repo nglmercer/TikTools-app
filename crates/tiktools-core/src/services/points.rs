@@ -20,9 +20,9 @@ use crate::ipc::messages::{PartialPointsConfig, PointsConfig};
 use tiktools_plugin_api::sync::{recover_mutex, recover_rwlock_read, recover_rwlock_write};
 
 #[cfg(feature = "persistence")]
-mod commands;
-#[cfg(feature = "persistence")]
 mod approved;
+#[cfg(feature = "persistence")]
+mod commands;
 
 /// Default bound for the in-memory hot-viewer cache. SQLite remains the
 /// durable source of truth; viewers outside the cache are reloaded on demand
@@ -1607,11 +1607,11 @@ fn now_millis() -> i64 {
 mod tests {
     use super::*;
     #[cfg(feature = "persistence")]
-    mod commands;
-    #[cfg(feature = "persistence")]
     mod approved;
     #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
     mod approved_crash;
+    #[cfg(feature = "persistence")]
+    mod commands;
     #[cfg(feature = "persistence")]
     mod ordering;
 

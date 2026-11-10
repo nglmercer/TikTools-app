@@ -29,6 +29,7 @@ use tokio_util::sync::CancellationToken;
 mod tests;
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 type Answer = Result<CallResult<Value>, ClientError>;
+#[allow(clippy::large_enum_variant)]
 enum HelloReply {
     Retry(Duration),
     Negotiated(HelloResult),

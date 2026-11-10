@@ -96,9 +96,10 @@ describe('ConnectionsPage', () => {
     expect(buttonByText(wrapper, 'Connect')).toBeDefined();
   });
 
-  it('only browses rooms after opening the explorer', async () => {
+  it('keeps the explorer visible but only browses after explicit request', async () => {
     const { wrapper, calls } = await mountPage();
     expect(calls).toHaveLength(0);
+    expect(buttonByText(wrapper, 'Explore').isVisible()).toBe(true);
     await buttonByText(wrapper, 'Explore').trigger('click');
     await flushPromises();
     expect(calls[0]?.method).toBe('live.channels');

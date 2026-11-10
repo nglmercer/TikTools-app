@@ -32,7 +32,8 @@ it.each(['en', 'es'] as const)('reviews a complete event and retains uncertain c
     await flushPromises();
     const board = wrapper.get('.automation-board');
     expect(board.findAll('li')).toHaveLength(2); expect(board.text()).toContain(words.action);
-    expect(board.findAll('li')[1]!.findAll('button')).toHaveLength(0);
+    const actionButtons = board.findAll('li')[1]!.findAll('button');
+    expect(actionButtons.every((b) => b.attributes('disabled') !== undefined)).toBe(true);
     expect(wrapper.find('textarea').exists()).toBe(false);
     expect(calls.some((c) => c.method === 'controller.automation.command')).toBe(false);
     await board.findAll('button').find((b) => b.text() === words.disable)!.trigger('click'); await flushPromises();

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
@@ -7,7 +8,7 @@ import { viewerGrant, type AdminTab, type Configuration, type Grant, type Pairin
 import { parseGrant, prepareConfiguration, splitIds } from '@/entities/collaboration/lib/grants.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
@@ -18,6 +19,7 @@ import GrantEditor from './GrantEditor.vue';
 import InvitationQr from './InvitationQr.vue';
 
 const { t, te } = useI18n();
+const area = ref<'overview' | 'people' | 'network'>('overview');
 const owner = createCollaborationOwner(useControlClient());
 const { status, pages, tab, loading, working, error, uncertain, connected, checkedAt, secret, canInvite, joinLink, next, previous } = owner;
 const draft = ref<Configuration | null>(null);
@@ -141,12 +143,40 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
       </BaseButton>
     </BaseGroupBox>
     <template v-if="status && draft">
+      <nav
+        class="collaboration-editor__areas"
+        :aria-label="t('collaboration.title')"
+      >
+        <BaseButton
+          v-for="item in (['overview', 'people', 'network'] as const)"
+          :key="item"
+          :pressed="area === item"
+          @click="area = item"
+        >
+          {{ t(`settingsLayout.${item}`) }}
+        </BaseButton>
+      </nav>
+      <BaseAlert
+        v-if="!status.gateway.available"
+        tone="warning"
+        :title="t('collaboration.unavailable')"
+      />
+      <BaseAlert
+        v-if="changed"
+        tone="warning"
+        :title="t('collaboration.changed')"
+      />
+      <BaseButton
+        v-if="status.pendingRequests > 0 && area !== 'people'"
+        @click="area = 'people'; tab = 'requests'"
+      >
+        {{ t('settingsLayout.requests') }} · {{ status.pendingRequests }}
+      </BaseButton>
       <BaseGroupBox
+        v-show="area === 'overview'"
         :title="t('collaboration.title')"
         :description="t('collaboration.description')"
       >
-        <p>{{ t('collaboration.host') }}: <code>{{ status.hostId }}</code></p>
-        <p>{{ t('collaboration.instance') }}: <code>{{ status.hostInstanceId }}</code></p>
         <p>{{ t('collaboration.connected', { count: status.gateway.connections }) }} · {{ t('collaboration.active', { count: status.activeSessions }) }} · {{ t('collaboration.pending', { count: status.pendingRequests }) }}</p>
         <p>{{ status.gateway.running ? status.configuration.enabled ? t('collaboration.running') : t('collaboration.applying') : t('collaboration.stopped') }}</p>
         <p v-if="status.configuration.enabled && status.gateway.configurationRevision !== status.configurationRevision">
@@ -173,29 +203,29 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
         >
           {{ t('collaboration.disable') }}
         </BaseButton>
+        <SettingsDisclosure
+          class="collaboration-editor__technical"
+          :title="t('settingsLayout.technical')"
+        >
+          <p>{{ t('collaboration.host') }}: <code>{{ status.hostId }}</code></p>
+          <p>{{ t('collaboration.instance') }}: <code>{{ status.hostInstanceId }}</code></p>
+        </SettingsDisclosure>
       </BaseGroupBox>
-      <BaseGroupBox :title="t('collaboration.configuration')">
-        <BaseAlert
-          v-if="!status?.gateway.available"
-          tone="warning"
-          :title="t('collaboration.unavailable')"
-        />
-        <BaseAlert
-          v-if="changed"
-          tone="warning"
-          :title="t('collaboration.changed')"
-        />
+      <BaseGroupBox
+        v-show="area === 'network'"
+        :title="t('collaboration.configuration')"
+      >
         <form
           autocomplete="off"
           @submit.prevent="applyConfiguration"
         >
-          <BaseCheckbox
+          <BaseSwitch
             :model-value="draft?.enabled ?? false"
             :disabled="blocked || !status?.gateway.available"
             @update:model-value="setBoolean('enabled', $event)"
           >
             {{ t('collaboration.enabled') }}
-          </BaseCheckbox>
+          </BaseSwitch>
           <BaseFormGrid>
             <BaseFormRow
               for="collaboration-bind"
@@ -223,13 +253,13 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
               />
             </BaseFormRow>
           </BaseFormGrid>
-          <BaseCheckbox
+          <BaseSwitch
             :model-value="draft?.tlsProxy ?? false"
             :disabled="blocked"
             @update:model-value="setBoolean('tlsProxy', $event)"
           >
             {{ t('collaboration.tlsProxy') }}
-          </BaseCheckbox>
+          </BaseSwitch>
           <p v-if="draft?.tlsProxy">
             {{ t('collaboration.proxyHint') }}
           </p>
@@ -267,8 +297,8 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
             maxlength="16384"
             :disabled="blocked"
           />
-          <details>
-            <summary>{{ t('collaboration.advanced') }}</summary><BaseFormGrid>
+          <SettingsDisclosure :title="t('collaboration.advanced')">
+            <BaseFormGrid>
               <BaseFormRow
                 v-for="limit in limits"
                 :key="limit.key"
@@ -287,7 +317,7 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
                 >
               </BaseFormRow>
             </BaseFormGrid>
-          </details>
+          </SettingsDisclosure>
           <div class="collaboration-editor__actions">
             <BaseButton
               type="submit"
@@ -305,53 +335,9 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
         </form>
       </BaseGroupBox>
       <BaseGroupBox
-        :title="t('collaboration.invites')"
-        :description="t('collaboration.inviteHint')"
+        v-show="area === 'people'"
+        :title="t(`collaboration.tabs.${tab}`)"
       >
-        <GrantEditor
-          v-model="grant"
-          :disabled="blocked"
-        />
-        <p v-if="!canInvite">
-          {{ t('collaboration.listenerRequired') }}
-        </p>
-        <BaseButton
-          variant="primary"
-          :disabled="!canInvite"
-          @click="createInvitation"
-        >
-          {{ t('collaboration.create') }}
-        </BaseButton>
-        <section
-          v-if="secret && joinLink"
-          class="collaboration-editor__share"
-        >
-          <p>{{ t('collaboration.shareHint') }}</p><label for="collaboration-link">{{ t('collaboration.privateLink') }}</label>
-          <BaseTextField
-            id="collaboration-link"
-            :model-value="joinLink"
-            type="password"
-            readonly
-            revealable
-            autocomplete="off"
-          />
-          <p>{{ t('collaboration.expires', { when: date(secret.expiresAt) }) }}</p>
-          <div class="collaboration-editor__actions">
-            <BaseButton @click="copyLink">
-              {{ copied ? t('collaboration.copied') : t('collaboration.copy') }}
-            </BaseButton><BaseButton @click="showQr = !showQr">
-              {{ showQr ? t('collaboration.hideQr') : t('collaboration.qr') }}
-            </BaseButton><BaseButton @click="secret = null">
-              {{ t('collaboration.hide') }}
-            </BaseButton>
-          </div>
-          <InvitationQr
-            v-if="showQr"
-            :value="joinLink"
-          />
-        </section>
-      </BaseGroupBox>
-      <BaseGroupBox :title="t(`collaboration.tabs.${tab}`)">
         <div
           class="collaboration-editor__actions"
           role="group"
@@ -397,7 +383,9 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
             :key="request.requestId"
             class="collaboration-editor__entry"
           >
-            <h3>{{ request.clientLabel }} · {{ request.clientKind }}</h3><p>{{ t('collaboration.requestId') }}: <code>{{ request.requestId }}</code></p><p>{{ state(request.state) }} · {{ t('collaboration.expires', { when: date(request.expiresAt) }) }}</p><details><summary>{{ t('collaboration.grantSummary') }}</summary><pre>{{ JSON.stringify(request.grant, null, 2) }}</pre></details><div
+            <h3>{{ request.clientLabel }} · {{ request.clientKind }}</h3><p>{{ t('collaboration.requestId') }}: <code>{{ request.requestId }}</code></p><p>{{ state(request.state) }} · {{ t('collaboration.expires', { when: date(request.expiresAt) }) }}</p><SettingsDisclosure :title="t('collaboration.grantSummary')">
+              <pre>{{ JSON.stringify(request.grant, null, 2) }}</pre>
+            </SettingsDisclosure><div
               v-if="request.state === 'pending' && request.expiresAt > owner.now.value"
               class="collaboration-editor__actions"
             >
@@ -424,7 +412,9 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
           >
             <h3>{{ person.clientLabel }} · {{ person.clientKind }}</h3><p>{{ t('collaboration.principalId') }}: <code>{{ person.principalId }}</code> · {{ t('collaboration.revision') }} {{ person.grantRevision }}</p><p v-if="person.revoked">
               {{ state('revoked') }}
-            </p><details><summary>{{ t('collaboration.grantSummary') }}</summary><pre>{{ JSON.stringify(person.grant, null, 2) }}</pre></details><div
+            </p><SettingsDisclosure :title="t('collaboration.grantSummary')">
+              <pre>{{ JSON.stringify(person.grant, null, 2) }}</pre>
+            </SettingsDisclosure><div
               v-if="!person.revoked"
               class="collaboration-editor__actions"
             >
@@ -471,7 +461,9 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
             :key="invitation.inviteId"
             class="collaboration-editor__entry"
           >
-            <code>{{ invitation.inviteId }}</code><p>{{ state(invitation.state) }} · {{ t('collaboration.expires', { when: date(invitation.expiresAt) }) }}</p><details><summary>{{ t('collaboration.grantSummary') }}</summary><pre>{{ JSON.stringify(invitation.grant, null, 2) }}</pre></details><BaseButton
+            <code>{{ invitation.inviteId }}</code><p>{{ state(invitation.state) }} · {{ t('collaboration.expires', { when: date(invitation.expiresAt) }) }}</p><SettingsDisclosure :title="t('collaboration.grantSummary')">
+              <pre>{{ JSON.stringify(invitation.grant, null, 2) }}</pre>
+            </SettingsDisclosure><BaseButton
               v-if="invitation.state === 'created'"
               :disabled="blocked"
               @click="confirmation = { action: 'invite', id: invitation.inviteId }"
@@ -486,14 +478,71 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
             :key="entry.cursor"
             class="collaboration-editor__entry"
           >
-            <p>{{ date(entry.timestamp) }} · {{ entry.action }} · {{ entry.outcome }}</p><code>{{ entry.principalId }} · {{ entry.resourceId }}</code><details v-if="entry.details">
-              <summary>{{ t('collaboration.details') }}</summary><pre>{{ JSON.stringify(entry.details, null, 2) }}</pre>
-            </details>
+            <p>{{ date(entry.timestamp) }} · {{ entry.action }} · {{ entry.outcome }}</p><code>{{ entry.principalId }} · {{ entry.resourceId }}</code><SettingsDisclosure
+              v-if="entry.details"
+              :title="t('collaboration.details')"
+            >
+              <pre>{{ JSON.stringify(entry.details, null, 2) }}</pre>
+            </SettingsDisclosure>
           </article>
         </template>
         <p v-if="!loading && !pages[tab].length">
           {{ t('collaboration.empty') }}
         </p>
+      </BaseGroupBox>
+      <BaseGroupBox
+        v-show="area === 'people'"
+        :title="t('collaboration.invites')"
+        :description="t('collaboration.inviteHint')"
+      >
+        <SettingsDisclosure
+          class="collaboration-editor__permissions"
+          initially-open
+          :title="t('collaboration.grantSummary')"
+        >
+          <GrantEditor
+            v-model="grant"
+            :disabled="blocked"
+          />
+        </SettingsDisclosure>
+        <p v-if="!canInvite">
+          {{ t('collaboration.listenerRequired') }}
+        </p>
+        <BaseButton
+          variant="primary"
+          :disabled="!canInvite"
+          @click="createInvitation"
+        >
+          {{ t('collaboration.create') }}
+        </BaseButton>
+        <section
+          v-if="secret && joinLink"
+          class="collaboration-editor__share"
+        >
+          <p>{{ t('collaboration.shareHint') }}</p><label for="collaboration-link">{{ t('collaboration.privateLink') }}</label>
+          <BaseTextField
+            id="collaboration-link"
+            :model-value="joinLink"
+            type="password"
+            readonly
+            revealable
+            autocomplete="off"
+          />
+          <p>{{ t('collaboration.expires', { when: date(secret.expiresAt) }) }}</p>
+          <div class="collaboration-editor__actions">
+            <BaseButton @click="copyLink">
+              {{ copied ? t('collaboration.copied') : t('collaboration.copy') }}
+            </BaseButton><BaseButton @click="showQr = !showQr">
+              {{ showQr ? t('collaboration.hideQr') : t('collaboration.qr') }}
+            </BaseButton><BaseButton @click="secret = null">
+              {{ t('collaboration.hide') }}
+            </BaseButton>
+          </div>
+          <InvitationQr
+            v-if="showQr"
+            :value="joinLink"
+          />
+        </section>
       </BaseGroupBox>
       <BaseGroupBox
         v-if="principalDraft"
@@ -542,6 +591,11 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
 .collaboration-editor__entry { margin: var(--space-4) 0; padding: var(--space-4) 0; border-top: 1px solid var(--color-border-subtle); }
 .collaboration-editor__share { padding: var(--space-4); border: 1px solid var(--color-border-focus); border-radius: var(--radius-md); }
 .collaboration-editor__fingerprint { display: block; user-select: all; }
-code { overflow-wrap: anywhere; } pre { max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; } summary { cursor: pointer; }
+code { overflow-wrap: anywhere; } pre { max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 input[type=number] { width: 100%; padding: var(--space-3); background: var(--color-bg-field); color: var(--color-text); border: 1px solid var(--color-border); }
+
+.collaboration-editor__areas { display:flex; flex-wrap:wrap; gap:var(--space-3); }
+.collaboration-editor__technical { order:1; color:var(--color-text-muted); }
+.collaboration-editor__technical code { overflow-wrap:anywhere; }
+.collaboration-editor > :deep(.base-group-box) { border:0; border-top:var(--border-width) solid var(--color-border); background:transparent; padding:var(--space-6) 0; }
 </style>

@@ -260,6 +260,7 @@ async fn disabling_sideload_after_inspect_rejects_reviewed_and_direct_install() 
 }
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)]
 async fn changing_sideload_while_commit_holds_lease_is_busy_then_succeeds() {
     let fixture = Fixture::new();
     let core = &fixture.core;
@@ -354,6 +355,7 @@ async fn disabling_sideload_blocks_local_rollback_until_enabled_again() {
 }
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)]
 async fn changing_sideload_while_rollback_holds_lease_is_busy_then_succeeds() {
     let fixture = Fixture::new();
     install_both_versions(&fixture).await;

@@ -28,6 +28,8 @@ pub(crate) const METHODS: &[&str] = &[
     AUTOMATION_MANIFEST_GET,
     AUTOMATION_LIST,
     AUTOMATION_GET,
+    "automation.source.get",
+    "automation.delegation.preflight",
     AUTOMATION_CREATE,
     AUTOMATION_UPDATE,
     AUTOMATION_DELETE,
@@ -220,5 +222,23 @@ impl TikToolsClient {
     /// RPC method `automation.snapshot`.
     pub async fn automation_snapshot(&self) -> Result<Value, ClientError> {
         self.call(AUTOMATION_SNAPSHOT, Empty::default()).await
+    }
+}
+
+impl TikToolsClient {
+    /// Reads an explicitly shared automation definition (remote, scoped).
+    pub async fn automation_source_get(
+        &self,
+        params: AutomationGetParams,
+    ) -> Result<Value, ClientError> {
+        self.call("automation.source.get", params).await
+    }
+
+    /// Owner-only advisory reusable-grant check; never an execution permit.
+    pub async fn automation_delegation_preflight(
+        &self,
+        params: AutomationManifestParams,
+    ) -> Result<Value, ClientError> {
+        self.call("automation.delegation.preflight", params).await
     }
 }

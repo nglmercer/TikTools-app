@@ -365,6 +365,7 @@ impl AppCore {
                 Err(_) => return,
             }
         };
+        #[cfg_attr(not(feature = "native-tiktok"), allow(unused_mut))]
         let mut matched = if incoming.is_owner() {
             self.automation.matching_records(&event)
         } else {

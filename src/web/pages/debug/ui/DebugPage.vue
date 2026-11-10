@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { watch } from 'vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import DiagnosticsLog from '@/shared/diagnostics/DiagnosticsLog.vue';
@@ -10,14 +12,22 @@ function back(): void { const target = String(route.query.returnTo ?? '/connecti
 </script>
 <template>
   <section class="debug-page">
-    <button @click="back">
-      ← {{ t('diagnostics.back') }}
-    </button><h1>{{ t('diagnostics.title') }}</h1><DiagnosticsLog />
+    <header class="debug-page__header">
+      <BaseIconButton
+        :label="t('diagnostics.back')"
+        @click="back"
+      >
+        <IconChevronLeft />
+      </BaseIconButton>
+      <h1>{{ t('diagnostics.title') }}</h1>
+    </header>
+    <DiagnosticsLog />
   </section>
 </template>
 
 <style scoped>
-.debug-page > button { margin: 8px 16px; min-height: 44px; padding: 8px 12px; color: var(--color-text); background: var(--color-bg-secondary, #20242d); border: 1px solid var(--color-border); border-radius: 6px; font: inherit; cursor: pointer; }
-.debug-page > h1 { margin: 8px 16px; font-size: 22px; }
-.debug-page > button:focus-visible { outline: 2px solid #a69bff; }
+.debug-page { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.debug-page__header { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--color-border); background: var(--color-bg-panel-header); }
+.debug-page__header h1 { margin: 0; font-size: var(--font-size-lg); }
+.debug-page > :deep(.logs) { flex: 1; }
 </style>

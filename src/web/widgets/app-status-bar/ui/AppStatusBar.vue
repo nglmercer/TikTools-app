@@ -39,6 +39,7 @@ const { t, n } = useI18n();
       class="app-status-bar__segment"
     >{{ t('connection.viewers', { count: n(viewers) }) }}</span>
     <span class="app-status-bar__spacer" />
+    <slot />
     <ConnectionControls
       :status="status"
       @connect="emit('connect')"
@@ -54,7 +55,7 @@ const { t, n } = useI18n();
   flex: none;
   align-items: center;
   gap: var(--space-5);
-  height: 30px;
+  height: var(--chrome-height);
   padding: 0 var(--space-4);
   border-top: var(--border-width) solid var(--color-border-subtle);
   background: var(--color-bg-panel);

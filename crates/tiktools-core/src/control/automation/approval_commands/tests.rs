@@ -284,7 +284,7 @@ fn competition_winner_candidate_requires_every_inherited_operator_grant() {
     assert!(f
         .core()
         .automation
-        .with_current_approvals(&[permit.clone()], &[], &saved, || Ok(()))
+        .with_current_approvals(std::slice::from_ref(&permit), &[], &saved, || Ok(()))
         .is_err());
     assert!(subjects
         .with_current(|ids| permit.check_subjects(ids))
@@ -304,7 +304,7 @@ fn competition_winner_candidate_requires_every_inherited_operator_grant() {
                     .automation
                     .with_current_competition_approvals(
                         admission,
-                        &[permit.clone()],
+                        std::slice::from_ref(&permit),
                         &[],
                         &saved,
                         || Ok(()),

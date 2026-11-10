@@ -186,6 +186,9 @@ struct PluginRegistry {
 ///   recover so one poisoned transition cannot wedge cleanup forever.
 /// - `worker` mutex: cleanup/stop recovers (`finish_stop` takes the handle
 ///   after the instance is already out of the map).
+type UncertainStartups =
+    Arc<Mutex<BTreeMap<String, Vec<thread::JoinHandle<Result<(), PluginLoaderError>>>>>>;
+
 pub struct PluginManager {
     roots: Vec<PluginRoot>,
     registry: RwLock<PluginRegistry>,
@@ -194,8 +197,7 @@ pub struct PluginManager {
     lifecycle: Mutex<()>,
     /// Sticky per-manager unknown outcomes, including the owned thread handles.
     /// A completed thread alone cannot prove what its external effects were.
-    uncertain_startups:
-        Arc<Mutex<BTreeMap<String, Vec<thread::JoinHandle<Result<(), PluginLoaderError>>>>>>,
+    uncertain_startups: UncertainStartups,
     starts_inflight: AtomicU64,
     /// Once checked shutdown begins, no later start can be admitted.
     shutdown_admission_closed: AtomicBool,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
 import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -165,21 +166,22 @@ onMounted(() => {
     @focusout="onFocusout"
   >
     <header class="connection-editor__status">
-      <span
-        class="connection-editor__dot"
-        :class="`connection-editor__dot--${tone}`"
-      />
-      <span
+      <BaseStatus
         v-if="summary && connection?.ok"
-        class="connection-editor__url"
-      >{{ t('plugins.connection.connectedTo', { url }) }}</span>
+        :label="t('plugins.connection.connectedTo', { url })"
+        :tone="tone === 'ok' ? 'success' : 'neutral'"
+      />
       <DiagnosticStatusAction
-        v-else-if="connection && !connection.ok"
+        v-else-if="tone === 'error'"
         :label="statusText"
         source="plugins"
         :entity-id="pluginId"
       />
-      <span v-else>{{ statusText }}</span>
+      <BaseStatus
+        v-else
+        :label="statusText"
+        :tone="tone === 'ok' ? 'success' : 'neutral'"
+      />
       <span
         v-if="saveState !== 'idle'"
         class="connection-editor__save"
@@ -253,9 +255,13 @@ onMounted(() => {
       >
         {{ t('plugins.connection.openGuided', { name: pluginName }) }}
       </p>
+      <h3 class="connection-editor__heading">
+        {{ t('settingsLayout.connectionSettings') }}
+      </h3>
       <BaseSchemaForm
         v-if="settings && !(supportsTokenImport && working)"
         v-model="formValues"
+        switches
         :schema="visibleSchema"
         :ui-hints="settings.uiHints"
         :field-options="fieldOptions"
@@ -279,6 +285,8 @@ onMounted(() => {
       </div>
       <BaseButton
         v-if="guided"
+        variant="ghost"
+        :aria-expanded="advanced"
         @click="advanced = !advanced"
       >
         {{ t('plugins.connection.advanced') }}
@@ -295,6 +303,9 @@ onMounted(() => {
       v-if="supportsTokenImport"
       class="connection-editor__token"
     >
+      <h3 class="connection-editor__heading">
+        {{ t('settingsLayout.credentials') }}
+      </h3>
       <div class="connection-editor__actions">
         <template v-if="supportsTokenDiscovery">
           <BaseButton
@@ -385,30 +396,10 @@ onMounted(() => {
 
 .connection-editor__status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   font-weight: var(--font-weight-semibold);
-}
-
-.connection-editor__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-text-subtle);
-}
-
-.connection-editor__dot--ok {
-  background: var(--color-success);
-}
-
-.connection-editor__dot--error {
-  background: var(--color-danger);
-}
-
-.connection-editor__url {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .connection-editor__save {
@@ -506,4 +497,8 @@ onMounted(() => {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+.connection-editor__heading { font-size:var(--font-size-lg); margin:var(--space-5) 0; }
+.connection-editor__token { border-top:var(--border-width) solid var(--color-border); padding-top:var(--space-5); }
+.connection-editor__actions { flex-wrap:wrap; }
 </style>

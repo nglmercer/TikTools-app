@@ -462,13 +462,13 @@ fn reusable_runtime_candidate_pins_definition_and_current_subject_grant() {
         .unwrap();
     f.core()
         .automation
-        .with_current_approvals(&[permit.clone()], &[], &action, || Ok(()))
+        .with_current_approvals(std::slice::from_ref(&permit), &[], &action, || Ok(()))
         .unwrap();
     f.core().automation_update(AutomationKind::Action, "same", json!({"id":"same","name":"Changed","enabled":false,"typeId":"core.log","config":{"message":"changed"}})).unwrap();
     assert!(f
         .core()
         .automation
-        .with_current_approvals(&[permit.clone()], &[], &action, || Ok(()))
+        .with_current_approvals(std::slice::from_ref(&permit), &[], &action, || Ok(()))
         .is_err());
     f.core()
         .automation_update(AutomationKind::Action, "same", action.clone())

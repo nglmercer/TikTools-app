@@ -1,3 +1,6 @@
+import settingsLayout from './settings-layout.es.ts';
+import formsDesign from './forms-design.es.ts';
+import designKit from './design-kit.es.ts';
 import diagnostics from './diagnostics.es.ts';
 import libraryRecovery from './library-recovery.es.ts';
 import collaboration from './collaboration.es.ts';
@@ -7,6 +10,9 @@ import definitionRecovery from './definition-recovery.es.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
+  settingsLayout,
+  formsDesign,
+  designKit,
   diagnostics,
   collaboration,
   automationProposal,

@@ -76,7 +76,7 @@ describe('rankings management', () => {
     await flushPromises();
     await button(wrapper, 'Edit definition').trigger('click');
     const topEntries = wrapper.findAll('label').find((label) => label.text().startsWith('Top entries'))!;
-    await topEntries.get('input').setValue(5);
+    await wrapper.get(`input[id="${topEntries.attributes('for')}"]`).setValue(5);
     await wrapper.get('form').trigger('submit'); await flushPromises();
     expect(calls.find((call) => call.method === 'rankings.update')?.params).toEqual({ definition: { ...definition, limit: 5 }, reset: false });
   });
@@ -87,8 +87,10 @@ describe('rankings management', () => {
     await inputs[0]!.setValue('limited'); await inputs[1]!.setValue('creator'); await inputs[2]!.setValue('room');
     await button(wrapper, 'Add metric').trigger('click');
     await wrapper.findAll('label').find((label) => label.text().includes('Limit contributions per user'))!.get('input').setValue(true);
-    await wrapper.findAll('label').find((label) => label.text().startsWith('Maximum contributions'))!.get('input').setValue(3);
-    await wrapper.findAll('label').find((label) => label.text().startsWith('Cooldown per user'))!.get('input').setValue(500);
+    const maximum = wrapper.findAll('label').find((label) => label.text().startsWith('Maximum contributions'))!;
+    await wrapper.get(`input[id="${maximum.attributes('for')}"]`).setValue(3);
+    const cooldown = wrapper.findAll('label').find((label) => label.text().startsWith('Cooldown per user'))!;
+    await wrapper.get(`input[id="${cooldown.attributes('for')}"]`).setValue(500);
     await wrapper.get('form').trigger('submit'); await flushPromises();
     expect(calls.find((call) => call.method === 'rankings.create')?.params).toMatchObject({ userLimits: { maxContributions: 3, cooldownMs: 500, maxUsers: 10000 } });
   });
@@ -101,7 +103,8 @@ describe('rankings management', () => {
     await metric.setValue(JSON.stringify(['tiktok.gift', 'gift.diamonds']));
     await button(wrapper, 'Add metric').trigger('click');
     await button(wrapper, 'Add gift override').trigger('click');
-    await wrapper.find('.gift-rule label').get('input').setValue('42');
+    const giftId = wrapper.get('.gift-rule label').attributes('for');
+    await wrapper.get(`input[id="${giftId}"]`).setValue('42');
     await wrapper.find('.gift-rule input[type="number"]').setValue(3);
     await wrapper.get('form').trigger('submit'); await flushPromises();
     expect(calls.find((call) => call.method === 'rankings.create')?.params).toMatchObject({ sources: [{ source: 'tiktok.gift', giftMultipliers: { '42': 3 } }] });

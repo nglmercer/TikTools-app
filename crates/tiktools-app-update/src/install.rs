@@ -219,12 +219,26 @@ fn without_mount_paths(
 }
 
 fn validate_version(path: &std::path::Path, expected: &str) -> Result<(), InstallError> {
-    let mut child = appimage_command(path)
-        .arg("--version")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|_| InstallError::Restart)?;
+    // A concurrent fork can briefly hold the just-written file open, so exec
+    // reports ETXTBSY ("text file busy"). Retry only that transient error.
+    let mut child = {
+        let mut attempts = 0;
+        loop {
+            match appimage_command(path)
+                .arg("--version")
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+            {
+                Ok(child) => break child,
+                Err(error) if error.raw_os_error() == Some(26) && attempts < 50 => {
+                    attempts += 1;
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(_) => return Err(InstallError::Restart),
+            }
+        }
+    };
     let deadline = Instant::now() + Duration::from_secs(15);
     loop {
         match child.try_wait() {

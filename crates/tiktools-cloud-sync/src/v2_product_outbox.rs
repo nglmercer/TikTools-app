@@ -428,12 +428,15 @@ impl SyncCoordinator {
     ) -> Result<(), crate::WorkspaceCoordError> {
         let sync = self.clone();
         run_product_worker(move |cancelled, deadline| async move {
-            sync.resolve_v2_product_inner(session, source, target, expected, keep_local, cancelled, deadline)
-                .await
+            sync.resolve_v2_product_inner(
+                session, source, target, expected, keep_local, cancelled, deadline,
+            )
+            .await
         })
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn resolve_v2_product_inner(
         &self,
         session: Arc<cloud_client::Session>,

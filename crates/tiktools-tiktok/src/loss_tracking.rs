@@ -149,6 +149,9 @@ pub enum TrackedReceiveError {
     Closed,
 }
 
+#[cfg(test)]
+type PauseBarriers = Option<(Arc<std::sync::Barrier>, Arc<std::sync::Barrier>)>;
+
 #[derive(Clone, Default)]
 pub(crate) struct LossTracker {
     history: Arc<Mutex<History>>,
@@ -156,7 +159,7 @@ pub(crate) struct LossTracker {
     untracked_inflight: Arc<AtomicUsize>,
     exhausted: Arc<AtomicBool>,
     #[cfg(test)]
-    pause_untracked: Arc<Mutex<Option<(Arc<std::sync::Barrier>, Arc<std::sync::Barrier>)>>>,
+    pause_untracked: Arc<Mutex<PauseBarriers>>,
 }
 
 impl LossTracker {

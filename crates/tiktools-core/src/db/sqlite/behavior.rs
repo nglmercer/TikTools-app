@@ -202,6 +202,7 @@ impl DatabaseManager {
             Ok(Versioned::new(missing, meta.into_values().collect()))
         })
     }
+    #[allow(dead_code)]
     pub(crate) fn set_plugin_state(
         &self,
         id: &str,
@@ -222,6 +223,7 @@ impl DatabaseManager {
         tx.commit()?;
         Ok(json!({"id": id, "installed": installed, "enabled": enabled}))
     }
+    #[allow(dead_code)]
     pub(crate) fn remove_plugin_state(&self, id: &str) -> Result<(), DatabaseError> {
         let mut connection = self.open(&self.automation_path())?;
         connection.execute_batch("PRAGMA synchronous=FULL;")?;

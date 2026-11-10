@@ -106,7 +106,10 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
     <template v-if="model.editable.value">
       <h3>{{ model.kind.value === 'action' ? labels.action : labels.event }} · {{ model.id.value }}</h3>
       <p>{{ labels.mode }}: {{ model.mode.value === 'create' ? labels.create : labels.update }} · {{ labels.base }} {{ model.baseRevision.value }}</p>
-      <ControllerProposalBuilder :model="model" :automation="automation" />
+      <ControllerProposalBuilder
+        :model="model"
+        :automation="automation"
+      />
       <div class="actions">
         <button
           :disabled="model.busy.value"

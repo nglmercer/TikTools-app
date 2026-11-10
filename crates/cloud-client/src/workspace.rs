@@ -20,8 +20,8 @@ pub use bounded_catalog::{
     CatalogVersionPage,
 };
 pub use capabilities::WorkspaceSyncCapabilities;
-pub use write_epoch::WorkspaceWriteEpoch;
 use validation::*;
+pub use write_epoch::WorkspaceWriteEpoch;
 
 const MAX_V2_RESPONSE: usize = 32 * 1024 * 1024;
 /// Anonymous discovery bound to the operator-provisioned instance origin.

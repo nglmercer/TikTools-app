@@ -46,9 +46,20 @@ async fn remote_identity_is_host_supplied_and_policy_filters_calls_and_discovery
         )
         .await
         .is_ok());
-    let feed = api.execute_with_context(&context, call("ui.feed.browser", json!({"after":"0"}))).await.result.unwrap();
+    let feed = api
+        .execute_with_context(&context, call("ui.feed.browser", json!({"after":"0"})))
+        .await
+        .result
+        .unwrap();
     assert_eq!(feed["latestCursor"], "0");
-    assert_eq!(api.execute_with_context(&context, call("ui.feed.browser", json!({"after":"01"}))).await.error.unwrap().code, "invalid_params");
+    assert_eq!(
+        api.execute_with_context(&context, call("ui.feed.browser", json!({"after":"01"})))
+            .await
+            .error
+            .unwrap()
+            .code,
+        "invalid_params"
+    );
 
     // A claimed owner or grant in raw JSON cannot replace trusted context.
     for method in [
@@ -107,7 +118,14 @@ async fn remote_identity_is_host_supplied_and_policy_filters_calls_and_discovery
 
     // Dynamic grant changes affect every clone, not only new connections.
     session.set_capabilities([]);
-    assert_eq!(api.execute_with_context(&context, call("ui.feed.browser", json!({"after":"0"}))).await.error.unwrap().code, "forbidden");
+    assert_eq!(
+        api.execute_with_context(&context, call("ui.feed.browser", json!({"after":"0"})))
+            .await
+            .error
+            .unwrap()
+            .code,
+        "forbidden"
+    );
     assert_eq!(
         api.execute_with_context(&context, call("live.status", json!({})))
             .await
@@ -185,6 +203,12 @@ fn every_unclassified_registry_method_is_denied_and_only_completed_mutations_are
                 | "automation.get"
                 | "automation.disable"
                 | "automation.delete"
+                | "automation.enable"
+                | "automation.source.get"
+                | "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
         ) {
             assert_eq!(
                 policy,
@@ -203,6 +227,11 @@ fn every_unclassified_registry_method_is_denied_and_only_completed_mutations_are
                     | "automation.delete"
                     | "automation.create"
                     | "automation.update"
+                    | "automation.enable"
+                    | "competitions.start"
+                    | "competitions.resume"
+                    | "competitions.pause"
+                    | "competitions.cancel"
             ));
             assert!(meta.durable_commands);
             assert_eq!(

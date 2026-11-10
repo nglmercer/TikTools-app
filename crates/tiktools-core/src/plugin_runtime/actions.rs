@@ -105,18 +105,26 @@ impl AppCore {
         .map_err(|error| format!("could not encode plugin action: {error}"))?;
         let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&self.plugins));
         self.execution_context_guard(context)?;
-        let response = invoker
-            .call(&plugin.manifest.id, &request, action_timeout)
+        let invoke_error = |error: crate::plugin_invoker::InvokeError| match error {
+            crate::plugin_invoker::InvokeError::Timeout => format!(
+                "plugin `{}` timed out after {} seconds",
+                plugin.manifest.id,
+                action_timeout.as_secs()
+            ),
+            crate::plugin_invoker::InvokeError::Unavailable(reason)
+            | crate::plugin_invoker::InvokeError::Plugin(reason) => reason,
+        };
+        // Start only while still enabled, under the same gate disable uses:
+        // a dispatch that passed the readiness check above cannot resurrect a
+        // plugin the user disabled in the meantime.
+        let generation = self
+            .start_plugin_for_invocation(&plugin.manifest.id)
             .await
-            .map_err(|error| match error {
-                crate::plugin_invoker::InvokeError::Timeout => format!(
-                    "plugin `{}` timed out after {} seconds",
-                    plugin.manifest.id,
-                    action_timeout.as_secs()
-                ),
-                crate::plugin_invoker::InvokeError::Unavailable(reason)
-                | crate::plugin_invoker::InvokeError::Plugin(reason) => reason,
-            })?;
+            .map_err(invoke_error)?;
+        let response = invoker
+            .call_started(&plugin.manifest.id, &request, action_timeout, generation)
+            .await
+            .map_err(invoke_error)?;
         // A response can arrive after recovery quarantined its plugin. Do
         // not accept its returned intents in that case. This check alone does
         // not serialize later effects with a concurrent quarantine transition.
@@ -176,5 +184,34 @@ impl AppCore {
             return false;
         };
         manifest_action_declares_field(&plugin.manifest, type_id, key)
+    }
+}
+
+impl AppCore {
+    /// Starts `id` for an invocation only while it is still installed and
+    /// enabled. Disable and stop run under `invocation_gate`, so checking
+    /// readiness and starting under that gate is atomic against them.
+    pub(crate) async fn start_plugin_for_invocation(
+        self: &Arc<Self>,
+        id: &str,
+    ) -> Result<u64, crate::plugin_invoker::InvokeError> {
+        use crate::plugin_invoker::InvokeError;
+        let core = Arc::clone(self);
+        let id = id.to_owned();
+        tokio::task::spawn_blocking(move || {
+            let _gate = core.plugin_state.invocation_gate.lock().map_err(|_| {
+                InvokeError::Unavailable("plugin invocation lease is unavailable".to_owned())
+            })?;
+            if !core.plugin_ready(&id) {
+                return Err(InvokeError::Unavailable(format!(
+                    "Plugin `{id}` is not installed, enabled, or available."
+                )));
+            }
+            core.plugins
+                .start_generation(&id)
+                .map_err(|error| InvokeError::Unavailable(error.to_string()))
+        })
+        .await
+        .map_err(|error| InvokeError::Unavailable(format!("plugin startup task failed: {error}")))?
     }
 }

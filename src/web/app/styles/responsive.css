@@ -37,7 +37,7 @@ body {
 @media (width < 900px) {
   .app-layout__navigation {
     position: fixed;
-    inset: 30px auto 0 0;
+    inset: var(--chrome-height) auto 0 0;
     z-index: 50;
     width: min(280px, 84vw);
     height: auto;
@@ -166,14 +166,7 @@ body {
     gap: var(--space-3);
   }
 
-  .plugins-page__workspace {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(180px, 32dvh) minmax(320px, 54dvh);
-    gap: var(--space-3);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
+
 }
 
 @media (width < 420px) {
@@ -186,4 +179,32 @@ body {
   .live-feed__jump {
     transition: none;
   }
+}
+
+/* Keep the existing automation workspace density while settings adopt the new
+   patterns. These overrides also cover its mobile sheet and shared editors. */
+.app-layout--automation {
+  --control-height-sm: 22px;
+  --control-height-md: 26px;
+  --control-height-lg: 32px;
+  --chrome-height: 30px;
+}
+.app-layout--automation .automations-page .base-panel__header {
+  min-height: 32px;
+  flex-wrap: nowrap;
+}
+.app-layout--automation .automations-page .base-panel__title {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.app-layout--automation .automations-page .base-panel__actions {
+  flex-basis: auto;
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+.app-layout--automation .automations-page .base-panel__subtitle { white-space: nowrap; }
+.app-layout--automation .automations-page .base-form-row__hint {
+  color: var(--color-text-subtle);
+  line-height: inherit;
+  overflow-wrap: normal;
 }

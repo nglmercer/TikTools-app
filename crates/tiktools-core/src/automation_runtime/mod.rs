@@ -9,13 +9,13 @@
 //! [`samples`](self) the per-type sample events the test harness falls
 //! back to when no live event of that type has been seen yet.
 
+mod approved_effects;
+mod approved_flow;
 pub(crate) mod context;
 mod dispatch;
 mod execution;
 #[cfg(feature = "persistence")]
 mod external_effects;
-mod approved_effects;
-mod approved_flow;
 mod http_actions;
 mod media_actions;
 pub(crate) mod samples;

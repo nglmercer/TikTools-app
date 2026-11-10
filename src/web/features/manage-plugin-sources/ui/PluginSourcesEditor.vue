@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import type { AutoUpdate, RegistryDefaults } from '@/entities/plugin-package/api/package-types.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
@@ -77,12 +77,12 @@ onMounted(() => void packages.loadRegistries());
           />
         </BaseFormRow>
       </BaseFormGrid>
-      <BaseCheckbox
+      <BaseSwitch
         v-model="allowSideload"
         :disabled="!packages.defaults"
       >
         {{ t('packages.sources.allowSideload') }}
-      </BaseCheckbox>
+      </BaseSwitch>
     </BaseGroupBox>
   </div>
 </template>

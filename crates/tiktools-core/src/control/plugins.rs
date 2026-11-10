@@ -190,6 +190,7 @@ fn reserve_local_plugin_mutation_prepared<T>(
 }
 
 #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[allow(clippy::too_many_arguments)]
 fn reserve_local_plugin_mutation_prepared_for<T>(
     sync: &tiktools_cloud_sync::SyncCoordinator,
     db: &crate::db::DatabaseManager,
@@ -944,6 +945,7 @@ impl AppCore {
             .ok_or_else(|| OperationError::not_found(format!("Plugin `{id}` is not installed.")))
     }
 
+    #[allow(clippy::needless_return)]
     pub fn plugin_set_installed(&self, id: &str, installed: bool) -> Result<(), OperationError> {
         #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
         {
@@ -1106,6 +1108,7 @@ impl AppCore {
         confirmation
     }
 
+    #[allow(clippy::needless_return)]
     pub fn plugin_set_enabled(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
         #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
         {
@@ -1206,6 +1209,7 @@ impl AppCore {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn set_enabled_impl(
         &self,
         id: &str,

@@ -548,13 +548,15 @@ fn reusable_automation_policy_is_persisted_versioned_and_revocable() {
     let (dir, s) = service();
     let a = pair(&s, ClientKind::Desktop);
     let current = s.authenticate_live(&a.access_token, false, true).unwrap();
-    let mut grant = Grant::default();
-    grant.capabilities = [
-        Capability::AutomationRead,
-        Capability::AutomationEdit,
-        Capability::AutomationToggle,
-    ]
-    .into();
+    let mut grant = Grant {
+        capabilities: [
+            Capability::AutomationRead,
+            Capability::AutomationEdit,
+            Capability::AutomationToggle,
+        ]
+        .into(),
+        ..Default::default()
+    };
     grant.automation_delegation = Some(AutomationDelegation {
         effects: [
             DelegatedAutomationEffect::Log,

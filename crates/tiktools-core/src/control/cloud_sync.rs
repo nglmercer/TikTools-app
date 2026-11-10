@@ -209,17 +209,18 @@ fn v2_value_from_record(record: Option<&cloud_client::WorkspaceRecord>) -> V2Con
             enabled: None,
         },
         Some(record) => {
-            let mut projected = record
-                .value
-                .as_ref()
-                .map(selection_projection)
-                .unwrap_or(V2ConflictValue {
-                    state: "present".into(),
-                    revision: Some(record.revision),
-                    value: None,
-                    version: None,
-                    enabled: None,
-                });
+            let mut projected =
+                record
+                    .value
+                    .as_ref()
+                    .map(selection_projection)
+                    .unwrap_or(V2ConflictValue {
+                        state: "present".into(),
+                        revision: Some(record.revision),
+                        value: None,
+                        version: None,
+                        enabled: None,
+                    });
             projected.revision = Some(record.revision);
             projected
         }
@@ -439,9 +440,7 @@ impl AppCore {
 
     /// Explicit rebuild from a consistent export after cursor expiry. Never
     /// adopts contents into the running host.
-    pub async fn sync_v2_rebuild(
-        self: &std::sync::Arc<Self>,
-    ) -> Result<(), OperationError> {
+    pub async fn sync_v2_rebuild(self: &std::sync::Arc<Self>) -> Result<(), OperationError> {
         #[cfg(feature = "persistence")]
         {
             let (session, _) = self.v2_identity().await?;
@@ -453,14 +452,18 @@ impl AppCore {
                 .map_err(|_| OperationError::unavailable("Cloud v2 rebuild could not complete"))?;
             self.cloud
                 .auth()
-                .with_current_session(&session, || coordinator.is_v2_config_epoch_current(&epoch, &session))
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
                 .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
                 .then_some(())
                 .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))
         }
         #[cfg(not(feature = "persistence"))]
         {
-            Err(OperationError::unavailable("Cloud v2 rebuild requires persistence"))
+            Err(OperationError::unavailable(
+                "Cloud v2 rebuild requires persistence",
+            ))
         }
     }
 
@@ -493,7 +496,9 @@ impl AppCore {
             .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))??;
             self.cloud
                 .auth()
-                .with_current_session(&session, || coordinator.is_v2_config_epoch_current(&epoch, &session))
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
                 .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
                 .then_some(())
                 .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))
@@ -501,7 +506,9 @@ impl AppCore {
         #[cfg(not(feature = "persistence"))]
         {
             let _ = native;
-            Err(OperationError::unavailable("Cloud v2 preferences require persistence"))
+            Err(OperationError::unavailable(
+                "Cloud v2 preferences require persistence",
+            ))
         }
     }
 
@@ -538,7 +545,9 @@ impl AppCore {
             .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))??;
             self.cloud
                 .auth()
-                .with_current_session(&session, || coordinator.is_v2_config_epoch_current(&epoch, &session))
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
                 .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
                 .then_some(())
                 .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))
@@ -546,13 +555,21 @@ impl AppCore {
         #[cfg(not(feature = "persistence"))]
         {
             let _ = (plugin_id, native);
-            Err(OperationError::unavailable("Cloud v2 plugin settings require persistence"))
+            Err(OperationError::unavailable(
+                "Cloud v2 plugin settings require persistence",
+            ))
         }
     }
 
     async fn v2_identity(
         self: &std::sync::Arc<Self>,
-    ) -> Result<(std::sync::Arc<cloud_client::Session>, tiktools_cloud_sync::V2LocalEditContext), OperationError> {
+    ) -> Result<
+        (
+            std::sync::Arc<cloud_client::Session>,
+            tiktools_cloud_sync::V2LocalEditContext,
+        ),
+        OperationError,
+    > {
         use tiktools_cloud_sync::ProductLocalEditContext;
         let core = self.clone();
         let selected = tokio::task::spawn_blocking(move || {
@@ -610,23 +627,30 @@ impl AppCore {
                 let list_coordinator = coordinator.clone();
                 move || list_coordinator.v2_product_conflict_keys(&core_session)
             })
-                .await
-                .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))?
-                .map_err(|_| OperationError::unavailable("Cloud v2 conflict list is unavailable"))?;
+            .await
+            .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))?
+            .map_err(|_| OperationError::unavailable("Cloud v2 conflict list is unavailable"))?;
             self.cloud
                 .auth()
-                .with_current_session(&session, || coordinator.is_v2_config_epoch_current(&epoch, &session))
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
                 .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
                 .then_some(())
                 .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
             Ok(keys
                 .into_iter()
-                .map(|target| V2ConflictTarget { collection: target.collection, key: target.key })
+                .map(|target| V2ConflictTarget {
+                    collection: target.collection,
+                    key: target.key,
+                })
                 .collect())
         }
         #[cfg(not(feature = "persistence"))]
         {
-            Err(OperationError::unavailable("Cloud v2 conflicts require persistence"))
+            Err(OperationError::unavailable(
+                "Cloud v2 conflicts require persistence",
+            ))
         }
     }
 
@@ -650,7 +674,9 @@ impl AppCore {
                 .map_err(|_| OperationError::conflict("Cloud conflict changed; review again"))?;
             self.cloud
                 .auth()
-                .with_current_session(&session, || coordinator.is_v2_config_epoch_current(&epoch, &session))
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
                 .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
                 .then_some(())
                 .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
@@ -668,7 +694,10 @@ impl AppCore {
             let mut bytes = [0u8; 32];
             getrandom::fill(&mut bytes)
                 .map_err(|_| OperationError::internal("could not create review handle"))?;
-            let token = bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+            let token = bytes
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>();
             let review = V2ConflictReview {
                 handle: token.clone(),
                 collection: snapshot.target.collection.clone(),
@@ -680,14 +709,20 @@ impl AppCore {
             };
             {
                 let mut slot = self.sync.v2_conflict.lock().await;
-                *slot = Some(V2ConflictHandle { token, session, snapshot });
+                *slot = Some(V2ConflictHandle {
+                    token,
+                    session,
+                    snapshot,
+                });
             }
             Ok(review)
         }
         #[cfg(not(feature = "persistence"))]
         {
             let _ = (collection, key);
-            Err(OperationError::unavailable("Cloud v2 conflicts require persistence"))
+            Err(OperationError::unavailable(
+                "Cloud v2 conflicts require persistence",
+            ))
         }
     }
 
@@ -729,12 +764,16 @@ impl AppCore {
                 Ok(()) => {}
                 Err(_) => {
                     *slot = Some(item);
-                    return Err(OperationError::conflict("Cloud conflict changed; review again"));
+                    return Err(OperationError::conflict(
+                        "Cloud conflict changed; review again",
+                    ));
                 }
             }
             self.cloud
                 .auth()
-                .with_current_session(&session, || coordinator.is_v2_config_epoch_current(&epoch, &session))
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
                 .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
                 .then_some(())
                 .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
@@ -743,7 +782,9 @@ impl AppCore {
         #[cfg(not(feature = "persistence"))]
         {
             let _ = (handle, choice);
-            Err(OperationError::unavailable("Cloud v2 conflicts require persistence"))
+            Err(OperationError::unavailable(
+                "Cloud v2 conflicts require persistence",
+            ))
         }
     }
 

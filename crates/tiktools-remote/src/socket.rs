@@ -4,8 +4,8 @@ use crate::{
 };
 use axum::{
     extract::{
-        State as ExtractState,
         ws::{Message, WebSocket, WebSocketUpgrade},
+        State as ExtractState,
     },
     http::HeaderMap,
     response::Response,
@@ -269,12 +269,10 @@ mod tests {
             .unwrap()
             .unwrap();
         stopping.cancel();
-        assert!(
-            !tokio::time::timeout(Duration::from_secs(1), task)
-                .await
-                .unwrap()
-                .unwrap()
-        );
+        assert!(!tokio::time::timeout(Duration::from_secs(1), task)
+            .await
+            .unwrap()
+            .unwrap());
         assert!(slots.clone().try_acquire_owned().is_err());
         release_tx.send(()).unwrap();
         let permit = tokio::time::timeout(Duration::from_secs(2), slots.acquire_owned())

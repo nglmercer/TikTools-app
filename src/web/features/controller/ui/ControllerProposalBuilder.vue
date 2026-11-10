@@ -304,97 +304,354 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
     <summary>{{ labels.title }}</summary>
     <p>{{ labels.note }}</p>
     <p>{{ labels.loadFieldsHint }}</p>
-    <button type="button" :disabled="model.busy.value || !model.editable.value" @click="loadFields">{{ labels.loadFields }}</button>
-    <p v-if="loadError" role="alert">{{ labels.loadFieldsError }}</p>
-    <p v-if="loadedSource && loadedSource.text !== model.text.value" role="status">{{ labels.staleFields }}</p>
+    <button
+      type="button"
+      :disabled="model.busy.value || !model.editable.value"
+      @click="loadFields"
+    >
+      {{ labels.loadFields }}
+    </button>
+    <p
+      v-if="loadError"
+      role="alert"
+    >
+      {{ labels.loadFieldsError }}
+    </p>
+    <p
+      v-if="loadedSource && loadedSource.text !== model.text.value"
+      role="status"
+    >
+      {{ labels.staleFields }}
+    </p>
     <div class="fields">
-      <label>{{ labels.name }}<input v-model="name" maxlength="256" :disabled="model.busy.value"></label>
+      <label>{{ labels.name }}<input
+        v-model="name"
+        maxlength="256"
+        :disabled="model.busy.value"
+      ></label>
       <template v-if="model.kind.value === 'action'">
-        <label>{{ labels.actionType }}<select v-model="actionType" :disabled="model.busy.value"><option value="core.log">{{ labels.log }}</option><option value="core.delay">{{ labels.delay }}</option><option value="core.points">{{ labels.points }}</option><option value="core.emit">{{ labels.emit }}</option><option value="core.fetch">{{ labels.fetch }}</option><option value="audio.play">{{ labels.audio }}</option><option value="core.code">{{ labels.script }}</option></select></label>
-        <label v-if="actionType === 'core.log'">{{ labels.message }}<input v-model="message" maxlength="8192" :disabled="model.busy.value"></label>
-        <label v-else-if="actionType === 'core.delay'">{{ labels.milliseconds }}<input v-model="milliseconds" type="number" min="0" max="60000" step="1" :disabled="model.busy.value"></label>
+        <label>{{ labels.actionType }}<select
+          v-model="actionType"
+          :disabled="model.busy.value"
+        ><option value="core.log">{{ labels.log }}</option><option value="core.delay">{{ labels.delay }}</option><option value="core.points">{{ labels.points }}</option><option value="core.emit">{{ labels.emit }}</option><option value="core.fetch">{{ labels.fetch }}</option><option value="audio.play">{{ labels.audio }}</option><option value="core.code">{{ labels.script }}</option></select></label>
+        <label v-if="actionType === 'core.log'">{{ labels.message }}<input
+          v-model="message"
+          maxlength="8192"
+          :disabled="model.busy.value"
+        ></label>
+        <label v-else-if="actionType === 'core.delay'">{{ labels.milliseconds }}<input
+          v-model="milliseconds"
+          type="number"
+          min="0"
+          max="60000"
+          step="1"
+          :disabled="model.busy.value"
+        ></label>
         <template v-else-if="actionType === 'core.emit'">
-          <label>{{ labels.topic }}<input v-model="emitTopic" maxlength="64" spellcheck="false" :disabled="model.busy.value"></label>
-          <label>{{ labels.emitData }}<textarea v-model="emitData" rows="4" spellcheck="false" :disabled="model.busy.value" /></label>
+          <label>{{ labels.topic }}<input
+            v-model="emitTopic"
+            maxlength="64"
+            spellcheck="false"
+            :disabled="model.busy.value"
+          ></label>
+          <label>{{ labels.emitData }}<textarea
+            v-model="emitData"
+            rows="4"
+            spellcheck="false"
+            :disabled="model.busy.value"
+          /></label>
         </template>
         <template v-else-if="actionType === 'core.fetch'">
-          <label>{{ labels.fetchUrl }}<input v-model="fetchUrl" maxlength="8192" spellcheck="false" autocomplete="off" :disabled="model.busy.value"></label>
-          <label>{{ labels.fetchMethod }}<select v-model="fetchMethod" :disabled="model.busy.value"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select></label>
-          <label>{{ labels.fetchHeaders }}<textarea v-model="fetchHeaders" rows="4" spellcheck="false" autocomplete="off" :disabled="model.busy.value" /></label>
-          <label>{{ labels.fetchBody }}<textarea v-model="fetchBody" rows="4" spellcheck="false" autocomplete="off" :disabled="model.busy.value" /></label>
-          <label>{{ labels.fetchTimeout }}<input v-model="fetchTimeout" type="number" min="100" max="120000" step="1" :disabled="model.busy.value"></label>
-          <label>{{ labels.fetchResponse }}<input v-model="fetchResponse" type="number" min="1" max="2097152" step="1" :disabled="model.busy.value"></label>
-          <label><input v-model="fetchPrivate" type="checkbox" :disabled="model.busy.value">{{ labels.fetchPrivate }}</label>
+          <label>{{ labels.fetchUrl }}<input
+            v-model="fetchUrl"
+            maxlength="8192"
+            spellcheck="false"
+            autocomplete="off"
+            :disabled="model.busy.value"
+          ></label>
+          <label>{{ labels.fetchMethod }}<select
+            v-model="fetchMethod"
+            :disabled="model.busy.value"
+          ><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select></label>
+          <label>{{ labels.fetchHeaders }}<textarea
+            v-model="fetchHeaders"
+            rows="4"
+            spellcheck="false"
+            autocomplete="off"
+            :disabled="model.busy.value"
+          /></label>
+          <label>{{ labels.fetchBody }}<textarea
+            v-model="fetchBody"
+            rows="4"
+            spellcheck="false"
+            autocomplete="off"
+            :disabled="model.busy.value"
+          /></label>
+          <label>{{ labels.fetchTimeout }}<input
+            v-model="fetchTimeout"
+            type="number"
+            min="100"
+            max="120000"
+            step="1"
+            :disabled="model.busy.value"
+          ></label>
+          <label>{{ labels.fetchResponse }}<input
+            v-model="fetchResponse"
+            type="number"
+            min="1"
+            max="2097152"
+            step="1"
+            :disabled="model.busy.value"
+          ></label>
+          <label><input
+            v-model="fetchPrivate"
+            type="checkbox"
+            :disabled="model.busy.value"
+          >{{ labels.fetchPrivate }}</label>
         </template>
         <template v-else-if="actionType === 'audio.play'">
-          <label>{{ labels.audioPath }}<input v-model="audioPath" maxlength="4096" spellcheck="false" autocomplete="off" :disabled="model.busy.value"></label>
-          <label>{{ labels.audioVolume }}<input v-model="audioVolume" type="number" min="0" max="1" step="any" :disabled="model.busy.value"></label>
-          <label>{{ labels.audioOverlap }}<select v-model="audioOverlap" :disabled="model.busy.value"><option value="allow">{{ labels.audioAllow }}</option><option value="restart">{{ labels.audioRestart }}</option><option value="drop">{{ labels.audioDrop }}</option></select></label>
+          <label>{{ labels.audioPath }}<input
+            v-model="audioPath"
+            maxlength="4096"
+            spellcheck="false"
+            autocomplete="off"
+            :disabled="model.busy.value"
+          ></label>
+          <label>{{ labels.audioVolume }}<input
+            v-model="audioVolume"
+            type="number"
+            min="0"
+            max="1"
+            step="any"
+            :disabled="model.busy.value"
+          ></label>
+          <label>{{ labels.audioOverlap }}<select
+            v-model="audioOverlap"
+            :disabled="model.busy.value"
+          ><option value="allow">{{ labels.audioAllow }}</option><option value="restart">{{ labels.audioRestart }}</option><option value="drop">{{ labels.audioDrop }}</option></select></label>
         </template>
         <template v-else-if="actionType === 'core.code'">
-          <label>{{ labels.scriptSource }}<textarea v-model="scriptSource" rows="10" spellcheck="false" autocomplete="off" :disabled="model.busy.value" /></label>
+          <label>{{ labels.scriptSource }}<textarea
+            v-model="scriptSource"
+            rows="10"
+            spellcheck="false"
+            autocomplete="off"
+            :disabled="model.busy.value"
+          /></label>
         </template>
         <template v-else>
-          <label>{{ labels.viewerTarget }}<select v-model="viewerTarget" :disabled="model.busy.value"><option value="specific">{{ labels.specificViewer }}</option><option value="event">{{ labels.triggeringViewer }}</option></select></label>
-          <label v-if="viewerTarget === 'specific'">{{ labels.viewer }}<input v-model="viewer" maxlength="128" spellcheck="false" autocomplete="off" :disabled="model.busy.value"></label>
-          <label>{{ labels.delta }}<input v-model="delta" type="number" min="-1000000000" max="1000000000" step="any" :disabled="model.busy.value"></label>
+          <label>{{ labels.viewerTarget }}<select
+            v-model="viewerTarget"
+            :disabled="model.busy.value"
+          ><option value="specific">{{ labels.specificViewer }}</option><option value="event">{{ labels.triggeringViewer }}</option></select></label>
+          <label v-if="viewerTarget === 'specific'">{{ labels.viewer }}<input
+            v-model="viewer"
+            maxlength="128"
+            spellcheck="false"
+            autocomplete="off"
+            :disabled="model.busy.value"
+          ></label>
+          <label>{{ labels.delta }}<input
+            v-model="delta"
+            type="number"
+            min="-1000000000"
+            max="1000000000"
+            step="any"
+            :disabled="model.busy.value"
+          ></label>
         </template>
       </template>
       <template v-else>
-        <label>{{ labels.trigger }}<select v-model="trigger" :disabled="model.busy.value"><option value="tiktok.chat">{{ labels.chat }}</option><option value="tiktok.gift">{{ labels.gift }}</option><option value="tiktok.like">{{ labels.like }}</option><option value="tiktok.follow">{{ labels.follow }}</option><option value="tiktok.share">{{ labels.share }}</option><option value="tiktok.join">{{ labels.join }}</option><option value="custom">{{ labels.custom }}</option></select></label>
-        <label v-if="trigger === 'custom'">{{ labels.topic }}<input v-model="customTopic" maxlength="64" spellcheck="false" :disabled="model.busy.value"></label>
-        <label v-if="trigger === 'tiktok.chat'">{{ labels.contains }}<input v-model="contains" maxlength="500" :disabled="model.busy.value"></label>
-        <label v-if="trigger === 'tiktok.gift'">{{ labels.giftContains }}<input v-model="giftContains" maxlength="500" :disabled="model.busy.value"></label>
-        <label>{{ labels.actionId }}<input v-model="actionId" maxlength="128" spellcheck="false" :disabled="model.busy.value"></label>
-        <label>{{ labels.runMode }}<select v-model="runMode" :disabled="model.busy.value"><option value="all">{{ labels.runAll }}</option><option value="random">{{ labels.runRandom }}</option></select></label>
-        <label>{{ labels.cooldown }}<input v-model="cooldown" type="number" min="0" max="86400000" step="1" :disabled="model.busy.value"></label>
-        <label>{{ labels.cooldownScope }}<select v-model="cooldownScope" :disabled="model.busy.value"><option value="global">{{ labels.cooldownGlobal }}</option><option value="user">{{ labels.cooldownViewer }}</option></select></label>
+        <label>{{ labels.trigger }}<select
+          v-model="trigger"
+          :disabled="model.busy.value"
+        ><option value="tiktok.chat">{{ labels.chat }}</option><option value="tiktok.gift">{{ labels.gift }}</option><option value="tiktok.like">{{ labels.like }}</option><option value="tiktok.follow">{{ labels.follow }}</option><option value="tiktok.share">{{ labels.share }}</option><option value="tiktok.join">{{ labels.join }}</option><option value="custom">{{ labels.custom }}</option></select></label>
+        <label v-if="trigger === 'custom'">{{ labels.topic }}<input
+          v-model="customTopic"
+          maxlength="64"
+          spellcheck="false"
+          :disabled="model.busy.value"
+        ></label>
+        <label v-if="trigger === 'tiktok.chat'">{{ labels.contains }}<input
+          v-model="contains"
+          maxlength="500"
+          :disabled="model.busy.value"
+        ></label>
+        <label v-if="trigger === 'tiktok.gift'">{{ labels.giftContains }}<input
+          v-model="giftContains"
+          maxlength="500"
+          :disabled="model.busy.value"
+        ></label>
+        <label>{{ labels.actionId }}<input
+          v-model="actionId"
+          maxlength="128"
+          spellcheck="false"
+          :disabled="model.busy.value"
+        ></label>
+        <label>{{ labels.runMode }}<select
+          v-model="runMode"
+          :disabled="model.busy.value"
+        ><option value="all">{{ labels.runAll }}</option><option value="random">{{ labels.runRandom }}</option></select></label>
+        <label>{{ labels.cooldown }}<input
+          v-model="cooldown"
+          type="number"
+          min="0"
+          max="86400000"
+          step="1"
+          :disabled="model.busy.value"
+        ></label>
+        <label>{{ labels.cooldownScope }}<select
+          v-model="cooldownScope"
+          :disabled="model.busy.value"
+        ><option value="global">{{ labels.cooldownGlobal }}</option><option value="user">{{ labels.cooldownViewer }}</option></select></label>
       </template>
     </div>
-    <div v-if="model.kind.value === 'event'" class="selected-actions">
-      <button type="button" :disabled="model.busy.value || !model.editable.value || !actionId || !actionsValid" @click="addAction">{{ labels.addAction }}</button>
-      <p v-if="!actionsValid" role="status">{{ labels.actionError }}</p>
+    <div
+      v-if="model.kind.value === 'event'"
+      class="selected-actions"
+    >
+      <button
+        type="button"
+        :disabled="model.busy.value || !model.editable.value || !actionId || !actionsValid"
+        @click="addAction"
+      >
+        {{ labels.addAction }}
+      </button>
+      <p
+        v-if="!actionsValid"
+        role="status"
+      >
+        {{ labels.actionError }}
+      </p>
       <template v-if="selectedActionIds.length">
         <h4>{{ labels.selectedActions }}</h4>
         <ol>
-          <li v-for="(id, index) in selectedActionIds" :key="id">
+          <li
+            v-for="(id, index) in selectedActionIds"
+            :key="id"
+          >
             <span>{{ id }}</span>
-            <button type="button" :aria-label="labels.moveEarlier(id)" :disabled="model.busy.value || !model.editable.value || index === 0" @click="moveAction(index, -1)">↑</button>
-            <button type="button" :aria-label="labels.moveLater(id)" :disabled="model.busy.value || !model.editable.value || index === selectedActionIds.length - 1" @click="moveAction(index, 1)">↓</button>
-            <button type="button" :aria-label="labels.removeAction(id)" :disabled="model.busy.value || !model.editable.value" @click="removeAction(index)">×</button>
+            <button
+              type="button"
+              :aria-label="labels.moveEarlier(id)"
+              :disabled="model.busy.value || !model.editable.value || index === 0"
+              @click="moveAction(index, -1)"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              :aria-label="labels.moveLater(id)"
+              :disabled="model.busy.value || !model.editable.value || index === selectedActionIds.length - 1"
+              @click="moveAction(index, 1)"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              :aria-label="labels.removeAction(id)"
+              :disabled="model.busy.value || !model.editable.value"
+              @click="removeAction(index)"
+            >
+              ×
+            </button>
           </li>
         </ol>
       </template>
     </div>
-    <section v-if="model.kind.value === 'event' && actionsReady" :aria-label="labels.availableActions" class="available-actions">
+    <section
+      v-if="model.kind.value === 'event' && actionsReady"
+      :aria-label="labels.availableActions"
+      class="available-actions"
+    >
       <h4>{{ labels.availableActions }}</h4>
       <p>{{ labels.actionStatusNote }}</p>
-      <label>{{ labels.actionSearch }}<input v-model="actionSearch" type="search" maxlength="128" autocomplete="off" :disabled="model.busy.value"></label>
-      <p v-if="!matchingActions.length">{{ labels.noActions }}</p>
+      <label>{{ labels.actionSearch }}<input
+        v-model="actionSearch"
+        type="search"
+        maxlength="128"
+        autocomplete="off"
+        :disabled="model.busy.value"
+      ></label>
+      <p v-if="!matchingActions.length">
+        {{ labels.noActions }}
+      </p>
       <ul v-else>
-        <li v-for="row in matchingActions.slice(0, 50)" :key="row.summary.id">
+        <li
+          v-for="row in matchingActions.slice(0, 50)"
+          :key="row.summary.id"
+        >
           <span>{{ row.summary.name }} · {{ row.summary.id }} · {{ row.summary.enabled ? labels.actionEnabled : labels.actionDisabled }}</span>
-          <button type="button" :disabled="model.busy.value || !model.editable.value" @click="useAction(row)">{{ labels.selectAction }}</button>
+          <button
+            type="button"
+            :disabled="model.busy.value || !model.editable.value"
+            @click="useAction(row)"
+          >
+            {{ labels.selectAction }}
+          </button>
         </li>
       </ul>
-      <p v-if="matchingActions.length > 50">{{ labels.actionLimit }}</p>
+      <p v-if="matchingActions.length > 50">
+        {{ labels.actionLimit }}
+      </p>
     </section>
-    <p v-if="model.kind.value === 'event'">{{ labels.actionNote }}</p>
-    <p v-if="model.kind.value === 'event' && trigger === 'tiktok.gift'">{{ labels.giftHint }}</p>
-    <p v-if="model.kind.value === 'event' && trigger === 'custom'">{{ labels.customHint }}</p>
-    <p v-if="model.kind.value === 'action' && actionType === 'core.emit'">{{ labels.emitHint }}</p>
-    <p v-if="model.kind.value === 'action' && actionType === 'core.fetch'">{{ labels.fetchHint }}</p>
-    <p v-if="model.kind.value === 'action' && actionType === 'audio.play'">{{ labels.audioHint }}</p>
-    <p v-if="model.kind.value === 'action' && actionType === 'core.code'">{{ labels.scriptHint }}</p>
-    <p v-if="model.kind.value === 'event' && cooldown !== '0'">{{ labels.cooldownNote }}</p>
-    <p v-if="model.kind.value === 'action' && actionType === 'core.points'">{{ viewerTarget === 'event' ? labels.dynamicPointsNote : labels.pointsNote }}</p>
-    <p v-if="draft === null" role="status">{{ labels.invalid }}</p>
-    <button type="button" :disabled="draft === null || !model.prepare('save')" @click="prepare">{{ labels.generate }}</button>
+    <p v-if="model.kind.value === 'event'">
+      {{ labels.actionNote }}
+    </p>
+    <p v-if="model.kind.value === 'event' && trigger === 'tiktok.gift'">
+      {{ labels.giftHint }}
+    </p>
+    <p v-if="model.kind.value === 'event' && trigger === 'custom'">
+      {{ labels.customHint }}
+    </p>
+    <p v-if="model.kind.value === 'action' && actionType === 'core.emit'">
+      {{ labels.emitHint }}
+    </p>
+    <p v-if="model.kind.value === 'action' && actionType === 'core.fetch'">
+      {{ labels.fetchHint }}
+    </p>
+    <p v-if="model.kind.value === 'action' && actionType === 'audio.play'">
+      {{ labels.audioHint }}
+    </p>
+    <p v-if="model.kind.value === 'action' && actionType === 'core.code'">
+      {{ labels.scriptHint }}
+    </p>
+    <p v-if="model.kind.value === 'event' && cooldown !== '0'">
+      {{ labels.cooldownNote }}
+    </p>
+    <p v-if="model.kind.value === 'action' && actionType === 'core.points'">
+      {{ viewerTarget === 'event' ? labels.dynamicPointsNote : labels.pointsNote }}
+    </p>
+    <p
+      v-if="draft === null"
+      role="status"
+    >
+      {{ labels.invalid }}
+    </p>
+    <button
+      type="button"
+      :disabled="draft === null || !model.prepare('save')"
+      @click="prepare"
+    >
+      {{ labels.generate }}
+    </button>
   </details>
-  <BaseConfirmDialog v-model:open="open" :title="labels.confirm" :message="labels.warning" :confirm-label="labels.apply" :busy="!current" @confirm="apply">
+  <BaseConfirmDialog
+    v-model:open="open"
+    :title="labels.confirm"
+    :message="labels.warning"
+    :confirm-label="labels.apply"
+    :busy="!current"
+    @confirm="apply"
+  >
     <template v-if="capture">
       <p>{{ labels.preview }}</p><pre>{{ capture.generated }}</pre>
-      <p v-if="!current" role="status">{{ labels.changed }}</p>
+      <p
+        v-if="!current"
+        role="status"
+      >
+        {{ labels.changed }}
+      </p>
     </template>
   </BaseConfirmDialog>
 </template>
