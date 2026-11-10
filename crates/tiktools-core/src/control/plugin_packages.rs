@@ -552,6 +552,11 @@ impl AppCore {
         &self,
         name: Option<&str>,
     ) -> Result<Vec<RegistryStatus>, OperationError> {
+        if name.is_some_and(|name| name != OFFICIAL_REGISTRY_NAME) {
+            return Err(OperationError::invalid(
+                "plugin sources are managed by the application",
+            ));
+        }
         let packages = self.packages()?;
         match name {
             Some(name) => Ok(vec![packages
@@ -589,6 +594,11 @@ impl AppCore {
         id: &str,
         registry: Option<&str>,
     ) -> Result<RegistryPackageView, OperationError> {
+        if registry.is_some_and(|name| name != OFFICIAL_REGISTRY_NAME) {
+            return Err(OperationError::invalid(
+                "plugin sources are managed by the application",
+            ));
+        }
         let packages = self.packages()?;
         let (source, document, live) = registry_package_live(&packages, id, registry).await?;
         Ok(RegistryPackageView {
