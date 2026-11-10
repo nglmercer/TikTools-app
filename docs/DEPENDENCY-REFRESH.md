@@ -50,11 +50,12 @@ GTK remains 0.18.2. The latest Wry 0.57.1 and WebKitGTK 2.0.2 require GTK 0.18;
 adding GTK 0.19 produces conflicting `gdk-3` native-library links and cannot be
 resolved alongside those current releases. Revisit when those upstreams migrate.
 
-The Android QuickJS feature dependency stays on rquickjs 0.12.2 to match the
-latest tiktok-signer revision. It exists to enable bindgen on the signer's
-engine. Updating this declaration to 0.14 would compile a second engine and
-leave the actual signer without Android bindings. Upgrade it together with
-ttl-sign-embedded when upstream migrates.
+The workspace and the Android QuickJS feature dependency both use rquickjs 0.14,
+the same version as the pinned tiktok-signer revision (`26ae095`, which moved
+`ttl-sign-embedded` and `ttl-sign-mobile` to 0.14). The Android declaration exists
+to enable bindgen on the shared engine; keeping it on the same version means
+Cargo unifies it with the signer's engine instead of compiling a second one.
+Keep these two versions aligned on every rquickjs bump.
 
 TypeScript 7.0 does not expose the compiler API required by typescript-eslint
 and vue-tsc. Keep the latest TypeScript 6 compiler API alongside the native 7

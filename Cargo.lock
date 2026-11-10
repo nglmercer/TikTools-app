@@ -985,9 +985,9 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 
 [[package]]
 name = "convert_case"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "affbf0190ed2caf063e3def54ff444b449371d55c58e513a95ab98eca50adb49"
+checksum = "1af709f1f33454bf52eadfc8c78b3b9ef9cb26fb54d16dc9cd9a7299f899fd1b"
 dependencies = [
  "unicode-segmentation",
 ]
@@ -1675,12 +1675,6 @@ dependencies = [
  "miniz_oxide 0.9.1",
  "zlib-rs",
 ]
-
-[[package]]
-name = "fnv"
-version = "1.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "foldhash"
@@ -2428,12 +2422,6 @@ dependencies = [
  "zerotrie",
  "zerovec",
 ]
-
-[[package]]
-name = "ident_case"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "idna"
@@ -4665,9 +4653,9 @@ dependencies = [
 
 [[package]]
 name = "rquickjs"
-version = "0.12.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e04e4eedfb060b503b5f0a2644abb890b0b3620d3fb674f9455f230014964e4"
+checksum = "a0a22bf72f515cc4189dd7c63d016f6de92a11eee98ddf7dd64794198f6eb34e"
 dependencies = [
  "rquickjs-core",
  "rquickjs-macro",
@@ -4675,9 +4663,9 @@ dependencies = [
 
 [[package]]
 name = "rquickjs-core"
-version = "0.12.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16e4f499ac5b943d97ee6dbc44f23c2c10426f420f7d2f1793d6318911b6608c"
+checksum = "6657979a24d543e5fc66f32cef2f47ca82ce8eb55cec5f7d59a12b7b570bbf24"
 dependencies = [
  "async-lock",
  "hashbrown 0.17.1",
@@ -4687,26 +4675,24 @@ dependencies = [
 
 [[package]]
 name = "rquickjs-macro"
-version = "0.12.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cbcc8219b70ee2faa08d5339f47f15741cba2ce0cb9640e8495f2ab51293f50"
+checksum = "0a2ea9adb03b669c933482ff740b683cd36be7cef23891657a8ccb850401d286"
 dependencies = [
  "convert_case",
- "fnv",
- "ident_case",
  "indexmap",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
  "rquickjs-core",
- "syn 2.0.119",
+ "syn 3.0.9",
 ]
 
 [[package]]
 name = "rquickjs-sys"
-version = "0.12.2"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a13ac243b86a74120814ef7e9e30ad5a2c1199b7b9963b1cf7c84e4cdc1cad99"
+checksum = "cee271d0eeba64f0915b846cb7ae02e16faf3dfdffdca91731101d9d30fe3423"
 dependencies = [
  "bindgen",
  "cc",
@@ -5805,7 +5791,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-aggregation"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "getrandom 0.4.3",
  "schemars",
@@ -5814,7 +5800,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-app-update"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "base64 0.23.1",
  "cargo-packager-updater",
@@ -5831,7 +5817,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-cli"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "axum",
  "rand 0.10.3",
@@ -5852,7 +5838,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-client"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "fs2",
  "futures-util",
@@ -5885,7 +5871,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-cloud-auth"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "cloud-client",
  "getrandom 0.4.3",
@@ -5904,7 +5890,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-cloud-sync"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "cloud-client",
  "fs2",
@@ -5924,7 +5910,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-collaboration"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "fs2",
  "getrandom 0.4.3",
@@ -5941,7 +5927,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-competitions"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "getrandom 0.4.3",
  "schemars",
@@ -5951,7 +5937,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-control-api"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "libc",
  "rusqlite",
@@ -5970,7 +5956,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-core"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "arboard",
  "cloud-client",
@@ -6012,7 +5998,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-desktop"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "gtk",
  "open",
@@ -6045,7 +6031,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-api"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "schemars",
  "semver",
@@ -6058,7 +6044,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-devkit"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "libc",
  "semver",
@@ -6073,7 +6059,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-installer"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "base64 0.23.1",
  "flate2",
@@ -6098,7 +6084,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-loader"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "libloading 0.9.0",
  "rquickjs",
@@ -6115,11 +6101,11 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-macros"
-version = "4.0.2"
+version = "4.1.0"
 
 [[package]]
 name = "tiktools-plugin-package"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "base64 0.23.1",
  "ring",
@@ -6133,7 +6119,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-registry"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "reqwest 0.13.5",
  "schemars",
@@ -6151,7 +6137,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-sdk"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "base64 0.23.1",
  "flate2",
@@ -6168,7 +6154,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-remote"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "axum",
  "futures-util",
@@ -6198,7 +6184,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-tiktok"
-version = "4.0.2"
+version = "4.1.0"
 dependencies = [
  "fastrand",
  "httpdate",
@@ -6332,22 +6318,6 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edc5f74e248dc973e0dbb7b74c7e0d6fcc301c694ff50049504004ef4d0cdcd9"
-dependencies = [
- "futures-util",
- "log",
- "rustls",
- "rustls-pki-types",
- "tokio",
- "tokio-rustls",
- "tungstenite 0.24.0",
- "webpki-roots 0.26.11",
-]
-
-[[package]]
-name = "tokio-tungstenite"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f72a05e828585856dacd553fba484c242c46e391fb0e58917c942ee9202915c"
@@ -6372,6 +6342,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tungstenite 0.30.0",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -6611,9 +6582,9 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 [[package]]
 name = "ttl-live-discovery"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "reqwest 0.12.28",
+ "reqwest 0.13.5",
  "serde_json",
  "thiserror 2.0.21",
  "tracing",
@@ -6623,9 +6594,9 @@ dependencies = [
 [[package]]
 name = "ttl-live-events"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "prost",
  "serde",
  "serde_json",
@@ -6648,13 +6619,13 @@ dependencies = [
 [[package]]
 name = "ttl-live-ws"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
  "flate2",
  "futures-util",
  "thiserror 2.0.21",
  "tokio",
- "tokio-tungstenite 0.24.0",
+ "tokio-tungstenite 0.30.0",
  "tracing",
  "ttl-sign-core",
 ]
@@ -6662,9 +6633,9 @@ dependencies = [
 [[package]]
 name = "ttl-sign-core"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "rand 0.8.8",
+ "rand 0.10.3",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -6673,9 +6644,9 @@ dependencies = [
 [[package]]
 name = "ttl-sign-embedded"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "rand 0.8.8",
+ "rand 0.10.3",
  "rquickjs",
  "thiserror 2.0.21",
  "tokio",
@@ -6685,32 +6656,12 @@ dependencies = [
 [[package]]
 name = "ttl-sign-headless"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "reqwest 0.12.28",
+ "reqwest 0.13.5",
  "tracing",
  "ttl-live-discovery",
  "ttl-sign-core",
-]
-
-[[package]]
-name = "tungstenite"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18e5b8366ee7a95b16d32197d0b2604b43a0be89dc5fac9f8e96ccafbaedda8a"
-dependencies = [
- "byteorder",
- "bytes",
- "data-encoding",
- "http",
- "httparse",
- "log",
- "rand 0.8.8",
- "rustls",
- "rustls-pki-types",
- "sha1 0.10.7",
- "thiserror 1.0.69",
- "utf-8",
 ]
 
 [[package]]
@@ -6810,12 +6761,6 @@ dependencies = [
  "serde",
  "serde_derive",
 ]
-
-[[package]]
-name = "utf-8"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
 name = "utf8_iter"

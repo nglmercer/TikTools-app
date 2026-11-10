@@ -304,7 +304,7 @@ const INIT_SCRIPT = `
     'registry.list': () => ({ registries: [] }),
     'registry.defaults.get': () => ({ channel: 'stable', autoUpdate: 'notify', checkIntervalHours: 12, allowSideload: true }),
     'app.update.status': () => ({
-      currentVersion: '4.0.2', availableVersion: null, channel: 'stable', state: 'idle',
+      currentVersion: '4.1.0', availableVersion: null, channel: 'stable', state: 'idle',
       installationType: 'development', installSupported: false, checkSupported: false,
       downloadedBytes: 0, totalBytes: null, progress: null, releaseNotes: null, lastChecked: null, error: null,
     }),

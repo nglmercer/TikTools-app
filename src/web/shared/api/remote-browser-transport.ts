@@ -220,7 +220,7 @@ export function createRemoteBrowserTransport(options: {
         ws.onopen = () => {
           if (epoch !== generation || controller.signal.aborted) { cancelled(); return; }
           ws.send(JSON.stringify({ jsonrpc: '2.0', id: helloId, method: 'collaboration.hello',
-            params: { protocolVersion: 1, clientVersion: '4.0.2', clientKind: 'browser' } }));
+            params: { protocolVersion: 1, clientVersion: '4.1.0', clientKind: 'browser' } }));
         };
         ws.onmessage = (event) => {
           if (epoch !== generation || controller.signal.aborted || socket !== ws) return;

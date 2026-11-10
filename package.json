@@ -1,6 +1,6 @@
 {
   "name": "tiktools",
-  "version": "4.0.2",
+  "version": "4.1.0",
   "type": "module",
   "private": true,
   "packageManager": "bun@1.4.4",
