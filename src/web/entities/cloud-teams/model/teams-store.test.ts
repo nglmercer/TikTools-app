@@ -75,4 +75,20 @@ describe('teams store', () => {
     teams.reset();
     expect(teams.issued).toBeNull();
   });
+
+  it('starts and stops the host link through its own methods', async () => {
+    const { stores, calls } = host(['teams.hosts.list', 'teams.host.start', 'teams.host.stop'], (method) => {
+      if (method === 'teams.hosts.list') return { items: [hostRow(team)] };
+      if (method === 'teams.host.start') return { state: 'connecting', hostId: team, lastError: null };
+      if (method === 'teams.host.stop') return { state: 'stopped', hostId: null, lastError: null };
+      return { items: [] };
+    });
+    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    const teams = stores.use(() => useTeamsStore());
+    await teams.setHostLink(true);
+    expect(teams.link.state).toBe('connecting');
+    await teams.setHostLink(false);
+    expect(teams.link.state).toBe('stopped');
+    expect(calls.map((call) => call.method).filter((m) => m.startsWith('teams.host.'))).toEqual(['teams.host.start', 'teams.host.stop']);
+  });
 });

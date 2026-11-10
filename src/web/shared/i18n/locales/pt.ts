@@ -1715,6 +1715,11 @@ export default {
     truncated: 'Eventos mais antigos não são mostrados para manter esta visão dentro do limite de tamanho.',
   },
   cloudTeams: {
+    serving: 'Atendendo deste PC',
+    link: { stopped: 'Não está atendendo', connecting: 'Conectando…', ready: 'Atendendo', retrying: 'Reconectando…' },
+    startServing: 'Começar a atender',
+    stopServing: 'Parar de atender',
+    needHostDevice: 'Primeiro registre este PC como host da equipe.',
     title: 'Equipes',
     hint: 'Uma equipe permite que pessoas aprovadas vejam ou atuem neste PC pelo relé da nuvem. Cada pessoa recebe o papel que você escolher. Nada é compartilhado até você aprovar.',
     thisPc: 'Este PC',

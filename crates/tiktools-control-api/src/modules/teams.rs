@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use serde_json::Value;
+pub use tiktools_core::cloud_remote_host::RemoteHostStatus;
 pub use tiktools_core::cloud_teams::{
     TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList, TeamDeviceParams,
     TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost,
@@ -17,6 +18,26 @@ use super::Empty;
 use crate::{error::ApiError, router::ControlRouter};
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<Empty, RemoteHostStatus, _, _>(
+        "teams.host.status",
+        "Status of this PC's outbound link as a team host",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move { Ok::<_, ApiError>(core.teams_host_status()) },
+    );
+    router.register_typed::<Empty, RemoteHostStatus, _, _>(
+        "teams.host.start",
+        "Starts this PC's outbound link for the team it serves; the team must be enrolled first",
+        true,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            core.teams_host_start().await.map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<Empty, RemoteHostStatus, _, _>(
+        "teams.host.stop",
+        "Stops this PC's outbound link; pending commands become unknown on the relay",
+        true,
+        |core: Arc<AppCore>, _params: Empty| async move { Ok::<_, ApiError>(core.teams_host_stop()) },
+    );
     router.register_typed::<Empty, TeamHostList, _, _>(
         "teams.hosts.list",
         "Lists the remote-control teams owned by the signed-in account",

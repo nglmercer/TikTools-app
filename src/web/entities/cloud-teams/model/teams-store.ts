@@ -12,6 +12,7 @@ import {
   type TeamInvitation,
   type TeamRequest,
   type TeamRole,
+  type HostLinkStatus,
   type TeamSession,
 } from '../api/teams-api.ts';
 
@@ -33,6 +34,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   const grants = ref<readonly TeamGrant[]>([]);
   const sessions = ref<readonly TeamSession[]>([]);
   const issued = ref<IssuedInvitation | null>(null);
+  const link = ref<HostLinkStatus>({ state: 'stopped', hostId: null, lastError: null });
   const loading = ref(false);
   const working = ref(false);
   const error = ref<string | null>(null);
@@ -67,6 +69,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
       hosts.value = nextHosts;
       devices.value = nextDevices;
       error.value = null;
+      link.value = await api.hostLink().catch(() => link.value);
       if (selectedId.value && !nextHosts.some((host) => host.id === selectedId.value)) closeTeam();
     } catch (failure) {
       if (ticket === listGeneration) error.value = errorMessage(failure);
@@ -203,6 +206,13 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     });
   }
 
+  /** Starts or stops this PC's link for the selected team. The host must be enrolled for that team. */
+  function setHostLink(start: boolean): Promise<boolean> {
+    return run(async () => {
+      link.value = start ? await api.startHostLink() : await api.stopHostLink();
+    });
+  }
+
   /** Drops the token and open team detail, for example when the panel unmounts. */
   function reset(): void {
     closeTeam();
@@ -219,6 +229,8 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     grants,
     sessions,
     issued,
+    link,
+    setHostLink,
     loading,
     working,
     error,

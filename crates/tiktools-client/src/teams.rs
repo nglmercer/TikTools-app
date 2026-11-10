@@ -1,15 +1,18 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::teams::{
-    TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList, TeamDeviceParams,
-    TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost,
-    TeamHostList, TeamHostParams, TeamInvitationCreateParams, TeamInvitationCreated,
-    TeamInvitationList, TeamInvitationParams, TeamRequestList, TeamSessionList, TeamSessionParams,
-    TeamUpdateParams,
+    RemoteHostStatus, TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList,
+    TeamDeviceParams, TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams,
+    TeamGrantUpdateParams, TeamHost, TeamHostList, TeamHostParams, TeamInvitationCreateParams,
+    TeamInvitationCreated, TeamInvitationList, TeamInvitationParams, TeamRequestList,
+    TeamSessionList, TeamSessionParams, TeamUpdateParams,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
 
 pub(crate) const METHODS: &[&str] = &[
+    TEAMS_HOST_STATUS,
+    TEAMS_HOST_START,
+    TEAMS_HOST_STOP,
     TEAMS_HOSTS_LIST,
     TEAMS_HOSTS_CREATE,
     TEAMS_HOSTS_GET,
@@ -29,6 +32,9 @@ pub(crate) const METHODS: &[&str] = &[
     TEAMS_SESSIONS_REVOKE,
 ];
 
+const TEAMS_HOST_STATUS: &str = "teams.host.status";
+const TEAMS_HOST_START: &str = "teams.host.start";
+const TEAMS_HOST_STOP: &str = "teams.host.stop";
 const TEAMS_HOSTS_LIST: &str = "teams.hosts.list";
 const TEAMS_HOSTS_CREATE: &str = "teams.hosts.create";
 const TEAMS_HOSTS_GET: &str = "teams.hosts.get";
@@ -140,5 +146,14 @@ impl TikToolsClient {
         params: TeamSessionParams,
     ) -> Result<serde_json::Value, ClientError> {
         self.call(TEAMS_SESSIONS_REVOKE, params).await
+    }
+    pub async fn teams_host_status(&self) -> Result<RemoteHostStatus, ClientError> {
+        self.call(TEAMS_HOST_STATUS, Empty::default()).await
+    }
+    pub async fn teams_host_start(&self) -> Result<RemoteHostStatus, ClientError> {
+        self.call(TEAMS_HOST_START, Empty::default()).await
+    }
+    pub async fn teams_host_stop(&self) -> Result<RemoteHostStatus, ClientError> {
+        self.call(TEAMS_HOST_STOP, Empty::default()).await
     }
 }

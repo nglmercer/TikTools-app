@@ -537,6 +537,12 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         #[cfg(feature = "cloud-auth")]
         "sync.uncertain.resolve" => validate::<SyncUncertainResolveParams>(params),
         #[cfg(feature = "cloud-auth")]
+        "teams.host.status" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.host.start" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.host.stop" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
         "teams.hosts.list" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
         "teams.hosts.create" => validate::<TeamCreateParams>(params),

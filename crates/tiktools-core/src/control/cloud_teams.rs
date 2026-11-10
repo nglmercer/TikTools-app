@@ -99,4 +99,23 @@ impl AppCore {
     ) -> Result<Value, OperationError> {
         crate::cloud_teams::revoke_session(self.cloud.auth(), params).await
     }
+
+    /// Starts this PC's outbound link for the team it serves.
+    pub async fn teams_host_start(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<crate::cloud_remote_host::RemoteHostStatus, OperationError> {
+        self.remote_host.start(
+            self.cloud.clone(),
+            self.teams.clone(),
+            std::sync::Arc::downgrade(self),
+        )?;
+        Ok(self.remote_host.status())
+    }
+    pub fn teams_host_stop(&self) -> crate::cloud_remote_host::RemoteHostStatus {
+        self.remote_host.stop();
+        self.remote_host.status()
+    }
+    pub fn teams_host_status(&self) -> crate::cloud_remote_host::RemoteHostStatus {
+        self.remote_host.status()
+    }
 }

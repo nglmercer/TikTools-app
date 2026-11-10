@@ -62,6 +62,21 @@ export interface TeamSession {
   readonly openedAt: string;
 }
 
+export interface HostLinkStatus {
+  readonly state: 'stopped' | 'connecting' | 'ready' | 'retrying' | string;
+  readonly hostId: string | null;
+  readonly lastError: string | null;
+}
+
+export function parseHostLink(value: unknown): HostLinkStatus {
+  const link = record(value);
+  return {
+    state: text(link.state),
+    hostId: optionalText(link.hostId),
+    lastError: optionalText(link.lastError),
+  };
+}
+
 export class InvalidTeamResponse extends Error {
   constructor() {
     super('invalid team response');
@@ -206,6 +221,9 @@ export function teamApi(client: ControlClient): {
   revokeGrant: (hostId: string, grantId: string, expectedRevision: number) => Promise<void>;
   sessions: (hostId: string) => Promise<TeamSession[]>;
   revokeSession: (hostId: string, sessionId: string) => Promise<void>;
+  hostLink: () => Promise<HostLinkStatus>;
+  startHostLink: () => Promise<HostLinkStatus>;
+  stopHostLink: () => Promise<HostLinkStatus>;
 } {
   const call = client.call.bind(client) as Call;
   return {
@@ -232,5 +250,8 @@ export function teamApi(client: ControlClient): {
       void (await call('teams.grants.revoke', { hostId, grantId, expectedRevision })),
     sessions: async (hostId) => parseSessions(await call('teams.sessions.list', { hostId })),
     revokeSession: async (hostId, sessionId) => void (await call('teams.sessions.revoke', { hostId, sessionId })),
+    hostLink: async () => parseHostLink(await call('teams.host.status', {})),
+    startHostLink: async () => parseHostLink(await call('teams.host.start', {})),
+    stopHostLink: async () => parseHostLink(await call('teams.host.stop', {})),
   };
 }

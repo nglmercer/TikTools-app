@@ -29,6 +29,12 @@ const ttlOptions = computed(() => [
   { value: 900, label: t('cloudTeams.ttl.minutes', { count: 15 }) },
 ]);
 const canCreateTeam = computed(() => newTeamName.value.trim().length > 0 && !teams.working);
+/** Serving needs an active host device for this team; the Cloud enforces it again. */
+const hasHostDevice = computed(() => teams.devices.some((device) => device.kind === 'host' && device.status === 'active'));
+const linkLabel = computed(() => {
+  const state = teams.link.state;
+  return te(`cloudTeams.link.${state}`) ? t(`cloudTeams.link.${state}`) : state;
+});
 
 /** Known statuses are translated; anything else is shown as the server sent it. */
 function statusLabel(prefix: string, value: string): string {
@@ -183,6 +189,39 @@ onBeforeUnmount(() => {
           {{ t('cloudTeams.rename') }}
         </BaseButton>
       </form>
+
+      <div class="cloud-teams__block">
+        <h4>{{ t('cloudTeams.serving') }}</h4>
+        <p class="cloud-teams__note">
+          {{ linkLabel }}
+          <template v-if="teams.link.lastError">
+            · {{ teams.link.lastError }}
+          </template>
+        </p>
+        <div class="cloud-teams__row">
+          <BaseButton
+            v-if="teams.link.state === 'stopped'"
+            :disabled="!hasHostDevice || teams.working"
+            @click="teams.setHostLink(true)"
+          >
+            {{ t('cloudTeams.startServing') }}
+          </BaseButton>
+          <BaseButton
+            v-else
+            variant="ghost"
+            :disabled="teams.working"
+            @click="teams.setHostLink(false)"
+          >
+            {{ t('cloudTeams.stopServing') }}
+          </BaseButton>
+        </div>
+        <p
+          v-if="!hasHostDevice"
+          class="cloud-teams__note"
+        >
+          {{ t('cloudTeams.needHostDevice') }}
+        </p>
+      </div>
 
       <div class="cloud-teams__block">
         <h4>{{ t('cloudTeams.devices') }}</h4>

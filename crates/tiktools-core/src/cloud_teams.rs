@@ -32,6 +32,7 @@ const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_NAME_CHARS: usize = 80;
 const MAX_LABEL_CHARS: usize = 120;
 const KEY_FILE: &str = "remote-device-ed25519.pk8";
+const HOST_BINDING_FILE: &str = "remote-host-binding.json";
 
 fn http() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
@@ -251,7 +252,7 @@ pub struct TeamSessionParams {
 
 // ---- Validation --------------------------------------------------------------
 
-fn valid_uuid(value: &str) -> Result<(), OperationError> {
+pub(crate) fn valid_uuid(value: &str) -> Result<(), OperationError> {
     uuid::Uuid::parse_str(value)
         .map(|_| ())
         .map_err(|_| OperationError::invalid("identifier is not valid"))
@@ -336,12 +337,14 @@ pub fn proof_message(purpose: &str, nonce: &[u8], binding_sha256: &str) -> Vec<u
 /// Owns the on-disk Ed25519 device identity. The file is created owner-only.
 pub struct CloudTeams {
     key_path: PathBuf,
+    binding_path: PathBuf,
 }
 
 impl CloudTeams {
     pub(crate) fn new(paths: &AppPaths) -> Self {
         Self {
             key_path: paths.data.join("remote").join(KEY_FILE),
+            binding_path: paths.data.join("remote").join(HOST_BINDING_FILE),
         }
     }
 
@@ -415,7 +418,81 @@ impl CloudTeams {
             })),
         )
         .await?;
-        decode(device)
+        let device: TeamDevice = decode(device)?;
+        if params.kind == "host" {
+            let host = params.host_id.clone().unwrap_or_default();
+            self.save_host_binding(&host, &device.id)?;
+        }
+        Ok(device)
+    }
+
+    /// The team and device this PC serves as, recorded when the host device was enrolled.
+    pub fn host_binding(&self) -> Result<Option<(String, String)>, OperationError> {
+        let bytes = match fs::read(&self.binding_path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => return Err(OperationError::internal("host binding is unreadable")),
+        };
+        let value: Value = serde_json::from_slice(&bytes)
+            .map_err(|_| OperationError::internal("host binding is invalid"))?;
+        let host = str_field(&value, "hostId")?;
+        let device = str_field(&value, "deviceId")?;
+        valid_uuid(&host)?;
+        valid_uuid(&device)?;
+        Ok(Some((host, device)))
+    }
+
+    fn save_host_binding(&self, host: &str, device: &str) -> Result<(), OperationError> {
+        let body = json!({"hostId": host, "deviceId": device}).to_string();
+        write_owner_only(&self.binding_path, body.as_bytes())
+    }
+
+    /// Obtains a connection ticket for this device by proving possession of its key.
+    pub async fn issue_ticket(
+        &self,
+        auth: &CloudAuth,
+        host_id: &str,
+        device_id: &str,
+    ) -> Result<String, OperationError> {
+        valid_uuid(host_id)?;
+        valid_uuid(device_id)?;
+        let binding = json!({"deviceId": device_id, "hostId": host_id, "role": "host"});
+        let key = self.device_key()?;
+        let (origin, token) = credentials(auth).await?;
+        let challenge = send(
+            Method::POST,
+            &origin,
+            &token,
+            "/api/v3/remote/challenges",
+            Some(json!({"purpose": "ticket", "binding": binding})),
+        )
+        .await?;
+        let challenge_id = str_field(&challenge, "id")?;
+        let nonce = URL_SAFE_NO_PAD
+            .decode(str_field(&challenge, "nonce")?)
+            .map_err(|_| OperationError::internal("cloud sent an unexpected challenge"))?;
+        let digest = str_field(&challenge, "bindingSha256")?;
+        if digest != binding_digest(&binding) {
+            return Err(OperationError::internal("cloud changed the ticket binding"));
+        }
+        let signature = key.sign(&proof_message("ticket", &nonce, &digest));
+        let issued = send(
+            Method::POST,
+            &origin,
+            &token,
+            "/api/v3/remote/tickets",
+            Some(json!({
+                "challengeId": challenge_id,
+                "binding": binding,
+                "signature": URL_SAFE_NO_PAD.encode(signature.as_ref()),
+            })),
+        )
+        .await?;
+        let ticket = str_field(&issued, "ticket")?;
+        if ticket.len() < 32 {
+            return Err(OperationError::internal("cloud sent an unexpected ticket"));
+        }
+        Ok(ticket)
     }
 }
 
@@ -446,7 +523,7 @@ fn write_owner_only(path: &Path, bytes: &[u8]) -> Result<(), OperationError> {
 
 // ---- HTTP --------------------------------------------------------------------
 
-async fn credentials(auth: &CloudAuth) -> Result<(String, NativeToken), OperationError> {
+pub(crate) async fn credentials(auth: &CloudAuth) -> Result<(String, NativeToken), OperationError> {
     let origin = auth
         .last_identity()
         .map(|(origin, _)| origin)
@@ -489,7 +566,7 @@ fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
     }
 }
 
-async fn send(
+pub(crate) async fn send(
     method: Method,
     origin: &str,
     token: &NativeToken,
@@ -524,7 +601,7 @@ async fn send(
         .map_err(|_| OperationError::internal("cloud sent an unreadable reply"))
 }
 
-fn str_field(value: &Value, key: &str) -> Result<String, OperationError> {
+pub(crate) fn str_field(value: &Value, key: &str) -> Result<String, OperationError> {
     value
         .get(key)
         .and_then(Value::as_str)

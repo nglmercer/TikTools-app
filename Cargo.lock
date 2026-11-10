@@ -5962,6 +5962,7 @@ dependencies = [
  "base64 0.23.1",
  "cloud-client",
  "fastrand",
+ "futures-util",
  "getrandom 0.4.3",
  "libc",
  "reqwest 0.13.5",

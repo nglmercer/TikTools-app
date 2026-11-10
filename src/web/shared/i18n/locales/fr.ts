@@ -1715,6 +1715,11 @@ export default {
     truncated: 'Les événements les plus anciens ne sont pas affichés pour respecter la taille maximale de cette vue.',
   },
   cloudTeams: {
+    serving: 'Servi depuis ce PC',
+    link: { stopped: 'Non servi', connecting: 'Connexion…', ready: 'Servi', retrying: 'Reconnexion…' },
+    startServing: 'Commencer à servir',
+    stopServing: 'Arrêter de servir',
+    needHostDevice: 'Inscrivez d\'abord ce PC comme hôte de l\'équipe.',
     title: 'Équipes',
     hint: 'Une équipe permet à des personnes approuvées de voir ou d\'agir sur ce PC via le relais Cloud. Chaque personne reçoit le rôle que vous choisissez. Rien n\'est partagé avant votre approbation.',
     thisPc: 'Ce PC',

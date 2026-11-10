@@ -1713,6 +1713,11 @@ export default {
     truncated: 'Older events were not shown to keep this view within its size limit.',
   },
   cloudTeams: {
+    serving: 'Serving from this PC',
+    link: { stopped: 'Not serving', connecting: 'Connecting…', ready: 'Serving', retrying: 'Reconnecting…' },
+    startServing: 'Start serving',
+    stopServing: 'Stop serving',
+    needHostDevice: 'Enroll this PC as a team host first.',
     title: 'Teams',
     hint: 'A team lets approved people view or act on this PC through the Cloud relay. Each person gets the role you choose. Nothing is shared until you approve it.',
     thisPc: 'This PC',
