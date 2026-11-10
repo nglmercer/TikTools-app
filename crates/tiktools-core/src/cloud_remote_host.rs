@@ -338,13 +338,11 @@ async fn handle_command(
         .unwrap_or_default()
         .to_owned();
     let args_ok = frame.get("args").is_some_and(Value::is_object);
-    let expires = frame
-        .get("expiresAt")
-        .and_then(Value::as_str)
-        .and_then(parse_utc_seconds);
+    // The relay sends the expiry as integer milliseconds since the Unix epoch.
+    let expires = frame.get("expiresAt").and_then(Value::as_i64);
 
     send_result(socket, &command_id, "running", None, None).await?;
-    let outcome = match (expires, now_seconds()) {
+    let outcome = match (expires, now_millis()) {
         (None, _) => Err("invalidArguments"),
         (Some(expires), now) if expires <= now => Err("expired"),
         _ if !args_ok => Err("invalidArguments"),
@@ -477,56 +475,16 @@ fn socket_url(origin: &str) -> Result<url::Url, OperationError> {
     Ok(url)
 }
 
-fn now_seconds() -> i64 {
+fn now_millis() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
+        .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
-}
-
-/// Parses the server's `to_rfc3339()` output in UTC, e.g. `2026-11-10T12:00:00+00:00`.
-pub fn parse_utc_seconds(value: &str) -> Option<i64> {
-    let (date, rest) = value.split_once('T')?;
-    let time = rest
-        .strip_suffix("+00:00")
-        .or_else(|| rest.strip_suffix('Z'))?;
-    let time = time.split('.').next()?;
-    let mut d = date.split('-').map(|p| p.parse::<i64>().ok());
-    let (y, m, day) = (d.next()??, d.next()??, d.next()??);
-    let mut t = time.split(':').map(|p| p.parse::<i64>().ok());
-    let (hh, mm, ss) = (t.next()??, t.next()??, t.next()??);
-    if !(1..=12).contains(&m) || !(1..=31).contains(&day) || hh > 23 || mm > 59 || ss > 60 {
-        return None;
-    }
-    // Days from civil (Howard Hinnant), proleptic Gregorian.
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = if y >= 0 { y } else { y - 399 } / 400;
-    let yoe = y - era * 400;
-    let mp = (m + 9) % 12;
-    let doy = (153 * mp + 2) / 5 + day - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    let days = era * 146097 + doe - 719468;
-    Some(days * 86400 + hh * 3600 + mm * 60 + ss)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn rfc3339_utc_values_parse_to_epoch_seconds() {
-        assert_eq!(parse_utc_seconds("1970-01-01T00:00:00+00:00"), Some(0));
-        assert_eq!(
-            parse_utc_seconds("2026-11-10T12:00:00.123456+00:00"),
-            Some(1_794_312_000)
-        );
-        assert_eq!(
-            parse_utc_seconds("2026-11-10T12:00:00Z"),
-            Some(1_794_312_000)
-        );
-        assert_eq!(parse_utc_seconds("2026-13-10T12:00:00Z"), None);
-        assert_eq!(parse_utc_seconds("not a time"), None);
-    }
 
     #[test]
     fn role_table_admits_only_declared_operations() {
