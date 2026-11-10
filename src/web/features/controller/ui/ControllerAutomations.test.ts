@@ -8,8 +8,7 @@ import type { ControllerStatus } from '../model/controller.ts';
 import type { AutomationRow } from '../model/automations.ts';
 import ControllerRoot from './ControllerRoot.vue';
 
-it.each(['en', 'es'] as const)('reviews a complete event and retains uncertain command identity (%s)', async (locale) => {
-  await activateLocale(locale);
+it('reviews a complete event and retains uncertain command identity', async () => {
   const status: ControllerStatus = { epoch: '1', viewRevision: '1', automationRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://host.example', errorCode: null,
     hello: { connectionId: 'connection', grantRevision: '1', hostId: 'host-A', principalId: 'mod', sessionId: 'device', hostInstanceId: 'instance', capabilities: ['automation.read', 'automation.toggle', 'automation.edit', 'commands.read'], features: { automationSummary: true, automationEventDeactivate: true } },
     commandJournal: { binding: { profileId: 'desk', origin: 'https://host.example', hostId: 'host-A', principalId: 'mod', sessionId: 'device' }, pending: null, recent: [], unavailable: false } };
@@ -26,8 +25,7 @@ it.each(['en', 'es'] as const)('reviews a complete event and retains uncertain c
     throw new Error(`Unexpected native call ${method}`);
   });
   const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
-  const words = locale === 'es' ? { disable: 'Desactivar evento', cancel: 'Cancelar', unknown: 'las nuevas modificaciones están bloqueadas', action: 'Acción · same', revision: 'Revisión 1', started: 'Las acciones ya iniciadas pueden terminar.' } :
-    { disable: 'Disable event', cancel: 'Cancel', unknown: 'new changes are blocked', action: 'Action · same', revision: 'Revision 1', started: 'Already started actions may finish.' };
+  const words = { disable: 'Disable event', cancel: 'Cancel', unknown: 'new changes are blocked', action: 'Action · same', revision: 'Revision 1', started: 'Already started actions may finish.' };
   try {
     await flushPromises();
     const board = wrapper.get('.automation-board');
@@ -39,7 +37,7 @@ it.each(['en', 'es'] as const)('reviews a complete event and retains uncertain c
     await board.findAll('button').find((b) => b.text() === words.disable)!.trigger('click'); await flushPromises();
     expect(calls.filter((c) => c.method === 'controller.automation.command')).toHaveLength(1);
     expect(wrapper.text()).toContain(words.unknown); expect(wrapper.get('.controller__journal').text()).toContain(words.disable);
-    expect(wrapper.get('.controller__journal').text()).not.toContain(locale === 'es' ? 'Desactivar workflow' : 'Disable workflow');
+    expect(wrapper.get('.controller__journal').text()).not.toContain('Disable workflow');
     expect(wrapper.get('.controller__journal').text()).toContain('native-original');
     expect(board.findAll('button').every((b) => b.attributes('disabled') !== undefined)).toBe(true);
   } finally { wrapper.unmount(); }

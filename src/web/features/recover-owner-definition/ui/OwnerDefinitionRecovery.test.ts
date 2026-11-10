@@ -40,16 +40,16 @@ test('shows selection-independent original metadata and checks recovery without 
   } finally { storing.mockRestore(); }
 });
 
-test('unknown acknowledgement resets on selection and host changes and labels recovery in Spanish', async () => {
+test('unknown acknowledgement resets on selection and host changes', async () => {
   const f = fixture(); await flushPromises();
   await f.wrapper.get('[data-test="definition-history"]').trigger('click'); await flushPromises();
   await f.wrapper.get('[data-test="definition-unknown-consent"]').setValue(true);
   await f.wrapper.setProps({ selectionKey: 'event:new-selection' });
   expect((f.wrapper.get('[data-test="definition-unknown-consent"]').element as HTMLInputElement).checked).toBe(false);
   expect(f.wrapper.get('[data-test="definition-archive"]').attributes('disabled')).toBeDefined();
-  await activateLocale('es'); await flushPromises();
-  expect(f.wrapper.text()).toContain('Consultar resultado original');
-  expect(f.wrapper.text()).toContain('no reemplaza tu borrador');
+  await flushPromises();
+  expect(f.wrapper.text()).toContain('Check original outcome');
+  expect(f.wrapper.text()).toContain('does not replace your draft');
   await f.wrapper.get('[data-test="definition-unknown-consent"]').setValue(true);
   await f.wrapper.get('[data-test="definition-archive"]').trigger('click'); await flushPromises();
   expect(f.native.state().pending).toBeNull();

@@ -1,19 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { MessageSchema } from '@/shared/i18n/i18n.ts';
 import type { LiveStatusModel } from '../model/live.ts';
 
 defineProps<{ model: LiveStatusModel }>();
-const { locale } = useI18n();
-const text = computed(() => locale.value === 'es' ? {
-  title: 'LIVE del anfitrión', connected: 'Conectado al LIVE', disconnected: 'Sin conexión al LIVE',
-  creator: 'Creador', loading: 'Consultando el estado del LIVE…', unavailable: 'No se pudo consultar el estado del LIVE.',
-  polling: 'El estado se consulta periódicamente mientras el controlador está conectado.',
-} : {
-  title: 'Host LIVE', connected: 'Connected to LIVE', disconnected: 'Not connected to LIVE',
-  creator: 'Creator', loading: 'Checking LIVE status…', unavailable: 'LIVE status is unavailable.',
-  polling: 'Status is checked periodically while the controller is connected.',
-});
+const { tm } = useI18n();
+const text = computed(() => tm('controller.liveStatus.text') as MessageSchema['controller']['liveStatus']['text']);
 </script>
 
 <template>

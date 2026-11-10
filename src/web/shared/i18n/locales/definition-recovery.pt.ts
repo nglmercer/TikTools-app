@@ -1,0 +1,15 @@
+export default {
+  history: 'Alterações de definição', pendingButton: 'Resolver alteração de definição', title: 'Alterações de definição do proprietário',
+  lead: 'O host registra cada salvamento, exclusão e mudança de ativação antes de enviá-lo. A recuperação verifica o resultado original e nunca envia a alteração novamente.',
+  host: 'Host {id} · instância {instance}', pending: '{operation} não confirmada · {kind} {id} · revisão base {revision}',
+  command: 'Operação original: {id}', resolve: 'Verificar resultado original', refresh: 'Atualizar histórico',
+  base: 'Revisão base revisada: {revision}', originalInstance: 'Instância original do host: {instance}',
+  unknown: 'Revisei a operação original e entendo que seu resultado continua desconhecido.', archive: 'Arquivar incerteza',
+  compare: 'O histórico recuperado não substitui seu rascunho. Compare a origem salva atual antes de outra gravação.',
+  noPending: 'Nenhuma alteração de definição não confirmada.', empty: 'Nenhuma alteração de definição recente.',
+  succeeded: 'Concluída', rejected: 'Recusada', 'reviewed-unknown': 'Desconhecida revisada',
+  create: 'Criar', update: 'Salvar', delete: 'Excluir', enable: 'Ativar', disable: 'Desativar', action: 'ação', event: 'evento',
+  revision: 'Revisão {revision} · registros afetados: {count}', otherPending: 'Uma alteração de definição precisa de recuperação. Abra Alterações de definição antes de outra transição de autoridade.',
+  unavailable: 'O diário nativo de definições está indisponível. Alterações persistentes continuam bloqueadas.',
+  profileFailed: 'A definição foi salva. A atribuição ao perfil falhou: {reason}',
+};

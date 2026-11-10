@@ -43,7 +43,7 @@ const menus = computed<MenuBarMenu[]>(() => [
       { id: 'connect', label: t('connection.connect'), disabled: props.status === 'connected' || isConnectionBusy(props.status) },
       { id: 'reconnect', label: t('connection.reconnect'), disabled: props.status === 'idle' || isConnectionBusy(props.status) },
       { id: 'disconnect', label: t('connection.disconnect'), disabled: props.status !== 'connected' && !isConnectionBusy(props.status) },
-      ...(window.ipc && window.__tiktools_remote_client_available__ ? [{ id: 'remote-controller', label: props.locale === 'es' ? 'Conectar a otra PC…' : 'Connect to another PC…' }] : []),
+      ...(window.ipc && window.__tiktools_remote_client_available__ ? [{ id: 'remote-controller', label: t('menu.remoteController') }] : []),
       { type: 'separator', id: 'file-separator' },
       { id: 'navigate:settings', label: t('navigation.settings'), icon: markRaw(IconGear) },
     ],

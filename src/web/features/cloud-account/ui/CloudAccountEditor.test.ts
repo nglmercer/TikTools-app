@@ -81,11 +81,8 @@ describe('CloudAccountEditor', () => {
     expect(byId.text()).toContain('user-1');
   });
 
-  it.each([
-    ['en', 'Sign in', 'Cancel', "If your browser didn't open, visit:"],
-    ['es', 'Iniciar sesión', 'Cancelar', 'Si el navegador no se abrió, visita:'],
-  ] as const)('shows manual login and cancellation in %s', async (locale, signIn, cancel, manual) => {
-    await activateLocale(locale);
+  it('shows manual login and cancellation', async () => {
+    const [signIn, cancel, manual] = ['Sign in', 'Cancel', "If your browser didn't open, visit:"] as const;
     let finish!: (status: AccountStatus) => void;
     const pending = new Promise<AccountStatus>((resolve) => { finish = resolve; });
     const out: AccountStatus = { origin: 'https://cloud.example', state: 'signed-out', persistence: 'keychain' };

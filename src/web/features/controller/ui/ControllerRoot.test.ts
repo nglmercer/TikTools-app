@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils';
 import { expect, it } from 'vitest';
-import { i18n } from '@/shared/i18n/i18n.ts';
+import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import ControllerRoot from './ControllerRoot.vue';
@@ -8,7 +8,7 @@ import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { ControllerStatus } from '../model/controller.ts';
 
 it('explains a snapshot rate budget failure without retrying a connection', async () => {
-  i18n.global.locale.value = 'es';
+  await activateLocale('es');
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'controller.profiles') return [];
     if (method === 'controller.status') return { epoch: '1', viewRevision: '1', phase: 'failed', profile: 'desk', origin: 'https://host.example', hello: null, errorCode: 'snapshot_rate_budget' };

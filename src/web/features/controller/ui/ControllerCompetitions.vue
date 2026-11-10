@@ -1,25 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { MessageSchema } from '@/shared/i18n/i18n.ts';
 import type { CompetitionModel } from '../model/competitions.ts';
 
 defineProps<{ model: CompetitionModel }>();
-const { locale } = useI18n();
-const text = computed(() => locale.value === 'es' ? {
-  title: 'Competiciones', description: 'Estado de las competiciones autorizadas.',
-  loading: 'Consultando competiciones…', error: 'No se pudo consultar el estado de las competiciones.',
-  empty: 'No hay competiciones disponibles en esta página.', previous: 'Anterior', next: 'Siguiente', page: 'Página',
-  start: 'Iniciar', resume: 'Reanudar', pause: 'Pausar', cancel: 'Cancelar competición',
-  states: { draft:'Borrador', active:'Activa', paused:'Pausada', finalizing:'Finalizando', finished:'Finalizada', cancelled:'Cancelada', failed:'Fallida' } as Record<string, string>,
-  kinds: { poll:'Encuesta', weighted_poll:'Encuesta ponderada', leaderboard_challenge:'Desafío de ranking', team_battle:'Batalla de equipos', random_draw:'Sorteo', weighted_draw:'Sorteo ponderado', roulette:'Ruleta' } as Record<string, string>,
-} : {
-  title: 'Competitions', description: 'Status of permitted competitions.',
-  loading: 'Loading competitions…', error: 'Competition status is unavailable.',
-  empty: 'No competitions are available on this page.', previous: 'Previous', next: 'Next', page: 'Page',
-  start: 'Start', resume: 'Resume', pause: 'Pause', cancel: 'Cancel competition',
-  states: { draft:'Draft', active:'Active', paused:'Paused', finalizing:'Finalizing', finished:'Finished', cancelled:'Cancelled', failed:'Failed' } as Record<string, string>,
-  kinds: { poll:'Poll', weighted_poll:'Weighted poll', leaderboard_challenge:'Leaderboard challenge', team_battle:'Team battle', random_draw:'Random draw', weighted_draw:'Weighted draw', roulette:'Roulette' } as Record<string, string>,
-});
+const { tm } = useI18n();
+const text = computed(() => tm('controller.competitions.text') as MessageSchema['controller']['competitions']['text']);
 </script>
 
 <template>
@@ -51,8 +38,8 @@ const text = computed(() => locale.value === 'es' ? {
         :key="row.id"
       >
         <strong>{{ row.name }}</strong>
-        <span>{{ text.kinds[row.kind] }}</span>
-        <span>{{ text.states[row.lifecycle] }}</span>
+        <span>{{ (text.kinds as Record<string, string>)[row.kind] }}</span>
+        <span>{{ (text.states as Record<string, string>)[row.lifecycle] }}</span>
         <button
           v-if="model.canStop(row, 'start-competition')"
           type="button"

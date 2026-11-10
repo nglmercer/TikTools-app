@@ -1,67 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, unref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { MessageSchema } from '@/shared/i18n/i18n.ts';
 import type { ProposalConfirmation, ProposalModel } from '../model/proposals.ts';
 import type { AutomationModel, AutomationRow } from '../model/automations.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 
 const props = defineProps<{ model: ProposalModel; automation?: AutomationModel }>();
-const { locale } = useI18n();
-const labels = computed(() => locale.value === 'es' ? {
-  title: 'Crear una propuesta con campos', note: 'Genera un borrador inactivo. Al enviarlo, la aplicación consulta el estado del anfitrión y guarda la copia local.',
-  name: 'Nombre', actionType: 'Tipo de acción', log: 'Registrar un mensaje', delay: 'Esperar', points: 'Ajustar puntos de un espectador', message: 'Mensaje', milliseconds: 'Milisegundos',
-  emit: 'Emitir evento interno', topic: 'Nombre exacto del evento', emitData: 'Datos del evento (objeto JSON)', emitHint: 'Usa hasta 64 letras minúsculas, números, puntos, guiones o guiones bajos. El anfitrión debe permitir el nombre exacto y, para campos públicos del directo, la lectura de LIVE.', custom: 'Evento interno', customHint: 'Este evento solo recibe eventos internos autorizados; no se inicia desde TikTok directamente. Usa un nombre exacto en minúsculas.',
-  fetch: 'Enviar solicitud HTTP', fetchUrl: 'URL de destino', fetchMethod: 'Método', fetchHeaders: 'Cabeceras (objeto JSON de texto)', fetchBody: 'Cuerpo de la solicitud', fetchTimeout: 'Tiempo límite (ms)', fetchResponse: 'Límite de respuesta (bytes)', fetchPrivate: 'Permitir red privada', fetchHint: 'El anfitrión debe autorizar el destino, método, cabeceras, cuerpo y límites. Las respuestas no se comparten como eventos.',
-  audio: 'Reproducir sonido', audioPath: 'Ruta del archivo en la PC anfitriona', audioVolume: 'Volumen (0–1)', audioOverlap: 'Si ya se está reproduciendo', audioAllow: 'Permitir superposición', audioRestart: 'Reiniciar', audioDrop: 'Omitir nuevo sonido', audioHint: 'La ruta pertenece a la PC anfitriona. El archivo y las opciones deben estar autorizados; cambiar la ruta sustituye los metadatos anteriores del archivo.',
-  script: 'Ejecutar código limitado', scriptSource: 'Código JavaScript', scriptHint: 'El código recibe solo datos públicos del evento, sin acceso directo a archivos, red ni variables privadas. El permiso debe incluir código, lectura de LIVE y destinos dinámicos; cada efecto devuelto necesita también su permiso.',
-  viewer: 'ID exacto del espectador', delta: 'Cambio de puntos', pointsNote: 'Usa un ID literal, sin @ ni variables. El anfitrión comprueba los permisos y límites concedidos para ese espectador; este borrador no ajusta puntos.',
-  viewerTarget: 'Espectador que recibe el ajuste', specificViewer: 'Un espectador concreto', triggeringViewer: 'Quien origine el evento',
-  dynamicPointsNote: 'El ID se tomará de cada evento. El evento debe contener un espectador y sus permisos se comprobarán en cada ejecución. La autorización debe permitir destinos dinámicos; este borrador no ajusta puntos.',
-  trigger: 'Cuándo ocurre', chat: 'Mensaje en el chat', gift: 'Regalo', like: 'Me gusta', follow: 'Seguir', share: 'Compartir', join: 'Ingreso',
-  contains: 'El mensaje contiene (opcional)', actionId: 'ID de acción (opcional)', cooldown: 'Espera entre ejecuciones (ms)',
-  giftContains: 'El nombre del regalo contiene (opcional)', giftHint: 'La coincidencia es parcial. Si el nombre no está disponible, el anfitrión puede mostrar «Gift».',
-  cooldownScope: 'A quién se aplica la espera', cooldownGlobal: 'Compartida para este evento', cooldownViewer: 'Por espectador para este evento',
-  cooldownNote: 'La espera puede reiniciarse al reiniciar la app o bajo carga muy alta. Los eventos sin ID de espectador comparten una espera.',
-  actionNote: 'El ID escrito se incluirá al preparar el borrador. Usa Agregar para conservarlo antes de elegir otro. El anfitrión comprobará el acceso; sin acciones vinculadas, el evento no hará nada.',
-  addAction: 'Agregar acción', selectedActions: 'Acciones agregadas en orden', removeAction: (id: string) => `Quitar ${id}`,
-  moveEarlier: (id: string) => `Mover ${id} hacia arriba`, moveLater: (id: string) => `Mover ${id} hacia abajo`,
-  actionError: 'Usa IDs válidos, sin repetir, y agrega como máximo 512 acciones.',
-  runMode: 'Cómo ejecutar las acciones', runAll: 'Todas las acciones activas, en orden', runRandom: 'Una acción activa al azar',
-  availableActions: 'Acciones visibles en el anfitrión', actionSearch: 'Buscar acción visible', noActions: 'No hay acciones visibles que coincidan.',
-  actionLimit: 'Se muestran las primeras 50 coincidencias. Busca por nombre o ID para encontrar otras.', selectAction: 'Usar ID',
-  actionDisabled: 'inactiva', actionEnabled: 'activa', actionStatusNote: 'La lista es una instantánea. El anfitrión comprobará las referencias y los permisos al activar la definición.',
-  generate: 'Preparar borrador', invalid: 'Completa los campos válidos antes de preparar el borrador.',
-  loadFields: 'Cargar campos del texto abierto', loadFieldsHint: 'Carga acciones compatibles y eventos compatibles. Conserva los demás campos; al cambiar el tipo de acción, se reemplaza su configuración.', loadFieldsError: 'No se pueden cargar estos campos. Revisa el JSON o edítalo directamente.', staleFields: 'El texto abierto cambió. Vuelve a cargar los campos antes de preparar el borrador.',
-  confirm: '¿Reemplazar el texto abierto?', warning: 'Se reemplazará el texto abierto por el borrador mostrado. No se guardará ni enviará todavía. Copia antes cualquier contenido que desees conservar.',
-  apply: 'Usar este borrador', changed: 'La propuesta, los campos o el acceso cambiaron. Vuelve a revisar el borrador.', preview: 'Borrador nuevo',
-} : {
-  title: 'Create a proposal with fields', note: 'Generate a disabled draft. When you send it, the app checks host status and saves the local copy.',
-  name: 'Name', actionType: 'Action type', log: 'Log a message', delay: 'Wait', points: 'Adjust a viewer’s points', message: 'Message', milliseconds: 'Milliseconds',
-  emit: 'Emit an internal event', topic: 'Exact event name', emitData: 'Event data (JSON object)', emitHint: 'Use up to 64 lowercase letters, digits, dots, hyphens or underscores. The host must allow the exact name and, for public LIVE fields, LIVE read access.', custom: 'Internal event', customHint: 'This event only receives authorized internal events; TikTok does not start it directly. Use an exact lowercase name.',
-  fetch: 'Send an HTTP request', fetchUrl: 'Destination URL', fetchMethod: 'Method', fetchHeaders: 'Headers (JSON object of strings)', fetchBody: 'Request body', fetchTimeout: 'Timeout (ms)', fetchResponse: 'Response limit (bytes)', fetchPrivate: 'Allow private network', fetchHint: 'The host must authorize the destination, method, headers, body and limits. Responses are not emitted as events.',
-  audio: 'Play a sound', audioPath: 'File path on the host PC', audioVolume: 'Volume (0–1)', audioOverlap: 'If already playing', audioAllow: 'Allow overlap', audioRestart: 'Restart', audioDrop: 'Drop new sound', audioHint: 'The path is on the host PC. The file and options must be authorized; changing the path replaces the previous file metadata.',
-  script: 'Run bounded code', scriptSource: 'JavaScript code', scriptHint: 'Code receives only public event data, with no direct file, network or private-global access. The grant must allow scripts, LIVE read and dynamic targets; each returned effect also needs its own permission.',
-  viewer: 'Exact viewer ID', delta: 'Points change', pointsNote: 'Use a literal ID without @ or variables. The host checks the granted permissions and limits for that viewer; this draft does not adjust points.',
-  viewerTarget: 'Viewer receiving the adjustment', specificViewer: 'A specific viewer', triggeringViewer: 'Viewer who triggers the event',
-  dynamicPointsNote: 'The ID comes from each event. The event must contain a viewer, and permissions are checked on every execution. The authorization must allow dynamic targets; this draft does not adjust points.',
-  trigger: 'When it happens', chat: 'Chat message', gift: 'Gift', like: 'Like', follow: 'Follow', share: 'Share', join: 'Join',
-  contains: 'Message contains (optional)', actionId: 'Action ID (optional)', cooldown: 'Delay between runs (ms)',
-  giftContains: 'Gift name contains (optional)', giftHint: 'This is a partial match. If the name is unavailable, the host may display “Gift”.',
-  cooldownScope: 'Who the delay applies to', cooldownGlobal: 'Shared for this event', cooldownViewer: 'Per viewer for this event',
-  cooldownNote: 'The delay can reset after app restart or under very high load. Events without a viewer ID share a delay.',
-  actionNote: 'The typed ID is included when preparing the draft. Use Add to keep it before choosing another. The host checks access; without linked actions, the event will do nothing.',
-  addAction: 'Add action', selectedActions: 'Added actions in order', removeAction: (id: string) => `Remove ${id}`,
-  moveEarlier: (id: string) => `Move ${id} up`, moveLater: (id: string) => `Move ${id} down`,
-  actionError: 'Use valid, unique IDs and add at most 512 actions.',
-  runMode: 'How to run the actions', runAll: 'All enabled actions, in order', runRandom: 'One enabled action at random',
-  availableActions: 'Actions visible on the host', actionSearch: 'Search visible actions', noActions: 'No visible actions match.',
-  actionLimit: 'Showing the first 50 matches. Search by name or ID to find others.', selectAction: 'Use ID',
-  actionDisabled: 'disabled', actionEnabled: 'enabled', actionStatusNote: 'This list is a snapshot. The host checks references and permissions when activating the definition.',
-  generate: 'Prepare draft', invalid: 'Complete the valid fields before preparing the draft.',
-  loadFields: 'Load fields from open text', loadFieldsHint: 'Loads supported actions and events. Other fields are preserved; changing the action type replaces its configuration.', loadFieldsError: 'These fields cannot be loaded. Check the JSON or edit it directly.', staleFields: 'The open text changed. Reload the fields before preparing the draft.',
-  confirm: 'Replace the open text?', warning: 'The open text will be replaced by the draft shown. It will not be saved or sent yet. Copy anything you want to keep first.',
-  apply: 'Use this draft', changed: 'The proposal, fields, or access changed. Review the draft again.', preview: 'New draft',
-});
+const { t, tm } = useI18n();
+const labels = computed(() => tm('controller.proposalBuilder.labels') as MessageSchema['controller']['proposalBuilder']['labels']);
 
 const name = ref('');
 const actionType = ref<'core.log' | 'core.delay' | 'core.points' | 'core.emit' | 'core.fetch' | 'audio.play' | 'core.code'>('core.log');
@@ -533,7 +480,7 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
             <span>{{ id }}</span>
             <button
               type="button"
-              :aria-label="labels.moveEarlier(id)"
+              :aria-label="t('controller.proposalBuilder.labels.moveEarlier', { id })"
               :disabled="model.busy.value || !model.editable.value || index === 0"
               @click="moveAction(index, -1)"
             >
@@ -541,7 +488,7 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
             </button>
             <button
               type="button"
-              :aria-label="labels.moveLater(id)"
+              :aria-label="t('controller.proposalBuilder.labels.moveLater', { id })"
               :disabled="model.busy.value || !model.editable.value || index === selectedActionIds.length - 1"
               @click="moveAction(index, 1)"
             >
@@ -549,7 +496,7 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
             </button>
             <button
               type="button"
-              :aria-label="labels.removeAction(id)"
+              :aria-label="t('controller.proposalBuilder.labels.removeAction', { id })"
               :disabled="model.busy.value || !model.editable.value"
               @click="removeAction(index)"
             >

@@ -1,0 +1,18 @@
+export default {
+  emptyHistory: 'Aucune entrée pour l’instant.',
+  filters: 'Filtres', actions: 'Actions du journal', searchShort: 'Rechercher dans les journaux', sourceLabel: 'Source', levelLabel: 'Niveau', activeFilters: 'Filtres actifs', removeFilter: 'Supprimer le filtre : {value}', results: '{count} entrées sur {total}', sessionShort: 'Session uniquement · données sensibles masquées', selectionFiltered: 'L’entrée sélectionnée est masquée par les filtres.', loadMore: 'Charger 100 de plus',
+  title: 'Diagnostic', viewLogs: 'Voir les journaux', session: 'Cette session de l’interface uniquement. Les champs sensibles sont masqués ; l’historique est réinitialisé au rechargement.',
+  search: 'Rechercher dans le diagnostic', allSources: 'Toutes les sources', allLevels: 'Tous les niveaux',
+  info: 'Info', warning: 'Avertissement', error: 'Erreur', empty: 'Aucune entrée correspondante.',
+  copyAll: 'Tout copier', copyFiltered: 'Copier les entrées filtrées', copyEntry: 'Copier l’entrée', export: 'Exporter en TXT', clear: 'Vider l’historique',
+  copied: 'Copié.', copyFailed: 'Presse-papiers indisponible. Sélectionnez et copiez le texte ci-dessous.',
+  exportFailed: 'Impossible d’exporter. Vous pouvez toujours copier le texte.', exported: 'Exportation demandée.',
+  cleared: 'Historique vidé.', dropped: '{count} entrées plus anciennes supprimées par les limites de conservation.',
+  missing: 'Cette entrée n’est plus conservée. L’historique correspondant est affiché ci-dessous.',
+  repeated: 'Répété {count} fois', last: 'Dernière occurrence', back: 'Retour', close: 'Fermer le diagnostic',
+  minimize: 'Réduire', restore: 'Restaurer', move: 'Déplacer le panneau (glissez ou utilisez les flèches)', reset: 'Réinitialiser la position', fullPage: 'Ouvrir en pleine page',
+  newEntries: '{count} nouvelles entrées', filterEntity: 'Filtre d’entité : {entity}', resetFilters: 'Effacer les filtres',
+  connectionFailed: 'Échec de la connexion', monitorFailed: 'La surveillance nécessite une attention', accountFailed: 'La connexion nécessite une attention',
+  syncFailed: 'La synchronisation nécessite une attention', updateFailed: 'La mise à jour nécessite une attention', updaterUnavailable: 'Mises à jour automatiques indisponibles ici',
+  discoveryFailed: 'Impossible de charger les salons', sources: { live: 'LIVE TikTok', monitor: 'Surveillance du LIVE', discovery: 'Explorateur de salons', plugins: 'Plugins', account: 'Compte Cloud', sync: 'Synchronisation Cloud', updates: 'Mises à jour', transport: 'Connexion à l’hôte' },
+};

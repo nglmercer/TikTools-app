@@ -7,18 +7,19 @@ afterEach(() => {
 
 describe('locale preference', () => {
   it('prefers the stored locale', () => {
-    storeLocale('es');
-    expect(storedLocale()).toBe('es');
-    expect(detectLocale(['en-US'])).toBe('es');
+    storeLocale('pt');
+    expect(storedLocale()).toBe('pt');
+    expect(detectLocale(['en-US'])).toBe('pt');
   });
 
   it('ignores unsupported stored values', () => {
-    localStorage.setItem('tiktok-live-locale', 'fr');
+    localStorage.setItem('tiktok-live-locale', 'de');
     expect(storedLocale()).toBeNull();
   });
 
   it('matches the first supported system language', () => {
-    expect(detectLocale(['fr-FR', 'es-MX', 'en-US'])).toBe('es');
+    expect(detectLocale(['de-DE', 'fr-FR', 'es-MX'])).toBe('fr');
+    expect(detectLocale(['pt-BR'])).toBe('pt');
     expect(detectLocale(['de-DE'])).toBe('en');
   });
 });

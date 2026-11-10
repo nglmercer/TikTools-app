@@ -4,13 +4,15 @@ import en from './locales/en.ts';
 
 export type MessageSchema = typeof en;
 
-export const supportedLocales = ['en', 'es'] as const;
+export const supportedLocales = ['en', 'es', 'pt', 'fr'] as const;
 export type Locale = (typeof supportedLocales)[number];
 
 const fallbackLocale = 'en' satisfies Locale;
 
 const loaders: Record<Exclude<Locale, typeof fallbackLocale>, () => Promise<{ default: MessageSchema }>> = {
   es: () => import('./locales/es.ts'),
+  pt: () => import('./locales/pt.ts'),
+  fr: () => import('./locales/fr.ts'),
 };
 
 declare module 'vue-i18n' {

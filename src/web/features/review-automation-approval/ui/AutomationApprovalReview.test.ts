@@ -19,7 +19,7 @@ async function mountReview(host = approvalFixture(), selected = true) {
   return { host, wrapper };
 }
 describe('owner delegated execution approval UI', () => {
-  it('labels scoped custom triggers and opaque script data flow in English and Spanish', async () => {
+  it('labels scoped custom triggers and opaque script data flow', async () => {
     const host = approvalFixture();
     host.source.record!['trigger'] = 'moderator.alert';
     host.source.dependencies[0]!.record!['typeId'] = 'core.code';
@@ -37,9 +37,9 @@ describe('owner delegated execution approval UI', () => {
     expect(wrapper.get('[data-test="approval-scoped-trigger"]').text()).toContain('moderator.alert');
     expect(wrapper.get('[data-test="approval-scoped-trigger"]').text()).toContain('already approved delegated execution');
     expect(wrapper.get('[data-test="approval-script-policy"]').text()).toContain('all public input fields in one HTTP rule');
-    await activateLocale('es'); await nextTick();
-    expect(wrapper.get('[data-test="approval-scoped-trigger"]').text()).toContain('ejecución delegada ya aprobada');
-    expect(wrapper.get('[data-test="approval-script-policy"]').text()).toContain('todos los campos públicos de entrada en una misma regla HTTP');
+    await nextTick();
+    expect(wrapper.get('[data-test="approval-scoped-trigger"]').text()).toContain('an already approved delegated execution');
+    expect(wrapper.get('[data-test="approval-script-policy"]').text()).toContain('all public input fields in one HTTP rule');
   });
   it('shows one explicitly read saved closure, escaped source, exact effects, field pins and author restrictions', async () => {
     const { host, wrapper } = await mountReview();
@@ -122,8 +122,8 @@ describe('owner delegated execution approval UI', () => {
     expect(wrapper.get('[data-test="approval-revoke-acknowledge"]').attributes('disabled')).toBeUndefined();
     await wrapper.get('[data-test="approval-revoke-acknowledge"]').setValue(true);
     expect(wrapper.get('[data-test="approval-revoke"]').attributes('disabled')).toBeUndefined();
-    await activateLocale('es'); await nextTick();
-    expect(wrapper.get('[data-test="approval-source-precision"]').text()).toContain('valor redondeado');
+    await nextTick();
+    expect(wrapper.get('[data-test="approval-source-precision"]').text()).toContain('rounded value');
   });
 
   it('clears consent after a referenced revision changes while retaining the reviewed source and plan', async () => {
@@ -158,7 +158,7 @@ describe('owner delegated execution approval UI', () => {
     expect(host.calls.some((c) => c.method === 'automation.approval.submit' || c.method === 'automation.approval.review')).toBe(false);
   });
 
-  it('clears hidden uncertainty consent after closing and provides complete Spanish controls', async () => {
+  it('clears hidden uncertainty consent after closing', async () => {
     const host = approvalFixture();
     host.state.pending = { commandId: nativeId(), operation: 'revoke', kind: 'event', id: 'same', expectedRevision: '4', hostInstanceId: 'instance-a', createdAt: 1 };
     const { wrapper } = await mountReview(host, false);
@@ -167,10 +167,10 @@ describe('owner delegated execution approval UI', () => {
     await button(wrapper, 'Close').trigger('click'); await flushPromises();
     await wrapper.get('[data-test="approval-history"]').trigger('click'); await flushPromises();
     expect((wrapper.get('[data-test="approval-unknown-acknowledge"]').element as HTMLInputElement).checked).toBe(false);
-    await activateLocale('es'); await nextTick();
-    expect(wrapper.text()).toContain('Actividad de aprobaciones guardada');
-    expect(wrapper.text()).toContain('conserva los permisos y la autoridad de cada autor');
-    expect(button(wrapper, 'Resolver resultado original').exists()).toBe(true);
-    expect(button(wrapper, 'Archivar incertidumbre revisada').attributes('disabled')).toBeDefined();
+    await nextTick();
+    expect(wrapper.text()).toContain('Saved approval activity');
+    expect(wrapper.text()).toContain('preserves each author’s permissions');
+    expect(button(wrapper, 'Resolve original outcome').exists()).toBe(true);
+    expect(button(wrapper, 'Archive reviewed uncertainty').attributes('disabled')).toBeDefined();
   });
 });

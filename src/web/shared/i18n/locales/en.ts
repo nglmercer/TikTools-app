@@ -7,7 +7,9 @@ import collaboration from './collaboration.en.ts';
 import automationProposal from './automation-proposal.en.ts';
 import automationApproval from './automation-approval.en.ts';
 import definitionRecovery from './definition-recovery.en.ts';
+import controller from './controller.en.ts';
 export default {
+  controller,
   settingsLayout,
   formsDesign,
   designKit,
@@ -1656,9 +1658,12 @@ export default {
     view: 'View',
     help: 'Help',
     language: 'Language',
+    remoteController: 'Connect to another PC…',
     languages: {
       en: 'English',
       es: 'Español',
+      pt: 'Português (Brasil)',
+      fr: 'Français',
     },
   },
 };

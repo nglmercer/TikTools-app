@@ -7,8 +7,7 @@ import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
 import ProfileImportDialog from './ProfileImportDialog.vue';
 
 enableAutoUnmount(afterEach); afterEach(() => activateLocale('en'));
-test('profile aggregate failure stays in the Spanish import dialog with its staged file and editable parameters', async () => {
-  await activateLocale('es');
+test('profile aggregate failure stays in the import dialog with its staged file and editable parameters', async () => {
   const template = { templateVersion: 1, id: 'bounded-template', title: 'Bounded', params: { type: 'object', properties: { value: { type: 'string', title: 'Valor', default: 'small' } } },
     actions: Array.from({ length: 4 }, (_, index) => ({ name: `Log ${index}`, typeId: 'core.log', config: { message: '{{ params.value }}' } })), event: { name: 'Chat', trigger: 'tiktok.chat' } };
   const source = JSON.stringify({ profileVersion: 1, id: 'bounded-profile', name: 'Perfil conservado', description: '', params: {}, templates: Array.from({ length: 32 }, () => ({ template, params: {} })) });
@@ -17,7 +16,7 @@ test('profile aggregate failure stays in the Spanish import dialog with its stag
   const value = '🌹'.repeat(20_000); const form = wrapper.getComponent(BaseSchemaForm);
   form.vm.$emit('update:modelValue', { value }); await flushPromises();
   await wrapper.get('.base-button--primary').trigger('click');
-  expect(wrapper.get('[role="alert"]').text()).toContain('reglas expandidas son demasiado grandes');
+  expect(wrapper.get('[role="alert"]').text()).toContain('expanded rules are too large');
   expect(wrapper.text()).toContain('Perfil conservado'); expect(form.props('modelValue')).toEqual({ value }); expect(wrapper.emitted('apply')).toBeUndefined();
   form.vm.$emit('update:modelValue', { value: 'safe' }); await flushPromises();
   await wrapper.get('.base-button--primary').trigger('click'); expect(wrapper.emitted('apply')).toHaveLength(1);

@@ -1,14 +1,14 @@
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { expect, it } from 'vitest';
-import { i18n } from '@/shared/i18n/i18n.ts';
+import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import type { ControllerStatus } from '../model/controller.ts';
 import { createLiveFeedModel } from '../model/live-feed.ts';
 import ControllerLiveFeed from './ControllerLiveFeed.vue';
 
 it('renders untrusted activity as text and clears it on revocation', async () => {
-  i18n.global.locale.value = 'es';
+  await activateLocale('es');
   const status = ref<ControllerStatus>({ epoch:'1', viewRevision:'1', phase:'ready', profile:'desk', origin:'https://host.example', errorCode:null,
     hello:{ connectionId:'connection', grantRevision:'1', hostId:'host', hostInstanceId:'instance', principalId:'moderator', sessionId:'device', capabilities:['live.read'], features:{} } });
   const reply = { epoch:'1', connectionId:'connection', oldestCursor:'1', latestCursor:'5', nextCursor:'5', gap:true, truncated:false,

@@ -1,0 +1,18 @@
+export default {
+  emptyHistory: 'Nenhum registro ainda.',
+  filters: 'Filtros', actions: 'Ações do log', searchShort: 'Pesquisar logs', sourceLabel: 'Origem', levelLabel: 'Nível', activeFilters: 'Filtros ativos', removeFilter: 'Remover filtro: {value}', results: '{count} de {total} registros', sessionShort: 'Somente sessão · dados sensíveis ocultados', selectionFiltered: 'O registro selecionado está oculto pelos filtros.', loadMore: 'Carregar mais 100',
+  title: 'Diagnóstico', viewLogs: 'Ver logs', session: 'Somente esta sessão da interface. Campos sensíveis são ocultados; o histórico é reiniciado ao recarregar.',
+  search: 'Pesquisar diagnósticos', allSources: 'Todas as origens', allLevels: 'Todos os níveis',
+  info: 'Info', warning: 'Aviso', error: 'Erro', empty: 'Nenhum registro correspondente.',
+  copyAll: 'Copiar tudo', copyFiltered: 'Copiar filtrados', copyEntry: 'Copiar registro', export: 'Exportar TXT', clear: 'Limpar histórico',
+  copied: 'Copiado.', copyFailed: 'Área de transferência indisponível. Selecione e copie o texto abaixo.',
+  exportFailed: 'Não foi possível exportar. Você ainda pode copiar o texto.', exported: 'Exportação solicitada.',
+  cleared: 'Histórico limpo.', dropped: '{count} registros antigos removidos pelos limites de retenção.',
+  missing: 'Este registro não é mais mantido. O histórico correspondente é exibido abaixo.',
+  repeated: 'Repetido {count} vezes', last: 'Última ocorrência', back: 'Voltar', close: 'Fechar diagnóstico',
+  minimize: 'Minimizar', restore: 'Restaurar', move: 'Mover painel (arraste ou use as setas)', reset: 'Redefinir posição', fullPage: 'Abrir página inteira',
+  newEntries: '{count} novos registros', filterEntity: 'Filtro de entidade: {entity}', resetFilters: 'Limpar filtros',
+  connectionFailed: 'Falha na conexão', monitorFailed: 'O monitor precisa de atenção', accountFailed: 'O login precisa de atenção',
+  syncFailed: 'A sincronização precisa de atenção', updateFailed: 'A atualização precisa de atenção', updaterUnavailable: 'Atualizações automáticas indisponíveis aqui',
+  discoveryFailed: 'Não foi possível carregar as salas', sources: { live: 'LIVE do TikTok', monitor: 'Monitor da LIVE', discovery: 'Explorador de salas', plugins: 'Plugins', account: 'Conta na Cloud', sync: 'Sincronização na Cloud', updates: 'Atualizações', transport: 'Conexão com o host' },
+};

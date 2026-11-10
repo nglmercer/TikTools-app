@@ -1,28 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { MessageSchema } from '@/shared/i18n/i18n.ts';
 import type { LiveFeedEvent, LiveFeedModel } from '../model/live-feed.ts';
 
 const props = defineProps<{ model: LiveFeedModel; canLookupPoints?: (event: LiveFeedEvent) => boolean; showAmbiguousViewer?: boolean }>();
 const emit = defineEmits<{ lookupPoints: [event: LiveFeedEvent] }>();
-const { locale } = useI18n();
-const text = computed(() => locale.value === 'es' ? {
-  title: 'Actividad del LIVE', empty: 'Todavía no hay actividad disponible.', gap: 'Se perdió parte de la actividad; la lista puede estar incompleta.',
-  unavailable: 'No se pudo consultar la actividad del LIVE.', polling: 'Se consulta periódicamente y puede incluir actividad anterior. Algunos eventos pueden faltar aunque no aparezca un aviso.',
-  kind: 'Tipo de actividad', all: 'Toda la actividad', search: 'Buscar en actividad visible', noMatches: 'Ninguna actividad visible coincide con los filtros.',
-  creator: 'Creador autorizado',
-  points: (id: string) => `Consultar puntos de @${id}`,
-  ambiguousViewer: 'No se puede confirmar el ID del autor; búscalo manualmente.',
-  kinds: { chat: 'Chat', gift: 'Regalo', like: 'Me gusta', member: 'Ingreso', social: 'Social' } as Record<string, string>,
-} : {
-  title: 'LIVE activity', empty: 'No activity is available yet.', gap: 'Some activity was missed; this list may be incomplete.',
-  unavailable: 'LIVE activity is unavailable.', polling: 'Checked periodically; earlier activity may be included. Some events may be missing even when no warning is shown.',
-  kind: 'Activity type', all: 'All activity', search: 'Search visible activity', noMatches: 'No visible activity matches these filters.',
-  creator: 'Allowed creator',
-  points: (id: string) => `Look up points for @${id}`,
-  ambiguousViewer: 'The author ID cannot be confirmed; look it up manually.',
-  kinds: { chat: 'Chat', gift: 'Gift', like: 'Like', member: 'Join', social: 'Social' } as Record<string, string>,
-});
+const { t, tm } = useI18n();
+const text = computed(() => tm('controller.liveFeed.text') as MessageSchema['controller']['liveFeed']['text']);
 const selectedKind = ref('all');
 const query = ref('');
 const visibleEvents = computed(() => {
@@ -104,14 +89,14 @@ watch(() => props.model.scopeRevision.value, () => { selectedKind.value = 'all';
           :key="event.cursor"
         >
           <strong>{{ event.nickname || event.author }}</strong>
-          <span class="kind">{{ text.kinds[event.kind] }}</span>
+          <span class="kind">{{ (text.kinds as Record<string, string>)[event.kind] }}</span>
           <span>{{ event.text }}</span>
           <button
             v-if="event.authorLookupId && canLookupPoints?.(event)"
             type="button"
             @click="emit('lookupPoints', event)"
           >
-            {{ text.points(event.authorLookupId) }}
+            {{ t('controller.liveFeed.text.pointsFor', { id: event.authorLookupId }) }}
           </button>
           <span
             v-else-if="showAmbiguousViewer && event.authorLookupId === null"

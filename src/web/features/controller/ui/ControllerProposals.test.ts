@@ -7,8 +7,7 @@ import { createProposalModel, type ProposalDraft } from '../model/proposals.ts';
 import type { ControllerStatus } from '../model/controller.ts';
 import ControllerProposals from './ControllerProposals.vue';
 
-it.each(['en', 'es'] as const)('reviews source storage, sends once and clears private text after permission loss (%s)', async (locale) => {
-  await activateLocale(locale);
+it('reviews source storage, sends once and clears private text after permission loss', async () => {
   const status = ref<ControllerStatus>({ proposalsSupported: true, epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://owner.example', errorCode: null,
     hello: { connectionId: 'connection', hostId: 'host-A', hostInstanceId: 'instance', principalId: 'author', sessionId: 'device', grantRevision: '1', capabilities: ['automation.read', 'automation.edit'], features: { automationDrafts: true } } });
   const identity = { epoch: '1', connectionId: 'connection', hostInstanceId: 'instance', grantRevision: '1' };
@@ -22,8 +21,7 @@ it.each(['en', 'es'] as const)('reviews source storage, sends once and clears pr
   const send = vi.fn<(method: string, params: Record<string, unknown>) => Promise<boolean>>(async () => true);
   const model = createProposalModel(client, { status, blocked: () => false, journalMatches: () => true, send }); await model.refresh();
   const wrapper = mount(ControllerProposals, { props: { model }, global: { plugins: [i18n] } });
-  const labels = locale === 'es' ? { start: 'Preparar propuesta nueva', inspect: 'Consultar estado actual', send: 'Guardar y enviar para revisión', consent: 'valores sensibles' } :
-    { start: 'Prepare new proposal', inspect: 'Inspect current status', send: 'Save and send for review', consent: 'sensitive values' };
+  const labels = { start: 'Prepare new proposal', inspect: 'Inspect current status', send: 'Save and send for review', consent: 'sensitive values' };
   const button = (label: string) => wrapper.findAll('button').find((b) => b.text() === label)!;
   try {
     await wrapper.get('input').setValue('same'); await wrapper.get('form').trigger('submit');

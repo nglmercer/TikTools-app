@@ -1,0 +1,15 @@
+export default {
+  history: 'Modifications des définitions', pendingButton: 'Résoudre une modification de définition', title: 'Modifications des définitions du propriétaire',
+  lead: 'L’hôte enregistre chaque sauvegarde, suppression et changement d’activation avant de l’envoyer. La récupération vérifie le résultat d’origine et n’envoie jamais la modification à nouveau.',
+  host: 'Hôte {id} · instance {instance}', pending: '{operation} non confirmée · {kind} {id} · révision de base {revision}',
+  command: 'Opération d’origine : {id}', resolve: 'Vérifier le résultat d’origine', refresh: 'Actualiser l’historique',
+  base: 'Révision de base examinée : {revision}', originalInstance: 'Instance d’hôte d’origine : {instance}',
+  unknown: 'J’ai examiné l’opération d’origine et je comprends que son résultat reste inconnu.', archive: 'Archiver l’incertitude',
+  compare: 'L’historique récupéré ne remplace pas votre brouillon. Comparez la source enregistrée actuelle avant toute nouvelle écriture.',
+  noPending: 'Aucune modification de définition non confirmée.', empty: 'Aucune modification de définition récente.',
+  succeeded: 'Réussie', rejected: 'Refusée', 'reviewed-unknown': 'Inconnue examinée',
+  create: 'Créer', update: 'Enregistrer', delete: 'Supprimer', enable: 'Activer', disable: 'Désactiver', action: 'action', event: 'événement',
+  revision: 'Révision {revision} · enregistrements concernés : {count}', otherPending: 'Une modification de définition doit être récupérée. Ouvrez Modifications des définitions avant toute autre transition d’autorité.',
+  unavailable: 'Le journal natif des définitions est indisponible. Les modifications persistantes restent bloquées.',
+  profileFailed: 'La définition a été enregistrée. L’affectation au profil a échoué : {reason}',
+};

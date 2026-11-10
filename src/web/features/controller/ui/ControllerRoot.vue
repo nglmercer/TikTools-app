@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { MessageSchema } from '@/shared/i18n/i18n.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { createControllerModel, type PendingCommand, type ProfileForgetTarget, type RemoteProfile, type ReviewTarget, type WorkflowOperation } from '../model/controller.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
@@ -17,49 +18,13 @@ const control = useControlClient();
 const model = createControllerModel(control);
 const { status, profiles, rows, points, pointsError, pointsAllowed, error, busy, ready, commandSending } = model;
 const { supported: draftsSupported, error: draftError, busy: draftBusy, loading: draftLoading } = model.draftStorage;
-const { locale } = useI18n();
-const labels = computed(() => locale.value === 'es' ? {
-  title: 'Control remoto', controlling: 'Controlando', profiles: 'Perfiles guardados', connect: 'Conectar', disconnect: 'Desconectar', pair: 'Conectar a otra PC', origin: 'Dirección HTTPS del anfitrión', profile: 'Nombre del perfil', label: 'Nombre de este dispositivo', invite: 'Invitación o enlace privado', fingerprint: 'Huella SHA-256 aprobada (opcional)', verify: 'Comparé esta huella con el propietario', probe: 'Ver huella sin verificar', unverified: 'Huella sin verificar: compárala con el propietario antes de aprobarla.', submit: 'Solicitar acceso', pending: 'Esperando aprobación del propietario. Solicitud:', workflows: 'Workflows del anfitrión', empty: 'No hay workflows disponibles para este acceso.', draft: 'Borrador local', keep: 'El borrador se conserva al reconectar. No se envía al anfitrión.', conflict: 'El anfitrión cambió este workflow; tu borrador se conservó.', discard: 'Descartar borrador', readOnly: 'Guardar y activar definiciones todavía no está disponible. Los cambios permitidos se aplican con los permisos concedidos.', rights: 'Permisos efectivos', noProfiles: 'Crea un perfil para conectar con el anfitrión.', idle: 'Desconectado', pairing: 'Esperando aprobación', connecting: 'Conectando', ready: 'Conectado', reconnecting: 'Reconectando; recuperando estado', failed: 'No se pudo conectar', hidden: 'Los datos del anfitrión aparecerán al recuperar la conexión.',
-} : {
-  title: 'Remote controller', controlling: 'Controlling', profiles: 'Saved profiles', connect: 'Connect', disconnect: 'Disconnect', pair: 'Connect to another PC', origin: 'Host HTTPS address', profile: 'Profile name', label: 'This device name', invite: 'Private invitation or join link', fingerprint: 'Approved SHA-256 fingerprint (optional)', verify: 'I compared this fingerprint with the owner', probe: 'Inspect unverified fingerprint', unverified: 'Unverified fingerprint: compare it with the owner before approving it.', submit: 'Request access', pending: 'Waiting for owner approval. Request:', workflows: 'Host workflows', empty: 'No workflows are available for this access.', draft: 'Local draft', keep: 'Drafts survive reconnection. They are not sent to the host.', conflict: 'The host changed this workflow; your draft was retained.', discard: 'Discard draft', readOnly: 'Saving and enabling definitions are not available yet. Permitted changes use the granted permissions.', rights: 'Effective permissions', noProfiles: 'Create a profile to connect to the host.', idle: 'Disconnected', pairing: 'Waiting for approval', connecting: 'Connecting', ready: 'Connected', reconnecting: 'Reconnecting; recovering state', failed: 'Connection failed', hidden: 'Host data will appear after the connection recovers.',
-});
+const { t, tm } = useI18n();
+const labels = computed(() => tm('controller.root.labels') as MessageSchema['controller']['root']['labels']);
 const phase = computed(() => labels.value[status.value.phase as 'idle' | 'pairing' | 'connecting' | 'ready' | 'reconnecting' | 'failed'] ?? status.value.phase);
-const snapshotBudgetHelp = computed(() => locale.value === 'es'
-  ? 'El estado autorizado es demasiado grande para recuperarlo con el límite de solicitudes actual. Pide al propietario que reduzca los recursos permitidos o aumente el límite de solicitudes o el tamaño de mensaje y vuelve a conectar.'
-  : 'The permitted state is too large to recover under the current request limit. Ask the owner to narrow the permitted resources or increase the request limit or message size, then reconnect.');
-const forgetLabels = computed(() => locale.value === 'es' ? {
-  action: 'Olvidar perfil', title: '¿Olvidar este perfil?',
-  message: 'Se eliminarán las credenciales, borradores e historial de comandos guardados en esta PC. Los comandos pendientes impiden eliminarlo. Las conexiones ya abiertas pueden seguir activas hasta que caduquen o el propietario revoque el acceso en el anfitrión.',
-} : {
-  action: 'Forget profile', title: 'Forget this profile?',
-  message: 'The credentials, drafts and command history saved on this PC will be removed. Pending commands prevent removal. Existing connections may remain active until they expire or the owner revokes host access.',
-});
-const cmd = computed(() => locale.value === 'es' ? {
-  'start-competition':'Iniciar competición','resume-competition':'Reanudar competición','pause-competition':'Pausar competición','cancel-competition':'Cancelar competición',disable:'Desactivar workflow',delete:'Eliminar workflow','disable-action':'Desactivar acción','disable-event':'Desactivar evento','delete-event':'Eliminar evento','enable-event':'Activar evento','enable-action':'Activar acción','adjust-points':'Ajustar puntos','create-action-draft':'Proponer acción nueva','update-action-draft':'Proponer reemplazo de acción','create-event-draft':'Proponer evento nuevo','update-event-draft':'Proponer reemplazo de evento','create-action-active':'Crear acción activa','update-action-active':'Editar acción activa','create-event-active':'Crear evento activo','update-event-active':'Editar evento activo',requested:'Cantidad solicitada',effective:'Ajuste aplicado',balance:'Saldo confirmado',disableTitle:'¿Desactivar este workflow en el anfitrión?',deleteTitle:'¿Eliminar este workflow del anfitrión?',
-  disableMessage:'El workflow dejará de estar activo. El cambio se enviará una sola vez al anfitrión y requiere la revisión indicada.',deleteMessage:'Se eliminará el workflow del anfitrión. El borrador local se conserva. Esta operación requiere la revisión indicada.',
-  journal:'Comandos de este perfil',waiting:'Procesando el comando en el anfitrión…',unknown:'El resultado no está confirmado. El comando puede haberse completado. No se reenvía automáticamente; las nuevas modificaciones están bloqueadas.',
-  unavailable:'No se pudo guardar el registro del comando. Reabre el perfil y revisa el resultado antes de modificarlo.',check:'Consultar resultado',review:'Revisar resultado incierto',reviewTitle:'Revisar resultado incierto',
-  reviewMessage:'Esto no deshace el cambio ni demuestra que haya fallado. Puede haberse completado en el anfitrión. El ID se conservará en el historial reciente como resultado incierto revisado. Cualquier cambio posterior requiere una nueva confirmación y revisión del estado actual.',
-  reviewed:'Conservar como incierto',changed:'El estado cambió. Cierra esta confirmación y revisa de nuevo el estado seleccionado.',retainedDrafts:'Borradores locales conservados',hostUnavailableDraft:'El workflow del anfitrión no está disponible. Este borrador local no se puede enviar.',revision:'Revisión',history:'Historial reciente de comandos',pendingId:'ID del comando',
-  outcome:{succeeded:'Confirmado por el anfitrión',rejected:'Rechazado sin aceptar el cambio','reviewed-unknown':'Resultado incierto revisado'},
-} : {
-  'start-competition':'Start competition','resume-competition':'Resume competition','pause-competition':'Pause competition','cancel-competition':'Cancel competition',disable:'Disable workflow',delete:'Delete workflow','disable-action':'Disable action','disable-event':'Disable event','delete-event':'Delete event','enable-event':'Enable event','enable-action':'Enable action','adjust-points':'Adjust points','create-action-draft':'Propose new action','update-action-draft':'Propose action replacement','create-event-draft':'Propose new event','update-event-draft':'Propose event replacement','create-action-active':'Create active action','update-action-active':'Edit active action','create-event-active':'Create active event','update-event-active':'Edit active event',requested:'Requested amount',effective:'Applied adjustment',balance:'Confirmed balance',disableTitle:'Disable this workflow on the host?',deleteTitle:'Delete this workflow from the host?',
-  disableMessage:'The workflow will become inactive. The command is sent once to the host and requires the revision shown.',deleteMessage:'The workflow will be removed from the host. Your local draft is retained. This command requires the revision shown.',
-  journal:'Commands for this profile',waiting:'Processing the host command…',unknown:'The result is unconfirmed. The command may have completed. It is never resent automatically; new changes are blocked.',
-  unavailable:'The command journal could not be saved. Reopen the profile and review its outcome before changing host state.',check:'Check outcome',review:'Review unknown outcome',reviewTitle:'Review unknown outcome',
-  reviewMessage:'This does not undo the change or prove it failed. It may have completed on the host. Its ID stays in recent history as a reviewed unknown outcome. Any later change requires a new confirmation against the current host state.',
-  reviewed:'Keep outcome unknown',changed:'State changed. Close this confirmation and review the selected state again.',retainedDrafts:'Retained local drafts',hostUnavailableDraft:'The host workflow is unavailable. This local draft cannot be sent.',revision:'Revision',history:'Recent command history',pendingId:'Command ID',
-  outcome:{succeeded:'Confirmed by host',rejected:'Rejected before accepting the change','reviewed-unknown':'Reviewed unknown outcome'},
-});
-const pts = computed(() => locale.value === 'es' ? {
-  title:'Puntos del anfitrión', search:'Buscar visor por ID', find:'Consultar visor', top:'Primeros puestos permitidos', empty:'No hay visores en esta vista.', loading:'Actualizando puntos…',
-  amount:'Cantidad a sumar o restar', adjust:'Ajustar puntos', confirm:'¿Aplicar este ajuste en el anfitrión?', note:'La cantidad se aplica al saldo que exista al aceptar el comando. Puede aplicarse el bono de suscriptor; las penalizaciones no bajan de cero.',
-  create:'No existe un registro de puntos para este ID. El ajuste creará uno.', result:'Saldo actual', selected:'Visor seleccionado', clear:'Volver a los primeros puestos',
-} : {
-  title:'Host points', search:'Find viewer by ID', find:'Look up viewer', top:'Top permitted viewers', empty:'No viewers in this view.', loading:'Updating points…',
-  amount:'Amount to add or subtract', adjust:'Adjust points', confirm:'Apply this adjustment on the host?', note:'The amount applies to the balance at acceptance. Subscriber bonuses may apply; penalties cannot reduce the balance below zero.',
-  create:'This ID has no points record. The adjustment will create one.', result:'Current balance', selected:'Selected viewer', clear:'Back to top viewers',
-});
+const snapshotBudgetHelp = computed(() => t('controller.root.snapshotBudgetHelp'));
+const forgetLabels = computed(() => tm('controller.root.forget') as MessageSchema['controller']['root']['forget']);
+const cmd = computed(() => tm('controller.root.commands') as MessageSchema['controller']['root']['commands']);
+const pts = computed(() => tm('controller.root.points') as MessageSchema['controller']['root']['points']);
 const pointSearch = ref(''); const pointAmount = ref<string | number>('');
 const pointsSection = ref<HTMLElement | null>(null);
 function canLookupFeedViewer(event: LiveFeedEvent): boolean {
@@ -76,29 +41,13 @@ function lookupFeedViewer(event: LiveFeedEvent): void {
   void nextTick(() => { pointsSection.value?.focus(); pointsSection.value?.scrollIntoView?.({ block: 'start' }); });
 }
 watch(() => points.value?.selectedId ?? null, () => { pointAmount.value = ''; });
-const dft = computed(() => locale.value === 'es' ? {
-  limit:'Máximo guardado: 256 KiB de texto por borrador.',
-  save:'Guardar borrador en esta PC',title:'¿Guardar este texto en esta PC?',consent:'Se guardará el texto completo, incluidos los valores sensibles que contenga, en el perfil privado de este controlador. No se envía al anfitrión. Confirma solo si deseas conservarlo al cerrar la app.',
-  reload:'Revisar copia guardada',saved:'Copia guardada en esta PC',unsaved:'Hay cambios locales sin guardar.',matches:'Este texto coincide con la copia guardada en esta PC.',remove:'Eliminar copia guardada; conservar texto',
-  compare:'Versión actual del anfitrión',base:'Revisión base del borrador',rebase:'Usar la revisión actual para esta combinación local',merge:'Compara ambos textos y edita tu borrador antes de elegir la nueva revisión. Esto no guarda ni modifica el anfitrión.',
-} : {
-  limit:'Saved drafts can contain up to 256 KiB of text each.',
-  save:'Save draft on this PC',title:'Save this text on this PC?',consent:'The complete text, including any sensitive values it contains, will be saved in this controller’s private profile. It is not sent to the host. Confirm only if you want to keep it after closing the app.',
-  reload:'Review saved copy',saved:'Saved copy on this PC',unsaved:'There are unsaved local changes.',matches:'This text matches the saved copy on this PC.',remove:'Delete saved copy; keep text',
-  compare:'Current host version',base:'Draft base revision',rebase:'Use the current revision for this local merge',merge:'Compare both texts and edit your draft before choosing the new revision. This does not save or change the host.',
-});
+const dft = computed(() => tm('controller.root.drafts') as MessageSchema['controller']['root']['drafts']);
 const draftErrorText = computed(() => {
   const code=draftError.value;if(!code)return '';
-  if(locale.value==='es') {
-    if(['draft_conflict','draft_review_required','transport','timeout'].includes(code))return 'El guardado o borrado no está confirmado, o cambió la copia local. Revisa la copia guardada antes de reemplazarla.';
-    if(code==='draft_limit')return 'Se alcanzó el límite de borradores guardados. Tu texto y las copias existentes se conservaron.';
-    if(['stale_view','not_ready','forbidden'].includes(code))return 'Cambió la conexión o el acceso. Recupera la vista autorizada antes de guardar.';
-    return 'No se pudo acceder a los borradores guardados. Conserva el texto sin guardar y revisa de nuevo la copia local.';
-  }
-  if(['draft_conflict','draft_review_required','transport','timeout'].includes(code))return 'The save or removal is unconfirmed, or the local copy changed. Review the saved copy before replacing it.';
-  if(code==='draft_limit')return 'The saved draft limit was reached. Your text and existing copies were preserved.';
-  if(['stale_view','not_ready','forbidden'].includes(code))return 'The connection or access changed. Recover the authorized view before saving.';
-  return 'Saved drafts are unavailable. Keep your unsaved text and review the local copy again.';
+  if(['draft_conflict','draft_review_required','transport','timeout'].includes(code))return t('controller.root.draftErrors.unconfirmed');
+  if(code==='draft_limit')return t('controller.root.draftErrors.limit');
+  if(['stale_view','not_ready','forbidden'].includes(code))return t('controller.root.draftErrors.access');
+  return t('controller.root.draftErrors.generic');
 });
 const pointId = computed(() => points.value?.selectedId ?? '');
 async function requestPoints(): Promise<void> {
@@ -194,7 +143,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       class="controller__banner"
       aria-live="polite"
     >
-      <div><h1>{{ status.origin ? `${props.browserMode ? (locale === 'es' ? 'Viendo' : 'Viewing') : labels.controlling} ${status.origin}` : labels.title }}</h1><p>{{ phase }} <span v-if="status.errorCode">· {{ status.errorCode }}</span></p><small v-if="status.hello">Host {{ status.hello.hostId }}</small></div>
+      <div><h1>{{ status.origin ? `${props.browserMode ? t('controller.root.viewing') : labels.controlling} ${status.origin}` : labels.title }}</h1><p>{{ phase }} <span v-if="status.errorCode">· {{ status.errorCode }}</span></p><small v-if="status.hello">Host {{ status.hello.hostId }}</small></div>
       <button
         v-if="status.phase !== 'idle'"
         :disabled="busy"
@@ -236,7 +185,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
         :disabled="commandSending || busy"
         @click="storageReview = storageIdentity()"
       >
-        {{ locale === 'es' ? 'Revisar almacenamiento de comandos' : 'Review command storage' }}
+        {{ t('controller.root.reviewCommandStorage') }}
       </button>
       <p
         v-if="status.commandBusy"
@@ -528,7 +477,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     >
       <h2>{{ labels.workflows }}</h2>
       <p>
-        {{ props.browserMode ? (locale === 'es' ? 'Las acciones disponibles dependen de los permisos concedidos.' : 'Available actions depend on the permissions granted.') : labels.readOnly }}
+        {{ props.browserMode ? t('controller.root.availableActions') : labels.readOnly }}
       </p>
       <p v-if="!rows.length">
         {{ labels.empty }}
@@ -575,7 +524,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
               {{ cmd.delete }}
             </button>
           </div>
-          <h3>{{ props.browserMode ? (locale === 'es' ? 'Detalles del workflow' : 'Workflow details') : labels.draft }}</h3>
+          <h3>{{ props.browserMode ? t('controller.root.workflowDetails') : labels.draft }}</h3>
           <p v-if="!props.browserMode">
             {{ row ? labels.keep : cmd.hostUnavailableDraft }}
           </p><p
@@ -606,7 +555,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
           </section>
           <textarea
             :value="draftText"
-            :aria-label="props.browserMode ? (locale === 'es' ? 'Detalles del workflow' : 'Workflow details') : labels.draft"
+            :aria-label="props.browserMode ? t('controller.root.workflowDetails') : labels.draft"
             spellcheck="false"
             :readonly="props.browserMode"
             :disabled="draftBusy || draftLoading"
@@ -663,7 +612,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
         </div>
       </div>
       <details>
-        <summary>{{ props.browserMode ? (locale === 'es' ? 'Funciones disponibles aquí' : 'Available in this view') : labels.rights }}</summary><ul>
+        <summary>{{ props.browserMode ? t('controller.root.availableHere') : labels.rights }}</summary><ul>
           <li
             v-for="capability in status.hello?.capabilities"
             :key="capability"
@@ -706,9 +655,9 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
     </BaseConfirmDialog>
     <BaseConfirmDialog
       :open="storageReview !== null"
-      :title="locale === 'es' ? 'Revisar el almacenamiento local' : 'Review local command storage'"
-      :message="locale === 'es' ? 'No existe un registro local para esta sesión. Podría ser nuevo o haberse borrado, incluso con una acción pendiente. Revisa el estado del anfitrión antes de continuar. Crear el registro no recupera comandos perdidos.' : 'No local journal exists for this session. It may be new or have been erased, including a pending command. Review host state before continuing. Creating the journal does not recover lost commands.'"
-      :confirm-label="locale === 'es' ? 'Revisé el estado; crear registro' : 'I reviewed the host; create journal'"
+      :title="t('controller.root.journalMissing.title')"
+      :message="t('controller.root.journalMissing.message')"
+      :confirm-label="t('controller.root.journalMissing.confirm')"
       :busy="!storageCurrent || commandSending || busy"
       danger
       @update:open="(open: boolean) => { if (!open) storageReview = null; }"

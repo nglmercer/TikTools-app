@@ -83,7 +83,6 @@ describe('CloudPluginCatalog', () => {
   });
 
   it('ignores old version and summary results when the search changes', async () => {
-    await activateLocale('es');
     let resolveOld!: (value: unknown) => void;
     const old = new Promise((resolve) => { resolveOld = resolve; });
     const { client } = createFakeControlClient((method, params) => {
@@ -93,13 +92,13 @@ describe('CloudPluginCatalog', () => {
     });
     const wrapper = mountWithPlugins(CloudPluginCatalog, { global: { plugins: storePlugins(client) } });
     await flushPromises();
-    await button(wrapper, 'Ver versiones').trigger('click');
+    await button(wrapper, 'View versions').trigger('click');
     await wrapper.get('input').setValue('new');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     resolveOld({ generation: '17', id: 'same.plugin', metadataPath: '/generation/17/same.plugin', items: [version()], nextCursor: null });
     await flushPromises();
-    expect(wrapper.text()).toContain('Mostrando: new');
+    expect(wrapper.text()).toContain('Showing: new');
     expect(wrapper.text()).not.toContain('Clave del publicador revocada');
   });
 

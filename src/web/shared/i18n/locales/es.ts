@@ -7,9 +7,11 @@ import collaboration from './collaboration.es.ts';
 import automationProposal from './automation-proposal.es.ts';
 import automationApproval from './automation-approval.es.ts';
 import definitionRecovery from './definition-recovery.es.ts';
+import controller from './controller.es.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
+  controller,
   settingsLayout,
   formsDesign,
   designKit,
@@ -1658,9 +1660,12 @@ export default {
     view: 'Ver',
     help: 'Ayuda',
     language: 'Idioma',
+    remoteController: 'Conectar a otra PC…',
     languages: {
       en: 'English',
       es: 'Español',
+      pt: 'Português (Brasil)',
+      fr: 'Français',
     },
   },
 } satisfies MessageSchema;

@@ -8,7 +8,6 @@ import { createLiveStatusModel } from '../model/live.ts';
 import ControllerLiveStatus from './ControllerLiveStatus.vue';
 
 it('shows the authorized host connection without exposing remote controls', async () => {
-  i18n.global.locale.value = 'es';
   const status = ref<ControllerStatus>({ epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://host.example', errorCode: null,
     hello: { connectionId: 'connection', grantRevision: '1', hostId: 'host', hostInstanceId: 'instance', principalId: 'moderator', sessionId: 'device', capabilities: ['live.read'], features: {} } });
   const { client } = createFakeControlClient((method) => method === 'controller.status' ? JSON.parse(JSON.stringify(status.value)) : { epoch: '1', connectionId: 'connection', connected: true, uniqueId: 'creator', native: true });
@@ -16,8 +15,8 @@ it('shows the authorized host connection without exposing remote controls', asyn
   const wrapper = mount(ControllerLiveStatus, { props: { model }, global: { plugins: [i18n] } });
   try {
     await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('Conectado al LIVE');
-    expect(wrapper.text()).toContain('Creador: creator');
+    expect(wrapper.text()).toContain('Connected to LIVE');
+    expect(wrapper.text()).toContain('Creator: creator');
     expect(wrapper.findAll('button')).toHaveLength(0);
     status.value.phase = 'reconnecting'; await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
     expect(wrapper.text()).not.toContain('creator');

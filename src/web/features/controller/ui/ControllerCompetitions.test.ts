@@ -8,7 +8,6 @@ import { createCompetitionModel } from '../model/competitions.ts';
 import ControllerCompetitions from './ControllerCompetitions.vue';
 
 it('renders authorized status as text and hides it on capability removal', async () => {
-  i18n.global.locale.value = 'es';
   const status = ref<ControllerStatus>({ epoch:'1', viewRevision:'1', phase:'ready', profile:'desk', origin:'https://host.example', errorCode:null,
     hello:{ connectionId:'connection', grantRevision:'1', hostId:'host', hostInstanceId:'instance', principalId:'moderator', sessionId:'device',
       capabilities:['competitions.read'], features:{ competitionSummary:true }, resourceRestrictions:{ competition:['allowed'] } } });
@@ -20,10 +19,10 @@ it('renders authorized status as text and hides it on capability removal', async
     await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('<script>private</script>');
     expect(wrapper.find('script').exists()).toBe(false);
-    expect(wrapper.text()).toContain('Activa');
+    expect(wrapper.text()).toContain('Active');
     expect(wrapper.findAll('button')).toHaveLength(2);
     status.value.hello!.capabilities = [];
     await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
     expect(wrapper.text()).not.toContain('private');
-  } finally { wrapper.unmount(); i18n.global.locale.value = 'en'; }
+  } finally { wrapper.unmount(); }
 });

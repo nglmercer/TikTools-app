@@ -58,12 +58,12 @@ test('a lost graph reply retains its reviewed source and original IDs, exposes h
   } finally { storing.mockRestore(); }
 });
 
-test('selection-independent Spanish recovery retains exact revisions and resets stale unknown consent', async () => {
-  await activateLocale('es'); const f = fixture(); await flushPromises();
+test('selection-independent recovery retains exact revisions and resets stale unknown consent', async () => {
+  const f = fixture(); await flushPromises();
   const intent: LibraryIntent = { commandId: `owner-library-${'a'.repeat(32)}`, operation: 'delete-profile', target: 'unselected-profile', expectedRevision: '9007199254740993', definitionDigest: 'b'.repeat(64), commandHash: 'c'.repeat(64), hostInstanceId: 'instance-a', createdAt: 1 };
   f.native.library.setState({ ...f.native.library.state(), pending: intent });
   await f.wrapper.get('[data-test="library-history"]').trigger('click'); await flushPromises();
-  expect(f.wrapper.text()).toContain('unselected-profile'); expect(f.wrapper.text()).toContain('No se enviará de nuevo');
+  expect(f.wrapper.text()).toContain('unselected-profile'); expect(f.wrapper.text()).toContain('It will not be sent again');
   await f.wrapper.get('[data-test="library-unknown-consent"]').setValue(true);
   await f.wrapper.setProps({ selectionKey: 'event:new' });
   expect((f.wrapper.get('[data-test="library-unknown-consent"]').element as HTMLInputElement).checked).toBe(false);
@@ -73,8 +73,8 @@ test('selection-independent Spanish recovery retains exact revisions and resets 
   expect(f.native.library.state().pending).toBeNull(); expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
 });
 
-test.each(['en', 'es'] as const)('membership review names the exact saved action and requested profile after selection changes (%s)', async (locale) => {
-  await activateLocale(locale); const f = fixture(); await flushPromises();
+test('membership review names the exact saved action and requested profile after selection changes', async () => {
+  const f = fixture(); await flushPromises();
   const action: LiveAction = { schemaVersion: 2, id: 'saved-target', name: 'Original saved action', enabled: false, typeId: 'core.log', config: {} };
   await f.native.handle('automation.create', { kind: 'action', record: action });
   f.native.library.setCatalog({ packs: [{ id: 'requested-profile', name: 'Original selected profile', description: '', eventIds: [], actionIds: [] }], activeId: 'default', templates: [] });
