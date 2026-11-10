@@ -62,6 +62,23 @@ export interface TeamSession {
   readonly openedAt: string;
 }
 
+export interface RedeemResult {
+  readonly requestId: string;
+  readonly hostId: string;
+  readonly status: string;
+  readonly requestedRole: string;
+}
+
+export function parseRedeemResult(value: unknown): RedeemResult {
+  const result = record(value);
+  return {
+    requestId: id(result.requestId),
+    hostId: id(result.hostId),
+    status: text(result.status),
+    requestedRole: text(result.requestedRole),
+  };
+}
+
 export interface HostLinkStatus {
   readonly state: 'stopped' | 'connecting' | 'ready' | 'retrying' | string;
   readonly hostId: string | null;
@@ -221,6 +238,7 @@ export function teamApi(client: ControlClient): {
   revokeGrant: (hostId: string, grantId: string, expectedRevision: number) => Promise<void>;
   sessions: (hostId: string) => Promise<TeamSession[]>;
   revokeSession: (hostId: string, sessionId: string) => Promise<void>;
+  redeem: (token: string) => Promise<RedeemResult>;
   hostLink: () => Promise<HostLinkStatus>;
   startHostLink: () => Promise<HostLinkStatus>;
   stopHostLink: () => Promise<HostLinkStatus>;
@@ -250,6 +268,7 @@ export function teamApi(client: ControlClient): {
       void (await call('teams.grants.revoke', { hostId, grantId, expectedRevision })),
     sessions: async (hostId) => parseSessions(await call('teams.sessions.list', { hostId })),
     revokeSession: async (hostId, sessionId) => void (await call('teams.sessions.revoke', { hostId, sessionId })),
+    redeem: async (token) => parseRedeemResult(await call('teams.invitations.redeem', { token })),
     hostLink: async () => parseHostLink(await call('teams.host.status', {})),
     startHostLink: async () => parseHostLink(await call('teams.host.start', {})),
     stopHostLink: async () => parseHostLink(await call('teams.host.stop', {})),

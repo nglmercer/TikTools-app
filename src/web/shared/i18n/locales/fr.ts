@@ -1721,6 +1721,11 @@ export default {
     truncated: 'Les événements les plus anciens ne sont pas affichés pour respecter la taille maximale de cette vue.',
   },
   cloudTeams: {
+    join: 'Rejoindre une équipe',
+    joinHint: 'Collez le jeton d\'invitation que le propriétaire de l\'équipe vous a transmis. Rejoindre envoie une demande ; le propriétaire doit l\'approuver.',
+    joinToken: 'Jeton d\'invitation',
+    joinButton: 'Envoyer la demande',
+    joinRequested: 'Demande envoyée en tant que {role}. En attente de l\'approbation du propriétaire.',
     serving: 'Servi depuis ce PC',
     link: { stopped: 'Non servi', connecting: 'Connexion…', ready: 'Servi', retrying: 'Reconnexion…' },
     startServing: 'Commencer à servir',

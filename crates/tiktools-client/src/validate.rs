@@ -88,7 +88,7 @@ use tiktools_control_api::modules::system::SaveFileParams;
 use tiktools_control_api::modules::teams::{
     TeamCreateParams, TeamDecisionParams, TeamDeviceParams, TeamEnrollParams,
     TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHostParams, TeamInvitationCreateParams,
-    TeamInvitationParams, TeamSessionParams, TeamUpdateParams,
+    TeamInvitationParams, TeamRedeemParams, TeamSessionParams, TeamUpdateParams,
 };
 use tiktools_control_api::modules::updates::{CheckParams as UpdateCheckParams, NoUpdateParams};
 use tiktools_control_api::modules::widgets::WidgetsCopyParams;
@@ -559,6 +559,8 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "bundles.packages.read" => validate::<PackageIdParams>(params),
         #[cfg(feature = "cloud-auth")]
         "bundles.packages.preflight" => validate::<PackageIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.redeem" => validate::<TeamRedeemParams>(params),
         #[cfg(feature = "cloud-auth")]
         "teams.host.status" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]

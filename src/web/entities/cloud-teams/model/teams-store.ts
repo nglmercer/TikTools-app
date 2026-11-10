@@ -13,6 +13,7 @@ import {
   type TeamRequest,
   type TeamRole,
   type HostLinkStatus,
+  type RedeemResult,
   type TeamSession,
 } from '../api/teams-api.ts';
 
@@ -35,6 +36,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   const sessions = ref<readonly TeamSession[]>([]);
   const issued = ref<IssuedInvitation | null>(null);
   const link = ref<HostLinkStatus>({ state: 'stopped', hostId: null, lastError: null });
+  const lastRedeem = ref<RedeemResult | null>(null);
   const loading = ref(false);
   const working = ref(false);
   const error = ref<string | null>(null);
@@ -206,6 +208,13 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     });
   }
 
+  /** Joins a team with an invitation token. Redeeming creates a request; the owner decides. */
+  function redeem(token: string): Promise<boolean> {
+    return run(async () => {
+      lastRedeem.value = await api.redeem(token.trim());
+    });
+  }
+
   /** Starts or stops this PC's link for the selected team. The host must be enrolled for that team. */
   function setHostLink(start: boolean): Promise<boolean> {
     return run(async () => {
@@ -230,6 +239,8 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     sessions,
     issued,
     link,
+    lastRedeem,
+    redeem,
     setHostLink,
     loading,
     working,

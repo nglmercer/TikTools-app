@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidTeamResponse, parseGrants, parseHost, parseIssuedInvitation } from './teams-api.ts';
+import { InvalidTeamResponse, parseGrants, parseHost, parseIssuedInvitation, parseRedeemResult } from './teams-api.ts';
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
@@ -24,5 +24,10 @@ describe('team response parsing', () => {
   it('keeps the revision a role change must echo back', () => {
     const [grant] = parseGrants({ items: [{ id, deviceId: id, deviceLabel: 'PC', role: 'observer', status: 'active', revision: 4, policy: {} }] });
     expect(grant?.revision).toBe(4);
+  });
+
+  it('reads a redeem reply as a pending request', () => {
+    expect(parseRedeemResult({ requestId: id, hostId: id, status: 'pending', requestedRole: 'moderator' }).requestedRole).toBe('moderator');
+    expect(() => parseRedeemResult({ requestId: 'x', hostId: id, status: 'pending', requestedRole: 'moderator' })).toThrow(InvalidTeamResponse);
   });
 });

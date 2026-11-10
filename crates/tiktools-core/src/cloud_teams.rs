@@ -33,6 +33,7 @@ const MAX_NAME_CHARS: usize = 80;
 const MAX_LABEL_CHARS: usize = 120;
 const KEY_FILE: &str = "remote-device-ed25519.pk8";
 const HOST_BINDING_FILE: &str = "remote-host-binding.json";
+const CONTROLLER_FILE: &str = "remote-controller.json";
 
 pub(crate) fn http() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
@@ -338,6 +339,7 @@ pub fn proof_message(purpose: &str, nonce: &[u8], binding_sha256: &str) -> Vec<u
 pub struct CloudTeams {
     key_path: PathBuf,
     binding_path: PathBuf,
+    controller_path: PathBuf,
 }
 
 impl CloudTeams {
@@ -345,6 +347,7 @@ impl CloudTeams {
         Self {
             key_path: paths.data.join("remote").join(KEY_FILE),
             binding_path: paths.data.join("remote").join(HOST_BINDING_FILE),
+            controller_path: paths.data.join("remote").join(CONTROLLER_FILE),
         }
     }
 
@@ -422,6 +425,11 @@ impl CloudTeams {
         if params.kind == "host" {
             let host = params.host_id.clone().unwrap_or_default();
             self.save_host_binding(&host, &device.id)?;
+        } else {
+            write_owner_only(
+                &self.controller_path,
+                json!({"deviceId": device.id}).to_string().as_bytes(),
+            )?;
         }
         Ok(device)
     }
@@ -440,6 +448,24 @@ impl CloudTeams {
         valid_uuid(&host)?;
         valid_uuid(&device)?;
         Ok(Some((host, device)))
+    }
+
+    /// The controller device this PC enrolled as, used to redeem an invitation.
+    pub fn controller_device(&self) -> Result<String, OperationError> {
+        let bytes = match fs::read(&self.controller_path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(OperationError::invalid(
+                    "enroll this PC as a viewer before joining a team",
+                ))
+            }
+            Err(_) => return Err(OperationError::internal("controller record is unreadable")),
+        };
+        let value: Value = serde_json::from_slice(&bytes)
+            .map_err(|_| OperationError::internal("controller record is invalid"))?;
+        let device = str_field(&value, "deviceId")?;
+        valid_uuid(&device)?;
+        Ok(device)
     }
 
     fn save_host_binding(&self, host: &str, device: &str) -> Result<(), OperationError> {
@@ -702,6 +728,50 @@ pub async fn revoke_device(
         None,
     )
     .await
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TeamRedeemParams {
+    /// The invitation token shown once by the owner.
+    pub token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TeamRedeemResult {
+    pub request_id: String,
+    pub host_id: String,
+    pub status: String,
+    pub requested_role: String,
+}
+
+/// Redeems an invitation into a join request. Redeeming approves nothing; the owner decides.
+pub async fn redeem_invitation(
+    auth: &CloudAuth,
+    controller_device: &str,
+    params: TeamRedeemParams,
+) -> Result<TeamRedeemResult, OperationError> {
+    let token = params.token.trim();
+    if token.len() < 32
+        || token.len() > 128
+        || !token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-_".contains(&byte))
+    {
+        return Err(OperationError::invalid("the invitation token is not valid"));
+    }
+    let (origin, bearer) = credentials(auth).await?;
+    decode(
+        send(
+            Method::POST,
+            &origin,
+            &bearer,
+            "/api/v3/remote/invitations/redeem",
+            Some(json!({"token": token, "deviceId": controller_device})),
+        )
+        .await?,
+    )
 }
 
 pub async fn invitations(

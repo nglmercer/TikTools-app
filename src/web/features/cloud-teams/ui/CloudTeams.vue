@@ -15,6 +15,7 @@ const teams = useTeamsStore();
 const newTeamName = ref('');
 const renameValue = ref('');
 const controllerLabel = ref('');
+const joinToken = ref('');
 const hostDeviceLabel = ref('');
 const inviteRole = ref<TeamRole>('observer');
 const inviteTtl = ref<number>(900);
@@ -28,6 +29,12 @@ const ttlOptions = computed(() => [
   { value: 300, label: t('cloudTeams.ttl.minutes', { count: 5 }) },
   { value: 900, label: t('cloudTeams.ttl.minutes', { count: 15 }) },
 ]);
+async function joinWithToken(): Promise<void> {
+  const token = joinToken.value.trim();
+  if (!token) return;
+  if (await teams.redeem(token)) joinToken.value = '';
+}
+
 const canCreateTeam = computed(() => newTeamName.value.trim().length > 0 && !teams.working);
 /** Serving needs an active host device for this team; the Cloud enforces it again. */
 const hasHostDevice = computed(() => teams.devices.some((device) => device.kind === 'host' && device.status === 'active'));
@@ -97,6 +104,36 @@ onBeforeUnmount(() => {
       :title="teams.error"
       compact
     />
+
+    <form
+      class="cloud-teams__block"
+      @submit.prevent="joinWithToken"
+    >
+      <h4>{{ t('cloudTeams.join') }}</h4>
+      <p class="cloud-teams__note">
+        {{ t('cloudTeams.joinHint') }}
+      </p>
+      <div class="cloud-teams__row">
+        <BaseTextField
+          v-model="joinToken"
+          class="cloud-teams__grow"
+          :placeholder="t('cloudTeams.joinToken')"
+          :aria-label="t('cloudTeams.joinToken')"
+        />
+        <BaseButton
+          type="submit"
+          :disabled="joinToken.trim().length === 0 || teams.working"
+        >
+          {{ t('cloudTeams.joinButton') }}
+        </BaseButton>
+      </div>
+      <p
+        v-if="teams.lastRedeem"
+        class="cloud-teams__note"
+      >
+        {{ t('cloudTeams.joinRequested', { role: t(`cloudTeams.roles.${teams.lastRedeem.requestedRole}`) }) }}
+      </p>
+    </form>
 
     <div class="cloud-teams__block">
       <h4>{{ t('cloudTeams.thisPc') }}</h4>

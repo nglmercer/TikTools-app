@@ -7,8 +7,8 @@ use crate::{
         TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList, TeamDeviceParams,
         TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost,
         TeamHostList, TeamHostParams, TeamInvitationCreateParams, TeamInvitationCreated,
-        TeamInvitationList, TeamInvitationParams, TeamRequestList, TeamSessionList,
-        TeamSessionParams, TeamUpdateParams,
+        TeamInvitationList, TeamInvitationParams, TeamRedeemParams, TeamRedeemResult,
+        TeamRequestList, TeamSessionList, TeamSessionParams, TeamUpdateParams,
     },
     AppCore,
 };
@@ -117,5 +117,13 @@ impl AppCore {
     }
     pub fn teams_host_status(&self) -> crate::cloud_remote_host::RemoteHostStatus {
         self.remote_host.status()
+    }
+    /// Redeems an invitation with this PC's controller device.
+    pub async fn teams_invitation_redeem(
+        &self,
+        params: TeamRedeemParams,
+    ) -> Result<TeamRedeemResult, OperationError> {
+        let device = self.teams.controller_device()?;
+        crate::cloud_teams::redeem_invitation(self.cloud.auth(), &device, params).await
     }
 }

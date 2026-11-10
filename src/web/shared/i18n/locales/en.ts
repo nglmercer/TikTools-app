@@ -1719,6 +1719,11 @@ export default {
     truncated: 'Older events were not shown to keep this view within its size limit.',
   },
   cloudTeams: {
+    join: 'Join a team',
+    joinHint: 'Paste the invitation token a team owner shared with you. Joining sends a request; the owner must approve it.',
+    joinToken: 'Invitation token',
+    joinButton: 'Send request',
+    joinRequested: 'Request sent as {role}. Waiting for the owner to approve it.',
     serving: 'Serving from this PC',
     link: { stopped: 'Not serving', connecting: 'Connecting…', ready: 'Serving', retrying: 'Reconnecting…' },
     startServing: 'Start serving',

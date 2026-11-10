@@ -1721,6 +1721,11 @@ export default {
     truncated: 'No se muestran los eventos más antiguos para mantener esta vista dentro de su límite de tamaño.',
   },
   cloudTeams: {
+    join: 'Unirse a un equipo',
+    joinHint: 'Pega el token de invitación que te compartió el propietario del equipo. Unirse envía una solicitud; el propietario debe aprobarla.',
+    joinToken: 'Token de invitación',
+    joinButton: 'Enviar solicitud',
+    joinRequested: 'Solicitud enviada como {role}. Esperando a que el propietario la apruebe.',
     serving: 'Sirviendo desde este PC',
     link: { stopped: 'No sirve', connecting: 'Conectando…', ready: 'Sirviendo', retrying: 'Reconectando…' },
     startServing: 'Empezar a servir',

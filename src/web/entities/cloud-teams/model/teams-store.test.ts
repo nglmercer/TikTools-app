@@ -91,4 +91,17 @@ describe('teams store', () => {
     expect(teams.link.state).toBe('stopped');
     expect(calls.map((call) => call.method).filter((m) => m.startsWith('teams.host.'))).toEqual(['teams.host.start', 'teams.host.stop']);
   });
+
+  it('redeems an invitation as a request and never approves it locally', async () => {
+    const { stores, calls } = host(['teams.hosts.list', 'teams.invitations.redeem'], (method) => {
+      if (method === 'teams.invitations.redeem') return { requestId: grantId, hostId: team, status: 'pending', requestedRole: 'observer' };
+      return { items: [] };
+    });
+    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    const teams = stores.use(() => useTeamsStore());
+    expect(await teams.redeem(token)).toBe(true);
+    expect(teams.lastRedeem?.status).toBe('pending');
+    expect(calls.find((call) => call.method === 'teams.invitations.redeem')?.params).toEqual({ token });
+    expect(calls.some((call) => call.method === 'teams.grants.update')).toBe(false);
+  });
 });

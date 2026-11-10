@@ -9,8 +9,8 @@ pub use tiktools_core::cloud_teams::{
     TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList, TeamDeviceParams,
     TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost,
     TeamHostList, TeamHostParams, TeamInvitationCreateParams, TeamInvitationCreated,
-    TeamInvitationList, TeamInvitationParams, TeamRequest, TeamRequestList, TeamSession,
-    TeamSessionList, TeamSessionParams, TeamUpdateParams,
+    TeamInvitationList, TeamInvitationParams, TeamRedeemParams, TeamRedeemResult, TeamRequest,
+    TeamRequestList, TeamSession, TeamSessionList, TeamSessionParams, TeamUpdateParams,
 };
 use tiktools_core::AppCore;
 
@@ -18,6 +18,14 @@ use super::Empty;
 use crate::{error::ApiError, router::ControlRouter};
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<TeamRedeemParams, TeamRedeemResult, _, _>(
+        "teams.invitations.redeem",
+        "Redeems an invitation token with this PC's viewer device; the owner still approves the request",
+        true,
+        |core: Arc<AppCore>, params: TeamRedeemParams| async move {
+            core.teams_invitation_redeem(params).await.map_err(ApiError::from)
+        },
+    );
     router.register_typed::<Empty, RemoteHostStatus, _, _>(
         "teams.host.status",
         "Status of this PC's outbound link as a team host",
