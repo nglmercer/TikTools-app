@@ -9,6 +9,17 @@ use tiktools_control_api::ControlApi;
 use tiktools_core::ipc::IpcRouter;
 use winit::event_loop::EventLoopProxy;
 
+fn control_rpc_deadline(value: &serde_json::Value) -> Duration {
+    match value.get("method").and_then(serde_json::Value::as_str) {
+        // The callback itself may wait 180 seconds, followed by bounded
+        // network redemption. A deadline still never replays the operation.
+        Some("cloud.login.complete") => {
+            tiktools_control_api::client_timeout_for("cloud.login.complete")
+        }
+        _ => Duration::from_secs(30),
+    }
+}
+
 pub(crate) struct PendingBatch {
     pub(crate) generation: u64,
     pub(crate) sequence: u64,
@@ -199,7 +210,7 @@ pub(crate) async fn handle_webview_ipc_message(
             tokio::pin!(execution);
             let response = tokio::select! {
                 response = &mut execution => Some(response),
-                _ = tokio::time::sleep(std::time::Duration::from_secs(30)) => {
+                _ = tokio::time::sleep(control_rpc_deadline(&value)) => {
                     emitter.inbound_timeouts.fetch_add(1, Ordering::Relaxed);
                     // Recovery never retries: idempotent reads may be
                     // re-issued by the fresh page's mount, but a timed-out
@@ -306,6 +317,27 @@ pub(crate) async fn handle_webview_ipc_message(
         }
         InboundRoute::MalformedLegacy => {
             tracing::warn!("invalid legacy WebView message");
+        }
+    }
+}
+
+#[cfg(test)]
+mod deadline_tests {
+    use super::*;
+
+    #[test]
+    fn only_cloud_login_completion_has_the_extended_deadline() {
+        assert_eq!(
+            control_rpc_deadline(&serde_json::json!({"method":"cloud.login.complete"})),
+            Duration::from_secs(270)
+        );
+        for value in [
+            serde_json::json!({"method":"cloud.login.begin"}),
+            serde_json::json!({"method":"cloud.login.cancel"}),
+            serde_json::json!({}),
+            serde_json::json!({"method":null}),
+        ] {
+            assert_eq!(control_rpc_deadline(&value), Duration::from_secs(30));
         }
     }
 }

@@ -4,6 +4,40 @@
 use crate::{context::forbidden, ApiError, RemoteCapability, RemoteSession};
 use tiktools_core::collaboration::{AutomationFamily, Grant, ResourceKind};
 
+pub(crate) fn competition_stop_result_allowed(
+    grant: &Grant,
+    method: &str,
+    value: &serde_json::Value,
+) -> bool {
+    grant
+        .capabilities
+        .contains(&RemoteCapability::CompetitionsRead)
+        && !grant.resources.contains_key(&ResourceKind::Live)
+        && value.as_object().is_some_and(|o| {
+            o.len() == 3
+                && o.keys()
+                    .all(|k| matches!(k.as_str(), "id" | "lifecycle" | "generation"))
+        })
+        && value
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|id| grant.allows_resource(ResourceKind::Competition, id))
+        && value.get("lifecycle").and_then(serde_json::Value::as_str)
+            == match method {
+                "competitions.start" | "competitions.resume" => Some("active"),
+                "competitions.pause" => Some("paused"),
+                "competitions.cancel" => Some("cancelled"),
+                _ => None,
+            }
+        && value
+            .get("generation")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|s| {
+                s.parse::<u64>()
+                    .is_ok_and(|n| n <= i64::MAX as u64 && n.to_string() == s)
+            })
+}
+
 pub(crate) fn automation_read_allowed(grant: &Grant) -> bool {
     grant
         .capabilities
@@ -71,13 +105,67 @@ pub(crate) fn automation_result_allowed(
                 })
         }
         "automation.get" => summary_allowed(result),
+        "automation.source.get" => {
+            grant.automation_delegation.as_ref().is_some_and(|p| {
+                (p.allow_owner_source && p.allow_owner_edits)
+                    || (p.allow_other_author_source && p.allow_other_author_edits)
+            }) && grant
+                .capabilities
+                .contains(&RemoteCapability::AutomationEdit)
+                && result.as_object().is_some_and(|o| {
+                    o.len() == 4
+                        && o.keys()
+                            .all(|k| matches!(k.as_str(), "kind" | "id" | "revision" | "record"))
+                })
+                && result
+                    .get("kind")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(AutomationFamily::from_scope)
+                    .is_some_and(|family| {
+                        result
+                            .get("id")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|id| {
+                                grant.allows_automation(family, id)
+                                    && result
+                                        .pointer("/record/id")
+                                        .and_then(serde_json::Value::as_str)
+                                        == Some(id)
+                            })
+                    })
+                && result
+                    .get("revision")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|v| {
+                        tiktools_core::collaboration::stream_sequence(v).is_ok_and(|n| n > 0)
+                    })
+        }
         "automation.create" | "automation.update" => {
             result.as_object().is_some_and(|o| {
                 o.len() == 4
                     && o.keys()
                         .all(|k| matches!(k.as_str(), "kind" | "id" | "enabled" | "pendingReview"))
-            }) && result.get("enabled") == Some(&serde_json::Value::Bool(false))
-                && result.get("pendingReview") == Some(&serde_json::Value::Bool(true))
+            }) && ((result.get("enabled") == Some(&serde_json::Value::Bool(false))
+                && result.get("pendingReview") == Some(&serde_json::Value::Bool(true)))
+                || (result.get("enabled") == Some(&serde_json::Value::Bool(true))
+                    && result.get("pendingReview") == Some(&serde_json::Value::Bool(false))))
+                && result
+                    .get("kind")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(AutomationFamily::from_scope)
+                    .is_some_and(|family| {
+                        result
+                            .get("id")
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|id| grant.allows_automation(family, id))
+                    })
+        }
+        "automation.enable" => {
+            result.as_object().is_some_and(|o| {
+                o.len() == 3
+                    && o.keys()
+                        .all(|k| matches!(k.as_str(), "kind" | "id" | "enabled"))
+            }) && result.get("enabled") == Some(&serde_json::Value::Bool(true))
                 && result
                     .get("kind")
                     .and_then(serde_json::Value::as_str)
@@ -90,11 +178,25 @@ pub(crate) fn automation_result_allowed(
                     })
         }
         "automation.disable" | "automation.delete" => {
-            result.as_object().is_some_and(|o| o.len() == 2)
-                && result
-                    .get("id")
-                    .and_then(serde_json::Value::as_str)
-                    .is_some_and(|id| grant.allows_automation(AutomationFamily::Event, id))
+            let family = if method == "automation.disable"
+                && result.get("kind").and_then(serde_json::Value::as_str) == Some("action")
+            {
+                AutomationFamily::Action
+            } else {
+                AutomationFamily::Event
+            };
+            result.as_object().is_some_and(|o| {
+                if family == AutomationFamily::Action {
+                    o.len() == 3
+                        && o.keys()
+                            .all(|k| matches!(k.as_str(), "kind" | "id" | "enabled"))
+                } else {
+                    o.len() == 2
+                }
+            }) && result
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|id| grant.allows_automation(family, id))
                 && if method == "automation.disable" {
                     result.get("enabled") == Some(&serde_json::Value::Bool(false))
                 } else {

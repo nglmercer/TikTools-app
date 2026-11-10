@@ -192,8 +192,7 @@ impl AutomationService {
         #[cfg(feature = "persistence")]
         approval::clear(&mut index);
         drop(index);
-        recover_mutex(&self.cooldowns, "automation cooldowns")
-            .retain(|key, _| !key.starts_with(&format!("{id}:")));
+        recover_mutex(&self.cooldowns, "automation cooldowns").retain(|key, _| key.event_id != id);
     }
 }
 type ActionDependencies<'a> = (

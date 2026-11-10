@@ -7,6 +7,12 @@ use std::{
 use super::*;
 #[cfg(feature = "persistence")]
 mod approved_observer;
+#[cfg(all(
+    feature = "cloud-auth",
+    feature = "persistence",
+    feature = "plugin-install"
+))]
+mod v2_mutation_integration;
 use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
 };
@@ -372,6 +378,7 @@ async fn native_avatar_reaches_ui_points_and_room_tops() {
             unique_id: "creator".to_owned(),
             room_id: "room-1".to_owned(),
             connection_id: "connection-1".to_owned(),
+            creator_verified: true,
         });
 
     // Unit boundary: the UI shape and the automation user both carry it.
@@ -380,7 +387,10 @@ async fn native_avatar_reaches_ui_points_and_room_tops() {
         comment: "hello".to_owned(),
         ..Default::default()
     }));
-    let (ui_event, _, options, _) = core.ui_event_and_points(&chat).expect("chat maps");
+    let captured = recover_rwlock_read(&core.connection_context, "test context").clone();
+    let (ui_event, _, options, _) = core
+        .ui_event_and_points(&chat, captured.as_ref())
+        .expect("chat maps");
     assert_eq!(ui_event["avatarUrl"], AVATAR);
     assert_eq!(options.avatar_url.as_deref(), Some(AVATAR));
     let automation = core.normalize_native_event(&chat).expect("chat normalizes");
@@ -1341,15 +1351,54 @@ struct FakePluginState {
     poll_batches: Mutex<VecDeque<Vec<Value>>>,
     poll_batches_by_id: Mutex<std::collections::HashMap<String, VecDeque<Vec<Value>>>>,
     poll_gates: Mutex<std::collections::HashMap<String, Arc<AtomicBool>>>,
+    poll_waiting: AtomicBool,
     actions: Mutex<Vec<Value>>,
     event_calls: Mutex<Vec<Value>>,
     event_delay_ms: AtomicU64,
     fail_next_event: AtomicBool,
+    fail_next_load: AtomicBool,
+    on_load: Mutex<Option<Box<dyn FnOnce() + Send>>>,
     loads: AtomicU64,
 }
 
 struct FakeRuntime {
     state: Arc<FakePluginState>,
+}
+
+/// Exercises the manager's buffered onLoad sender using the ordinary fake
+/// plugin worker and real Core startup/enable paths.
+struct StartupPushRuntime {
+    state: Arc<FakePluginState>,
+}
+
+impl PluginRuntime for StartupPushRuntime {
+    fn kind(&self) -> tiktools_plugin_api::PluginRuntimeKind {
+        tiktools_plugin_api::PluginRuntimeKind::Process
+    }
+    fn load(
+        &self,
+        manifest: &tiktools_plugin_api::PluginManifest,
+        directory: &std::path::Path,
+    ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
+        FakeRuntime {
+            state: Arc::clone(&self.state),
+        }
+        .load(manifest, directory)
+    }
+    fn spawn_worker(
+        &self,
+        _manifest: &tiktools_plugin_api::PluginManifest,
+        _: &std::path::Path,
+        ctx: &tiktools_plugin_loader::WorkerContext,
+    ) -> Option<Result<tiktools_plugin_loader::ManagedWorker, PluginLoaderError>> {
+        if let Err(error) = ctx
+            .emit_sender()
+            .emit("hotkey.pressed", fake_press("k", "ctrl"))
+        {
+            return Some(Err(PluginLoaderError::Runtime(error)));
+        }
+        None
+    }
 }
 
 impl PluginRuntime for FakeRuntime {
@@ -1363,6 +1412,22 @@ impl PluginRuntime for FakeRuntime {
         _directory: &std::path::Path,
     ) -> Result<Box<dyn PluginInstance>, PluginLoaderError> {
         self.state.loads.fetch_add(1, AtomicOrdering::SeqCst);
+        if self
+            .state
+            .fail_next_load
+            .swap(false, AtomicOrdering::SeqCst)
+        {
+            return Err(PluginLoaderError::Runtime("fake load failure".to_owned()));
+        }
+        let hook = self
+            .state
+            .on_load
+            .lock()
+            .expect("fake load hook poisoned")
+            .take();
+        if let Some(hook) = hook {
+            hook();
+        }
         Ok(Box::new(FakeInstance {
             id: manifest.id.clone(),
             state: Arc::clone(&self.state),
@@ -1396,6 +1461,7 @@ impl PluginInstance for FakeInstance {
                     .get(&self.id)
                     .cloned();
                 if let Some(gate) = gate {
+                    self.state.poll_waiting.store(true, AtomicOrdering::SeqCst);
                     // Rendezvous for ordering tests: block until the test
                     // opens the gate (a fail-safe timeout keeps a forgotten
                     // gate from hanging the suite).
@@ -1667,6 +1733,59 @@ async fn fake_hotkey_poll_reaches_domain_automation_and_runs() {
     let _ = std::fs::remove_dir_all(root);
 }
 
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[tokio::test]
+async fn poll_response_arriving_after_quarantine_is_discarded() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "")]);
+    let gate = Arc::new(AtomicBool::new(false));
+    state
+        .poll_gates
+        .lock()
+        .unwrap()
+        .insert("hotkeys".to_owned(), Arc::clone(&gate));
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    let mut domain = core.events.subscribe_domain();
+    let poll = tokio::spawn({
+        let core = Arc::clone(&core);
+        async move { core.poll_plugin_events().await }
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !state.poll_waiting.load(AtomicOrdering::SeqCst) {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("poll must reach the plugin before quarantine");
+    let quarantine = tokio::task::spawn_blocking({
+        let core = Arc::clone(&core);
+        move || {
+            let _guard = core.plugin_state.invocation_gate.lock().unwrap();
+            core.quarantine_plugin_apply_before_commit("hotkeys")
+        }
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        while !core.plugin_apply_quarantined("hotkeys") {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("quarantine must become visible while poll is blocked");
+    gate.store(true, AtomicOrdering::SeqCst);
+    assert!(quarantine.await.unwrap());
+    poll.await.unwrap();
+    while let Ok(event) = domain.try_recv() {
+        assert!(
+            !matches!(event, crate::events::DomainEvent::PluginEvent { ref plugin_id, .. } if plugin_id == "hotkeys")
+        );
+    }
+    let _ = std::fs::remove_dir_all(root);
+}
+
 #[tokio::test]
 async fn fast_poll_events_publish_before_slow_sibling_completes() {
     let state = Arc::new(FakePluginState::default());
@@ -1737,6 +1856,7 @@ async fn pushed_events_publish_without_polling() {
     let mut domain = core.events.subscribe_domain();
     core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
         plugin_id: "hotkeys".to_owned(),
+        generation: core.plugins.running_generation("hotkeys").unwrap(),
         event_type: "hotkey.pressed".to_owned(),
         data: fake_press("k", "ctrl"),
     })
@@ -1752,6 +1872,240 @@ async fn pushed_events_publish_without_polling() {
 }
 
 #[tokio::test]
+async fn pushed_events_from_stopped_generation_are_not_delivered_after_restart() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    let old = core.plugins.start_generation("hotkeys").unwrap();
+    core.plugins.stop("hotkeys").unwrap();
+    let current = core.plugins.start_generation("hotkeys").unwrap();
+    assert_ne!(old, current);
+    let mut domain = core.events.subscribe_domain();
+    let event = |generation| tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".to_owned(),
+        generation,
+        event_type: "hotkey.pressed".to_owned(),
+        data: fake_press("k", "ctrl"),
+    };
+    core.handle_pushed_event(event(old)).await;
+    assert!(domain.try_recv().is_err());
+    core.handle_pushed_event(event(current)).await;
+    assert!(matches!(
+        domain.try_recv(),
+        Ok(crate::events::DomainEvent::PluginEvent { .. })
+    ));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn pushed_event_is_not_delivered_during_package_mutation() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(state, &["hotkeys"]);
+    let generation = core.plugins.start_generation("hotkeys").unwrap();
+    let mut domain = core.events.subscribe_domain();
+    let lease = core.plugins.begin_package_mutation("hotkeys").unwrap();
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".to_owned(),
+        generation,
+        event_type: "hotkey.pressed".to_owned(),
+        data: fake_press("k", "ctrl"),
+    })
+    .await;
+    assert!(domain.try_recv().is_err());
+    lease.finish().unwrap();
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".to_owned(),
+        generation,
+        event_type: "hotkey.pressed".to_owned(),
+        data: fake_press("k", "ctrl"),
+    })
+    .await;
+    assert!(matches!(
+        domain.try_recv(),
+        Ok(crate::events::DomainEvent::PluginEvent { .. })
+    ));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn polled_events_reject_stale_or_package_fenced_generation() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(state, &["hotkeys"]);
+    let old = core.plugins.start_generation("hotkeys").unwrap();
+    core.plugins.stop("hotkeys").unwrap();
+    let current = core.plugins.start_generation("hotkeys").unwrap();
+    let mut domain = core.events.subscribe_domain();
+    let response = || json!({"events": [fake_press("k", "ctrl")]});
+    let declared = || vec!["hotkey.pressed".to_owned()];
+    let source = json!({});
+
+    core.handle_poll_outcome("hotkeys".into(), declared(), Ok((old, response())), &source)
+        .await;
+    assert!(
+        domain.try_recv().is_err(),
+        "the replaced worker must not publish"
+    );
+    let lease = core.plugins.begin_package_mutation("hotkeys").unwrap();
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        declared(),
+        Ok((current, response())),
+        &source,
+    )
+    .await;
+    assert!(
+        domain.try_recv().is_err(),
+        "a fenced package must not publish"
+    );
+    lease.finish().unwrap();
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        declared(),
+        Ok((current, response())),
+        &source,
+    )
+    .await;
+    assert!(matches!(
+        domain.try_recv(),
+        Ok(crate::events::DomainEvent::PluginEvent { .. })
+    ));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn poll_and_push_revalidate_the_exact_worker_manifest_after_catalog_change() {
+    let state = Arc::new(FakePluginState::default());
+    state
+        .poll_batches
+        .lock()
+        .unwrap()
+        .push_back(vec![fake_press("k", "ctrl")]);
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    let old = core.plugins.start_generation("hotkeys").unwrap();
+    let old_declared = vec!["hotkey.pressed".to_owned()];
+    let source = json!({});
+    let mut domain = core.events.subscribe_domain();
+    let path = root.join("hotkeys/plugin.json");
+    let mut updated: Value = serde_json::from_str(FAKE_HOTKEY_MANIFEST).unwrap();
+    updated["capabilities"] = json!(["events.subscribe"]);
+    std::fs::write(&path, serde_json::to_vec(&updated).unwrap()).unwrap();
+    core.plugins.scan().unwrap();
+
+    // A rescan can revoke the catalog declaration even before the old
+    // worker stops; its old generation cannot bypass the current policy.
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        old_declared.clone(),
+        Ok((old, json!({"events": [fake_press("k", "ctrl")]}))),
+        &source,
+    )
+    .await;
+    assert!(domain.try_recv().is_err());
+    core.plugins.stop("hotkeys").unwrap();
+    let no_capability = core.plugins.start_generation("hotkeys").unwrap();
+    let invoker = crate::plugin_invoker::PluginInvoker::new(Arc::clone(&core.plugins));
+    let request = serde_json::to_value(tiktools_plugin_sdk::PluginCall::Poll).unwrap();
+    assert!(invoker
+        .call_poll_identified("hotkeys", &request, PLUGIN_POLL_DEADLINE)
+        .await
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        state.poll_batches.lock().unwrap().len(),
+        1,
+        "worker without a poll capability must not be called"
+    );
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        old_declared.clone(),
+        Ok((no_capability, json!({"events": [fake_press("k", "ctrl")]}))),
+        &source,
+    )
+    .await;
+    core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
+        plugin_id: "hotkeys".into(),
+        generation: no_capability,
+        event_type: "hotkey.pressed".into(),
+        data: fake_press("k", "ctrl"),
+    })
+    .await;
+    assert!(domain.try_recv().is_err());
+
+    // A replacement can keep events.publish while removing one event type;
+    // the earlier candidate's allowlist must not authorize it.
+    core.plugins.stop("hotkeys").unwrap();
+    updated["capabilities"] = json!(["events.publish", "events.subscribe"]);
+    updated["eventTypes"] = json!([{"type":"hotkey.status","title":{"default":"Hotkey status"}}]);
+    std::fs::write(&path, serde_json::to_vec(&updated).unwrap()).unwrap();
+    core.plugins.scan().unwrap();
+    let narrower = core.plugins.start_generation("hotkeys").unwrap();
+    core.handle_poll_outcome(
+        "hotkeys".into(),
+        old_declared,
+        Ok((narrower, json!({"events": [fake_press("k", "ctrl")]}))),
+        &source,
+    )
+    .await;
+    assert!(domain.try_recv().is_err());
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn startup_push_reaches_core_on_service_start_and_reenable() {
+    let state = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
+    let mut runtimes = RuntimeRegistry::new();
+    runtimes.register(Arc::new(StartupPushRuntime {
+        state: Arc::clone(&state),
+    }));
+    let manager = PluginManager::with_runtimes(
+        vec![PluginRoot {
+            path: root.clone(),
+            source: PluginSource::Development,
+        }],
+        runtimes,
+    );
+    manager.scan().unwrap();
+    Arc::get_mut(&mut core).unwrap().plugins = Arc::new(manager);
+    let mut domain = core.events.subscribe_domain();
+    core.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
+    async fn next_push(domain: &mut crate::events::DomainSubscription) {
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                if matches!(domain.recv().await.unwrap(), crate::events::DomainEvent::PluginEvent { ref plugin_id, .. } if plugin_id == "hotkeys") {
+                    break;
+                }
+            }
+        }).await.expect("startup event must reach Core");
+    }
+    next_push(&mut domain).await;
+    let disabled = Arc::clone(&core);
+    tokio::task::spawn_blocking(move || disabled.plugin_set_enabled("hotkeys", false))
+        .await
+        .unwrap()
+        .unwrap();
+    state.fail_next_load.store(true, AtomicOrdering::SeqCst);
+    let failing = Arc::clone(&core);
+    assert!(
+        tokio::task::spawn_blocking(move || failing.plugin_set_enabled("hotkeys", true))
+            .await
+            .unwrap()
+            .is_err()
+    );
+    assert!(!core.plugin_ready("hotkeys"));
+    assert!(!core.plugins.is_running("hotkeys"));
+    let enabled = Arc::clone(&core);
+    tokio::task::spawn_blocking(move || enabled.plugin_set_enabled("hotkeys", true))
+        .await
+        .unwrap()
+        .unwrap();
+    next_push(&mut domain).await;
+    assert!(core.plugin_ready("hotkeys"));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
 async fn pushed_events_reject_undeclared_types_and_unknown_plugins() {
     let state = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_plugins(Arc::clone(&state), &["hotkeys"]);
@@ -1760,6 +2114,7 @@ async fn pushed_events_reject_undeclared_types_and_unknown_plugins() {
     // Undeclared type: dropped and counted, never published.
     core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
         plugin_id: "hotkeys".to_owned(),
+        generation: core.plugins.running_generation("hotkeys").unwrap(),
         event_type: "nope.undeclared".to_owned(),
         data: fake_press("k", ""),
     })
@@ -1767,6 +2122,7 @@ async fn pushed_events_reject_undeclared_types_and_unknown_plugins() {
     // Unknown plugin: stale in-flight emit, dropped silently.
     core.handle_pushed_event(tiktools_plugin_loader::EmittedEvent {
         plugin_id: "ghost".to_owned(),
+        generation: 1,
         event_type: "hotkey.pressed".to_owned(),
         data: fake_press("k", ""),
     })
@@ -1941,11 +2297,69 @@ async fn enabled_event_subscriber_starts_with_host_runtime() {
     let state = Arc::new(FakePluginState::default());
     let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
     core.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
-
-    assert!(core.plugins.is_running("hotkeys"));
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !core.plugins.is_running("hotkeys") {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
     assert!(!core.update_shutdown_safe());
     core.shutdown().await;
     assert!(core.update_shutdown_safe());
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn shutdown_on_single_thread_does_not_wait_for_blocked_plugin_onload() {
+    let state = Arc::new(FakePluginState::default());
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    *state.on_load.lock().unwrap() = Some(Box::new(move || {
+        let _ = entered_tx.send(());
+        let _ = release_rx.recv_timeout(std::time::Duration::from_secs(10));
+    }));
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
+    core.spawn_plugin_event_poll(&tokio::runtime::Handle::current());
+    tokio::time::timeout(std::time::Duration::from_secs(3), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), core.shutdown())
+        .await
+        .expect("blocked onLoad must not block single-threaded shutdown");
+    assert!(
+        !core.update_shutdown_safe(),
+        "unresolved startup cannot authorize an update"
+    );
+    assert!(
+        core.plugins.start("hotkeys").is_err(),
+        "shutdown must permanently close startup admission"
+    );
+    release_tx.send(()).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !core.plugins.stop_all_checked() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("released worker must be reaped");
+    assert!(
+        !core.update_shutdown_safe(),
+        "earlier unsafe shutdown is never retroactively approved"
+    );
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn failed_poll_task_prevents_update_handoff() {
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(state);
+    *core.plugin_state.poll_task.lock().unwrap() = Some(tokio::spawn(async {
+        panic!("injected poll task failure");
+    }));
+    core.shutdown().await;
+    assert!(!core.update_shutdown_safe());
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -2599,6 +3013,7 @@ async fn committed_point_awards_feed_points_rankings() {
         unique_id: "creator".into(),
         room_id: "room".into(),
         connection_id: "session".into(),
+        creator_verified: true,
     };
     core.ranking_create(Definition {
         schema_version: 1,
@@ -2663,6 +3078,14 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
         CompetitionKind, Definition, SelectionMode, TiePolicy, Transition, WinnerAction,
     };
     let (core, root) = private_core("user-winner-action");
+    core.automation_save(
+        control::AutomationKind::Action,
+        &serde_json::json!({
+            "id":"reward", "name":"Reward", "typeId":"core.log", "enabled":true,
+            "config":{"message":"Winner {{event.data.winnerId}}"}
+        }),
+    )
+    .unwrap();
     core.ranking_create(Ranking {
         schema_version: 1,
         id: "score".into(),
@@ -2719,6 +3142,10 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
         .unwrap();
     let result = core.competition_finish("challenge").unwrap();
     assert_eq!(result.selection.winner.as_deref(), Some("bob"));
+    assert!(core
+        .db
+        .competition_execution_is_owner("challenge", result.generation)
+        .unwrap());
     let action = core
         .competition_action("challenge", result.generation)
         .unwrap()
@@ -2734,6 +3161,45 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
             .created_at,
         action.created_at
     );
+    core.start_competition_timer();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            let action = core
+                .competition_action("challenge", result.generation)
+                .unwrap()
+                .unwrap();
+            if action.status == tiktools_competitions::ActionStatus::Completed {
+                break;
+            }
+            assert!(
+                !matches!(
+                    action.status,
+                    tiktools_competitions::ActionStatus::Failed
+                        | tiktools_competitions::ActionStatus::Uncertain
+                ),
+                "winner action failed: {action:?}"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let db = rusqlite::Connection::open(root.join("data/tiktok-automation.db")).unwrap();
+    db.execute("UPDATE competition_execution_generations SET origin='delegated' WHERE competition_id='challenge' AND generation=1", []).unwrap();
+    db.execute("INSERT INTO competition_execution_subjects VALUES('challenge',1,'moderator','session','1')", []).unwrap();
+    assert!(!core
+        .db
+        .competition_execution_is_owner("challenge", 1)
+        .unwrap());
+    db.execute(
+        "DELETE FROM competition_execution_subjects WHERE competition_id='challenge'",
+        [],
+    )
+    .unwrap();
+    assert!(core
+        .db
+        .competition_execution_is_owner("challenge", 1)
+        .is_err());
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }
@@ -2781,6 +3247,466 @@ async fn cloud_sync_without_sign_in_fails_closed() {
 
 #[cfg(feature = "cloud-auth")]
 #[tokio::test]
+async fn cloud_sync_uncertain_resolution_is_unavailable_without_durable_source_fence() {
+    use crate::control::cloud_sync::SyncRecoveryChoice;
+
+    let _sync_guard = SYNC_TEST_LOCK.lock().await;
+    let _home = isolated_test_home();
+    let core = Arc::new(AppCore::new(Arc::new(RecordingEmitter::default())));
+    for choice in [
+        SyncRecoveryChoice::KeepLocal,
+        SyncRecoveryChoice::TakeCloud,
+        SyncRecoveryChoice::TakeCloudIncludingNewer,
+    ] {
+        let error = core
+            .sync_resolve_uncertain("any-handle", choice)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "unavailable");
+    }
+    core.shutdown().await;
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn plugin_sync_worker_guard_requires_matching_live_selection() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(runtime, &["acme.hotkeys"]);
+    core.plugin_set_enabled("acme.hotkeys", true).unwrap();
+    {
+        let guard = core.try_plugin_sync_runtime_guard().unwrap();
+        assert!(guard.matches_selection("acme.hotkeys", "1.0.0", true));
+        assert!(!guard.matches_selection("acme.hotkeys", "2.0.0", true));
+        assert!(!guard.matches_selection("acme.hotkeys", "1.0.0", false));
+        assert!(!guard.matches_selection("missing.plugin", "1.0.0", true));
+        assert!(core.try_plugin_sync_runtime_guard().is_err());
+    }
+    core.plugin_set_enabled("acme.hotkeys", false).unwrap();
+    let guard = core.try_plugin_sync_runtime_guard().unwrap();
+    assert!(guard.matches_selection("acme.hotkeys", "1.0.0", false));
+    assert!(!guard.matches_selection("acme.hotkeys", "1.0.0", true));
+    drop(guard);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn durable_local_enable_requires_runtime_success_before_outbox_confirmation() {
+    use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
+
+    let runtime = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("durable-account.json");
+    std::fs::write(
+        &sidecar,
+        br#"{"origin":"https://cloud.example","account_id":"alice"}"#,
+    )
+    .unwrap();
+    let auth = CloudAuth::new(
+        Some("https://cloud.example".into()),
+        sidecar,
+        Arc::new(MemoryTokenStore::new()),
+    );
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    core.sync_set_enabled(true).unwrap();
+
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", false)
+        .unwrap();
+    let disabled = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert_eq!(disabled.enabled, Some(false));
+    assert_eq!(disabled.generation, disabled.source_generation);
+    assert_eq!(
+        disabled.runtime_epoch.as_deref(),
+        Some(core.sync.runtime_epoch().unwrap())
+    );
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+
+    // The source and new intent are durable even if runtime startup fails;
+    // neither the old confirmation nor the failed attempt may authorize upload.
+    runtime.fail_next_load.store(true, AtomicOrdering::SeqCst);
+    assert!(core
+        .plugin_set_enabled_with_durable_intent("acme.hotkeys", true)
+        .is_err());
+    let failed = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert!(failed.generation > disabled.generation);
+    assert_eq!(failed.enabled, Some(true));
+    assert!(failed.runtime_epoch.is_none());
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    assert!(!core
+        .db
+        .acknowledge_plugin_sync_intent(&failed, core.sync.runtime_epoch().unwrap())
+        .unwrap());
+
+    // Explicitly retrying the local action records a new source generation;
+    // only the successful runtime observation can confirm that candidate.
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", true)
+        .unwrap();
+    let retried = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert!(retried.generation > failed.generation);
+    assert_eq!(
+        retried.runtime_epoch.as_deref(),
+        Some(core.sync.runtime_epoch().unwrap())
+    );
+    assert!(core.plugins.get("acme.hotkeys").unwrap().running);
+
+    // Opt-out preserves the old account's pending record but a later
+    // local-only action advances the source, making that record stale.
+    core.sync_set_enabled(false).unwrap();
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", false)
+        .unwrap();
+    let retained = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert_eq!(retained.generation, retried.generation);
+    assert_ne!(retained.generation, retained.source_generation);
+    assert_eq!(retained.enabled, Some(true));
+    assert!(!core.plugins.get("acme.hotkeys").unwrap().running);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn runtime_outbox_requires_matching_live_selection() {
+    use crate::cloud_sync::product_outbox::RuntimeProductOutbox;
+    use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
+    use tiktools_cloud_sync::{V1LocalEditContext, V1ProductOutbox};
+
+    let (mut core, _, root) =
+        core_with_fake_plugins(Arc::new(FakePluginState::default()), &["acme.hotkeys"]);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("runtime-outbox-account.json");
+    std::fs::write(
+        &sidecar,
+        br#"{"origin":"https://cloud.example","account_id":"alice"}"#,
+    )
+    .unwrap();
+    let auth = CloudAuth::new(
+        Some("https://cloud.example".into()),
+        sidecar,
+        Arc::new(MemoryTokenStore::new()),
+    );
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    core.sync_set_enabled(true).unwrap();
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", true)
+        .unwrap();
+    let entry = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    let context = V1LocalEditContext {
+        origin: entry.origin,
+        account_id: entry.account_id,
+        config_generation: entry.config_generation,
+    };
+    let mut outbox = RuntimeProductOutbox::new(&core).unwrap();
+    let mut observed = false;
+    outbox
+        .with_runtime_guard(&mut |guarded| {
+            observed = guarded.next(&context)?.is_some();
+            Ok(())
+        })
+        .unwrap();
+    assert!(observed);
+    let guard = core.try_plugin_sync_runtime_guard().unwrap();
+    assert!(!guard.matches_selection("acme.hotkeys", "wrong-version", true));
+    drop(guard);
+    core.plugins.stop("acme.hotkeys").unwrap();
+    let mut outbox = RuntimeProductOutbox::new(&core).unwrap();
+    assert!(outbox
+        .with_runtime_guard(&mut |guarded| {
+            guarded.next(&context)?;
+            Ok(())
+        })
+        .is_err());
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn durable_local_enable_does_not_confirm_a_newer_concurrent_source() {
+    use crate::cloud_sync::product_outbox::SqliteProductOutbox;
+    use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
+    use tiktools_cloud_sync::{V1LocalEditContext, V1ProductOutbox};
+
+    let runtime = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("durable-account.json");
+    std::fs::write(
+        &sidecar,
+        br#"{"origin":"https://cloud.example","account_id":"alice"}"#,
+    )
+    .unwrap();
+    let auth = CloudAuth::new(
+        Some("https://cloud.example".into()),
+        sidecar,
+        Arc::new(MemoryTokenStore::new()),
+    );
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    core.sync_set_enabled(true).unwrap();
+    core.plugin_set_enabled_with_durable_intent("acme.hotkeys", false)
+        .unwrap();
+
+    // Model a separate writer updating persisted source after the durable
+    // reservation, just as the plugin's runtime is being started.
+    let db = Arc::clone(&core.db);
+    *runtime.on_load.lock().unwrap() = Some(Box::new(move || {
+        db.set_plugin_state("acme.hotkeys", true, false).unwrap();
+    }));
+    let mut events = core.events.subscribe_domain();
+    let error = core
+        .plugin_set_enabled_with_durable_intent("acme.hotkeys", true)
+        .unwrap_err();
+    assert_eq!(error.code, "conflict");
+
+    let retained = core
+        .db
+        .next_plugin_sync_intent("https://cloud.example", "alice")
+        .unwrap()
+        .unwrap();
+    assert_eq!(retained.enabled, Some(true));
+    assert_ne!(retained.generation, retained.source_generation);
+    assert!(retained.runtime_epoch.is_none());
+    assert!(!core
+        .db
+        .acknowledge_plugin_sync_intent(&retained, core.sync.runtime_epoch().unwrap())
+        .unwrap());
+    let context = V1LocalEditContext {
+        origin: retained.origin.clone(),
+        account_id: retained.account_id.clone(),
+        config_generation: retained.config_generation,
+    };
+    let mut outbox = SqliteProductOutbox::new(&core.db, core.sync.runtime_epoch().unwrap());
+    assert!(outbox.next(&context).is_err());
+
+    // A completed runtime effect is observable even though a different
+    // writer has already recorded a newer desired state. This discrepancy
+    // requires reconciliation before the path can be enabled in product.
+    let shown = core.plugin_get("acme.hotkeys").unwrap();
+    assert_eq!(shown["running"], true);
+    assert_eq!(shown["enabled"], false);
+    assert!(matches!(
+        events.try_recv().unwrap(),
+        crate::events::DomainEvent::PluginStarted { plugin_id } if plugin_id == "acme.hotkeys"
+    ));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[tokio::test]
+async fn cloud_sync_defers_remote_selection_and_preserves_local_conflict_choices() {
+    use secrecy::SecretString;
+    use tiktools_cloud_auth::{CloudAuth, Persistence, TokenStore, TokenStoreError};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+
+    struct Store;
+    impl TokenStore for Store {
+        fn persistence(&self) -> Persistence {
+            Persistence::MemoryOnly
+        }
+        fn load(&self, _: &str, _: &str) -> Result<Option<SecretString>, TokenStoreError> {
+            Ok(Some(SecretString::from("fixture-token".to_owned())))
+        }
+        fn store(
+            &self,
+            _: &str,
+            _: &str,
+            _: &cloud_client::Session,
+        ) -> Result<(), TokenStoreError> {
+            Ok(())
+        }
+        fn delete(&self, _: &str, _: &str) -> Result<(), TokenStoreError> {
+            Ok(())
+        }
+    }
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let tombstone = Arc::new(AtomicBool::new(false));
+    let server_tombstone = Arc::clone(&tombstone);
+    let server = tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            let tombstone = Arc::clone(&server_tombstone);
+            tokio::spawn(async move {
+                let mut request = Vec::new();
+                loop {
+                    let mut bytes = [0u8; 1024];
+                    let Ok(n) = socket.read(&mut bytes).await else {
+                        return;
+                    };
+                    if n == 0 || request.len() + n > 16384 {
+                        return;
+                    }
+                    request.extend_from_slice(&bytes[..n]);
+                    if request.windows(4).any(|part| part == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let request = String::from_utf8_lossy(&request);
+                let first = request.lines().next().unwrap_or_default();
+                let (status, body) = if first.starts_with("GET /api/v1/native/me ") {
+                    ("200 OK", json!({"id":"alice"}))
+                } else if first.starts_with("GET /api/v1/native/sync/changes?") {
+                    let cursor = first
+                        .split("cursor=")
+                        .nth(1)
+                        .and_then(|value| value.split(['&', ' ']).next())
+                        .and_then(|value| value.parse::<u64>().ok())
+                        .unwrap_or(0);
+                    let deleted = tombstone.load(AtomicOrdering::SeqCst);
+                    let changes = if cursor == 0 {
+                        vec![json!({
+                            "collection":"plugin-selections", "key":"acme.hotkeys", "revision":1,
+                            "deleted":false, "value":{"schemaVersion":1,"pluginId":"acme.hotkeys","version":"1.0.0","enabled":false}
+                        })]
+                    } else if cursor == 1 && deleted {
+                        vec![
+                            json!({"collection":"plugin-selections", "key":"acme.hotkeys", "revision":2, "deleted":true, "value":null}),
+                        ]
+                    } else {
+                        Vec::new()
+                    };
+                    let latest = if cursor == 0 || !deleted { 1 } else { 2 };
+                    (
+                        "200 OK",
+                        json!({"changes":changes,"cursor":latest,"has_more":false}),
+                    )
+                } else if first.starts_with(
+                    "PUT /api/v1/native/sync/collections/plugin-selections/acme.hotkeys ",
+                ) {
+                    ("409 Conflict", json!({"error":"conflict"}))
+                } else {
+                    ("404 Not Found", json!({}))
+                };
+                let body = serde_json::to_vec(&body).unwrap();
+                let headers = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                let _ = socket.write_all(headers.as_bytes()).await;
+                let _ = socket.write_all(&body).await;
+            });
+        }
+    });
+
+    let runtime = Arc::new(FakePluginState::default());
+    let (mut core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.hotkeys"]);
+    core.plugin_set_enabled("acme.hotkeys", true).unwrap();
+    let loads_before = runtime.loads.load(AtomicOrdering::SeqCst);
+    let paths = core.db.paths().clone();
+    let sidecar = paths.data.join("test-account.json");
+    std::fs::write(
+        &sidecar,
+        serde_json::to_vec(&json!({"origin":origin,"account_id":"alice"})).unwrap(),
+    )
+    .unwrap();
+    let events = core.events.clone();
+    let auth = CloudAuth::new(Some(origin), sidecar, Arc::new(Store)).with_context_observer(
+        Arc::new(move || {
+            events
+                .publish_presentation_domain(crate::events::DomainEvent::CloudContextInvalidated {})
+        }),
+    );
+    auth.restore().await.unwrap();
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    core.sync_set_enabled(true).unwrap();
+    let mut notifications = core.events.subscribe_projection();
+
+    let first = core.sync_now().await.unwrap();
+    assert_eq!((first.pulled, first.applied, first.skipped), (1, 0, 1));
+    assert!(first.application_deferred);
+    while let Ok(event) = notifications.try_recv() {
+        assert_ne!(event.topic(), "cloud.context.invalidated");
+    }
+    assert!(
+        recover_rwlock_read(&core.plugin_state.activation, "plugin activation")["acme.hotkeys"]
+            .enabled
+    );
+    assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), loads_before);
+
+    // Restart the sync coordinator with the same account partition: the
+    // retained Cloud record is still reported even with no new feed changes.
+    Arc::get_mut(&mut core).unwrap().sync =
+        Arc::new(crate::cloud_sync::CloudSync::new(&paths, &auth));
+    let again = core.sync_now().await.unwrap();
+    assert_eq!((again.pulled, again.applied, again.skipped), (0, 0, 1));
+    assert!(again.application_deferred);
+    assert!(
+        recover_rwlock_read(&core.plugin_state.activation, "plugin activation")["acme.hotkeys"]
+            .enabled
+    );
+
+    // A later tombstone is retained too, without stopping the local plugin.
+    tombstone.store(true, AtomicOrdering::SeqCst);
+    let deleted = core.sync_now().await.unwrap();
+    assert_eq!(
+        (deleted.pulled, deleted.applied, deleted.skipped),
+        (1, 0, 1)
+    );
+    assert!(deleted.application_deferred);
+    assert!(
+        recover_rwlock_read(&core.plugin_state.activation, "plugin activation")["acme.hotkeys"]
+            .enabled
+    );
+
+    // No conflict choice can discard or rebase an existing pending edit.
+    core.sync
+        .coordinator()
+        .unwrap()
+        .record_local_change("acme.hotkeys", "1.0.0", true)
+        .unwrap();
+    let conflict = core.sync_now().await.unwrap();
+    assert_eq!(conflict.conflicts, vec!["acme.hotkeys"]);
+    let before = core.sync_status().await.unwrap();
+    assert_eq!(before.pending, 1);
+    assert_eq!(before.conflicts, vec!["acme.hotkeys"]);
+    for keep in [false, true] {
+        let error = core
+            .sync_resolve_selection("acme.hotkeys", keep)
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "unavailable");
+        assert_eq!(error.data.unwrap()["reason"], "conflict-review-unavailable");
+        let after = core.sync_status().await.unwrap();
+        assert_eq!(after.pending, before.pending);
+        assert_eq!(after.conflicts, before.conflicts);
+    }
+    core.plugin_set_enabled("acme.hotkeys", false).unwrap();
+    assert!(
+        !recover_rwlock_read(&core.plugin_state.activation, "plugin activation")["acme.hotkeys"]
+            .enabled
+    );
+    core.shutdown().await;
+    server.abort();
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
 async fn cloud_sync_remote_never_installs_or_stages() {
     let _sync_guard = SYNC_TEST_LOCK.lock().await;
     let _home = isolated_test_home();
@@ -2797,6 +3723,143 @@ async fn cloud_sync_remote_never_installs_or_stages() {
     assert_eq!(status.pending, 0);
     assert!(status.conflicts.is_empty());
     core.shutdown().await;
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
+async fn cloud_sync_skips_discovered_but_uninstalled_plugin() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&runtime));
+    core.plugin_set_installed("hotkeys", false).unwrap();
+    for enabled in [true, false] {
+        assert!(!core
+            .plugin_apply_remote_selection("hotkeys", enabled)
+            .unwrap());
+        let state = recover_rwlock_read(&core.plugin_state.activation, "plugin activation");
+        assert!(!state.get("hotkeys").unwrap().installed);
+    }
+    assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), 0);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(feature = "cloud-auth")]
+#[tokio::test]
+async fn cloud_sync_checks_installed_state_inside_invocation_gate() {
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&runtime));
+    let gate = core.plugin_state.invocation_gate.lock().unwrap();
+    let remote_core = Arc::clone(&core);
+    let pending =
+        std::thread::spawn(move || remote_core.plugin_apply_remote_selection("hotkeys", false));
+    // This change takes place while the remote operation waits on the gate.
+    core.set_plugin_activation("hotkeys", false, true);
+    drop(gate);
+    assert!(!pending.join().unwrap().unwrap());
+    assert!(
+        !recover_rwlock_read(&core.plugin_state.activation, "plugin activation")
+            .get("hotkeys")
+            .unwrap()
+            .installed
+    );
+    assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), 0);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[tokio::test]
+async fn plugin_apply_uncertain_runtime_is_quarantined_after_host_restart() {
+    use crate::db::{PluginApplyIntent, PluginApplyReason};
+    use tiktools_cloud_sync::{PluginSelection, V1Record};
+    let runtime = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(Arc::clone(&runtime), &["acme.plugin"]);
+    let paths = core.db.paths().clone();
+    core.db.set_plugin_state("acme.plugin", true, true).unwrap();
+    let intent_id = "a".repeat(64);
+    let intent = PluginApplyIntent {
+        intent_id: intent_id.clone(),
+        origin: "https://cloud.example".into(),
+        account_id: "alice".into(),
+        config_generation: 1,
+        plugin_id: "acme.plugin".into(),
+        source_generation: 1,
+        installed_version: "1.0.0".into(),
+        expected_enabled: false,
+        reviewed_pending: None,
+        base_record: None,
+        remote: Some(V1Record {
+            collection: "plugin-selections".into(),
+            key: "acme.plugin".into(),
+            revision: 1,
+            deleted: false,
+            value: Some(PluginSelection {
+                schema_version: 1,
+                plugin_id: "acme.plugin".into(),
+                version: "1.0.0".into(),
+                enabled: true,
+            }),
+        }),
+        reason: PluginApplyReason::Pulled,
+    };
+    let db = rusqlite::Connection::open(paths.automation_database()).unwrap();
+    db.execute("INSERT INTO plugin_sync_apply_intents(intent_id,plugin_id,phase,payload_json,committed_generation) VALUES(?1,'acme.plugin','runtime_pending',?2,2)", rusqlite::params![intent_id, serde_json::to_string(&intent).unwrap()]).unwrap();
+    drop(db);
+    core.shutdown().await;
+    drop(core);
+
+    let (manager, manager_root) =
+        fake_hotkey_manager(Arc::clone(&runtime), &["acme.plugin", "other"]);
+    let mut restarted = AppCore::with_paths(
+        Arc::new(RecordingEmitter::default()),
+        Arc::new(NoopMediaHost),
+        paths.clone(),
+    );
+    restarted.plugins = Arc::new(manager);
+    let restarted = Arc::new(restarted);
+    assert!(restarted.plugin_apply_quarantined("acme.plugin"));
+    assert!(!restarted.plugin_ready("acme.plugin"));
+    assert!(restarted.plugin_ready("other"));
+    assert!(restarted.plugin_start("acme.plugin").is_err());
+    assert!(restarted.plugin_set_enabled("acme.plugin", true).is_err());
+    assert!(restarted.plugin_set_installed("acme.plugin", true).is_err());
+    assert_eq!(runtime.loads.load(AtomicOrdering::SeqCst), 0);
+    let snapshot = restarted.db.load_behavior_snapshot().unwrap();
+    let saved = snapshot["plugins"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"] == "acme.plugin")
+        .unwrap();
+    assert_eq!(saved["enabled"], true);
+    restarted.shutdown().await;
+    drop(restarted);
+
+    // A malformed active row makes the source of uncertainty unknowable:
+    // reopening must fail closed for every plugin, including one with no row.
+    let db = rusqlite::Connection::open(paths.automation_database()).unwrap();
+    db.execute(
+        "UPDATE plugin_sync_apply_intents SET phase='ready' WHERE plugin_id='acme.plugin'",
+        [],
+    )
+    .unwrap();
+    drop(db);
+    let (manager, corrupt_manager_root) =
+        fake_hotkey_manager(Arc::clone(&runtime), &["acme.plugin", "other"]);
+    let mut corrupt = AppCore::with_paths(
+        Arc::new(RecordingEmitter::default()),
+        Arc::new(NoopMediaHost),
+        paths,
+    );
+    corrupt.plugins = Arc::new(manager);
+    let corrupt = Arc::new(corrupt);
+    assert!(corrupt.plugin_apply_quarantined("other"));
+    assert!(!corrupt.plugin_ready("other"));
+    assert!(corrupt.plugin_start("other").is_err());
+    corrupt.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+    let _ = std::fs::remove_dir_all(manager_root);
+    let _ = std::fs::remove_dir_all(corrupt_manager_root);
 }
 
 #[cfg(all(feature = "cloud-auth", unix))]
@@ -2833,5 +3896,70 @@ async fn unusable_cloud_sync_directory_degrades_instead_of_panicking() {
     assert_eq!(error.data.as_ref().unwrap()["reason"], "storage");
     assert_eq!(core.sync_set_enabled(true).unwrap_err().code, "unavailable");
     core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[test]
+fn v2_sqlite_source_requires_current_runtime_and_acknowledges_only_after_staging() {
+    use crate::db::LocalPluginSyncIntent;
+    use tiktools_cloud_sync::{SyncCoordError, V2ProductSource};
+    let state = Arc::new(FakePluginState::default());
+    let (core, _, root) = core_with_fake_plugins(state, &["hotkeys"]);
+    let origin = "https://cloud.example";
+    let account = "alice";
+    let version = core.plugins.get("hotkeys").unwrap().manifest.version;
+    core.db
+        .set_plugin_state_with_sync_intent(
+            "hotkeys",
+            true,
+            false,
+            Some(LocalPluginSyncIntent {
+                origin,
+                account_id: account,
+                config_generation: 42,
+                version: Some(&version),
+            }),
+        )
+        .unwrap();
+    core.set_plugin_activation("hotkeys", true, false);
+    let entry = core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .unwrap();
+    let epoch = core.sync.runtime_epoch().unwrap();
+    assert!(core.db.confirm_plugin_sync_runtime(&entry, epoch).unwrap());
+    let source =
+        crate::cloud_sync::product_v2_outbox::SqliteV2ProductSource::new(&core, origin, account);
+    let failure: Result<(), _> = source
+        .with_fenced_decision(|_, _| Err(SyncCoordError::Local("failed workspace save".into())));
+    assert!(failure.is_err());
+    assert!(core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .is_some());
+    core.set_plugin_activation("hotkeys", true, true);
+    assert!(source.with_fenced_decision(|_, _| Ok(())).is_err());
+    assert!(core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .is_some());
+    core.set_plugin_activation("hotkeys", true, false);
+    source
+        .with_fenced_decision(|decision, _| {
+            assert_eq!(decision.plugin_id, "hotkeys");
+            assert_eq!(decision.source_generation, entry.generation as u64);
+            assert!(!decision.selection.as_ref().unwrap().enabled);
+            Ok(())
+        })
+        .unwrap();
+    assert!(core
+        .db
+        .next_plugin_sync_intent(origin, account)
+        .unwrap()
+        .is_none());
     let _ = std::fs::remove_dir_all(root);
 }

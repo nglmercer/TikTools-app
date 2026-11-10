@@ -3,11 +3,11 @@ import { ControlCallError, errorMessage, type ControlClient } from '@/shared/api
 import { ownerMutationGate } from '@/shared/api/owner-mutation-gate.ts';
 import { parseDefinitionState, parsePeerState } from '@/entities/automation/model/definition-contracts.ts';
 import { checkLibraryMutation, libraryTarget, parseLibrarySnapshot, parseLibraryState, parseLibrarySubmission, sameLibraryHost,
-  type LibraryAcknowledgement, type LibraryMutation, type LibrarySnapshot, type LibraryState } from './library-contracts.ts';
+  type LibraryAcknowledgement, type LibraryCloudProvenance, type LibraryMutation, type LibrarySnapshot, type LibraryState } from './library-contracts.ts';
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 export interface LibraryDraft {
-  token: number; generation: number; mutation: LibraryMutation; context: LibrarySnapshot; busy: boolean; submitted: boolean; reviewRequired: boolean; error: string;
+  token: number; generation: number; mutation: LibraryMutation; context: LibrarySnapshot; busy: boolean; submitted: boolean; reviewRequired: boolean; error: string; provenance?: LibraryCloudProvenance | null;
 }
 function createLibrary(control: ControlClient) {
   const gate = ownerMutationGate(control);
@@ -50,7 +50,7 @@ function createLibrary(control: ControlClient) {
     })();
     return refreshing;
   }
-  async function submit(mutation: LibraryMutation, context: LibrarySnapshot): Promise<LibraryAcknowledgement> {
+  async function submit(mutation: LibraryMutation, context: LibrarySnapshot, provenance?: LibraryCloudProvenance | null): Promise<LibraryAcknowledgement> {
     if (!context?.hostId || !context.hostInstanceId) throw new ControlCallError('capability_unavailable', 'Review the current library before changing it.');
     const captured = clone(context); const candidate = checkLibraryMutation(mutation);
     if (refreshing) await refreshing;
@@ -67,7 +67,8 @@ function createLibrary(control: ControlClient) {
         if (host.pending || definition.pending || adoption.pending || approval.pending) throw new ControlCallError('command_pending', 'Resolve the pending Owner operation before another change.');
         // Metadata preflight never refreshes or replaces the displayed source fence.
         const result = parseLibrarySubmission(await control.call('automation.library.submit', { mutation: candidate,
-          expectedRevision: captured.revision, definitionDigest: captured.definitionDigest, hostId: captured.hostId, hostInstanceId: captured.hostInstanceId }), candidate, captured);
+          expectedRevision: captured.revision, definitionDigest: captured.definitionDigest, hostId: captured.hostId, hostInstanceId: captured.hostInstanceId,
+          ...(provenance ? { provenance } : {}) }), candidate, captured);
         ++stateEpoch; state.value = result.state; unavailable.value = false;
         if (!result.acknowledgement) {
           const last = result.state.recent[0];
@@ -83,12 +84,12 @@ function createLibrary(control: ControlClient) {
       } finally { busy.value = false; }
     });
   }
-  function request(mutation: LibraryMutation, context: LibrarySnapshot | null = snapshot.value): Promise<void> {
+  function request(mutation: LibraryMutation, context: LibrarySnapshot | null = snapshot.value, provenance?: LibraryCloudProvenance | null): Promise<void> {
     if (!context) return Promise.reject(new ControlCallError('capability_unavailable', 'Read the current library before changing it.'));
     if (draft.value || gate.busy.value) return Promise.reject(new ControlCallError('command_pending', 'Finish the reviewed library operation first.'));
     let candidate: LibraryMutation;
     try { candidate = checkLibraryMutation(mutation); } catch (failure) { return Promise.reject(failure); }
-    draft.value = { token: ++token, generation: 0, mutation: candidate, context: clone(context), busy: false, submitted: false, reviewRequired: false, error: '' }; comparison.value = null;
+    draft.value = { token: ++token, generation: 0, mutation: candidate, context: clone(context), busy: false, submitted: false, reviewRequired: false, error: '', provenance: provenance ?? null }; comparison.value = null;
     return new Promise<void>((resolve, reject) => { completion = { resolve, reject }; });
   }
   async function confirm(): Promise<void> {
@@ -97,7 +98,7 @@ function createLibrary(control: ControlClient) {
     try { checkLibraryMutation(captured.mutation); } catch (failure) { draft.value = { ...captured, error: errorMessage(failure) }; return; }
     draft.value = { ...captured, busy: true, submitted: true, error: '' };
     try {
-      await submit(captured.mutation, captured.context);
+      await submit(captured.mutation, captured.context, captured.provenance ?? null);
       if (draft.value?.token !== captured.token) return;
       // A fresh acknowledgement is metadata only. Display comes from a new
       // coherent snapshot, never from the candidate or historical receipt.

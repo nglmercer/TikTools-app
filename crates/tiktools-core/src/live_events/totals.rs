@@ -365,6 +365,7 @@ mod like_tests {
             unique_id: "creator".into(),
             room_id: "a".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         };
         let other = LiveContext {
             room_id: "b".into(),
@@ -387,6 +388,7 @@ mod like_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         };
         let mut event = NativeLiveEvent {
             base: CanonicalLiveEvent::Like(LikeEvent {
@@ -422,6 +424,7 @@ mod like_tests {
             unique_id: "creator".into(),
             room_id: "other".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         };
         assert_eq!(totals.like_integrity_status(&other), "unknown");
         assert!(totals.like_revision() > 1);
@@ -434,6 +437,7 @@ mod like_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         };
         let mut event = NativeLiveEvent {
             base: CanonicalLiveEvent::Like(LikeEvent {
@@ -472,6 +476,7 @@ mod like_tests {
             unique_id: "creator".into(),
             room_id: "unseen".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         };
         totals.observe(&event, Some(&unseen));
         assert_eq!(totals.like_integrity_status(&unseen), "degraded");
@@ -485,11 +490,13 @@ mod like_tests {
             unique_id: "creator".into(),
             room_id: "room-a".into(),
             connection_id: "session-a".into(),
+            creator_verified: true,
         };
         let room_b = LiveContext {
             unique_id: "creator".into(),
             room_id: "room-b".into(),
             connection_id: "session-b".into(),
+            creator_verified: true,
         };
         let mut event = NativeLiveEvent {
             base: CanonicalLiveEvent::Like(LikeEvent {
@@ -557,6 +564,7 @@ mod like_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         };
         for id in 1..=600 {
             let event = NativeLiveEvent {
@@ -656,6 +664,7 @@ mod like_tests {
                 unique_id: "creator".into(),
                 room_id: room.into(),
                 connection_id: "session".into(),
+                creator_verified: true,
             };
             let key = id.to_string();
             let event = NativeLiveEvent {
@@ -699,6 +708,7 @@ mod like_tests {
                 unique_id: "creator".into(),
                 room_id: "room-a".into(),
                 connection_id: "session".into(),
+                creator_verified: true,
             };
             let key = id.to_string();
             let event = NativeLiveEvent {
@@ -740,6 +750,7 @@ mod like_tests {
                 unique_id: "creator".into(),
                 room_id: room.into(),
                 connection_id: "session".into(),
+                creator_verified: true,
             };
             let legacy = totals.like_leaderboard(&context);
             let snapshot = engine.snapshot(room).unwrap();
@@ -832,6 +843,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         let rule = |source: &str, metric: &str, weight| SourceRule {
             source: source.into(),
@@ -1120,6 +1132,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "reconnected".into(),
+            creator_verified: true,
         });
         assert_eq!(restarted.ranking_snapshot("rank").unwrap().total_score, 23);
         restarted.handle_live_event(direct_gift).await;
@@ -1147,6 +1160,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "after-result".into(),
+            creator_verified: true,
         });
         finished
             .handle_live_event(event(
@@ -1456,6 +1470,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         core.ranking_create(Ranking {
             schema_version: 1,
@@ -1981,6 +1996,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         core.ranking_create(Definition {
             schema_version: 1,
@@ -2074,6 +2090,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         core.ranking_create(Definition {
             schema_version: 1,
@@ -2150,6 +2167,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         core.ranking_create(Definition {
             schema_version: 1,
@@ -2218,6 +2236,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         for id in 1..=20 {
             let event = NativeLiveEvent {
@@ -2270,6 +2289,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         let event = NativeLiveEvent {
             base: CanonicalLiveEvent::Like(LikeEvent {
@@ -2320,6 +2340,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         core.ranking_create(Definition {
             schema_version: 1,
@@ -2407,6 +2428,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         for (id, source, metric) in [
             ("likes", "tiktok.like", "like.count"),
@@ -2552,6 +2574,7 @@ mod integration_tests {
             unique_id: "creator".into(),
             room_id: "room".into(),
             connection_id: "session".into(),
+            creator_verified: true,
         });
         core.ranking_create(Definition {
             schema_version: 1,

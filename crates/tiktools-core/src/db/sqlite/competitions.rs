@@ -12,6 +12,173 @@ pub(crate) enum ActionClaimOutcome {
     Claimed(ActionClaim),
 }
 
+/// A trusted snapshot of the generation and each current operator. It is
+/// deliberately not deserializable and grants no effect by itself.
+#[allow(dead_code)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CompetitionExecutionFence {
+    id: String,
+    generation: u64,
+    revision: i64,
+    host_id: String,
+    subjects: Vec<(String, String, String, String)>,
+}
+/// Proof that the competition transaction and current subject locks are held.
+/// It cannot outlive the synchronous admission callback.
+pub(crate) struct CompetitionExecutionAdmission<'a> {
+    fence: &'a CompetitionExecutionFence,
+    identities: &'a [crate::collaboration::ExecutionIdentity],
+    winner: Option<&'a ActionClaim>,
+}
+impl CompetitionExecutionAdmission<'_> {
+    pub(crate) fn fence(&self) -> &CompetitionExecutionFence {
+        self.fence
+    }
+    pub(crate) fn identities(&self) -> &[crate::collaboration::ExecutionIdentity] {
+        self.identities
+    }
+    pub(crate) fn winner(&self) -> Option<&ActionClaim> {
+        self.winner
+    }
+}
+impl CompetitionExecutionFence {
+    pub(crate) fn competition_id(&self) -> &str {
+        &self.id
+    }
+    pub(crate) fn host_id(&self) -> &str {
+        &self.host_id
+    }
+    pub(crate) fn subjects(&self) -> Vec<(String, String)> {
+        self.subjects
+            .iter()
+            .map(|(principal, session, _, _)| (principal.clone(), session.clone()))
+            .collect()
+    }
+}
+
+/// Match the immutable outbox, selected winner and saved definition under the
+/// same business transaction used to admit a delegated winner action.
+pub(super) fn validate_competition_winner_claim(
+    tx: &rusqlite::Connection,
+    claim: &ActionClaim,
+) -> Result<(), DatabaseError> {
+    let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
+    let generation = i64::try_from(claim.generation)
+        .ok()
+        .filter(|g| *g > 0)
+        .ok_or_else(denied)?;
+    let row: Option<(String, String, String, String, String, i64, String, String)> = tx.query_row(
+        "SELECT d.definition_json,s.state_json,o.idempotency_key,o.action_id,o.action_json,r.created_at,r.ranking_id,r.result_json FROM competition_action_outbox o JOIN competition_definitions d ON d.id=o.competition_id JOIN competition_state s ON s.competition_id=o.competition_id JOIN competition_results r ON r.competition_id=o.competition_id AND r.generation=o.generation WHERE o.competition_id=?1 AND o.generation=?2 AND o.status='running'",
+        params![claim.competition_id, generation],
+        |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?,row.get(7)?)),
+    ).optional()?;
+    let (definition, state, key, action_id, action, created_at, ranking, result) =
+        row.ok_or_else(denied)?;
+    let definition: Definition = serde_json::from_str(&definition).map_err(|_| denied())?;
+    let state: LifecycleState = serde_json::from_str(&state).map_err(|_| denied())?;
+    let action: WinnerAction = serde_json::from_str(&action).map_err(|_| denied())?;
+    let result = decode_result(
+        &claim.competition_id,
+        generation,
+        &ranking,
+        created_at,
+        &result,
+    )
+    .map_err(|_| denied())?;
+    let expected_key = serde_json::to_string(&(
+        "competition-winner",
+        &claim.competition_id,
+        claim.generation,
+    ))?;
+    if definition.id != claim.competition_id
+        || definition.ranking_id != ranking
+        || definition.selection_mode != result.selection.mode
+        || definition.tie_policy != result.selection.tie_policy
+        || state.lifecycle != Lifecycle::Finished
+        || state.generation != claim.generation
+        || key != expected_key
+        || claim.idempotency_key != key
+        || action_id != action.action_id
+        || action != claim.action
+        || result
+            .selection
+            .winner
+            .as_deref()
+            .and_then(|winner| definition.winner_action(winner))
+            != Some(&action)
+    {
+        return Err(denied());
+    }
+    Ok(())
+}
+
+fn competition_execution_fence(
+    tx: &rusqlite::Connection,
+    id: &str,
+    generation: u64,
+    identities: &[crate::collaboration::ExecutionIdentity],
+) -> Result<CompetitionExecutionFence, DatabaseError> {
+    let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
+    let row: Option<(String,i64)> = tx.query_row(
+        "SELECT s.state_json,r.revision FROM competition_state s JOIN competition_control_revisions r ON r.competition_id=s.competition_id AND r.deleted=0 WHERE s.competition_id=?1",
+        [id], |row| Ok((row.get(0)?,row.get(1)?)),
+    ).optional()?;
+    let (state, revision) = row.ok_or_else(denied)?;
+    let state: LifecycleState = serde_json::from_str(&state).map_err(|_| denied())?;
+    if state.generation != generation
+        || revision <= 0
+        || matches!(state.lifecycle, Lifecycle::Draft | Lifecycle::Failed)
+    {
+        return Err(denied());
+    }
+    let host_id = identities.first().ok_or_else(denied)?.host_id().to_owned();
+    if identities
+        .iter()
+        .any(|identity| identity.host_id() != host_id)
+    {
+        return Err(denied());
+    }
+    let subjects = identities
+        .iter()
+        .map(|identity| {
+            (
+                identity.principal_id().to_owned(),
+                identity.session_id().to_owned(),
+                identity.grant_revision().to_owned(),
+                identity.configuration_revision().to_owned(),
+            )
+        })
+        .collect();
+    Ok(CompetitionExecutionFence {
+        id: id.into(),
+        generation,
+        revision,
+        host_id,
+        subjects,
+    })
+}
+
+/// Revision-bound start/resume with retained delegated operators.
+#[derive(Clone, Copy)]
+pub(crate) enum CompetitionActivation {
+    Start,
+    Resume,
+}
+impl CompetitionActivation {
+    fn method(self) -> &'static str {
+        match self {
+            Self::Start => "competitions.start",
+            Self::Resume => "competitions.resume",
+        }
+    }
+    fn transition(self) -> Transition {
+        match self {
+            Self::Start => Transition::Start,
+            Self::Resume => Transition::Resume,
+        }
+    }
+}
+
 fn decode_result(
     id: &str,
     generation: i64,
@@ -121,6 +288,330 @@ pub(crate) enum GiftOutcome {
 }
 
 impl DatabaseManager {
+    /// Caller must hold the ranking and competition mutation barriers and
+    /// verify that the ranking is unpaused. No event or effect is dispatched.
+    #[allow(dead_code)]
+    pub(crate) fn execute_competition_activation(
+        &self,
+        id: &str,
+        generation: u64,
+        operation: CompetitionActivation,
+        command: &super::CommandTransaction,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        owner: &str,
+        ranking_paused: bool,
+    ) -> Result<(crate::collaboration::Versioned<serde_json::Value>, bool), DatabaseError> {
+        use crate::collaboration::{Capability, Error, ResourceKind, ResourceVersion, Versioned};
+        let denied = || DatabaseError::CommandAuthorization(Error::Forbidden);
+        command
+            .request
+            .validate()
+            .map_err(|_| DatabaseError::Invalid("invalid command metadata".into()))?;
+        let auth = command.authorization.as_ref().ok_or_else(denied)?;
+        let expected_generation = i64::try_from(generation).map_err(|_| denied())?;
+        if owner.is_empty() {
+            return Err(denied());
+        }
+        let hash = super::commands::payload_hash(
+            operation.method(),
+            &serde_json::json!({"id":id,"generation":generation.to_string()}),
+            &command.request.expected_revision,
+        )?;
+        let mut db = self.open(&self.automation_path())?;
+        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let caller = service
+            .execution_authorizations(&[(command.principal_id.clone(), command.session_id.clone())])
+            .map_err(DatabaseError::CommandAuthorization)?;
+        let check_caller = |identities: &[crate::collaboration::ExecutionIdentity]| {
+            let current = auth
+                .snapshot()
+                .map_err(DatabaseError::CommandAuthorization)?;
+            let subject = identities.first().ok_or_else(denied)?;
+            if identities.len() != 1
+                || current.principal_id != command.principal_id
+                || current.session_id != command.session_id
+                || current.grant_revision != subject.grant_revision()
+                || current.grant != *subject.grant()
+                || !current
+                    .grant
+                    .capabilities
+                    .contains(&Capability::CompetitionsRead)
+                || !current
+                    .grant
+                    .capabilities
+                    .contains(&Capability::CompetitionsManage)
+                || current.grant.resources.contains_key(&ResourceKind::Live)
+                || !current.grant.allows_resource(ResourceKind::Competition, id)
+            {
+                return Err(denied());
+            }
+            subject
+                .check_deadline()
+                .map_err(DatabaseError::CommandAuthorization)
+        };
+        let retained = caller
+            .with_current(|identities| {
+                check_caller(identities)?;
+                super::commands::prune(&tx)?;
+                super::commands::replay(&tx, command, &hash)
+            })
+            .map_err(DatabaseError::CommandAuthorization)??;
+        // A retained outcome belongs to the original command, even if another
+        // moderator was later revoked. Only the caller's current scope matters.
+        if let Some(result) = retained {
+            return caller
+                .with_current(|identities| {
+                    check_caller(identities)?;
+                    tx.commit()?;
+                    Ok((result, false))
+                })
+                .map_err(DatabaseError::CommandAuthorization)?;
+        }
+        if ranking_paused {
+            return Err(DatabaseError::Invalid(
+                "competition ranking is paused".into(),
+            ));
+        }
+        let row: Option<(String,String,i64)> = tx.query_row(
+            "SELECT d.definition_json,s.state_json,r.revision FROM competition_definitions d JOIN competition_state s ON s.competition_id=d.id JOIN competition_control_revisions r ON r.competition_id=d.id AND r.deleted=0 WHERE d.id=?1",
+            [id], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?)),
+        ).optional()?;
+        let (definition, state, revision) = row.ok_or(DatabaseError::NotFound)?;
+        let version = |n: i64| ResourceVersion {
+            kind: ResourceKind::Competition,
+            scope: "host".into(),
+            id: id.into(),
+            revision: n.to_string(),
+        };
+        if revision <= 0 || revision.to_string() != command.request.expected_revision {
+            return Err(DatabaseError::RevisionConflict(version(revision)));
+        }
+        let definition: Definition = serde_json::from_str(&definition)?;
+        let mut state: LifecycleState = serde_json::from_str(&state)?;
+        if state.generation != generation {
+            return Err(DatabaseError::RevisionConflict(version(revision)));
+        }
+        let mut retained = std::collections::BTreeMap::<(String, String), i64>::new();
+        if matches!(operation, CompetitionActivation::Resume) {
+            let valid_owner:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM competition_integrity_owners WHERE competition_id=?1 AND generation=?2 AND owner=?3)",params![id,expected_generation,owner],|r|r.get(0))?;
+            if !valid_owner {
+                return Err(denied());
+            }
+            let origin:Option<String>=tx.query_row("SELECT origin FROM competition_execution_generations WHERE competition_id=?1 AND generation=?2",params![id,expected_generation],|r|r.get(0)).optional()?;
+            let mut statement=tx.prepare("SELECT principal_id,session_id,grant_revision FROM competition_execution_subjects WHERE competition_id=?1 AND generation=?2 LIMIT 17")?;
+            let entries = statement
+                .query_map(params![id, expected_generation], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            drop(statement);
+            match origin.as_deref() {
+                Some("owner") if entries.is_empty() => {}
+                Some("delegated") if !entries.is_empty() => {}
+                _ => return Err(denied()),
+            }
+            for (p, s, r) in entries {
+                let revision = r
+                    .parse::<i64>()
+                    .ok()
+                    .filter(|n| *n > 0 && n.to_string() == r)
+                    .ok_or_else(denied)?;
+                if retained.insert((p, s), revision).is_some() {
+                    return Err(denied());
+                }
+            }
+        }
+        retained
+            .entry((command.principal_id.clone(), command.session_id.clone()))
+            .or_insert(0);
+        if retained.len() > 16 {
+            return Err(denied());
+        }
+        let subjects = retained.keys().cloned().collect::<Vec<_>>();
+        let all = service
+            .execution_authorizations(&subjects)
+            .map_err(DatabaseError::CommandAuthorization)?;
+        all.with_current(|identities| {
+            let current=auth.snapshot().map_err(DatabaseError::CommandAuthorization)?;
+            if current.principal_id!=command.principal_id || current.session_id!=command.session_id || identities.len()!=retained.len() { return Err(denied()); }
+            for subject in identities {
+                let prior=*retained.get(&(subject.principal_id().to_owned(),subject.session_id().to_owned())).ok_or_else(denied)?;
+                let current_revision=subject.grant_revision().parse::<i64>().ok().filter(|n|*n>0).ok_or_else(denied)?;
+                if current_revision<prior || !subject.grant().capabilities.contains(&Capability::CompetitionsRead)
+                    || !subject.grant().capabilities.contains(&Capability::CompetitionsManage)
+                    || subject.grant().resources.contains_key(&ResourceKind::Live)
+                    || !subject.grant().allows_resource(ResourceKind::Competition,id) { return Err(denied()); }
+                if subject.principal_id()==command.principal_id && subject.session_id()==command.session_id
+                    && (subject.grant_revision()!=current.grant_revision || *subject.grant()!=current.grant) { return Err(denied()); }
+                subject.check_deadline().map_err(DatabaseError::CommandAuthorization)?;
+            }
+            state.transition(operation.transition(),crate::now_millis(),definition.duration_ms).map_err(|_|DatabaseError::Invalid("invalid competition transition".into()))?;
+            let next_generation=i64::try_from(state.generation).map_err(|_|denied())?;
+            if matches!(operation,CompetitionActivation::Start) {
+                tx.execute("INSERT INTO competition_execution_generations VALUES(?1,?2,'delegated')",params![id,next_generation])?;
+                tx.execute("INSERT INTO competition_integrity_checkpoints(competition_id,generation,status) VALUES(?1,?2,'open')",params![id,next_generation])?;
+                tx.execute("INSERT INTO competition_integrity_owners(competition_id,generation,owner) VALUES(?1,?2,?3)",params![id,next_generation,owner])?;
+            } else {
+                tx.execute("UPDATE competition_execution_generations SET origin='delegated' WHERE competition_id=?1 AND generation=?2",params![id,next_generation])?;
+            }
+            tx.execute("INSERT OR IGNORE INTO competition_execution_subjects(competition_id,generation,principal_id,session_id,grant_revision) VALUES(?1,?2,?3,?4,?5)",params![id,next_generation,command.principal_id,command.session_id,current.grant_revision])?;
+            tx.execute("UPDATE competition_state SET state_json=?2 WHERE competition_id=?1",params![id,serde_json::to_string(&state)?])?;
+            let next:i64=tx.query_row("SELECT revision FROM competition_control_revisions WHERE competition_id=?1 AND deleted=0",[id],|r|r.get(0))?;
+            if revision.checked_add(1)!=Some(next) { return Err(DatabaseError::Invalid("competition revision inconsistent".into())); }
+            let result=Versioned::new(serde_json::json!({"id":id,"lifecycle":state.lifecycle,"generation":state.generation.to_string()}),vec![version(next)]);
+            let result=super::commands::finish(&tx,command,&hash,operation.method(),&command.request.expected_revision,result)?;
+            for subject in identities { subject.check_deadline().map_err(DatabaseError::CommandAuthorization)?; }
+            auth.snapshot().map_err(DatabaseError::CommandAuthorization)?;
+            tx.commit()?;
+            Ok((result,true))
+        }).map_err(DatabaseError::CommandAuthorization)?
+    }
+
+    /// The lifecycle update, retained outcome and metadata outbox commit in
+    /// one writer transaction under the current collaboration grant.
+    pub(crate) fn execute_competition_stop(
+        &self,
+        id: &str,
+        generation: u64,
+        operation: crate::control::CompetitionRemoteTransition,
+        command: &super::CommandTransaction,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        owner: Option<&str>,
+    ) -> Result<(crate::collaboration::Versioned<serde_json::Value>, bool), DatabaseError> {
+        use crate::collaboration::{Capability, ResourceKind, ResourceVersion, Versioned};
+        let auth = command
+            .authorization
+            .as_ref()
+            .ok_or(DatabaseError::CommandAuthorization(
+                crate::collaboration::Error::Forbidden,
+            ))?;
+        let subjects = service
+            .execution_authorizations(&[(command.principal_id.clone(), command.session_id.clone())])
+            .map_err(DatabaseError::CommandAuthorization)?;
+        let hash = super::commands::payload_hash(
+            operation.method(),
+            &serde_json::json!({"id":id,"generation":generation.to_string()}),
+            &command.request.expected_revision,
+        )?;
+        let mut connection = self.open(&self.automation_path())?;
+        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        subjects.with_current(|identities| {
+            let identity = identities.first().ok_or(DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden))?;
+            let current = auth.snapshot().map_err(DatabaseError::CommandAuthorization)?;
+            if current.principal_id != command.principal_id || current.session_id != command.session_id
+                || current.grant_revision != identity.grant_revision() || current.grant != *identity.grant()
+                || !current.grant.capabilities.contains(&Capability::CompetitionsRead)
+                || !current.grant.capabilities.contains(&Capability::CompetitionsManage)
+                || current.grant.resources.contains_key(&ResourceKind::Live)
+                || !current.grant.allows_resource(ResourceKind::Competition, id) {
+                return Err(DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden));
+            }
+            super::commands::prune(&tx)?;
+            if let Some(result) = super::commands::replay(&tx, command, &hash)? {
+                tx.commit()?;
+                return Ok((result, false));
+            }
+            let row: Option<(String, String, i64)> = tx.query_row(
+                "SELECT d.definition_json,s.state_json,r.revision FROM competition_definitions d JOIN competition_state s ON s.competition_id=d.id JOIN competition_control_revisions r ON r.competition_id=d.id AND r.deleted=0 WHERE d.id=?1",
+                [id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            ).optional()?;
+            let (definition, state, revision) = row.ok_or(DatabaseError::NotFound)?;
+            let version = |revision: i64| ResourceVersion { kind: ResourceKind::Competition, scope: "host".into(), id: id.into(), revision: revision.to_string() };
+            if revision <= 0 || command.request.expected_revision != revision.to_string() {
+                return Err(DatabaseError::RevisionConflict(version(revision)));
+            }
+            let definition: Definition = serde_json::from_str(&definition)?;
+            let mut state: LifecycleState = serde_json::from_str(&state)?;
+            if state.generation != generation { return Err(DatabaseError::RevisionConflict(version(revision))); }
+            if state.lifecycle != Lifecycle::Draft {
+                if let Some(owner) = owner {
+                    let valid: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM competition_integrity_owners WHERE competition_id=?1 AND generation=?2 AND owner=?3)", params![id,generation as i64,owner], |r| r.get(0))?;
+                    if !valid { return Err(DatabaseError::Invalid("competition owner changed".into())); }
+                }
+            }
+            // Stopping remains available even if an earlier operator was
+            // revoked. Retain this caller when possible; later event effects
+            // require all retained subjects to be current at admission.
+            if state.lifecycle != Lifecycle::Draft {
+                let origin: Option<String> = tx.query_row(
+                    "SELECT origin FROM competition_execution_generations WHERE competition_id=?1 AND generation=?2",
+                    params![id, generation as i64], |row| row.get(0),
+                ).optional()?;
+                let count: i64 = tx.query_row(
+                    "SELECT COUNT(*) FROM competition_execution_subjects WHERE competition_id=?1 AND generation=?2",
+                    params![id, generation as i64], |row| row.get(0),
+                )?;
+                let existing: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM competition_execution_subjects WHERE competition_id=?1 AND generation=?2 AND principal_id=?3 AND session_id=?4)",
+                    params![id,generation as i64,command.principal_id,command.session_id], |row| row.get(0),
+                )?;
+                let valid_origin = matches!(origin.as_deref(), Some("owner")) && count == 0
+                    || matches!(origin.as_deref(), Some("delegated")) && (1..=16).contains(&count);
+                if valid_origin && (existing || count < 16) {
+                    tx.execute("UPDATE competition_execution_generations SET origin='delegated' WHERE competition_id=?1 AND generation=?2", params![id,generation as i64])?;
+                    tx.execute("INSERT OR IGNORE INTO competition_execution_subjects(competition_id,generation,principal_id,session_id,grant_revision) VALUES(?1,?2,?3,?4,?5)",
+                        params![id,generation as i64,command.principal_id,command.session_id,current.grant_revision])?;
+                }
+            }
+            state.transition(operation.transition(), crate::now_millis(), definition.duration_ms)
+                .map_err(|_| DatabaseError::Invalid("invalid competition transition".into()))?;
+            tx.execute("UPDATE competition_state SET state_json=?2 WHERE competition_id=?1", params![id,serde_json::to_string(&state)?])?;
+            let next: i64 = tx.query_row("SELECT revision FROM competition_control_revisions WHERE competition_id=?1 AND deleted=0", [id], |r| r.get(0))?;
+            if revision.checked_add(1) != Some(next) { return Err(DatabaseError::Invalid("competition revision inconsistent".into())); }
+            let result = Versioned::new(serde_json::json!({"id":id,"lifecycle":state.lifecycle,"generation":state.generation.to_string()}), vec![version(next)]);
+            let result = super::commands::finish(&tx, command, &hash, operation.method(), &command.request.expected_revision, result)?;
+            identity.check_deadline().map_err(DatabaseError::CommandAuthorization)?;
+            auth.snapshot().map_err(DatabaseError::CommandAuthorization)?;
+            tx.commit()?;
+            Ok((result, true))
+        }).map_err(DatabaseError::CommandAuthorization)?
+    }
+
+    /// An unretained stop caller must never cause an effect under someone
+    /// else's authority, including when a generation is at its subject limit.
+    pub(crate) fn competition_retains_operator(
+        &self,
+        id: &str,
+        generation: u64,
+        principal: &str,
+        session: &str,
+    ) -> Result<bool, DatabaseError> {
+        let generation = i64::try_from(generation)
+            .map_err(|_| DatabaseError::Invalid("invalid generation".into()))?;
+        if generation <= 0 {
+            return Ok(false);
+        }
+        let db = self.open(&self.automation_path())?;
+        Ok(db.query_row("SELECT EXISTS(SELECT 1 FROM competition_execution_subjects s JOIN competition_execution_generations g ON g.competition_id=s.competition_id AND g.generation=s.generation WHERE s.competition_id=?1 AND s.generation=?2 AND s.principal_id=?3 AND s.session_id=?4 AND g.origin='delegated')", params![id,generation,principal,session], |row| row.get(0))?)
+    }
+
+    /// Read state and its monotonic coordination revision in one SQLite
+    /// snapshot. A missing or deleted revision is an integrity failure.
+    pub(crate) fn competition_state_revision(
+        &self,
+        id: &str,
+    ) -> Result<Option<(LifecycleState, i64)>, DatabaseError> {
+        let connection = self.open(&self.automation_path())?;
+        let row: Option<(String, Option<i64>, Option<i64>)> = connection.query_row(
+            "SELECT s.state_json,r.revision,r.deleted FROM competition_state s LEFT JOIN competition_control_revisions r ON r.competition_id=s.competition_id WHERE s.competition_id=?1",
+            [id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).optional()?;
+        row.map(|(json, revision, deleted)| {
+            let revision = revision
+                .filter(|n| *n > 0)
+                .filter(|_| deleted == Some(0))
+                .ok_or_else(|| DatabaseError::Invalid("competition revision missing".into()))?;
+            Ok((serde_json::from_str(&json)?, revision))
+        })
+        .transpose()
+    }
+
     pub(crate) fn insert_competition_definition(
         &self,
         definition: &Definition,
@@ -177,6 +668,8 @@ impl DatabaseManager {
                 "competition_participation_counts",
                 "competition_integrity_checkpoints",
                 "competition_integrity_owners",
+                "competition_execution_subjects",
+                "competition_execution_generations",
                 "competition_state",
             ] {
                 tx.execute(
@@ -248,6 +741,7 @@ impl DatabaseManager {
         if matches!(transition, Transition::Start) {
             let generation = i64::try_from(state.generation)
                 .map_err(|_| DatabaseError::Invalid("invalid generation".into()))?;
+            tx.execute("INSERT INTO competition_execution_generations(competition_id,generation,origin) VALUES (?1,?2,'owner')", params![id,generation])?;
             tx.execute("INSERT INTO competition_integrity_checkpoints(competition_id,generation,status) VALUES (?1,?2,'open')", params![id, generation])?;
             if let Some(owner) = owner {
                 tx.execute("INSERT INTO competition_integrity_owners(competition_id,generation,owner) VALUES (?1,?2,?3)", params![id,generation,owner])?;
@@ -255,6 +749,386 @@ impl DatabaseManager {
         }
         tx.commit()?;
         Ok(Some(state))
+    }
+
+    /// Missing or malformed provenance is never treated as local authority.
+    pub(crate) fn competition_execution_is_owner(
+        &self,
+        id: &str,
+        generation: u64,
+    ) -> Result<bool, DatabaseError> {
+        let generation = i64::try_from(generation)
+            .map_err(|_| DatabaseError::Invalid("invalid competition generation".into()))?;
+        if generation <= 0 {
+            return Err(DatabaseError::Invalid(
+                "invalid competition generation".into(),
+            ));
+        }
+        let connection = self.open(&self.automation_path())?;
+        let origin: Option<(String, bool)> = connection.query_row(
+            "SELECT origin,EXISTS(SELECT 1 FROM competition_execution_subjects s WHERE s.competition_id=g.competition_id AND s.generation=g.generation) FROM competition_execution_generations g WHERE competition_id=?1 AND generation=?2",
+            params![id,generation], |row| Ok((row.get(0)?,row.get(1)?)),
+        ).optional()?;
+        match origin {
+            Some((ref kind, false)) if kind == "owner" => Ok(true),
+            Some((ref kind, true)) if kind == "delegated" => Ok(false),
+            _ => Err(DatabaseError::Invalid(
+                "competition execution authority missing".into(),
+            )),
+        }
+    }
+
+    /// Resolve every retained operator under one business writer and current
+    /// collaboration lock, keeping both until commit. The closure may write
+    /// only through the supplied transaction; it must not await, dispatch an
+    /// external effect or reenter either DB. This is identity/scope admission,
+    /// not permission to run an effect after the transaction.
+    #[allow(dead_code)]
+    pub(crate) fn with_competition_delegation<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        id: &str,
+        generation: u64,
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        self.with_competition_delegation_and_subjects(
+            service,
+            id,
+            generation,
+            &[],
+            |tx, identities, _| apply(tx, identities),
+        )
+    }
+
+    /// Additional subjects must come from trusted saved automation definitions.
+    /// All identities are kept current together until the transaction commits.
+    fn with_competition_delegation_and_subjects<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        id: &str,
+        generation: u64,
+        additional: &[(String, String)],
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+            usize,
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        use crate::collaboration::{Capability, Error, ResourceKind};
+        let denied = || DatabaseError::CommandAuthorization(Error::Forbidden);
+        let generation = i64::try_from(generation)
+            .ok()
+            .filter(|g| *g > 0)
+            .ok_or_else(denied)?;
+        let mut db = self.open(&self.automation_path())?;
+        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let origin: Option<String> = tx.query_row(
+            "SELECT origin FROM competition_execution_generations WHERE competition_id=?1 AND generation=?2",
+            params![id, generation], |r| r.get(0),
+        ).optional()?;
+        if origin.as_deref() != Some("delegated") {
+            return Err(denied());
+        }
+        let mut statement = tx.prepare("SELECT principal_id,session_id,grant_revision FROM competition_execution_subjects WHERE competition_id=?1 AND generation=?2 ORDER BY principal_id,session_id LIMIT 17")?;
+        let entries = statement
+            .query_map(params![id, generation], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+        if entries.is_empty()
+            || entries.len() > 16
+            || entries.iter().any(|(_, _, revision)| {
+                revision
+                    .parse::<i64>()
+                    .ok()
+                    .is_none_or(|n| n <= 0 || n.to_string() != *revision)
+            })
+        {
+            return Err(denied());
+        }
+        let mut subjects = entries
+            .iter()
+            .map(|(principal, session, _)| (principal.clone(), session.clone()))
+            .collect::<Vec<_>>();
+        for subject in additional {
+            if !subjects.contains(subject) {
+                subjects.push(subject.clone());
+            }
+        }
+        let authorization = service
+            .execution_authorizations(&subjects)
+            .map_err(DatabaseError::CommandAuthorization)?;
+        let result = authorization
+            .with_current(|identities| {
+                if identities.len() != subjects.len()
+                    || identities.iter().zip(&entries).any(
+                        |(identity, (principal, session, revision))| {
+                            let current = identity.grant_revision().parse::<i64>().ok();
+                            let original = revision.parse::<i64>().ok();
+                            identity.principal_id() != principal
+                                || identity.session_id() != session
+                                || current < original
+                                || !identity
+                                    .grant()
+                                    .capabilities
+                                    .contains(&Capability::CompetitionsRead)
+                                || !identity
+                                    .grant()
+                                    .capabilities
+                                    .contains(&Capability::CompetitionsManage)
+                                || identity.grant().resources.contains_key(&ResourceKind::Live)
+                                || !identity
+                                    .grant()
+                                    .allows_resource(ResourceKind::Competition, id)
+                                || identity.check_deadline().is_err()
+                        },
+                    )
+                {
+                    return Err(denied());
+                }
+                let result = apply(&tx, identities, entries.len())?;
+                for identity in identities {
+                    identity
+                        .check_deadline()
+                        .map_err(DatabaseError::CommandAuthorization)?;
+                }
+                tx.commit()?;
+                Ok(result)
+            })
+            .map_err(DatabaseError::CommandAuthorization)??;
+        Ok(result)
+    }
+
+    /// Capture a generation binding before queueing work. Grant changes and
+    /// any later lifecycle/definition change invalidate this exact binding.
+    #[allow(dead_code)]
+    pub(crate) fn capture_competition_execution_fence(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        id: &str,
+        generation: u64,
+    ) -> Result<CompetitionExecutionFence, DatabaseError> {
+        self.with_competition_delegation(service, id, generation, |tx, identities| {
+            competition_execution_fence(tx, id, generation, identities)
+        })
+    }
+
+    /// Revalidate the exact binding while holding the business transaction
+    /// and all current grants through the supplied synchronous DB operation.
+    #[allow(dead_code)]
+    pub(crate) fn with_competition_execution_fence<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        fence: &CompetitionExecutionFence,
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        self.with_competition_delegation(service, &fence.id, fence.generation, |tx, identities| {
+            if competition_execution_fence(tx, &fence.id, fence.generation, identities)? != *fence {
+                return Err(DatabaseError::CommandAuthorization(
+                    crate::collaboration::Error::Forbidden,
+                ));
+            }
+            apply(tx, identities)
+        })
+    }
+    /// Admit saved automation authors together with competition operators.
+    /// The additional subjects must be obtained from a trusted saved candidate.
+    #[allow(dead_code)]
+    pub(crate) fn with_competition_execution_fence_and_subjects<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        fence: &CompetitionExecutionFence,
+        additional: &[(String, String)],
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+            &CompetitionExecutionAdmission<'_>,
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        self.with_competition_delegation_and_subjects(
+            service,
+            &fence.id,
+            fence.generation,
+            additional,
+            |tx, identities, operator_count| {
+                if competition_execution_fence(
+                    tx,
+                    &fence.id,
+                    fence.generation,
+                    &identities[..operator_count],
+                )? != *fence
+                {
+                    return Err(DatabaseError::CommandAuthorization(
+                        crate::collaboration::Error::Forbidden,
+                    ));
+                }
+                apply(
+                    tx,
+                    identities,
+                    &CompetitionExecutionAdmission {
+                        fence,
+                        identities,
+                        winner: None,
+                    },
+                )
+            },
+        )
+    }
+    /// Hold the competition, operator, author and immutable winner bindings
+    /// together while admitting the saved winner action.
+    #[allow(dead_code)]
+    pub(crate) fn with_competition_winner_admission<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        fence: &CompetitionExecutionFence,
+        claim: &ActionClaim,
+        additional: &[(String, String)],
+        apply: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            &[crate::collaboration::ExecutionIdentity],
+            &CompetitionExecutionAdmission<'_>,
+            &WinnerAction,
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        if claim.competition_id != fence.id || claim.generation != fence.generation {
+            return Err(DatabaseError::CommandAuthorization(
+                crate::collaboration::Error::Forbidden,
+            ));
+        }
+        self.with_competition_execution_fence_and_subjects(
+            service,
+            fence,
+            additional,
+            |tx, identities, admission| {
+                validate_competition_winner_claim(tx, claim)?;
+                let winner_admission = CompetitionExecutionAdmission {
+                    fence: admission.fence,
+                    identities,
+                    winner: Some(claim),
+                };
+                apply(tx, identities, &winner_admission, &claim.action)
+            },
+        )
+    }
+    /// Only call from an external-effect journal admission callback, which
+    /// already owns the automation SQLite writer until its commit callback.
+    /// This reader must not start a transaction or retain a statement across
+    /// `apply`, because the journal must be able to commit its writer.
+    pub(crate) fn with_competition_journal_admission<R>(
+        &self,
+        service: &std::sync::Arc<crate::collaboration::CollaborationService>,
+        fence: &CompetitionExecutionFence,
+        claim: Option<&ActionClaim>,
+        additional: &[(String, String)],
+        apply: impl FnOnce(
+            &[crate::collaboration::ExecutionIdentity],
+            &CompetitionExecutionAdmission<'_>,
+        ) -> Result<R, DatabaseError>,
+    ) -> Result<R, DatabaseError> {
+        use crate::collaboration::{Capability, Error, ResourceKind};
+        let denied = || DatabaseError::CommandAuthorization(Error::Forbidden);
+        if claim.is_some_and(|claim| {
+            claim.competition_id != fence.id || claim.generation != fence.generation
+        }) {
+            return Err(denied());
+        }
+        let generation = i64::try_from(fence.generation)
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or_else(denied)?;
+        let db = self.open(&self.automation_path())?;
+        let origin: Option<String> = db.query_row("SELECT origin FROM competition_execution_generations WHERE competition_id=?1 AND generation=?2", params![fence.id,generation], |r| r.get(0)).optional()?;
+        if origin.as_deref() != Some("delegated") {
+            return Err(denied());
+        }
+        let mut statement = db.prepare("SELECT principal_id,session_id,grant_revision FROM competition_execution_subjects WHERE competition_id=?1 AND generation=?2 ORDER BY principal_id,session_id LIMIT 17")?;
+        let entries = statement
+            .query_map(params![fence.id, generation], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(statement);
+        if entries.is_empty()
+            || entries.len() > 16
+            || entries.iter().any(|(_, _, r)| {
+                r.parse::<i64>()
+                    .ok()
+                    .is_none_or(|n| n <= 0 || n.to_string() != *r)
+            })
+        {
+            return Err(denied());
+        }
+        let mut subjects = entries
+            .iter()
+            .map(|(p, s, _)| (p.clone(), s.clone()))
+            .collect::<Vec<_>>();
+        for subject in additional {
+            if !subjects.contains(subject) {
+                subjects.push(subject.clone());
+            }
+        }
+        let authorization = service
+            .execution_authorizations(&subjects)
+            .map_err(DatabaseError::CommandAuthorization)?;
+        authorization
+            .with_current(|identities| {
+                if identities.len() != subjects.len()
+                    || identities.iter().zip(&entries).any(
+                        |(id, (principal, session, revision))| {
+                            id.principal_id() != principal
+                                || id.session_id() != session
+                                || id.grant_revision().parse::<i64>().ok()
+                                    < revision.parse::<i64>().ok()
+                                || !id
+                                    .grant()
+                                    .capabilities
+                                    .contains(&Capability::CompetitionsRead)
+                                || !id
+                                    .grant()
+                                    .capabilities
+                                    .contains(&Capability::CompetitionsManage)
+                                || id.grant().resources.contains_key(&ResourceKind::Live)
+                                || !id
+                                    .grant()
+                                    .allows_resource(ResourceKind::Competition, &fence.id)
+                                || id.check_deadline().is_err()
+                        },
+                    )
+                    || competition_execution_fence(
+                        &db,
+                        &fence.id,
+                        fence.generation,
+                        &identities[..entries.len()],
+                    )? != *fence
+                {
+                    return Err(denied());
+                }
+                if let Some(claim) = claim {
+                    validate_competition_winner_claim(&db, claim)?;
+                }
+                let admission = CompetitionExecutionAdmission {
+                    fence,
+                    identities,
+                    winner: claim,
+                };
+                apply(identities, &admission)
+            })
+            .map_err(DatabaseError::CommandAuthorization)?
     }
     /// Atomically consume a clean shutdown checkpoint and mark this run open.
     /// Missing checkpoints (including older schemas) fail closed.
@@ -1042,23 +1916,11 @@ impl DatabaseManager {
         }
         // User winners (draws and challenges) use `on_user_win`; option
         // winners use the selected option's action.
-        let user_winner = matches!(
-            definition.kind,
-            tiktools_competitions::CompetitionKind::RandomDraw
-                | tiktools_competitions::CompetitionKind::WeightedDraw
-                | tiktools_competitions::CompetitionKind::LeaderboardChallenge
-        );
-        let expected_action = result.selection.winner.as_ref().and_then(|winner| {
-            if user_winner {
-                definition.on_user_win.as_ref()
-            } else {
-                definition
-                    .options
-                    .iter()
-                    .find(|option| &option.id == winner)
-                    .and_then(|option| option.on_win.as_ref())
-            }
-        });
+        let expected_action = result
+            .selection
+            .winner
+            .as_deref()
+            .and_then(|winner| definition.winner_action(winner));
         if action != expected_action {
             return Err(DatabaseError::Invalid(
                 "winner action does not match definition".into(),
@@ -1269,6 +2131,7 @@ impl DatabaseManager {
                     | "execution_interrupted"
                     | "operator_marked_uncertain"
                     | "invalid_outbox_record"
+                    | "authority_unavailable"
                     | "action_reference_mismatch"
             )
         }) {

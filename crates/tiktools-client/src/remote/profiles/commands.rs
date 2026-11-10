@@ -13,7 +13,7 @@ use std::{
 
 const BYTES: u64 = 64 * 1024;
 const HISTORY: usize = 16;
-const VERSION: u32 = 4;
+const VERSION: u32 = 9;
 pub fn timestamp() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -49,11 +49,22 @@ pub enum Operation {
     Delete,
     AdjustPoints,
     DisableEvent,
+    DisableAction,
+    EnableEvent,
+    EnableAction,
     DeleteEvent,
     CreateEventDraft,
     UpdateEventDraft,
     CreateActionDraft,
     UpdateActionDraft,
+    CreateEventActive,
+    UpdateEventActive,
+    CreateActionActive,
+    UpdateActionActive,
+    StartCompetition,
+    ResumeCompetition,
+    PauseCompetition,
+    CancelCompetition,
 }
 impl Operation {
     pub fn method(self) -> &'static str {
@@ -61,10 +72,21 @@ impl Operation {
             Self::Disable => "workflows.disable",
             Self::Delete => "workflows.delete",
             Self::AdjustPoints => "points.adjust",
-            Self::DisableEvent => "automation.disable",
+            Self::StartCompetition => "competitions.start",
+            Self::ResumeCompetition => "competitions.resume",
+            Self::PauseCompetition => "competitions.pause",
+            Self::CancelCompetition => "competitions.cancel",
+            Self::DisableEvent | Self::DisableAction => "automation.disable",
+            Self::EnableEvent | Self::EnableAction => "automation.enable",
             Self::DeleteEvent => "automation.delete",
-            Self::CreateEventDraft | Self::CreateActionDraft => "automation.create",
-            Self::UpdateEventDraft | Self::UpdateActionDraft => "automation.update",
+            Self::CreateEventDraft
+            | Self::CreateActionDraft
+            | Self::CreateEventActive
+            | Self::CreateActionActive => "automation.create",
+            Self::UpdateEventDraft
+            | Self::UpdateActionDraft
+            | Self::UpdateEventActive
+            | Self::UpdateActionActive => "automation.update",
         }
     }
     pub fn feature(self) -> &'static str {
@@ -72,11 +94,19 @@ impl Operation {
             Self::Disable => "workflowDisable",
             Self::Delete => "workflowDelete",
             Self::AdjustPoints => "pointsAdjust",
+            Self::StartCompetition | Self::ResumeCompetition => "competitionActivation",
+            Self::PauseCompetition | Self::CancelCompetition => "competitionStop",
             Self::DisableEvent | Self::DeleteEvent => "automationEventDeactivate",
+            Self::DisableAction => "automationActionDeactivate",
+            Self::EnableEvent | Self::EnableAction => "automationReusableActivation",
             Self::CreateEventDraft
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
             | Self::UpdateActionDraft => "automationDrafts",
+            Self::CreateEventActive
+            | Self::UpdateEventActive
+            | Self::CreateActionActive
+            | Self::UpdateActionActive => "automationReusableWrite",
         }
     }
     pub fn capability(self) -> tiktools_collaboration::Capability {
@@ -84,30 +114,66 @@ impl Operation {
             Self::Disable => tiktools_collaboration::Capability::WorkflowsToggle,
             Self::Delete => tiktools_collaboration::Capability::WorkflowsEdit,
             Self::AdjustPoints => tiktools_collaboration::Capability::PointsAdjust,
-            Self::DisableEvent => tiktools_collaboration::Capability::AutomationToggle,
+            Self::StartCompetition
+            | Self::ResumeCompetition
+            | Self::PauseCompetition
+            | Self::CancelCompetition => tiktools_collaboration::Capability::CompetitionsManage,
+            Self::DisableEvent | Self::DisableAction | Self::EnableEvent | Self::EnableAction => {
+                tiktools_collaboration::Capability::AutomationToggle
+            }
             Self::DeleteEvent => tiktools_collaboration::Capability::AutomationEdit,
             Self::CreateEventDraft
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
-            | Self::UpdateActionDraft => tiktools_collaboration::Capability::AutomationEdit,
+            | Self::UpdateActionDraft
+            | Self::CreateEventActive
+            | Self::UpdateEventActive
+            | Self::CreateActionActive
+            | Self::UpdateActionActive => tiktools_collaboration::Capability::AutomationEdit,
         }
     }
     pub fn kind(self) -> tiktools_collaboration::ResourceKind {
         match self {
             Self::AdjustPoints => tiktools_collaboration::ResourceKind::Viewer,
+            Self::StartCompetition
+            | Self::ResumeCompetition
+            | Self::PauseCompetition
+            | Self::CancelCompetition => tiktools_collaboration::ResourceKind::Competition,
             Self::DisableEvent
+            | Self::DisableAction
+            | Self::EnableEvent
+            | Self::EnableAction
             | Self::DeleteEvent
             | Self::CreateEventDraft
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
-            | Self::UpdateActionDraft => tiktools_collaboration::ResourceKind::Automation,
+            | Self::UpdateActionDraft
+            | Self::CreateEventActive
+            | Self::UpdateEventActive
+            | Self::CreateActionActive
+            | Self::UpdateActionActive => tiktools_collaboration::ResourceKind::Automation,
             Self::Disable | Self::Delete => tiktools_collaboration::ResourceKind::Workflow,
         }
     }
     pub fn scope(self) -> &'static str {
-        if matches!(self, Self::CreateActionDraft | Self::UpdateActionDraft) {
+        if matches!(
+            self,
+            Self::EnableAction
+                | Self::DisableAction
+                | Self::CreateActionDraft
+                | Self::UpdateActionDraft
+                | Self::CreateActionActive
+                | Self::UpdateActionActive
+        ) {
             "action"
-        } else if self.is_event() || matches!(self, Self::CreateEventDraft | Self::UpdateEventDraft)
+        } else if self.is_event()
+            || matches!(
+                self,
+                Self::CreateEventDraft
+                    | Self::UpdateEventDraft
+                    | Self::CreateEventActive
+                    | Self::UpdateEventActive
+            )
         {
             "event"
         } else {
@@ -115,7 +181,25 @@ impl Operation {
         }
     }
     pub fn is_event(self) -> bool {
-        matches!(self, Self::DisableEvent | Self::DeleteEvent)
+        matches!(
+            self,
+            Self::DisableEvent | Self::DeleteEvent | Self::EnableEvent
+        )
+    }
+    pub fn is_competition(self) -> bool {
+        matches!(
+            self,
+            Self::StartCompetition
+                | Self::ResumeCompetition
+                | Self::PauseCompetition
+                | Self::CancelCompetition
+        )
+    }
+    pub fn is_activation(self) -> bool {
+        matches!(self, Self::EnableEvent | Self::EnableAction)
+    }
+    pub fn is_automation_command(self) -> bool {
+        self.is_event() || self.is_activation() || self == Self::DisableAction
     }
     pub fn is_delete(self) -> bool {
         matches!(self, Self::Delete | Self::DeleteEvent)
@@ -127,6 +211,19 @@ impl Operation {
                 | Self::UpdateEventDraft
                 | Self::CreateActionDraft
                 | Self::UpdateActionDraft
+                | Self::CreateEventActive
+                | Self::UpdateEventActive
+                | Self::CreateActionActive
+                | Self::UpdateActionActive
+        )
+    }
+    pub fn is_active_proposal(self) -> bool {
+        matches!(
+            self,
+            Self::CreateEventActive
+                | Self::UpdateEventActive
+                | Self::CreateActionActive
+                | Self::UpdateActionActive
         )
     }
     pub fn proposal_family(self) -> Option<tiktools_collaboration::AutomationFamily> {
@@ -141,10 +238,18 @@ impl Operation {
             Self::Disable | Self::Delete => matches!(version, 1..=VERSION),
             Self::AdjustPoints => matches!(version, 2..=VERSION),
             Self::DisableEvent | Self::DeleteEvent => matches!(version, 3..=VERSION),
+            Self::EnableEvent | Self::EnableAction => matches!(version, 5..=VERSION),
+            Self::DisableAction => matches!(version, 9..=VERSION),
             Self::CreateEventDraft
             | Self::UpdateEventDraft
             | Self::CreateActionDraft
-            | Self::UpdateActionDraft => version == VERSION,
+            | Self::UpdateActionDraft => matches!(version, 4..=VERSION),
+            Self::CreateEventActive
+            | Self::UpdateEventActive
+            | Self::CreateActionActive
+            | Self::UpdateActionActive => matches!(version, 6..=VERSION),
+            Self::PauseCompetition | Self::CancelCompetition => matches!(version, 7..=VERSION),
+            Self::StartCompetition | Self::ResumeCompetition => matches!(version, 8..=VERSION),
         }
     }
 }
@@ -163,10 +268,29 @@ pub struct Intent {
     pub currency_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proposal_revision: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected_generation: Option<String>,
     pub created_at: i64,
 }
 impl Intent {
     pub fn validate(&self) -> Result<(), ClientError> {
+        if self.operation.is_competition() {
+            if self
+                .expected_generation
+                .as_deref()
+                .and_then(|s| tiktools_collaboration::stream_sequence(s).ok())
+                .is_none_or(|n| n > i64::MAX as u64)
+                || self
+                    .expected_revision
+                    .as_deref()
+                    .and_then(|s| tiktools_collaboration::stream_sequence(s).ok())
+                    .is_none_or(|n| n == 0 || n > i64::MAX as u64)
+            {
+                return Err(invalid());
+            }
+        } else if self.expected_generation.is_some() {
+            return Err(invalid());
+        }
         if self.operation.is_proposal() {
             if self
                 .proposal_revision
@@ -182,7 +306,10 @@ impl Intent {
                             || n == 0
                                 && matches!(
                                     self.operation,
-                                    Operation::UpdateEventDraft | Operation::UpdateActionDraft
+                                    Operation::UpdateEventDraft
+                                        | Operation::UpdateActionDraft
+                                        | Operation::UpdateEventActive
+                                        | Operation::UpdateActionActive
                                 )
                     })
             {
@@ -324,7 +451,7 @@ impl Record {
                     return Err(invalid());
                 }
                 if (self.error_code.as_deref() == Some("automation_not_found")
-                    && !self.intent.operation.is_event()
+                    && !self.intent.operation.is_automation_command()
                     && !self.intent.operation.is_proposal())
                     || self.revision.is_some()
                     || !matches!(

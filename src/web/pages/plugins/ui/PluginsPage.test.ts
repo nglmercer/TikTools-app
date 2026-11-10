@@ -97,6 +97,7 @@ const preview = {
 async function mountPage(
   plugins: PluginStatus[] = [plugin('deck'), plugin('tts', { installed: false, enabled: false })],
   registries: unknown[] | undefined = undefined,
+  liveStatuses: Record<string, string> = { '1.2.0': 'approved' },
 ) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'registry.list' && registries) return { registries };
@@ -126,7 +127,7 @@ async function mountPage(
         keyRevoked: false, publisherApproved: false, advisory: null,
       }] }],
     };
-    if (method === 'registry.package') return { registry: 'official', document: remoteDocument };
+    if (method === 'registry.package') return { registry: 'official', document: remoteDocument, liveStatuses };
     if (method === 'plugins.packages.inspect') return preview;
     if (method === 'plugins.packages.install') {
       return { job: { id: 'job-1', kind: 'install', stage: 'queued', status: 'queued', createdAt: 1, updatedAt: 1 } };
@@ -322,8 +323,26 @@ describe('PluginsPage', () => {
     await buttonByText(wrapper, 'Review and install').trigger('click');
     await flushPromises();
     expect(calls.filter((call) => call.method === 'plugins.packages.inspect').at(-1)?.params).toEqual({
-      spec: { kind: 'registry', id: 'acme.tts', registry: 'official' },
+      spec: { kind: 'registry', id: 'acme.tts', version: '1.2.0', registry: 'official' },
     });
+  });
+
+  it('blocks remote review when current status is missing or the key is revoked', async () => {
+    for (const [liveStatuses, expected] of [
+      [{}, 'Current status unavailable'],
+      [{ '1.2.0': 'key-revoked' }, 'Signing key revoked'],
+    ] as const) {
+      const { wrapper, calls } = await mountPage(undefined, undefined, liveStatuses);
+      await buttonByText(wrapper, 'Explore').trigger('click');
+      await flushPromises();
+      await selectPlugin(wrapper, 'Acme TTS');
+      await flushPromises();
+      expect(wrapper.text()).toContain(expected);
+      expect(buttonByText(wrapper, 'Review and install').attributes('disabled')).toBeDefined();
+      await buttonByText(wrapper, 'Review and install').trigger('click');
+      expect(calls.some((call) => call.method === 'plugins.packages.inspect')).toBe(false);
+      wrapper.unmount();
+    }
   });
 
   it('explains that the marketplace is unpublished when no registry is available', async () => {

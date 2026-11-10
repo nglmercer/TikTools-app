@@ -10,6 +10,31 @@ use std::collections::BTreeSet;
 use tiktools_client::TikToolsClient;
 use tiktools_control_api::{ControlApi, ControlRouter};
 
+#[cfg(feature = "cloud-auth")]
+#[test]
+fn cloud_login_correlation_parameters_match_the_registry() {
+    assert!(
+        tiktools_client::validate_params("cloud.login.reserve", &serde_json::json!({})).is_ok()
+    );
+    for method in [
+        "cloud.login.begin",
+        "cloud.login.open",
+        "cloud.login.complete",
+        "cloud.login.cancel",
+    ] {
+        assert!(tiktools_client::validate_params(method, &serde_json::json!({})).is_ok());
+        assert!(tiktools_client::validate_params(
+            method,
+            &serde_json::json!({"operationId": "0123456789abcdef0123456789abcdef"})
+        )
+        .is_ok());
+        assert!(
+            tiktools_client::validate_params(method, &serde_json::json!({"unexpected": true}))
+                .is_err()
+        );
+    }
+}
+
 #[test]
 fn client_covers_every_registered_method() {
     let mut router = ControlRouter::new();
@@ -556,4 +581,42 @@ fn bounded_catalog_validation_has_closed_inputs_and_exact_generation_strings() {
         &serde_json::json!({})
     )
     .is_ok());
+}
+
+#[cfg(feature = "cloud-auth")]
+#[test]
+fn cloud_library_requests_are_closed_and_revisions_are_strings() {
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.list",
+        &serde_json::json!({
+            "scope":"mine", "kind":"template", "query":"gift", "after":null
+        })
+    )
+    .is_ok());
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.list",
+        &serde_json::json!({
+            "scope":"mine", "origin":"https://attacker.invalid"
+        })
+    )
+    .is_err());
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.list",
+        &serde_json::json!({"scope":"other"})
+    )
+    .is_err());
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.read",
+        &serde_json::json!({
+            "scope":"public", "id":"f2f3f4f5-0102-4304-8506-070809101112", "revision":"1"
+        })
+    )
+    .is_ok());
+    assert!(tiktools_client::validate_params(
+        "cloudLibrary.read",
+        &serde_json::json!({
+            "scope":"public", "id":"f2f3f4f5-0102-4304-8506-070809101112", "revision":1
+        })
+    )
+    .is_err());
 }

@@ -59,10 +59,74 @@ impl PluginInvoker {
         request: &Value,
         timeout: Duration,
     ) -> Result<Value, InvokeError> {
-        if let Err(error) = self.plugins.start(plugin_id) {
-            return Err(InvokeError::Unavailable(error.to_string()));
+        self.call_identified(plugin_id, request, timeout)
+            .await
+            .map(|(_, value)| value)
+    }
+
+    /// Return the precise worker generation that produced a successful
+    /// response, allowing asynchronous consumers to reject stale data.
+    pub(crate) async fn call_identified(
+        &self,
+        plugin_id: &str,
+        request: &Value,
+        timeout: Duration,
+    ) -> Result<(u64, Value), InvokeError> {
+        let generation = self.start_generation(plugin_id).await?;
+        let value = self
+            .call_started(plugin_id, request, timeout, generation)
+            .await?;
+        Ok((generation, value))
+    }
+
+    /// Poll only a generation whose own frozen manifest authorizes event or
+    /// progress production. The source reservation spans the poll itself so a
+    /// package cannot replace that worker between authorization and the call.
+    pub(crate) async fn call_poll_identified(
+        &self,
+        plugin_id: &str,
+        request: &Value,
+        timeout: Duration,
+    ) -> Result<Option<(u64, Value)>, InvokeError> {
+        let generation = self.start_generation(plugin_id).await?;
+        let Some(delivery) = self
+            .plugins
+            .try_reserve_event_delivery(plugin_id, generation)
+        else {
+            return Ok(None);
+        };
+        let manifest = delivery.manifest();
+        let events_allowed = tiktools_plugin_api::capabilities::declares_capability(
+            manifest,
+            tiktools_plugin_api::capabilities::EVENTS_PUBLISH,
+        ) && !tiktools_plugin_api::manifest::declared_event_types(manifest)
+            .is_empty();
+        let progress_allowed = tiktools_plugin_api::capabilities::declares_capability(
+            manifest,
+            crate::helpers::PLUGIN_PROGRESS_CAPABILITY,
+        );
+        if !events_allowed && !progress_allowed {
+            return Ok(None);
         }
-        self.call_started(plugin_id, request, timeout).await
+        let value = self
+            .call_started(plugin_id, request, timeout, generation)
+            .await?;
+        drop(delivery);
+        Ok(Some((generation, value)))
+    }
+
+    async fn start_generation(&self, plugin_id: &str) -> Result<u64, InvokeError> {
+        // Runtime initialization can execute native guest code. Keep it off
+        // Tokio workers; cancellation cannot stop that code, so manager
+        // shutdown retains its admission fence and reports an unsafe update.
+        let plugins = Arc::clone(&self.plugins);
+        let id = plugin_id.to_owned();
+        tokio::task::spawn_blocking(move || plugins.start_generation(&id))
+            .await
+            .map_err(|error| {
+                InvokeError::Unavailable(format!("plugin startup task failed: {error}"))
+            })?
+            .map_err(|error| InvokeError::Unavailable(error.to_string()))
     }
 
     /// Invokes an already-running plugin without implicitly starting it.
@@ -97,17 +161,18 @@ impl PluginInvoker {
         plugin_id: &str,
         request: &Value,
         timeout: Duration,
+        generation: u64,
     ) -> Result<Value, InvokeError> {
-        let effective = self.plugins.claim_cold_start_grace(plugin_id, timeout);
         // The loader call is async end to end (Tokio queue plus oneshot
         // response), so awaiting it directly spends no thread: the old
         // `spawn_blocking` wrapper and the extra Tokio-side timeout race
         // are gone, and the loader's own deadline is the single budget.
         self.plugins
-            .call_with_timeout(plugin_id, request, effective)
+            .call_with_generation(plugin_id, request, timeout, generation)
             .await
             .map_err(|error| match error {
                 PluginLoaderError::Timeout(_) => InvokeError::Timeout,
+                PluginLoaderError::RuntimeUnavailable(reason) => InvokeError::Unavailable(reason),
                 PluginLoaderError::Overloaded(reason) => {
                     InvokeError::Unavailable(format!("call queue full: {reason}"))
                 }

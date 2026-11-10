@@ -10,7 +10,11 @@ dependencies in the Automations UI, with a host-native adoption intent journal.
 The isolated native controller now has a summary board,
 captured event confirmation and a preserving
 version-4 intent journal. A private native JSON proposal editor submits disabled
-author copies. Owner-only execution-manifest previews and persisted subject resolution are
+author copies. A local visual starter builds disabled log/delay actions and
+simple LIVE events without requiring JSON input; replacing the open source,
+saving the local copy and submitting it each require separate review. The
+starter does not fetch or edit the host's hidden definition, enable execution,
+or replace the advanced editor. Owner-only execution-manifest previews and persisted subject resolution are
 implemented. Private execution contexts now travel through event publication,
 queues, enrichment, actions, nested emits and remembered events. Manifest
 approval/activation/revocation and a closed log/delay/points/HTTP/audio execution
@@ -162,6 +166,26 @@ native desktop controller. Its **Host automations** board shows permitted status
 with actions read-only and explicit event disable/delete confirmation. It never
 opens the owner definition editor. The version-4 journal preserves previous
 workflow/points/event IDs and history while adding fixed proposal operations.
+
+The native controller also presents the host LIVE connection status when its
+current grant includes `live.read`. Its dedicated read-only RPC compares the
+selected epoch, connection, host, principal, session and grant before and
+after the remote read, validates the closed result, and enforces any LIVE
+creator restriction. The panel polls every two seconds while connected and
+clears on selection, reconnection, permission or read failure. It does not
+start or stop a LIVE, and the status poll is not a real-time event feed.
+
+For unrestricted `live.read` grants, the controller also displays a bounded
+read-only activity feed from `ui.feed.backfill`. Creator-restricted grants
+instead select among their allowed creators and use `ui.feed.creator`, whose
+random stream identity and cursor are independent for each creator. Native
+projection enforces the same host/session/grant fence as status,
+preserves cursor precision with decimal strings, limits pages to 64 items and
+exposes only bounded text fields. The UI retains at most 100 rows and identifies
+missed history or host cursor reset; it polls rather than subscribing to a
+push stream. The host's bounded history may include an earlier LIVE session,
+and the list does not authorize moderation actions or establish physical
+two-PC acceptance.
 
 ## Implemented provenance and disabled authoring
 

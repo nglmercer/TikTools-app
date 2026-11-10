@@ -264,11 +264,38 @@ impl ProfileManager {
         Ok(client)
     }
     pub async fn forget(&self, name: &str) -> Result<(), ClientError> {
+        self.forget_matching(name, None).await
+    }
+
+    /// Forget only the exact profile the user reviewed. The comparison and
+    /// deletion share the cross-process profile lease, so a replacement under
+    /// the same display name cannot be deleted by an old confirmation.
+    pub async fn forget_reviewed(
+        &self,
+        name: &str,
+        profile_id: &str,
+        origin: &str,
+        host_id: &str,
+    ) -> Result<(), ClientError> {
+        self.forget_matching(name, Some((profile_id, origin, host_id)))
+            .await
+    }
+
+    async fn forget_matching(
+        &self,
+        name: &str,
+        expected: Option<(&str, &str, &str)>,
+    ) -> Result<(), ClientError> {
         let lease = self.lease(name, false).await?;
         let profile = lease
             .profile
             .clone()
             .ok_or_else(|| fail("profile_not_found", "remote profile does not exist"))?;
+        if expected.is_some_and(|(id, origin, host)| {
+            profile.profile_id != id || profile.origin != origin || profile.host_id != host
+        }) {
+            return Err(fail("stale_view", "the reviewed remote profile changed"));
+        }
         let root = self.directory.clone();
         let p = profile.clone();
         let journal = tokio::task::spawn_blocking(move || commands::Journal::open(&root, &p))

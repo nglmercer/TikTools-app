@@ -206,6 +206,129 @@ fn assert_pending(response: &RpcResponse, kind: &str, id: &str, revision: &str) 
 }
 
 #[tokio::test]
+async fn stored_reusable_policy_enables_saved_remote_definition() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    let mut author_grant = grant(&["action:draft", "action:active", "event:draft"]);
+    author_grant.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let author = f.pair(author_grant);
+    let instance = f.instance();
+    let clean = json!({"id":"draft","name":"Log","enabled":false,"typeId":"core.log","config":{"message":"hello"}});
+    let mut enabled = clean.clone();
+    enabled["enabled"] = true.into();
+    enabled["id"] = "active".into();
+    let active = f
+        .remote(
+            &author,
+            "automation.create",
+            json!({"kind":"action","record":enabled}),
+            metadata(&instance, "enabled-create", "0"),
+        )
+        .await;
+    assert!(active.is_ok(), "{active:?}");
+    assert_eq!(
+        active.result.unwrap(),
+        json!({"kind":"action","id":"active","enabled":true,"pendingReview":false})
+    );
+    let updated = f.remote(&author, "automation.update", json!({"kind":"action","id":"active","record":{"id":"active","name":"Log updated","enabled":true,"typeId":"core.log","config":{"message":"new"}}}), metadata(&instance, "enabled-update", "1")).await;
+    assert!(updated.is_ok(), "{updated:?}");
+    assert_eq!(
+        updated.result.unwrap(),
+        json!({"kind":"action","id":"active","enabled":true,"pendingReview":false})
+    );
+    let created = f
+        .remote(
+            &author,
+            "automation.create",
+            json!({"kind":"action","record":clean}),
+            metadata(&instance, "disabled-create", "0"),
+        )
+        .await;
+    assert_pending(&created, "action", "draft", "1");
+    let preview = f
+        .owner(
+            "automation.delegation.preflight",
+            json!({"kind":"action","id":"draft"}),
+            Value::Null,
+        )
+        .await;
+    assert_eq!(
+        preview.result.as_ref().unwrap()["eligible"],
+        true,
+        "{preview:?}"
+    );
+    let enable = f
+        .remote(
+            &author,
+            "automation.enable",
+            json!({"kind":"action","id":"draft"}),
+            metadata(&instance, "enable-draft", "1"),
+        )
+        .await;
+    assert!(enable.is_ok(), "{enable:?}");
+    assert_eq!(
+        enable.result.unwrap(),
+        json!({"kind":"action","id":"draft","enabled":true})
+    );
+    let recovered = f
+        .remote(
+            &author,
+            "collaboration.commands.get",
+            json!({"commandId":"enable-draft"}),
+            Value::Null,
+        )
+        .await;
+    assert!(recovered.is_ok(), "{recovered:?}");
+    let outcome = recovered.result.unwrap();
+    assert_eq!(outcome["method"], "automation.enable");
+    assert_eq!(
+        outcome["result"],
+        json!({"kind":"action","id":"draft","enabled":true})
+    );
+    let RequestContext::Remote(session) = &author.context else {
+        panic!()
+    };
+    let mut forged = outcome.clone();
+    forged["result"]["kind"] = "event".into();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "collaboration.commands.get", &forged)
+        .is_err());
+    assert_delegated(
+        &f.authority("action", "draft").await,
+        &author,
+        "action",
+        "draft",
+    );
+    let owner = f
+        .owner(
+            "automation.delegation.preflight",
+            json!({"kind":"action","id":"draft"}),
+            Value::Null,
+        )
+        .await;
+    assert!(owner.is_ok(), "{owner:?}");
+    assert_eq!(owner.result.unwrap()["executionAuthorized"], false);
+    let remote = f
+        .remote(
+            &author,
+            "automation.delegation.preflight",
+            json!({"kind":"action","id":"draft"}),
+            Value::Null,
+        )
+        .await;
+    assert_eq!(remote.error.unwrap().code, "forbidden");
+    f.close().await;
+}
+
+#[tokio::test]
 async fn disabled_remote_drafts_are_author_bound_family_scoped_and_never_reveal_definition_receipts(
 ) {
     let f = Fixture::new();
@@ -689,6 +812,8 @@ async fn draft_receipts_are_reauthorized_for_exact_family_after_grants_change() 
     let RequestContext::Remote(session) = &author.context else {
         panic!()
     };
+    assert!(f.api.authorize_remote_failure(session, "automation.enable", Some(&json!({"resourceVersions":[{"kind":"automation","scope":"event","id":"draft","revision":"1"}]}))).is_err());
+    assert!(f.api.authorize_remote_failure(session, "automation.enable", Some(&json!({"resourceVersions":[{"kind":"automation","scope":"action","id":"draft","revision":"1"}]}))).is_ok());
     for (kind, receipt, outcome) in receipts {
         if kind == "action" {
             assert!(f
@@ -1214,5 +1339,394 @@ async fn malformed_remote_drafts_do_not_reveal_whether_owner_or_foreign_payload_
             assert_eq!(f.core.automation_get_versioned(parsed, id).unwrap(), before);
         }
     }
+    f.close().await;
+}
+
+#[tokio::test]
+async fn reusable_grant_accepts_scoped_internal_event_chain_and_rejects_other_topics() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    let mut policy = grant(&["action:send", "action:log", "event:root", "event:child"]);
+    policy
+        .capabilities
+        .extend([Capability::EventsEmit, Capability::LiveRead]);
+    policy.effects.emit_topics.insert("overlay.alert".into());
+    policy.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Emit,
+            DelegatedAutomationEffect::Log,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let author = f.pair(policy);
+    let instance = f.instance();
+    let create = |kind: &str, record: Value| json!({"kind":kind,"record":record});
+    let log = create(
+        "action",
+        json!({"id":"log","name":"Log","enabled":true,"typeId":"core.log","config":{"message":"hello"},"schemaVersion":2}),
+    );
+    let send = create(
+        "action",
+        json!({"id":"send","name":"Emit","enabled":true,"typeId":"core.emit","config":{"type":"overlay.alert","data":{"user":"{{event.user.uniqueId}}"}},"schemaVersion":2}),
+    );
+    let root = create(
+        "event",
+        json!({"id":"root","name":"Root","enabled":true,"trigger":"tiktok.chat","actionIds":["send"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
+    );
+    let child = create(
+        "event",
+        json!({"id":"child","name":"Child","enabled":true,"trigger":"overlay.alert","actionIds":["log"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
+    );
+    for (index, params) in [log, send.clone(), root, child].into_iter().enumerate() {
+        let response = f
+            .remote(
+                &author,
+                "automation.create",
+                params,
+                metadata(&instance, &format!("chain-{index}"), "0"),
+            )
+            .await;
+        assert!(response.is_ok(), "chain element {index}: {response:?}");
+        assert_eq!(response.result.unwrap()["enabled"], true);
+    }
+    let mut denied = send;
+    denied["id"] = "send".into();
+    denied["record"]["config"]["type"] = "overlay.other".into();
+    let rejected = f
+        .remote(
+            &author,
+            "automation.update",
+            denied,
+            metadata(&instance, "other-topic", "1"),
+        )
+        .await;
+    assert_eq!(rejected.error.unwrap().code, "forbidden");
+    f.close().await;
+}
+
+#[tokio::test]
+async fn reusable_owner_grant_allows_disabled_edit_without_per_change_approval() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    f.core.automation_create(AutomationKind::Action, json!({"id":"owned","name":"Owner","enabled":true,"typeId":"core.log","config":{"message":"before"}})).unwrap();
+    let mut policy = grant(&["action:owned"]);
+    policy.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: true,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let mut no_owner_edits = policy.clone();
+    no_owner_edits
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_owner_edits = false;
+    let denied_author = f.pair(no_owner_edits);
+    let author = f.pair(policy);
+    let instance = f.instance();
+    let params = json!({"kind":"action","id":"owned","record":{"id":"owned","name":"Edited","enabled":false,"typeId":"core.log","config":{"message":"after"}}});
+    let denied = f
+        .remote(
+            &denied_author,
+            "automation.update",
+            params.clone(),
+            metadata(&instance, "without-owner-edit", "1"),
+        )
+        .await;
+    assert_eq!(denied.error.unwrap().code, "forbidden");
+    let mut unsupported = params.clone();
+    unsupported["record"]["typeId"] = "plugin.unapproved".into();
+    let rejected = f
+        .remote(
+            &author,
+            "automation.update",
+            unsupported,
+            metadata(&instance, "unsupported-owner-edit", "1"),
+        )
+        .await;
+    assert_eq!(rejected.error.unwrap().code, "forbidden");
+    f.core.automation_create(AutomationKind::Event, json!({"id":"dependent","name":"Dependent","enabled":true,"trigger":"tiktok.chat","actionIds":["owned"]})).unwrap();
+    let rejected = f
+        .remote(
+            &author,
+            "automation.update",
+            params.clone(),
+            metadata(&instance, "out-of-scope-owner-edit", "1"),
+        )
+        .await;
+    assert_eq!(rejected.error.unwrap().code, "forbidden");
+    f.core
+        .automation_delete(AutomationKind::Event, "dependent")
+        .unwrap();
+    let metadata = metadata(&instance, "disabled-owner-edit", "1");
+    let response = f
+        .remote(
+            &author,
+            "automation.update",
+            params.clone(),
+            metadata.clone(),
+        )
+        .await;
+    assert!(response.is_ok(), "{response:?}");
+    assert_eq!(
+        response.result,
+        Some(json!({"kind":"action","id":"owned","enabled":false,"pendingReview":true}))
+    );
+    assert_delegated(
+        &f.authority("action", "owned").await,
+        &author,
+        "action",
+        "owned",
+    );
+    let replay = f
+        .remote(&author, "automation.update", params, metadata)
+        .await;
+    assert_eq!(replay.result, response.result);
+    let saved = f
+        .core
+        .automation_get_versioned(AutomationKind::Action, "owned")
+        .unwrap();
+    assert_eq!(saved.value.unwrap()["enabled"], false);
+    assert_eq!(saved.resource_versions[0].revision, "2");
+    f.close().await;
+}
+
+#[tokio::test]
+async fn remote_owner_definition_edit_requires_explicit_reusable_permission() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    f.core.automation_create(AutomationKind::Action, json!({"id":"owned","name":"Owner","enabled":true,"typeId":"core.log","config":{"message":"private owner source"}})).unwrap();
+    let mut author_grant = grant(&["action:owned"]);
+    author_grant.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: true,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let author = f.pair(author_grant);
+    let response = f.remote(&author, "automation.update", json!({"kind":"action","id":"owned","record":{"id":"owned","name":"Edited","enabled":true,"typeId":"core.log","config":{"message":"moderator source"}}}), metadata(&f.instance(), "owner-edit", "1")).await;
+    assert!(response.is_ok(), "{response:?}");
+    assert_eq!(
+        response.result.unwrap(),
+        json!({"kind":"action","id":"owned","enabled":true,"pendingReview":false})
+    );
+    assert_delegated(
+        &f.authority("action", "owned").await,
+        &author,
+        "action",
+        "owned",
+    );
+    f.close().await;
+}
+
+#[tokio::test]
+async fn shared_source_requires_explicit_scoped_grant_and_current_identity() {
+    use tiktools_core::collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new();
+    f.core.automation_create(AutomationKind::Action, json!({"id":"owned","name":"Owner","enabled":true,"typeId":"core.log","config":{"message":"sensitive-owner-value"}})).unwrap();
+    let mut author_grant = grant(&["action:owned", "action:foreign"]);
+    author_grant.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: true,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let author = f.pair(author_grant.clone());
+    let request = json!({"kind":"action","id":"owned"});
+    let denied = f
+        .remote(
+            &author,
+            "automation.source.get",
+            request.clone(),
+            Value::Null,
+        )
+        .await;
+    assert_eq!(denied.error.unwrap().code, "forbidden");
+    let principal = f
+        .core
+        .collaboration()
+        .unwrap()
+        .principal(&author.principal)
+        .unwrap();
+    author_grant
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_owner_source = true;
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: principal.grant_revision,
+            grant: author_grant.clone(),
+        })
+        .unwrap();
+    let allowed = f
+        .remote(
+            &author,
+            "automation.source.get",
+            request.clone(),
+            Value::Null,
+        )
+        .await;
+    assert!(allowed.is_ok(), "{allowed:?}");
+    let body = allowed.result.unwrap();
+    assert_eq!(body["record"]["config"]["message"], "sensitive-owner-value");
+    assert_eq!(body["revision"], "1");
+    let RequestContext::Remote(session) = &author.context else {
+        panic!()
+    };
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_ok());
+    f.core.automation_update_versioned(
+        AutomationKind::Action, "owned",
+        json!({"id":"owned","name":"Updated","enabled":true,"typeId":"core.log","config":{"message":"updated-owner-value"}}),
+        Some("1"),
+    ).unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    let body = f
+        .remote(
+            &author,
+            "automation.source.get",
+            request.clone(),
+            Value::Null,
+        )
+        .await
+        .result
+        .unwrap();
+    assert_eq!(body["revision"], "2");
+    assert_eq!(body["record"]["config"]["message"], "updated-owner-value");
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_ok());
+    assert!(f
+        .core
+        .automation_shared_source(
+            AutomationKind::Action,
+            "owned",
+            &session.authorization().unwrap(),
+            16
+        )
+        .is_err());
+    let mut removed = author_grant.clone();
+    removed
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_owner_source = false;
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: "2".into(),
+            grant: removed,
+        })
+        .unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: "3".into(),
+            grant: author_grant.clone(),
+        })
+        .unwrap();
+    f.core
+        .automation_delete(AutomationKind::Action, "owned")
+        .unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    f.core.automation_create(AutomationKind::Action, json!({"id":"owned","name":"Recreated","enabled":false,"typeId":"core.log","config":{"message":"new-owner-value"}})).unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    let body = f
+        .remote(
+            &author,
+            "automation.source.get",
+            request.clone(),
+            Value::Null,
+        )
+        .await
+        .result
+        .unwrap();
+    assert_eq!(body["record"]["config"]["message"], "new-owner-value");
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_ok());
+    let foreign = f.pair(grant(&["action:foreign"]));
+    let created = f.remote(&foreign, "automation.create", json!({"kind":"action","record":{"id":"foreign","name":"Other","enabled":false,"typeId":"core.log","config":{"message":"foreign-sensitive"}}}), metadata(&f.instance(), "foreign-source", "0")).await;
+    assert!(created.is_ok(), "{created:?}");
+    let hidden = f
+        .remote(
+            &author,
+            "automation.source.get",
+            json!({"kind":"action","id":"foreign"}),
+            Value::Null,
+        )
+        .await;
+    assert_eq!(hidden.error.unwrap().code, "forbidden");
+    let shared = author_grant.automation_delegation.as_mut().unwrap();
+    shared.allow_other_author_edits = true;
+    shared.allow_other_author_source = true;
+    f.core.collaboration().unwrap().set_grant(GrantSet {
+        principal_id: author.principal.clone(), expected_revision: "4".into(), grant: author_grant.clone(),
+    }).unwrap();
+    let visible = f.remote(&author, "automation.source.get", json!({"kind":"action","id":"foreign"}), Value::Null).await;
+    assert!(visible.is_ok(), "{visible:?}");
+    assert_eq!(visible.result.unwrap()["record"]["config"]["message"], "foreign-sensitive");
+    let mut narrowed = author_grant;
+    narrowed
+        .resources
+        .insert(ResourceKind::Automation, [].into());
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: "5".into(),
+            grant: narrowed,
+        })
+        .unwrap();
+    assert!(f
+        .api
+        .authorize_remote_response(session, "automation.source.get", &body)
+        .is_err());
+    assert_eq!(
+        f.remote(&author, "automation.source.get", request, Value::Null)
+            .await
+            .error
+            .unwrap()
+            .code,
+        "forbidden"
+    );
     f.close().await;
 }

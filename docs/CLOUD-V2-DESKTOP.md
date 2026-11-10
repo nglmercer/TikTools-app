@@ -1,11 +1,53 @@
 # Desktop Cloud v2 implementation and acceptance specification
 
-Status: **the native v2 foundation and read-only Cloud catalog UI are implemented. Product sync cutover, local application and full Desktop v2 acceptance are pending.**
+Status: **the native v2 foundation, one-time v1 to v2 migration, product conflict resolution, explicit rebuild, fixed-origin catalog trust, portable adapters, preferences staging and reviewed template import are implemented. Settings-store consolidation/hook, plugin-settings staging and full Desktop v2 acceptance are pending.**
+
+The native reconciliation barrier can now admit a downloaded plugin record
+only when the cached record exactly matches the authenticated post-barrier
+server record. A missing or different cache entry is rejected. Native v2
+preparation also checks the installed version, current worker and outstanding
+local edits before recording a durable application intent. A private executor
+can recheck that intent, persist the desired state, run the local plugin
+transition and record its observed outcome. If a post-commit step fails, the
+plugin remains quarantined with its journal. Later plugin uploads and confirmation
+of package changes accept retained finalized history only after validating its matching
+witness and source generation. A private recovery path can revalidate prepared
+intents and finalize an interrupted runtime change only when a fresh server
+barrier and the observed plugin state agree; it never repeats an uncertain
+start or stop. After a v2 network pass, the product now schedules bounded
+application and recovery attempts for eligible installed plugin selections;
+unresolved runtime mismatches and bounded history compaction remain pending.
+
+The marked native cutover selects v2 and scopes the existing opt-in to the
+same account under one source, session and protocol boundary. If persistence
+is interrupted between those steps, a native completion checks the durable
+workspace and never re-enables an opted-out setting. The one-time migration
+RPC `sync.v2.migrate` invokes this cutover after an explicit preview review.
+
+For an existing unmarked v1 installation, native promotion preserves
+pending legacy selections as v2 conflicts without inventing receipts. The
+review is bound to the full legacy snapshot, and interrupted marker or
+preparation steps can be reconstructed from the same inputs. Untracked local
+package changes block migration until reconciled. Reviewed v2 conflicts are
+listed, compared (base, local and fresh Cloud value) and resolved through
+`sync.v2.conflict.*`; keep-local rebases onto the fresh base and take-cloud
+discards the pending edit, and neither choice applies Cloud state locally.
+
+Native setup enables the server's account-wide required write-epoch
+policy after v2 is selected and the account-scoped consent is current. The
+policy is irreversible on the server and affects older v2 clients, so the
+migration UI explains it before calling this setup. A retry checks the
+current policy first and does not repeat an already completed activation.
+The migration RPC runs this setup as the second phase; a cutover that
+completed with the policy still pending can be retried by calling migrate
+again.
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
-library delivery e6728c9. The reviewed backend commit is RemakeBackend e6c6601,
-following bounded pagination 9f7e642, catalog compatibility 995d496, integrity
-changes c0fb951 and v2 foundation 0c552b3, and its
+library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,
+including stored-record validation, retained-feed gap detection, byte-ordered v1 snapshot pagination, SDK pull counts, canonical shards
+and SDK capability discovery, following bounded pagination 9f7e642,
+catalog compatibility 995d496, integrity changes c0fb951 and v2 foundation
+0c552b3, and its
 docs/CLOUD-REDESIGN.md, docs/CLOUD-API-V2.md and latest
 docs/IMPLEMENTATION-STATUS.md. The backend owns portable cloud contracts.
 Import its reviewed contract/client changes without replacing Desktop-specific
@@ -33,7 +75,7 @@ a local Owner and a delegated LIVE controller are separate authorities.
 | Atomic local profile/template/graph changes and original-outcome recovery | Existing native Owner library implementation | Reuse for reviewed local imports |
 | Backend portable v2 contracts, native transport and all-five-collection state/store/coordinator | Implemented and locally tested; additive exports preserve v1 | Product adapters and explicit cutover pending |
 | Release Cloud origin policy | Runtime overrides ignored in release; build-time provisioning and debug override retained | Four policy unit tests passed; broader trust/product restrictions still pending |
-| Single-instance product catalog, private/public library and expanded sync UI | Read-only Cloud catalog is present; custom registries and local imports remain | Verified installation, source restrictions, library and sync UI pending |
+| Single-instance product catalog, private/public library and expanded sync UI | Read-only Cloud catalog and document browsing are present; custom registries and local imports remain | Verified installation, source restrictions, reviewed library import and expanded sync UI pending |
 | Actual two-Desktop v2 offline/recovery acceptance | Not established by prior local Owner tests or v1 mock E2E | Pending |
 | Production trust, deployed migration and external infrastructure review | Separate backend/operator gates | Not established by this specification |
 
@@ -67,26 +109,293 @@ These APIs are exported, but the application still calls the v1 coordinator.
 The coordinator now offers guarded sync, review, resolution and rebuild calls
 bound to one session and eligibility permit. The authentication manager can
 recognize that exact session after logout and same-account sign-in. A native
-cutover preview captures and rechecks the legacy snapshot and selected inputs;
-it does not stop a v1 writer or activate v2. Product wiring still needs a
-shared cross-process protocol fence and session/opt-in invalidation. Guard
+cutover preview captures and rechecks the legacy snapshot, session and consent;
+it does not itself activate v2 and covers plugin selections only. It builds
+the candidate outside the admission and identity locks and rejects changed
+inputs afterward. The caller still needs a local-source fence. There is no
+product cutover yet. New preparation markers bind the complete reviewed v1
+snapshot and its generation, installed selections, identity and resulting
+entries, including v1 records that do not become staged entries. A completed
+older v2 marker remains readable, but an older interrupted preparation cannot
+prove those inputs and is refused pending a reviewed recovery procedure.
+Do not remove or rewrite such a marker as an automatic repair.
+Protocol, product-outbox and uncertain-upload markers are size-checked before
+publication against their respective reader limits; an oversized marker fails
+before it can disable v1 or permit a network upload.
+There is no
+product preview RPC/UI: Cloud account and consent changes are not yet
+broadcast to other windows with ordered invalidation, so a displayed preview
+could otherwise expose stale account data. Account and consent transitions now
+through the host's shared CloudAuth manager publish a nonsecret advisory
+invalidation within the same host, including coordinator-initiated restore;
+consent changes through AppCore publish the same signal. The Cloud
+library and sync settings clear their current private views and delayed replies
+on that event or a detected event gap. Delivery remains asynchronous, can be
+lost before detection and does not cover every pending-login state change,
+independently constructed managers, consent changes outside AppCore or separate
+processes. It is not a
+privacy or authorization fence for exposing the v2 preview. A cooperative cross-process protocol fence
+and per-identity v1 partitions are being validated; product wiring still needs
+session/opt-in invalidation and a local-source fence. Guard
 checks cannot recall an HTTP request already dispatched, or replace an atomic
 local-application consent fence.
+
+CloudAuth now provides a private-gate synchronous callback for a future local
+commit bound to one exact session. Account transitions on the same manager or
+its clones wait asynchronously until that callback returns, and a transition
+already in progress refuses admission. The internal cutover coordinator uses
+this callback together with protocol admission. It does not fence independent
+managers or other processes.
+
+An in-progress private preview reads a coherent SQLite snapshot including
+deleted source generations and compares it with catalog selections, the
+activation map, session and consent. It rejects partial catalog scans, package
+journals, any retained apply journal or finalization witness, unfinished
+outboxes or conflict journals from any account. For a marked
+product outbox, the private adapter now captures current, identity-bound
+receipts with the SQLite source and compares their complete evidence against
+the v1 snapshot under protocol admission. Changed or malformed evidence,
+unmatched pending edits, future generations and current foreign-account
+receipts fail closed; historical receipts do not authorize a migration. This deliberately conservative check
+can block preview even for finalized applications until a safe witness review
+and retention policy exists. The later freshness check reconstructs and compares
+the full v1 review and receipts, then checks the local source again. It is still
+an advisory check: scan completeness does not fence filesystem changes after the scan.
+Even an absent optional configured root blocks this private preview until its
+inventory can be accounted for.
+Other processes, worker health and a final local-source fence still need
+coverage; this preview is not a product RPC or authority to cut over.
+
+An internal coordinator primitive now sequences reviewed preparation, v2
+bootstrap and protocol selection under the cooperative protocol lease and the
+same CloudAuth manager's session gate. It can reconstruct an interrupted
+preparation only from the exact original inputs and a new review. Bootstrap
+rejects a nonempty or otherwise noncanonical incomplete workspace without
+overwriting it; selection of v2 holds the workspace state lock through marker
+publication. Disabling sync remains possible in Preparing or V2 and preserves
+both stores. A private native adapter now also holds cooperative invocation,
+package-store, SQLite and catalog fences for the reviewed commit; it cannot
+fence every root or noncooperating writer, and it may delay plugin operations
+while durable disk writes complete. The public plugin enable/disable and installed-state operations now select the
+current protocol under admission and persist a v2 candidate with their local
+state when a v2 product identity is eligible. If admission fails before a source write, it
+falls back to a local, untracked edit for later reconciliation. The v2 drain, package filesystem writers, independent authentication managers
+and remaining product wiring are not yet connected.
+The primitive is not a user-facing migration and does not authorize local
+application.
+
+The marked cutover is the one-time product migration path. Its review binds
+the receipt evidence, source selections, v1 snapshot and resulting v2
+candidate to the preparation marker, and restart requires the same evidence
+and a fresh review. Settled deletes are retained as reviewable tombstones.
+Every imported pending selection is marked as a conflict, so it cannot be
+sent automatically while runtime continuity is unproven. The product-outbox
+marker must remain valid before preparation, during recovery and after
+selection of v2; its loss or corruption blocks these paths. The receipts'
+historical consent is evidence only: later v2 networking requires current,
+account-scoped consent. Remaining work includes proving source provenance
+for legacy/local-only changes, fencing all relevant runtime and package
+mutations, and independent processes and authentication managers. Older
+binaries do not participate in these cooperative fences.
+
+The in-progress v1 uncertain-upload recovery must not be treated as a finished
+product flow. A plugin change can currently be applied locally before its
+sync staging succeeds, including while an exclusive recovery lease is held.
+Recovery also needs a durable, identity-bound application intent: accepting a
+Cloud value must survive a crash and handle an absent Cloud record as disabled,
+without overwriting a newer local change. A shared mutation boundary, durable
+staging and session/opt-in/source revalidation are required before exposing
+that choice as complete. Cooperative locks do not fence older binaries.
+The product currently permits read-only review but rejects every uncertain
+upload resolution, including keep-local, until those protections are wired.
+An internal SQLite transaction can now persist a plugin state, source
+generation and identity/consent-bound outbox candidate together; this storage
+primitive is not yet connected to product mutations or coordinator delivery.
+The v1 outbox adapter joins that reservation to the local runtime change and
+confirms only the same source generation after success, but is not selected by
+v1 product operations. The public enable/disable and installed-state paths use selected-protocol
+admission for eligible v2 identities and falls back to an untracked local edit
+when admission fails before a source write. Runtime failure/restart recovery,
+package mutations, fenced outbox draining and legacy-writer coordination still
+need integration.
+The in-progress coordinator bridge moves staged candidates to durable receipts
+and rechecks the exact pending edit, source generation, consent and runtime
+epoch before upload. Its private native wrapper requires a previously created
+per-account product marker, checks that marker under admission at each relevant
+checkpoint, and takes a short runtime guard before protocol admission. Neither
+guard is held across HTTP; a marker or session change after dispatch leaves the
+outcome uncertain instead of acknowledging it. The compatibility outbox path
+rejects marked accounts. No path creates the marker or performs migration as
+part of this bridge, and older binaries remain outside the cooperative fence.
+The worker observation only describes host-owned workers at that instant; it
+does not prove process health, worker-generation continuity, or fence implicit
+starts and late plugin results. The bridge is not used by product operations;
+package mutations, tombstones, conflict resolution, runtime reconciliation and
+explicit migration still need their full boundaries before activation.
+The regular plugin invoker now binds a call to the generation returned by its
+start and rejects a response if that worker has already been replaced or
+removed. This check is instantaneous: it cannot prevent a later stop, recall
+effects already performed inside a plugin, or fence host effects after the
+response. Implicit starts racing with disable remain unresolved.
+The product v1 path now retains downloaded selections in the account snapshot
+without applying them to local plugins. `sync.now` reports deferred records,
+and both conflict choices fail without changing the retained conflict; Settings
+explains the limitation. Reviewed application still needs a session, consent
+and local-source fence and durable recovery. A network result alone is not
+permission to alter a plugin after an account switch, opt-out, or a newer edit.
+Current persisted plugin state writes and removals also advance the retained
+source generation in the same SQLite transaction, including repeated writes
+and local-only changes. This invalidates stale receipts across delete/recreate
+and remote changes, but it does not yet make legacy writes participate in the
+coordinator admission lease, cover all package filesystem transitions, or
+atomically enqueue their sync candidates. Those paths still block activation.
+The local package install, reviewed update, rollback and uninstall entry points
+invalidate source evidence before and after attempting filesystem changes.
+Uninstall deletes the persisted plugin row only if its first source generation
+is still current; a concurrent update or database error is surfaced even if
+files were already removed. These fences make some stale candidates invalid,
+but do not stop uploads during package I/O or a stale observation staged after
+the final fence. A shared admission lease and durable package-operation journal
+are still required before activating this path.
+An internal package journal and short cross-process admission callback now
+preserve uncertain operations and prevent replay. Sync outbox and local-apply
+storage reject a plugin with an active package journal. A private orchestrator
+can reserve that journal before a filesystem effect. The installer now offers
+a cooperative cross-process store lease and retains the exact reviewed archive
+in a private temporary snapshot until installation completes. Product package
+operations do not yet use the journal: trusted artifact/runtime reconciliation,
+recovery UI, older-binary coordination and a bounded receipt-retention policy
+remain required before activation.
+The experimental package observation now checks the current signed installed
+tree and receipt under cooperative locks for both the configured plugin and
+receipt-store roots, and binds the observation to an unchanged journal and
+matching roots. This describes present files, not the original operation's
+result or the running process. Direct receipt/filesystem writers, older
+binaries, overlapping ancestor roots, non-cooperating concurrent replacements
+and unverified Windows junction behavior remain outside that fence. Policy
+patches now read, merge and save under the same cooperative lease.
+
+The local plugin manager also fences ordinary starts, calls and package
+operations for a plugin during installation, replacement, rollback or
+removal. It buffers up to 64 startup events from an authorized replacement
+worker until the package operation and its final source fence succeed; an
+overflow fails the emit, and cancellation or an uncertain result discards the
+buffer and keeps the plugin fenced for this manager's lifetime. Shutdown
+reports an active or unresolved package operation as unsafe. This is not a
+blocking wait: if another lifecycle operation holds the manager lock at
+finalization, the package stays conservatively fenced and requires recovery,
+even if its files were successfully written. This is not a
+durable transaction: process restart loses the in-memory fence and does not
+prove whether external effects completed. A durable package journal,
+reconciliation and recovery remain required. Guest `onLoad` still runs before
+finalization so activation failure can trigger rollback; its direct external
+I/O cannot be undone. Previously dispatched calls and events that passed their
+last generation check may still complete across the fence. An isolated call
+prepared before the fence can still dispatch independently, and preparation
+can race acquisition; a shared admission epoch and tracking are needed.
+Startup event delivery remains bounded by the existing broadcast and consumer
+semantics, without replay or a guaranteed gap indication. These limits do not
+establish complete package atomicity or reliable event delivery.
+
+An experimental runtime quarantine blocks known unfinished plugin applications
+after restart and rejects several activation and late-response paths. Finalized
+records now have a separate witness written in the same SQLite transaction;
+startup validates retained records and witnesses, failing closed if evidence is
+missing, malformed or orphaned. A build without Cloud support validates only
+the basic finalized identity and matching witness, not the complete Cloud
+contract. Matching copies do not protect against coordinated modification of
+both tables. Retention is capped at 4096 records; reaching
+the cap blocks new application until a safe compaction and recovery protocol is
+implemented. Finalized records made by earlier experimental builds have no
+witness and require explicit review and migration; they are not silently
+accepted or repaired. This is not an activation gate: an already dispatched
+effect cannot be recalled and quarantine is not propagated live to another
+process. The product must keep remote application disabled until these gaps and
+recovery are addressed.
+
+Account UI transitions coordinate restore, login and cancellation. The current
+desktop flow reserves an opaque, bounded, expiring operation identity before
+starting login, then binds begin, completion and cancellation to that identity.
+After an uncertain begin, cancellation invalidates the same attempt even if
+the callback setup finishes late; a stale cancellation cannot stop a newer
+correlated attempt. Older clients that call the uncorrelated begin and cancel
+methods retain their original cancellation race. Lost reservation responses
+leave inert entries that expire; a maximum of 128 can be held for five minutes.
+The desktop bridge and browser wait longer for login completion than the
+native callback deadline, while other RPC deadlines remain unchanged.
+Legacy conflict resolution must also share the outbox admission boundary: a
+conflict based on an older staged value cannot be rebased or discarded while
+a newer local candidate awaits confirmation or delivery. A keep-local decision
+also needs a durable journal joining the reviewed Cloud record, old and new
+pending values, source generation and consent before changing either the JSON
+state or the SQLite receipt. A later decision must re-read Cloud; the review
+alone does not authorize a rebase.
+An in-progress native keep-local journal now freezes that decision across
+both stores. If a later local edit invalidates the frozen source, recovery
+retains the journal and blocks uploads. A separately reviewed native
+abandonment can restore the original conflict and retain a newer candidate
+when that candidate belongs to the same account and has current source and
+runtime confirmation. A separate reviewed abandonment accepts only evidence
+of a newer source generation, restoring the conflict without revealing or
+copying another account's value; it does not authorize any upload.
+A separate private review can abandon a journal from a previous consent
+identity for the same account, restoring its exact original conflict before
+removing the journal. A crash after restoration requires another review;
+receipts and newer candidates, including those from other accounts, remain
+untouched. This does not renew consent for an old receipt or authorize an
+upload: reauthorizing that receipt remains unimplemented. These paths remain
+unavailable in product.
+The in-progress consent epoch migration preserves legacy numeric identities
+and assigns newly confirmed consent a 127-bit random identity, serialized as
+decimal text. Legacy enabled settings without a usable identity require a
+fresh opt-in; existing records are retained. The negligible collision risk
+does not protect against restoring an old copy of all local state. A durable
+initialization marker prevents an individually missing preference file from
+silently turning edits admitted through the in-progress product boundary into
+local-only edits. The existing v1 product path does not use that boundary yet.
+Loss of both files together cannot be distinguished from a new installation. Older
+binaries do not understand the new identity and may rewrite the setting using
+their old scheme, so deployment must prevent concurrent use or downgrade to
+those binaries before the new product path can be activated.
+
+An internal explicit review can renew consent for a completed v2 selection or
+an interrupted preparation, binding it to the exact session, origin, account,
+protocol marker and workspace generation. It creates a fresh scoped consent
+identity without sending data or changing either workspace. V2 networking must
+use the scoped v2 eligibility check; a legacy device-wide opt-in is not v2
+authorization. Versioned config rejects a missing scoped field, but restoring
+an entire old preference or removing both version and scope is indistinguishable
+from legacy state. Older binaries can ignore the scoped fields, so downgrade or
+concurrent old binaries must be prevented. Unix preference reads reject symlinks
+and nonregular files without blocking on FIFOs; the equivalent race protection
+on other platforms still needs verification. The active v1 local mutation path
+logs a staging error for damaged settings but does not yet present durable
+recovery in the UI.
 
 The read-only Cloud catalog uses typed summary and version-page RPCs against
 the configured origin, with generation and sizes as decimal strings. Bounded
 pages retain filter and generation identity; catalog data never authorizes
 installation. The UI offers a user-selected legacy fallback only when the
 backend explicitly reports the new capability absent. Existing custom source
-controls and verified installation remain separate work. The local signed
-registry canonicalizes the legacy `..` shard; the Cloud backend still rejects
-that shard pending a separately verified compatibility rollout.
+controls and verified installation remain separate work. The signed registry
+and Cloud backend now use a canonical path for the legacy `..` shard in new
+generations. Existing immutable generations and older clients require a
+separate compatibility audit and, if affected, a newly signed promotion.
 
-No v2 product sync RPC/UI, account eligibility integration, single-engine cutover,
-collection-specific local application or durable local-application outcome
-adapter is wired yet. The foundation never applies downloaded source itself.
-Its bootstrap helper preserves the v1 file and imports no v1 cursor or revision;
-it does not constitute product migration consent or a completed cutover.
+An explicit, read-only `sync.v2.discover` check validates the configured
+backend's advertised workspace contract without sending credentials. It is
+informational and always reports Desktop v2 synchronization as unavailable;
+it does not migrate, sync, or apply account data. Cloud Sync settings expose
+this as an on-demand compatibility check and clear the result when the account
+or sync context changes.
+
+The v2 product synchronization RPC/UI, account eligibility integration and
+single-engine cutover are wired. Collection-specific local application and
+the durable local-application outcome adapter are not fully wired yet. The
+foundation never applies downloaded source itself. Its bootstrap helper
+preserves the v1 file and imports no v1 cursor or revision; by itself it
+does not constitute product migration consent, and only the explicit
+migration RPC constitutes a completed cutover.
 
 | Executed local check | Result and boundary |
 | --- | --- |
@@ -105,6 +414,8 @@ it does not constitute product migration consent or a completed cutover.
 | Cloud catalog adapter | Loopback HTTP pagination, exact 64-bit values and oversized-response rejection passed locally; installation and actual Desktop browsing are separate |
 | Catalog compatibility and client surface | Five SDK catalog tests passed in each repository; a PostgreSQL pagination test checked legacy-ID routing; client parity (10 tests) and the CLI catalog parser passed |
 | Bounded catalog, local registry and UI | PostgreSQL exercised byte-bound pagination and legacy workspace IDs; bounded SDK tests passed in both repositories; a signed local registry round-trip and 31 web tests passed. The packaged Chromium fixture passed against native IPC and loopback Cloud HTTP in English, Spanish and mobile layouts, including 50+1 pages and an exact generation above 2^53; this is not a two-PC acceptance test |
+| In-progress v1 outbox admission | 61 coordinator tests passed, including marker, account and restart fences. SQLite receipt and adapter tests passed, as did a loopback HTTP case with a newer edit during an admitted write. The product does not yet use this path; package mutations, conflict resolution and local application still need fencing |
+| In-progress conflict recovery | The 98-test coordinator suite passed; SQLite journal tests and loopback HTTP integration covered failed cross-store commits, restart, source reconfirmation and preserving newer edits, including a second account's private candidate. These private paths are not product activation or two-Desktop acceptance |
 | Backend populated pre-v2 upgrade, explicit digest repair and actual SQL archive restore | Passed on native PostgreSQL (17.31 s) and pgrust (18.61 s), plus 2 pure URL-guard tests; database-only scope |
 | Earlier backend v2 PostgreSQL cases | At the preceding checkpoint, 6 passed on each SQL runtime, including byte-ordered punctuation pagination; the earlier 67-case suite also passed on native PostgreSQL |
 | Backend declared minimum compiler checks | Rust 1.95 workspace and Rust 1.89 SDK checks passed |
@@ -152,10 +463,13 @@ foundation table.
    open the fixed instance's browser review portal for privileged moderation.
    A native bearer moderation UI requires an explicit backend contract change;
    do not work around the cookie boundary by copying browser credentials.
-   The existing backend admin UI has not acquired document-moderation screens
-   merely because v2 routes exist. Implement and verify that browser flow in
-   the backend repository, or present the operation as unavailable; a link to
-   an unrelated plugin review page is not document-moderation integration.
+   RemakeBackend commit `08260f3` adds a separate document moderation screen:
+   it displays the exact pending or published revision and supports decisions
+   and withdrawal with a reason. An additional local browser test uses real
+   cookie sessions and disposable PostgreSQL to verify independent review,
+   approval and withdrawal; production deployment acceptance remains open.
+   The panel only discovers the current published revision, not historical
+   revisions, which remain addressable through the backend API.
 8. Session/account changes invalidate in-flight UI responses, reviews and write
    eligibility. A late response cannot restore another account's rows, complete
    its draft under a new session or reveal its private document.
@@ -352,6 +666,12 @@ distinct UI states: public discovery alone cannot make unpinned packages
 installable.
 
 The cloud library needs separate Public, My documents and local/imported views.
+The in-progress native `cloudLibrary.list` and `cloudLibrary.read` adapters
+provide typed, read-only public or signed-in private access; they do not import
+or activate documents. Private replies are discarded if the initiating session
+changes. Account settings can browse public and private metadata and read an
+exact revision without importing it; the view clears private responses when
+the visible account session changes. Reviewed import remains to be wired.
 Keep backend document UUID/revision/status separate from portable document IDs,
 local gallery IDs, local profile IDs and graph IDs. Public reads only expose
 published revisions; drafts/pending/rejected/withdrawn content is private.

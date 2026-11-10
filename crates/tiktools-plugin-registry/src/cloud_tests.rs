@@ -277,6 +277,72 @@ fn cloud_client(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn fixed_product_package_uses_the_same_generation_as_its_metadata() {
+    let directory = TempDir::new("fixed-generation-package");
+    let keys = keys();
+    let v1 = package(&directory, "acme.tts", "1.0.0");
+    let v2 = package(&directory, "acme.tts", "1.1.0");
+    sign_archive(&v1, &keys.publisher).unwrap();
+    sign_archive(&v2, &keys.publisher).unwrap();
+    let mock = MockCloud::start(directory.join("origin")).await;
+    signed_tree(gen_files(&mock, 1), &keys, &[v1], "first");
+    signed_tree(gen_files(&mock, 2), &keys, &[v2], "second");
+    set_current(&mock, 1);
+    let source = cloud_source("official", &mock.origin, vec![keys.root.public_key()]).unwrap();
+    let client = RegistryClient::new_fixed(
+        directory.join("cache"),
+        directory.join("registries.json"),
+        vec![source],
+        Arc::new(RwLock::new(TrustStore::new())),
+    )
+    .unwrap();
+    for (generation, version) in [(1, "1.0.0"), (2, "1.1.0")] {
+        set_current(&mock, generation);
+        let (source, document) = client.package("acme.tts", None).await.unwrap();
+        assert_eq!(
+            source.url,
+            generation_files_url(&mock.origin, generation).unwrap()
+        );
+        let artifact = &document.release(version).unwrap().artifacts[0];
+        let bytes = reqwest::get(join_url(&source.url, &artifact.url).unwrap())
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap();
+        assert_eq!(Sha256Digest::of_bytes(&bytes), artifact.sha256);
+    }
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn fixed_product_does_not_use_previous_generation_metadata_on_failure() {
+    let directory = TempDir::new("fixed-generation-cache");
+    let keys = keys();
+    let archive = package(&directory, "acme.tts", "1.0.0");
+    sign_archive(&archive, &keys.publisher).unwrap();
+    let mock = MockCloud::start(directory.join("origin")).await;
+    signed_tree(gen_files(&mock, 1), &keys, &[archive], "first");
+    set_current(&mock, 1);
+    let source = cloud_source("official", &mock.origin, vec![keys.root.public_key()]).unwrap();
+    let client = RegistryClient::new_fixed(
+        directory.join("cache"),
+        directory.join("registries.json"),
+        vec![source],
+        Arc::new(RwLock::new(TrustStore::new())),
+    )
+    .unwrap();
+    assert!(client.package("acme.tts", None).await.is_ok());
+    // Generation two has no signed files. Generation one's cached keys,
+    // configuration and index may not satisfy this request.
+    set_current(&mock, 2);
+    assert!(client.package("acme.tts", None).await.is_err());
+    set_current(&mock, 0);
+    assert!(client.refresh("official").await.is_err());
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cloud_discovery_pins_refresh_and_search() {
     let directory = TempDir::new("discovery");
     let keys = keys();

@@ -16,25 +16,39 @@ impl AppCore {
         emitted: tiktools_plugin_loader::EmittedEvent,
     ) {
         let plugin_id = emitted.plugin_id.clone();
-        let Some(plugin) = self.plugins.get(&plugin_id) else {
-            // Unknown or rescanned-away plugin: stale in-flight emit.
+        // A queued event belongs to one worker, not merely to its plugin ID.
+        // Do not attribute an old worker's events to a replacement instance.
+        let Some(_delivery) = self
+            .plugins
+            .try_reserve_event_delivery(&plugin_id, emitted.generation)
+        else {
             return;
         };
         if !self.plugin_ready(&plugin_id) {
             // Stopped or failed while the emit was in flight.
             return;
         }
-        if !declared_event_types(&plugin.manifest).contains(&emitted.event_type) {
+        let manifest = _delivery.manifest();
+        let Some(current) = self.plugins.get(&plugin_id) else {
+            return;
+        };
+        if !declared_event_types(manifest).contains(&emitted.event_type)
+            || !declared_event_types(&current.manifest).contains(&emitted.event_type)
+        {
             self.record_plugin_drops(&plugin_id, 1);
             return;
         }
         if self
             .capabilities
-            .require_capability(
-                &plugin.manifest,
-                tiktools_plugin_api::capabilities::EVENTS_PUBLISH,
-            )
+            .require_capability(manifest, tiktools_plugin_api::capabilities::EVENTS_PUBLISH)
             .is_err()
+            || self
+                .capabilities
+                .require_capability(
+                    &current.manifest,
+                    tiktools_plugin_api::capabilities::EVENTS_PUBLISH,
+                )
+                .is_err()
         {
             self.record_plugin_drops(&plugin_id, 1);
             return;
@@ -51,6 +65,15 @@ impl AppCore {
         ) else {
             return;
         };
+        // Stops that are not package mutations do not yet participate in the
+        // delivery permit. Preserve the existing late-generation check for
+        // those paths until they acquire the same admission boundary.
+        if !self
+            .plugins
+            .is_live_generation(&plugin_id, emitted.generation)
+        {
+            return;
+        }
         self.publish_automation_event(event).await;
         self.record_plugin_success(&plugin_id);
     }

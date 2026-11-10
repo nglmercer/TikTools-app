@@ -16,6 +16,23 @@ function writable(host = 'A', epoch = '1', revision = '1'): ControllerStatus {
   s.commandJournal = { binding: { profileId: host, origin: s.origin!, hostId: host, principalId: 'moderator', sessionId: host }, pending: null, recent: [], unavailable: false }; return s;
 }
 describe('native controller view scope', () => {
+  it('does not forget an active or replaced profile using an old confirmation', async () => {
+    let current: ControllerStatus = { ...status(), phase: 'idle', profile: null, hello: null };
+    let profiles = [{ name: 'desk', profileId: 'first', origin: 'https://host.example', hostId: 'host' }];
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'controller.profiles') return structuredClone(profiles);
+      if (method === 'controller.status') return structuredClone(current);
+      throw new Error(method);
+    });
+    const model = createControllerModel(client); models.push(model); await model.start();
+    const target = model.prepareForget(model.profiles.value[0]!)!;
+    profiles = [{ ...profiles[0]!, profileId: 'replacement' }];
+    await model.inventory();
+    expect(await model.forgetProfile(target)).toBe(false);
+    current = { ...current, profile: 'desk' }; await model.refresh();
+    expect(model.prepareForget(model.profiles.value[0]!)).toBeNull();
+    expect(calls.some((call) => call.method === 'controller.profile.forget')).toBe(false);
+  });
   it('keeps a deleted workflow draft accessible only while its current grant permits that resource', async () => {
     let current = writable(); let hostRows = [row()];
     const { client } = createFakeControlClient((method) => {

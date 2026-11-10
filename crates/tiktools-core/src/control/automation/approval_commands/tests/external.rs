@@ -8,7 +8,7 @@ use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
 };
 
-struct AudioHost(Arc<AtomicUsize>);
+pub(super) struct AudioHost(pub(super) Arc<AtomicUsize>);
 impl MediaHost for AudioHost {
     fn open_picker(&self, _: MediaPickerOptions) -> MediaHostFuture<Option<std::path::PathBuf>> {
         Box::pin(async { Ok(None) })
@@ -99,6 +99,93 @@ async fn approved_audio_uses_resolved_path_and_never_replays_a_retained_root() {
         .unwrap()
         .contains("alert.wav"));
     f.assert_delegated(AutomationKind::Action, "audio");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_audio_plays_on_host_and_stops_when_file_grant_is_removed() {
+    let mut f = Fixture::new();
+    let calls = Arc::new(AtomicUsize::new(0));
+    drop(f.core.take());
+    f.core = Some(Arc::new(AppCore::with_paths(
+        Arc::new(Emitter),
+        Arc::new(AudioHost(calls.clone())),
+        f.paths.clone(),
+    )));
+    let path = f.paths.data.join("alert.wav");
+    std::fs::write(&path, b"host audio fixture").unwrap();
+    let canonical = path.canonicalize().unwrap().to_str().unwrap().to_owned();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::AudioPlay]);
+    allowed.effects.audio.push(AudioEffectGrant {
+        file_refs: [canonical].into(),
+        output: "host-default".into(),
+        max_volume: 0.5,
+        overlaps: ["drop".into()].into(),
+    });
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Audio].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(allowed.clone());
+    let identity = auth.snapshot().unwrap();
+    for (kind, record) in [
+        (
+            AutomationKind::Action,
+            json!({"id":"sound","name":"Sound","enabled":true,"typeId":"audio.play","schemaVersion":2,"config":{"fileRef":"alert.wav","volume":0.5,"overlap":"drop"}}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"rule","name":"Chat","enabled":true,"trigger":"tiktok.chat","actionIds":["sound"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
+        ),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    let receipts = f.core().automation_effect_history(None, 10).unwrap();
+    assert_eq!(receipts.items.len(), 1);
+    assert_eq!(receipts.items[0].state, EffectState::Succeeded);
+    allowed.effects.audio.clear();
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: allowed,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "revocation must prevent another playback"
+    );
+    assert_eq!(
+        f.core()
+            .automation_effect_history(None, 10)
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+    f.core().shutdown().await;
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn approved_audio_still_rejects_out_of_scope_files_and_unavailable_output() {
@@ -199,6 +286,90 @@ mod http {
         assert!(request.contains("hello"));
         assert!(!request.contains("private-"));
         socket
+    }
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn reusable_http_action_sends_once_and_stops_when_destination_revoked() {
+        let f = Fixture::new();
+        let listener = Arc::new(TcpListener::bind("127.0.0.1:0").await.unwrap());
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let mut allowed = http_grant(origin.clone());
+        allowed.capabilities.insert(Capability::AutomationToggle);
+        allowed.automation_delegation = Some(AutomationDelegation {
+            effects: [DelegatedAutomationEffect::Http].into(),
+            allow_dynamic_targets: false,
+            allow_owner_edits: false,
+            allow_owner_source: false,
+            allow_other_author_edits: false,
+            allow_other_author_source: false,
+        });
+        let auth = f.pair(allowed.clone());
+        let identity = auth.snapshot().unwrap();
+        for (kind, record) in [
+            (
+                AutomationKind::Action,
+                json!({"id":"http","name":"Webhook","enabled":true,"typeId":"core.fetch","schemaVersion":2,"config":config(&origin)}),
+            ),
+            (
+                AutomationKind::Event,
+                json!({"id":"rule","name":"Chat","enabled":true,"trigger":"tiktok.chat","actionIds":["http"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
+            ),
+        ] {
+            f.core()
+                .automation_command(
+                    CommandCaller::Remote(auth.clone()),
+                    f.request("0"),
+                    AutomationMutation::Create { kind, record },
+                )
+                .unwrap();
+        }
+        let server = {
+            let listener = listener.clone();
+            tokio::spawn(async move {
+                let mut socket = request(&listener).await;
+                socket
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                    .await
+                    .unwrap();
+            })
+        };
+        f.core()
+            .run_automation_event(AutomationEvent::owner(input("alice")))
+            .await;
+        server.await.unwrap();
+        let receipts = f.core().automation_effect_history(None, 10).unwrap();
+        assert_eq!(receipts.items.len(), 1);
+        assert_eq!(receipts.items[0].state, EffectState::Succeeded);
+        allowed.effects.http.clear();
+        f.core()
+            .collaboration()
+            .unwrap()
+            .set_grant(GrantSet {
+                principal_id: identity.principal_id,
+                expected_revision: identity.grant_revision,
+                grant: allowed,
+            })
+            .unwrap();
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            f.core()
+                .run_automation_event(AutomationEvent::owner(input("alice"))),
+        )
+        .await
+        .unwrap();
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(100), listener.accept())
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            f.core()
+                .automation_effect_history(None, 10)
+                .unwrap()
+                .items
+                .len(),
+            1
+        );
+        f.core().shutdown().await;
     }
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn approved_http_pins_destination_projects_input_and_retains_changed_semantics() {

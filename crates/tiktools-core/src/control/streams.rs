@@ -109,16 +109,72 @@ impl AppCore {
                     })?;
                 records.extend(automation);
             }
+            if domains.contains(&StreamDomain::Competitions) {
+                let mut cursor = None;
+                let mut total = 0usize;
+                loop {
+                    let page = self.competition_summary_page(
+                        &identity.grant,
+                        cursor.as_deref(),
+                        50,
+                        page_bytes.max(1024),
+                        true,
+                    )?;
+                    for row in page.competitions {
+                        let version = ResourceVersion {
+                            kind: ResourceKind::Competition,
+                            scope: "host".into(),
+                            id: row.id.clone(),
+                            revision: row.revision.clone().ok_or_else(|| {
+                                OperationError::internal("competition revision unavailable")
+                            })?,
+                        };
+                        let value = serde_json::to_value(row).map_err(|_| {
+                            OperationError::internal("competition snapshot unavailable")
+                        })?;
+                        total = total
+                            .saturating_add(
+                                serde_json::to_vec(&value)
+                                    .map_err(|_| {
+                                        OperationError::internal("competition snapshot unavailable")
+                                    })?
+                                    .len(),
+                            )
+                            .saturating_add(
+                                serde_json::to_vec(&version)
+                                    .map_err(|_| {
+                                        OperationError::internal("competition snapshot unavailable")
+                                    })?
+                                    .len(),
+                            );
+                        if total > SNAPSHOT_BYTES {
+                            return Err(stream_error(Error::TooLarge));
+                        }
+                        records.push((value, version));
+                    }
+                    match page.next_after {
+                        Some(next) if cursor.as_ref().is_none_or(|old: &String| next > *old) => {
+                            cursor = Some(next)
+                        }
+                        Some(_) => {
+                            return Err(OperationError::internal(
+                                "invalid competition snapshot cursor",
+                            ))
+                        }
+                        None => break,
+                    }
+                }
+            }
             // Recheck permissions after the database read, before retaining or
             // returning a page. A changed grant requires a new baseline.
             let current = auth.snapshot().map_err(stream_error)?;
             self.coordination_streams
-                .capture(
+                .capture_with_frame(
                     &current,
                     connection,
                     &params.subscription_id,
                     records,
-                    page_bytes,
+                    frame_bytes,
                 )
                 .map_err(stream_error)
         }

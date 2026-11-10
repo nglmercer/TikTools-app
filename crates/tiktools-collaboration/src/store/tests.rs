@@ -544,6 +544,68 @@ fn grants_use_atomic_revision_checks_and_are_read_live() {
 }
 
 #[test]
+fn reusable_automation_policy_is_persisted_versioned_and_revocable() {
+    let (dir, s) = service();
+    let a = pair(&s, ClientKind::Desktop);
+    let current = s.authenticate_live(&a.access_token, false, true).unwrap();
+    let mut grant = Grant::default();
+    grant.capabilities = [
+        Capability::AutomationRead,
+        Capability::AutomationEdit,
+        Capability::AutomationToggle,
+    ]
+    .into();
+    grant.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Log,
+            DelegatedAutomationEffect::Delay,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    s.set_grant(GrantSet {
+        principal_id: a.principal_id.clone(),
+        expected_revision: "1".into(),
+        grant: grant.clone(),
+    })
+    .unwrap();
+    let installed = current.snapshot().unwrap();
+    assert_eq!(installed.grant_revision, "2");
+    assert_eq!(
+        installed.grant.automation_delegation,
+        grant.automation_delegation
+    );
+    assert_eq!(
+        s.authenticate(&a.access_token, false, false)
+            .unwrap()
+            .grant
+            .automation_delegation,
+        grant.automation_delegation
+    );
+    drop(current);
+    drop(s);
+    let s = CollaborationService::open(&dir.path().join("private")).unwrap();
+    let current = s.authenticate_live(&a.access_token, false, true).unwrap();
+    assert_eq!(
+        current.snapshot().unwrap().grant.automation_delegation,
+        grant.automation_delegation
+    );
+    s.set_grant(GrantSet {
+        principal_id: a.principal_id,
+        expected_revision: "2".into(),
+        grant: Grant::viewer(),
+    })
+    .unwrap();
+    let removed = current.snapshot().unwrap();
+    assert_eq!(removed.grant_revision, "3");
+    assert!(removed.grant.automation_delegation.is_none());
+}
+
+#[test]
 fn connected_authorizations_observe_revocation_rotation_and_grants_without_disk_reads() {
     let (_dir, s) = service();
     let a = pair(&s, ClientKind::Desktop);

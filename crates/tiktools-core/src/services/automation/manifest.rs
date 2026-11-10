@@ -442,6 +442,18 @@ pub(crate) fn build(
     review: &Versioned<Value>,
     subjects: ManifestSubjects<'_>,
 ) -> Result<ExecutionManifest, ManifestError> {
+    build_with_inherited_subjects(review, subjects, &[], false)
+}
+
+/// Trusted host callers may add inherited principals to the saved authors.
+/// This never accepts identities from editable definition JSON. The caller
+/// must bind the extra set to a current competition generation separately.
+pub(super) fn build_with_inherited_subjects(
+    review: &Versioned<Value>,
+    subjects: ManifestSubjects<'_>,
+    inherited: &[(String, String)],
+    native_competition_event: bool,
+) -> Result<ExecutionManifest, ManifestError> {
     if !canonical_id(subjects.host_id, 256) {
         return Err(ManifestError::InvalidSubjects);
     }
@@ -449,7 +461,20 @@ pub(crate) fn build(
     if entries[0].record.is_none() {
         return Err(ManifestError::MissingPrimary);
     }
-    let expected = identities(&entries);
+    if inherited.len() > DEPENDENCIES + 1 {
+        return Err(ManifestError::InvalidSubjects);
+    }
+    let mut expected: BTreeSet<_> = identities(&entries).into_iter().collect();
+    let mut unique = BTreeSet::new();
+    for (principal, session) in inherited {
+        if !canonical_id(principal, 256)
+            || !canonical_id(session, 256)
+            || !unique.insert((principal.clone(), session.clone()))
+        {
+            return Err(ManifestError::InvalidSubjects);
+        }
+        expected.insert((principal.clone(), session.clone()));
+    }
     let mut actual = BTreeSet::new();
     let mut subject_bindings = Vec::new();
     for subject in subjects.subjects {
@@ -472,7 +497,7 @@ pub(crate) fn build(
             configuration_revision: subject.configuration_revision.into(),
         });
     }
-    if actual.into_iter().collect::<Vec<_>>() != expected {
+    if actual != expected {
         return Err(ManifestError::InvalidSubjects);
     }
     subject_bindings
@@ -487,7 +512,30 @@ pub(crate) fn build(
             Some(trigger) if canonical_id(trigger, 128) => {
                 // Arbitrary emitted/plugin trigger contracts need their own
                 // catalog and propagation policy, not an inferred owner grant.
-                if !trigger.starts_with("tiktok.") {
+                if native_competition_event
+                    && matches!(
+                        trigger,
+                        "competition.started"
+                            | "competition.resumed"
+                            | "competition.paused"
+                            | "competition.cancelled"
+                            | "competition.finished"
+                            | "competition.winner.selected"
+                            | "competition.action.completed"
+                            | "competition.action.failed"
+                    )
+                {
+                    if inherited.is_empty()
+                        || subjects.subjects.iter().any(|subject| {
+                            !subject
+                                .grant
+                                .capabilities
+                                .contains(&Capability::CompetitionsRead)
+                        })
+                    {
+                        reasons.insert(ManifestReason::MissingCapability);
+                    }
+                } else if !trigger.starts_with("tiktok.") {
                     if subjects.subjects.is_empty() {
                         reasons.insert(ManifestReason::PluginBindingUnavailable);
                     } else if !crate::collaboration::valid_emit_topic(trigger) {

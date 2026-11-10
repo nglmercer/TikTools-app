@@ -1,5 +1,10 @@
 use super::TikToolsClient;
-use tiktools_control_api::modules::sync::{SyncNowResult, SyncResolveParams, SyncStatusResult};
+use tiktools_control_api::modules::sync::{
+    CloudLibraryDocument, CloudLibraryPage, CloudLibraryQuery, CloudLibraryRead, SyncNowResult,
+    SyncRecoveryOutcome, SyncRecoveryReview, SyncResolveParams, SyncStatusResult,
+    SyncUncertainResolveParams, SyncUncertainReviewParams, WorkspaceV2Discovery,
+    WorkspaceV2Preview, WorkspaceV2SyncResult,
+};
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
 
@@ -9,6 +14,15 @@ pub(crate) const METHODS: &[&str] = &[
     SYNC_DISABLE,
     SYNC_NOW,
     SYNC_RESOLVE,
+    "sync.uncertain.list",
+    "sync.uncertain.review",
+    "sync.uncertain.resolve",
+    "sync.v2.discover",
+    "sync.v2.selected",
+    "sync.v2.preview",
+    "sync.v2.now",
+    "cloudLibrary.list",
+    "cloudLibrary.read",
 ];
 
 const SYNC_STATUS: &str = "sync.status";
@@ -18,6 +32,53 @@ const SYNC_NOW: &str = "sync.now";
 const SYNC_RESOLVE: &str = "sync.resolve";
 
 impl TikToolsClient {
+    pub async fn sync_v2_preview(&self) -> Result<WorkspaceV2Preview, ClientError> {
+        self.call("sync.v2.preview", Empty::default()).await
+    }
+
+    pub async fn sync_v2_selected(&self) -> Result<bool, ClientError> {
+        self.call("sync.v2.selected", Empty::default()).await
+    }
+
+    pub async fn cloud_library_list(
+        &self,
+        query: CloudLibraryQuery,
+    ) -> Result<CloudLibraryPage, ClientError> {
+        self.call("cloudLibrary.list", query).await
+    }
+
+    pub async fn cloud_library_read(
+        &self,
+        request: CloudLibraryRead,
+    ) -> Result<CloudLibraryDocument, ClientError> {
+        self.call("cloudLibrary.read", request).await
+    }
+
+    pub async fn sync_v2_now(&self) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.now", Empty::default()).await
+    }
+
+    pub async fn sync_v2_discover(&self) -> Result<WorkspaceV2Discovery, ClientError> {
+        self.call("sync.v2.discover", Empty::default()).await
+    }
+
+    pub async fn sync_uncertain_list(&self) -> Result<Vec<String>, ClientError> {
+        self.call("sync.uncertain.list", Empty::default()).await
+    }
+
+    pub async fn sync_uncertain_review(
+        &self,
+        params: SyncUncertainReviewParams,
+    ) -> Result<SyncRecoveryReview, ClientError> {
+        self.call("sync.uncertain.review", params).await
+    }
+
+    pub async fn sync_uncertain_resolve(
+        &self,
+        params: SyncUncertainResolveParams,
+    ) -> Result<SyncRecoveryOutcome, ClientError> {
+        self.call("sync.uncertain.resolve", params).await
+    }
     pub async fn sync_status(&self) -> Result<SyncStatusResult, ClientError> {
         self.call(SYNC_STATUS, Empty::default()).await
     }

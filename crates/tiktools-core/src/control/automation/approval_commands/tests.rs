@@ -195,6 +195,692 @@ fn grant() -> Grant {
         ..Grant::default()
     }
 }
+
+#[test]
+fn competition_winner_candidate_requires_every_inherited_operator_grant() {
+    let f = Fixture::new();
+    let mut action = log("winner-action", "winner");
+    action["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, action.clone())
+        .unwrap();
+    let mut allowed = grant();
+    allowed.capabilities.extend([
+        Capability::AutomationToggle,
+        Capability::CompetitionsRead,
+        Capability::CompetitionsManage,
+    ]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let first = f.pair(allowed.clone()).snapshot().unwrap();
+    let second = f.pair(allowed.clone()).snapshot().unwrap();
+    let db = rusqlite::Connection::open(f.paths.automation_database()).unwrap();
+    db.execute(
+        "INSERT INTO competition_control_revisions VALUES('shared',1,0)",
+        [],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO competition_state VALUES('shared',?1)",
+        [
+            json!({"lifecycle":"active","generation":1,"deadlineMs":null,"remainingMs":null})
+                .to_string(),
+        ],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO competition_execution_generations VALUES('shared',1,'delegated')",
+        [],
+    )
+    .unwrap();
+    for identity in [&first, &second] {
+        db.execute(
+            "INSERT INTO competition_execution_subjects VALUES('shared',1,?1,?2,?3)",
+            rusqlite::params![
+                identity.principal_id,
+                identity.session_id,
+                identity.grant_revision
+            ],
+        )
+        .unwrap();
+    }
+    let service = f.core().collaboration().unwrap();
+    let fence = f
+        .core()
+        .db
+        .capture_competition_execution_fence(&service, "shared", 1)
+        .unwrap();
+    let operators = fence.subjects();
+    let subjects = service.execution_authorizations(&operators).unwrap();
+    let candidate = f
+        .core()
+        .automation
+        .competition_action_candidate("winner-action")
+        .unwrap();
+    assert!(candidate.required_subjects().unwrap().is_empty());
+    assert!(subjects
+        .with_current(|ids| candidate.clone().authorize_competition(&ids[..1], &fence))
+        .unwrap()
+        .is_err());
+    let permit = subjects
+        .with_current(|ids| candidate.clone().authorize_competition(ids, &fence))
+        .unwrap()
+        .unwrap();
+    assert!(permit.authorizes_action(
+        &f.core()
+            .automation_get(AutomationKind::Action, "winner-action")
+            .unwrap()
+    ));
+    let saved = f
+        .core()
+        .automation_get(AutomationKind::Action, "winner-action")
+        .unwrap();
+    assert!(f
+        .core()
+        .automation
+        .with_current_approvals(&[permit.clone()], &[], &saved, || Ok(()))
+        .is_err());
+    assert!(subjects
+        .with_current(|ids| permit.check_subjects(ids))
+        .unwrap()
+        .is_ok());
+    let author = f.pair(allowed.clone()).snapshot().unwrap();
+    let extra = [(author.principal_id.clone(), author.session_id.clone())];
+    f.core()
+        .db
+        .with_competition_execution_fence_and_subjects(
+            &service,
+            &fence,
+            &extra,
+            |_, identities, admission| {
+                assert_eq!(identities.len(), 3);
+                f.core()
+                    .automation
+                    .with_current_competition_approvals(
+                        admission,
+                        &[permit.clone()],
+                        &[],
+                        &saved,
+                        || Ok(()),
+                    )
+                    .map_err(crate::db::DatabaseError::Invalid)
+            },
+        )
+        .unwrap();
+    allowed.automation_delegation = None;
+    service
+        .set_grant(GrantSet {
+            principal_id: second.principal_id,
+            expected_revision: second.grant_revision,
+            grant: allowed,
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence_and_subjects(&service, &fence, &extra, |_, _, _| Ok(()))
+        .is_err());
+    assert!(subjects
+        .with_current(|ids| permit.check_subjects(ids))
+        .unwrap()
+        .is_err());
+    assert!(subjects
+        .with_current(|ids| candidate.authorize_competition(ids, &fence))
+        .unwrap()
+        .is_err());
+}
+
+#[tokio::test]
+async fn competition_activation_transaction_retains_operators_and_replays_original_command() {
+    use crate::db::{CommandTransaction, CompetitionActivation};
+    use tiktools_competitions::Transition;
+    let f = Fixture::new();
+    f.core().ranking_create(serde_json::from_value(json!({"schemaVersion":1,"id":"rank","creatorId":"owner","roomId":"room","limit":10,"capacity":10,"sources":[{"source":"custom.score","metric":"value","weight":1,"enabled":true}]})).unwrap()).unwrap();
+    f.core().competition_create(serde_json::from_value(json!({"schemaVersion":1,"id":"shared","name":"Shared","kind":"leaderboard_challenge","rankingId":"rank","options":[],"selectionMode":"highest_score","tiePolicy":"stable","durationMs":null,"voteLimit":1,"allowSwitch":false,"minimumParticipants":1})).unwrap()).unwrap();
+    let mut started_action = points("started-action", "alice", 1.0);
+    started_action["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, started_action)
+        .unwrap();
+    f.core().automation_create(AutomationKind::Event, json!({"id":"on-start","name":"On start","enabled":true,"trigger":"competition.started","actionIds":["started-action"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1})).unwrap();
+    let mut permission = grant();
+    permission.capabilities.extend([
+        Capability::CompetitionsRead,
+        Capability::CompetitionsManage,
+        Capability::AutomationToggle,
+    ]);
+    permission.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let first = f.pair(permission.clone());
+    let second = f.pair(permission.clone());
+    let first_id = first.snapshot().unwrap();
+    let second_id = second.snapshot().unwrap();
+    let service = f.core().collaboration().unwrap();
+    let command = |auth: &Authorization, expected: &str| {
+        let identity = auth.snapshot().unwrap();
+        CommandTransaction {
+            principal_id: identity.principal_id,
+            session_id: identity.session_id,
+            authorization: Some(auth.clone()),
+            request: f.request(expected),
+            current_instance_id: service.instance_id().into(),
+            max_ids_per_principal: 100,
+        }
+    };
+    let start = command(&first, "1");
+    let (started, fresh) = f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            0,
+            CompetitionActivation::Start,
+            &start,
+            &service,
+            "host-owner",
+            false,
+        )
+        .unwrap();
+    assert!(fresh);
+    assert_eq!(started.value["generation"], "1");
+    let mut presentation = f.core().events.subscribe_domain();
+    let mut plugin = f.core().events.subscribe_plugin_domain();
+    let admitted = f
+        .core()
+        .automation_state
+        .admitted
+        .load(std::sync::atomic::Ordering::Relaxed);
+    f.core().publish_competition_event(
+        "competition.started",
+        f.core().competition_context("shared", 1).unwrap(),
+    );
+    let event = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        presentation.recv_shared(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(matches!(
+        &*event,
+        crate::events::DomainEvent::CompetitionStarted(_)
+    ));
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(50), plugin.recv_shared())
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        f.core()
+            .automation_state
+            .admitted
+            .load(std::sync::atomic::Ordering::Relaxed),
+        admitted + 1
+    );
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while f.points("alice") != 1.0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("delegated start action should execute");
+    let first_fence = f
+        .core()
+        .db
+        .capture_competition_execution_fence(&service, "shared", 1)
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &first_fence, |_, _| Ok(()))
+        .is_ok());
+    let (replayed, fresh) = f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            0,
+            CompetitionActivation::Start,
+            &start,
+            &service,
+            "host-owner",
+            false,
+        )
+        .unwrap();
+    assert!(!fresh);
+    assert_eq!(replayed.value, started.value);
+    f.core()
+        .db
+        .transition_competition_owned(
+            "shared",
+            Transition::Pause,
+            crate::now_millis(),
+            Some("host-owner"),
+        )
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &first_fence, |_, _| Ok(()))
+        .is_err());
+    let revision = f
+        .core()
+        .db
+        .competition_state_revision("shared")
+        .unwrap()
+        .unwrap()
+        .1
+        .to_string();
+    let resume = command(&second, &revision);
+    let mut revoked = permission.clone();
+    revoked.capabilities.remove(&Capability::CompetitionsManage);
+    service
+        .set_grant(GrantSet {
+            principal_id: first_id.principal_id.clone(),
+            expected_revision: first_id.grant_revision.clone(),
+            grant: revoked.clone(),
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            1,
+            CompetitionActivation::Resume,
+            &resume,
+            &service,
+            "host-owner",
+            false
+        )
+        .is_err());
+    assert_eq!(
+        f.core().competition_state("shared").unwrap().lifecycle,
+        tiktools_competitions::Lifecycle::Paused
+    );
+    service
+        .set_grant(GrantSet {
+            principal_id: first_id.principal_id.clone(),
+            expected_revision: "2".into(),
+            grant: permission,
+        })
+        .unwrap();
+    let (resumed, fresh) = f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            1,
+            CompetitionActivation::Resume,
+            &resume,
+            &service,
+            "host-owner",
+            false,
+        )
+        .unwrap();
+    assert!(fresh);
+    assert_eq!(resumed.value["lifecycle"], "active");
+    let resumed_fence = f
+        .core()
+        .db
+        .capture_competition_execution_fence(&service, "shared", 1)
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &resumed_fence, |_, _| Ok(()))
+        .is_ok());
+    let current_second = second.snapshot().unwrap();
+    let mut updated_grant = current_second.grant.clone();
+    updated_grant.capabilities.insert(Capability::CommandsRead);
+    service
+        .set_grant(GrantSet {
+            principal_id: current_second.principal_id,
+            expected_revision: current_second.grant_revision,
+            grant: updated_grant,
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &resumed_fence, |_, _| Ok(()))
+        .is_err());
+    let resumed_fence = f
+        .core()
+        .db
+        .capture_competition_execution_fence(&service, "shared", 1)
+        .unwrap();
+    assert_eq!(
+        f.core()
+            .db
+            .with_competition_delegation(&service, "shared", 1, |_, subjects| Ok(subjects.len()))
+            .unwrap(),
+        2
+    );
+    service
+        .set_grant(GrantSet {
+            principal_id: first_id.principal_id,
+            expected_revision: "3".into(),
+            grant: revoked,
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_execution_fence(&service, &resumed_fence, |_, _| Ok(()))
+        .is_err());
+    let (again, fresh) = f
+        .core()
+        .db
+        .execute_competition_activation(
+            "shared",
+            1,
+            CompetitionActivation::Resume,
+            &resume,
+            &service,
+            "host-owner",
+            false,
+        )
+        .unwrap();
+    assert!(!fresh);
+    assert_eq!(again.value, resumed.value);
+    assert!(f
+        .core()
+        .db
+        .with_competition_delegation(&service, "shared", 1, |_, _| Ok(()))
+        .is_err());
+    assert_eq!(
+        second.snapshot().unwrap().principal_id,
+        second_id.principal_id
+    );
+}
+
+#[test]
+fn competition_generation_rechecks_all_saved_operators_and_current_scope() {
+    let f = Fixture::new();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::CompetitionsRead, Capability::CompetitionsManage]);
+    allowed
+        .resources
+        .insert(ResourceKind::Competition, ["competition-a".into()].into());
+    let first = f.pair(allowed.clone()).snapshot().unwrap();
+    let second = f.pair(allowed.clone()).snapshot().unwrap();
+    let db = rusqlite::Connection::open(f.paths.automation_database()).unwrap();
+    db.execute(
+        "CREATE TABLE competition_admission_fixture(value INTEGER)",
+        [],
+    )
+    .unwrap();
+    db.execute(
+        "INSERT INTO competition_execution_generations VALUES('competition-a',1,'delegated')",
+        [],
+    )
+    .unwrap();
+    for identity in [&first, &second] {
+        db.execute(
+            "INSERT INTO competition_execution_subjects VALUES('competition-a',1,?1,?2,?3)",
+            rusqlite::params![
+                identity.principal_id,
+                identity.session_id,
+                identity.grant_revision
+            ],
+        )
+        .unwrap();
+    }
+    let service = f.core().collaboration().unwrap();
+    let check = || {
+        f.core()
+            .db
+            .with_competition_delegation(&service, "competition-a", 1, |_, subjects| {
+                Ok(subjects.len())
+            })
+    };
+    assert_eq!(check().unwrap(), 2);
+    f.core()
+        .db
+        .with_competition_delegation(&service, "competition-a", 1, |tx, _| {
+            tx.execute("INSERT INTO competition_admission_fixture VALUES(1)", [])?;
+            Ok(())
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .db
+        .with_competition_delegation(&service, "competition-b", 1, |_, _| Ok(()))
+        .is_err());
+    let mut changed = allowed.clone();
+    changed.capabilities.insert(Capability::CommandsRead);
+    service
+        .set_grant(GrantSet {
+            principal_id: first.principal_id.clone(),
+            expected_revision: first.grant_revision.clone(),
+            grant: changed,
+        })
+        .unwrap();
+    assert_eq!(check().unwrap(), 2);
+    allowed.capabilities.remove(&Capability::CompetitionsManage);
+    service
+        .set_grant(GrantSet {
+            principal_id: second.principal_id,
+            expected_revision: second.grant_revision,
+            grant: allowed,
+        })
+        .unwrap();
+    assert!(check().is_err());
+    assert!(f
+        .core()
+        .db
+        .with_competition_delegation(&service, "competition-a", 1, |tx, _| {
+            tx.execute("INSERT INTO competition_admission_fixture VALUES(2)", [])?;
+            Ok(())
+        })
+        .is_err());
+    assert_eq!(
+        db.query_row(
+            "SELECT count(*) FROM competition_admission_fixture",
+            [],
+            |row| row.get::<_, i64>(0)
+        )
+        .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn shared_moderator_edit_requires_explicit_transfer_and_source_grants() {
+    let f = Fixture::new();
+    let author = f.pair(grant());
+    f.draft(
+        &author,
+        AutomationKind::Action,
+        log("shared-moderator", "private source"),
+    );
+    let mut access = grant();
+    access.capabilities.insert(Capability::AutomationToggle);
+    access.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let editor = f.pair(access.clone());
+    let identity = editor.snapshot().unwrap();
+    let before = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "shared-moderator")
+        .unwrap();
+    let update = || AutomationMutation::Update {
+        kind: AutomationKind::Action,
+        id: "shared-moderator".into(),
+        record: log("shared-moderator", "edited"),
+    };
+    assert!(f
+        .core()
+        .automation_shared_source(AutomationKind::Action, "shared-moderator", &editor, 65536)
+        .is_err());
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(editor.clone()),
+            f.request(&before.resource_versions[0].revision),
+            update()
+        )
+        .is_err());
+    let policy = access.automation_delegation.as_mut().unwrap();
+    policy.allow_other_author_edits = true;
+    policy.allow_other_author_source = true;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: identity.grant_revision,
+            grant: access.clone(),
+        })
+        .unwrap();
+    assert_eq!(
+        f.core()
+            .automation_shared_source(AutomationKind::Action, "shared-moderator", &editor, 65536)
+            .unwrap()
+            .value["record"]["config"]["message"],
+        "private source"
+    );
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(editor.clone()),
+            f.request(&before.resource_versions[0].revision),
+            update(),
+        )
+        .unwrap();
+    let provenance = f
+        .core()
+        .automation_authority(AutomationKind::Action, "shared-moderator")
+        .unwrap();
+    assert_eq!(
+        provenance.value["provenance"]["authority"]["principalId"],
+        identity.principal_id
+    );
+    access.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: "2".into(),
+            grant: access,
+        })
+        .unwrap();
+    assert!(f
+        .core()
+        .automation_shared_source(AutomationKind::Action, "shared-moderator", &editor, 65536)
+        .is_err());
+}
+
+#[tokio::test]
+async fn shared_action_keeps_both_moderators_authority_for_existing_event() {
+    let f = Fixture::new();
+    let mut permission = grant();
+    permission.capabilities.insert(Capability::AutomationToggle);
+    permission.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let author = f.pair(permission.clone());
+    let author_id = author.snapshot().unwrap();
+    let mut action = log("team-action", "original");
+    action["enabled"] = true.into();
+    let mut rule = event("team-event", &["team-action"]);
+    rule["enabled"] = true.into();
+    for (kind, record) in [
+        (AutomationKind::Action, action),
+        (AutomationKind::Event, rule),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(author.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    permission
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_other_author_edits = true;
+    let editor = f.pair(permission.clone());
+    let version = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "team-action")
+        .unwrap()
+        .resource_versions[0]
+        .revision
+        .clone();
+    let mut changed = log("team-action", "replacement");
+    changed["enabled"] = true.into();
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(editor),
+            f.request(&version),
+            AutomationMutation::Update {
+                kind: AutomationKind::Action,
+                id: "team-action".into(),
+                record: changed,
+            },
+        )
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    let count = f
+        .core()
+        .automation_runs()
+        .iter()
+        .filter(|run| run["actionId"] == "team-action" && run["status"] == "ok")
+        .count();
+    assert_eq!(count, 1);
+    permission.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author_id.principal_id,
+            expected_revision: author_id.grant_revision,
+            grant: permission,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.core()
+            .automation_runs()
+            .iter()
+            .filter(|run| run["actionId"] == "team-action" && run["status"] == "ok")
+            .count(),
+        count
+    );
+}
 fn enable(kind: AutomationKind, id: &str) -> ApprovalEnablement {
     ApprovalEnablement {
         kind,
@@ -615,6 +1301,21 @@ async fn dynamic_viewer_and_rounded_delta_are_checked_at_the_real_points_sink() 
         "error"
     );
     assert_eq!(f.points("bob"), 0.0);
+    let mut missing = input("alice");
+    missing["user"].as_object_mut().unwrap().remove("uniqueId");
+    assert_eq!(
+        crate::services::automation_approval_policy::render_template(
+            "{{event.user.uniqueId}}",
+            &missing,
+            256,
+        )
+        .unwrap(),
+        "",
+        "missing identity must never become a literal points target"
+    );
+    assert_eq!(execute(&f, "points", &missing).await["status"], "error");
+    assert_eq!(f.points("alice"), 2.0);
+    assert!(f.core().points_viewer("{{event.user.uniqueId}}").is_err());
     let mut rounded = grant();
     rounded.max_points_delta = Some(0.006);
     let rounded_author = f.pair(rounded);
@@ -821,3 +1522,1401 @@ async fn revoke_and_reapprove_during_delay_never_revives_the_captured_old_run() 
 
 mod external;
 mod scoped_flow;
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_multi_author_event_chain_requires_both_current_topic_grants() {
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::EventsEmit]);
+    permitted.max_points_delta = Some(5.0);
+    permitted.effects.emit_topics.insert("overlay.alert".into());
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Emit,
+            DelegatedAutomationEffect::Points,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    let other = f.pair(permitted.clone());
+    let other_identity = other.snapshot().unwrap();
+    let definitions = [
+        (
+            AutomationKind::Action,
+            json!({"id":"send","name":"Send","enabled":true,"typeId":"core.emit","config":{"type":"overlay.alert","data":{"comment":"{{event.data.comment}}"}}}),
+        ),
+        (
+            AutomationKind::Action,
+            json!({"id":"reward","name":"Reward","enabled":true,"typeId":"core.points","config":{"uniqueId":"alice","delta":2}}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"root","name":"Root","enabled":true,"trigger":"tiktok.chat","actionIds":["send"]}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"child","name":"Child","enabled":true,"trigger":"overlay.alert","actionIds":["reward"]}),
+        ),
+    ];
+    for (index, (kind, record)) in definitions.into_iter().enumerate() {
+        let author = if index == 1 || index == 3 {
+            &other
+        } else {
+            &auth
+        };
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(author.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    f.core()
+        .run_automation_event(AutomationEvent::owner_without_delegation(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        0.0,
+        "unverified input cannot start the chain"
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "runs: {:?}",
+        f.core().automation_runs()
+    );
+    let mut direct = input("alice");
+    direct["type"] = "overlay.alert".into();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(direct))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "owner input cannot impersonate scoped emission"
+    );
+    let mut narrowed = permitted.clone();
+    narrowed.effects.emit_topics.clear();
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: other_identity.principal_id.clone(),
+            expected_revision: other_identity.grant_revision,
+            grant: narrowed,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "child author must retain the topic grant"
+    );
+    let revision = f
+        .core()
+        .collaboration()
+        .unwrap()
+        .principal(&other_identity.principal_id)
+        .unwrap()
+        .grant_revision;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: other_identity.principal_id,
+            expected_revision: revision,
+            grant: permitted.clone(),
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        4.0,
+        "restoring the child's grant permits the chain again"
+    );
+    permitted.effects.emit_topics.clear();
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: permitted,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        4.0,
+        "parent author topic revocation must stop later events"
+    );
+    f.core().shutdown().await;
+}
+
+#[cfg(feature = "native-tiktok")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_ingress_drives_reusable_internal_event_chain_until_topic_revoked() {
+    use std::sync::atomic::Ordering;
+    use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::EventsEmit]);
+    permitted.max_points_delta = Some(5.0);
+    permitted.effects.emit_topics.insert("overlay.alert".into());
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Emit,
+            DelegatedAutomationEffect::Points,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    for (kind, record) in [
+        (
+            AutomationKind::Action,
+            json!({"id":"send","name":"Send","enabled":true,"typeId":"core.emit","config":{"type":"overlay.alert","data":{"comment":"{{event.data.comment}}"}}}),
+        ),
+        (
+            AutomationKind::Action,
+            json!({"id":"reward","name":"Reward","enabled":true,"typeId":"core.points","config":{"uniqueId":"alice","delta":2}}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"root","name":"Root","enabled":true,"trigger":"tiktok.chat","actionIds":["send"]}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"child","name":"Child","enabled":true,"trigger":"overlay.alert","actionIds":["reward"]}),
+        ),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    let core = f.core().clone();
+    *crate::recover_rwlock_write(&core.connection_context, "test connection") =
+        Some(crate::LiveContext {
+            unique_id: "creator".into(),
+            room_id: "room".into(),
+            connection_id: "connection-17".into(),
+            creator_verified: true,
+        });
+    let dispatch = |id| {
+        let before = core
+            .automation_state
+            .events_completed
+            .load(Ordering::Relaxed);
+        let native = crate::NativeLiveEvent {
+            base: CanonicalLiveEvent::Chat(ChatEvent {
+                user: EventUser {
+                    unique_id: "alice".into(),
+                    nickname: "Alice".into(),
+                    ..Default::default()
+                },
+                comment: "hello".into(),
+                ..Default::default()
+            }),
+            metadata: EventMetadata {
+                method: "WebcastChatMessage".into(),
+                msg_id: id,
+                is_history: false,
+            },
+            gift: None,
+        };
+        assert!(core
+            .prepare_live_event_with_generation(native, Some(17))
+            .is_some());
+        before
+    };
+    async fn wait_done(core: &Arc<AppCore>, before: u64) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while core
+                .automation_state
+                .events_completed
+                .load(Ordering::Relaxed)
+                <= before
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("native event dispatch did not finish");
+    }
+    wait_done(&core, dispatch(1)).await;
+    assert_eq!(
+        f.points("alice"),
+        0.0,
+        "an unverified generation cannot start the chain"
+    );
+    core.events.bind_live_generation(17, "creator");
+    // The emitted child and its root each complete once; wait for both before
+    // measuring the next native event so an earlier completion cannot satisfy it.
+    wait_done(&core, dispatch(2) + 1).await;
+    assert_eq!(f.points("alice"), 2.0, "runs: {:?}", core.automation_runs());
+    permitted.effects.emit_topics.clear();
+    core.collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: permitted,
+        })
+        .unwrap();
+    wait_done(&core, dispatch(3)).await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "topic revocation must stop later native events"
+    );
+    core.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_grant_runs_saved_live_event_and_revocation_stops_it() {
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    f.draft(
+        &auth,
+        AutomationKind::Action,
+        points("reusable-points", "alice", 2.0),
+    );
+    f.draft(
+        &auth,
+        AutomationKind::Event,
+        event("reusable-event", &["reusable-points"]),
+    );
+    for (kind, id) in [
+        (AutomationKind::Action, "reusable-points"),
+        (AutomationKind::Event, "reusable-event"),
+    ] {
+        let revision = f
+            .core()
+            .automation_get_versioned(kind, id)
+            .unwrap()
+            .resource_versions[0]
+            .revision
+            .clone();
+        let request = f.request(&revision);
+        let operation = || AutomationMutation::SetEnabled {
+            kind,
+            id: id.into(),
+            enabled: true,
+        };
+        let first = f
+            .core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                request.clone(),
+                operation(),
+            )
+            .unwrap();
+        let replay = f
+            .core()
+            .automation_command(CommandCaller::Remote(auth.clone()), request, operation())
+            .unwrap();
+        assert_eq!(first.resource_versions, replay.resource_versions);
+        f.assert_delegated(kind, id);
+    }
+    let preflight = f
+        .core()
+        .automation_delegation_preflight(AutomationKind::Event, "reusable-event")
+        .unwrap();
+    assert_eq!(preflight.value["eligible"], true, "{preflight:?}");
+    assert_eq!(
+        f.core()
+            .automation
+            .matching_reusable_candidates(&input("alice"), false)
+            .len(),
+        1
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner_without_delegation(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        0.0,
+        "unverified ingress cannot borrow delegation"
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "runs: {:?}",
+        f.core().automation_runs()
+    );
+    permitted.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: permitted,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 2.0);
+}
+
+#[test]
+fn remote_activation_requires_reusable_policy_and_author_ownership() {
+    let f = Fixture::new();
+    let mut no_policy = grant();
+    no_policy.capabilities.insert(Capability::AutomationToggle);
+    let auth = f.pair(no_policy);
+    let mut active = log("no-policy-create", "hello");
+    active["enabled"] = true.into();
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth.clone()),
+            f.request("0"),
+            AutomationMutation::Create {
+                kind: AutomationKind::Action,
+                record: active
+            }
+        )
+        .is_err());
+    assert!(f
+        .core()
+        .automation_get(AutomationKind::Action, "no-policy-create")
+        .is_err());
+    f.draft(&auth, AutomationKind::Action, log("unpermitted", "hello"));
+    let revision = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "unpermitted")
+        .unwrap()
+        .resource_versions[0]
+        .revision
+        .clone();
+    let result = f.core().automation_command(
+        CommandCaller::Remote(auth),
+        f.request(&revision),
+        AutomationMutation::SetEnabled {
+            kind: AutomationKind::Action,
+            id: "unpermitted".into(),
+            enabled: true,
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(
+        f.body(AutomationKind::Action, "unpermitted")["enabled"],
+        false
+    );
+    assert_eq!(
+        f.core()
+            .automation_get_versioned(AutomationKind::Action, "unpermitted")
+            .unwrap()
+            .resource_versions[0]
+            .revision,
+        revision
+    );
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let other = f.pair(permitted);
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(other),
+            f.request(&revision),
+            AutomationMutation::SetEnabled {
+                kind: AutomationKind::Action,
+                id: "unpermitted".into(),
+                enabled: true
+            }
+        )
+        .is_err());
+    assert_eq!(
+        f.body(AutomationKind::Action, "unpermitted")["enabled"],
+        false
+    );
+}
+
+#[test]
+fn remote_activation_rejects_effects_outside_reusable_grant() {
+    let f = Fixture::new();
+    let mut limited = grant();
+    limited.capabilities.insert(Capability::AutomationToggle);
+    limited.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(limited);
+    f.draft(
+        &auth,
+        AutomationKind::Action,
+        points("outside-policy", "alice", 1.0),
+    );
+    let before = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "outside-policy")
+        .unwrap();
+    let revision = &before.resource_versions[0].revision;
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth),
+            f.request(revision),
+            AutomationMutation::SetEnabled {
+                kind: AutomationKind::Action,
+                id: "outside-policy".into(),
+                enabled: true
+            },
+        )
+        .is_err());
+    let after = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "outside-policy")
+        .unwrap();
+    assert_eq!(before.value, after.value);
+    assert_eq!(before.resource_versions, after.resource_versions);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_grant_creates_and_edits_active_automation_atomically() {
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(permitted);
+    let mut action = points("active-points", "alice", 1.0);
+    action["enabled"] = true.into();
+    let mut rule = event("active-event", &["active-points"]);
+    rule["enabled"] = true.into();
+    for (kind, record) in [
+        (AutomationKind::Action, action),
+        (AutomationKind::Event, rule),
+    ] {
+        let id = record["id"].as_str().unwrap().to_owned();
+        let result = f
+            .core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+        assert_eq!(
+            result.value,
+            json!({"kind":kind,"id":id,"enabled":true,"pendingReview":false})
+        );
+        f.assert_delegated(kind, &id);
+    }
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 1.0);
+    let before = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "active-points")
+        .unwrap();
+    let revision = before.resource_versions[0].revision.clone();
+    let mut changed = points("active-points", "alice", 2.0);
+    changed["enabled"] = true.into();
+    let update = || AutomationMutation::Update {
+        kind: AutomationKind::Action,
+        id: "active-points".into(),
+        record: changed.clone(),
+    };
+    let request = f.request(&revision);
+    let result = f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth.clone()),
+            request.clone(),
+            update(),
+        )
+        .unwrap();
+    assert_eq!(result.value["enabled"], true);
+    assert_eq!(
+        f.core()
+            .automation_command(CommandCaller::Remote(auth.clone()), request, update())
+            .unwrap()
+            .resource_versions,
+        result.resource_versions
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 3.0);
+    let before_denied = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "active-points")
+        .unwrap();
+    let mut forbidden = log("active-points", "outside allowed effects");
+    forbidden["enabled"] = true.into();
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth),
+            f.request(&before_denied.resource_versions[0].revision),
+            AutomationMutation::Update {
+                kind: AutomationKind::Action,
+                id: "active-points".into(),
+                record: forbidden
+            }
+        )
+        .is_err());
+    let after_denied = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "active-points")
+        .unwrap();
+    assert_eq!(before_denied.value, after_denied.value);
+    assert_eq!(
+        before_denied.resource_versions,
+        after_denied.resource_versions
+    );
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 5.0);
+}
+
+#[cfg(feature = "native-tiktok")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_live_ingress_applies_reusable_grants_only_for_verified_generation() {
+    use std::sync::atomic::Ordering;
+    use tiktools_tiktok::events::{CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser};
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    let mut action = points("native-points", "alice", 2.0);
+    action["enabled"] = true.into();
+    let mut rule = event("native-event", &["native-points"]);
+    rule["enabled"] = true.into();
+    for (kind, record) in [
+        (AutomationKind::Action, action),
+        (AutomationKind::Event, rule),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    let native = |id| crate::NativeLiveEvent {
+        base: CanonicalLiveEvent::Chat(ChatEvent {
+            user: EventUser {
+                unique_id: "alice".into(),
+                nickname: "Alice".into(),
+                ..Default::default()
+            },
+            comment: "hello".into(),
+            ..Default::default()
+        }),
+        metadata: EventMetadata {
+            method: "WebcastChatMessage".into(),
+            msg_id: id,
+            is_history: false,
+        },
+        gift: None,
+    };
+    let core = f.core().clone();
+    let dispatch = |id, generation| {
+        let before = core
+            .automation_state
+            .events_completed
+            .load(Ordering::Relaxed);
+        assert!(core
+            .prepare_live_event_with_generation(native(id), Some(generation))
+            .is_some());
+        before
+    };
+    async fn wait_done(core: &Arc<AppCore>, before: u64) {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while core
+                .automation_state
+                .events_completed
+                .load(Ordering::Relaxed)
+                <= before
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("native event dispatch did not finish");
+    }
+    *crate::recover_rwlock_write(&core.connection_context, "test connection") =
+        Some(crate::LiveContext {
+            unique_id: "creator".into(),
+            room_id: "room".into(),
+            connection_id: "connection-17".into(),
+            creator_verified: true,
+        });
+    let before = dispatch(1, 17);
+    wait_done(&core, before).await;
+    assert_eq!(
+        f.points("alice"),
+        0.0,
+        "an unverified generation must not transfer delegation"
+    );
+    core.events.bind_live_generation(17, "creator");
+    let before = dispatch(2, 17);
+    wait_done(&core, before).await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "verified native ingress should run the delegated event"
+    );
+    permitted.automation_delegation = None;
+    core.collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: permitted,
+        })
+        .unwrap();
+    let before = dispatch(3, 17);
+    wait_done(&core, before).await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "grant removal must stop subsequent native events"
+    );
+    core.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_grant_revocation_during_delay_stops_later_effects() {
+    let f = Fixture::new();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [
+            DelegatedAutomationEffect::Log,
+            DelegatedAutomationEffect::Delay,
+            DelegatedAutomationEffect::Points,
+        ]
+        .into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(permitted);
+    let identity = auth.snapshot().unwrap();
+    let mut begin = log("reusable-begin", "started");
+    begin["enabled"] = true.into();
+    let delay = json!({"id":"reusable-delay","name":"Delay","enabled":true,"typeId":"core.delay","config":{"ms":500}});
+    let mut award = points("reusable-award", "alice", 2.0);
+    award["enabled"] = true.into();
+    let mut rule = event(
+        "reusable-delayed-event",
+        &["reusable-begin", "reusable-delay", "reusable-award"],
+    );
+    rule["enabled"] = true.into();
+    for (kind, record) in [
+        (AutomationKind::Action, begin),
+        (AutomationKind::Action, delay),
+        (AutomationKind::Action, award),
+        (AutomationKind::Event, rule),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    let core = f.core().clone();
+    let worker = tokio::spawn(async move {
+        core.run_automation_event(AutomationEvent::owner(input("alice")))
+            .await;
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while !f
+            .core()
+            .automation_runs()
+            .iter()
+            .any(|run| run["actionId"] == "reusable-begin" && run["status"] == "ok")
+        {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("reusable event did not start");
+    f.core()
+        .collaboration()
+        .unwrap()
+        .revoke_session(&identity.session_id, "local-owner")
+        .unwrap();
+    worker.await.unwrap();
+    assert_eq!(f.points("alice"), 0.0);
+    assert!(!f
+        .core()
+        .automation_runs()
+        .iter()
+        .any(|run| run["actionId"] == "reusable-award" && run["status"] == "ok"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_event_intersects_grants_of_multiple_authors() {
+    let f = Fixture::new();
+    let mut permission = grant();
+    permission.capabilities.insert(Capability::AutomationToggle);
+    permission.max_points_delta = Some(5.0);
+    permission.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let action_author = f.pair(permission.clone());
+    let event_author = f.pair(permission.clone());
+    let action_identity = action_author.snapshot().unwrap();
+    let mut action = points("multi-author-points", "alice", 2.0);
+    action["enabled"] = true.into();
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(action_author),
+            f.request("0"),
+            AutomationMutation::Create {
+                kind: AutomationKind::Action,
+                record: action,
+            },
+        )
+        .unwrap();
+    let mut rule = event("multi-author-event", &["multi-author-points"]);
+    rule["enabled"] = true.into();
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(event_author),
+            f.request("0"),
+            AutomationMutation::Create {
+                kind: AutomationKind::Event,
+                record: rule,
+            },
+        )
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 2.0);
+    permission.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: action_identity.principal_id,
+            expected_revision: action_identity.grant_revision,
+            grant: permission,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.points("alice"),
+        2.0,
+        "either author's grant removal must stop the combined rule"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn explicit_reusable_grant_can_edit_owner_action_and_revalidates_dependent_event() {
+    let f = Fixture::new();
+    let mut original = points("owner-shared", "alice", 1.0);
+    original["enabled"] = true.into();
+    let mut rule = event("owner-shared-event", &["owner-shared"]);
+    rule["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, original)
+        .unwrap();
+    f.core()
+        .automation_create(AutomationKind::Event, rule)
+        .unwrap();
+    let mut permitted = grant();
+    permitted.capabilities.insert(Capability::AutomationToggle);
+    permitted.max_points_delta = Some(5.0);
+    permitted.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(permitted.clone());
+    let identity = auth.snapshot().unwrap();
+    let mut edited = points("owner-shared", "alice", 2.0);
+    edited["enabled"] = true.into();
+    let operation = || AutomationMutation::Update {
+        kind: AutomationKind::Action,
+        id: "owner-shared".into(),
+        record: edited.clone(),
+    };
+    let initial = f
+        .core()
+        .automation_get_versioned(AutomationKind::Action, "owner-shared")
+        .unwrap();
+    assert!(f
+        .core()
+        .automation_command(
+            CommandCaller::Remote(auth.clone()),
+            f.request(&initial.resource_versions[0].revision),
+            operation()
+        )
+        .is_err());
+    assert_eq!(
+        f.core()
+            .automation_get_versioned(AutomationKind::Action, "owner-shared")
+            .unwrap()
+            .value,
+        initial.value
+    );
+    permitted
+        .automation_delegation
+        .as_mut()
+        .unwrap()
+        .allow_owner_edits = true;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id.clone(),
+            expected_revision: identity.grant_revision,
+            grant: permitted.clone(),
+        })
+        .unwrap();
+    f.core()
+        .automation_command(
+            CommandCaller::Remote(auth),
+            f.request(&initial.resource_versions[0].revision),
+            operation(),
+        )
+        .unwrap();
+    f.assert_delegated(AutomationKind::Action, "owner-shared");
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 2.0);
+    permitted.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: "2".into(),
+            grant: permitted,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(f.points("alice"), 2.0);
+}
+
+#[test]
+fn owner_action_edit_rejects_unscoped_or_unsupported_dependent_events() {
+    for case in 0..3 {
+        let unsupported = case == 1;
+        let f = Fixture::new();
+        let mut action = log("shared-log", "before");
+        action["enabled"] = true.into();
+        f.core()
+            .automation_create(AutomationKind::Action, action)
+            .unwrap();
+        if unsupported {
+            f.core().automation_create(AutomationKind::Action, json!({"id":"unsupported","name":"Unknown","enabled":true,"typeId":"unknown.extension","config":{}})).unwrap();
+        }
+        let ids = if unsupported {
+            vec!["shared-log", "unsupported"]
+        } else {
+            vec!["shared-log"]
+        };
+        let mut rule = event("owner-dependent", &ids);
+        rule["enabled"] = true.into();
+        if case == 2 {
+            rule["filters"] = json!([{"path":"event.data.private","operator":"exists"}]);
+        }
+        f.core()
+            .automation_create(AutomationKind::Event, rule)
+            .unwrap();
+        let mut permission = grant();
+        permission.capabilities.insert(Capability::AutomationToggle);
+        permission.automation_delegation = Some(AutomationDelegation {
+            effects: [DelegatedAutomationEffect::Log].into(),
+            allow_dynamic_targets: false,
+            allow_owner_edits: true,
+            allow_owner_source: false,
+            allow_other_author_edits: false,
+            allow_other_author_source: false,
+        });
+        if case == 0 {
+            permission.resources.insert(
+                ResourceKind::Automation,
+                ["action:shared-log".into()].into(),
+            );
+        }
+        let auth = f.pair(permission);
+        let before = f
+            .core()
+            .automation_get_versioned(AutomationKind::Action, "shared-log")
+            .unwrap();
+        let mut changed = log("shared-log", "after");
+        changed["enabled"] = true.into();
+        assert!(f
+            .core()
+            .automation_command(
+                CommandCaller::Remote(auth),
+                f.request(&before.resource_versions[0].revision),
+                AutomationMutation::Update {
+                    kind: AutomationKind::Action,
+                    id: "shared-log".into(),
+                    record: changed
+                }
+            )
+            .is_err());
+        let after = f
+            .core()
+            .automation_get_versioned(AutomationKind::Action, "shared-log")
+            .unwrap();
+        assert_eq!(before.value, after.value);
+        assert_eq!(before.resource_versions, after.resource_versions);
+        assert_eq!(
+            f.core()
+                .automation_authority(AutomationKind::Action, "shared-log")
+                .unwrap()
+                .value["provenance"]["authority"]["kind"],
+            "owner"
+        );
+    }
+}
+
+#[tokio::test]
+async fn competition_winner_actions_execute_with_current_delegation() {
+    use tiktools_competitions::{
+        Candidate, CompetitionKind, Definition, OptionDefinition, ResultRecord, Selection,
+        SelectionMode, TiePolicy, Transition, WinnerAction,
+    };
+    for mode in 0..5 {
+        let is_points = mode == 1;
+        let is_audio = mode == 2;
+        let is_emit = mode >= 3;
+        let mut f = Fixture::new();
+        let audio_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        if is_audio {
+            drop(f.core.take());
+            f.core = Some(Arc::new(AppCore::with_paths(
+                Arc::new(Emitter),
+                Arc::new(external::AudioHost(audio_calls.clone())),
+                f.paths.clone(),
+            )));
+            std::fs::write(f.paths.data.join("alert.wav"), b"audio fixture").unwrap();
+        }
+        let mut action = if is_points {
+            points("winner-action", "{{event.user.uniqueId}}", 1.0)
+        } else if is_audio {
+            json!({"id":"winner-action","name":"Audio","enabled":true,"typeId":"audio.play","config":{"fileRef":"alert.wav","volume":0.5,"overlap":"drop"}})
+        } else if is_emit {
+            json!({"id":"winner-action","name":"Emit","enabled":true,"typeId":"core.emit","config":{"type":"overlay.alert","data":{}}})
+        } else {
+            log("winner-action", "original")
+        };
+        action["enabled"] = true.into();
+        f.core()
+            .automation_create(AutomationKind::Action, action)
+            .unwrap();
+        if is_emit {
+            let mut child = points("child-points", "alice", 2.0);
+            child["enabled"] = true.into();
+            f.core()
+                .automation_create(AutomationKind::Action, child)
+                .unwrap();
+            f.core().automation_create(AutomationKind::Event,
+                json!({"id":"child-rule","name":"Child","enabled":true,"trigger":"overlay.alert","actionIds":["child-points"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1})
+            ).unwrap();
+        }
+        let mut allowed = grant();
+        allowed.capabilities.extend([
+            Capability::AutomationToggle,
+            Capability::CompetitionsRead,
+            Capability::CompetitionsManage,
+        ]);
+        if is_audio {
+            allowed.capabilities.insert(Capability::AudioPlay);
+            allowed.effects.audio.push(AudioEffectGrant {
+                file_refs: [f
+                    .paths
+                    .data
+                    .join("alert.wav")
+                    .canonicalize()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned()]
+                .into(),
+                output: "host-default".into(),
+                max_volume: 0.5,
+                overlaps: ["drop".into()].into(),
+            });
+        }
+        if is_emit {
+            allowed.capabilities.insert(Capability::EventsEmit);
+            allowed.effects.emit_topics.insert("overlay.alert".into());
+        }
+        allowed.automation_delegation = Some(AutomationDelegation {
+            effects: [if is_points {
+                DelegatedAutomationEffect::Points
+            } else if is_audio {
+                DelegatedAutomationEffect::Audio
+            } else if is_emit {
+                DelegatedAutomationEffect::Emit
+            } else {
+                DelegatedAutomationEffect::Log
+            }]
+            .into(),
+            allow_dynamic_targets: is_points,
+            allow_owner_edits: false,
+            allow_owner_source: false,
+            allow_other_author_edits: false,
+            allow_other_author_source: false,
+        });
+        if mode == 3 {
+            allowed
+                .automation_delegation
+                .as_mut()
+                .unwrap()
+                .effects
+                .insert(DelegatedAutomationEffect::Points);
+        }
+        let operator = f.pair(allowed.clone()).snapshot().unwrap();
+        let winner_action = WinnerAction {
+            action_id: "winner-action".into(),
+            inputs: if is_points {
+                json!({"delta": 3})
+            } else if is_audio || is_emit {
+                json!({})
+            } else {
+                json!({"message":"winner override"})
+            },
+        };
+        let definition = Definition {
+            schema_version: 1,
+            id: "shared".into(),
+            name: "Shared".into(),
+            kind: if is_points {
+                CompetitionKind::LeaderboardChallenge
+            } else {
+                CompetitionKind::Poll
+            },
+            ranking_id: "rank".into(),
+            options: if is_points {
+                vec![]
+            } else {
+                vec![OptionDefinition {
+                    id: "a".into(),
+                    label: "A".into(),
+                    commands: vec![],
+                    gift_ids: vec![],
+                    image_url: None,
+                    on_win: Some(winner_action.clone()),
+                }]
+            },
+            selection_mode: if is_points {
+                SelectionMode::HighestScore
+            } else {
+                SelectionMode::WeightedRandom
+            },
+            tie_policy: TiePolicy::Stable,
+            duration_ms: Some(10),
+            vote_limit: 1,
+            allow_switch: false,
+            minimum_participants: 1,
+            target_score: None,
+            on_user_win: if is_points {
+                Some(winner_action.clone())
+            } else {
+                None
+            },
+        };
+        let db = &f.core().db;
+        db.insert_competition_definition(&definition).unwrap();
+        db.transition_competition("shared", Transition::Start, 100)
+            .unwrap();
+        db.transition_competition("shared", Transition::Expire, 110)
+            .unwrap();
+        let result = ResultRecord {
+            schema_version: 1,
+            competition_id: "shared".into(),
+            generation: 1,
+            ranking_id: "rank".into(),
+            ranking_revision: 1,
+            finalized_at: 123,
+            selection: Selection {
+                mode: if is_points {
+                    SelectionMode::HighestScore
+                } else {
+                    SelectionMode::WeightedRandom
+                },
+                tie_policy: TiePolicy::Stable,
+                eligible: vec![Candidate {
+                    key: if is_points {
+                        "alice".into()
+                    } else {
+                        "a".into()
+                    },
+                    weight: 1,
+                }],
+                winner: Some(if is_points {
+                    "alice".into()
+                } else {
+                    "a".into()
+                }),
+            },
+        };
+        db.store_competition_result(&result, Some(&winner_action))
+            .unwrap();
+        let connection = rusqlite::Connection::open(f.paths.automation_database()).unwrap();
+        connection
+            .execute(
+                "INSERT OR IGNORE INTO competition_control_revisions VALUES('shared',1,0)",
+                [],
+            )
+            .unwrap();
+        connection.execute("UPDATE competition_execution_generations SET origin='delegated' WHERE competition_id='shared' AND generation=1", []).unwrap();
+        connection
+            .execute(
+                "INSERT INTO competition_execution_subjects VALUES('shared',1,?1,?2,?3)",
+                rusqlite::params![
+                    operator.principal_id,
+                    operator.session_id,
+                    operator.grant_revision
+                ],
+            )
+            .unwrap();
+        drop(connection);
+        let claim = db
+            .claim_competition_action("shared", 1, 124)
+            .unwrap()
+            .unwrap();
+        let mut effective = f
+            .core()
+            .automation_get(AutomationKind::Action, "winner-action")
+            .unwrap();
+        if is_points {
+            effective["config"]["delta"] = json!(3);
+        } else if !is_audio && !is_emit {
+            effective["config"]["message"] = json!("winner override");
+        }
+        let context = f
+            .core()
+            .competition_winner_execution_context(claim, effective.clone())
+            .await
+            .unwrap();
+        let run = tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            f.core().execute_action_with_context(
+                &effective,
+                &json!({"type":"competition.winner.selected","user":{"uniqueId":"alice"},"data":{}}),
+                None,
+                &context,
+                false,
+            ),
+        )
+        .await
+        .unwrap();
+        assert_eq!(run["status"], "ok", "{run}");
+        if is_points {
+            assert_eq!(f.points("alice"), 3.0);
+        } else if is_audio {
+            assert_eq!(audio_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        } else if is_emit {
+            assert_eq!(run["summary"], "emit overlay.alert");
+            assert_eq!(f.points("alice"), if mode == 3 { 2.0 } else { 0.0 });
+        } else {
+            assert_eq!(run["summary"], "winner override");
+        }
+        allowed.automation_delegation = None;
+        f.core()
+            .collaboration()
+            .unwrap()
+            .set_grant(GrantSet {
+                principal_id: operator.principal_id,
+                expected_revision: operator.grant_revision,
+                grant: allowed,
+            })
+            .unwrap();
+        let run = f
+            .core()
+            .execute_action_with_context(&effective, &json!({}), None, &context, false)
+            .await;
+        assert_eq!(run["status"], "error");
+        if is_points {
+            assert_eq!(f.points("alice"), 3.0);
+        }
+    }
+}
+
+#[tokio::test]
+async fn remote_stop_events_retain_the_operator_and_run_scoped_actions() {
+    use crate::control::CompetitionRemoteTransition;
+    use tiktools_competitions::Transition;
+    let f = Fixture::new();
+    f.core().ranking_create(serde_json::from_value(json!({"schemaVersion":1,"id":"rank","creatorId":"owner","roomId":"room","limit":10,"capacity":10,"sources":[{"source":"custom.score","metric":"value","weight":1,"enabled":true}]})).unwrap()).unwrap();
+    f.core().competition_create(serde_json::from_value(json!({"schemaVersion":1,"id":"shared","name":"Shared","kind":"leaderboard_challenge","rankingId":"rank","options":[],"selectionMode":"highest_score","tiePolicy":"stable","durationMs":null,"voteLimit":1,"allowSwitch":false,"minimumParticipants":1})).unwrap()).unwrap();
+    let mut action = points("stop-action", "alice", 1.0);
+    action["enabled"] = true.into();
+    f.core()
+        .automation_create(AutomationKind::Action, action)
+        .unwrap();
+    for (id, trigger) in [
+        ("on-pause", "competition.paused"),
+        ("on-cancel", "competition.cancelled"),
+    ] {
+        f.core().automation_create(AutomationKind::Event, json!({"id":id,"name":id,"enabled":true,"trigger":trigger,"actionIds":["stop-action"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1})).unwrap();
+    }
+    let mut allowed = grant();
+    allowed.capabilities.extend([
+        Capability::AutomationToggle,
+        Capability::CompetitionsRead,
+        Capability::CompetitionsManage,
+    ]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Points].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(allowed);
+    f.core()
+        .competition_transition("shared", Transition::Start)
+        .unwrap();
+    let revision = || {
+        f.core()
+            .db
+            .competition_state_revision("shared")
+            .unwrap()
+            .unwrap()
+            .1
+            .to_string()
+    };
+    f.core()
+        .competition_remote_command(
+            auth.clone(),
+            f.request(&revision()),
+            "shared",
+            "1",
+            CompetitionRemoteTransition::Pause,
+        )
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while f.points("alice") != 1.0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    f.core()
+        .competition_remote_command(
+            auth.clone(),
+            f.request(&revision()),
+            "shared",
+            "1",
+            CompetitionRemoteTransition::Resume,
+        )
+        .unwrap();
+    f.core()
+        .competition_remote_command(
+            auth,
+            f.request(&revision()),
+            "shared",
+            "1",
+            CompetitionRemoteTransition::Cancel,
+        )
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while f.points("alice") != 2.0 {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+}

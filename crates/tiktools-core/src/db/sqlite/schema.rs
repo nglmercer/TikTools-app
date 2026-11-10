@@ -377,6 +377,105 @@ CREATE TABLE IF NOT EXISTS behavior_plugins (
   enabled INTEGER NOT NULL DEFAULT 1,
   updated_at INTEGER NOT NULL
 );
+-- The source revision remains after deletion, so remove/recreate and ABA
+-- changes cannot make a stale Cloud review valid again.
+CREATE TABLE IF NOT EXISTS plugin_sync_source_versions (
+  plugin_id TEXT PRIMARY KEY,
+  generation INTEGER NOT NULL CHECK(generation > 0)
+);
+-- A local mutation made without Cloud admission remains reviewable across
+-- restarts. No identity or consent may be inferred from this marker.
+CREATE TABLE IF NOT EXISTS plugin_sync_untracked_local (
+  plugin_id TEXT PRIMARY KEY,
+  generation INTEGER NOT NULL CHECK(generation > 0)
+);
+-- Native-only package operation fence, global across accounts. An unfinished
+-- mutation must survive process death until filesystem/runtime reconciliation.
+CREATE TABLE IF NOT EXISTS plugin_package_mutation_intents (
+  plugin_id TEXT NOT NULL PRIMARY KEY,
+  intent_id TEXT NOT NULL UNIQUE,
+  operation TEXT NOT NULL CHECK(operation IN ('install','update','rollback','uninstall')),
+  operation_digest TEXT NOT NULL,
+  phase TEXT NOT NULL CHECK(phase IN ('prepared','mutating')),
+  source_generation INTEGER NOT NULL CHECK(source_generation > 0)
+);
+-- Retain resolved IDs so an interrupted caller cannot replay filesystem work.
+-- Capacity is reserved before mutation; no evidence is automatically evicted.
+CREATE TABLE IF NOT EXISTS plugin_package_mutation_receipts (
+  intent_id TEXT NOT NULL PRIMARY KEY,
+  plugin_id TEXT NOT NULL,
+  operation TEXT NOT NULL CHECK(operation IN ('install','update','rollback','uninstall')),
+  operation_digest TEXT NOT NULL,
+  resolution TEXT NOT NULL CHECK(resolution IN ('cancelled','reviewed')),
+  source_generation INTEGER NOT NULL CHECK(source_generation > 0)
+);
+-- Native-only durable candidates; identity is partitioned and never a token.
+-- Acknowledgement must compare the generation so it cannot erase a newer edit.
+CREATE TABLE IF NOT EXISTS plugin_sync_outbox (
+  origin TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(generation > 0),
+  config_generation TEXT NOT NULL,
+  -- Runtime confirmation is scoped to one host lifetime and must be
+  -- re-established after restart before a candidate may be acknowledged.
+  runtime_epoch TEXT,
+  -- JSON null is a reviewed absence, 'direct' is a new direct edit and SQL
+  -- NULL is an older unclassified candidate that requires review.
+  reviewed_base TEXT,
+  version TEXT,
+  enabled INTEGER CHECK(enabled IN (0,1)),
+  CHECK((version IS NULL AND enabled IS NULL) OR
+        (version IS NOT NULL AND enabled IS NOT NULL)),
+  PRIMARY KEY(origin, account_id, plugin_id)
+);
+-- A staged v1 pending value retains its source and consent fence after the
+-- outbox entry is consumed. Without this receipt another account's later
+-- local edit could leave an obsolete pending value eligible for upload.
+CREATE TABLE IF NOT EXISTS plugin_sync_receipts (
+  origin TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(generation > 0),
+  config_generation TEXT NOT NULL,
+  runtime_epoch TEXT NOT NULL,
+  pending_json TEXT NOT NULL,
+  PRIMARY KEY(origin, account_id, plugin_id)
+);
+-- A conflict decision is frozen before either the v1 JSON state or its
+-- receipt is changed. At most one unresolved decision is admitted per account.
+CREATE TABLE IF NOT EXISTS plugin_sync_rebase_intents (
+  origin TEXT NOT NULL,
+  account_id TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  PRIMARY KEY(origin, account_id)
+);
+-- An application decision survives crashes without treating the persisted
+-- remote value as permission to run a plugin. The opaque native payload
+-- contains no credential or plugin source.
+CREATE TABLE IF NOT EXISTS plugin_sync_apply_intents (
+  intent_id TEXT PRIMARY KEY,
+  plugin_id TEXT NOT NULL,
+  phase TEXT NOT NULL CHECK(phase IN ('prepared','ready','runtime_pending','applied','finalized')),
+  payload_json TEXT NOT NULL,
+  committed_generation INTEGER,
+  runtime_epoch TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_plugin_sync_apply_active
+  ON plugin_sync_apply_intents(plugin_id) WHERE phase != 'finalized';
+-- Discovery pages should not scan retained finalized history on every restart.
+CREATE INDEX IF NOT EXISTS idx_plugin_sync_apply_recovery
+  ON plugin_sync_apply_intents(intent_id) WHERE phase != 'finalized';
+-- An independently retained witness lets startup reject a damaged phase or
+-- finalized row. It is written in the same transaction as finalization.
+CREATE TABLE IF NOT EXISTS plugin_sync_apply_finalizations (
+  intent_id TEXT PRIMARY KEY,
+  plugin_id TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  committed_generation INTEGER NOT NULL,
+  runtime_epoch TEXT NOT NULL
+);
 -- Metadata only: the owner's WebView/browser never owns a durable command ID
 -- or stores proposal source. One unresolved authority transfer spans clients.
 CREATE TABLE IF NOT EXISTS owner_automation_adoptions (
@@ -507,6 +606,10 @@ impl DatabaseManager {
         // The workflow seed references the shared version table.
         automation.execute_batch(COORDINATION_SCHEMA)?;
         automation.execute_batch(AUTOMATION_SCHEMA)?;
+        migrate_competition_revisions(&mut automation)?;
+        migrate_competition_execution_origins(&mut automation)?;
+        migrate_plugin_sync_outbox(&mut automation)?;
+        migrate_package_journal(&mut automation)?;
         migrate_effect_kinds(&mut automation)?;
 
         self.ensure_analytics_schema()?;
@@ -515,6 +618,252 @@ impl DatabaseManager {
     pub(in crate::db) fn open(&self, path: &std::path::Path) -> Result<Connection, DatabaseError> {
         Ok(Connection::open(path)?)
     }
+}
+
+/// Retain the authority that started each generation. Older generations were
+/// created locally; seed them once, never infer Owner again after migration.
+fn migrate_competition_execution_origins(db: &mut Connection) -> Result<(), DatabaseError> {
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    tx.execute_batch(r#"
+CREATE TABLE IF NOT EXISTS competition_execution_generations (
+  competition_id TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(typeof(generation)='integer' AND generation>0),
+  origin TEXT NOT NULL CHECK(origin IN ('owner','delegated')),
+  PRIMARY KEY(competition_id,generation)
+);
+CREATE TABLE IF NOT EXISTS competition_execution_subjects (
+  competition_id TEXT NOT NULL,
+  generation INTEGER NOT NULL,
+  principal_id TEXT NOT NULL CHECK(length(principal_id) BETWEEN 1 AND 256),
+  session_id TEXT NOT NULL CHECK(length(session_id) BETWEEN 1 AND 256),
+  grant_revision TEXT NOT NULL CHECK(length(grant_revision) BETWEEN 1 AND 32),
+  PRIMARY KEY(competition_id,generation,principal_id,session_id),
+  FOREIGN KEY(competition_id,generation) REFERENCES competition_execution_generations(competition_id,generation)
+);
+CREATE TABLE IF NOT EXISTS competition_execution_migration (singleton INTEGER PRIMARY KEY CHECK(singleton=1));
+INSERT OR IGNORE INTO competition_execution_generations(competition_id,generation,origin)
+  SELECT competition_id,generation,'owner' FROM competition_results
+  WHERE generation>0 AND NOT EXISTS(SELECT 1 FROM competition_execution_migration WHERE singleton=1);
+INSERT OR IGNORE INTO competition_execution_generations(competition_id,generation,origin)
+  SELECT competition_id,CASE WHEN json_valid(state_json) THEN json_extract(state_json,'$.generation') END,'owner' FROM competition_state
+  WHERE CASE WHEN json_valid(state_json) THEN json_type(state_json,'$.generation')='integer'
+    AND json_extract(state_json,'$.generation')>0 ELSE 0 END
+    AND NOT EXISTS(SELECT 1 FROM competition_execution_migration WHERE singleton=1);
+INSERT OR IGNORE INTO competition_execution_migration(singleton) VALUES(1);
+"#)?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Competition definitions and lifecycle state share one generation-independent
+/// revision. SQLite triggers cover every writer (including timer/finalization
+/// paths) and preserve tombstones when an ID is deleted and recreated.
+fn migrate_competition_revisions(db: &mut Connection) -> Result<(), DatabaseError> {
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    tx.execute_batch(r#"
+CREATE TABLE IF NOT EXISTS competition_control_revisions (
+  competition_id TEXT PRIMARY KEY,
+  revision INTEGER NOT NULL CHECK(typeof(revision)='integer' AND revision>0),
+  deleted INTEGER NOT NULL CHECK(deleted IN (0,1))
+);
+CREATE TABLE IF NOT EXISTS competition_revision_migration (
+  singleton INTEGER PRIMARY KEY CHECK(singleton=1)
+);
+INSERT INTO competition_control_revisions(competition_id,revision,deleted)
+  SELECT id,1,0 FROM competition_definitions
+  WHERE NOT EXISTS(SELECT 1 FROM competition_revision_migration WHERE singleton=1);
+INSERT OR IGNORE INTO competition_revision_migration(singleton) VALUES (1);
+DROP TRIGGER IF EXISTS competition_revision_insert;
+DROP TRIGGER IF EXISTS competition_revision_definition_update;
+DROP TRIGGER IF EXISTS competition_revision_definition_delete;
+DROP TRIGGER IF EXISTS competition_revision_state_update;
+CREATE TRIGGER competition_revision_insert AFTER INSERT ON competition_definitions BEGIN
+  INSERT INTO competition_control_revisions(competition_id,revision,deleted) VALUES (NEW.id,1,0)
+  ON CONFLICT(competition_id) DO UPDATE SET
+    revision=CASE WHEN deleted=1 THEN revision+1 ELSE RAISE(ABORT,'competition revision inconsistent') END,
+    deleted=0;
+  INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at)
+    SELECT 'competition','host',NEW.id,revision,'created',CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+    FROM competition_control_revisions WHERE competition_id=NEW.id;
+END;
+CREATE TRIGGER competition_revision_definition_update AFTER UPDATE ON competition_definitions BEGIN
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=NEW.id AND deleted=0)
+    THEN RAISE(ABORT,'competition revision missing') END;
+  UPDATE competition_control_revisions SET revision=revision+1 WHERE competition_id=NEW.id;
+  INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at)
+    SELECT 'competition','host',NEW.id,revision,'updated',CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+    FROM competition_control_revisions WHERE competition_id=NEW.id;
+END;
+CREATE TRIGGER competition_revision_definition_delete AFTER DELETE ON competition_definitions BEGIN
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=OLD.id AND deleted=0)
+    THEN RAISE(ABORT,'competition revision missing') END;
+  UPDATE competition_control_revisions SET revision=revision+1,deleted=1 WHERE competition_id=OLD.id;
+  INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at)
+    SELECT 'competition','host',OLD.id,revision,'deleted',CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+    FROM competition_control_revisions WHERE competition_id=OLD.id;
+END;
+CREATE TRIGGER competition_revision_state_update AFTER UPDATE ON competition_state
+WHEN OLD.state_json IS NOT NEW.state_json BEGIN
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM competition_control_revisions WHERE competition_id=NEW.competition_id AND deleted=0)
+    THEN RAISE(ABORT,'competition revision missing') END;
+  UPDATE competition_control_revisions SET revision=revision+1 WHERE competition_id=NEW.competition_id;
+  INSERT INTO control_resource_outbox(kind,scope,resource_id,revision,change,committed_at)
+    SELECT 'competition','host',NEW.competition_id,revision,'state-changed',CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)
+    FROM competition_control_revisions WHERE competition_id=NEW.competition_id;
+END;
+"#)?;
+    tx.commit()?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod competition_revision_tests {
+    use super::*;
+
+    #[test]
+    fn execution_origins_seed_legacy_once_without_restoring_missing_authority() {
+        let mut db = Connection::open_in_memory().unwrap();
+        db.execute_batch("CREATE TABLE competition_results(competition_id TEXT,generation INTEGER); CREATE TABLE competition_state(competition_id TEXT,state_json TEXT); INSERT INTO competition_results VALUES('old',1); INSERT INTO competition_state VALUES('active','{\"generation\":2}');").unwrap();
+        migrate_competition_execution_origins(&mut db).unwrap();
+        let rows: i64 = db
+            .query_row(
+                "SELECT count(*) FROM competition_execution_generations WHERE origin='owner'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 2);
+        db.execute(
+            "DELETE FROM competition_execution_generations WHERE competition_id='active'",
+            [],
+        )
+        .unwrap();
+        migrate_competition_execution_origins(&mut db).unwrap();
+        let rows: i64 = db.query_row("SELECT count(*) FROM competition_execution_generations WHERE competition_id='active'", [], |r| r.get(0)).unwrap();
+        assert_eq!(rows, 0);
+    }
+
+    #[test]
+    fn migration_and_writers_preserve_revisions_across_delete_and_recreate() {
+        let mut db = Connection::open_in_memory().unwrap();
+        db.execute_batch(COORDINATION_SCHEMA).unwrap();
+        db.execute_batch("CREATE TABLE competition_definitions(id TEXT PRIMARY KEY, definition_json TEXT NOT NULL); CREATE TABLE competition_state(competition_id TEXT PRIMARY KEY, state_json TEXT NOT NULL); INSERT INTO competition_definitions VALUES ('a','old'); INSERT INTO competition_state VALUES ('a','draft');").unwrap();
+        migrate_competition_revisions(&mut db).unwrap();
+        let revision = |db: &Connection| {
+            db.query_row("SELECT revision,deleted FROM competition_control_revisions WHERE competition_id='a'", [], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).unwrap()
+        };
+        assert_eq!(revision(&db), (1, 0));
+        db.execute(
+            "UPDATE competition_state SET state_json='active' WHERE competition_id='a'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(revision(&db), (2, 0));
+        db.execute(
+            "UPDATE competition_definitions SET definition_json='changed' WHERE id='a'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(revision(&db), (3, 0));
+        db.execute("DELETE FROM competition_definitions WHERE id='a'", [])
+            .unwrap();
+        assert_eq!(revision(&db), (4, 1));
+        db.execute("INSERT INTO competition_definitions VALUES ('a','new')", [])
+            .unwrap();
+        assert_eq!(revision(&db), (5, 0));
+        migrate_competition_revisions(&mut db).unwrap();
+        assert_eq!(revision(&db), (5, 0));
+        let changes: Vec<(i64, String)> = db
+            .prepare("SELECT revision,change FROM control_resource_outbox WHERE kind='competition' AND resource_id='a' ORDER BY cursor")
+            .unwrap()
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(
+            changes,
+            vec![
+                (2, "state-changed".into()),
+                (3, "updated".into()),
+                (4, "deleted".into()),
+                (5, "created".into())
+            ]
+        );
+        db.execute(
+            "DELETE FROM competition_control_revisions WHERE competition_id='a'",
+            [],
+        )
+        .unwrap();
+        assert!(db
+            .execute(
+                "UPDATE competition_state SET state_json='paused' WHERE competition_id='a'",
+                []
+            )
+            .is_err());
+        migrate_competition_revisions(&mut db).unwrap();
+        assert_eq!(
+            db.query_row(
+                "SELECT COUNT(*) FROM competition_control_revisions",
+                [],
+                |row| row.get::<_, i64>(0)
+            )
+            .unwrap(),
+            0
+        );
+    }
+}
+
+/// Development builds may contain unresolved operations without a frozen
+/// digest. Preserve them as NULL, which journal readers reject for review;
+/// inventing a digest would authorize a different package operation.
+fn migrate_package_journal(db: &mut Connection) -> Result<(), DatabaseError> {
+    db.execute_batch("PRAGMA synchronous=FULL;")?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let present: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('plugin_package_mutation_intents') WHERE name='operation_digest'",
+        [], |row| row.get(0),
+    )?;
+    if present == 0 {
+        tx.execute_batch(
+            "ALTER TABLE plugin_package_mutation_intents ADD COLUMN operation_digest TEXT;",
+        )?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// Interim development builds created this outbox before consent generations
+/// were recorded. Preserve every candidate and leave its generation NULL:
+/// readers must require a fresh review instead of inventing prior consent.
+fn migrate_plugin_sync_outbox(db: &mut Connection) -> Result<(), DatabaseError> {
+    db.execute_batch("PRAGMA synchronous=FULL;")?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let present: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('plugin_sync_outbox') WHERE name='config_generation'",
+        [],
+        |row| row.get(0),
+    )?;
+    if present == 0 {
+        tx.execute_batch("ALTER TABLE plugin_sync_outbox ADD COLUMN config_generation TEXT;")?;
+    }
+    let present: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('plugin_sync_outbox') WHERE name='runtime_epoch'",
+        [],
+        |row| row.get(0),
+    )?;
+    if present == 0 {
+        tx.execute_batch("ALTER TABLE plugin_sync_outbox ADD COLUMN runtime_epoch TEXT;")?;
+    }
+    let present: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM pragma_table_info('plugin_sync_outbox') WHERE name='reviewed_base'",
+        [],
+        |row| row.get(0),
+    )?;
+    if present == 0 {
+        tx.execute_batch("ALTER TABLE plugin_sync_outbox ADD COLUMN reviewed_base TEXT;")?;
+    }
+    tx.commit()?;
+    Ok(())
 }
 
 /// Extend the unreleased journal's closed kind constraint without deleting any

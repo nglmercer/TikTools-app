@@ -23,14 +23,17 @@ pub use artifact::plugin_artifact_fingerprint;
 pub use declarative::DeclarativePluginRuntime;
 pub use discovery::plugin_roots;
 pub use isolated::{IsolatedPluginCall, PreparedIsolatedPlugin};
-pub use manager::{PluginManager, RuntimeRegistry};
+pub use manager::{
+    PluginEventDeliveryPermit, PluginManager, PluginPackageLease, PluginWorkerObservation,
+    RuntimeRegistry,
+};
 pub use native::NativePluginRuntime;
 pub use process::ProcessPluginRuntime;
 pub use quickjs::{
     native_addons_allowed, QuickJsPluginRuntime, QuickJsPluginRuntime as NapiVmPluginRuntime,
 };
 pub use types::{
-    DiscoveredPlugin, EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRoot,
-    PluginRuntime, PluginSource, WorkerContext,
+    DiscoveredPlugin, EmittedEvent, ManagedWorker, PluginEventSender, PluginInstance,
+    PluginLoaderError, PluginRoot, PluginRuntime, PluginSource, WorkerContext,
 };
 pub use wasm::WasmPluginRuntime;

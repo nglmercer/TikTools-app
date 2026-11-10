@@ -49,6 +49,26 @@ use crate::registry::MethodRegistry;
 /// two minutes (manifest `timeoutMs`), so the RPC budget sits above that.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(150);
 
+/// Login completion waits up to 180 seconds for the browser callback before
+/// redeeming it; other handlers keep the standard budget.
+pub fn request_timeout_for(method: &str) -> Duration {
+    if method == "cloud.login.complete" {
+        Duration::from_secs(240)
+    } else {
+        REQUEST_TIMEOUT
+    }
+}
+
+/// The local IPC client must wait past the server's login deadline so the
+/// authoritative timeout response can arrive. Other methods are unchanged.
+pub fn client_timeout_for(method: &str) -> Duration {
+    if method == "cloud.login.complete" {
+        Duration::from_secs(270)
+    } else {
+        REQUEST_TIMEOUT
+    }
+}
+
 /// Thin adapter over [`AppCore`]. Business logic stays in core services;
 /// handlers only validate typed params and map results/errors.
 pub struct ControlApi {
@@ -60,6 +80,8 @@ impl ControlApi {
     pub fn new(core: Arc<AppCore>) -> Self {
         core.start_competition_timer();
         core.start_coordination_worker();
+        #[cfg(feature = "cloud-auth")]
+        core.start_cloud_sync_worker();
         let mut router = ControlRouter::new();
         Self::register_all(&mut router);
         Self { core, router }
@@ -126,7 +148,13 @@ impl ControlApi {
         modules::rpc::register(router, std::sync::Arc::clone(&registry));
         // Side-effect metadata never grants authority. Each supported method
         // needs explicit policy; unlisted methods stay denied.
-        for name in ["live.status", "live.monitor.status", "ui.feed.backfill"] {
+        for name in [
+            "live.status",
+            "live.monitor.status",
+            "ui.feed.backfill",
+            "ui.feed.browser",
+            "ui.feed.creator",
+        ] {
             router.set_remote_policy(
                 name,
                 policy::RemotePolicy::Capability(RemoteCapability::LiveRead),
@@ -140,16 +168,33 @@ impl ControlApi {
             "workflows.delete",
             policy::RemotePolicy::Capability(RemoteCapability::WorkflowsEdit),
         );
-        for name in ["automation.list", "automation.get"] {
+        for name in ["automation.list", "automation.get", "automation.source.get"] {
             router.set_remote_policy(
                 name,
                 policy::RemotePolicy::Capability(RemoteCapability::AutomationRead),
             );
         }
         router.set_remote_policy(
-            "automation.disable",
-            policy::RemotePolicy::Capability(RemoteCapability::AutomationToggle),
+            "competitions.summary",
+            policy::RemotePolicy::Capability(RemoteCapability::CompetitionsRead),
         );
+        for name in [
+            "competitions.start",
+            "competitions.resume",
+            "competitions.pause",
+            "competitions.cancel",
+        ] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::CompetitionsManage),
+            );
+        }
+        for name in ["automation.disable", "automation.enable"] {
+            router.set_remote_policy(
+                name,
+                policy::RemotePolicy::Capability(RemoteCapability::AutomationToggle),
+            );
+        }
         router.set_remote_policy(
             "automation.delete",
             policy::RemotePolicy::Capability(RemoteCapability::AutomationEdit),
@@ -221,7 +266,7 @@ impl ControlApi {
             .authorize(session)?;
         // Shared backfill is not filtered by creator. Use a scoped projection
         // before exposing history under a creator-restricted LIVE grant.
-        if method == "ui.feed.backfill"
+        if matches!(method, "ui.feed.backfill" | "ui.feed.browser")
             && session
                 .grant()?
                 .resources
@@ -238,6 +283,31 @@ impl ControlApi {
             return Err(context::forbidden());
         }
         let grant = session.grant()?;
+        if matches!(
+            method,
+            "competitions.summary"
+                | "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
+        ) && grant
+            .resources
+            .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
+        {
+            return Err(context::forbidden());
+        }
+        if matches!(
+            method,
+            "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
+        ) && !grant
+            .capabilities
+            .contains(&RemoteCapability::CompetitionsRead)
+        {
+            return Err(context::forbidden());
+        }
         if method.starts_with("automation.") && !policy::automation_read_allowed(&grant) {
             return Err(context::forbidden());
         }
@@ -248,14 +318,28 @@ impl ControlApi {
                 && !grant
                     .resources
                     .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
-            || policy::automation_read_allowed(&grant);
+            || policy::automation_read_allowed(&grant)
+            || grant
+                .capabilities
+                .contains(&RemoteCapability::CompetitionsRead)
+                && !grant
+                    .resources
+                    .contains_key(&tiktools_core::collaboration::ResourceKind::Live);
         if matches!(
             method,
-            "collaboration.commands.get"
-                | "collaboration.subscribe"
-                | "collaboration.snapshot"
-                | "collaboration.resume"
+            "collaboration.subscribe" | "collaboration.snapshot" | "collaboration.resume"
         ) && !can_read_domain
+        {
+            return Err(context::forbidden());
+        }
+        if method == "collaboration.commands.get"
+            && !can_read_domain
+            && !(grant
+                .capabilities
+                .contains(&RemoteCapability::CompetitionsRead)
+                && !grant
+                    .resources
+                    .contains_key(&tiktools_core::collaboration::ResourceKind::Live))
         {
             return Err(context::forbidden());
         }
@@ -284,6 +368,90 @@ impl ControlApi {
     ) -> Result<(), ApiError> {
         self.authorize_remote(session, method)?;
         let grant = session.grant()?;
+        if matches!(
+            method,
+            "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
+        ) && !policy::competition_stop_result_allowed(&grant, method, result)
+        {
+            return Err(context::forbidden());
+        }
+        if method == "competitions.summary" {
+            if !grant
+                .capabilities
+                .contains(&RemoteCapability::CompetitionsRead)
+                || grant
+                    .resources
+                    .contains_key(&tiktools_core::collaboration::ResourceKind::Live)
+            {
+                return Err(context::forbidden());
+            }
+            if serde_json::from_value::<tiktools_core::control::CompetitionSummaryPage>(
+                result.clone(),
+            )
+            .is_err()
+            {
+                return Err(context::forbidden());
+            }
+            let allowed = |id: &str| {
+                grant.allows_resource(tiktools_core::collaboration::ResourceKind::Competition, id)
+            };
+            let rows = result
+                .get("competitions")
+                .and_then(Value::as_array)
+                .ok_or_else(context::forbidden)?;
+            if result.as_object().is_none_or(|obj| {
+                obj.len() != 2
+                    || obj
+                        .keys()
+                        .any(|key| !matches!(key.as_str(), "competitions" | "nextAfter"))
+            }) || rows.len() > 50
+                || !rows.iter().all(|row| {
+                    row.as_object().is_some_and(|obj| {
+                        (obj.len() == 7
+                            || (obj.len() == 8
+                                && obj
+                                    .get("revision")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|s| {
+                                        s.parse::<i64>().is_ok_and(|n| n > 0 && n.to_string() == s)
+                                    })))
+                            && obj.keys().all(|key| {
+                                matches!(
+                                    key.as_str(),
+                                    "id" | "name"
+                                        | "kind"
+                                        | "lifecycle"
+                                        | "generation"
+                                        | "revision"
+                                        | "deadlineMs"
+                                        | "remainingMs"
+                                )
+                            })
+                    }) && row.get("id").and_then(Value::as_str).is_some_and(allowed)
+                })
+                || !result.get("nextAfter").is_some_and(|value| {
+                    value.is_null()
+                        || value.as_str().is_some_and(|id| {
+                            allowed(id) && rows.last().and_then(|row| row.get("id")) == Some(value)
+                        })
+                })
+            {
+                return Err(context::forbidden());
+            }
+        }
+        if method == "ui.feed.creator"
+            && !result
+                .get("creatorId")
+                .and_then(Value::as_str)
+                .is_some_and(|id| {
+                    grant.allows_resource(tiktools_core::collaboration::ResourceKind::Live, id)
+                })
+        {
+            return Err(context::forbidden());
+        }
         if matches!(
             method,
             "points.adjust" | "points.viewer.get" | "points.leaderboard" | "points.view"
@@ -382,6 +550,28 @@ impl ControlApi {
         {
             return Err(context::forbidden());
         }
+        if method == "automation.source.get" {
+            let kind = result
+                .get("kind")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<tiktools_core::control::AutomationKind>().ok())
+                .ok_or_else(context::forbidden)?;
+            let id = result
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(context::forbidden)?;
+            let revision = result
+                .get("revision")
+                .and_then(Value::as_str)
+                .ok_or_else(context::forbidden)?;
+            if !self
+                .core
+                .automation_shared_source_current(kind, id, revision, &session.authorization()?)
+                .unwrap_or(false)
+            {
+                return Err(context::forbidden());
+            }
+        }
         if method == "collaboration.commands.get" {
             if result.get("principalId").and_then(Value::as_str) != Some(session.principal_id()) {
                 return Err(context::forbidden());
@@ -407,6 +597,16 @@ impl ControlApi {
                 }
                 Some("automation") if policy::automation_read_allowed(&grant) => {
                     tiktools_core::collaboration::ResourceKind::Automation
+                }
+                Some("competition")
+                    if grant
+                        .capabilities
+                        .contains(&RemoteCapability::CompetitionsRead)
+                        && !grant
+                            .resources
+                            .contains_key(&tiktools_core::collaboration::ResourceKind::Live) =>
+                {
+                    tiktools_core::collaboration::ResourceKind::Competition
                 }
                 _ => return Err(context::forbidden()),
             };
@@ -434,13 +634,21 @@ impl ControlApi {
                             | "automation.delete"
                             | "automation.create"
                             | "automation.update"
-                    ) || (matches!(method, "automation.disable" | "automation.delete")
-                        && scope != "event")
+                            | "automation.enable"
+                    ) || (method == "automation.delete" && scope != "event")
                         || !result.get("result").is_some_and(|v| {
                             policy::automation_result_allowed(&grant, method, v)
                                 && v.get("id") == resource.get("id")
-                                && (!matches!(method, "automation.create" | "automation.update")
-                                    || v.get("kind").and_then(Value::as_str) == Some(scope))
+                                && (!matches!(
+                                    method,
+                                    "automation.create" | "automation.update" | "automation.enable"
+                                ) || v.get("kind").and_then(Value::as_str) == Some(scope))
+                                && (method != "automation.disable"
+                                    || if scope == "action" {
+                                        v.get("kind").and_then(Value::as_str) == Some("action")
+                                    } else {
+                                        scope == "event" && v.get("kind").is_none()
+                                    })
                         })
                         || !result
                             .get("resourceVersions")
@@ -458,6 +666,25 @@ impl ControlApi {
                     }
                 }
             }
+            if kind == tiktools_core::collaboration::ResourceKind::Competition {
+                if let Some(method) = result.get("method").and_then(Value::as_str) {
+                    if !result.get("result").is_some_and(|value| {
+                        policy::competition_stop_result_allowed(&grant, method, value)
+                            && value.get("id") == resource.get("id")
+                    }) || !result
+                        .get("resourceVersions")
+                        .and_then(Value::as_array)
+                        .is_some_and(|rows| {
+                            rows.len() == 1
+                                && rows[0].get("kind") == resource.get("kind")
+                                && rows[0].get("scope") == resource.get("scope")
+                                && rows[0].get("id") == resource.get("id")
+                        })
+                    {
+                        return Err(context::forbidden());
+                    }
+                }
+            }
         }
         if matches!(method, "live.status" | "live.monitor.status") {
             if let Some(ids) = grant
@@ -470,6 +697,20 @@ impl ControlApi {
                     .is_some_and(|id| ids.contains(id))
                 {
                     return Err(context::forbidden());
+                }
+                if method == "live.status" {
+                    let verified = result
+                        .get("uniqueId")
+                        .and_then(Value::as_str)
+                        .zip(result.get("roomId").and_then(Value::as_str))
+                        .zip(result.get("connectionId").and_then(Value::as_str))
+                        .is_some_and(|((creator, room), connection)| {
+                            self.core
+                                .live_status_matches_verified_scope(creator, room, connection)
+                        });
+                    if !verified {
+                        return Err(context::forbidden());
+                    }
                 }
             }
         }
@@ -495,9 +736,15 @@ impl ControlApi {
                 | "points.leaderboard"
                 | "points.view"
                 | "points.adjust"
+                | "competitions.start"
+                | "competitions.resume"
+                | "competitions.pause"
+                | "competitions.cancel"
                 | "automation.list"
                 | "automation.get"
+                | "automation.source.get"
                 | "automation.disable"
+                | "automation.enable"
                 | "automation.delete"
                 | "automation.create"
                 | "automation.update"
@@ -512,6 +759,11 @@ impl ControlApi {
                         tiktools_core::collaboration::ResourceKind::Automation,
                         "automation",
                     )
+                } else if method.starts_with("competitions.") {
+                    (
+                        tiktools_core::collaboration::ResourceKind::Competition,
+                        "competition",
+                    )
                 } else if method.starts_with("points.") {
                     (tiktools_core::collaboration::ResourceKind::Viewer, "viewer")
                 } else {
@@ -525,10 +777,7 @@ impl ControlApi {
                         || !v.get("id").and_then(Value::as_str).is_some_and(|id| {
                             v.get("scope").and_then(Value::as_str).is_some_and(|scope| {
                                 grant.allows_scoped_resource(kind, scope, id)
-                                    && (!matches!(
-                                        method,
-                                        "automation.disable" | "automation.delete"
-                                    ) || scope == "event")
+                                    && (method != "automation.delete" || scope == "event")
                             })
                         })
                 }) {
@@ -684,7 +933,7 @@ impl ControlApi {
             }
         }
         let outcome = tokio::time::timeout(
-            REQUEST_TIMEOUT,
+            request_timeout_for(&request.method),
             (entry.handler)(self.core.clone(), context.clone(), params, request.meta),
         )
         .await;
@@ -851,6 +1100,27 @@ pub fn gap_notification(lost: u64) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_login_deadlines_leave_time_for_callback_and_server_response() {
+        assert_eq!(
+            request_timeout_for("cloud.login.complete"),
+            Duration::from_secs(240)
+        );
+        assert_eq!(
+            client_timeout_for("cloud.login.complete"),
+            Duration::from_secs(270)
+        );
+        for other in [
+            "cloud.login.begin",
+            "cloud.login.cancel",
+            "cloud.login.complete.extra",
+            "",
+        ] {
+            assert_eq!(request_timeout_for(other), REQUEST_TIMEOUT);
+            assert_eq!(client_timeout_for(other), REQUEST_TIMEOUT);
+        }
+    }
 
     #[tokio::test]
     async fn remote_storage_failures_omit_owner_diagnostics_but_local_failures_keep_them() {

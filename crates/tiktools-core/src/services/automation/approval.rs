@@ -101,12 +101,15 @@ struct DefinitionFence {
 pub(crate) struct ApprovalCandidate {
     index_identity: std::sync::Arc<()>,
     approval_key: (String, String),
-    approval: crate::db::BehaviorApprovalSnapshot,
+    approval: Option<crate::db::BehaviorApprovalSnapshot>,
     review: Versioned<Value>,
     definitions: Vec<DefinitionFence>,
     catalog_epoch: u64,
 }
 impl ApprovalCandidate {
+    pub(super) fn is_reusable(&self) -> bool {
+        self.approval.is_none()
+    }
     pub(crate) fn requires_scoped_input(&self) -> bool {
         self.definitions.iter().any(|fence| {
             fence.family == AutomationFamily::Event
@@ -119,13 +122,15 @@ impl ApprovalCandidate {
     }
 }
 
-/// No public constructor, Serialize or Deserialize: only an exact persisted
-/// approval, reconstructed manifest and current saved grants can create this.
+/// No public constructor, Serialize or Deserialize: only a trusted saved
+/// closure and current saved grants can create this.
 #[derive(Clone)]
 pub(crate) struct RuntimeApprovalPermit {
     candidate: ApprovalCandidate,
     manifest: manifest::ExecutionManifest,
     configuration_revisions: BTreeMap<(String, String), String>,
+    competition: Option<crate::db::CompetitionExecutionFence>,
+    competition_winner: Option<(tiktools_competitions::ActionClaim, Value)>,
 }
 
 /// Receiving approved scoped input never transfers Owner authority. This
@@ -208,19 +213,15 @@ fn fence_current(index: &BehaviorIndex, fence: &DefinitionFence) -> bool {
     }
 }
 
-pub(super) fn candidate_for_primary(
+fn capture_review(
     index: &BehaviorIndex,
     family: AutomationFamily,
     primary: &Value,
-) -> Option<ApprovalCandidate> {
+) -> Option<(Versioned<Value>, Vec<DefinitionFence>)> {
     if !index.authority_available {
         return None;
     }
     let id = primary.get("id")?.as_str()?;
-    let approval = index.approvals.get(&(family.scope().into(), id.into()))?;
-    if approval.policy_version != manifest::POLICY_VERSION {
-        return None;
-    }
     let primary_fence = capture(index, family, id)?;
     // An inline/manual body with the same ID never inherits a saved approval.
     if primary_fence.definition != *primary {
@@ -261,6 +262,20 @@ pub(super) fn candidate_for_primary(
     );
     // Validate closure shape and size before resolving any retained subjects.
     manifest::required_subjects(&review).ok()?;
+    Some((review, definitions))
+}
+
+pub(super) fn candidate_for_primary(
+    index: &BehaviorIndex,
+    family: AutomationFamily,
+    primary: &Value,
+) -> Option<ApprovalCandidate> {
+    let id = primary.get("id")?.as_str()?;
+    let approval = index.approvals.get(&(family.scope().into(), id.into()))?;
+    if approval.policy_version != manifest::POLICY_VERSION {
+        return None;
+    }
+    let (review, definitions) = capture_review(index, family, primary)?;
     let bound_definitions = manifest::definition_bindings(&review).ok()?;
     let stored = approval.binding.get("manifest")?;
     if stored.get("policyVersion")?.as_u64()? != manifest::POLICY_VERSION as u64
@@ -273,7 +288,7 @@ pub(super) fn candidate_for_primary(
     Some(ApprovalCandidate {
         index_identity: index.identity.clone(),
         approval_key: (approval.scope.clone(), approval.id.clone()),
-        approval: approval.clone(),
+        approval: Some(approval.clone()),
         review,
         definitions,
         catalog_epoch: index.catalog_epoch?,
@@ -288,6 +303,125 @@ impl ApprovalCandidate {
     pub(crate) fn authorize(
         self,
         identities: &[ExecutionIdentity],
+    ) -> Result<RuntimeApprovalPermit, &'static str> {
+        self.authorize_with_inherited(identities, &[], None, None, false)
+    }
+
+    /// Call inside the competition fence's current-subject transaction. The
+    /// permit still needs that fence at each effect sink; it never conveys
+    /// competition authority by itself. Persisted approvals cannot be widened.
+    #[allow(dead_code)]
+    pub(crate) fn authorize_competition(
+        self,
+        identities: &[ExecutionIdentity],
+        fence: &crate::db::CompetitionExecutionFence,
+    ) -> Result<RuntimeApprovalPermit, &'static str> {
+        let operators = fence.subjects();
+        if operators.is_empty()
+            || self.approval.is_some()
+            || identities
+                .iter()
+                .any(|identity| identity.host_id() != fence.host_id())
+        {
+            return Err("competition operator binding is unavailable");
+        }
+        self.authorize_with_inherited(identities, &operators, Some(fence.clone()), None, false)
+    }
+
+    /// Inherit every prior author and operator for a chained saved rule.
+    pub(crate) fn authorize_competition_chain(
+        self,
+        admission: &crate::db::CompetitionExecutionAdmission<'_>,
+        inherited: &[(String, String)],
+        native_competition_event: bool,
+    ) -> Result<RuntimeApprovalPermit, &'static str> {
+        if self.approval.is_some()
+            || native_competition_event
+                && admission.identities().iter().any(|identity| {
+                    !identity.grant().allows_resource(
+                        crate::collaboration::ResourceKind::Competition,
+                        admission.fence().competition_id(),
+                    )
+                })
+            || admission
+                .fence()
+                .subjects()
+                .iter()
+                .any(|operator| !inherited.contains(operator))
+            || admission
+                .identities()
+                .iter()
+                .any(|identity| identity.host_id() != admission.fence().host_id())
+        {
+            return Err("competition chain binding is unavailable");
+        }
+        self.authorize_with_inherited(
+            admission.identities(),
+            inherited,
+            Some(admission.fence().clone()),
+            None,
+            native_competition_event,
+        )
+    }
+
+    /// Classify the effective winner action, including the exact saved input
+    /// overrides, while the winner outbox and competition fence are held.
+    #[allow(dead_code)]
+    pub(crate) fn authorize_competition_winner(
+        self,
+        admission: &crate::db::CompetitionExecutionAdmission<'_>,
+    ) -> Result<RuntimeApprovalPermit, &'static str> {
+        let claim = admission
+            .winner()
+            .ok_or("competition winner binding is unavailable")?;
+        if self.approval.is_some()
+            || self.approval_key != ("action".into(), claim.action.action_id.clone())
+            || admission
+                .identities()
+                .iter()
+                .any(|identity| identity.host_id() != admission.fence().host_id())
+        {
+            return Err("competition winner binding is unavailable");
+        }
+        let mut effective = self
+            .review
+            .value
+            .get("record")
+            .cloned()
+            .ok_or("saved winner action is unavailable")?;
+        let inputs = match &claim.action.inputs {
+            Value::Null => serde_json::Map::new(),
+            Value::Object(inputs) => inputs.clone(),
+            _ => return Err("competition winner inputs are invalid"),
+        };
+        let config = effective
+            .as_object_mut()
+            .ok_or("saved winner action is invalid")?
+            .entry("config")
+            .or_insert_with(|| json!({}))
+            .as_object_mut()
+            .ok_or("saved winner action is invalid")?;
+        config.extend(inputs);
+        let operators = admission.fence().subjects();
+        if operators.is_empty() {
+            return Err("competition operator binding is unavailable");
+        }
+        self.authorize_with_inherited(
+            admission.identities(),
+            &operators,
+            Some(admission.fence().clone()),
+            Some((claim.clone(), effective)),
+            false,
+        )
+    }
+
+    fn authorize_with_inherited(
+        self,
+        identities: &[ExecutionIdentity],
+        inherited: &[(String, String)],
+        competition: Option<crate::db::CompetitionExecutionFence>,
+        competition_winner: Option<(tiktools_competitions::ActionClaim, Value)>,
+        native_competition_event: bool,
     ) -> Result<RuntimeApprovalPermit, &'static str> {
         let host = identities
             .first()
@@ -306,21 +440,31 @@ impl ApprovalCandidate {
                 grant: identity.grant(),
             })
             .collect();
-        let manifest = manifest::build(
-            &self.review,
+        let mut effective_review = self.review.clone();
+        if let Some((_, effective)) = &competition_winner {
+            effective_review.value["record"] = effective.clone();
+        }
+        let manifest = manifest::build_with_inherited_subjects(
+            &effective_review,
             manifest::ManifestSubjects {
                 host_id: host,
                 subjects: &subjects,
             },
+            inherited,
+            native_competition_event,
         )
         .map_err(|_| "saved approval manifest is unavailable")?;
-        let policy = crate::services::automation_approval_policy::bindings(&manifest, identities)
-            .map_err(|_| "saved approval effect policy is unavailable")?;
-        let binding = json!({"manifest":manifest,"bindings":policy});
-        if self.approval.manifest_digest != manifest.manifest_digest
-            || self.approval.binding != binding
-        {
-            return Err("saved approval binding has changed");
+        if let Some(approval) = &self.approval {
+            let policy =
+                crate::services::automation_approval_policy::bindings(&manifest, identities)
+                    .map_err(|_| "saved approval effect policy is unavailable")?;
+            let binding = json!({"manifest":manifest,"bindings":policy});
+            if approval.manifest_digest != manifest.manifest_digest || approval.binding != binding {
+                return Err("saved approval binding has changed");
+            }
+        } else {
+            crate::services::automation_approval_policy::reusable_preflight(&manifest, identities)
+                .map_err(|_| "reusable delegation is unavailable")?;
         }
         let configuration_revisions = identities
             .iter()
@@ -338,6 +482,8 @@ impl ApprovalCandidate {
             candidate: self,
             manifest,
             configuration_revisions,
+            competition,
+            competition_winner,
         };
         permit.check_subjects(identities)?;
         Ok(permit)
@@ -346,10 +492,20 @@ impl ApprovalCandidate {
 
 impl RuntimeApprovalPermit {
     pub(crate) fn authorizes_action(&self, action: &Value) -> bool {
+        if let Some((_, effective)) = &self.competition_winner {
+            return effective == action;
+        }
         self.candidate
             .definitions
             .iter()
             .any(|fence| fence.family == AutomationFamily::Action && fence.definition == *action)
+    }
+
+    pub(crate) fn authorizes_event(&self, event: &Value) -> bool {
+        self.candidate
+            .definitions
+            .iter()
+            .any(|fence| fence.family == AutomationFamily::Event && fence.definition == *event)
     }
 
     /// Extra subjects from a conjoined context are allowed; every subject
@@ -381,6 +537,109 @@ impl RuntimeApprovalPermit {
 }
 
 impl AutomationService {
+    /// Candidate only: the saved competition winner reference and generation
+    /// must be revalidated under the business writer before it can be used.
+    #[allow(dead_code)]
+    pub(crate) fn competition_action_candidate(&self, id: &str) -> Option<ApprovalCandidate> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        let primary = index.actions.get(id)?;
+        let (review, definitions) =
+            capture_review(&index, AutomationFamily::Action, &primary.definition)?;
+        Some(ApprovalCandidate {
+            index_identity: index.identity.clone(),
+            approval_key: ("action".into(), id.into()),
+            approval: None,
+            review,
+            definitions,
+            catalog_epoch: index.catalog_epoch?,
+        })
+    }
+    /// Capture saved host state only; the caller must still authorize its subjects.
+    #[allow(dead_code)]
+    pub(crate) fn reusable_candidate(
+        &self,
+        family: AutomationFamily,
+        id: &str,
+    ) -> Option<ApprovalCandidate> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        reusable_candidate_for_primary(&index, family, id)
+    }
+    /// Check that a DB review describes the currently installed runtime
+    /// closure. This comparison is advisory; it cannot authorize execution.
+    pub(crate) fn reusable_preflight_current(
+        &self,
+        expected: &manifest::ExecutionManifest,
+        identities: &[ExecutionIdentity],
+    ) -> bool {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !index.authority_available || index.catalog_epoch.is_none() {
+            return false;
+        }
+        let family = expected.primary.kind;
+        let primary = match family {
+            AutomationFamily::Action => index.actions.get(&expected.primary.id),
+            AutomationFamily::Event => index.events.get(&expected.primary.id),
+        };
+        let Some((review, _)) =
+            primary.and_then(|record| capture_review(&index, family, &record.definition))
+        else {
+            return false;
+        };
+        let subjects: Vec<_> = identities
+            .iter()
+            .map(|identity| manifest::ManifestSubject {
+                principal_id: identity.principal_id(),
+                session_id: identity.session_id(),
+                grant_revision: identity.grant_revision(),
+                configuration_revision: identity.configuration_revision(),
+                grant: identity.grant(),
+            })
+            .collect();
+        manifest::build(
+            &review,
+            manifest::ManifestSubjects {
+                host_id: &expected.host_id,
+                subjects: &subjects,
+            },
+        )
+        .is_ok_and(|actual| actual == *expected)
+    }
+    /// Capture a fresh reusable closure for a matched scoped rule, including
+    /// Owner definitions. Its complete effect set must be authorized by all
+    /// inherited subjects; the matched generation cannot be substituted.
+    pub(crate) fn competition_rule_candidate(
+        &self,
+        record: &MatchedRecord,
+    ) -> Option<ApprovalCandidate> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if index.catalog_epoch != Some(record.catalog_epoch) {
+            return None;
+        }
+        let id = record.definition.get("id")?.as_str()?;
+        let (review, definitions) =
+            capture_review(&index, AutomationFamily::Event, &record.definition)?;
+        if record.generation != Some(definitions.first()?.generation)
+            || record.definition.get("enabled").and_then(Value::as_bool) != Some(true)
+            || record.actions.iter().any(|action| {
+                !definitions.iter().any(|fence| {
+                    fence.family == AutomationFamily::Action
+                        && fence.generation == action.generation
+                        && fence.definition == action.definition
+                })
+            })
+        {
+            return None;
+        }
+        Some(ApprovalCandidate {
+            index_identity: index.identity.clone(),
+            approval_key: ("event".into(), id.into()),
+            approval: None,
+            review,
+            definitions,
+            catalog_epoch: record.catalog_epoch,
+        })
+    }
+
     pub(crate) fn owner_rule_fence(&self, record: &MatchedRecord) -> Option<RuntimeOwnerRuleFence> {
         let index = recover_rwlock_read(&self.index, "automation index");
         if !index.authority_available
@@ -461,7 +720,7 @@ impl AutomationService {
         apply: impl FnOnce() -> Result<R, String>,
     ) -> Result<R, String> {
         let index = recover_rwlock_read(&self.index, "automation index");
-        if !execution_chain_current(&index, permits, owner_rules)
+        if !execution_chain_current(&index, permits, owner_rules, None)
             || !(permits
                 .iter()
                 .any(|permit| permit.authorizes_action(action))
@@ -474,6 +733,57 @@ impl AutomationService {
         apply()
     }
 
+    /// The admission proof is available only while the matching competition
+    /// transaction and every current subject are locked by the database.
+    #[allow(dead_code)]
+    pub(crate) fn with_current_competition_approvals<R>(
+        &self,
+        admission: &crate::db::CompetitionExecutionAdmission<'_>,
+        permits: &[RuntimeApprovalPermit],
+        owner_rules: &[RuntimeOwnerRuleFence],
+        action: &Value,
+        apply: impl FnOnce() -> Result<R, String>,
+    ) -> Result<R, String> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !execution_chain_current(&index, permits, owner_rules, Some(admission.fence()))
+            || permits.iter().any(|permit| {
+                permit.check_subjects(admission.identities()).is_err()
+                    || permit
+                        .competition_winner
+                        .as_ref()
+                        .is_some_and(|(claim, _)| admission.winner() != Some(claim))
+            })
+            || !permits
+                .iter()
+                .any(|permit| permit.authorizes_action(action))
+        {
+            return Err("saved competition approval definition binding has changed".into());
+        }
+        apply()
+    }
+
+    pub(crate) fn with_current_competition_chain<R>(
+        &self,
+        admission: &crate::db::CompetitionExecutionAdmission<'_>,
+        permits: &[RuntimeApprovalPermit],
+        owner_rules: &[RuntimeOwnerRuleFence],
+        apply: impl FnOnce() -> Result<R, String>,
+    ) -> Result<R, String> {
+        let index = recover_rwlock_read(&self.index, "automation index");
+        if !execution_chain_current(&index, permits, owner_rules, Some(admission.fence()))
+            || permits.iter().any(|permit| {
+                permit.check_subjects(admission.identities()).is_err()
+                    || permit
+                        .competition_winner
+                        .as_ref()
+                        .is_some_and(|(claim, _)| admission.winner() != Some(claim))
+            })
+        {
+            return Err("saved competition execution binding has changed".into());
+        }
+        apply()
+    }
+
     pub(crate) fn with_current_execution_chain<R>(
         &self,
         permits: &[RuntimeApprovalPermit],
@@ -481,7 +791,7 @@ impl AutomationService {
         apply: impl FnOnce() -> Result<R, String>,
     ) -> Result<R, String> {
         let index = recover_rwlock_read(&self.index, "automation index");
-        if !execution_chain_current(&index, permits, owner_rules) {
+        if !execution_chain_current(&index, permits, owner_rules, None) {
             return Err("inherited saved execution binding has changed".into());
         }
         apply()
@@ -492,9 +802,20 @@ fn execution_chain_current(
     index: &BehaviorIndex,
     permits: &[RuntimeApprovalPermit],
     owner_rules: &[RuntimeOwnerRuleFence],
+    competition: Option<&crate::db::CompetitionExecutionFence>,
 ) -> bool {
     !permits.is_empty()
-        && permits.iter().all(|permit| permit_current(index, permit))
+        && permits.iter().all(|permit| {
+            permit
+                .competition
+                .as_ref()
+                .is_none_or(|fence| Some(fence) == competition)
+                && permit_current(index, permit)
+        })
+        && (competition.is_none()
+            || permits
+                .iter()
+                .any(|permit| permit.competition.as_ref() == competition))
         && owner_rules.iter().all(|rule| {
             std::sync::Arc::ptr_eq(&index.identity, &rule.index_identity)
                 && index.authority_available
@@ -506,6 +827,29 @@ fn execution_chain_current(
         })
 }
 
+pub(super) fn reusable_candidate_for_primary(
+    index: &BehaviorIndex,
+    family: AutomationFamily,
+    id: &str,
+) -> Option<ApprovalCandidate> {
+    let primary = match family {
+        AutomationFamily::Action => index.actions.get(id),
+        AutomationFamily::Event => index.events.get(id),
+    }?;
+    let (review, definitions) = capture_review(index, family, &primary.definition)?;
+    if manifest::required_subjects(&review).ok()?.is_empty() {
+        return None;
+    }
+    Some(ApprovalCandidate {
+        index_identity: index.identity.clone(),
+        approval_key: (family.scope().into(), id.into()),
+        approval: None,
+        review,
+        definitions,
+        catalog_epoch: index.catalog_epoch?,
+    })
+}
+
 pub(super) fn candidate_current(index: &BehaviorIndex, candidate: &ApprovalCandidate) -> bool {
     if !std::sync::Arc::ptr_eq(&index.identity, &candidate.index_identity)
         || !index.authority_available
@@ -513,12 +857,13 @@ pub(super) fn candidate_current(index: &BehaviorIndex, candidate: &ApprovalCandi
     {
         return false;
     }
-    let approval = &candidate.approval;
-    if candidate.approval_key.0 != approval.scope
-        || candidate.approval_key.1 != approval.id
-        || index.approvals.get(&candidate.approval_key) != Some(approval)
-    {
-        return false;
+    if let Some(approval) = &candidate.approval {
+        if candidate.approval_key.0 != approval.scope
+            || candidate.approval_key.1 != approval.id
+            || index.approvals.get(&candidate.approval_key) != Some(approval)
+        {
+            return false;
+        }
     }
     candidate
         .definitions

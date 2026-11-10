@@ -1,6 +1,60 @@
 use super::*;
 use tiktools_collaboration::RemoteLimits;
 use uuid::Uuid;
+
+#[test]
+fn hello_retry_requires_correlated_explicit_rate_limit_and_is_bounded() {
+    let refused = |id: &str, retry: u64| {
+        json!({"jsonrpc":"2.0","id":id,
+        "error":{"code":"rate_limited","message":"limited","data":{"retryAfterMs":retry}}})
+    };
+    assert!(
+        matches!(classify_hello(refused("hello-0", 1), "hello-0", 0),
+        Ok(HelloReply::Retry(wait)) if wait == Duration::from_millis(1000))
+    );
+    assert!(
+        matches!(classify_hello(refused("hello-1", 999_999), "hello-1", 1),
+        Ok(HelloReply::Retry(wait)) if wait == Duration::from_millis(2000))
+    );
+    assert_eq!(
+        classify_hello(refused("hello-0", 1000), "hello-1", 1)
+            .err()
+            .unwrap()
+            .code,
+        "protocol"
+    );
+    assert_eq!(
+        classify_hello(refused("hello-4", 1000), "hello-4", 4)
+            .err()
+            .unwrap()
+            .code,
+        "rate_limited"
+    );
+    assert_eq!(
+        classify_hello(
+            json!({"jsonrpc":"2.0","id":"hello-0",
+        "error":{"code":"protocol_incompatible","message":"wrong version"}}),
+            "hello-0",
+            0
+        )
+        .err()
+        .unwrap()
+        .code,
+        "protocol_incompatible"
+    );
+    assert_eq!(
+        classify_hello(
+            json!({"jsonrpc":"2.0","id":"hello-0","result":{},
+        "error":{"code":"rate_limited"}}),
+            "hello-0",
+            0
+        )
+        .err()
+        .unwrap()
+        .code,
+        "protocol"
+    );
+}
 async fn pair() -> (RemoteClient, WebSocketStream<TcpStream>, NativeCredentials) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let (tcp, accepted) = tokio::join!(

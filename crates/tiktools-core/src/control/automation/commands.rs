@@ -1,6 +1,6 @@
 //! Behavior commands share IDs/capacity with workflows and points. Remote
-//! callers may remove/deactivate complete events or author quarantined disabled
-//! drafts. Executable authority changes require an explicit local owner command.
+//! callers may remove/deactivate complete events, author disabled drafts, or
+//! create, edit and activate definitions under a current reusable delegation.
 use super::*;
 use crate::{collaboration::*, control::CommandCaller};
 
@@ -37,20 +37,32 @@ impl AutomationMutation {
             Self::Delete {
                 kind: AutomationKind::Event,
                 ..
-            } | Self::SetEnabled {
-                kind: AutomationKind::Event,
-                enabled: false,
-                ..
-            }
+            } | Self::SetEnabled { enabled: false, .. }
         )
+    }
+    #[cfg(feature = "persistence")]
+    pub(crate) fn is_remote_activation(&self) -> bool {
+        matches!(self, Self::SetEnabled { enabled: true, .. })
+    }
+    #[cfg(feature = "persistence")]
+    pub(crate) fn is_reusable_write(&self) -> bool {
+        matches!(self, Self::Create { record, .. } | Self::Update { record, .. } if record.get("enabled") == Some(&Value::Bool(true)))
     }
     #[cfg(feature = "persistence")]
     pub(crate) fn is_remote_draft(&self) -> bool {
         matches!(self,Self::Create{record,..}|Self::Update{record,..} if record.get("enabled")==Some(&Value::Bool(false)))
     }
     #[cfg(feature = "persistence")]
+    pub(crate) fn is_remote_draft_update(&self) -> bool {
+        matches!(self, Self::Update { record, .. } if record.get("enabled") == Some(&Value::Bool(false)))
+    }
+    #[cfg(feature = "persistence")]
     pub(crate) fn authorize_remote(&self, auth: &Authorization) -> Result<Authenticated, Error> {
-        if !self.is_remote_deactivation() && !self.is_remote_draft() {
+        if !self.is_remote_deactivation()
+            && !self.is_remote_draft()
+            && !self.is_remote_activation()
+            && !self.is_reusable_write()
+        {
             return Err(Error::Forbidden);
         }
         let identity = auth.snapshot()?;
@@ -235,6 +247,8 @@ impl AppCore {
             if matches!(&caller, CommandCaller::Remote(_))
                 && !operation.is_remote_deactivation()
                 && !operation.is_remote_draft()
+                && !operation.is_remote_activation()
+                && !operation.is_reusable_write()
             {
                 return Err(OperationError::forbidden(
                     "remote action/definition execution policy is unavailable",
@@ -304,10 +318,42 @@ impl AppCore {
                         other => behavior_command_error(other, &command.request.command_id),
                     })?;
             }
-            let (result, fresh) = self
-                .db
-                .execute_behavior_command(&operation, &command)
-                .map_err(|e| behavior_command_error(e, &command.request.command_id))?;
+            let owner_draft = if remote && operation.is_remote_draft_update() {
+                let (kind, id) = operation.target();
+                let identity = command
+                    .authorization
+                    .as_ref()
+                    .and_then(|auth| auth.snapshot().ok());
+                if let Some(identity) = identity {
+                    let policy = identity.grant.automation_delegation.as_ref();
+                    (policy.is_some_and(|p| p.allow_owner_edits)
+                        && self.db.is_owner_behavior(kind, id).map_err(|error| {
+                            behavior_command_error(error, &command.request.command_id)
+                        })?)
+                        || (policy.is_some_and(|p| p.allow_other_author_edits)
+                            && self
+                                .db
+                                .is_other_behavior(kind, id, &identity.principal_id)
+                                .map_err(|error| {
+                                    behavior_command_error(error, &command.request.command_id)
+                                })?)
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            let (result, fresh) = if remote
+                && (operation.is_remote_activation()
+                    || operation.is_reusable_write()
+                    || owner_draft)
+            {
+                self.db
+                    .execute_reusable_behavior_activation(&operation, &command, &service)
+            } else {
+                self.db.execute_behavior_command(&operation, &command)
+            }
+            .map_err(|e| behavior_command_error(e, &command.request.command_id))?;
             if fresh {
                 // Commit + runtime index installation is one admission barrier;
                 // metadata replay never reinstalls a historical definition.
@@ -350,5 +396,55 @@ pub(super) fn behavior_command_error(error: crate::db::DatabaseError, id: &str) 
         | crate::db::DatabaseError::NotFound
         | crate::db::DatabaseError::RevisionConflict(_) => versioned::automation_error(error),
         other => super::super::commands::command_error(other, id),
+    }
+}
+
+impl AppCore {
+    /// Check that a shared source response still names the current authorized revision.
+    pub fn automation_shared_source_current(
+        &self,
+        kind: AutomationKind,
+        id: &str,
+        revision: &str,
+        auth: &Authorization,
+    ) -> Result<bool, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let id = clean_record_id(id, kind.label())?;
+            self.db
+                .behavior_shared_source_current(kind.family(), &id, revision, auth)
+                .map_err(|error| behavior_command_error(error, "source-read"))
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (kind, id, revision, auth);
+            Err(OperationError::capability_unavailable(
+                "source sharing requires persistence",
+            ))
+        }
+    }
+
+    /// Fetch only a definition explicitly shared with this authenticated identity.
+    pub fn automation_shared_source(
+        &self,
+        kind: AutomationKind,
+        id: &str,
+        auth: &Authorization,
+        budget: usize,
+    ) -> Result<Versioned<Value>, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let id = clean_record_id(id, kind.label())?;
+            self.db
+                .behavior_shared_source(kind.family(), &id, auth, budget)
+                .map_err(|error| behavior_command_error(error, "source-read"))
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (kind, id, auth, budget);
+            Err(OperationError::capability_unavailable(
+                "source sharing requires persistence",
+            ))
+        }
     }
 }

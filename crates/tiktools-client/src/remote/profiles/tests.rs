@@ -412,6 +412,164 @@ async fn recovery_resumes_unacknowledged_events_and_replaces_the_baseline_after_
 }
 
 #[tokio::test]
+async fn recovery_reports_impossible_rate_budget_before_receiving_partial_snapshot() {
+    let f = Fixture::configured(
+        |_| {},
+        |config| {
+            config.limits.requests_per_second = 1;
+            config.limits.request_burst = 1;
+            config.limits.frame_bytes = 4096;
+            config.limits.params_bytes = 4096;
+        },
+    )
+    .await;
+    // Each large record occupies its own page. Thirty-one
+    // follow-up pages cannot fit strictly before the 30-second expiry.
+    for n in 0..32 {
+        f.core
+            .workflow_save(json!({
+                "id": format!("large-workflow-{n:02}"),
+                "name": "Workflow",
+                "body": "x".repeat(2300),
+            }))
+            .unwrap();
+    }
+    let creds = f
+        .pair(tiktools_collaboration::Grant {
+            capabilities: [tiktools_collaboration::Capability::WorkflowsRead].into(),
+            ..Default::default()
+        })
+        .await;
+    let manager = manager(&f, Arc::new(Store::default()));
+    manager
+        .install("large-recovery", &f.endpoint, creds, ClientKind::Agent)
+        .await
+        .unwrap();
+    let remote = manager.open("large-recovery").await.unwrap();
+    let result = RecoveryStream::start(remote.clone(), [StreamDomain::Workflows].into()).await;
+    match result {
+        Err(error) => assert_eq!(error.code, "snapshot_rate_budget"),
+        Ok(_) => panic!("an impossible baseline must fail before returning a projection"),
+    }
+    remote.close();
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn recovery_packs_medium_records_at_minimum_gateway_rate() {
+    let f = Fixture::configured(
+        |_| {},
+        |config| {
+            config.limits.requests_per_second = 1;
+            config.limits.request_burst = 1;
+            config.limits.frame_bytes = 4096;
+            config.limits.params_bytes = 4096;
+        },
+    )
+    .await;
+    for n in 0..32 {
+        f.core.workflow_save(json!({"id":format!("packed-workflow-{n:02}"),"name":"Workflow","body":"x".repeat(1000)})).unwrap();
+    }
+    let creds = f
+        .pair(tiktools_collaboration::Grant {
+            capabilities: [tiktools_collaboration::Capability::WorkflowsRead].into(),
+            ..Default::default()
+        })
+        .await;
+    let manager = manager(&f, Arc::new(Store::default()));
+    manager
+        .install("packed-recovery", &f.endpoint, creds, ClientKind::Agent)
+        .await
+        .unwrap();
+    let remote = manager.open("packed-recovery").await.unwrap();
+    let stream = RecoveryStream::start(remote.clone(), [StreamDomain::Workflows].into())
+        .await
+        .unwrap();
+    let baseline = stream.baseline().unwrap();
+    assert_eq!(baseline.workflows.len(), 32);
+    let first_two_bytes: usize = baseline
+        .workflows
+        .iter()
+        .zip(&baseline.resource_versions)
+        .take(2)
+        .map(|(row, version)| {
+            serde_json::to_vec(row).unwrap().len() + serde_json::to_vec(version).unwrap().len() + 2
+        })
+        .sum();
+    assert!(
+        first_two_bytes > 2048,
+        "fixture must have needed at least 32 old half-frame pages"
+    );
+    stream.connection().close();
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn recovery_resumes_at_minimum_gateway_rate() {
+    let f = Fixture::configured(
+        |_| {},
+        |config| {
+            config.limits.requests_per_second = 1;
+            config.limits.request_burst = 1;
+            config.limits.frame_bytes = 4096;
+            config.limits.params_bytes = 4096;
+        },
+    )
+    .await;
+    for n in 0..16 {
+        f.core.workflow_save(json!({"id":format!("workflow-{n:02}"),"name":format!("{n:02}-{}", "x".repeat(100))})).unwrap();
+    }
+    let creds = f
+        .pair(tiktools_collaboration::Grant {
+            capabilities: [tiktools_collaboration::Capability::WorkflowsRead].into(),
+            ..Default::default()
+        })
+        .await;
+    let session = creds.session_id().to_owned();
+    let manager = manager(&f, Arc::new(Store::default()));
+    manager
+        .install("limited-recovery", &f.endpoint, creds, ClientKind::Agent)
+        .await
+        .unwrap();
+    let remote = manager.open("limited-recovery").await.unwrap();
+    let mut stream = RecoveryStream::start(remote.clone(), [StreamDomain::Workflows].into())
+        .await
+        .unwrap();
+    assert_eq!(stream.baseline().unwrap().workflows.len(), 16);
+    let baseline = stream.baseline().unwrap();
+    let encoded_rows: usize = baseline
+        .workflows
+        .iter()
+        .zip(&baseline.resource_versions)
+        .map(|(row, version)| {
+            serde_json::to_vec(row).unwrap().len() + serde_json::to_vec(version).unwrap().len() + 2
+        })
+        .sum();
+    assert!(
+        encoded_rows > tiktools_collaboration::snapshot_page_bytes(4096),
+        "fixture must span snapshot pages"
+    );
+    let snapshot = stream.baseline().unwrap().snapshot_id.clone();
+    remote.close();
+    disconnected(&f).await;
+    // Upgrade itself consumes a token; let it refill before opening again.
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    assert_eq!(stream.reconnect().await.unwrap(), RecoveryMode::Resumed);
+    assert_eq!(stream.baseline().unwrap().snapshot_id, snapshot);
+    f.service.revoke_session(&session, "local-owner").unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while stream.is_ready() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(stream.baseline().is_none());
+    stream.connection().close();
+    f.finish().await;
+}
+
+#[tokio::test]
 async fn points_only_recovery_replays_then_resnapshots_after_grant_change() {
     use tiktools_collaboration::{Capability, Grant, ResourceKind};
     let f = Fixture::new().await;

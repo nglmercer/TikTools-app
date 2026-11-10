@@ -15,8 +15,9 @@ mod tests;
 
 pub use error::{InstallError, InstallErrorCode};
 pub use installer::{
-    ActivationHooks, CommitOptions, Consent, InstallOutcome, InstalledVersions, Installer,
-    InstallerConfig, NoopHooks, PreparedPackage, SignaturePolicy, DEFAULT_RETAINED_VERSIONS,
+    ActivationHooks, CommitOptions, Consent, InstallOutcome, InstalledPackageEvidence,
+    InstalledVersions, Installer, InstallerConfig, LockedPackageStore, NoopHooks, PreparedPackage,
+    SignaturePolicy, DEFAULT_RETAINED_VERSIONS,
 };
 pub use jobs::{
     JobHandle, JobKind, JobListener, JobProgress, JobRegistry, JobReporter, JobSnapshot, JobStage,
@@ -25,9 +26,9 @@ pub use jobs::{
 pub use layout::{StoreLayout, STAGING_DIRECTORY};
 pub use preview::{ChangeKind, PackagePreview, PermissionDiff, SecurityModel};
 pub use receipt::{
-    InstallReceipt, PackageOrigin, ReceiptStore, RetainedVersion, SignatureState, SignatureStatus,
-    UpdatePolicy,
+    CloudArtifactIdentity, InstallReceipt, PackageOrigin, ReceiptStore, RetainedVersion,
+    SignatureState, SignatureStatus, UpdatePolicy,
 };
 pub use sources::{ExpectedRelease, PackageSources, ResolvedSource};
 pub use spec::{PackageSpec, PackageSpecInput};
-pub use updates::{check_updates, UpdateInfo, UpdateKind, UpdateReport};
+pub use updates::{check_updates, update_for_document, UpdateInfo, UpdateKind, UpdateReport};

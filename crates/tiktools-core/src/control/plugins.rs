@@ -6,6 +6,604 @@ use crate::*;
 use serde::Deserialize;
 use serde::Serialize;
 
+/// A local mutation's durable sync candidate. Public enable/disable uses the
+/// selected protocol; other writers and the v2 drain remain to be integrated.
+/// Legacy v1 staging remains separate until its drain joins this boundary.
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+struct ReservedLocalPluginMutation {
+    candidate: Option<crate::db::PluginSyncOutboxEntry>,
+    legacy_staging: bool,
+    source_lease: Option<tiktools_cloud_sync::ProductEmissionLease>,
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+impl std::fmt::Debug for ReservedLocalPluginMutation {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ReservedLocalPluginMutation")
+            .field("candidate", &self.candidate)
+            .field("legacy_staging", &self.legacy_staging)
+            .field("source_lease", &self.source_lease.is_some())
+            .finish()
+    }
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[derive(Clone, Copy)]
+enum LocalMutationProtocol {
+    V1,
+    V2,
+    Selected,
+}
+
+/// Holds the invocation boundary before the coordinator's short admission
+/// lease. This is a momentary host-worker observation, not a promise that a
+/// child process is healthy or that the observation survives this guard.
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+pub(crate) struct PluginSyncRuntimeGuard<'a> {
+    core: &'a AppCore,
+    _invocation: std::sync::MutexGuard<'a, ()>,
+}
+
+/// Caller holds the plugin invocation gate throughout the callback.
+#[cfg(all(
+    feature = "cloud-auth",
+    feature = "persistence",
+    feature = "plugin-install"
+))]
+pub(crate) fn with_fenced_plugin_removal<T>(
+    core: &AppCore,
+    id: &str,
+    operation: impl FnOnce() -> T,
+) -> Option<T> {
+    let quarantine = core.plugin_state.apply_quarantine.read().ok()?;
+    if quarantine.as_ref()?.contains(id) {
+        return None;
+    }
+    let packages = core.plugin_packages().ok()?;
+    let store = packages.installer.try_lock_store().ok()?;
+    if !store
+        .matches_roots(&core.db.paths().plugins, &core.db.paths().plugin_store())
+        .ok()?
+    {
+        return None;
+    }
+    let (_, plugins) = core.plugins.list_complete_for_cutover().ok()?;
+    let present = plugins.iter().any(|plugin| plugin.manifest.id == id);
+    let activation = core.plugin_state.activation.read().ok()?.get(id).copied();
+    if activation.is_some_and(|state| state.installed) {
+        return None;
+    }
+    if activation.is_none()
+        && (present
+            || store.inspect_verified(id).ok()?
+                != tiktools_plugin_installer::InstalledPackageEvidence::Absent)
+    {
+        return None;
+    }
+    if core.plugins.observe_worker(id).ok()?
+        != tiktools_plugin_loader::PluginWorkerObservation::Stopped
+    {
+        return None;
+    }
+    Some(operation())
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+impl PluginSyncRuntimeGuard<'_> {
+    /// Hold the cooperative package store while admitting an observed local
+    /// removal. Missing inventory, uncertain workers or a replacement plugin
+    /// cannot be interpreted as an absent source.
+    #[cfg(feature = "plugin-install")]
+    pub(crate) fn with_removal<T>(&self, id: &str, operation: impl FnOnce() -> T) -> Option<T> {
+        with_fenced_plugin_removal(self.core, id, operation)
+    }
+
+    #[cfg(not(feature = "plugin-install"))]
+    pub(crate) fn with_removal<T>(&self, _id: &str, _operation: impl FnOnce() -> T) -> Option<T> {
+        None
+    }
+
+    pub(crate) fn matches_selection(&self, id: &str, version: &str, enabled: bool) -> bool {
+        let Ok(quarantine) = self.core.plugin_state.apply_quarantine.read() else {
+            return false;
+        };
+        if quarantine
+            .as_ref()
+            .is_none_or(|blocked| blocked.contains(id))
+        {
+            return false;
+        }
+        drop(quarantine);
+        let Ok(Some(plugin)) = self.core.plugins.get_for_admission(id) else {
+            return false;
+        };
+        if plugin.manifest.id != id
+            || plugin.manifest.version != version
+            || (enabled && !plugin.available)
+        {
+            return false;
+        }
+        let Ok(activation) = self.core.plugin_state.activation.read() else {
+            return false;
+        };
+        if !activation
+            .get(id)
+            .is_some_and(|value| value.installed && value.enabled == enabled)
+        {
+            return false;
+        }
+        drop(activation);
+        let expected = if enabled {
+            tiktools_plugin_loader::PluginWorkerObservation::WorkerPresent
+        } else {
+            tiktools_plugin_loader::PluginWorkerObservation::Stopped
+        };
+        self.core
+            .plugins
+            .observe_worker(id)
+            .is_ok_and(|actual| actual == expected)
+    }
+}
+
+/// Atomically records the desired local state and, when opted in, an
+/// identity-bound candidate. The coordinator keeps protocol admission and
+/// identity stable for the entire SQLite transaction. This helper performs
+/// no plugin runtime operation and cannot publish to Cloud.
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[allow(dead_code)]
+fn reserve_local_plugin_mutation(
+    sync: &tiktools_cloud_sync::SyncCoordinator,
+    db: &crate::db::DatabaseManager,
+    id: &str,
+    version: &str,
+    installed: bool,
+    enabled: bool,
+) -> Result<ReservedLocalPluginMutation, OperationError> {
+    reserve_local_plugin_mutation_prepared(sync, db, id, version, installed, enabled, |_| Ok(()))
+        .map(|(reservation, ())| reservation)
+}
+
+/// Prepare runtime confirmation while the exact opt-in/identity context is
+/// held, before the SQLite source transaction. Local-only edits need no
+/// runtime sync identity or entropy.
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+fn reserve_local_plugin_mutation_prepared<T>(
+    sync: &tiktools_cloud_sync::SyncCoordinator,
+    db: &crate::db::DatabaseManager,
+    id: &str,
+    version: &str,
+    installed: bool,
+    enabled: bool,
+    prepare: impl FnOnce(bool) -> Result<T, OperationError>,
+) -> Result<(ReservedLocalPluginMutation, T), OperationError> {
+    reserve_local_plugin_mutation_prepared_for(
+        sync,
+        db,
+        id,
+        version,
+        installed,
+        enabled,
+        LocalMutationProtocol::V1,
+        prepare,
+    )
+}
+
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+fn reserve_local_plugin_mutation_prepared_for<T>(
+    sync: &tiktools_cloud_sync::SyncCoordinator,
+    db: &crate::db::DatabaseManager,
+    id: &str,
+    version: &str,
+    installed: bool,
+    enabled: bool,
+    protocol: LocalMutationProtocol,
+    prepare: impl FnOnce(bool) -> Result<T, OperationError>,
+) -> Result<(ReservedLocalPluginMutation, T), OperationError> {
+    // Keep the cross-process gate through runtime confirmation, not merely
+    // through the SQLite source transaction.
+    let source_lease = if matches!(
+        protocol,
+        LocalMutationProtocol::V2 | LocalMutationProtocol::Selected
+    ) {
+        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+            db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?;
+        Some(
+            fence
+                .try_untracked_edit()
+                .map_err(|_| OperationError::unavailable("sync emission is in progress"))?,
+        )
+    } else {
+        None
+    };
+    let operation = |context: Option<tiktools_cloud_sync::V1LocalEditContext>,
+                     legacy_staging,
+                     untracked|
+     -> Result<(ReservedLocalPluginMutation, T), OperationError> {
+        let prepared = prepare(context.is_some())?;
+        let intent = context
+            .as_ref()
+            .map(|context| crate::db::LocalPluginSyncIntent {
+                origin: &context.origin,
+                account_id: &context.account_id,
+                config_generation: context.config_generation,
+                version: installed.then_some(version),
+            });
+        let generation = if untracked {
+            db.set_plugin_state_with_untracked_sync(id, installed, enabled)
+        } else {
+            db.set_plugin_state_with_sync_intent(id, installed, enabled, intent)
+        }
+        .map_err(|error| OperationError::internal(error.to_string()))?;
+        let candidate = context.map(|context| crate::db::PluginSyncOutboxEntry {
+            origin: context.origin,
+            account_id: context.account_id,
+            plugin_id: id.to_owned(),
+            generation,
+            source_generation: generation,
+            config_generation: context.config_generation,
+            runtime_epoch: None,
+            reviewed_base: Some("direct".to_owned()),
+            version: installed.then(|| version.to_owned()),
+            enabled: installed.then_some(enabled),
+        });
+        Ok((
+            ReservedLocalPluginMutation {
+                candidate,
+                legacy_staging,
+                source_lease: None,
+            },
+            prepared,
+        ))
+    };
+    let (mut reservation, prepared) = match protocol {
+        LocalMutationProtocol::V1 => {
+            sync.with_v1_local_edit(|context| operation(context, false, false))
+        }
+        LocalMutationProtocol::V2 => {
+            sync.with_v2_local_edit(|context| operation(context, false, false))
+        }
+        LocalMutationProtocol::Selected => sync.with_product_local_edit(|selected| {
+            use tiktools_cloud_sync::ProductLocalEditContext;
+            match selected {
+                ProductLocalEditContext::Legacy => operation(None, true, true),
+                ProductLocalEditContext::OptedOut | ProductLocalEditContext::V2(None) => {
+                    operation(None, false, true)
+                }
+                ProductLocalEditContext::V2(Some(context)) => {
+                    operation(Some(context), false, false)
+                }
+            }
+        }),
+    }
+    .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))??;
+    reservation.source_lease = source_lease;
+    Ok((reservation, prepared))
+}
+
+/// Confirm only after the caller, under its plugin mutation gate, has
+/// observed that the runtime reflects the reserved source state. Stale or
+/// replaced reservations remain durable and cannot be acknowledged.
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[allow(dead_code)]
+fn confirm_local_plugin_mutation(
+    db: &crate::db::DatabaseManager,
+    reservation: &ReservedLocalPluginMutation,
+    runtime_epoch: &str,
+) -> Result<(), OperationError> {
+    let Some(candidate) = reservation.candidate.as_ref() else {
+        return Ok(());
+    };
+    let confirmed = db
+        .confirm_plugin_sync_runtime(candidate, runtime_epoch)
+        .map_err(|error| OperationError::internal(error.to_string()))?;
+    if !confirmed {
+        return Err(OperationError::conflict(
+            "plugin state changed before sync confirmation",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(all(test, feature = "cloud-auth", feature = "persistence"))]
+mod durable_local_mutation_tests {
+    use super::*;
+    use std::{path::PathBuf, sync::Arc};
+    use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
+    use tiktools_cloud_sync::SyncCoordinator;
+
+    struct Fixture {
+        root: PathBuf,
+        db: crate::db::DatabaseManager,
+        auth: CloudAuth,
+        sync: SyncCoordinator,
+    }
+
+    impl Fixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "plugin-mutation-{}-{}",
+                std::process::id(),
+                fastrand::u64(..)
+            ));
+            let paths = crate::paths::AppPaths {
+                data: root.join("data"),
+                plugins: root.join("plugins"),
+                plugin_data: root.join("plugin-data"),
+                builtin_plugins: root.join("absent"),
+                development_plugins: None,
+                logs: root.join("logs"),
+                temp: root.join("temp"),
+                root: root.clone(),
+            };
+            paths.ensure_directories().unwrap();
+            let sidecar = paths.data.join("account.json");
+            std::fs::write(
+                &sidecar,
+                br#"{"origin":"https://cloud.example","account_id":"alice"}"#,
+            )
+            .unwrap();
+            let auth = CloudAuth::new(
+                Some("https://cloud.example".into()),
+                sidecar,
+                Arc::new(MemoryTokenStore::new()),
+            );
+            let sync = SyncCoordinator::new(auth.clone(), paths.data.join("cloud-sync")).unwrap();
+            let db = crate::db::DatabaseManager::new(paths);
+            Self {
+                root,
+                db,
+                auth,
+                sync,
+            }
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn reservation_requires_runtime_confirmation_and_detects_a_newer_edit() {
+        let f = Fixture::new();
+        f.sync.set_enabled(true).unwrap();
+        let first =
+            reserve_local_plugin_mutation(&f.sync, &f.db, "hotkeys", "1.0.0", true, false).unwrap();
+        let entry =
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap();
+        assert_eq!(entry, *first.candidate.as_ref().unwrap());
+        let epoch = "a".repeat(64);
+        // No runtime observation yet: no consumer can acknowledge this edit.
+        assert!(!f.db.acknowledge_plugin_sync_intent(&entry, &epoch).unwrap());
+        let second =
+            reserve_local_plugin_mutation(&f.sync, &f.db, "hotkeys", "1.0.0", true, true).unwrap();
+        assert!(confirm_local_plugin_mutation(&f.db, &first, &epoch).is_err());
+        confirm_local_plugin_mutation(&f.db, &second, &epoch).unwrap();
+        let updated =
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap();
+        assert_eq!(updated.enabled, Some(true));
+        assert_eq!(updated.runtime_epoch.as_deref(), Some(epoch.as_str()));
+        assert!(!f.db.acknowledge_plugin_sync_intent(&entry, &epoch).unwrap());
+    }
+
+    #[test]
+    fn opt_out_records_local_edit_without_a_new_cloud_candidate() {
+        let f = Fixture::new();
+        f.sync.set_enabled(true).unwrap();
+        reserve_local_plugin_mutation(&f.sync, &f.db, "hotkeys", "1.0.0", true, true).unwrap();
+        f.sync.set_enabled(false).unwrap();
+        let local =
+            reserve_local_plugin_mutation(&f.sync, &f.db, "hotkeys", "1.0.0", true, false).unwrap();
+        assert!(local.candidate.is_none());
+        let old =
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap();
+        assert_ne!(old.generation, old.source_generation);
+    }
+
+    #[test]
+    fn v2_local_reservation_preserves_local_edits_and_rejects_legacy_consent() {
+        let f = Fixture::new();
+        f.sync.set_enabled(true).unwrap();
+        reserve_local_plugin_mutation(&f.sync, &f.db, "hotkeys", "1.0.0", true, true).unwrap();
+        let previous =
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap();
+        let prepared = std::cell::Cell::new(false);
+        assert!(reserve_local_plugin_mutation_prepared_for(
+            &f.sync,
+            &f.db,
+            "hotkeys",
+            "1.0.0",
+            true,
+            false,
+            LocalMutationProtocol::V2,
+            |_| {
+                prepared.set(true);
+                Ok(())
+            },
+        )
+        .is_err());
+        assert!(!prepared.get());
+        assert_eq!(
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap(),
+            previous
+        );
+
+        f.sync.set_enabled(false).unwrap();
+        let (local, ()) = reserve_local_plugin_mutation_prepared_for(
+            &f.sync,
+            &f.db,
+            "hotkeys",
+            "1.0.0",
+            true,
+            false,
+            LocalMutationProtocol::V2,
+            |has_candidate| {
+                assert!(!has_candidate);
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert!(local.candidate.is_none());
+        let pending =
+            f.db.next_plugin_sync_intent("https://cloud.example", "alice")
+                .unwrap()
+                .unwrap();
+        assert_eq!(pending.generation, previous.generation);
+        assert_ne!(pending.source_generation, previous.source_generation);
+    }
+
+    #[test]
+    fn runtime_identity_is_needed_only_for_an_opted_in_candidate() {
+        let f = Fixture::new();
+        let (local, value) = reserve_local_plugin_mutation_prepared(
+            &f.sync,
+            &f.db,
+            "acme.local",
+            "1.0.0",
+            true,
+            false,
+            |has_candidate| {
+                assert!(!has_candidate);
+                Ok("local-only")
+            },
+        )
+        .unwrap();
+        assert!(local.candidate.is_none());
+        assert_eq!(value, "local-only");
+
+        f.sync.set_enabled(true).unwrap();
+        let error = reserve_local_plugin_mutation_prepared(
+            &f.sync,
+            &f.db,
+            "acme.blocked",
+            "1.0.0",
+            true,
+            true,
+            |has_candidate| {
+                assert!(has_candidate);
+                Err::<(), _>(OperationError::unavailable("no runtime identity"))
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "unavailable");
+        assert!(f
+            .db
+            .next_plugin_sync_intent("https://cloud.example", "alice")
+            .unwrap()
+            .is_none());
+        let snapshot = f.db.load_behavior_snapshot().unwrap();
+        assert!(!snapshot["plugins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|plugin| plugin["id"] == "acme.blocked"));
+    }
+
+    #[test]
+    fn sqlite_adapter_requires_confirmed_exact_source_and_retains_receipt() {
+        use crate::cloud_sync::product_outbox::SqliteProductOutbox;
+        use tiktools_cloud_sync::{V1LocalEditContext, V1Pending, V1ProductOutbox};
+
+        let f = Fixture::new();
+        f.sync.set_enabled(true).unwrap();
+        let reservation =
+            reserve_local_plugin_mutation(&f.sync, &f.db, "acme.plugin", "1.0.0", true, false)
+                .unwrap();
+        let entry = reservation.candidate.as_ref().unwrap();
+        let context = V1LocalEditContext {
+            origin: entry.origin.clone(),
+            account_id: entry.account_id.clone(),
+            config_generation: entry.config_generation,
+        };
+        let epoch = "a".repeat(64);
+        let mut adapter = SqliteProductOutbox::new(&f.db, &epoch);
+        assert!(adapter.next(&context).is_err());
+        confirm_local_plugin_mutation(&f.db, &reservation, &epoch).unwrap();
+        let candidate = adapter.next(&context).unwrap().unwrap();
+        let pending = V1Pending {
+            base_revision: Some(4),
+            edit: candidate.edit.clone(),
+            conflict: false,
+        };
+        let mut changed = candidate.clone();
+        changed.generation += 1;
+        assert!(!adapter.acknowledge(&context, &changed, &pending).unwrap());
+        assert!(f
+            .db
+            .next_plugin_sync_intent(&context.origin, &context.account_id)
+            .unwrap()
+            .is_some());
+        let candidate = adapter.next(&context).unwrap().unwrap();
+        assert!(adapter.acknowledge(&context, &candidate, &pending).unwrap());
+        assert!(adapter
+            .validate_pending(&context, "acme.plugin", &pending)
+            .unwrap());
+        let mut conflict = pending.clone();
+        conflict.conflict = true;
+        let proof = adapter
+            .conflict_source_proof(&context, "acme.plugin", &conflict)
+            .unwrap()
+            .unwrap();
+        assert_eq!(proof.generation(), candidate.generation);
+        let mut rebased = pending.clone();
+        rebased.base_revision = Some(5);
+        assert!(!adapter
+            .validate_pending(&context, "acme.plugin", &rebased)
+            .unwrap());
+        rebased.conflict = true;
+        assert!(adapter
+            .conflict_source_proof(&context, "acme.plugin", &rebased)
+            .unwrap()
+            .is_none());
+        // Even an older writer that failed to advance the source generation
+        // must not authorize review while the persisted state differs.
+        rusqlite::Connection::open(f.db.paths().automation_database())
+            .unwrap()
+            .execute(
+                "UPDATE behavior_plugins SET enabled=1 WHERE id='acme.plugin'",
+                [],
+            )
+            .unwrap();
+        assert!(adapter
+            .conflict_source_proof(&context, "acme.plugin", &conflict)
+            .unwrap()
+            .is_none());
+        reserve_local_plugin_mutation(&f.sync, &f.db, "acme.plugin", "1.0.0", true, true).unwrap();
+        assert!(!adapter
+            .validate_pending(&context, "acme.plugin", &pending)
+            .unwrap());
+        assert!(adapter
+            .conflict_source_proof(&context, "acme.plugin", &conflict)
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn runtime_epoch_is_stable_per_host_and_changes_after_recreation() {
+        let f = Fixture::new();
+        let first = crate::cloud_sync::CloudSync::new(f.db.paths(), &f.auth);
+        let second = crate::cloud_sync::CloudSync::new(f.db.paths(), &f.auth);
+        let a = first.runtime_epoch().unwrap();
+        assert_eq!(a, first.runtime_epoch().unwrap());
+        assert_eq!(a.len(), 64);
+        assert_ne!(a, second.runtime_epoch().unwrap());
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginActionOutcome {
@@ -70,6 +668,154 @@ fn is_confined_ui_entry(entry: &str) -> bool {
 }
 
 impl AppCore {
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    fn try_plugin_source_lease(
+        &self,
+    ) -> Result<tiktools_cloud_sync::ProductEmissionLease, OperationError> {
+        tiktools_cloud_sync::ProductEmissionFence::open(
+            self.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?
+        .try_untracked_edit()
+        .map_err(|_| OperationError::unavailable("sync emission is in progress"))
+    }
+    /// Obtain before protocol admission. The returned guard must be released
+    /// before any network request. Only cooperative callers sharing this core
+    /// are fenced; filesystem writers and other processes remain separate.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn try_plugin_sync_runtime_guard(
+        &self,
+    ) -> Result<PluginSyncRuntimeGuard<'_>, OperationError> {
+        let invocation =
+            self.plugin_state.invocation_gate.try_lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
+        Ok(PluginSyncRuntimeGuard {
+            core: self,
+            _invocation: invocation,
+        })
+    }
+
+    /// Native local enable/disable with an account-bound durable intent.
+    /// The invocation gate spans the source transaction,
+    /// runtime effect and confirmation, while the coordinator holds its
+    /// shorter admission/identity lease only for the SQLite transaction.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_enabled_with_durable_intent(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), OperationError> {
+        self.plugin_set_enabled_with_durable_intent_for(
+            id,
+            enabled,
+            LocalMutationProtocol::V1,
+            None,
+        )
+    }
+
+    /// V2 counterpart for the future product path. This remains private until
+    /// every local writer and package mutation joins the same admission and
+    /// runtime reconciliation protocol.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_enabled_with_v2_durable_intent(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), OperationError> {
+        self.plugin_set_enabled_with_durable_intent_for(
+            id,
+            enabled,
+            LocalMutationProtocol::V2,
+            None,
+        )
+    }
+
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    fn plugin_set_enabled_with_durable_intent_for(
+        &self,
+        id: &str,
+        enabled: bool,
+        protocol: LocalMutationProtocol,
+        source_attempted: Option<&std::cell::Cell<bool>>,
+    ) -> Result<(), OperationError> {
+        let invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
+        let plugin = self.require_discovered(id)?;
+        let id = plugin.manifest.id.clone();
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
+        let sync = self
+            .sync
+            .coordinator()
+            .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?;
+        // Only an opted-in identity needs entropy, acquired before any source
+        // write; local-only editing must not depend on a Cloud runtime epoch.
+        let (reservation, runtime_epoch) = reserve_local_plugin_mutation_prepared_for(
+            sync,
+            &self.db,
+            &id,
+            &plugin.manifest.version,
+            true,
+            enabled,
+            protocol,
+            |has_candidate| {
+                if let Some(source_attempted) = source_attempted {
+                    source_attempted.set(true);
+                }
+                if has_candidate {
+                    self.sync.runtime_epoch().map(Some).map_err(|_| {
+                        OperationError::unavailable("plugin runtime identity is unavailable")
+                    })
+                } else {
+                    Ok(None)
+                }
+            },
+        )?;
+
+        // A failed or interrupted start/stop keeps the committed candidate
+        // unconfirmed; it must be reconciled rather than uploaded or replayed.
+        if enabled {
+            self.plugins.start_generation_before_events(&id, || {
+                self.set_plugin_activation(&id, true, true);
+            })?;
+        } else {
+            self.plugins.stop(&id)?;
+            self.set_plugin_activation(&id, true, false);
+        }
+        let confirmation = match runtime_epoch {
+            Some(epoch) => confirm_local_plugin_mutation(&self.db, &reservation, epoch),
+            None => Ok(()),
+        };
+        drop(invocation);
+
+        // Even when confirmation fails, the local effect already happened.
+        // Refresh local projections before returning that failure to callers.
+        self.rebuild_processor_index();
+        self.refresh_automation_snapshot();
+        self.events.publish_domain(if enabled {
+            DomainEvent::PluginStarted {
+                plugin_id: id.clone(),
+            }
+        } else {
+            DomainEvent::PluginStopped {
+                plugin_id: id.clone(),
+            }
+        });
+        if reservation.legacy_staging {
+            self.stage_selection(&id, &plugin.manifest.version, enabled);
+        }
+        confirmation
+    }
+
     // ------------------------------------------------------------------
     // Plugins.
     // ------------------------------------------------------------------
@@ -199,15 +945,47 @@ impl AppCore {
     }
 
     pub fn plugin_set_installed(&self, id: &str, installed: bool) -> Result<(), OperationError> {
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        {
+            let attempted = std::cell::Cell::new(false);
+            return match self.plugin_set_installed_with_product_intent_for(
+                id,
+                installed,
+                Some(&attempted),
+            ) {
+                Err(_) if !attempted.get() => self.plugin_set_installed_untracked(id, installed),
+                result => result,
+            };
+        }
+        #[cfg(not(all(feature = "cloud-auth", feature = "persistence")))]
+        self.plugin_set_installed_untracked(id, installed)
+    }
+
+    fn plugin_set_installed_untracked(
+        &self,
+        id: &str,
+        installed: bool,
+    ) -> Result<(), OperationError> {
         let _invocation =
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
         #[cfg(feature = "cloud-auth")]
         let version = plugin.manifest.version.clone();
-        #[cfg(feature = "persistence")]
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        self.db
+            .set_plugin_state_with_untracked_sync(&id, installed, true)
+            .map_err(|error| OperationError::internal(error.to_string()))?;
+        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
         self.db
             .set_plugin_state(&id, installed, true)
             .map_err(|error| OperationError::internal(error.to_string()))?;
@@ -232,33 +1010,265 @@ impl AppCore {
         Ok(())
     }
 
-    pub fn plugin_set_enabled(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
+    /// Select the current protocol and reserve the source while holding the
+    /// same short admission used by cutover. Runtime failure or an uncertain
+    /// worker leaves the intent durable but unconfirmed for later review.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_installed_with_product_intent(
+        &self,
+        id: &str,
+        installed: bool,
+    ) -> Result<(), OperationError> {
+        self.plugin_set_installed_with_product_intent_for(id, installed, None)
+    }
+
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    fn plugin_set_installed_with_product_intent_for(
+        &self,
+        id: &str,
+        installed: bool,
+        source_attempted: Option<&std::cell::Cell<bool>>,
+    ) -> Result<(), OperationError> {
+        let invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
-        #[cfg(feature = "cloud-auth")]
-        let version = plugin.manifest.version.clone();
-        self.set_enabled_impl(&id, enabled)?;
-        #[cfg(feature = "cloud-auth")]
-        self.stage_selection(&id, &version, enabled);
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
+        let sync = self
+            .sync
+            .coordinator()
+            .map_err(|_| OperationError::unavailable("Cloud sync admission is unavailable"))?;
+        let (reservation, runtime_epoch) = reserve_local_plugin_mutation_prepared_for(
+            sync,
+            &self.db,
+            &id,
+            &plugin.manifest.version,
+            installed,
+            true,
+            LocalMutationProtocol::Selected,
+            |has_candidate| {
+                if let Some(source_attempted) = source_attempted {
+                    source_attempted.set(true);
+                }
+                if has_candidate {
+                    self.sync.runtime_epoch().map(Some).map_err(|_| {
+                        OperationError::unavailable("plugin runtime identity is unavailable")
+                    })
+                } else {
+                    Ok(None)
+                }
+            },
+        )?;
+        if !installed {
+            self.plugins.stop(&id)?;
+        }
+        self.set_plugin_activation(&id, installed, true);
+        let expected = if installed {
+            tiktools_plugin_loader::PluginWorkerObservation::WorkerPresent
+        } else {
+            tiktools_plugin_loader::PluginWorkerObservation::Stopped
+        };
+        let confirmation = match runtime_epoch {
+            Some(epoch)
+                if self
+                    .plugins
+                    .observe_worker(&id)
+                    .is_ok_and(|actual| actual == expected) =>
+            {
+                confirm_local_plugin_mutation(&self.db, &reservation, epoch)
+            }
+            Some(_) => {
+                tracing::warn!(plugin = %id, "local plugin sync intent needs runtime reconciliation");
+                Ok(())
+            }
+            None => Ok(()),
+        };
+        drop(invocation);
+        if installed {
+            self.start_enabled_event_subscribers();
+        }
+        self.rebuild_processor_index();
+        self.refresh_automation_snapshot();
+        if reservation.legacy_staging {
+            if installed {
+                self.stage_selection(&id, &plugin.manifest.version, true);
+            } else {
+                self.stage_removal(&id);
+            }
+        }
+        confirmation
+    }
+
+    pub fn plugin_set_enabled(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        {
+            // Fall back only when admission failed before any source write.
+            // An uncertain runtime or SQLite result must never be repeated.
+            let attempted = std::cell::Cell::new(false);
+            return match self.plugin_set_enabled_with_durable_intent_for(
+                id,
+                enabled,
+                LocalMutationProtocol::Selected,
+                Some(&attempted),
+            ) {
+                Err(_) if !attempted.get() => {
+                    self.plugin_set_enabled_with_untracked_intent(id, enabled)
+                }
+                result => result,
+            };
+        }
+        #[cfg(not(all(feature = "cloud-auth", feature = "persistence")))]
+        {
+            let plugin = self.require_discovered(id)?;
+            let id = plugin.manifest.id.clone();
+            #[cfg(feature = "cloud-auth")]
+            let version = plugin.manifest.version.clone();
+            self.set_enabled_impl(&id, enabled, false)?;
+            #[cfg(feature = "cloud-auth")]
+            self.stage_selection(&id, &version, enabled);
+            Ok(())
+        }
+    }
+
+    /// Exercise selected-protocol admission without the public fallback.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_enabled_with_product_intent(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), OperationError> {
+        self.plugin_set_enabled_with_durable_intent_for(
+            id,
+            enabled,
+            LocalMutationProtocol::Selected,
+            None,
+        )
+    }
+
+    /// Prototype for local operation when Cloud admission cannot be opened.
+    /// The marker and local source commit atomically while excluding a
+    /// cooperating product emission. No Cloud identity is inferred here.
+    /// This remains private until every product emitter uses this fence and
+    /// a user-facing reconciliation flow exists.
+    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[allow(dead_code)]
+    pub(crate) fn plugin_set_enabled_with_untracked_intent(
+        &self,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), OperationError> {
+        let invocation =
+            self.plugin_state.invocation_gate.lock().map_err(|_| {
+                OperationError::unavailable("plugin invocation lease is unavailable")
+            })?;
+        let plugin = self.require_discovered(id)?;
+        let id = plugin.manifest.id;
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
+        let fence = tiktools_cloud_sync::ProductEmissionFence::open(
+            self.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| OperationError::unavailable("sync emission fence unavailable"))?;
+        let lease = fence
+            .try_untracked_edit()
+            .map_err(|_| OperationError::unavailable("sync emission is in progress"))?;
+        self.db
+            .set_plugin_state_with_untracked_sync(&id, true, enabled)
+            .map_err(|error| OperationError::internal(error.to_string()))?;
+        if enabled {
+            self.plugins.start_generation_before_events(&id, || {
+                self.set_plugin_activation(&id, true, true);
+            })?;
+        } else {
+            self.plugins.stop(&id)?;
+            self.set_plugin_activation(&id, true, false);
+        }
+        drop(lease);
+        drop(invocation);
+        self.rebuild_processor_index();
+        self.refresh_automation_snapshot();
+        self.events.publish_domain(if enabled {
+            DomainEvent::PluginStarted { plugin_id: id }
+        } else {
+            DomainEvent::PluginStopped { plugin_id: id }
+        });
         Ok(())
     }
 
-    fn set_enabled_impl(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
+    fn set_enabled_impl(
+        &self,
+        id: &str,
+        enabled: bool,
+        only_installed: bool,
+    ) -> Result<bool, OperationError> {
         let _invocation =
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
-        #[cfg(feature = "persistence")]
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        let _source_lease = self.try_plugin_source_lease()?;
+        if self.plugin_apply_quarantined(id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
+        if only_installed {
+            // Check the installed state under the same gate as the mutation:
+            // a concurrent uninstall must never be undone by a remote value.
+            if self.require_discovered(id).is_err() {
+                return Ok(false);
+            }
+            let activation =
+                recover_rwlock_read(&self.plugin_state.activation, "plugin activation");
+            if let Some(state) = activation.get(id) {
+                if !state.installed || state.enabled == enabled {
+                    return Ok(false);
+                }
+            } else if enabled {
+                // Discovered plugins without an activation row default to
+                // installed and enabled, matching plugin_ready().
+                return Ok(false);
+            }
+        }
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        if only_installed {
+            // Legacy remote application is not a local edit and must not
+            // feed the outbound reconciliation marker.
+            self.db
+                .set_plugin_state(id, true, enabled)
+                .map_err(|error| OperationError::internal(error.to_string()))?;
+        } else {
+            self.db
+                .set_plugin_state_with_untracked_sync(id, true, enabled)
+                .map_err(|error| OperationError::internal(error.to_string()))?;
+        }
+        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
         self.db
             .set_plugin_state(id, true, enabled)
             .map_err(|error| OperationError::internal(error.to_string()))?;
         let result = if enabled {
-            self.plugins.start(id)
+            self.plugins
+                .start_generation_before_events(id, || {
+                    self.set_plugin_activation(id, true, true);
+                })
+                .map(|_| ())
         } else {
-            self.plugins.stop(id)
+            self.plugins.stop(id).map(|()| {
+                self.set_plugin_activation(id, true, false);
+            })
         };
         result?;
-        self.set_plugin_activation(id, true, enabled);
         drop(_invocation);
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();
@@ -271,14 +1281,13 @@ impl AppCore {
                 plugin_id: id.to_owned(),
             }
         });
-        Ok(())
+        Ok(true)
     }
 
-    /// Apply one remote selection to an already-installed plugin. Returns
-    /// whether anything changed. Unknown plugins are skipped without error:
-    /// remote records never install anything. This path never stages, so
-    /// applied remote changes cannot loop back to the server.
-    #[cfg(feature = "cloud-auth")]
+    /// Legacy low-level operation, retained only for existing compatibility
+    /// tests. It does not bind account, consent, Cloud revision or crash
+    /// recovery and must not be called from a product sync path.
+    #[cfg(all(feature = "cloud-auth", test))]
     pub(crate) fn plugin_apply_remote_selection(
         &self,
         id: &str,
@@ -288,15 +1297,7 @@ impl AppCore {
             Ok(plugin) => plugin,
             Err(_) => return Ok(false),
         };
-        let current = recover_rwlock_read(&self.plugin_state.activation, "plugin activation")
-            .get(plugin.manifest.id.as_str())
-            .map(|state| state.enabled)
-            .unwrap_or(true);
-        if current == enabled {
-            return Ok(false);
-        }
-        self.set_enabled_impl(&plugin.manifest.id, enabled)?;
-        Ok(true)
+        self.set_enabled_impl(&plugin.manifest.id, enabled, true)
     }
 
     /// Stage a local selection change for upload. Inert unless sync is
@@ -328,8 +1329,15 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
+        if self.plugin_apply_quarantined(&id) {
+            return Err(OperationError::unavailable(
+                "plugin application needs recovery",
+            ));
+        }
         self.plugins.start(&id)?;
         drop(_invocation);
         self.events
@@ -342,6 +1350,8 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
         self.plugins.stop(&id)?;

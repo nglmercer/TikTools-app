@@ -6,6 +6,23 @@ pub const ENV_CLOUD_ORIGIN: &str = "TIKTOOLS_CLOUD_ORIGIN";
 /// Official Cloud origin used when the operator did not configure the build.
 pub const DEFAULT_CLOUD_ORIGIN: &str = "https://remakebackend-production-a872.up.railway.app";
 
+/// Canonical account/catalog/registry origin. Credentials, paths, queries,
+/// fragments and insecure non-loopback HTTP are never Cloud instances.
+pub fn normalize_cloud_origin(raw: &str) -> Option<String> {
+    let url = url::Url::parse(raw).ok()?;
+    let loopback = matches!(url.host_str(), Some("127.0.0.1" | "[::1]"));
+    if !(url.scheme() == "https" || url.scheme() == "http" && loopback)
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/"
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return None;
+    }
+    Some(url.origin().ascii_serialization())
+}
+
 /// Resolve the operator-provisioned Cloud instance. Release builds ignore
 /// runtime overrides, including attempts to disable or replace the instance.
 /// Operators configure a different instance (or disable Cloud) at build time.
@@ -29,10 +46,10 @@ fn resolve_origin_from(
     development: bool,
 ) -> Option<String> {
     fn configured(value: &str) -> Option<String> {
-        let value = value.trim().trim_end_matches('/');
+        let value = value.trim();
         match value.to_ascii_lowercase().as_str() {
             "" | "off" | "none" => None,
-            _ => Some(value.to_owned()),
+            _ => normalize_cloud_origin(value),
         }
     }
     if let Some(runtime) = runtime.filter(|_| development) {
@@ -46,7 +63,30 @@ fn resolve_origin_from(
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_origin_from, DEFAULT_CLOUD_ORIGIN};
+    use super::{normalize_cloud_origin, resolve_origin_from, DEFAULT_CLOUD_ORIGIN};
+
+    #[test]
+    fn rejects_non_origin_cloud_urls() {
+        for bad in [
+            "https://user:pass@example.test",
+            "https://example.test/path",
+            "https://example.test///",
+            "https://example.test/?q=1",
+            "https://example.test/#fragment",
+            "http://example.test",
+        ] {
+            assert!(normalize_cloud_origin(bad).is_none(), "accepted {bad}");
+            assert!(resolve_origin_from(Some(bad), None, true).is_none());
+        }
+        assert_eq!(
+            normalize_cloud_origin("https://EXAMPLE.test:443/"),
+            Some("https://example.test".into())
+        );
+        assert_eq!(
+            normalize_cloud_origin("http://127.0.0.1:8080"),
+            Some("http://127.0.0.1:8080".into())
+        );
+    }
 
     #[test]
     fn runtime_override_wins_and_can_disable() {

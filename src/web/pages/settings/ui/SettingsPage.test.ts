@@ -62,15 +62,20 @@ describe('SettingsPage', () => {
     await flushPromises();
     expect(router.currentRoute.value.query.section).toBe('plugins');
     expect(wrapper.findAll('legend').map((legend) => legend.text())).toContain('Plugin updates');
-    expect(wrapper.find('#plugin-sources-url').exists()).toBe(true);
+    expect(wrapper.find('#plugin-sources-url').exists()).toBe(false);
     expect(wrapper.find('details, summary').exists()).toBe(false);
     expect(wrapper.findAll('input[type=checkbox]').every(input => input.attributes('role') === 'switch')).toBe(true);
   });
 
-  it('preserves Advanced links to plugin sources, with registry creation collapsed', async () => {
+  it('does not expose source enrollment and retains the local package policy', async () => {
     const { wrapper } = await mountPage('?section=advanced');
-    expect(wrapper.find('#plugin-sources-url').isVisible()).toBe(false);
-    expect(wrapper.text()).toContain('Add a registry');
+    expect(wrapper.find('#plugin-sources-url').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Add a registry');
+    const plugins = await mountPage('?section=plugins');
+    expect(plugins.wrapper.text()).toContain('Allow local package installation');
+    const updates = await mountPage('?section=updates');
+    expect(updates.wrapper.get('[role="option"][aria-selected="true"]').text()).toBe('GeneralLanguage and application');
+    expect(updates.wrapper.find('#app-update-automatic').exists()).toBe(true);
   });
 
   it('opens runtime variables through legacy globals links', async () => {

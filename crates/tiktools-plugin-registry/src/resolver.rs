@@ -114,7 +114,7 @@ pub fn latest_compatible(
     .ok()
 }
 
-pub(crate) fn compatible_artifact(
+pub fn compatible_artifact(
     release: &Release,
     host: &HostCompat,
 ) -> Result<Artifact, RejectionReason> {

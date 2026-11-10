@@ -38,6 +38,137 @@ fn template() -> Value {
     json!({"templateVersion":1,"id":"same","title":"Template","actions":[{"name":"Log","typeId":"core.log","config":{"message":"safe"}}],"event":{"name":"Event","trigger":"tiktok.chat"}})
 }
 
+fn epoch(origin: &str, account: &str, value: &str) -> WorkspaceWriteEpoch {
+    serde_json::from_value(json!({
+        "origin": origin,
+        "accountId": account,
+        "writeEpoch": value,
+        "epochRequired": true
+    }))
+    .unwrap()
+}
+
+#[test]
+fn product_fenced_request_retains_original_epoch_across_restart_rebuild_and_next() {
+    let mut s = state();
+    let target = key("test.plugin");
+    s.apply_changes(page(vec![record("test.plugin", 1, false)], 1))
+        .unwrap();
+    s.mark_bootstrap_complete();
+    s.mark_product_guarded();
+    s.stage_product_decision(
+        target.clone(),
+        WorkspaceEdit::Put(selection("test.plugin", true)),
+        7,
+        &"a".repeat(64),
+    )
+    .unwrap();
+    let proof = s.product_queued_proof(&target).unwrap();
+    let before = s.clone();
+    assert!(s.prepare_product_push(&proof).is_err());
+    assert!(s.prepare_push(&target).is_err());
+    assert_eq!(s, before);
+    let wrong = epoch("https://cloud.example", "other", "9");
+    let before = s.clone();
+    assert!(matches!(
+        s.prepare_product_push_fenced(&proof, &wrong),
+        Err(WorkspaceStateError::WrongIdentity)
+    ));
+    assert_eq!(s, before);
+
+    let original_epoch = epoch("https://cloud.example", "account", "9223372036854775807");
+    let ticket = s
+        .prepare_product_push_fenced(&proof, &original_epoch)
+        .unwrap();
+    assert_eq!(ticket.write_epoch(), Some(&original_epoch));
+    s.stage_product_decision(
+        target.clone(),
+        WorkspaceEdit::Put(selection("test.plugin", false)),
+        8,
+        &"b".repeat(64),
+    )
+    .unwrap();
+    let encoded = serde_json::to_vec(&s).unwrap();
+    let mut restored: WorkspaceState = serde_json::from_slice(&encoded).unwrap();
+    restored.validate().unwrap();
+    assert!(restored.is_product_guarded());
+    assert!(restored.has_product_receipts());
+    assert_eq!(
+        restored
+            .entry(&target)
+            .unwrap()
+            .pending
+            .as_ref()
+            .unwrap()
+            .write_epoch,
+        Some(original_epoch.clone())
+    );
+    assert!(restored.entry(&target).unwrap().next.is_some());
+    assert!(restored
+        .prepare_product_push_fenced(&proof, &original_epoch)
+        .is_err());
+    restored
+        .install_rebuild(WorkspaceSnapshot {
+            schema_version: 2,
+            cursor: 1,
+            records: vec![record("test.plugin", 1, false)],
+        })
+        .unwrap();
+    assert!(restored.is_product_guarded());
+    assert_eq!(
+        restored
+            .entry(&target)
+            .unwrap()
+            .pending
+            .as_ref()
+            .unwrap()
+            .write_epoch,
+        Some(original_epoch)
+    );
+    restored
+        .acknowledge(&ticket, record("test.plugin", 2, true))
+        .unwrap();
+    let next = restored.entry(&target).unwrap().pending.as_ref().unwrap();
+    assert_eq!(next.status, WorkspacePendingStatus::Queued);
+    assert_eq!(next.write_epoch, None);
+}
+
+#[test]
+fn legacy_unconfirmed_cannot_acquire_an_epoch_retroactively() {
+    let target = key("test.plugin");
+    let mut legacy = state();
+    legacy.mark_bootstrap_complete();
+    legacy
+        .stage_product_decision(
+            target.clone(),
+            WorkspaceEdit::Put(selection("test.plugin", true)),
+            1,
+            &"a".repeat(64),
+        )
+        .unwrap();
+    let proof = legacy.product_queued_proof(&target).unwrap();
+    legacy.prepare_product_push(&proof).unwrap();
+    let encoded = serde_json::to_value(&legacy).unwrap();
+    assert!(encoded.get("productGuarded").is_none());
+    assert!(encoded["entries"][0]["pending"].get("writeEpoch").is_none());
+    let mut restored: WorkspaceState = serde_json::from_value(encoded).unwrap();
+    assert!(!restored.is_product_guarded());
+    restored.mark_product_guarded();
+    let before = restored.clone();
+    assert!(restored
+        .prepare_product_push_fenced(&proof, &epoch("https://cloud.example", "account", "2"))
+        .is_err());
+    assert_eq!(restored, before);
+    assert!(restored
+        .entry(&target)
+        .unwrap()
+        .pending
+        .as_ref()
+        .unwrap()
+        .write_epoch
+        .is_none());
+}
+
 #[test]
 fn all_five_collections_use_composite_keys_and_refuse_invalid_portable_data_atomically() {
     let mut s = state();
@@ -490,6 +621,7 @@ fn entry_and_value_capacity_failures_leave_every_prior_edit_intact() {
                 edit: WorkspaceEdit::Delete,
                 local_generation: index as u64 + 1,
                 status: WorkspacePendingStatus::Queued,
+                write_epoch: None,
             }),
             next: None,
         });
@@ -598,4 +730,96 @@ fn jsonb_normalized_ack_feed_rebuild_and_resolution_preserve_exact_decimal_value
     s.apply_changes(page(vec![row(sent)], 7)).unwrap();
     s.acknowledge(&ticket, row(normalized)).unwrap();
     assert!(s.entry(&target).unwrap().pending.is_none());
+}
+
+#[test]
+fn product_decision_receipt_survives_restart_and_snapshot_rebuild_without_restage() {
+    let mut s = state();
+    s.mark_bootstrap_complete();
+    let target = key("acme.plugin");
+    let edit = WorkspaceEdit::Put(selection("acme.plugin", true));
+    let digest = "a".repeat(64);
+    let (generation, staged) = s
+        .stage_product_decision(target.clone(), edit.clone(), 7, &digest)
+        .unwrap();
+    assert!(staged);
+    let mut s: WorkspaceState = serde_json::from_slice(&serde_json::to_vec(&s).unwrap()).unwrap();
+    s.validate().unwrap();
+    let before = s.clone();
+    assert_eq!(
+        s.stage_product_decision(target.clone(), edit.clone(), 7, &digest)
+            .unwrap(),
+        (generation, false)
+    );
+    assert_eq!(s, before);
+    assert!(s
+        .stage_product_decision(target.clone(), edit.clone(), 6, &digest)
+        .is_err());
+    assert!(s
+        .stage_product_decision(target.clone(), edit.clone(), 7, &"b".repeat(64))
+        .is_err());
+    assert!(s
+        .stage_product_decision(target.clone(), WorkspaceEdit::Delete, 7, &digest)
+        .is_err());
+    assert_eq!(s, before);
+    s.require_rebuild();
+    s.install_rebuild(WorkspaceSnapshot {
+        schema_version: 2,
+        records: vec![],
+        cursor: 0,
+    })
+    .unwrap();
+    let after_rebuild = s.clone();
+    assert_eq!(
+        s.stage_product_decision(target.clone(), edit.clone(), 7, &digest)
+            .unwrap(),
+        (generation, false)
+    );
+    assert_eq!(s, after_rebuild);
+    let ticket = s.prepare_push(&target).unwrap();
+    s.acknowledge(&ticket, record("acme.plugin", 1, true))
+        .unwrap();
+    assert!(s.pending_keys().is_empty());
+    let after_delivery = s.clone();
+    assert_eq!(
+        s.stage_product_decision(target.clone(), edit.clone(), 7, &digest)
+            .unwrap(),
+        (generation, false)
+    );
+    assert_eq!(s, after_delivery);
+    let (_, staged) = s
+        .stage_product_decision(target, edit, 8, &"b".repeat(64))
+        .unwrap();
+    assert!(staged);
+}
+
+#[test]
+fn product_recovery_proof_tracks_only_the_latest_uncertain_decision() {
+    let mut s = state();
+    s.mark_bootstrap_complete();
+    let target = key("acme.plugin");
+    let first = WorkspaceEdit::Put(selection("acme.plugin", true));
+    let later = WorkspaceEdit::Put(selection("acme.plugin", false));
+    s.stage_product_decision(target.clone(), first, 7, &"a".repeat(64))
+        .unwrap();
+    assert!(s.product_recovery_proof(&target).is_none());
+    s.prepare_push(&target).unwrap();
+    let original = s.product_recovery_proof(&target).unwrap();
+    assert_eq!(original.source_generation(), 7);
+    s.stage_product_decision(target.clone(), later.clone(), 8, &"b".repeat(64))
+        .unwrap();
+    assert!(s.verify_product_recovery(&original).is_err());
+    let latest = s.product_recovery_proof(&target).unwrap();
+    assert_eq!(latest.source_generation(), 8);
+    assert_eq!(latest.edit(), &later);
+    let reloaded: WorkspaceState =
+        serde_json::from_slice(&serde_json::to_vec(&s).unwrap()).unwrap();
+    assert_eq!(reloaded.product_recovery_proof(&target), Some(latest));
+    // A generic newer local edit is not covered by an older product receipt.
+    s.stage(
+        target.clone(),
+        WorkspaceEdit::Put(selection("acme.plugin", true)),
+    )
+    .unwrap();
+    assert!(s.product_recovery_proof(&target).is_none());
 }

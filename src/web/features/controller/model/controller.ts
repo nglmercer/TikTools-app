@@ -3,19 +3,24 @@ import type { ControlClient, ResourceVersion } from '@/shared/api/control-client
 import { createDraftPersistence, type LocalDraft } from './drafts.ts';
 import { createAutomationModel } from './automations.ts';
 import { createProposalModel } from './proposals.ts';
+import { createLiveStatusModel } from './live.ts';
+import { createLiveFeedModel } from './live-feed.ts';
+import { createCompetitionModel } from './competitions.ts';
 
 export interface ControllerStatus {
   draftsSupported?: boolean;
   proposalsSupported?: boolean;
+  browserJournalMissing?: boolean;
   epoch: string; viewRevision: string; phase: string; profile: string | null; origin: string | null; errorCode: string | null;
   automationRevision?: string;
+  competitionRevision?: string;
   pointsRevision?: string; pointsLoading?: boolean; pointsErrorCode?: string | null;
   pairingRequestId?: string | null;
   commandJournal?: CommandJournal | null; commandBusy?: boolean; commandErrorCode?: string | null;
-  hello: { connectionId?: string; grantRevision?: string; hostId: string; principalId: string; sessionId: string; hostInstanceId: string; capabilities: string[]; features: Record<string, boolean>; resourceRestrictions?: Record<string, string[]> } | null;
+  hello: { connectionId?: string; grantRevision?: string; hostId: string; principalId: string; sessionId: string; hostInstanceId: string; capabilities: string[]; features: Record<string, boolean>; resourceRestrictions?: Record<string, string[]>; limits?: { requestsPerSecond: number; requestBurst: number } } | null;
 }
 export type WorkflowOperation = 'disable' | 'delete';
-export interface PendingCommand { commandId: string; operation: WorkflowOperation | 'adjust-points' | 'disable-event' | 'delete-event' | 'create-event-draft' | 'update-event-draft' | 'create-action-draft' | 'update-action-draft'; resourceId: string; hostInstanceId: string; expectedRevision?: string; delta?: number; currencyName?: string; proposalRevision?: string; createdAt: number }
+export interface PendingCommand { commandId: string; operation: WorkflowOperation | 'start-competition' | 'resume-competition' | 'pause-competition' | 'cancel-competition' | 'adjust-points' | 'disable-event' | 'disable-action' | 'delete-event' | 'enable-event' | 'enable-action' | 'create-event-draft' | 'update-event-draft' | 'create-action-draft' | 'update-action-draft' | 'create-event-active' | 'update-event-active' | 'create-action-active' | 'update-action-active'; resourceId: string; hostInstanceId: string; expectedRevision?: string; expectedGeneration?: string; delta?: number; currencyName?: string; proposalRevision?: string; createdAt: number }
 export interface CommandJournal {
   binding: { profileId: string; origin: string; hostId: string; principalId: string; sessionId: string };
   pending: PendingCommand | null; unavailable: boolean;
@@ -27,7 +32,8 @@ export interface WorkflowRow { graph: Record<string, unknown>; version: Resource
 export interface PointRow { viewer: { uniqueId: string; nickname?: string; points: number; level: number }; version: ResourceVersion }
 export interface PointsPage { epoch: string; pointsRevision: string; loading: boolean; errorCode: string | null; currencyName: string | null; rows: PointRow[] | null; selectedId: string | null; selected: PointRow | null; selectedVersion: ResourceVersion | null }
 export interface PointsTarget { epoch: string; connectionId: string; origin: string; hostId: string; principalId: string; sessionId: string; hostInstanceId: string; grantRevision?: string; uniqueId: string; delta: number; currencyName: string; creates: boolean }
-export interface RemoteProfile { name: string; origin: string; hostId: string }
+export interface RemoteProfile { name: string; profileId: string; origin: string; hostId: string }
+export type ProfileForgetTarget = Readonly<RemoteProfile>;
 interface Page { epoch: string; viewRevision: string; rows: WorkflowRow[]; next: number | null }
 const idle = (): ControllerStatus => ({ epoch: '0', viewRevision: '0', phase: 'idle', profile: null, origin: null, hello: null, errorCode: null });
 
@@ -52,6 +58,10 @@ export function createControllerModel(control: ControlClient) {
   let selection = 0;
   let timer: ReturnType<typeof setInterval> | undefined;
   let unsubscribe: (() => void) | undefined;
+  let nextLowRatePoll = 0;
+  let lowRateTurn = 0;
+  let competitionUrgent = false;
+  let readBinding = '';
   const key = (s: ControllerStatus) => `${s.epoch}:${s.viewRevision}`;
   const ready = computed(() => status.value.phase === 'ready' && loaded.value === key(status.value));
   const pointsAllowed = computed(() => !!status.value.hello?.features['pointsProjection'] && status.value.hello.capabilities.includes('points.read') && !Object.prototype.hasOwnProperty.call(status.value.hello.resourceRestrictions ?? {}, 'live'));
@@ -86,7 +96,39 @@ export function createControllerModel(control: ControlClient) {
           if (generation !== selection) { dirty = true; continue; }
           if (current.epoch !== status.value.epoch || current.phase !== 'ready') { rows.value = []; loaded.value = ''; points.value = null; pointsLoaded.value = ''; draftStorage.reset(); }
           const pairingFinished = status.value.phase === 'pairing' && current.phase === 'idle';
+          const competitionChanged = current.epoch === status.value.epoch && current.competitionRevision !== undefined && current.competitionRevision !== status.value.competitionRevision;
           status.value = current;
+          const currentReadBinding = JSON.stringify([current.epoch, current.phase, current.profile, current.origin, current.hello]);
+          if (currentReadBinding !== readBinding) {
+            // Never keep the previous scope visible while low-rate polling
+            // waits for its next turn.
+            live.clear(); liveFeed.clear(); competitions.clear();
+            nextLowRatePoll = 0; lowRateTurn = 0; competitionUrgent = false; readBinding = currentReadBinding;
+          }
+          const rate = current.hello?.limits?.requestsPerSecond ?? 30;
+          if (competitionChanged) { competitions.invalidate(); competitionUrgent = true; }
+          if (rate <= 2 && competitions.allowed.value) {
+            // Share a small request budget across optional live/competition
+            // reads, leaving capacity for the native heartbeat and points.
+            if (performance.now() >= nextLowRatePoll) {
+              const reads = [live, liveFeed, competitions];
+              for (let offset = 0; offset < reads.length; offset += 1) {
+                const index = competitionUrgent ? 2 : (lowRateTurn + offset) % reads.length;
+                const read = reads[index]!;
+                if (!read.allowed.value) continue;
+                if (index === 2) competitionUrgent = false;
+                lowRateTurn = (index + 1) % reads.length;
+                nextLowRatePoll = performance.now() + (rate <= 1 ? 3000 : 1500);
+                void read.refresh(current, generation);
+                break;
+              }
+            }
+          } else {
+            competitionUrgent = false;
+            void live.refresh(current, generation);
+            void liveFeed.refresh(current, generation);
+            void competitions.refresh(current, generation);
+          }
           void proposals.refresh();
           if (pairingFinished) await inventory();
           if (current.hello) scope.value = JSON.stringify([current.origin, current.hello.hostId, current.hello.principalId, current.hello.sessionId]);
@@ -115,7 +157,7 @@ export function createControllerModel(control: ControlClient) {
         } catch (failure) {
           if (stopped) return;
           if (generation !== selection) { dirty = true; continue; }
-          rows.value = []; loaded.value = '';
+          rows.value = []; loaded.value = ''; live.clear(); liveFeed.clear(); competitions.clear();
           error.value = failure instanceof Error ? failure.message : 'Controller unavailable';
           // Next native change/heartbeat retries the read, never a mutation.
         }
@@ -124,9 +166,31 @@ export function createControllerModel(control: ControlClient) {
     return refreshing;
   }
   async function inventory(): Promise<void> { profiles.value = await control.call<RemoteProfile[]>('controller.profiles'); }
+  function profileForgetCurrent(target: ProfileForgetTarget): boolean {
+    return !busy.value && !commandSending.value && status.value.profile !== target.name &&
+      !!target.profileId && profiles.value.some((profile) => profile.name === target.name &&
+        profile.profileId === target.profileId && profile.origin === target.origin && profile.hostId === target.hostId);
+  }
+  function prepareForget(profile: RemoteProfile): ProfileForgetTarget | null {
+    const target = { name: profile.name, profileId: profile.profileId, origin: profile.origin, hostId: profile.hostId };
+    return profileForgetCurrent(target) ? target : null;
+  }
+  async function forgetProfile(target: ProfileForgetTarget): Promise<boolean> {
+    if (!profileForgetCurrent(target) || stopped) return false;
+    const generation = selection;
+    busy.value = true; error.value = '';
+    try {
+      await control.call('controller.profile.forget', { profile: target.name, profileId: target.profileId, origin: target.origin, hostId: target.hostId, confirm: true });
+      if (!stopped && generation === selection) await inventory();
+      return true;
+    } catch (failure) {
+      if (!stopped && generation === selection) error.value = failure instanceof Error ? failure.message : 'Profile removal failed';
+      return false;
+    } finally { if (!stopped && generation === selection) busy.value = false; }
+  }
   async function connect(profile: string): Promise<void> {
     const generation = ++selection;
-    draftStorage.reset(); automation.clear();
+    draftStorage.reset(); automation.clear(); live.clear(); liveFeed.clear(); competitions.clear();
     busy.value = true; rows.value = []; points.value = null; pointsLoaded.value = ''; loaded.value = ''; scope.value = ''; status.value = { ...idle(), phase: 'connecting', profile };
     try { await control.call('controller.connect', { profile }); if (generation === selection) await refresh(); }
     catch (failure) { if (generation === selection) { error.value = failure instanceof Error ? failure.message : 'Connection failed'; await refresh(); } }
@@ -134,7 +198,7 @@ export function createControllerModel(control: ControlClient) {
   }
   async function disconnect(): Promise<void> {
     selection += 1;
-    draftStorage.reset(); automation.clear();
+    draftStorage.reset(); automation.clear(); live.clear(); liveFeed.clear(); competitions.clear();
     busy.value = true; loaded.value = ''; rows.value = []; points.value = null; pointsLoaded.value = '';
     try { await control.call('controller.disconnect'); await refresh(); } finally { busy.value = false; }
   }
@@ -203,17 +267,20 @@ export function createControllerModel(control: ControlClient) {
     const journal = status.value.commandJournal;
     return canReview.value && target.epoch === status.value.epoch && target.commandId === journal?.pending?.commandId && target.binding === JSON.stringify(journal?.binding);
   }
-  async function commandCall(method: string, params: Record<string, unknown>): Promise<boolean> {
-    if (commandSending.value || stopped) return false;
+  async function commandCallResult(method: string, params: Record<string, unknown>): Promise<{ accepted: boolean; value?: unknown }> {
+    if (commandSending.value || stopped) return { accepted: false };
     const generation = selection;
     commandSending.value = true; error.value = '';
     let failureMessage = '';
-    try { await control.call(method, params); return true; }
-    catch (failure) { failureMessage = failure instanceof Error ? failure.message : 'Command outcome not confirmed'; return false; }
+    try { const value = await control.call(method, params); return { accepted: true, value }; }
+    catch (failure) { failureMessage = failure instanceof Error ? failure.message : 'Command outcome not confirmed'; return { accepted: false }; }
     finally {
       if (!stopped && generation === selection) { await refresh(); if (failureMessage && generation === selection) error.value = failureMessage; }
       commandSending.value = false;
     }
+  }
+  async function commandCall(method: string, params: Record<string, unknown>): Promise<boolean> {
+    return (await commandCallResult(method, params)).accepted;
   }
   async function changeWorkflow(target: CommandTarget): Promise<boolean> {
     if (!commandIsCurrent(target)) return false;
@@ -265,9 +332,15 @@ export function createControllerModel(control: ControlClient) {
   }
   const draftStorage = createDraftPersistence(control, { status, ready, scope, generation: () => selection, stopped: () => stopped, read: draft, put: putDraft, drop: dropDraft });
   const automation = createAutomationModel(control, { status, generation: () => selection, stopped: () => stopped, retry: () => { dirty = true; }, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
-  const proposals = createProposalModel(control, { status, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
-  function stop(): void { proposals.stop(); automation.clear(); stopped = true; if (timer) clearInterval(timer); unsubscribe?.(); control.detach(); rows.value = []; points.value = null; pointsLoaded.value = ''; draftStorage.stop(); status.value = idle(); loaded.value = ''; scope.value = ''; drafts.clear(); }
-  return { proposals, automation, status, profiles, rows, points, pointsError, pointsAllowed, selectPoints, pointsCanAdjust, preparePoints, pointsIsCurrent, adjustPoints, error, busy, ready, commandSending, commandBlocked, canChange, canResolve, canReview,
+  const proposals = createProposalModel(control, { status, blocked: () => commandBlocked.value, journalMatches, send: async (method, params) => {
+    const result = await commandCallResult(method, params);
+    return result.accepted ? { journal: result.value } : false;
+  } });
+  const live = createLiveStatusModel(control, { status, generation: () => selection, stopped: () => stopped });
+  const liveFeed = createLiveFeedModel(control, { status, generation: () => selection, stopped: () => stopped });
+  const competitions = createCompetitionModel(control, { status, generation: () => selection, stopped: () => stopped, blocked: () => commandBlocked.value, journalMatches, send: commandCall });
+  function stop(): void { proposals.stop(); automation.clear(); live.clear(); liveFeed.clear(); competitions.clear(); stopped = true; if (timer) clearInterval(timer); unsubscribe?.(); control.detach(); rows.value = []; points.value = null; pointsLoaded.value = ''; draftStorage.stop(); status.value = idle(); loaded.value = ''; scope.value = ''; drafts.clear(); }
+  return { proposals, automation, live, liveFeed, competitions, status, profiles, rows, points, pointsError, pointsAllowed, selectPoints, pointsCanAdjust, preparePoints, pointsIsCurrent, adjustPoints, error, busy, ready, commandSending, commandBlocked, canChange, canResolve, canReview, prepareForget, profileForgetCurrent, forgetProfile,
     prepareCommand, commandIsCurrent, changeWorkflow, resolveCommand, prepareReview, reviewIsCurrent, reviewUnknown,
     inventory, refresh, start, stop, connect, disconnect, draft, draftIds, editRetainedDraft, edit, discard, rebaseDraft, draftStorage };
 }

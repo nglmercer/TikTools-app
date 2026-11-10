@@ -27,6 +27,7 @@ fn intent() -> Intent {
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: timestamp(),
     }
 }
@@ -134,8 +135,18 @@ fn journal_migration_process_fixture() {
 }
 
 #[test]
-fn older_formats_migrate_to_v4_preserving_pending_ids_and_mixed_history_at_every_crash_boundary() {
-    for (version, pending_points) in [(1, false), (2, false), (2, true), (3, false), (3, true)] {
+fn older_formats_migrate_preserving_pending_ids_and_mixed_history_at_every_crash_boundary() {
+    for (version, pending_points) in [
+        (1, false),
+        (2, false),
+        (2, true),
+        (3, false),
+        (3, true),
+        (4, false),
+        (4, true),
+        (5, false),
+        (5, true),
+    ] {
         for stage in ["before", "renamed", "after"] {
             let (_t, root, p) = fixture();
             let j = Journal::open(&root, &p).unwrap();
@@ -153,12 +164,20 @@ fn older_formats_migrate_to_v4_preserving_pending_ids_and_mixed_history_at_every
                 });
                 j.finish(r).unwrap();
             }
-            if version == 3 {
+            if version >= 3 {
                 let completed = event_intent(Operation::DeleteEvent);
                 j.begin(completed.clone()).unwrap();
                 j.finish(record(completed)).unwrap();
             }
-            let pending = if version == 3 && !pending_points {
+            let pending = if version == 5 && !pending_points {
+                event_intent(Operation::EnableAction)
+            } else if version == 4 && !pending_points {
+                Intent {
+                    operation: Operation::UpdateActionDraft,
+                    proposal_revision: Some("1".into()),
+                    ..event_intent(Operation::UpdateActionDraft)
+                }
+            } else if version == 3 && !pending_points {
                 event_intent(Operation::DisableEvent)
             } else if pending_points {
                 points_intent()
@@ -765,5 +784,41 @@ fn unsupported_versions_and_caller_supplied_event_scope_do_not_replace_a_valid_j
             "command_journal_invalid"
         );
         assert_eq!(fs::read(&path).unwrap(), bytes, "{mutation}");
+    }
+}
+
+#[test]
+fn version_five_cannot_smuggle_active_authoring_intents() {
+    for operation in [
+        Operation::CreateEventActive,
+        Operation::UpdateEventActive,
+        Operation::CreateActionActive,
+        Operation::UpdateActionActive,
+    ] {
+        for pending in [true, false] {
+            let (_t, root, p) = fixture();
+            let journal = Journal::open(&root, &p).unwrap();
+            let proposal = Intent {
+                operation,
+                proposal_revision: Some("1".into()),
+                ..intent()
+            };
+            journal.begin(proposal.clone()).unwrap();
+            if !pending {
+                journal.finish(record(proposal)).unwrap();
+            }
+            let path = journal.path.clone();
+            drop(journal);
+            let mut saved: serde_json::Value =
+                serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            saved["version"] = 5.into();
+            let bytes = serde_json::to_vec(&saved).unwrap();
+            fs::write(&path, &bytes).unwrap();
+            assert_eq!(
+                Journal::open(&root, &p).err().unwrap().code,
+                "command_journal_invalid"
+            );
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+        }
     }
 }

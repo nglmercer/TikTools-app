@@ -40,6 +40,349 @@ fn page(c: &Controller) -> Value {
     let s = c.status();
     c.workflows(&s.epoch, &s.view_revision, 0).unwrap()
 }
+
+#[tokio::test]
+async fn live_status_is_read_only_and_fenced_to_selected_connection() {
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(workflow_grant()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let mut no_live = workflow_grant();
+    no_live.capabilities.remove(&Capability::LiveRead);
+    manager
+        .install(
+            "no-live",
+            &f.endpoint,
+            f.pair(no_live).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let mut restricted = workflow_grant();
+    restricted
+        .resources
+        .insert(ResourceKind::Live, ["creator".into()].into());
+    manager
+        .install(
+            "restricted",
+            &f.endpoint,
+            f.pair(restricted).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let controller = Controller::new(manager);
+    controller.connect("desk").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let first = controller.status();
+    let connection = first.hello.as_ref().unwrap().connection_id.clone();
+    let request = json!({"epoch":first.epoch,"connectionId":connection});
+    let result = controller
+        .manage("controller.live.status", request.clone())
+        .await
+        .unwrap();
+    assert_eq!(result["epoch"], request["epoch"]);
+    assert_eq!(result["connectionId"], request["connectionId"]);
+    assert_eq!(result["connected"], false);
+    assert_eq!(result["uniqueId"], Value::Null);
+    assert_eq!(result.as_object().unwrap().len(), 5);
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.status",
+                json!({"epoch":first.epoch,"connectionId":"wrong"})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "stale_view"
+    );
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.status",
+                json!({"epoch":first.epoch,"connectionId":connection,"method":"live.connect"})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "invalid_params"
+    );
+    controller.disconnect().await;
+    assert!(controller
+        .manage("controller.live.status", request.clone())
+        .await
+        .is_err());
+    controller.connect("desk").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    assert!(controller
+        .manage("controller.live.status", request)
+        .await
+        .is_err());
+    controller.disconnect().await;
+    controller.connect("no-live").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let denied = controller.status();
+    assert!(controller
+        .manage(
+            "controller.live.status",
+            json!({"epoch":denied.epoch,"connectionId":denied.hello.unwrap().connection_id})
+        )
+        .await
+        .is_err());
+    controller.disconnect().await;
+    controller.connect("restricted").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let denied = controller.status();
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.status",
+                json!({"epoch":denied.epoch,"connectionId":denied.hello.unwrap().connection_id})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "forbidden"
+    );
+    controller.disconnect().await;
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn live_feed_reads_host_activity_and_fences_session_and_creator_scope() {
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(workflow_grant()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let mut restricted = workflow_grant();
+    restricted
+        .resources
+        .insert(ResourceKind::Live, ["creator".into()].into());
+    let restricted_credentials = f.pair(restricted).await;
+    let restricted_principal = restricted_credentials.principal_id().to_string();
+    manager
+        .install(
+            "restricted",
+            &f.endpoint,
+            restricted_credentials,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    f.core.events.publish_live_event_from_creator(json!({"creatorId":"creator","kind":"chat","author":"alice","nickname":"Alice","text":"hello","private":"secret"}), Some("creator"));
+    f.core.events.publish_live_event_from_creator(
+        json!({"creatorId":"other","kind":"gift","author":"bob","text":"gift"}),
+        Some("other"),
+    );
+    let controller = Controller::new(manager);
+    controller.connect("desk").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let status = controller.status();
+    let connection = status.hello.as_ref().unwrap().connection_id.clone();
+    let request = json!({"epoch":status.epoch,"connectionId":connection,"after":"0"});
+    let page = controller
+        .manage("controller.live.feed", request.clone())
+        .await
+        .unwrap();
+    assert_eq!(page["events"].as_array().unwrap().len(), 2);
+    assert_eq!(page["events"][0]["text"], "hello");
+    assert!(page["events"][0].get("private").is_none());
+    assert_eq!(page["nextCursor"], "2");
+    let tail = controller
+        .manage(
+            "controller.live.feed",
+            json!({"epoch":status.epoch,"connectionId":connection,"after":"2"}),
+        )
+        .await
+        .unwrap();
+    assert!(tail["events"].as_array().unwrap().is_empty());
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.feed",
+                json!({"epoch":status.epoch,"connectionId":connection,"after":"02"})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "invalid_params"
+    );
+    controller.disconnect().await;
+    controller.connect("desk").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    assert!(controller
+        .manage("controller.live.feed", request)
+        .await
+        .is_err());
+    controller.disconnect().await;
+    controller.connect("restricted").await.unwrap();
+    wait(&controller, |s| s.phase == "ready").await;
+    let denied = controller.status();
+    let restricted_connection = denied.hello.unwrap().connection_id;
+    assert_eq!(
+        controller
+            .manage(
+                "controller.live.feed",
+                json!({"epoch":denied.epoch,"connectionId":restricted_connection,"after":"0"})
+            )
+            .await
+            .unwrap_err()
+            .code,
+        "forbidden"
+    );
+    let scoped_request = json!({"epoch":denied.epoch,"connectionId":restricted_connection,"creatorId":"creator","streamId":null,"after":"0"});
+    let scoped = controller
+        .manage("controller.live.feed", scoped_request.clone())
+        .await
+        .unwrap();
+    assert_eq!(scoped["creatorId"], "creator");
+    assert_eq!(scoped["events"].as_array().unwrap().len(), 1);
+    assert_eq!(scoped["events"][0]["text"], "hello");
+    assert_eq!(scoped["events"][0]["cursor"], "1");
+    assert_eq!(scoped["latestCursor"], "1");
+    assert!(!scoped.to_string().contains("bob"));
+    assert_eq!(controller.manage("controller.live.feed", json!({"epoch":denied.epoch,"connectionId":restricted_connection,"creatorId":"other","streamId":null,"after":"0"})).await.unwrap_err().code, "forbidden");
+    let mut changed = workflow_grant();
+    changed
+        .resources
+        .insert(ResourceKind::Live, ["other".into()].into());
+    f.service
+        .set_grant(tiktools_collaboration::GrantSet {
+            principal_id: restricted_principal,
+            expected_revision: "1".into(),
+            grant: changed,
+        })
+        .unwrap();
+    wait(&controller, |s| {
+        s.phase == "ready" && s.hello.as_ref().is_some_and(|h| h.grant_revision == "2")
+    })
+    .await;
+    assert!(controller
+        .manage("controller.live.feed", scoped_request.clone())
+        .await
+        .is_err());
+    let switched = controller.status();
+    let switched_connection = switched.hello.unwrap().connection_id;
+    assert_eq!(controller.manage("controller.live.feed", json!({"epoch":switched.epoch,"connectionId":switched_connection,"creatorId":"creator","streamId":null,"after":"0"})).await.unwrap_err().code, "forbidden");
+    let other = controller.manage("controller.live.feed", json!({"epoch":switched.epoch,"connectionId":switched_connection,"creatorId":"other","streamId":null,"after":"0"})).await.unwrap();
+    assert_eq!(other["events"][0]["text"], "gift");
+    assert_eq!(other["events"][0]["cursor"], "1");
+    assert!(!other.to_string().contains("hello"));
+    controller.disconnect().await;
+    assert!(controller
+        .manage("controller.live.feed", scoped_request)
+        .await
+        .is_err());
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn forget_requires_confirmation_and_fences_active_and_replaced_profiles() {
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let profile = manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(workflow_grant()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let controller = Controller::new(manager.clone());
+    let request = json!({"profile":"desk","profileId":profile.profile_id,"origin":profile.origin,"hostId":profile.host_id,"confirm":true});
+    let mut unconfirmed = request.clone();
+    unconfirmed["confirm"] = json!(false);
+    assert_eq!(
+        controller
+            .manage("controller.profile.forget", unconfirmed)
+            .await
+            .unwrap_err()
+            .code,
+        "confirmation_required"
+    );
+    let listed = controller
+        .manage("controller.profiles", json!({}))
+        .await
+        .unwrap();
+    assert_eq!(listed[0]["profileId"], request["profileId"]);
+    controller.connect("desk").await.unwrap();
+    assert_eq!(
+        controller
+            .manage("controller.profile.forget", request.clone())
+            .await
+            .unwrap_err()
+            .code,
+        "profile_in_use"
+    );
+    let other = Controller::new(manager.clone());
+    assert_eq!(
+        other
+            .manage("controller.profile.forget", request.clone())
+            .await
+            .unwrap_err()
+            .code,
+        "command_journal_in_use"
+    );
+    controller.disconnect().await;
+    // Direct SDK connections do not hold the controller journal lease. Local
+    // removal cannot revoke an access token already in another process.
+    let remote = manager.open("desk").await.unwrap();
+    controller
+        .manage("controller.profile.forget", request.clone())
+        .await
+        .unwrap();
+    assert!(!remote.is_closed());
+    remote
+        .call_value_with_meta("collaboration.me", json!({}), None)
+        .await
+        .unwrap();
+    remote.close();
+    let replacement = manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(workflow_grant()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    assert_ne!(replacement.profile_id, profile.profile_id);
+    assert_eq!(
+        controller
+            .manage("controller.profile.forget", request)
+            .await
+            .unwrap_err()
+            .code,
+        "stale_view"
+    );
+    assert_eq!(
+        manager.get("desk").await.unwrap().profile_id,
+        replacement.profile_id
+    );
+    f.finish().await;
+}
 #[tokio::test]
 async fn controller_projects_only_authorized_host_data_and_recovers_without_local_core() {
     let f = Fixture::new().await;
@@ -256,4 +599,5 @@ async fn removing_and_restoring_workflow_permission_rebuilds_under_new_grants() 
 }
 
 mod automation;
+mod competitions;
 mod proposals;

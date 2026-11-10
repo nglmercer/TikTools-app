@@ -201,12 +201,17 @@ pub(super) struct AuthoringPermit {
     id: String,
     previous_revision: i64,
     previous_generation: Option<i64>,
+    allow_owner_edits: bool,
+    allow_other_author_edits: bool,
+    pub(super) affected_events: Vec<String>,
 }
 pub(super) fn authorize_authoring(
     db: &Connection,
     table: &str,
     id: &str,
     auth: &Authorization,
+    allow_owner_edits: bool,
+    allow_other_author_edits: bool,
 ) -> Result<AuthoringPermit, DatabaseError> {
     let identity = auth
         .snapshot()
@@ -230,9 +235,30 @@ pub(super) fn authorize_authoring(
             crate::collaboration::Error::Forbidden,
         ));
     }
-    if family == crate::collaboration::AutomationFamily::Action {
-        protect_action_dependents(db, id, &identity.principal_id)?;
-    }
+    let allow_owner_edits = allow_owner_edits
+        && identity
+            .grant
+            .automation_delegation
+            .as_ref()
+            .is_some_and(|policy| policy.allow_owner_edits);
+    let allow_other_author_edits = allow_other_author_edits
+        && identity
+            .grant
+            .automation_delegation
+            .as_ref()
+            .is_some_and(|policy| policy.allow_other_author_edits);
+    let affected_events = if family == crate::collaboration::AutomationFamily::Action {
+        protect_action_dependents(
+            db,
+            id,
+            &identity.principal_id,
+            &identity.grant,
+            allow_owner_edits,
+            allow_other_author_edits,
+        )?
+    } else {
+        Vec::new()
+    };
     let previous_revision = versions::current(db, table, id)?;
     let provenance = get(db, table, id)?;
     let previous_generation = match provenance {
@@ -243,6 +269,14 @@ pub(super) fn authorize_authoring(
                 },
             generation,
         }) if principal_id == &identity.principal_id && previous_revision > 0 => Some(generation),
+        Some(BehaviorProvenance {
+            authority: BehaviorAuthority::Delegated { .. },
+            generation,
+        }) if allow_other_author_edits && previous_revision > 0 => Some(generation),
+        Some(BehaviorProvenance {
+            authority: BehaviorAuthority::Owner,
+            generation,
+        }) if allow_owner_edits && previous_revision > 0 => Some(generation),
         Some(_) => {
             return Err(DatabaseError::CommandAuthorization(
                 crate::collaboration::Error::Forbidden,
@@ -268,6 +302,9 @@ pub(super) fn authorize_authoring(
         id: id.into(),
         previous_revision,
         previous_generation,
+        allow_owner_edits,
+        allow_other_author_edits,
+        affected_events,
     })
 }
 /// A disabled/new action can still change a referenced event's captured
@@ -279,7 +316,10 @@ fn protect_action_dependents(
     db: &Connection,
     action_id: &str,
     author: &str,
-) -> Result<(), DatabaseError> {
+    grant: &crate::collaboration::Grant,
+    allow_owner_edits: bool,
+    allow_other_author_edits: bool,
+) -> Result<Vec<String>, DatabaseError> {
     let denied = || DatabaseError::CommandAuthorization(crate::collaboration::Error::Forbidden);
     // Avoid materializing an arbitrarily large owner script merely to discover
     // its references. A definition that cannot fit this inspection budget
@@ -289,6 +329,7 @@ fn protect_action_dependents(
         .map_err(|_| denied())?;
     let mut query = statement.query([]).map_err(|_| denied())?;
     let mut inspected = 0usize;
+    let mut affected = Vec::new();
     while let Some(row) = query.next().map_err(|_| denied())? {
         let event_id: String = row.get(0).map_err(|_| denied())?;
         let payload: String = row.get(1).map_err(|_| denied())?;
@@ -315,13 +356,23 @@ fn protect_action_dependents(
         if dependencies.iter().any(|id| !id.is_string()) {
             return Err(denied());
         }
-        if dependencies.iter().any(|id| id.as_str() == Some(action_id))
-            && !matches!(provenance.authority,BehaviorAuthority::Delegated { principal_id,.. } if principal_id==author)
-        {
-            return Err(denied());
+        if dependencies.iter().any(|id| id.as_str() == Some(action_id)) {
+            let own = matches!(provenance.authority, BehaviorAuthority::Delegated { ref principal_id, .. } if principal_id == author);
+            let owner = matches!(provenance.authority, BehaviorAuthority::Owner)
+                && allow_owner_edits
+                && grant
+                    .allows_automation(crate::collaboration::AutomationFamily::Event, &event_id);
+            let other = matches!(provenance.authority, BehaviorAuthority::Delegated { .. })
+                && allow_other_author_edits
+                && grant
+                    .allows_automation(crate::collaboration::AutomationFamily::Event, &event_id);
+            if !own && !owner && !other {
+                return Err(denied());
+            }
+            affected.push(event_id);
         }
     }
-    Ok(())
+    Ok(affected)
 }
 /// Call only after save_record succeeded in the SAME transaction. New records
 /// momentarily have owner bookkeeping inside that uncommitted TX; this replaces
@@ -347,8 +398,9 @@ pub(super) fn mark_delegated_new(
     })?;
     let previous_authority_valid = match (&provenance.authority, permit.previous_generation) {
         (BehaviorAuthority::Owner, None) => true,
+        (BehaviorAuthority::Owner, Some(_)) if permit.allow_owner_edits => true,
         (BehaviorAuthority::Delegated { principal_id, .. }, Some(_)) => {
-            principal_id == &permit.identity.principal_id
+            principal_id == &permit.identity.principal_id || permit.allow_other_author_edits
         }
         _ => false,
     };

@@ -12,3 +12,17 @@ describe('automation resource restrictions', () => {
     }
   });
 });
+
+describe('reusable automation policy storage', () => {
+  const grant = () => ({ ...viewerGrant(), capabilities: ['automation.read', 'automation.edit', 'automation.toggle'],
+    automationDelegation: { effects: ['log', 'delay'], allowDynamicTargets: false } });
+  it('preserves explicit policy and rejects unknown effects or missing authority', () => {
+    expect(parseGrant(grant()).automationDelegation).toEqual({ effects: ['log', 'delay'], allowDynamicTargets: false });
+    expect(parseGrant(viewerGrant()).automationDelegation).toBeUndefined();
+    for (const bad of [[], ['plugin'], ['log', 'log'], ['http']]) {
+      expect(() => parseGrant({ ...grant(), automationDelegation: { effects: bad, allowDynamicTargets: false } })).toThrow('invalid_grant');
+    }
+    expect(() => parseGrant({ ...grant(), capabilities: ['automation.read'] })).toThrow('invalid_grant');
+    expect(() => parseGrant({ ...grant(), automationDelegation: { effects: ['log'], allowDynamicTargets: false, unknown: true } })).toThrow('invalid_grant');
+  });
+});

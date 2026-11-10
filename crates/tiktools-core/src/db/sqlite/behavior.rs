@@ -15,6 +15,8 @@ pub(crate) type BehaviorRuntimeSnapshot = (
     Versioned<Value>,
     Vec<(String, String, BehaviorRuntimeAuthority)>,
 );
+#[cfg(test)]
+mod plugin_source_tests;
 mod remote;
 mod review;
 #[cfg(test)]
@@ -32,6 +34,23 @@ use super::{
     util::{bool_int, now, required_value_string},
     DatabaseError, DatabaseManager,
 };
+
+/// Advance on every accepted write, including a repeated value or deletion of
+/// an absent row. The caller may be recording a fresh runtime/package
+/// decision that cannot safely reuse evidence captured before this write.
+/// Keep this in the same transaction as the source change: a generation must
+/// never advance without its state, or vice versa.
+pub(super) fn advance_plugin_source(tx: &Transaction<'_>, id: &str) -> Result<i64, DatabaseError> {
+    tx.query_row(
+        "INSERT INTO plugin_sync_source_versions(plugin_id,generation) VALUES (?1,1)
+         ON CONFLICT(plugin_id) DO UPDATE SET generation=generation+1
+         WHERE generation < 9223372036854775807 RETURNING generation",
+        [id],
+        |row| row.get(0),
+    )
+    .optional()?
+    .ok_or_else(|| DatabaseError::Invalid("plugin source generation exhausted".into()))
+}
 
 impl DatabaseManager {
     pub(crate) fn load_behavior_snapshot(&self) -> Result<Value, DatabaseError> {
@@ -189,20 +208,107 @@ impl DatabaseManager {
         installed: bool,
         enabled: bool,
     ) -> Result<Value, DatabaseError> {
-        let connection = self.open(&self.automation_path())?;
-        connection.execute(
+        let mut connection = self.open(&self.automation_path())?;
+        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        advance_plugin_source(&tx, id)?;
+        tx.execute(
             "INSERT INTO behavior_plugins (id, installed, enabled, updated_at)
              VALUES (?, ?, ?, ?)
              ON CONFLICT(id) DO UPDATE SET installed = excluded.installed,
                enabled = excluded.enabled, updated_at = excluded.updated_at",
             params![id, bool_int(installed), bool_int(enabled), now()],
         )?;
+        tx.commit()?;
         Ok(json!({"id": id, "installed": installed, "enabled": enabled}))
     }
     pub(crate) fn remove_plugin_state(&self, id: &str) -> Result<(), DatabaseError> {
-        let connection = self.open(&self.automation_path())?;
-        connection.execute("DELETE FROM behavior_plugins WHERE id = ?", [id])?;
+        let mut connection = self.open(&self.automation_path())?;
+        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        advance_plugin_source(&tx, id)?;
+        tx.execute("DELETE FROM behavior_plugins WHERE id = ?", [id])?;
+        tx.commit()?;
         Ok(())
+    }
+
+    /// Fence any prior sync review before a package's files can change. A
+    /// failed install remains a fresh source decision and keeps the fence.
+    #[cfg(feature = "plugin-install")]
+    pub(crate) fn invalidate_plugin_package_source(&self, id: &str) -> Result<i64, DatabaseError> {
+        self.invalidate_plugin_package_source_inner(id, false)
+    }
+
+    /// Preserve an account-independent dirty marker before any package file
+    /// can change. A later reconciliation decides which account may sync it.
+    #[cfg(all(feature = "plugin-install", feature = "cloud-auth"))]
+    pub(crate) fn invalidate_plugin_package_source_untracked(
+        &self,
+        id: &str,
+    ) -> Result<i64, DatabaseError> {
+        self.invalidate_plugin_package_source_inner(id, true)
+    }
+
+    #[cfg(feature = "plugin-install")]
+    fn invalidate_plugin_package_source_inner(
+        &self,
+        id: &str,
+        mark_untracked: bool,
+    ) -> Result<i64, DatabaseError> {
+        if !tiktools_plugin_api::manifest::is_valid_plugin_id(id) {
+            return Err(DatabaseError::Invalid("invalid plugin package id".into()));
+        }
+        let mut connection = self.open(&self.automation_path())?;
+        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let generation = advance_plugin_source(&tx, id)?;
+        if mark_untracked {
+            tx.execute("INSERT INTO plugin_sync_untracked_local(plugin_id,generation) VALUES (?1,?2) ON CONFLICT(plugin_id) DO UPDATE SET generation=excluded.generation", params![id, generation])?;
+        } else {
+            tx.execute(
+                "UPDATE plugin_sync_untracked_local SET generation=?2 WHERE plugin_id=?1",
+                params![id, generation],
+            )?;
+        }
+        tx.commit()?;
+        Ok(generation)
+    }
+
+    /// Fence the end of package removal and delete the prior state only when
+    /// no newer source writer won. Even on mismatch the final fence commits;
+    /// the concurrent writer's persisted state remains untouched.
+    #[cfg(feature = "plugin-install")]
+    pub(crate) fn remove_plugin_state_after_package(
+        &self,
+        id: &str,
+        generation: i64,
+    ) -> Result<bool, DatabaseError> {
+        let mut connection = self.open(&self.automation_path())?;
+        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let current: Option<i64> = tx
+            .query_row(
+                "SELECT generation FROM plugin_sync_source_versions WHERE plugin_id=?1",
+                [id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if current.is_none() || generation <= 0 {
+            return Err(DatabaseError::Invalid(
+                "invalid package source reservation".into(),
+            ));
+        }
+        let final_generation = advance_plugin_source(&tx, id)?;
+        tx.execute(
+            "UPDATE plugin_sync_untracked_local SET generation=?2 WHERE plugin_id=?1",
+            params![id, final_generation],
+        )?;
+        let matched = current == Some(generation);
+        if matched {
+            tx.execute("DELETE FROM behavior_plugins WHERE id=?1", [id])?;
+        }
+        tx.commit()?;
+        Ok(matched)
     }
     fn load_plugin_states_from(connection: &Connection) -> Result<Vec<Value>, DatabaseError> {
         let mut statement = connection

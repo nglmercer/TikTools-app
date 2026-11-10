@@ -5888,12 +5888,15 @@ name = "tiktools-cloud-auth"
 version = "4.0.2"
 dependencies = [
  "cloud-client",
+ "getrandom 0.4.3",
+ "libc",
  "open",
  "reqwest 0.13.5",
  "schemars",
  "secrecy",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "url",
@@ -5904,10 +5907,14 @@ name = "tiktools-cloud-sync"
 version = "4.0.2"
 dependencies = [
  "cloud-client",
+ "fs2",
+ "getrandom 0.4.3",
+ "libc",
  "reqwest 0.13.5",
  "schemars",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "tempfile",
  "thiserror 2.0.21",
  "tiktools-cloud-auth",
@@ -6000,6 +6007,7 @@ dependencies = [
  "ttl-live-events",
  "ttl-live-proto",
  "url",
+ "uuid",
 ]
 
 [[package]]
@@ -6069,12 +6077,15 @@ version = "4.0.2"
 dependencies = [
  "base64 0.23.1",
  "flate2",
+ "fs2",
+ "libc",
  "schemars",
  "semver",
  "serde",
  "serde_json",
  "sha2 0.11.1",
  "tar",
+ "tempfile",
  "thiserror 2.0.21",
  "tiktools-plugin-api",
  "tiktools-plugin-package",

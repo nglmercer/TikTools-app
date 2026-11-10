@@ -483,13 +483,14 @@ impl AppCore {
         #[cfg(feature = "persistence")]
         {
             let _writer = self.automation_gate().map_err(|error| error.to_string())?;
-            context.with_current_subjects(action, &self.automation, |identities| {
+            let admit = |identities: &[crate::collaboration::ExecutionIdentity]| {
                 if self.is_shutdown() {
                     return Err("host is shutting down".into());
                 }
                 Self::check_core_subjects(action, identities)?;
                 apply(identities)
-            })
+            };
+            context.with_action_admission(self, action, admit)
         }
         #[cfg(not(feature = "persistence"))]
         {
@@ -640,7 +641,7 @@ impl AppCore {
                 // callback below repeats this after actual SQLite admission.
                 // The writer gate is already held; do not reenter the helper
                 // that acquires it for ordinary action admission.
-                context.with_current_subjects(&action, &core.automation, |identities| {
+                context.with_action_admission(&core, &action, |identities| {
                     if core.is_shutdown() {
                         return Err("host is shutting down".into());
                     }
@@ -649,7 +650,7 @@ impl AppCore {
                 core.points
                     .adjust_approved(&key, &unique_id, delta, |effective, commit| {
                         context
-                            .with_current_subjects(&action, &core.automation, |identities| {
+                            .with_action_admission(&core, &action, |identities| {
                                 if core.is_shutdown() {
                                     return Err("host is shutting down".into());
                                 }

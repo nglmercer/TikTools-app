@@ -23,6 +23,12 @@ impl AutomationEvent {
         Self::new(payload, ExecutionContext::owner())
     }
 
+    /// Native activity with an unverified creator remains useful to the
+    /// Owner, but cannot authorize any delegated execution chain.
+    pub(crate) fn owner_without_delegation(payload: Value) -> Self {
+        Self::new(payload, ExecutionContext::owner_without_delegation())
+    }
+
     pub(crate) fn new(payload: Value, context: ExecutionContext) -> Self {
         Self { payload, context }
     }

@@ -26,8 +26,10 @@ use tiktools_control_api::modules::automation_effects::{EffectGetParams, EffectH
 use tiktools_control_api::modules::automation_library::{
     OwnerLibraryEmpty, OwnerLibraryReviewUnknown, OwnerLibrarySubmit,
 };
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::cloud::CloudLoginOperationParams;
 use tiktools_control_api::modules::competitions::{
-    CompetitionActionId, CompetitionId, CompetitionResultsRequest,
+    CompetitionActionId, CompetitionId, CompetitionResultsRequest, CompetitionSummaryParams,
     Definition as CompetitionDefinition, ResolveCompetitionAction, SelectWinner,
 };
 use tiktools_control_api::modules::creators::{CreatorGetParams, CreatorsRecentParams};
@@ -61,14 +63,16 @@ use tiktools_control_api::modules::rankings::{
     Definition, ExternalContribution, RankingId, RankingUpdate,
 };
 use tiktools_control_api::modules::registry::{
-    CloudCatalogQuery, CloudCatalogSummariesQuery, CloudCatalogVersionsQuery, RegistryAddInput,
-    RegistryDefaults, RegistryEnableParams, RegistryNameParams, RegistryPackageParams,
-    RegistryRefreshParams, RegistryUrlParams, SearchQuery,
+    CloudCatalogQuery, CloudCatalogSummariesQuery, CloudCatalogVersionsQuery, RegistryDefaults,
+    RegistryPackageParams, RegistryRefreshParams, SearchQuery,
 };
 use tiktools_control_api::modules::rpc::SchemaParams;
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
 #[cfg(feature = "cloud-auth")]
-use tiktools_control_api::modules::sync::SyncResolveParams;
+use tiktools_control_api::modules::sync::{
+    CloudLibraryQuery, CloudLibraryRead, SyncResolveParams, SyncUncertainResolveParams,
+    SyncUncertainReviewParams,
+};
 use tiktools_control_api::modules::system::SaveFileParams;
 use tiktools_control_api::modules::updates::{CheckParams as UpdateCheckParams, NoUpdateParams};
 use tiktools_control_api::modules::widgets::WidgetsCopyParams;
@@ -132,6 +136,11 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
                 .map(|_| ())
                 .map_err(invalid)
         }
+        "ui.feed.creator" => {
+            tiktools_control_api::modules::ui::CreatorFeedParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
         "analytics.summary" => AnalyticsSummaryParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
@@ -191,7 +200,9 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "automation.review" => AutomationGetParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
-        "automation.manifest.get" => validate::<AutomationManifestParams>(params),
+        "automation.manifest.get" | "automation.delegation.preflight" => {
+            validate::<AutomationManifestParams>(params)
+        }
         "automation.list" => AutomationListParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
@@ -244,6 +255,9 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
             .map(|_| ())
             .map_err(invalid),
         "competitions.results" => CompetitionResultsRequest::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "competitions.summary" => CompetitionSummaryParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
         "competitions.list" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
@@ -446,10 +460,6 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         | "registry.list"
         | "registry.cloudCatalogPaginationCapabilities"
         | "registry.defaults.get" => validate::<Empty>(params),
-        "registry.root" => validate::<RegistryUrlParams>(params),
-        "registry.add" => validate::<RegistryAddInput>(params),
-        "registry.remove" => validate::<RegistryNameParams>(params),
-        "registry.enable" => validate::<RegistryEnableParams>(params),
         "registry.refresh" => validate::<RegistryRefreshParams>(params),
         "registry.search" => validate::<SearchQuery>(params),
         "registry.cloudCatalog" => validate::<CloudCatalogQuery>(params),
@@ -458,17 +468,34 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "registry.package" => validate::<RegistryPackageParams>(params),
         "registry.defaults.set" => validate::<RegistryDefaults>(params),
         #[cfg(feature = "cloud-auth")]
-        "cloud.status"
-        | "cloud.login.begin"
+        "cloud.status" | "cloud.login.reserve" | "cloud.restore" | "cloud.logout" => {
+            validate::<Empty>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
+        "cloud.login.begin"
         | "cloud.login.open"
         | "cloud.login.complete"
-        | "cloud.login.cancel"
-        | "cloud.restore"
-        | "cloud.logout" => validate::<Empty>(params),
+        | "cloud.login.cancel" => validate::<CloudLoginOperationParams>(params),
         #[cfg(feature = "cloud-auth")]
-        "sync.status" | "sync.enable" | "sync.disable" | "sync.now" => validate::<Empty>(params),
+        "sync.status"
+        | "sync.enable"
+        | "sync.disable"
+        | "sync.now"
+        | "sync.uncertain.list"
+        | "sync.v2.discover"
+        | "sync.v2.selected"
+        | "sync.v2.preview"
+        | "sync.v2.now" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.resolve" => validate::<SyncResolveParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.uncertain.review" => validate::<SyncUncertainReviewParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloudLibrary.list" => validate::<CloudLibraryQuery>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloudLibrary.read" => validate::<CloudLibraryRead>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.uncertain.resolve" => validate::<SyncUncertainResolveParams>(params),
         #[cfg(feature = "cloud-auth")]
         "publisher.list" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]

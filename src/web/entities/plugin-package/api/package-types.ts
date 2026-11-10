@@ -146,6 +146,7 @@ export interface InstallReceipt {
   version: string;
   origin: PackageOrigin;
   archiveDigest?: string;
+  cloudArtifact?: { target: string; generation: string };
   signature: SignatureState;
   runtime: string;
   grantedPermissions: string[];
@@ -164,6 +165,9 @@ export interface Advisory {
   url?: string;
 }
 
+/** Observation for the exact host artifact; omitted by older hosts means unknown. */
+export type LiveReleaseStatus = 'unknown' | 'approved' | 'yanked' | 'key-revoked' | 'publisher-unapproved' | 'advisory' | 'incompatible';
+
 export interface UpdateInfo {
   id: string;
   registry: string;
@@ -176,6 +180,8 @@ export interface UpdateInfo {
   advisory?: Advisory;
   changelog?: string;
   autoApplicable: boolean;
+  currentStatus?: LiveReleaseStatus;
+  latestStatus?: LiveReleaseStatus;
 }
 
 export interface UpdateReport {
@@ -191,6 +197,7 @@ export interface AvailableRelease {
   yanked: boolean;
   advisory?: Advisory;
   compatible: boolean;
+  liveStatus?: LiveReleaseStatus;
   changelog?: string;
 }
 
@@ -223,11 +230,6 @@ export interface RegistryDefaults {
   autoUpdate: AutoUpdate;
   checkIntervalHours: number;
   allowSideload: boolean;
-}
-
-export interface RegistryRootPreview {
-  url: string;
-  keys: { keyId: string; fingerprint: string }[];
 }
 
 export interface CatalogEntry {
@@ -286,4 +288,5 @@ export interface RegistryPackageDocument {
 export interface RegistryPackageView {
   registry: string;
   document: RegistryPackageDocument;
+  liveStatuses?: Record<string, LiveReleaseStatus>;
 }

@@ -2,39 +2,47 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ProposalModel, ProposalConfirmation } from '../model/proposals.ts';
+import type { AutomationModel } from '../model/automations.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
-const props = defineProps<{ model: ProposalModel }>();
+import ControllerProposalBuilder from './ControllerProposalBuilder.vue';
+const props = defineProps<{ model: ProposalModel; automation?: AutomationModel }>();
 const { locale } = useI18n();
 const family = ref<'action' | 'event'>('action'); const targetId = ref('');
 const dialog = ref<ProposalConfirmation | null>(null);
 const open = computed({ get: () => dialog.value !== null, set: (value: boolean) => { if (!value) dialog.value = null; } });
 const current = computed(() => dialog.value !== null && props.model.current(dialog.value));
 const labels = computed(() => locale.value === 'es' ? {
-  title: 'Propuestas de automatización', note: 'Envía una definición inactiva para que el propietario la revise. El anfitrión solo devuelve un resumen; el texto editable es tu copia local.',
+  title: 'Automatizaciones', note: 'El anfitrión devuelve un resumen; el texto editable es tu copia local. Puedes aplicar la definición activa si tu permiso lo permite.',
   family: 'Tipo de propuesta', action: 'Acción', event: 'Evento', id: 'ID de la propuesta', start: 'Preparar propuesta nueva', stored: 'Copias guardadas en esta PC',
-  load: 'Abrir copia guardada', inspect: 'Consultar estado actual', missing: 'No existe una definición actual para este ID.', present: 'Existe una definición actual. Solo su autor puede proponer cambios; el anfitrión comprobará el acceso.',
+  load: 'Abrir copia guardada', shared: 'Consultar definición compartida', sharedHint: 'Vista previa de la definición compartida. Usarla reemplazará el texto abierto; la copia se prepara inactiva y solo se guarda en esta PC cuando pulses Guardar.', useShared: 'Usar esta definición', inspect: 'Consultar estado actual', missing: 'No existe una definición actual para este ID.', present: 'Existe una definición actual. El anfitrión comprobará si tu permiso permite modificarla.',
   base: 'Revisión base', mode: 'Operación', create: 'Crear', update: 'Reemplazar', useBase: 'Usar este estado como base', json: 'JSON de tu propuesta',
-  save: 'Guardar propuesta en esta PC', send: 'Enviar propuesta para revisión', remove: 'Eliminar copia guardada', unsaved: 'Este texto tiene cambios sin guardar.', matches: 'El texto coincide con la copia guardada.',
+  save: 'Guardar propuesta en esta PC', send: 'Enviar propuesta para revisión', saveSend: 'Guardar y enviar para revisión', sendActive: 'Aplicar activa', saveActive: 'Guardar y aplicar activa', remove: 'Eliminar copia guardada', unsaved: 'Este texto tiene cambios sin guardar.', matches: 'El texto coincide con la copia guardada.',
   saveTitle: '¿Guardar la propuesta en esta PC?', saveNote: 'Se conservará el texto completo, incluidos los valores sensibles que contenga, en el perfil privado de este controlador.',
-  sendTitle: '¿Enviar esta propuesta al anfitrión?', sendNote: 'Se enviará una sola vez la copia guardada que se muestra. Debe estar inactiva. El propietario deberá revisar y adoptar la definición antes de ejecutarla.',
+  sendTitle: '¿Enviar esta propuesta al anfitrión?', sendNote: 'Se enviará una sola vez la copia guardada que se muestra. Debe estar inactiva. La ejecución requiere la autorización reutilizable aplicable o una aprobación del propietario.',
   removeTitle: '¿Eliminar la copia guardada?', removeNote: 'Se eliminará el texto guardado en esta PC. El texto abierto se conserva hasta cerrar o cambiar de perfil.',
   baseTitle: '¿Cambiar la base de reemplazo?', baseNote: 'La revisión consultada será la nueva base de esta propuesta. Compara su estado, revisa tu texto y guarda esta elección antes de enviar.',
-  changed: 'La propuesta o el acceso cambió. Cierra la confirmación y vuelve a revisarla.', limit: 'Máximo: 256 KiB. El JSON debe incluir el mismo ID y enabled: false.', retry: 'Actualizar copias guardadas',
+  changed: 'La propuesta o el acceso cambió. Cierra la confirmación y vuelve a revisarla.', baseChanged: 'El estado del anfitrión cambió. Revisa la revisión consultada y elige si deseas usarla como nueva base.', limit: 'Máximo: 256 KiB. El JSON debe incluir el mismo ID y enabled: false.', retry: 'Actualizar copias guardadas',
 } : {
-  title: 'Automation proposals', note: 'Submit a disabled definition for owner review. The host returns only a summary; the editable text is your local copy.',
+  title: 'Automations', note: 'The host returns a summary; the editable text is your local copy. You can apply the definition active if your grant allows it.',
   family: 'Proposal type', action: 'Action', event: 'Event', id: 'Proposal ID', start: 'Prepare new proposal', stored: 'Copies saved on this PC',
-  load: 'Open saved copy', inspect: 'Inspect current status', missing: 'No current definition exists for this ID.', present: 'A current definition exists. Only its author can propose changes; the host will check access.',
+  load: 'Open saved copy', shared: 'Read shared definition', sharedHint: 'Preview of the shared definition. Using it replaces the open text; the copy is prepared disabled and is saved on this PC only when you choose Save.', useShared: 'Use this definition', inspect: 'Inspect current status', missing: 'No current definition exists for this ID.', present: 'A current definition exists. The host will check whether your grant allows changes.',
   base: 'Base revision', mode: 'Operation', create: 'Create', update: 'Replace', useBase: 'Use this status as base', json: 'Your proposal JSON',
-  save: 'Save proposal on this PC', send: 'Send proposal for review', remove: 'Remove saved copy', unsaved: 'This text has unsaved changes.', matches: 'The text matches the saved copy.',
+  save: 'Save proposal on this PC', send: 'Send proposal for review', saveSend: 'Save and send for review', sendActive: 'Apply active', saveActive: 'Save and apply active', remove: 'Remove saved copy', unsaved: 'This text has unsaved changes.', matches: 'The text matches the saved copy.',
   saveTitle: 'Save this proposal on this PC?', saveNote: 'The complete text, including any sensitive values it contains, will be retained in this controller’s private profile.',
-  sendTitle: 'Send this proposal to the host?', sendNote: 'The saved copy shown is sent once. It must be disabled. The owner must review and adopt the definition before it can run.',
+  sendTitle: 'Send this proposal to the host?', sendNote: 'The saved copy shown is sent once. It must be disabled. Execution requires an applicable reusable authorization or owner approval.',
   removeTitle: 'Remove the saved copy?', removeNote: 'The text saved on this PC will be removed. The open text stays until you close or change the profile.',
   baseTitle: 'Change the replacement base?', baseNote: 'The inspected revision becomes this proposal’s new base. Compare its status, review your text and save this choice before sending.',
-  changed: 'The proposal or access changed. Close this confirmation and review it again.', limit: 'Maximum: 256 KiB. JSON must include the same ID and enabled: false.', retry: 'Refresh saved copies',
+  changed: 'The proposal or access changed. Close this confirmation and review it again.', baseChanged: 'The host state changed. Review the inspected revision and choose whether to use it as the new base.', limit: 'Maximum: 256 KiB. JSON must include the same ID and enabled: false.', retry: 'Refresh saved copies',
 });
 function choose(): void { props.model.select(family.value, targetId.value); }
 async function load(kind: 'action' | 'event', id: string): Promise<void> { if (props.model.kind.value !== kind || props.model.id.value !== id) props.model.select(kind, id); await props.model.load(); }
-function request(operation: ProposalConfirmation['operation']): void { dialog.value = props.model.prepare(operation); }
+async function request(operation: ProposalConfirmation['operation']): Promise<void> {
+  const capture = props.model.prepare(operation);
+  if (!capture) return;
+  if (operation !== 'remove') {
+    if (props.model.current(capture)) await props.model.confirm(capture);
+  } else dialog.value = capture;
+}
 async function confirm(): Promise<void> { const capture = dialog.value; if (!capture || !current.value) return; dialog.value = null; await props.model.confirm(capture); }
 watch(() => props.model.identityKey.value, () => { dialog.value = null; targetId.value = ''; });
 const dialogTitle = computed(() => dialog.value?.operation === 'send' ? labels.value.sendTitle : dialog.value?.operation === 'remove' ? labels.value.removeTitle : dialog.value?.operation === 'base' ? labels.value.baseTitle : labels.value.saveTitle);
@@ -53,7 +61,7 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
       v-if="model.error.value"
       role="alert"
     >
-      {{ model.error.value }}
+      {{ model.error.value === 'proposal_base_changed' ? labels.baseChanged : model.error.value }}
     </p>
     <button
       :disabled="model.busy.value"
@@ -98,6 +106,7 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
     <template v-if="model.editable.value">
       <h3>{{ model.kind.value === 'action' ? labels.action : labels.event }} · {{ model.id.value }}</h3>
       <p>{{ labels.mode }}: {{ model.mode.value === 'create' ? labels.create : labels.update }} · {{ labels.base }} {{ model.baseRevision.value }}</p>
+      <ControllerProposalBuilder :model="model" :automation="automation" />
       <div class="actions">
         <button
           :disabled="model.busy.value"
@@ -105,10 +114,28 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
         >
           {{ labels.load }}
         </button><button
+          v-if="model.canReadShared.value"
+          @click="model.loadShared()"
+        >
+          {{ labels.shared }}
+        </button><button
           :disabled="model.busy.value"
           @click="model.inspect()"
         >
           {{ labels.inspect }}
+        </button>
+      </div>
+      <div
+        v-if="model.sharedSource.value"
+        class="status"
+      >
+        <p>{{ labels.sharedHint }}</p>
+        <pre>{{ model.sharedSource.value.text }}</pre>
+        <button
+          :disabled="model.sharedSource.value.before !== model.text.value || !model.canReadShared.value"
+          @click="model.useShared()"
+        >
+          {{ labels.useShared }}
         </button>
       </div>
       <div
@@ -132,7 +159,7 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
         :disabled="model.busy.value"
         @input="model.edit(($event.target as HTMLTextAreaElement).value)"
       /></label>
-      <p>{{ labels.limit }}</p><p role="status">
+      <p>{{ labels.limit }}</p><p>{{ labels.saveNote }}</p><p role="status">
         {{ model.matches.value ? labels.matches : labels.unsaved }}
       </p>
       <div class="actions">
@@ -149,10 +176,16 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
           {{ labels.remove }}
         </button>
         <button
-          :disabled="!model.canSend.value"
-          @click="request('send')"
+          :disabled="!model.canSubmit.value"
+          @click="model.submit(false)"
         >
-          {{ labels.send }}
+          {{ model.matches.value ? labels.send : labels.saveSend }}
+        </button>
+        <button
+          v-if="model.canSubmitActive.value"
+          @click="model.submit(true)"
+        >
+          {{ model.matches.value ? labels.sendActive : labels.saveActive }}
         </button>
       </div>
     </template>

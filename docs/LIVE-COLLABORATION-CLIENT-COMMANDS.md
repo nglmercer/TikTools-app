@@ -12,14 +12,67 @@ release acceptance remain pending. See the [client guide](LIVE-COLLABORATION-CLI
 [host contract](LIVE-COLLABORATION-SPEC.md) and
 [executed checks](LIVE-COLLABORATION-VALIDATION.md).
 
+## Browser journal foundation
+
+An experimental IndexedDB journal now provides identity-bound workflow intents,
+strict-durability transaction requests, bounded history and an explicit
+reviewed-unknown result. A transaction checks the stored schema and atomically
+allows only one pending intent per origin/host/principal/session across tabs.
+Browser Web Locks also serialize dispatch, outcome checks and unknown-outcome
+review across tabs while an operation is in flight. If Web Locks are unavailable
+or the session lock is held, the operation fails without sending a command.
+It stores neither credentials nor workflow bodies. Chromium tests cover
+concurrent tabs, reload, aborted transactions and corrupt records.
+An absent record now fails closed for reads, dispatch and recovery. Creating it
+requires an explicit storage-loss acknowledgement, including for a new session
+because a new record cannot be distinguished from erased data. Initialization
+of an existing record preserves its pending command. The browser UI presents a
+storage-loss review before creating a missing record.
+
+The separate experimental recovery helper queries the original ID without
+replaying a mutation. It requires the current session, `commands.read` and
+workflow-read scope, and accepts success only when principal, method, host
+instance, command, resource, result and revision match the saved intent.
+Unknown or failed outcomes stay pending. Chromium tests use a simulated remote
+response and exercise a session change during the query.
+
+An experimental workflow dispatch helper now checks the selected view,
+permissions and session, commits one ID before sending, rechecks before
+dispatch, and verifies the host receipt and resource revision before recording
+success. A lost or malformed response retains the pending ID for recovery;
+there is no automatic mutation retry. A stale view detected before dispatch is
+recorded as unsent. Chromium tests use simulated host replies and cover a
+confirmed response, lost response and pre-dispatch session change. The local
+TLS gateway Chromium fixture also ran the actual browser transport and
+coordinator against the host: it disabled a workflow, discarded the received
+reply for a deletion, reloaded the browser page and recovered the same command ID from the host. This
+simulates a lost reply after receipt; it is not a process-crash test.
+
+The browser workflow screen uses these helpers for authorized
+disable/delete actions and presents pending recovery and unknown-outcome review.
+A completed IndexedDB
+transaction is not proof against browser data clearing, eviction, device loss or
+every platform's power-loss behavior. Release acceptance still requires
+physical two-PC and actual gateway process-crash/transport-loss
+acceptance. The browser's storage and durability guarantees vary by platform;
+users must review host state if local storage disappears.
+
 ## Automation events
 
+The board also permits an authorized controller to disable an action. This
+uses the existing `automation.toggle` and family-scoped read grant, a fixed
+`action` target and revision, and the same durable, non-replaying command
+journal and original-outcome recovery. The host advertises the separate
+`automationActionDeactivate` feature; older hosts do not offer the button.
+The client journal advances to version 9 and retains older pending records.
+Already-started effects may still finish.
+
 The **Host automations** board shows closed event/action summaries under the
-current read grant. Actions remain read-only. Choose **Disable event** or
-**Delete event** on a complete event and confirm its host, name, raw ID and exact
-base revision. A points refresh does not invalidate this confirmation. Event,
-connection, identity or grant changes require review again; loss of read access
-hides rows and closes any captured confirmation.
+current read grant. Choose **Disable event** or
+**Delete event** on a complete event. The action is sent once under the already
+approved grant, with the selected host, event and exact base revision. Event,
+connection, identity or grant changes invalidate the target; loss of read access
+hides rows.
 
 The native bridge creates `disable-event` / `delete-event` intents with fixed
 `automation` resource kind and `event` scope. They share the same pending gate
@@ -32,7 +85,7 @@ without sending the mutation again, including after later owner changes or
 removal of write permission while read/outcome access remains.
 
 The board never creates local host databases, stores source/config or opens an
-owner definition. Its read-only action rows may share raw IDs with events while
+owner definition. Its action rows may share raw IDs with events while
 remaining separate resources. The separate **Automation proposals** editor below
 uses only explicitly retained author text. Owner adoption, activation and
 delegated execution remain outside the remote controller boundary.
@@ -46,13 +99,45 @@ absence with revision zero/retained tombstone. The inspection carries an opaque
 native token bound to epoch, connection, host instance, grant, family and ID.
 Only the latest inspection is valid.
 
-**Use this status as base** requires explicit confirmation. It chooses create
+The optional field-based builder can prepare a disabled points action for a
+specific viewer or the viewer named by each triggering event. The latter uses
+the fixed public `event.user.uniqueId` template; it does not execute or submit
+the action. The host and owner still review and approve the saved definition,
+and each execution requires an event containing a viewer and the current
+viewer/points grants and limits. Preview, local save and host submission remain
+separate explicit steps.
+
+For event drafts the builder accepts multiple unique action IDs, lets the
+author remove or reorder added IDs and choose all enabled actions in order or
+one enabled action at random. The currently typed ID is also included in the
+preview; adding it first preserves it before selecting another. The host checks
+references and the owner reviews the complete dependency set, including actions
+that are disabled or not selected by a random run. Building the draft does not
+enable or execute anything.
+
+Gift event drafts may optionally match part of the public gift name; the
+host may substitute `Gift` when that name is unavailable. Cooldown can be
+shared across the event or kept separately per viewer. These in-memory
+cooldowns can reset after a host restart or when tracking reaches its bounded
+capacity; events without a viewer ID share a separate anonymous cooldown.
+Event IDs, global scope and viewer IDs are tracked as distinct key parts so
+colons and usernames such as `global` or `anonymous` cannot collide.
+
+**Use this status as base** chooses create
 for an absent target and replacement for an existing one, preserving your text.
-It does not save or send. **Save proposal on this PC** separately confirms
-retaining the complete text, including sensitive values. **Send proposal for
-review** shows the exact saved text, host, family/ID, mode and base. Edited text
-must be saved again; a successful submission requires a fresh inspection before
-another send. Existing Owner/foreign records remain protected by host policy.
+It does not save or send. **Save proposal on this PC** retains the complete
+text, including sensitive values. **Save and send for review** and **Save and
+apply active** inspect the host when necessary and combine the local save with
+one dispatch; the editor warns that the complete text is retained. A newer host
+revision is shown for an explicit base choice, never silently overwritten.
+Before dispatch it rechecks the saved text,
+inspection, connection and permissions. A changed context or failed save stops
+the send. A successful submission requires a fresh inspection before another
+send. After a directly confirmed submission, the editor advances the base for
+the next edit only when the returned native journal binds the exact proposal,
+account, host and previous revision. A later recovered or unrelated outcome
+does not advance the editor. Existing Owner/foreign records remain protected by
+host policy.
 
 Private `<profile UUID>.proposals` storage is independent of workflow drafts.
 It binds profile, HTTPS origin, host, principal and session; family-qualified
@@ -166,9 +251,9 @@ Connect the isolated desktop controller to an approved profile. The owner must
 grant `workflows.read`, the exact workflow resource and `workflows.toggle` for
 deactivation or `workflows.edit` for deletion. Reviewer presets remain read-only.
 The host must advertise the corresponding implemented feature. Select a workflow
-and choose **Disable workflow** or **Delete workflow**. The confirmation shows
-the exact host origin/identity, workflow ID and expected revision. If the view
-changes, review it again; the client never silently changes that precondition.
+and choose **Disable workflow** or **Delete workflow**. The action is sent once
+under the existing grant with the selected host identity and expected revision.
+If the view changes, review it again; the client never silently changes that precondition.
 
 Only Rust creates the command ID and chooses the host instance from its active
 connection. Before sending, it durably writes an intent. There is one unresolved
@@ -186,7 +271,7 @@ Reconnection/profile reopen also attempts that read. An unknown, expired,
 forbidden or unavailable result keeps the intent. **Review unknown outcome**
 requires a separate confirmation: it archives the ID as reviewed unknown,
 without claiming failure or undoing anything. Any later mutation is a new,
-separately confirmed operation against current state.
+separately initiated operation against current state.
 
 The panel shows native processing, the pending ID and the latest 16 resolved
 metadata records. A persistence failure blocks mutations until the profile is

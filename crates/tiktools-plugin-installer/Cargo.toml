@@ -23,6 +23,11 @@ semver.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tokio = { workspace = true }
+fs2 = "0.4"
+tempfile = "3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 zip.workspace = true

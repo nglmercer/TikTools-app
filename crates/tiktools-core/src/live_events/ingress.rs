@@ -382,7 +382,20 @@ pub(crate) async fn admit_stamped_event(
     }
     if core.live_admission.is_cancelled() {
         stats.admission_cancelled.fetch_add(1, Ordering::Relaxed);
+        if matches!(&event, ClientEvent::Event(_)) {
+            core.events.record_live_ingress_gap(generation);
+        }
         return;
+    }
+    if let ClientEvent::Connected(info) = &event {
+        // The label may be a caller-provided fallback. Only discovery proof
+        // tying the selected room to this exact creator authorizes a scope.
+        match info.verified_creator.as_deref() {
+            Some(creator) if creator == info.unique_id => {
+                core.events.bind_live_generation(generation, creator);
+            }
+            _ => core.events.reject_unverified_live_generation(generation),
+        }
     }
     match event {
         // Lifecycle transitions are rare and ordering-sensitive: wait for
@@ -419,6 +432,7 @@ pub(crate) async fn admit_stamped_event(
             match sender.try_reserve() {
                 Ok(permit) => publish_reserved(stats, permit, item),
                 Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                    core.events.record_live_ingress_gap(generation);
                     tracing::debug!("live ingress worker is gone; pump stops");
                 }
                 Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
@@ -454,6 +468,7 @@ async fn admit_full(
         _ => false,
     };
     if !critical {
+        core.events.record_live_ingress_gap(item.generation);
         if let ClientEvent::Event(data) = &item.event {
             if let tiktools_tiktok::events::CanonicalLiveEvent::Like(like) = &data.base {
                 stats.dropped_like_batches.fetch_add(1, Ordering::Relaxed);
@@ -480,6 +495,7 @@ async fn admit_full(
         biased;
         () = core.live_admission.cancelled() => {
             stats.admission_cancelled.fetch_add(1, Ordering::Relaxed);
+            core.events.record_live_ingress_gap(item.generation);
             return;
         }
         reserved = tokio::time::timeout(CRITICAL_SEND_TIMEOUT, sender.reserve()) => reserved,
@@ -487,9 +503,11 @@ async fn admit_full(
     match reserved {
         Ok(Ok(permit)) => publish_reserved(stats, permit, item),
         Ok(Err(_)) => {
+            core.events.record_live_ingress_gap(item.generation);
             tracing::debug!("live ingress worker is gone; pump stops");
         }
         Err(_) => {
+            core.events.record_live_ingress_gap(item.generation);
             stats.dropped_critical.fetch_add(1, Ordering::Relaxed);
             core.aggregations.ingress_loss(1);
             core.record_event_gap();
@@ -621,14 +639,17 @@ async fn run_ingress_dispatch(
         core.live_ingress.in_flight.fetch_add(1, Ordering::Relaxed);
         // Stale-generation fence: a newer connection exists, so this data
         // item belongs to an older session and must not be credited to the
-        // current creator. Lifecycle items always pass; they establish the
-        // generation this fence compares against.
+        // current creator. Stale lifecycle items are fenced as well; an
+        // accepted Connected item establishes the new worker generation.
         let current = core
             .live
             .connection_snapshot()
             .generation
             .max(core.connection_sequence.load(Ordering::Acquire));
         if item.generation < current {
+            if matches!(&item.event, ClientEvent::Event(_)) {
+                core.events.record_live_ingress_gap(item.generation);
+            }
             core.live_ingress.in_flight.fetch_sub(1, Ordering::Relaxed);
             core.live_ingress.stale.fetch_add(1, Ordering::Relaxed);
             continue;
@@ -639,7 +660,9 @@ async fn run_ingress_dispatch(
         }
         let started = now_millis();
         if let ClientEvent::Event(event) = item.event {
-            if let Some(effect) = core.prepare_live_event(event) {
+            if let Some(effect) =
+                core.prepare_live_event_with_generation(event, Some(item.generation))
+            {
                 core.route_live_competition_command(&effect).await;
                 core.route_live_competition_score(&effect).await;
                 // Reserve synchronously: storage can never hold ingress hostage.
@@ -680,7 +703,10 @@ async fn run_ingress_dispatch(
     // everything (this loop runs with an empty queue), emergency shutdown
     // accounts for whatever is still buffered.
     receiver.close();
-    while receiver.try_recv().is_ok() {
+    while let Ok(item) = receiver.try_recv() {
+        if matches!(item.event, ClientEvent::Event(_)) {
+            core.events.record_live_ingress_gap(item.generation);
+        }
         core.live_ingress.queued.fetch_sub(1, Ordering::Relaxed);
         core.live_ingress.cancelled.fetch_add(1, Ordering::Relaxed);
     }
@@ -736,6 +762,362 @@ mod tests {
         )
     }
 
+    fn connected(creator: &str) -> ClientEvent {
+        ClientEvent::Connected(tiktools_tiktok::ConnectionInfo {
+            unique_id: creator.to_owned(),
+            verified_creator: Some(creator.to_owned()),
+            room_id: "room".into(),
+            title: String::new(),
+            nickname: String::new(),
+            avatar_url: None,
+            viewers: 0,
+            total_users: 0,
+            gifts: Vec::new(),
+        })
+    }
+
+    #[tokio::test]
+    async fn saturated_ingress_attributes_gap_to_stamped_creator_across_reconnect() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(1);
+        let stamped = |generation, event| tiktools_tiktok::StampedClientEvent { generation, event };
+        admit_stamped_event(&core, &sender, stamped(1, connected("alice"))).await;
+        // Connected is still queued, so the worker has not set the context.
+        admit_stamped_event(&core, &sender, stamped(1, ClientEvent::Event(chat()))).await;
+        let alice = core
+            .events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap();
+        assert!(alice.gap);
+        assert!(
+            !core
+                .events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        receiver.recv().await.unwrap();
+        admit_stamped_event(&core, &sender, stamped(2, connected("bob"))).await;
+        // A late old-generation packet is never attributed to Bob.
+        admit_stamped_event(&core, &sender, stamped(1, ClientEvent::Event(chat()))).await;
+        assert!(
+            !core
+                .events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        admit_stamped_event(&core, &sender, stamped(2, ClientEvent::Event(chat()))).await;
+        assert!(
+            core.events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        assert!(
+            core.events
+                .creator_feed("alice", alice.stream_id.as_deref(), 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+    }
+
+    #[tokio::test]
+    async fn unresolved_shed_loss_is_bound_only_after_matching_connected_event() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(1);
+        sender
+            .send(IngressItem {
+                generation: 9,
+                event: ClientEvent::Event(chat()),
+            })
+            .await
+            .unwrap();
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 7,
+                event: ClientEvent::Event(chat()),
+            },
+        )
+        .await;
+        assert!(
+            !core
+                .events
+                .creator_feed("alice", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        assert!(
+            !core
+                .events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        receiver.recv().await.unwrap();
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 7,
+                event: connected("alice"),
+            },
+        )
+        .await;
+        assert!(
+            core.events
+                .creator_feed("alice", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        assert!(
+            !core
+                .events
+                .creator_feed("bob", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+    }
+
+    #[tokio::test]
+    async fn unverified_connected_label_never_authorizes_scoped_feed_or_execution_context() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+        let mut unverified = connected("alice");
+        if let ClientEvent::Connected(info) = &mut unverified {
+            info.verified_creator = None;
+        }
+        for event in [unverified, ClientEvent::Event(chat())] {
+            admit_stamped_event(
+                &core,
+                &sender,
+                tiktools_tiktok::StampedClientEvent {
+                    generation: 0,
+                    event,
+                },
+            )
+            .await;
+        }
+        drop(sender);
+        run_ingress_worker(
+            Arc::clone(&core),
+            receiver,
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await;
+        assert!(!core.events.is_verified_live_generation(0, "alice"));
+        assert!(
+            !core
+                .events
+                .creator_feed("alice", None, 0, 64, 2048)
+                .unwrap()
+                .gap
+        );
+        assert!(core
+            .events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap()
+            .events
+            .is_empty());
+        assert_eq!(core.events.feed_backfill(0, 64).events.len(), 1);
+        // The live connection remains usable, but no claimed creator/room
+        // can become authority for delegated execution or aggregation.
+        let mut fresh = chat();
+        fresh.metadata.msg_id += 1;
+        assert!(core
+            .prepare_live_event_with_generation(fresh, Some(0))
+            .unwrap()
+            .context
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn contradictory_connected_identity_never_authorizes_lifecycle_events() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let mut projection = core.events.subscribe_projection();
+        let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+        for event in [connected("alice"), connected("bob")] {
+            admit_stamped_event(
+                &core,
+                &sender,
+                tiktools_tiktok::StampedClientEvent {
+                    generation: 0,
+                    event,
+                },
+            )
+            .await;
+        }
+        drop(sender);
+        run_ingress_worker(
+            Arc::clone(&core),
+            receiver,
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await;
+        let context = recover_rwlock_read(&core.connection_context, "test context")
+            .clone()
+            .unwrap();
+        assert_eq!(context.unique_id, "bob");
+        assert!(!context.creator_verified);
+        assert!(!core.events.is_verified_live_generation(0, "alice"));
+        assert!(!core.events.is_verified_live_generation(0, "bob"));
+        let mut lifecycle_events = 0;
+        while let Ok(event) = projection.try_recv() {
+            if let crate::events::DomainEvent::LiveEvent { event_type, event } = event {
+                if matches!(
+                    event_type.as_str(),
+                    "tiktok.connected" | "tiktok.disconnected"
+                ) {
+                    lifecycle_events += 1;
+                    assert!(event.get("creator").is_none());
+                }
+            }
+        }
+        assert!(lifecycle_events >= 2);
+    }
+
+    #[tokio::test]
+    async fn verified_native_lifecycle_authorizes_only_exact_current_scoped_status() {
+        use tiktools_tiktok::{ConnectionSnapshot, ConnectionState};
+        const CHILD: &str = "TIKTOOLS_TEST_VERIFIED_LIVE_STATUS_CHILD";
+        const ROOT: &str = "TIKTOOLS_TEST_VERIFIED_LIVE_STATUS_ROOT";
+        if std::env::var_os(CHILD).is_none() {
+            let root = std::env::temp_dir().join(format!(
+                "tt-live-status-evidence-{}-{}",
+                std::process::id(),
+                fastrand::u64(..)
+            ));
+            std::fs::create_dir(&root).unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .arg("--exact")
+                .arg("live_events::ingress::tests::verified_native_lifecycle_authorizes_only_exact_current_scoped_status")
+                .arg("--nocapture")
+                .env(CHILD, "1")
+                .env(ROOT, &root)
+                .env("TIKTOOLS_PLUGIN_DATA_DIR", root.join("plugin-data"))
+                .output()
+                .unwrap();
+            std::fs::remove_dir_all(&root).unwrap();
+            assert!(
+                output.status.success(),
+                "child failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"),
+                "child did not execute the intended test: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+        let fixture_root =
+            std::path::PathBuf::from(std::env::var_os(ROOT).expect("child fixture root"));
+        for verified in [true, false] {
+            let root = fixture_root.join(if verified { "verified" } else { "unverified" });
+            let paths = crate::paths::AppPaths {
+                data: root.join("data"),
+                plugins: root.join("plugins"),
+                plugin_data: root.join("plugin-data"),
+                builtin_plugins: root.join("absent"),
+                development_plugins: None,
+                logs: root.join("logs"),
+                temp: root.join("temp"),
+                root: root.clone(),
+            };
+            let core = Arc::new(AppCore::with_paths(
+                Arc::new(NoopEmitter),
+                Arc::new(crate::NoopMediaHost),
+                paths,
+            ));
+            core.live
+                .set_connection_snapshot_for_test(ConnectionSnapshot {
+                    generation: 7,
+                    state: ConnectionState::Connected,
+                });
+            let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+            let mut event = connected("alice");
+            if !verified {
+                if let ClientEvent::Connected(info) = &mut event {
+                    info.verified_creator = None;
+                }
+            }
+            admit_stamped_event(
+                &core,
+                &sender,
+                tiktools_tiktok::StampedClientEvent {
+                    generation: 7,
+                    event,
+                },
+            )
+            .await;
+            drop(sender);
+            run_ingress_worker(
+                Arc::clone(&core),
+                receiver,
+                tokio_util::sync::CancellationToken::new(),
+            )
+            .await;
+            let status = core.live_status();
+            assert!(status.connected);
+            assert_eq!(status.unique_id.as_deref(), Some("alice"));
+            assert_eq!(status.room_id.as_deref(), Some("room"));
+            assert_eq!(status.connection_id.as_deref(), Some("connection-7"));
+            assert_eq!(
+                core.live_status_matches_verified_scope("alice", "room", "connection-7"),
+                verified
+            );
+            assert!(!core.live_status_matches_verified_scope("bob", "room", "connection-7"));
+            assert!(!core.live_status_matches_verified_scope("alice", "other", "connection-7"));
+            assert!(!core.live_status_matches_verified_scope("alice", "room", "connection-8"));
+            core.live
+                .set_connection_snapshot_for_test(ConnectionSnapshot {
+                    generation: 7,
+                    state: ConnectionState::Idle,
+                });
+            assert!(!core.live_status_matches_verified_scope("alice", "room", "connection-7"));
+            core.live
+                .set_connection_snapshot_for_test(ConnectionSnapshot {
+                    generation: 8,
+                    state: ConnectionState::Connected,
+                });
+            assert!(!core.live_status_matches_verified_scope("alice", "room", "connection-7"));
+            core.shutdown().await;
+            drop(core);
+            std::fs::remove_dir_all(root).unwrap();
+        }
+    }
+
+    #[test]
+    fn unavailable_scoped_feed_does_not_discard_verified_owner_context() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        for generation in 100..229 {
+            core.events.record_live_ingress_gap(generation);
+        }
+        assert!(core
+            .events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .is_err());
+        core.events.bind_live_generation(7, "alice");
+        *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
+            unique_id: "alice".into(),
+            room_id: "room".into(),
+            connection_id: "connection-7".into(),
+            creator_verified: true,
+        });
+        let effect = core
+            .prepare_live_event_with_generation(chat(), Some(7))
+            .unwrap();
+        assert_eq!(
+            effect
+                .context
+                .as_ref()
+                .map(|context| context.unique_id.as_str()),
+            Some("alice")
+        );
+    }
+
     fn gift_final() -> NativeLiveEvent {
         wrap(
             CanonicalLiveEvent::Gift(GiftEvent {
@@ -756,6 +1138,39 @@ mod tests {
                 icon_url: None,
             }),
         )
+    }
+
+    #[tokio::test]
+    async fn unverified_rooms_keep_distinct_local_combo_high_water_without_scoped_authority() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let mut gift = gift_final();
+        if let CanonicalLiveEvent::Gift(value) = &mut gift.base {
+            value.group_id = 123;
+        }
+        for (generation, room, msg_id, expected) in [
+            (1, "room-a", 71, 1),
+            (2, "room-b", 72, 1),
+            (2, "room-b", 73, 0),
+        ] {
+            *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
+                unique_id: "caller-label".into(),
+                room_id: room.into(),
+                connection_id: format!("connection-{generation}"),
+                creator_verified: false,
+            });
+            gift.metadata.msg_id = msg_id;
+            let effect = core
+                .prepare_live_event_with_generation(gift.clone(), Some(generation))
+                .unwrap();
+            assert!(effect.context.is_none());
+            assert_eq!(effect.totals["increment"], expected);
+        }
+        assert!(core
+            .events
+            .creator_feed("caller-label", None, 0, 64, 2048)
+            .unwrap()
+            .events
+            .is_empty());
     }
 
     fn gift_streak_mid() -> NativeLiveEvent {
@@ -984,6 +1399,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stale_queued_events_report_loss_only_for_their_creator() {
+        let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
+        let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+        for (generation, event) in [
+            (1, connected("alice")),
+            (1, ClientEvent::Event(chat())),
+            (2, connected("bob")),
+        ] {
+            admit_stamped_event(
+                &core,
+                &sender,
+                tiktools_tiktok::StampedClientEvent { generation, event },
+            )
+            .await;
+        }
+        core.connection_sequence.store(2, Ordering::Release);
+        drop(sender);
+        run_ingress_worker(
+            Arc::clone(&core),
+            receiver,
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await;
+        let alice = core
+            .events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap();
+        let bob = core.events.creator_feed("bob", None, 0, 64, 2048).unwrap();
+        assert!(alice.gap);
+        assert!(alice.events.is_empty());
+        assert!(!bob.gap);
+        assert!(bob.events.is_empty());
+        assert_eq!(core.live_ingress.stale.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
     async fn worker_fences_stale_generations_and_joins() {
         let core = Arc::new(AppCore::new(Arc::new(NoopEmitter)));
         // A newer connection exists: the queued item belongs to the old one.
@@ -1117,6 +1568,7 @@ mod tests {
             unique_id: "new".into(),
             room_id: "9".into(),
             connection_id: "connection-9".into(),
+            creator_verified: true,
         });
         let (sender, receiver) = tokio::sync::mpsc::channel(8);
         admit_stamped_event(

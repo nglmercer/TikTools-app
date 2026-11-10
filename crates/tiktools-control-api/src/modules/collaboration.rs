@@ -188,6 +188,15 @@ pub fn register(router: &mut ControlRouter) {
                     ))
                 })
                 .await??;
+            let reusable_automation = identity.grant.automation_delegation.is_some();
+            let shared_automation_source = identity
+                .grant
+                .automation_delegation
+                .as_ref()
+                .is_some_and(|p| {
+                    (p.allow_owner_source && p.allow_owner_edits)
+                        || (p.allow_other_author_source && p.allow_other_author_edits)
+                });
             Ok(HelloResult {
                 protocol_version: 1,
                 host_id,
@@ -210,10 +219,38 @@ pub fn register(router: &mut ControlRouter) {
                     ("workflowDelete".into(), cfg!(feature = "persistence")),
                     ("pointsAdjust".into(), cfg!(feature = "persistence")),
                     ("pointsProjection".into(), cfg!(feature = "persistence")),
+                    ("creatorFeed".into(), true),
+                    ("browserFeed".into(), true),
+                    ("competitionSummary".into(), cfg!(feature = "persistence")),
+                    ("competitionStop".into(), cfg!(feature = "persistence")),
+                    (
+                        "competitionActivation".into(),
+                        cfg!(feature = "persistence"),
+                    ),
+                    (
+                        "competitionSummaryVersions".into(),
+                        cfg!(feature = "persistence"),
+                    ),
                     ("automationSummary".into(), cfg!(feature = "persistence")),
                     ("automationDrafts".into(), cfg!(feature = "persistence")),
                     (
+                        "automationSharedSource".into(),
+                        cfg!(feature = "persistence") && shared_automation_source,
+                    ),
+                    (
+                        "automationReusableActivation".into(),
+                        cfg!(feature = "persistence") && reusable_automation,
+                    ),
+                    (
+                        "automationReusableWrite".into(),
+                        cfg!(feature = "persistence") && reusable_automation,
+                    ),
+                    (
                         "automationEventDeactivate".into(),
+                        cfg!(feature = "persistence"),
+                    ),
+                    (
+                        "automationActionDeactivate".into(),
                         cfg!(feature = "persistence"),
                     ),
                     ("workflowSave".into(), false),
@@ -226,6 +263,7 @@ pub fn register(router: &mut ControlRouter) {
                         StreamDomain::Workflows,
                         StreamDomain::Points,
                         StreamDomain::Automation,
+                        StreamDomain::Competitions,
                         StreamDomain::Commands,
                     ]
                 } else {

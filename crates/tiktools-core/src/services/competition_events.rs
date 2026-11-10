@@ -41,7 +41,20 @@ impl AppCore {
             "competition.action.failed" => DomainEvent::CompetitionActionFailed(data.clone()),
             _ => return,
         };
-        self.events.publish_domain(domain);
+        #[cfg(feature = "persistence")]
+        let owner = data.generation == 0
+            || self
+                .db
+                .competition_execution_is_owner(&data.competition_id, data.generation)
+                .unwrap_or(false);
+        #[cfg(not(feature = "persistence"))]
+        let owner = true;
+        if owner {
+            self.events.publish_domain(domain);
+        } else {
+            // Plugin/domain observers cannot receive delegated events as Owner.
+            self.events.publish_presentation_domain(domain);
+        }
         if tokio::runtime::Handle::try_current().is_err() {
             self.automation_state
                 .rejected
@@ -51,6 +64,47 @@ impl AppCore {
         let event = serde_json::json!({"id": format!("{}-{}", kind.replace('.', "-"), self.next_sequence()),
             "type": kind, "timestamp": crate::now_millis(),
             "creator": {"uniqueId": data.creator_id, "roomId": data.room_id}, "data": data});
-        self.queue_automation_event(crate::live_events::AutomationEvent::owner(event));
+        if owner {
+            self.queue_automation_event(crate::live_events::AutomationEvent::owner(event));
+            return;
+        }
+        #[cfg(feature = "persistence")]
+        {
+            let context = (|| {
+                let service = self.collaboration().ok()?;
+                let fence = self
+                    .db
+                    .capture_competition_execution_fence(
+                        &service,
+                        &data.competition_id,
+                        data.generation,
+                    )
+                    .ok()?;
+                let subjects = service.execution_authorizations(&fence.subjects()).ok()?;
+                crate::automation_runtime::context::ExecutionContext::restricted_competition(
+                    subjects, fence,
+                )
+                .ok()
+            })();
+            if let Some(context) = context {
+                let Ok(slot) = Arc::clone(&self.automation_state.slots).try_acquire_owned() else {
+                    self.automation_state
+                        .rejected
+                        .fetch_add(1, Ordering::Relaxed);
+                    return;
+                };
+                self.automation_state
+                    .admitted
+                    .fetch_add(1, Ordering::Relaxed);
+                let core = Arc::clone(self);
+                tokio::spawn(async move {
+                    let _slot = slot;
+                    core.run_competition_automation_event(
+                        crate::live_events::AutomationEvent::new(event, context),
+                    )
+                    .await;
+                });
+            }
+        }
     }
 }

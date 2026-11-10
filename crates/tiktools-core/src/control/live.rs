@@ -127,6 +127,44 @@ impl AppCore {
         }
     }
 
+    /// Verify the exact LIVE status returned to a creator-restricted remote
+    /// caller against native discovery, generation and current context.
+    /// Display-only fallback labels are never remote authorization evidence.
+    pub fn live_status_matches_verified_scope(
+        &self,
+        unique_id: &str,
+        room_id: &str,
+        connection_id: &str,
+    ) -> bool {
+        #[cfg(feature = "native-tiktok")]
+        {
+            let before = self.live.connection_snapshot();
+            let generation = before.generation;
+            let context = recover_rwlock_read(&self.connection_context, "connection context");
+            let verified = before.state == tiktools_tiktok::ConnectionState::Connected
+                && context.as_ref().is_some_and(|context| {
+                    context.creator_verified
+                        && context.unique_id == unique_id
+                        && context.room_id == room_id
+                        && context.connection_id == connection_id
+                        && context.connection_id == format!("connection-{generation}")
+                        && self
+                            .events
+                            .is_verified_live_generation(generation, unique_id)
+                });
+            drop(context);
+            let after = self.live.connection_snapshot();
+            verified
+                && after.generation == generation
+                && after.state == tiktools_tiktok::ConnectionState::Connected
+        }
+        #[cfg(not(feature = "native-tiktok"))]
+        {
+            let _ = (unique_id, room_id, connection_id);
+            false
+        }
+    }
+
     #[cfg(feature = "native-tiktok")]
     pub async fn live_connect(
         self: &Arc<Self>,

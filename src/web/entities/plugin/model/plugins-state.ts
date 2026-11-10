@@ -203,7 +203,12 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
   const handleSavePluginSettings = (id: string, values: PluginSettingValues): void => {
     void control
       .call<PluginSettingsResult>('plugins.settings.set', { pluginId: id, values })
-      .then(applySettings)
+      .then((result) => {
+        applySettings(result);
+        // Best-effort v2 staging: never blocks local save, only queues the
+        // portable envelope when v2 is selected for the account.
+        void control.call('sync.v2.stagePluginSettings', { pluginId: id, settings: values }).catch(() => {});
+      })
       .catch((failure: unknown) => {
         if (disposed) return;
         callbacks.reportError(errorMessage(failure));

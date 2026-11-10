@@ -160,6 +160,147 @@ fn keys() -> Keys {
     }
 }
 
+#[tokio::test]
+async fn fixed_client_ignores_legacy_sources_and_persisted_trust_controls() {
+    let directory = TempDir::new("fixed-sources");
+    let cloud = StaticServer::start(directory.join("cloud")).await;
+    let foreign = StaticServer::start(directory.join("foreign")).await;
+    let trusted = keys();
+    let impostor = keys();
+    let builtin =
+        crate::cloud_source("official", &cloud.base, vec![trusted.root.public_key()]).unwrap();
+    let mut spoofed =
+        crate::cloud_source("official", &foreign.base, vec![impostor.root.public_key()]).unwrap();
+    spoofed.enabled = false;
+    spoofed.priority = 999;
+    spoofed.scopes = vec!["evil.*".into()];
+    let custom = RegistrySource::new("custom", &foreign.base).unwrap();
+    let path = directory.join("registries.json");
+    let mut stored = RegistriesConfig::default();
+    stored.registries = vec![spoofed, custom];
+    stored.defaults.allow_sideload = false;
+    stored.save(&path).unwrap();
+    let client = RegistryClient::new_fixed(
+        directory.join("cache"),
+        &path,
+        vec![builtin.clone()],
+        Arc::new(RwLock::new(TrustStore::new())),
+    )
+    .unwrap();
+    let effective = client.config();
+    assert_eq!(effective.registries, vec![builtin]);
+    assert!(!effective.defaults.allow_sideload);
+    let trust = client.trust();
+    let pinned = trust.read().unwrap();
+    let root = pinned.get(&KeyId::parse("root-1").unwrap()).unwrap();
+    assert_eq!(root.key, trusted.root.public_key());
+    drop(pinned);
+    assert!(matches!(
+        client.add(RegistrySource::new("new", &foreign.base).unwrap()),
+        Err(RegistryError::FixedSources)
+    ));
+    assert!(matches!(
+        client.remove("custom"),
+        Err(RegistryError::FixedSources)
+    ));
+    assert!(matches!(
+        client.set_enabled("official", false),
+        Err(RegistryError::FixedSources)
+    ));
+    assert!(matches!(
+        client.fetch_root(&foreign.base).await,
+        Err(RegistryError::FixedSources)
+    ));
+    assert!(matches!(
+        client.package("acme.plugin", Some("custom")).await,
+        Err(RegistryError::UnknownRegistry(_))
+    ));
+    assert_eq!(foreign.requests.load(Ordering::Acquire), 0);
+    let mut defaults = client.defaults();
+    defaults.channel = "beta".into();
+    client.set_defaults(defaults).unwrap();
+    let persisted = RegistriesConfig::load(&path).unwrap();
+    assert!(persisted
+        .registries
+        .iter()
+        .any(|source| source.name == "custom"));
+    assert_eq!(persisted.defaults.channel, "beta");
+    let unpinned = RegistryClient::new_fixed(
+        directory.join("empty-cache"),
+        &path,
+        Vec::new(),
+        Arc::new(RwLock::new(TrustStore::new())),
+    )
+    .unwrap();
+    assert!(unpinned.config().registries.is_empty());
+    assert!(unpinned.trust().read().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn fixed_client_rejects_untrusted_generation_and_stale_network_fallback() {
+    let directory = TempDir::new("fixed-generation");
+    let cloud = StaticServer::start(directory.join("cloud")).await;
+    let builtin =
+        crate::cloud_source("official", &cloud.base, vec![keys().root.public_key()]).unwrap();
+    let mut stored_source = builtin.clone();
+    stored_source.url = format!("{}/api/v1/registry/generations/../other/files", cloud.base);
+    let mut stored = RegistriesConfig::default();
+    stored.registries.push(stored_source);
+    let path = directory.join("registries.json");
+    stored.save(&path).unwrap();
+    let client = RegistryClient::new_fixed(
+        directory.join("cache"),
+        &path,
+        vec![builtin.clone()],
+        Arc::new(RwLock::new(TrustStore::new())),
+    )
+    .unwrap();
+    assert_eq!(client.config().registries[0].url, cloud.base);
+
+    let mut generation = builtin.clone();
+    generation.url = crate::generation_files_url(&cloud.base, 7).unwrap();
+    let mut stored = RegistriesConfig::default();
+    stored.registries.push(generation.clone());
+    stored.save(&path).unwrap();
+    let client = RegistryClient::new_fixed(
+        directory.join("cache2"),
+        &path,
+        vec![builtin],
+        Arc::new(RwLock::new(TrustStore::new())),
+    )
+    .unwrap();
+    // The current-generation endpoint is missing; a fixed product instance
+    // must not silently fall back to a previously cached generation.
+    assert!(client.refresh("official").await.is_err());
+}
+
+#[tokio::test]
+async fn fixed_client_does_not_follow_cloud_redirects_to_another_origin() {
+    let directory = TempDir::new("fixed-redirect");
+    let foreign = StaticServer::start(directory.join("foreign")).await;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let destination = foreign.base.clone();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 2048];
+        let _ = socket.read(&mut request).await;
+        let response = format!("HTTP/1.1 302 Found\r\nLocation: {destination}/stolen\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        socket.write_all(response.as_bytes()).await.unwrap();
+    });
+    let builtin = crate::cloud_source("official", &origin, vec![keys().root.public_key()]).unwrap();
+    let client = RegistryClient::new_fixed(
+        directory.join("cache"),
+        directory.join("registries.json"),
+        vec![builtin],
+        Arc::new(RwLock::new(TrustStore::new())),
+    )
+    .unwrap();
+    assert!(client.refresh("official").await.is_err());
+    server.await.unwrap();
+    assert_eq!(foreign.requests.load(Ordering::Acquire), 0);
+}
+
 fn host() -> HostCompat {
     HostCompat::new(semver::Version::new(0, 4, 0)).with_target("linux-x64-gnu")
 }

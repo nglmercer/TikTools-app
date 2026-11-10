@@ -15,14 +15,52 @@ The complete Desktop implementation and acceptance requirements are in
 [Desktop Cloud v2](CLOUD-V2-DESKTOP.md). Its contract/coordinator foundation is
 implemented and locally tested. Native transport, durable state/store and
 WorkspaceCoordinator support all five collections, but the application still
-uses v1. Explicit cutover, product RPC/UI, reviewed local application and actual
-two-Desktop v2 acceptance are pending. The components, flow and historical
+uses v1 by default. Explicit cutover, broader application of Cloud records and
+actual two-Desktop v2 acceptance are pending. The components, flow and historical
 validation sections below describe v1.
 
-The reviewed sibling RemakeBackend commit is `995d496`
-(`fix(catalog): align release identities with published contracts`), built on
-the integrity and recovery changes in `c0fb951` and the v2 implementation in
-`0c552b3`.
+An explicit local-Owner `sync.v2.now` operation and a background worker can
+stage confirmed plugin intents and run bounded v2 network passes for an identity that has already
+completed the guarded cutover and enabled account-scoped consent. It caches
+downloaded records and attempts supported changes to already installed plugins
+of the same version when the server and native source checks succeed. A remote
+deletion disables an installed plugin; it does not uninstall it. Application
+requires server enforcement of workspace write epochs and a matching local
+runtime. It does not select v2,
+replace the existing `sync.now` operation, or complete the product UI and
+two-device workflow. The worker polls every five seconds when caught up, drains
+additional queued work sooner, backs off on errors, and never restores a logged-out
+session. `workspacePending` counts workspace edits; `moreQueued`
+also signals additional local intents or a bounded network pass.
+Settings reads the selected protocol locally for the signed-in account and
+offers the matching explicit sync pass. For v2 it shows cache, pending and
+conflict counts. Server capability discovery remains a separate explicit
+check. Settings does not offer migration;
+v1 remains the default product path.
+The local-Owner migration preview reports only counts of installed selections,
+candidate pending edits, conflicts and v1-only records. It rechecks the native
+source, legacy snapshot, session and consent before returning. It is an
+informational snapshot, not a cutover authorization: the application cannot
+yet execute migration, and later changes require a fresh preview.
+When scoped v2 consent or an account's v2 protocol record exists, package install, update, rollback and removal
+reserve an account-independent dirty marker before filesystem mutation. The
+marker survives failures and follows the source generation; pending v2 uploads
+remain blocked until the package and runtime are reconciled. Normal legacy
+installs do not create this marker solely because sync was never enabled; if
+protocol admission is unavailable, the local operation conservatively marks
+the change. A successful install, update, rollback or removal can transfer a fresh
+marker to the current account's v2 outbox without a separate approval when
+the same session and consent are still current and the installed version and
+runtime match, or the removed package and stopped runtime are verified. An
+absent remote removal requires a server write barrier before it is completed;
+an unexpected remote selection becomes a conflict. Existing untracked work and
+uncertain operations retain their markers. Recovery of interrupted operations
+is still pending.
+
+The reviewed sibling RemakeBackend commit is `cb37900`, including canonical
+registry shards and bounded v2 capability discovery in the SDK, following bounded
+catalog pagination in `9f7e642`, catalog compatibility in `995d496`, integrity
+and recovery changes in `c0fb951`, and the v2 implementation in `0c552b3`.
 Its current contract is `docs/CLOUD-API-V2.md`; `docs/CLOUD-REDESIGN.md` and the
 latest section of `docs/IMPLEMENTATION-STATUS.md` supersede older roadmap gaps.
 That commit includes the digest-repair, recovery, byte-ordered pagination and
@@ -125,22 +163,30 @@ or completed two-Desktop v2 product workflow is claimed.
 3. `sync.now` pulls cursor pages (auto-rebuild from a snapshot on 410),
    pushes staged edits (409 marks a conflict, never overwrites), persists
    the generation-checked state, and returns remote records.
-4. The core applies each remote record **only to already-installed plugins**
-   (enabled flag; tombstone disables). Unknown plugins are skipped, versions
-   never trigger installs, and applying never re-stages — that is what
-   prevents sync loops.
-   Records with unresolved pending local edits are withheld from application;
-   discovering a conflict never changes the local plugin before a user choice.
-5. Conflicts resolve explicitly: `sync.resolve {key, keepLocal:true}`
-   rebases for the next upload; `keepLocal:false` drops the edit and applies
-   the remote value immediately. `SyncStatus.conflicts` lists them.
+   Ordinary feeds longer than the 200-page run limit checkpoint the pulled
+   pages and require a retry before any pending upload. A cursor-expiry rebuild
+   is currently all-or-nothing: more than 200 snapshot pages or 200 catch-up
+   pages returns `TooManyPages` without updating the old state. Repeating it
+   cannot advance an oversized rebuild; restartable snapshot recovery remains
+   required before claiming support for that volume.
+4. Downloaded remote records remain in the durable account snapshot. The
+   product does not automatically apply their enabled state or tombstones to
+   local plugins. `sync.now` reports `applied: 0`, a `skipped` record count and
+   `applicationDeferred`; these count retained remote records, not differences.
+   Settings explains that reviewed local application is not yet available.
+5. `SyncStatus.conflicts` lists conflicting keys. Until the durable reviewed
+   recovery path is wired, `sync.resolve` rejects either decision without
+   discarding or rebasing either side; the corresponding Settings actions are
+   disabled. Local plugin operations remain available.
 
 ## Existing v1 state isolation
 
 - `StateStore` files live per device under `<data>/cloud-sync/` and are
-  bound to `(origin, account_id)`; a mismatch is replaced, never merged.
-- Logout keeps the file (same-account re-login resumes); switching accounts
-  resets to a fresh state without touching the old account's server records.
+  bound to `(origin, account_id)`. The in-progress fence preserves separate
+  partitions instead of replacing one account's state when another signs in.
+- Logout keeps the same account's local state. Switching accounts never merges
+  their pending work; the product integration and cross-process guarantees of
+  the new partitioning still require validation before release.
 
 ## Historical v1 validation (2026-11-04, local)
 
@@ -159,6 +205,7 @@ or completed two-Desktop v2 product workflow is claimed.
   push → B login → pull → remote apply toggles B's installed plugin →
   B disable → push → A pull applies → both directions settle with
   `pushed:0` on re-sync (no loops) → logout wipes the keychain.
-  ALL-E2E-PASS.
+  ALL-E2E-PASS. This historical result predates the suspension of automatic
+  remote application described above and does not establish current acceptance.
 - Not validated: real RemakeBackend sync endpoints, Windows/macOS
   keychains, concurrent multi-process state access.

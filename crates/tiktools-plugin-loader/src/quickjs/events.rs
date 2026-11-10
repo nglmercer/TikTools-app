@@ -6,9 +6,7 @@
 
 use std::collections::HashSet;
 
-use tokio::sync::broadcast;
-
-use crate::EmittedEvent;
+use crate::{EmittedEvent, PluginEventSender};
 
 /// Guest module for push events: `import { emit, emitMany } from
 /// "tiktools:events"`. Installed only for plugins whose manifest requests
@@ -27,8 +25,9 @@ pub(super) const MAX_EMIT_BATCH: usize = 64;
 /// against and where accepted events go.
 pub(crate) struct EventsPush {
     pub(super) plugin_id: String,
+    pub(super) generation: u64,
     pub(super) declared: HashSet<String>,
-    pub(super) tx: broadcast::Sender<EmittedEvent>,
+    pub(super) tx: PluginEventSender,
 }
 
 impl EventsPush {
@@ -54,10 +53,19 @@ impl EventsPush {
         for event in events {
             staged.push(self.check(event, "emitMany")?);
         }
-        for (event_type, data) in staged {
-            self.send(event_type, data, "emitMany")?;
-        }
-        Ok(events.len())
+        self.tx
+            .send_many(
+                staged
+                    .into_iter()
+                    .map(|(event_type, data)| EmittedEvent {
+                        plugin_id: self.plugin_id.clone(),
+                        generation: self.generation,
+                        event_type,
+                        data,
+                    })
+                    .collect(),
+            )
+            .map_err(|error| format!("emitMany: {error}"))
     }
 
     fn send(
@@ -69,11 +77,12 @@ impl EventsPush {
         self.tx
             .send(EmittedEvent {
                 plugin_id: self.plugin_id.clone(),
+                generation: self.generation,
                 event_type,
                 data,
             })
             .map(|_| ())
-            .map_err(|_| format!("{caller}: event bus unavailable"))
+            .map_err(|error| format!("{caller}: {error}"))
     }
 
     /// Shared shape/type/size validation for pushed events: `{ type, data? }`
@@ -112,6 +121,7 @@ impl EventsPush {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    use tokio::sync::broadcast;
 
     use super::*;
 
@@ -120,8 +130,9 @@ mod tests {
         (
             EventsPush {
                 plugin_id: "p".to_owned(),
+                generation: 123,
                 declared: ["push.tick".to_owned()].into_iter().collect(),
-                tx,
+                tx: PluginEventSender::live(tx, "p".to_owned(), 123),
             },
             rx,
         )
@@ -134,6 +145,7 @@ mod tests {
             .unwrap();
         let got = rx.try_recv().unwrap();
         assert_eq!(got.plugin_id, "p");
+        assert_eq!(got.generation, 123);
         assert_eq!(got.event_type, "push.tick");
         assert_eq!(got.data, json!({"n": 1}));
 
@@ -184,10 +196,65 @@ mod tests {
         drop(rx);
         let push = EventsPush {
             plugin_id: "p".to_owned(),
+            generation: 123,
             declared: ["push.tick".to_owned()].into_iter().collect(),
-            tx,
+            tx: PluginEventSender::live(tx, "p".to_owned(), 123),
         };
         let error = push.push_one(&json!({"type":"push.tick"})).unwrap_err();
         assert!(error.contains("unavailable"), "{error}");
+    }
+
+    #[test]
+    fn startup_batch_overflow_rejects_the_entire_batch() {
+        let (tx, mut rx) = broadcast::channel(128);
+        let sender = PluginEventSender::starting(tx, "p".into(), 123);
+        let push = EventsPush {
+            plugin_id: "p".into(),
+            generation: 123,
+            declared: ["push.tick".to_owned()].into_iter().collect(),
+            tx: sender.clone(),
+        };
+        for n in 0..63 {
+            push.push_one(&json!({"type":"push.tick", "data":n}))
+                .unwrap();
+        }
+        let error = push
+            .push_many(&json!([
+                {"type":"push.tick", "data":"rejected-1"},
+                {"type":"push.tick", "data":"rejected-2"}
+            ]))
+            .unwrap_err();
+        assert!(error.contains("startup event buffer is full"), "{error}");
+        push.push_one(&json!({"type":"push.tick", "data":63}))
+            .unwrap();
+        let error = push.push_one(&json!({"type":"push.tick"})).unwrap_err();
+        assert!(error.contains("startup event buffer is full"), "{error}");
+        assert!(rx.try_recv().is_err());
+        sender.activate_with(|| {}).unwrap();
+        for n in 0..64 {
+            assert_eq!(rx.try_recv().unwrap().data, json!(n));
+        }
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn dropped_start_context_closes_buffer_and_late_sender() {
+        let (tx, mut rx) = broadcast::channel(8);
+        let context =
+            crate::WorkerContext::new(tx, std::time::Duration::from_secs(1), "p".into(), 4, None);
+        let sender = context.emit_sender();
+        let event = || EmittedEvent {
+            plugin_id: "forged".into(),
+            generation: 0,
+            event_type: "push.tick".into(),
+            data: json!(1),
+        };
+        sender.send(event()).unwrap();
+        drop(context);
+        assert!(sender.send(event()).is_err());
+        assert!(sender
+            .activate_with(|| panic!("closed sender cannot reactivate"))
+            .is_err());
+        assert!(rx.try_recv().is_err());
     }
 }

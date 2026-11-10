@@ -433,6 +433,7 @@ async fn proposal_recovery_checks_original_outcome_after_owner_changes_without_r
         delta: None,
         currency_name: None,
         proposal_revision: Some("1".into()),
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     let (j, remote) = {
@@ -469,6 +470,370 @@ async fn proposal_recovery_checks_original_outcome_after_owner_changes_without_r
         "later owner edit"
     );
     assert_eq!(j.view().recent[0].intent, intent);
+    c.disconnect().await;
+    f.finish().await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn tls_moderator_proposal_requires_owner_approval_and_stops_after_grant_change() {
+    use tiktools_collaboration::CommandRequest;
+    use tiktools_core::control::{ApprovalActivateParams, ApprovalEnablement};
+
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let mut moderator_grant = grant();
+    moderator_grant.capabilities.insert(Capability::LiveRead);
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(moderator_grant.clone()).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let c = Controller::new(manager);
+    c.connect("desk").await.unwrap();
+    let principal = c.status().hello.unwrap().principal_id;
+    let mut revision = "0".to_string();
+    for (kind, body) in [
+        (
+            "action",
+            json!({"id":"same","name":"Viewer log","enabled":false,"typeId":"core.log","config":{"message":"hello {{event.user.uniqueId}}"}}),
+        ),
+        (
+            "event",
+            json!({"id":"same","name":"Chat log","enabled":false,"trigger":"tiktok.chat","actionIds":["same"]}),
+        ),
+    ] {
+        let inspected = inspect(&c, kind).await;
+        let saved = save(&c, kind, "create", "0", &revision, &body.to_string()).await;
+        revision = saved["storeRevision"].as_str().unwrap().into();
+        c.manage(
+            "controller.proposals.submit",
+            submit(&c, kind, &inspected, &revision),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            f.core
+                .automation_get(
+                    if kind == "action" {
+                        AutomationKind::Action
+                    } else {
+                        AutomationKind::Event
+                    },
+                    "same"
+                )
+                .unwrap()["enabled"],
+            false
+        );
+    }
+    let input = json!({"type":"tiktok.chat","user":{"uniqueId":"alice","nickname":"Alice"},"data":{"comment":"hi"}});
+    assert_eq!(
+        f.core
+            .fire_automation_event("tiktok.chat", Some(&input), None)
+            .await["matched"],
+        0
+    );
+    assert!(f.core.automation_runs().is_empty());
+    let review = f
+        .core
+        .automation_execution_manifest(AutomationKind::Event, "same")
+        .unwrap();
+    let request = CommandRequest {
+        command_id: "owner-approve-loopback".into(),
+        host_instance_id: f.service.instance_id().into(),
+        expected_revision: review.resource_versions[0].revision.clone(),
+    };
+    f.core
+        .automation_approval_activate(
+            request,
+            ApprovalActivateParams {
+                kind: AutomationKind::Event,
+                id: "same".into(),
+                reviewed_versions: review.resource_versions,
+                manifest_digest: review.value["manifestDigest"].as_str().unwrap().into(),
+                enable_plan: vec![
+                    ApprovalEnablement {
+                        kind: AutomationKind::Event,
+                        id: "same".into(),
+                        enabled: true,
+                    },
+                    ApprovalEnablement {
+                        kind: AutomationKind::Action,
+                        id: "same".into(),
+                        enabled: true,
+                    },
+                ],
+                acknowledge_effects: true,
+            },
+        )
+        .unwrap();
+    assert_eq!(inspect(&c, "event").await["summary"]["enabled"], true);
+    assert_eq!(inspect(&c, "action").await["summary"]["enabled"], true);
+    assert_eq!(
+        f.core
+            .fire_automation_event("tiktok.chat", Some(&input), None)
+            .await["matched"],
+        1
+    );
+    let runs = f.core.automation_runs();
+    assert!(
+        runs.iter().any(|r| r["actionId"] == "same"
+            && r["status"] == "ok"
+            && r["summary"] == "hello alice"),
+        "{runs:?}"
+    );
+    let successful_runs = runs.iter().filter(|r| r["status"] == "ok").count();
+    moderator_grant.capabilities.remove(&Capability::LiveRead);
+    f.service
+        .set_grant(GrantSet {
+            principal_id: principal,
+            expected_revision: "1".into(),
+            grant: moderator_grant,
+        })
+        .unwrap();
+    f.core
+        .fire_automation_event("tiktok.chat", Some(&input), None)
+        .await;
+    assert_eq!(
+        f.core
+            .automation_runs()
+            .iter()
+            .filter(|r| r["status"] == "ok")
+            .count(),
+        successful_runs
+    );
+    c.disconnect().await;
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn native_proposals_create_and_edit_active_definitions_with_reusable_grant() {
+    use tiktools_collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new().await;
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::LiveRead]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(allowed).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let c = Controller::new(manager);
+    c.connect("desk").await.unwrap();
+    let observer_manager = ProfileManager::new(
+        home.path().join("observer-profiles"),
+        Arc::new(Store::default()),
+    )
+    .unwrap();
+    let mut observer_grant = grant();
+    observer_grant.capabilities = [Capability::AutomationRead, Capability::CommandsRead].into();
+    observer_manager
+        .install(
+            "observer",
+            &f.endpoint,
+            f.pair(observer_grant).await,
+            ClientKind::Desktop,
+        )
+        .await
+        .unwrap();
+    let observer = Controller::new(observer_manager);
+    observer.connect("observer").await.unwrap();
+    let mut store_revision = "0".to_string();
+    for (kind, mode, base, name) in [
+        ("action", "create", "0", "first"),
+        ("action", "update", "1", "changed"),
+        ("event", "create", "0", "chat"),
+    ] {
+        let inspected = inspect(&c, kind).await;
+        let mut body = record(kind, name);
+        if kind == "action" {
+            body["config"] = json!({"message":"hello"});
+        }
+        let saved = save(&c, kind, mode, base, &store_revision, &body.to_string()).await;
+        store_revision = saved["storeRevision"].as_str().unwrap().into();
+        let mut input = submit(&c, kind, &inspected, &store_revision);
+        input["active"] = true.into();
+        let result = c
+            .manage("controller.proposals.submit", input)
+            .await
+            .unwrap();
+        assert!(result["pending"].is_null());
+        assert_eq!(
+            result["recent"][0]["intent"]["operation"],
+            format!("{mode}-{kind}-active")
+        );
+        let family = if kind == "action" {
+            AutomationKind::Action
+        } else {
+            AutomationKind::Event
+        };
+        let host = f.core.automation_get(family, "same").unwrap();
+        assert_eq!(host["enabled"], true);
+        assert_eq!(host["name"], name);
+        tokio::time::timeout(Duration::from_secs(6), async {
+            loop {
+                let status = observer.status();
+                if let Ok(page) =
+                    observer.automations(&status.epoch, &status.automation_revision, 0)
+                {
+                    if page["rows"].as_array().is_some_and(|rows| {
+                        rows.iter().any(|row| {
+                            row["summary"]["kind"] == kind
+                                && row["summary"]["name"] == name
+                                && row["summary"]["enabled"] == true
+                        })
+                    }) {
+                        assert!(!page.to_string().contains("hello"));
+                        break;
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("second controller did not receive the active change");
+    }
+    observer.disconnect().await;
+    c.disconnect().await;
+    f.finish().await;
+}
+
+#[tokio::test]
+async fn native_controller_edits_owner_definition_under_explicit_reusable_grant() {
+    use tiktools_collaboration::{AutomationDelegation, DelegatedAutomationEffect};
+    let f = Fixture::new().await;
+    f.core.automation_create(AutomationKind::Action, json!({"id":"same","name":"Owner","enabled":true,"typeId":"core.log","config":{"message":"owner source"}})).unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let manager =
+        ProfileManager::new(home.path().join("profiles"), Arc::new(Store::default())).unwrap();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::LiveRead]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Log].into(),
+        allow_dynamic_targets: false,
+        allow_owner_edits: true,
+        allow_owner_source: true,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    manager
+        .install(
+            "desk",
+            &f.endpoint,
+            f.pair(allowed).await,
+            ClientKind::Agent,
+        )
+        .await
+        .unwrap();
+    let c = Controller::new(manager);
+    c.connect("desk").await.unwrap();
+    let mut source_request = params(&c);
+    source_request["kind"] = "action".into();
+    source_request["id"] = "same".into();
+    let source = c
+        .manage("controller.proposals.source", source_request)
+        .await
+        .unwrap();
+    assert_eq!(source["record"]["config"]["message"], "owner source");
+    assert_eq!(source["revision"], "1");
+    assert!(!serde_json::to_string(&c.status().command_journal)
+        .unwrap()
+        .contains("owner source"));
+    let inspected = inspect(&c, "action").await;
+    assert_eq!(inspected["revision"], "1");
+    let mut edited = source["record"].clone();
+    edited["name"] = "Moderator edit".into();
+    edited["enabled"] = false.into();
+    edited["config"]["message"] = "moderator source".into();
+    let saved = save(&c, "action", "update", "1", "0", &edited.to_string()).await;
+    let input = submit(
+        &c,
+        "action",
+        &inspected,
+        saved["storeRevision"].as_str().unwrap(),
+    );
+    let result = c
+        .manage("controller.proposals.submit", input)
+        .await
+        .unwrap();
+    assert!(result["pending"].is_null());
+    assert_eq!(
+        result["recent"][0]["intent"]["operation"],
+        "update-action-draft"
+    );
+    let mut reread = params(&c);
+    reread["kind"] = "action".into();
+    reread["id"] = "same".into();
+    let changed = c
+        .manage("controller.proposals.source", reread)
+        .await
+        .unwrap();
+    assert_eq!(changed["revision"], "2");
+    assert_eq!(changed["record"]["config"]["message"], "moderator source");
+    assert_eq!(changed["record"]["enabled"], false);
+    let inspected = inspect(&c, "action").await;
+    let saved_again = save(
+        &c,
+        "action",
+        "update",
+        "2",
+        saved["storeRevision"].as_str().unwrap(),
+        &edited.to_string(),
+    )
+    .await;
+    let mut active = submit(
+        &c,
+        "action",
+        &inspected,
+        saved_again["storeRevision"].as_str().unwrap(),
+    );
+    active["active"] = true.into();
+    let active_result = c
+        .manage("controller.proposals.submit", active)
+        .await
+        .unwrap();
+    assert!(active_result["pending"].is_null());
+    assert_eq!(
+        active_result["recent"][0]["intent"]["operation"],
+        "update-action-active"
+    );
+    let after = f
+        .core
+        .automation_get(AutomationKind::Action, "same")
+        .unwrap();
+    assert_eq!(after["name"], "Moderator edit");
+    assert_eq!(after["enabled"], true);
+    let authority = f
+        .core
+        .automation_authority(AutomationKind::Action, "same")
+        .unwrap();
+    assert_eq!(
+        authority.value["provenance"]["authority"]["kind"],
+        "delegated"
+    );
     c.disconnect().await;
     f.finish().await;
 }

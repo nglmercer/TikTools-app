@@ -33,11 +33,12 @@ use url::Url;
 use uuid::Uuid;
 pub use workspace::{
     CatalogAdvisory, CatalogPageCapabilities, CatalogSummary, CatalogSummaryPage, CatalogVersion,
-    CatalogVersionPage, CloudCatalog,
+    CatalogVersionPage, CloudCatalog, WorkspaceSyncCapabilities, WorkspaceWriteEpoch,
 };
 pub use workspace_state::{
     WorkspaceEdit, WorkspaceEntry, WorkspaceKey, WorkspaceLocalEdit, WorkspacePending,
-    WorkspacePendingStatus, WorkspacePush, WorkspaceRead, WorkspaceState, WorkspaceStateError,
+    WorkspacePendingStatus, WorkspaceProductProof, WorkspacePush, WorkspaceRead, WorkspaceState,
+    WorkspaceStateError,
 };
 pub use workspace_store::{WorkspaceOperationGuard, WorkspaceStateSnapshot, WorkspaceStore};
 
@@ -535,6 +536,16 @@ impl Session {
     }
     /// Apply one change page atomically in memory; persist it only after this returns.
     pub async fn pull_page(&self, state: &mut SyncState) -> Result<bool, SyncError> {
+        self.pull_page_with_count(state)
+            .await
+            .map(|(has_more, _)| has_more)
+    }
+    /// Apply one page and report both the continuation flag and the number
+    /// of change records received, including records in the final page.
+    pub async fn pull_page_with_count(
+        &self,
+        state: &mut SyncState,
+    ) -> Result<(bool, usize), SyncError> {
         self.verify_account(state)?;
         let page: Page = self
             .get(
@@ -547,6 +558,7 @@ impl Session {
         }
         let mut candidate = state.clone();
         let mut last = state.cursor;
+        let count = page.changes.len();
         for record in page.changes {
             if record.revision <= last || record.revision > page.cursor {
                 return Err(SyncError::Protocol);
@@ -559,7 +571,7 @@ impl Session {
         }
         candidate.cursor = page.cursor;
         *state = candidate;
-        Ok(page.has_more)
+        Ok((page.has_more, count))
     }
     /// Send one pending edit. A 409 leaves the edit intact for explicit resolution.
     pub async fn push(&self, state: &mut SyncState, key: &str) -> Result<(), SyncError> {
@@ -627,6 +639,11 @@ impl Session {
     /// Rebuild after retention expiry without dropping pending edits. Snapshot and
     /// follow-up changes are committed to state only after every page succeeds.
     pub async fn rebuild(&self, state: &mut SyncState) -> Result<(), SyncError> {
+        self.rebuild_with_count(state).await.map(|_| ())
+    }
+    /// Rebuild and report the number of snapshot and follow-up feed records
+    /// consumed. State remains unchanged if any page fails validation.
+    pub async fn rebuild_with_count(&self, state: &mut SyncState) -> Result<usize, SyncError> {
         self.verify_account(state)?;
         let head: Head = self.get("api/v1/native/sync/head", &[]).await?;
         if head.cursor < 0 {
@@ -636,6 +653,7 @@ impl Session {
         candidate.cursor = head.cursor;
         let mut after: Option<String> = None;
         let mut complete = false;
+        let mut count = 0usize;
         for _ in 0..MAX_PAGES {
             let params = after
                 .as_ref()
@@ -645,6 +663,9 @@ impl Session {
                 .get("api/v1/native/sync/collections/plugin-selections", &params)
                 .await?;
             let previous = after.clone();
+            count = count
+                .checked_add(listing.records.len())
+                .ok_or(SyncError::Protocol)?;
             for record in listing.records {
                 if after.as_ref().is_some_and(|a| record.key <= *a) {
                     return Err(SyncError::Protocol);
@@ -675,9 +696,11 @@ impl Session {
             }
         }
         for _ in 0..MAX_PAGES {
-            if !self.pull_page(&mut candidate).await? {
+            let (more, received) = self.pull_page_with_count(&mut candidate).await?;
+            count = count.checked_add(received).ok_or(SyncError::Protocol)?;
+            if !more {
                 *state = candidate;
-                return Ok(());
+                return Ok(count);
             }
         }
         Err(SyncError::TooManyPages)
@@ -755,6 +778,56 @@ async fn decode_with_limit<T: for<'de> Deserialize<'de>>(
 mod tests {
     use super::*;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[tokio::test]
+    async fn pull_count_includes_final_and_empty_pages_and_preserves_legacy_api() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let first = serde_json::json!({"changes":[
+            {"collection":"plugin-selections","key":"acme.a","revision":1,"deleted":false,
+             "value":{"schemaVersion":1,"pluginId":"acme.a","version":"1.0.0","enabled":true}},
+            {"collection":"plugin-selections","key":"acme.b","revision":2,"deleted":false,
+             "value":{"schemaVersion":1,"pluginId":"acme.b","version":"1.0.0","enabled":false}}
+        ],"cursor":2,"has_more":false})
+        .to_string();
+        let empty = serde_json::json!({"changes":[],"cursor":2,"has_more":false}).to_string();
+        let invalid = serde_json::json!({"changes":[],"cursor":1,"has_more":false}).to_string();
+        let task = tokio::spawn(async move {
+            for body in [
+                r#"{"id":"alice"}"#.to_owned(),
+                first,
+                empty.clone(),
+                invalid,
+                empty,
+            ] {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = [0u8; 4096];
+                let _ = socket.read(&mut request).await.unwrap();
+                let head = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+                socket.write_all(head.as_bytes()).await.unwrap();
+                socket.write_all(body.as_bytes()).await.unwrap();
+            }
+        });
+        let session = Session::connect(&origin, "fixture".into()).await.unwrap();
+        let mut state = session.new_state();
+        assert_eq!(
+            session.pull_page_with_count(&mut state).await.unwrap(),
+            (false, 2)
+        );
+        let saved = state.clone();
+        assert_eq!(
+            session.pull_page_with_count(&mut state).await.unwrap(),
+            (false, 0)
+        );
+        assert!(matches!(
+            session.pull_page_with_count(&mut state).await,
+            Err(SyncError::Protocol)
+        ));
+        assert_eq!(state, saved);
+        assert!(!session.pull_page(&mut state).await.unwrap());
+        assert_eq!(state, saved);
+        task.await.unwrap();
+    }
 
     #[tokio::test]
     async fn account_export_response_limit_allows_large_bounded_payloads() {

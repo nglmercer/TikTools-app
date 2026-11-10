@@ -340,8 +340,14 @@ resolve → download → verify → inspect → policy/consent → extract → s
 | record | Write the receipt; prune retained versions beyond the limit (default 2). |
 | rescan | `PluginManager::scan`, processor index rebuild, automation snapshot refresh, domain events. |
 
-Any failure rolls back to the previous state and cleans staging. A
-`CancellationToken` is checked between stages and while streaming.
+Failures attempt to restore the previous state. If restoration fails, staging
+is retained because it may contain the only remaining package copy; startup
+cleanup removes only empty staging directories. A cooperative cross-process
+lease serializes package mutations and cleanup for updated binaries. Older
+binaries do not honor the lease, and path operations do not yet defend against
+malicious concurrent directory replacement. A durable package-operation
+journal remains necessary for complete crash recovery. A `CancellationToken`
+is checked between stages and while streaming.
 
 Consent: `plugins.inspect` returns a `PackagePreview` and a
 `consentToken = sha256(id, version, archiveDigest, runtime, sorted permissions, sorted capabilities)`.

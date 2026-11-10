@@ -16,11 +16,13 @@ use tiktools_control_api::modules::collaboration::HelloResult;
 use tokio::sync::{watch, Mutex};
 mod automations;
 mod commands;
+mod competitions;
 mod drafts;
+mod live_status;
 mod points;
 mod proposals;
 pub use automations::AutomationRow;
-pub use commands::{AutomationCommand, PointsCommand, WorkflowCommand};
+pub use commands::{AutomationCommand, CompetitionCommand, PointsCommand, WorkflowCommand};
 use profiles::commands::Journal;
 pub use profiles::commands::Operation as CommandOperation;
 pub use profiles::commands::{
@@ -38,6 +40,7 @@ pub struct ControllerStatus {
     pub view_revision: String,
     pub points_revision: String,
     pub automation_revision: String,
+    pub competition_revision: String,
     pub points_loading: bool,
     pub points_error_code: Option<String>,
     pub phase: String,
@@ -62,6 +65,7 @@ struct View {
     journal: Option<Arc<Journal>>,
     points: points::State,
     automation: automations::State,
+    competition_observation: Option<competitions::Observation>,
     proposal_inspection: Option<proposals::Inspection>,
 }
 fn journal_projection(v: &View) -> Option<JournalView> {
@@ -88,6 +92,16 @@ fn journal_projection(v: &View) -> Option<JournalView> {
             record.points_result = None;
         }
     }
+    journal.recent.retain(|record| {
+        !record.intent.operation.is_competition()
+            || hello.is_some_and(|h| {
+                h.capabilities.contains(&Capability::CompetitionsRead)
+                    && !h.resource_restrictions.contains_key(&ResourceKind::Live)
+                    && h.resource_restrictions
+                        .get(&ResourceKind::Competition)
+                        .is_none_or(|ids| ids.contains(&record.intent.resource_id))
+            })
+    });
     Some(journal)
 }
 struct Shared {
@@ -101,6 +115,17 @@ impl Shared {
             return;
         }
         apply(&mut v);
+        if v.competition_observation.as_ref().is_some_and(|o| {
+            v.status.phase != "ready"
+                || v.status.epoch != o.epoch
+                || v.status.hello.as_ref().is_none_or(|h| {
+                    h.connection_id != o.connection
+                        || h.grant_revision != o.grant_revision
+                        || h.host_instance_id != o.host_instance
+                })
+        }) {
+            v.competition_observation = None;
+        }
         let revision = v
             .status
             .view_revision
@@ -205,6 +230,7 @@ impl Controller {
                         view_revision: "0".into(),
                         points_revision: "0".into(),
                         automation_revision: "0".into(),
+                        competition_revision: "0".into(),
                         points_loading: true,
                         points_error_code: None,
                         phase: "idle".into(),
@@ -222,6 +248,7 @@ impl Controller {
                     journal: None,
                     points: points::State::default(),
                     automation: automations::State::default(),
+                    competition_observation: None,
                     proposal_inspection: None,
                 }),
             }),
@@ -262,6 +289,7 @@ impl Controller {
         v.rows.clear();
         v.points = points::State::default();
         v.automation = automations::State::default();
+        v.competition_observation = None;
         v.journal = None;
         v.status = ControllerStatus {
             drafts_supported: true,
@@ -270,6 +298,7 @@ impl Controller {
             view_revision: "0".into(),
             points_revision: "0".into(),
             automation_revision: "0".into(),
+            competition_revision: "0".into(),
             points_loading: true,
             points_error_code: None,
             phase: "idle".into(),
@@ -458,14 +487,19 @@ impl Controller {
             "controller.drafts.delete"=>self.change_draft(parse(params)?,true).await,
             "controller.points"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,points_revision:String}let p:P=parse(params)?;self.points(&p.epoch,&p.points_revision)},
             "controller.points.select"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,unique_id:Option<String>}let p:P=parse(params)?;self.select_points(&p.epoch,p.unique_id)},
+            "controller.live.status"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,connection_id:String}let p:P=parse(params)?;self.live_status(&p.epoch,&p.connection_id).await},
+            "controller.live.feed"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,connection_id:String,after:String,creator_id:Option<String>,stream_id:Option<String>}let p:P=parse(params)?;self.live_feed(&p.epoch,&p.connection_id,&p.after,p.creator_id.as_deref(),p.stream_id.as_deref()).await},
+            "controller.competitions"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,connection_id:String,after:Option<String>}let p:P=parse(params)?;self.competitions(&p.epoch,&p.connection_id,p.after.as_deref()).await},
             "controller.workflow.command"=>self.workflow_command(parse(params)?).await,
             "controller.points.command"=>self.points_command(parse(params)?).await,
             "controller.automation.command"=>self.automation_command(parse(params)?).await,
+            "controller.competition.command"=>self.competition_command(parse(params)?).await,
             "controller.proposals.list"=>self.proposal_read(parse(params)?,true).await,
             "controller.proposals.get"=>self.proposal_read(parse(params)?,false).await,
             "controller.proposals.save"=>self.proposal_save(parse(params)?).await,
             "controller.proposals.delete"=>self.proposal_delete(parse(params)?).await,
             "controller.proposals.inspect"=>self.proposal_inspect(parse(params)?).await,
+            "controller.proposals.source"=>self.proposal_source(parse(params)?).await,
             "controller.proposals.submit"=>self.proposal_command(parse(params)?).await,
             "controller.automations"=>{#[derive(Deserialize)]#[serde(rename_all="camelCase",deny_unknown_fields)]struct P{epoch:String,automation_revision:String,#[serde(default)]offset:usize}let p:P=parse(params)?;self.automations(&p.epoch,&p.automation_revision,p.offset)},
             "controller.command.resolve"=>{
@@ -479,9 +513,22 @@ impl Controller {
                 self.review_command(p.epoch,p.command_id).await
             },
             "controller.status"=>serde_json::to_value(self.status()).map_err(|_|protocol()),
-            "controller.profiles"=>Ok(Value::Array(self.profiles.list().await?.into_iter().map(|p|json!({"name":p.name,"origin":p.origin,"hostId":p.host_id,"trust":p.trust})).collect())),
+            "controller.profiles"=>Ok(Value::Array(self.profiles.list().await?.into_iter().map(|p|json!({"name":p.name,"profileId":p.profile_id,"origin":p.origin,"hostId":p.host_id,"trust":p.trust})).collect())),
             "controller.connect"=>{let p:Name=parse(params)?;self.connect(&p.profile).await?;Ok(json!({"ok":true}))},
             "controller.disconnect"=>{self.disconnect().await;Ok(json!({"ok":true}))},
+            "controller.profile.forget"=>{
+                #[derive(Deserialize)] #[serde(rename_all="camelCase",deny_unknown_fields)]
+                struct Forget { profile:String, profile_id:String, origin:String, host_id:String, confirm:bool }
+                let p:Forget=parse(params)?;
+                if !p.confirm {return Err(fail("confirmation_required","confirm local profile and draft removal"));}
+                // Serialize with profile selection, pairing and disconnect.
+                let _lifecycle=self.lifecycle.lock().await;
+                if self.status().profile.as_deref()==Some(p.profile.as_str()) {
+                    return Err(fail("profile_in_use","disconnect this profile before forgetting it"));
+                }
+                self.profiles.forget_reviewed(&p.profile,&p.profile_id,&p.origin,&p.host_id).await?;
+                Ok(json!({"ok":true}))
+            },
             "controller.probe"=>{#[derive(Deserialize)] #[serde(deny_unknown_fields)] struct Probe{origin:String} let p:Probe=parse(params)?;Ok(json!({"fingerprint":probe_fingerprint(&p.origin).await?,"verified":false}))},
             "controller.pair"=>{
                 let mut p:Pair=parse(params)?;
@@ -633,6 +680,7 @@ async fn run(
             tokio::select! {
                 event=stream.next_event()=>match event {
                     Ok(event) if event.resource.kind==ResourceKind::Viewer && event.topic=="points.changed"=>{points::dirty(&shared,&epoch);stream.acknowledge(&event)},
+                    Ok(event) if event.resource.kind==ResourceKind::Competition && event.topic=="competition.changed"=>match competitions::changed(&shared,&epoch,&remote,&event) {Ok(())=>stream.acknowledge(&event),Err(e)=>Err(e)},
                     Ok(event) if event.resource.kind==ResourceKind::Automation=>match automations::apply(&shared,&epoch,&remote,&event).await {Ok(())=>stream.acknowledge(&event),Err(e)=>Err(e)},
                     Ok(event)=>match apply(&shared,&epoch,&remote,&event).await {Ok(())=>stream.acknowledge(&event),Err(e)=>Err(e)},
                     Err(e)=>Err(e),
@@ -641,7 +689,7 @@ async fn run(
                     if points::due(&shared,&epoch) {
                         match points::refresh(&shared,&epoch,&remote).await {
                             Ok(())=>Ok(()),
-                            Err(e) if matches!(e.code.as_str(),"too_large"|"internal"|"storage")=>{points::failure(&shared,&epoch,&e);Ok(())},
+                            Err(e) if matches!(e.code.as_str(),"too_large"|"internal"|"storage"|"rate_limited")=>{points::failure(&shared,&epoch,&e);Ok(())},
                             Err(e)=>Err(e),
                         }
                     } else {Ok(())}
@@ -650,7 +698,20 @@ async fn run(
         } else {
             // Without a domain stream there is no epoch-gap notification.
             // Refresh hello when the live identity's permissions change.
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            // A minimal-rate host needs room for the controller's permitted
+            // reads as well as this authorization heartbeat. A rejected
+            // heartbeat is retried; it is not evidence of a lost connection.
+            let period = if remote
+                .hello()
+                .capabilities
+                .contains(&Capability::CompetitionsRead)
+                && remote.hello().limits.requests_per_second <= 2
+            {
+                5
+            } else {
+                1
+            };
+            tokio::time::sleep(Duration::from_secs(period)).await;
             if remote.is_closed() {
                 Err(network())
             } else {
@@ -665,6 +726,7 @@ async fn run(
                         continue
                     }
                     Ok(_) => Err(fail("resync_required", "remote permissions changed")),
+                    Err(e) if e.code == "rate_limited" => continue,
                     Err(e) => Err(e),
                 }
             }

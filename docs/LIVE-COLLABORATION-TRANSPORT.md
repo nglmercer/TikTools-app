@@ -26,6 +26,18 @@ fresh idle startup does not create a collaboration database or bind a remote
 socket. Workflow changes lazily open the private database for their audit index,
 even when remote access is disabled.
 
+The optional `remote-browser-app` host feature embeds the previously built
+`dist/web` bundle. Run `bunx vite build` before compiling a desktop or CLI host
+with that feature. On HTTPS only, approved browser sessions can load
+`/remote/v1/app` and its compiled assets; the invitation page advertises the
+link when available. The build accepts bounded, allowlisted flat assets and
+excludes source maps. Requests require a browser session and retain the gateway's
+origin checks. Browser workflow views recheck the session before publishing
+data and every two seconds while connected. A same-origin broadcast accelerates
+checks when another pairing tab changes the cookie, but delivery is advisory
+and background timer throttling can extend the visibility window. This is not
+an atomic cross-tab session-change guarantee.
+
 Owner settings use revision-checked configuration, private invitation display,
 approval and per-session/principal revocation. Status reports the active direct
 TLS fingerprint and per-session socket counts. These are owner-only diagnostics;
@@ -39,7 +51,7 @@ host startup, reconfiguration and shutdown integration.
 
 Current remote RPC allowlist: `collaboration.hello`, `collaboration.me`,
 `rpc.discover`, `rpc.schema`, `live.status`, `live.monitor.status` and
-`ui.feed.backfill`, plus `collaboration.commands.get` for the caller's
+`ui.feed.backfill` and `ui.feed.creator`, plus `collaboration.commands.get` for the caller's
 historical results under `commands.read` and the corresponding workflow/points/automation
 read and resource checks. `workflows.list`/`get` are now scoped remote reads, and
 `collaboration.subscribe`/`snapshot`/`resume` implement workflow recovery.
@@ -50,8 +62,22 @@ See [remote workflow commands](LIVE-COLLABORATION-CLIENT.md#remote-workflow-comm
 The native desktop exposes confirmed controls for those same operations with a
 [profile-bound durable journal](LIVE-COLLABORATION-CLIENT-COMMANDS.md).
 Capability and resource checks can further restrict this allowlist.
-`ui.feed.backfill` is currently unavailable to grants restricted to specific
-LIVE creators because the shared history projection has not yet been scoped.
+`ui.feed.backfill` remains unavailable to creator-restricted grants because
+its cursors cover the shared history. `ui.feed.creator` instead checks the
+specific creator against the current grant and returns a closed, bounded
+projection with a creator-local cursor and a random stream generation. The
+host rechecks permission immediately before sending the response. Scoped
+history is indexed only when the trusted LIVE ingress generation matches the
+captured host connection context; merely adding `creatorId` to JSON or
+delivering an unstamped event cannot assign it to a scoped feed. Each creator
+retains up to 64 sanitized events independently, so traffic from another
+creator cannot evict those rows. At most 64 creator streams are retained;
+eviction on creating a further stream can reveal that retention was lost, but
+does not identify other creators or their event counts. A changed stream,
+creator-local eviction or restart reports a gap. The history is not complete
+LIVE storage. If a secure stream identifier cannot be generated, scoped
+history reports unavailable until host restart; it never silently presents a
+partial feed as empty. The ordinary local feed remains available.
 Provider diagnostics in `live.monitor.status.lastError` are replaced with a
 generic failure message remotely. Local owner diagnostics remain available.
 
@@ -135,10 +161,20 @@ and `nextPageToken`. Versions identify rows by `(kind,scope,id)`, not by a
 shared workflow/viewer ID or positional alignment across mixed arrays. Follow
 each token with `collaboration.snapshot {subscriptionId,pageToken}`. Pages are
 immutable for 30 seconds; complete the whole baseline before allowing edits.
-The host withholds notifications until all baseline pages have been requested.
-Pages reserve half the configured frame budget for state, capped at 512 KiB;
-snapshots retain at most 4 MiB including page/token metadata. An individual
+The host accepts forward pages in order and permits retransmission of an
+already returned page; skipping a page requires resynchronization. The host
+withholds notifications until all baseline pages have been requested.
+Pages reserve space for the RPC envelope and serialized metadata, with a
+512 KiB state cap; every serialized page is checked against the negotiated
+frame limit before capture completes. Snapshots retain at most 4 MiB including page/token metadata. An individual
 record that cannot fit fails with `too_large`; nothing is silently truncated.
+If the page count cannot fit even the configured burst plus every token that
+could refill strictly before the 30-second snapshot expiry, capture fails before
+returning the first page with `snapshot_rate_budget`. Narrow the resource
+grant or increase the configured frame or request limits before retrying.
+This is an optimistic upper bound: concurrent requests, network latency,
+capture time and an initially depleted bucket can still cause expiry below
+that threshold. A larger request limit does not extend retained event history.
 Points snapshots are complete permitted sets, not the 1,000-row leaderboard
 window. A large full set can exceed the snapshot budget; narrow its viewer
 grant. Use the snapshot method when the bounded `workflows.list` response is too large.

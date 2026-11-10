@@ -38,20 +38,25 @@ pub use owner_library::{
     owner_library_canonical_json, owner_library_command_hash, owner_library_command_params,
     owner_library_definition_digest, owner_library_digest, owner_library_versions_digest,
     validate_owner_library_submit, OwnerLibraryAcknowledgement, OwnerLibraryCatalog,
-    OwnerLibraryEntry, OwnerLibraryIntent, OwnerLibraryMutation, OwnerLibraryOperation,
-    OwnerLibraryOutcome, OwnerLibraryPack, OwnerLibraryProfile, OwnerLibraryReceipt,
-    OwnerLibraryRecord, OwnerLibraryReviewUnknown, OwnerLibrarySnapshot, OwnerLibraryState,
-    OwnerLibrarySubmission, OwnerLibrarySubmit, OWNER_LIBRARY_MAX_BYTES,
+    OwnerLibraryCloudProvenance, OwnerLibraryEntry, OwnerLibraryIntent, OwnerLibraryMutation,
+    OwnerLibraryOperation, OwnerLibraryOutcome, OwnerLibraryPack, OwnerLibraryProfile,
+    OwnerLibraryReceipt, OwnerLibraryRecord, OwnerLibraryReviewUnknown, OwnerLibrarySnapshot,
+    OwnerLibraryState, OwnerLibrarySubmission, OwnerLibrarySubmit, OWNER_LIBRARY_MAX_BYTES,
     OWNER_LIBRARY_MAX_CATALOG_BYTES, OWNER_LIBRARY_MAX_RECORDS,
 };
 #[cfg(feature = "cloud-auth")]
 mod cloud_account;
+#[cfg(feature = "cloud-auth")]
+mod cloud_library;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 mod cloud_publisher;
 #[cfg(feature = "cloud-auth")]
-mod cloud_sync;
+pub(crate) mod cloud_sync;
+#[cfg(feature = "cloud-auth")]
+mod cloud_workspace;
 mod commands;
 mod competitions;
+pub use competitions::{CompetitionRemoteTransition, CompetitionSummary, CompetitionSummaryPage};
 mod delivery;
 mod effects;
 pub use effects::{EffectHistory, EffectKind, EffectReceipt, EffectState};
@@ -71,6 +76,14 @@ mod media;
 mod plugin_packages;
 mod plugin_settings;
 mod plugins;
+#[cfg(all(
+    feature = "cloud-auth",
+    feature = "persistence",
+    feature = "plugin-install"
+))]
+pub(crate) use plugins::with_fenced_plugin_removal;
+#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+pub(crate) use plugins::PluginSyncRuntimeGuard;
 mod points;
 pub use points::{valid_currency, PointsAdjustment};
 mod processors;
@@ -94,7 +107,20 @@ pub use cloud_catalog::{
     CloudCatalogVersion, CloudCatalogVersionsPage, CloudCatalogVersionsQuery,
 };
 #[cfg(feature = "cloud-auth")]
-pub use cloud_sync::SyncNowResult;
+pub use cloud_library::{
+    CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
+    CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus,
+};
+#[cfg(feature = "cloud-auth")]
+pub use cloud_sync::{
+    SyncNowResult, SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncRecoveryValue,
+    V2ConflictChoice, V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, V2ConflictValue,
+    WorkspaceV2SyncResult,
+};
+#[cfg(feature = "cloud-auth")]
+pub use cloud_workspace::{
+    WorkspaceV2Discovery, WorkspaceV2DiscoveryState, WorkspaceV2Migration, WorkspaceV2Preview,
+};
 #[cfg(any(test, feature = "native-tiktok"))]
 pub(crate) use helpers::check_session_cookie_len;
 pub(crate) use helpers::{clean_plugin_id, clean_record_id, fresh_record_id};
@@ -228,6 +254,7 @@ impl From<tiktools_plugin_loader::PluginLoaderError> for OperationError {
                 Self::capability_unavailable(error.to_string())
             }
             tiktools_plugin_loader::PluginLoaderError::RuntimeUnavailable(_)
+            | tiktools_plugin_loader::PluginLoaderError::StartupUncertain(_)
             | tiktools_plugin_loader::PluginLoaderError::Overloaded(_) => {
                 Self::unavailable(error.to_string())
             }

@@ -29,6 +29,43 @@ use tokio_util::sync::CancellationToken;
 mod tests;
 type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 type Answer = Result<CallResult<Value>, ClientError>;
+enum HelloReply {
+    Retry(Duration),
+    Negotiated(HelloResult),
+}
+
+fn classify_hello(value: Value, expected_id: &str, retries: u8) -> Result<HelloReply, ClientError> {
+    if value["jsonrpc"] != "2.0"
+        || value["id"].as_str() != Some(expected_id)
+        || value.get("error").is_some() && value.get("result").is_some()
+    {
+        return Err(protocol());
+    }
+    if value.pointer("/error/code").and_then(Value::as_str) == Some("rate_limited") {
+        if retries >= 4 {
+            return Err(fail(
+                "rate_limited",
+                "remote negotiation rate limit exceeded",
+            ));
+        }
+        let wait = value
+            .pointer("/error/data/retryAfterMs")
+            .and_then(Value::as_u64)
+            .unwrap_or(1000)
+            .clamp(1000, 2000);
+        return Ok(HelloReply::Retry(Duration::from_millis(wait)));
+    }
+    if value.get("error").is_some() {
+        return Err(fail(
+            "protocol_incompatible",
+            "remote protocol negotiation was rejected",
+        ));
+    }
+    let hello =
+        serde_json::from_value::<HelloResult>(value.get("result").cloned().ok_or_else(protocol)?)
+            .map_err(|_| protocol())?;
+    Ok(HelloReply::Negotiated(hello))
+}
 struct Outbound {
     id: i64,
     text: String,
@@ -114,28 +151,33 @@ impl RemoteClient {
             {
                 fail("unauthorized", "remote access credential was rejected")
             }
+            tokio_tungstenite::tungstenite::Error::Http(ref response)
+                if response.status().as_u16() == 429 =>
+            {
+                fail("rate_limited", "remote connection rate limit exceeded")
+            }
             _ => network(),
         })?;
-        let hello_request = json!({"jsonrpc":"2.0","id":1,"method":"collaboration.hello","params":{"protocolVersion":1,"clientVersion":env!("CARGO_PKG_VERSION"),"clientKind":kind}});
-        send(&mut socket, Message::Text(hello_request.to_string().into())).await?;
         let hello = tokio::time::timeout(Duration::from_secs(10), async {
+            let mut retries = 0;
+            let make_request = |id: &str| json!({"jsonrpc":"2.0","id":id,"method":"collaboration.hello","params":{"protocolVersion":1,"clientVersion":env!("CARGO_PKG_VERSION"),"clientKind":kind}});
+            let mut hello_id = String::from("hello-0");
+            send(&mut socket, Message::Text(make_request(&hello_id).to_string().into())).await?;
             loop {
                 match socket.next().await {
                     Some(Ok(Message::Text(raw))) => {
                         let value: Value = serde_json::from_str(&raw).map_err(|_| protocol())?;
-                        if value["jsonrpc"] != "2.0" || value["id"] != 1 {
-                            return Err(protocol());
+                        match classify_hello(value, &hello_id, retries)? {
+                            HelloReply::Negotiated(hello) => return Ok(hello),
+                            HelloReply::Retry(wait) => {
+                                // Only an explicit refusal to negotiate is
+                                // retried; mutations never use this path.
+                                retries += 1;
+                                tokio::time::sleep(wait).await;
+                                hello_id = format!("hello-{retries}");
+                                send(&mut socket, Message::Text(make_request(&hello_id).to_string().into())).await?;
+                            }
                         }
-                        if value.get("error").is_some() {
-                            return Err(fail(
-                                "protocol_incompatible",
-                                "remote protocol negotiation was rejected",
-                            ));
-                        }
-                        return serde_json::from_value::<HelloResult>(
-                            value.get("result").cloned().ok_or_else(protocol)?,
-                        )
-                        .map_err(|_| protocol());
                     }
                     Some(Ok(Message::Ping(bytes))) => {
                         send(&mut socket, Message::Pong(bytes)).await?

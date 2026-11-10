@@ -1,5 +1,6 @@
 //! Exercise v2 through real HTTP sockets, including native authentication and
 //! conditional writes. The fixture never opens an application or sync store.
+mod write_epoch;
 use super::*;
 use std::collections::BTreeMap;
 use tokio::{
@@ -139,6 +140,63 @@ fn record(revision: i64, value: Option<Value>) -> Value {
 }
 fn preference(theme: &str) -> Value {
     json!({"schemaVersion":1,"theme":theme})
+}
+
+fn workspace_capability_document() -> Value {
+    json!({
+        "apiVersion": 2, "instanceMode": "single", "userConfigurableRegistries": false,
+        "sync": {"basePath": "/api/v2/sync", "schemaVersion": 2,
+            "collections": portable::COLLECTIONS, "maxRecords": 1000,
+            "maxBytes": 8 * 1024 * 1024, "maxDocumentBytes": portable::MAX_DOCUMENT_BYTES,
+            "conflictStatus": 409, "expiredCursorStatus": 410, "preconditionsRequired": true},
+        "catalog": {"ignored": "additional capabilities remain extensible"}
+    })
+}
+
+#[tokio::test]
+async fn workspace_capability_discovery_is_anonymous_and_checks_contract() {
+    let good = workspace_capability_document();
+    let mut wrong_precondition = good.clone();
+    wrong_precondition["sync"]["preconditionsRequired"] = json!(false);
+    let mut wrong_collections = good.clone();
+    wrong_collections["sync"]["collections"] = json!(["preferences", "preferences"]);
+    let mut wrong_path = good.clone();
+    wrong_path["sync"]["basePath"] = json!("https://attacker.invalid/api/v2/sync");
+    let mut oversized = good.clone();
+    oversized["padding"] = json!("x".repeat(64 * 1024));
+    let (origin, server) = mock(vec![
+        Reply::json(good),
+        Reply::json(wrong_precondition),
+        Reply::json(wrong_collections),
+        Reply::json(wrong_path),
+        Reply::json(oversized),
+        Reply::status(404),
+    ])
+    .await;
+    let catalog = CloudCatalog::new(&origin).unwrap();
+    let capabilities = catalog.workspace_sync_capabilities().await.unwrap();
+    assert_eq!(capabilities.max_records, 1000);
+    assert_eq!(
+        capabilities.max_document_bytes,
+        portable::MAX_DOCUMENT_BYTES as u32
+    );
+    for _ in 0..4 {
+        assert!(matches!(
+            catalog.workspace_sync_capabilities().await,
+            Err(SyncError::Protocol)
+        ));
+    }
+    assert!(matches!(
+        catalog.workspace_sync_capabilities().await,
+        Err(SyncError::Http(404))
+    ));
+    for request in server.await.unwrap() {
+        assert_eq!(request.method, "GET");
+        assert_eq!(request.target, "/api/v2/capabilities");
+        assert!(!request.headers.contains_key("authorization"));
+        assert!(!request.headers.contains_key("cookie"));
+        assert!(request.body.is_empty());
+    }
 }
 fn template() -> Value {
     json!({"templateVersion":1,"id":"gift-rule","title":"Gift rule",

@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tiktools_plugin_api::PluginRuntimeKind;
+use tiktools_plugin_api::{PluginManifest, PluginRuntimeKind};
 use tokio::sync::{mpsc, oneshot, OwnedSemaphorePermit, Semaphore};
 
 /// Includes the executing call. Immediate rejection avoids unlimited waiters.
@@ -51,6 +51,9 @@ pub(crate) enum WorkerMsg {
 /// through `blocking_recv`, which needs no runtime context.
 pub(crate) struct RunningInstance {
     pub(crate) token: u64,
+    /// Manifest used to construct this exact worker, independent of scans.
+    pub(crate) manifest: std::sync::Arc<PluginManifest>,
+    pub(crate) events: crate::PluginEventSender,
     pub(crate) artifact_fingerprint: Option<String>,
     pub(crate) kind: PluginRuntimeKind,
     pub(crate) cold: AtomicBool,

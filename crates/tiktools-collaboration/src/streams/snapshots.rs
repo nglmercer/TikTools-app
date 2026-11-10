@@ -9,7 +9,8 @@ use uuid::Uuid;
 pub(super) struct Snapshot {
     pub created: Instant,
     pages: Vec<SnapshotPage>,
-    tokens: Vec<String>,
+    pub(super) tokens: Vec<String>,
+    next_page: usize,
 }
 impl StreamHub {
     pub fn begin_snapshot(
@@ -55,6 +56,42 @@ impl StreamHub {
         records: Vec<(Value, ResourceVersion)>,
         page_bytes: usize,
     ) -> Result<SnapshotPage, Error> {
+        self.capture_inner(identity, connection, id, records, page_bytes, None)
+    }
+
+    /// Pack each page for the negotiated frame, reserving the RPC envelope
+    /// and the exact snapshot metadata. Final serialized pages are checked
+    /// before any part of the baseline becomes visible.
+    pub fn capture_with_frame(
+        &self,
+        identity: &Authenticated,
+        connection: &str,
+        id: &str,
+        records: Vec<(Value, ResourceVersion)>,
+        frame_bytes: usize,
+    ) -> Result<SnapshotPage, Error> {
+        if !(4096..=1024 * 1024).contains(&frame_bytes) {
+            return Err(Error::Invalid("invalid snapshot frame budget"));
+        }
+        self.capture_inner(
+            identity,
+            connection,
+            id,
+            records,
+            snapshot_page_bytes(frame_bytes),
+            Some(frame_bytes),
+        )
+    }
+
+    fn capture_inner(
+        &self,
+        identity: &Authenticated,
+        connection: &str,
+        id: &str,
+        records: Vec<(Value, ResourceVersion)>,
+        page_bytes: usize,
+        frame_bytes: Option<usize>,
+    ) -> Result<SnapshotPage, Error> {
         let mut state = self.state.lock().map_err(|_| Error::ResyncRequired)?;
         let now = Instant::now();
         gc(&mut state, now);
@@ -76,6 +113,7 @@ impl StreamHub {
             workflows: Vec::new(),
             points: Vec::new(),
             automation: Vec::new(),
+            competitions: Vec::new(),
             resource_versions: Vec::new(),
             next_page_token: None,
         };
@@ -97,7 +135,19 @@ impl StreamHub {
                 16
             } else {
                 0
+            }
+            + if s.domains.contains(&StreamDomain::Competitions) {
+                18
+            } else {
+                0
             };
+        let data_budget = if frame_bytes.is_some() {
+            page_bytes
+                .checked_sub(page_overhead)
+                .ok_or(Error::TooLarge)?
+        } else {
+            page_bytes
+        };
         let mut total = page_overhead;
         if s.points_limit.is_some_and(|n| {
             records
@@ -113,6 +163,7 @@ impl StreamHub {
                 crate::ResourceKind::Workflow => (StreamDomain::Workflows, "id"),
                 crate::ResourceKind::Viewer => (StreamDomain::Points, "uniqueId"),
                 crate::ResourceKind::Automation => (StreamDomain::Automation, "id"),
+                crate::ResourceKind::Competition => (StreamDomain::Competitions, "id"),
                 _ => return Err(Error::Forbidden),
             };
             if !s.domains.contains(&domain)
@@ -134,10 +185,10 @@ impl StreamHub {
             let bytes =
                 serde_json::to_vec(&record)?.len() + serde_json::to_vec(&version)?.len() + 2;
             total = total.checked_add(bytes).ok_or(Error::TooLarge)?;
-            if bytes > page_bytes || total > SNAPSHOT_BYTES {
+            if bytes > data_budget || total > SNAPSHOT_BYTES {
                 return Err(Error::TooLarge);
             }
-            if used + bytes > page_bytes {
+            if used + bytes > data_budget {
                 total = total.checked_add(page_overhead).ok_or(Error::TooLarge)?;
                 if total > SNAPSHOT_BYTES {
                     return Err(Error::TooLarge);
@@ -151,15 +202,41 @@ impl StreamHub {
                 StreamDomain::Workflows => page.workflows.push(record),
                 StreamDomain::Points => page.points.push(record),
                 StreamDomain::Automation => page.automation.push(record),
+                StreamDomain::Competitions => page.competitions.push(record),
                 _ => unreachable!(),
             }
             page.resource_versions.push(version);
+        }
+        // Even under ideal conditions, a full bucket at capture followed by
+        // an uninterrupted refill cannot admit more requests than this. The
+        // first page is returned by the capture call and costs no additional
+        // request. Other traffic, network latency and bucket state can still
+        // make a smaller snapshot expire; this is an impossibility check, not
+        // a promise that the budget will be available to this connection.
+        // Expiry is inclusive: a request admitted exactly at 30 seconds
+        // cannot read the snapshot. Exclude that last refill from the upper
+        // bound even when the bucket was full when capture completed.
+        let optimistic_requests = u64::from(s.request_burst)
+            + (u64::from(s.requests_per_second) * SNAPSHOT_SECONDS).saturating_sub(1);
+        if pages.len().saturating_sub(1) as u64 > optimistic_requests {
+            return Err(Error::SnapshotRateBudget);
         }
         let tokens: Vec<_> = (0..pages.len())
             .map(|_| Uuid::new_v4().to_string())
             .collect();
         for (index, page) in pages.iter_mut().enumerate() {
             page.next_page_token = tokens.get(index + 1).cloned();
+        }
+        if let Some(frame_bytes) = frame_bytes {
+            for page in &pages {
+                if serde_json::to_vec(page)?
+                    .len()
+                    .checked_add(SNAPSHOT_RPC_RESERVE)
+                    .is_none_or(|n| n > frame_bytes)
+                {
+                    return Err(Error::TooLarge);
+                }
+            }
         }
         let first = pages[0].clone();
         s.sent = s.sequence;
@@ -168,6 +245,7 @@ impl StreamHub {
             created: now,
             pages,
             tokens,
+            next_page: 1,
         });
         Ok(first)
     }
@@ -181,14 +259,22 @@ impl StreamHub {
         let mut state = self.state.lock().map_err(|_| Error::ResyncRequired)?;
         gc(&mut state, Instant::now());
         let s = authorized(&mut state, identity, connection, id)?;
-        let snapshot = s.snapshot.as_ref().ok_or(Error::ResyncRequired)?;
+        let snapshot = s.snapshot.as_mut().ok_or(Error::ResyncRequired)?;
         let index = snapshot
             .tokens
             .iter()
             .position(|v| v == token)
             .ok_or(Error::ResyncRequired)?;
+        // A replay of an already returned page is harmless, but a caller
+        // must not finish a baseline by skipping an undispatched page.
+        if index == 0 || index > snapshot.next_page {
+            return Err(Error::ResyncRequired);
+        }
         let page = snapshot.pages[index].clone();
-        if page.next_page_token.is_none() {
+        if index == snapshot.next_page {
+            snapshot.next_page += 1;
+        }
+        if snapshot.next_page == snapshot.pages.len() && page.next_page_token.is_none() {
             s.baseline_complete = true;
         }
         Ok(page)

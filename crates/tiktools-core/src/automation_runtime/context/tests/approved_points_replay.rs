@@ -115,6 +115,7 @@ fn native_input(msg_id: u64, connection: &str, payload_id: &str, viewer: &str) -
         unique_id: "native-creator".into(),
         room_id: "native-live-room".into(),
         connection_id: connection.into(),
+        creator_verified: true,
     };
     AutomationEvent::new(
         json!({"id":payload_id,"type":"tiktok.chat","timestamp":123,"user":{"uniqueId":viewer},"data":{"comment":"native chat","depth":0},"authority":"owner","executionId":payload_id}),
@@ -166,6 +167,7 @@ async fn prepare_actual_native_chat(
         unique_id: "native-creator".into(),
         room_id: "native-live-room".into(),
         connection_id: connection.into(),
+        creator_verified: true,
     });
     core.live_dedup
         .set_scope("native-creator", "native-live-room");

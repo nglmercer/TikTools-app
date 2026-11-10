@@ -27,6 +27,8 @@ pub(super) struct Stream {
     pub detached_at: Option<Instant>,
     pub host_instance: String,
     pub domains: BTreeSet<StreamDomain>,
+    pub requests_per_second: u32,
+    pub request_burst: u32,
     pub sequence: u64,
     pub sent: u64,
     pub events: VecDeque<Retained>,
@@ -129,6 +131,7 @@ fn scope(identity: &Authenticated, params: &SubscribeParams) -> Result<(), Error
                 StreamDomain::Workflows
                     | StreamDomain::Points
                     | StreamDomain::Automation
+                    | StreamDomain::Competitions
                     | StreamDomain::Commands
             )
         })
@@ -144,11 +147,15 @@ fn scope(identity: &Authenticated, params: &SubscribeParams) -> Result<(), Error
         || params.domains.contains(&StreamDomain::Automation)
             && (!caps.contains(&Capability::AutomationRead)
                 || identity.grant.resources.contains_key(&ResourceKind::Live))
+        || params.domains.contains(&StreamDomain::Competitions)
+            && (!caps.contains(&Capability::CompetitionsRead)
+                || identity.grant.resources.contains_key(&ResourceKind::Live))
         || params.domains.contains(&StreamDomain::Commands)
             && (!caps.contains(&Capability::CommandsRead)
                 || !(caps.contains(&Capability::WorkflowsRead)
                     || (caps.contains(&Capability::PointsRead)
-                        || caps.contains(&Capability::AutomationRead))
+                        || caps.contains(&Capability::AutomationRead)
+                        || caps.contains(&Capability::CompetitionsRead))
                         && !identity.grant.resources.contains_key(&ResourceKind::Live)))
     {
         return Err(Error::Forbidden);
@@ -166,6 +173,10 @@ pub(super) fn resource_allowed(grant: &crate::Grant, resource: &ResourceVersion)
             }
             ResourceKind::Automation => {
                 grant.capabilities.contains(&Capability::AutomationRead)
+                    && !grant.resources.contains_key(&ResourceKind::Live)
+            }
+            ResourceKind::Competition => {
+                grant.capabilities.contains(&Capability::CompetitionsRead)
                     && !grant.resources.contains_key(&ResourceKind::Live)
             }
             _ => false,
@@ -256,6 +267,8 @@ impl StreamHub {
                 detached_at: None,
                 host_instance: instance.into(),
                 domains: params.domains,
+                requests_per_second: limits.requests_per_second,
+                request_burst: limits.request_burst,
                 sequence: 0,
                 sent: 0,
                 events: VecDeque::new(),
@@ -377,6 +390,8 @@ impl StreamHub {
         s.connection = Some(connection.into());
         s.detached_at = None;
         s.identity = identity.clone();
+        s.requests_per_second = limits.requests_per_second;
+        s.request_burst = limits.request_burst;
         s.sent = sequence;
         Ok(ResumeResult {
             subscription_id: params.subscription_id,
@@ -406,6 +421,9 @@ impl StreamHub {
                         ResourceKind::Workflow => s.domains.contains(&StreamDomain::Workflows),
                         ResourceKind::Viewer => s.domains.contains(&StreamDomain::Points),
                         ResourceKind::Automation => s.domains.contains(&StreamDomain::Automation),
+                        ResourceKind::Competition => {
+                            s.domains.contains(&StreamDomain::Competitions)
+                        }
                         _ => false,
                     } =>
                 {
@@ -422,6 +440,8 @@ impl StreamHub {
                             "points.changed"
                         } else if resource.kind == ResourceKind::Automation {
                             "automation.changed"
+                        } else if resource.kind == ResourceKind::Competition {
+                            "competition.changed"
                         } else {
                             "workflow.changed"
                         },

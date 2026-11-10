@@ -46,6 +46,9 @@ async fn remote_identity_is_host_supplied_and_policy_filters_calls_and_discovery
         )
         .await
         .is_ok());
+    let feed = api.execute_with_context(&context, call("ui.feed.browser", json!({"after":"0"}))).await.result.unwrap();
+    assert_eq!(feed["latestCursor"], "0");
+    assert_eq!(api.execute_with_context(&context, call("ui.feed.browser", json!({"after":"01"}))).await.error.unwrap().code, "invalid_params");
 
     // A claimed owner or grant in raw JSON cannot replace trusted context.
     for method in [
@@ -104,6 +107,7 @@ async fn remote_identity_is_host_supplied_and_policy_filters_calls_and_discovery
 
     // Dynamic grant changes affect every clone, not only new connections.
     session.set_capabilities([]);
+    assert_eq!(api.execute_with_context(&context, call("ui.feed.browser", json!({"after":"0"}))).await.error.unwrap().code, "forbidden");
     assert_eq!(
         api.execute_with_context(&context, call("live.status", json!({})))
             .await
@@ -155,6 +159,8 @@ fn every_unclassified_registry_method_is_denied_and_only_completed_mutations_are
             "live.status"
                 | "live.monitor.status"
                 | "ui.feed.backfill"
+                | "ui.feed.browser"
+                | "ui.feed.creator"
                 | "rpc.discover"
                 | "rpc.schema"
                 | "collaboration.hello"
@@ -172,6 +178,7 @@ fn every_unclassified_registry_method_is_denied_and_only_completed_mutations_are
                 | "points.leaderboard"
                 | "points.info"
                 | "points.view"
+                | "competitions.summary"
                 | "automation.create"
                 | "automation.update"
                 | "automation.list"

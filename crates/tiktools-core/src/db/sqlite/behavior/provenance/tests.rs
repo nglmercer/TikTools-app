@@ -93,7 +93,7 @@ impl Fixture {
     ) -> Result<Versioned<Value>, DatabaseError> {
         let id = record.get("id").and_then(Value::as_str).unwrap().to_owned();
         self.db.behavior_transaction(|tx| {
-            let permit = authorize_authoring(tx, table, &id, auth)?;
+            let permit = authorize_authoring(tx, table, &id, auth, false, false)?;
             let result = save_record(tx, table, &record, Some(expected), mode)?;
             mark_delegated_new(tx, table, &id, &permit)?;
             Ok(result)
@@ -1960,7 +1960,7 @@ fn retained_pre_validation_remote_receipts_replay_without_revalidating_or_rewrit
         super::super::super::commands::payload_hash(operation.method(), &operation.params(), "0")
             .unwrap();
     let original=f.db.behavior_transaction(|tx| {
-        let permit=authorize_authoring(tx,"behavior_events","historical",&author)?;
+        let permit=authorize_authoring(tx,"behavior_events","historical",&author,false,false)?;
         let saved=save_record(tx,"behavior_events",&body,Some("0"),BehaviorSave::Create)?;
         mark_delegated_new(tx,"behavior_events","historical",&permit)?;
         super::super::super::commands::finish(tx,&command,&hash,operation.method(),"0",saved.map(|_|json!({"kind":"event","id":"historical","enabled":false,"pendingReview":true})))

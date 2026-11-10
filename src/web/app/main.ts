@@ -1,4 +1,6 @@
 import { createBrowserTransport } from '@/shared/api/browser-transport.ts';
+import { createRemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
+import { createBrowserControllerClient } from '@/features/controller/model/browser-controller.ts';
 import { createPinia } from 'pinia';
 import { createApp, type App as VueApp } from 'vue';
 import { createControlClient, notifyFrontendReady } from '@/shared/api/control-client.ts';
@@ -22,6 +24,16 @@ declare global {
 }
 
 async function mountApp(): Promise<VueApp> {
+  const transportMode = document.querySelector('meta[name="tiktools-transport"]')?.getAttribute('content');
+  if (transportMode === 'remote-web') {
+    const transport = createRemoteBrowserTransport();
+    const remote = createControlClient({ transport });
+    const control = createBrowserControllerClient(remote, transport, location.origin);
+    const app = createApp(ControllerRoot, { browserMode: true }).use(i18n).provide(controlClientKey, control);
+    await activateLocale(detectLocale());
+    app.mount('#app');
+    return app;
+  }
   if (window.__tiktools_controller__) {
     const app = createApp(ControllerRoot).use(i18n)
       .provide(controlClientKey, createControlClient());
@@ -30,7 +42,7 @@ async function mountApp(): Promise<VueApp> {
     notifyFrontendReady();
     return app;
   }
-  const browser = document.querySelector('meta[name="tiktools-transport"]')?.getAttribute('content') === 'local-web';
+  const browser = transportMode === 'local-web';
   if (browser) document.documentElement.dataset['tiktoolsTransport'] = 'local-web';
   const banner = browser ? document.createElement('div') : null;
   if (banner) {

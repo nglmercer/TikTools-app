@@ -19,7 +19,7 @@ request!(Read {#[serde(default)] pub offset:usize,pub kind:Option<AutomationFami
 request!(Save {pub kind:AutomationFamily,pub id:String,pub expected_store_revision:String,pub mode:ProposalMode,pub base_revision:String,pub text:String,pub acknowledge_storage:bool,});
 request!(Delete {pub kind:AutomationFamily,pub id:String,pub expected_store_revision:String,});
 request!(Inspect {pub kind:AutomationFamily,pub id:String,});
-request!(Submit {pub kind:AutomationFamily,pub id:String,pub inspection_id:String,pub expected_store_revision:String,pub acknowledge_proposal:bool,});
+request!(Submit {pub kind:AutomationFamily,pub id:String,pub inspection_id:String,pub expected_store_revision:String,pub acknowledge_proposal:bool,#[serde(default)] pub active:bool,});
 #[derive(Clone)]
 pub(super) struct Inspection {
     token: String,
@@ -254,6 +254,68 @@ impl Controller {
         selected(&self.shared, p.identity(), Some((p.kind, &p.id)), false)?;
         Ok(reply(p.identity(), &rev))
     }
+    pub(super) async fn proposal_source(&self, p: Inspect) -> Result<Value, ClientError> {
+        let selection = selected(&self.shared, p.identity(), Some((p.kind, &p.id)), false)?;
+        if selection
+            .remote
+            .hello()
+            .features
+            .get("automationSharedSource")
+            != Some(&true)
+            || !selection
+                .remote
+                .hello()
+                .capabilities
+                .contains(&Capability::AutomationEdit)
+        {
+            return Err(fail("forbidden", "shared source is unavailable"));
+        }
+        let reply = selection
+            .remote
+            .call_value_with_meta(
+                "automation.source.get",
+                json!({"kind":p.kind,"id":p.id}),
+                None,
+            )
+            .await?;
+        let meta = reply.meta.ok_or_else(protocol)?;
+        if meta.command.is_some() {
+            return Err(protocol());
+        }
+        let rev = version(
+            &serde_json::to_value(meta.resource_versions).map_err(|_| protocol())?,
+            p.kind,
+            &p.id,
+            true,
+        )?;
+        let body = &reply.result;
+        if body.as_object().is_none_or(|o| {
+            o.len() != 4
+                || !o
+                    .keys()
+                    .all(|key| matches!(key.as_str(), "kind" | "id" | "revision" | "record"))
+        }) || body.get("kind").and_then(Value::as_str) != Some(p.kind.scope())
+            || body.get("id").and_then(Value::as_str) != Some(p.id.as_str())
+            || body.get("revision").and_then(Value::as_str) != Some(rev.as_str())
+            || body.pointer("/record/id").and_then(Value::as_str) != Some(p.id.as_str())
+            || serde_json::to_vec(body).map_err(|_| protocol())?.len() > 256 * 1024
+        {
+            return Err(protocol());
+        }
+        let latest = selected(&self.shared, p.identity(), Some((p.kind, &p.id)), false)?;
+        if latest.remote.hello().features.get("automationSharedSource") != Some(&true)
+            || !latest
+                .remote
+                .hello()
+                .capabilities
+                .contains(&Capability::AutomationEdit)
+        {
+            return Err(fail("forbidden", "shared source is unavailable"));
+        }
+        Ok(
+            json!({"epoch":p.epoch,"connectionId":p.connection_id,"hostInstanceId":p.host_instance_id,"grantRevision":p.grant_revision,"kind":p.kind,"id":p.id,"revision":rev,"record":body["record"]}),
+        )
+    }
     pub(super) async fn proposal_inspect(&self, p: Inspect) -> Result<Value, ClientError> {
         let s = selected(&self.shared, p.identity(), Some((p.kind, &p.id)), false)?;
         let response = s
@@ -340,7 +402,7 @@ pub(super) async fn mutate(shared: &Shared, p: Submit) -> Result<(), ClientError
             ));
         }
     }
-    let record: Value = serde_json::from_str(&d.text)
+    let mut record: Value = serde_json::from_str(&d.text)
         .map_err(|_| fail("invalid_params", "proposal must be a JSON object"))?;
     if !record.is_object()
         || record.get("id").and_then(Value::as_str) != Some(p.id.as_str())
@@ -359,11 +421,27 @@ pub(super) async fn mutate(shared: &Shared, p: Submit) -> Result<(), ClientError
             "proposal must match its saved ID and family and be explicitly disabled",
         ));
     }
-    let operation = match (d.mode, p.kind) {
-        (ProposalMode::Create, AutomationFamily::Event) => Operation::CreateEventDraft,
-        (ProposalMode::Update, AutomationFamily::Event) => Operation::UpdateEventDraft,
-        (ProposalMode::Create, AutomationFamily::Action) => Operation::CreateActionDraft,
-        (ProposalMode::Update, AutomationFamily::Action) => Operation::UpdateActionDraft,
+    if p.active {
+        let hello = s.remote.hello();
+        if hello.features.get("automationReusableWrite") != Some(&true)
+            || !hello.capabilities.contains(&Capability::AutomationToggle)
+        {
+            return Err(fail(
+                "forbidden",
+                "active automation authoring is unavailable",
+            ));
+        }
+        record["enabled"] = Value::Bool(true);
+    }
+    let operation = match (d.mode, p.kind, p.active) {
+        (ProposalMode::Create, AutomationFamily::Event, false) => Operation::CreateEventDraft,
+        (ProposalMode::Update, AutomationFamily::Event, false) => Operation::UpdateEventDraft,
+        (ProposalMode::Create, AutomationFamily::Action, false) => Operation::CreateActionDraft,
+        (ProposalMode::Update, AutomationFamily::Action, false) => Operation::UpdateActionDraft,
+        (ProposalMode::Create, AutomationFamily::Event, true) => Operation::CreateEventActive,
+        (ProposalMode::Update, AutomationFamily::Event, true) => Operation::UpdateEventActive,
+        (ProposalMode::Create, AutomationFamily::Action, true) => Operation::CreateActionActive,
+        (ProposalMode::Update, AutomationFamily::Action, true) => Operation::UpdateActionActive,
     };
     let params = if d.mode == ProposalMode::Create {
         json!({"kind":p.kind,"record":record})
@@ -387,6 +465,7 @@ pub(super) async fn mutate(shared: &Shared, p: Submit) -> Result<(), ClientError
         delta: None,
         currency_name: None,
         proposal_revision: Some(store.clone()),
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     let j = s.journal.clone();

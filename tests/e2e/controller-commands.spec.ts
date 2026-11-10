@@ -51,15 +51,10 @@ for (const locale of ['en', 'es'] as const) {
       { disable: 'Disable workflow', remove: 'Delete workflow', cancel: 'Cancel', draft: 'Local draft', confirm: 'Confirmed by host', check: 'Check outcome', review: 'Review unknown outcome', acknowledge: 'Keep outcome unknown', reviewed: 'Reviewed unknown outcome' };
     await page.getByRole('textbox', { name: text.draft, exact: true }).fill('local draft retained');
     await page.getByRole('button', { name: text.disable, exact: true }).click();
-    const dialog = page.getByRole('dialog'); await expect(dialog).toContainText(origin);
-    await expect(dialog).toContainText('11111111-1111-4111-8111-111111111111');
-    await dialog.getByRole('button', { name: text.cancel, exact: true }).click();
-    await page.getByRole('button', { name: text.disable, exact: true }).click();
-    await dialog.getByRole('button', { name: text.disable, exact: true }).click();
+    const dialog = page.getByRole('dialog');
     await expect(page.getByText(`${text.confirm} · welcome`, { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: text.draft, exact: true })).toHaveValue('local draft retained');
     await page.getByRole('button', { name: text.remove, exact: true }).click();
-    await dialog.getByRole('button', { name: text.remove, exact: true }).click();
     await expect(page.getByRole('textbox', { name: text.draft, exact: true })).toHaveValue('local draft retained');
     await page.getByRole('button', { name: text.check, exact: true }).click();
     await page.getByRole('button', { name: text.review, exact: true }).click();

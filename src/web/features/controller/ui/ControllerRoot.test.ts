@@ -7,6 +7,53 @@ import ControllerRoot from './ControllerRoot.vue';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { ControllerStatus } from '../model/controller.ts';
 
+it('explains a snapshot rate budget failure without retrying a connection', async () => {
+  i18n.global.locale.value = 'es';
+  const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'controller.profiles') return [];
+    if (method === 'controller.status') return { epoch: '1', viewRevision: '1', phase: 'failed', profile: 'desk', origin: 'https://host.example', hello: null, errorCode: 'snapshot_rate_budget' };
+    throw new Error(`Unexpected native call: ${method}`);
+  });
+  const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
+  try {
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toContain('reduzca los recursos permitidos');
+    expect(wrapper.text()).toContain('aumente el límite de solicitudes o el tamaño de mensaje');
+    expect(calls.some((call) => call.method === 'controller.connect')).toBe(false);
+    i18n.global.locale.value = 'en';
+    await flushPromises();
+    expect(wrapper.get('[role="alert"]').text()).toContain('narrow the permitted resources');
+  } finally { wrapper.unmount(); }
+});
+
+it('requires confirmation before forgetting a reviewed local profile', async () => {
+  i18n.global.locale.value = 'en';
+  let profiles = [{ name: 'desk', profileId: 'instance-1', origin: 'https://host.example', hostId: 'host-A' }];
+  const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'controller.profiles') return structuredClone(profiles);
+    if (method === 'controller.status') return { epoch: '0', viewRevision: '0', phase: 'idle', profile: null, origin: null, hello: null, errorCode: null };
+    if (method === 'controller.profile.forget') { profiles = []; return { ok: true }; }
+    throw new Error(`Unexpected native call: ${method}`);
+  });
+  const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
+  const button = (name: string) => wrapper.findAll('button').find((node) => node.text() === name)!;
+  try {
+    await flushPromises();
+    await button('Forget profile').trigger('click');
+    const dialog = wrapper.get('dialog[open]');
+    expect(dialog.text()).toContain('credentials, drafts and command history');
+    expect(dialog.text()).toContain('Existing connections may remain active until they expire or the owner revokes host access');
+    expect(dialog.text()).toContain('https://host.example');
+    await dialog.findAll('button').find((node) => node.text() === 'Cancel')!.trigger('click');
+    expect(calls.some((call) => call.method === 'controller.profile.forget')).toBe(false);
+    await button('Forget profile').trigger('click');
+    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Forget profile')!.trigger('click');
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'controller.profile.forget')?.params).toEqual({ profile: 'desk', profileId: 'instance-1', origin: 'https://host.example', hostId: 'host-A', confirm: true });
+    expect(wrapper.text()).not.toContain('https://host.example');
+  } finally { wrapper.unmount(); }
+});
+
 it('renders requested points separately from verified results and includes the unit in unknown review', async () => {
   i18n.global.locale.value = 'en';
   const intent = { commandId: 'pending-points', operation: 'adjust-points' as const, resourceId: 'alice', hostInstanceId: 'instance', delta: -3, currencyName: 'Gems', createdAt: 1 };
@@ -63,7 +110,7 @@ it('starts in controller scope and clears the private invitation after submissio
   } finally { wrapper.unmount(); }
 });
 
-it('requires a host-bound confirmation and blocks changes until an unknown command is explicitly reviewed', async () => {
+it('sends an authorized change once and blocks changes until an unknown command is explicitly reviewed', async () => {
   i18n.global.locale.value = 'en';
   const current: ControllerStatus = { epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://host.example', errorCode: null,
     hello: { hostId: 'host-A', principalId: 'moderator', sessionId: 'device', hostInstanceId: 'instance', capabilities: ['workflows.read', 'workflows.toggle', 'workflows.edit', 'commands.read'], features: { workflowDisable: true, workflowDelete: true } },
@@ -83,13 +130,8 @@ it('requires a host-bound confirmation and blocks changes until an unknown comma
   try {
     await flushPromises(); await button('Owner workflow · 1').trigger('click');
     await wrapper.get('textarea').setValue('private local draft');
-    await button('Disable workflow').trigger('click'); await flushPromises();
-    expect(wrapper.get('dialog[open]').text()).toContain('https://host.example');
-    expect(wrapper.get('dialog[open]').text()).toContain('host-A');
-    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Cancel')!.trigger('click'); await flushPromises();
     expect(calls.some((c) => c.method === 'controller.workflow.command')).toBe(false);
     await button('Delete workflow').trigger('click'); await flushPromises();
-    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Delete workflow')!.trigger('click'); await flushPromises();
     expect(calls.filter((c) => c.method === 'controller.workflow.command')).toHaveLength(1);
     expect(calls.find((c) => c.method === 'controller.workflow.command')?.params).toEqual({ epoch: '1', viewRevision: '1', id: 'welcome', expectedRevision: '1', operation: 'delete' });
     expect(button('Delete workflow').attributes('disabled')).toBeDefined();

@@ -22,9 +22,10 @@ export interface LibrarySnapshot {
   hostId: string; hostInstanceId: string; revision: string; definitionDigest: string;
   catalog: LibraryCatalog; definitions: BehaviorSnapshot; resourceVersions: ResourceVersion[];
 }
+export interface LibraryCloudProvenance { origin: string; accountId: string; documentId: string; revision: string; sha256: string }
 export interface LibraryIntent {
   commandId: string; operation: LibraryOperation; target: string; expectedRevision: string;
-  definitionDigest: string; commandHash: string; hostInstanceId: string; createdAt: number;
+  definitionDigest: string; commandHash: string; hostInstanceId: string; createdAt: number; provenance?: LibraryCloudProvenance | null;
 }
 export interface LibraryReceipt { revision: string; catalogDigest: string; definitionDigest: string; versionsDigest: string; affectedResources: number }
 export interface LibraryRecord { intent: LibraryIntent; outcome: 'succeeded' | 'rejected' | 'reviewed-unknown'; receipt: LibraryReceipt | null; errorCode: string | null; recordedAt: number }
@@ -34,9 +35,11 @@ export interface LibrarySubmission { state: LibraryState; acknowledgement: Libra
 export const libraryOperations: readonly LibraryOperation[] = ['create-profile', 'switch-profile', 'delete-profile', 'apply-template', 'import-profile', 'assign-record', 'import-templates', 'delete-template'];
 export const stableLibraryJson = canonicalJson;
 export const libraryDigest = (value: unknown): string => sha256(canonicalJson(value));
-export const libraryCommandHash = (mutation: LibraryMutation, context: Pick<LibrarySnapshot, 'revision' | 'definitionDigest'>): string => libraryDigest({
-  method: 'automation.library.apply', params: { mutation, definitionDigest: context.definitionDigest }, expectedRevision: context.revision,
-});
+export const libraryCommandHash = (mutation: LibraryMutation, context: Pick<LibrarySnapshot, 'revision' | 'definitionDigest'>, provenance?: LibraryCloudProvenance | null): string => {
+  const params: Record<string, unknown> = { mutation, definitionDigest: context.definitionDigest };
+  if (provenance) params.cloudProvenance = provenance;
+  return libraryDigest({ method: 'automation.library.apply', params, expectedRevision: context.revision });
+};
 export function libraryDefinitionDigest(definitions: Pick<BehaviorSnapshot, 'actions' | 'events'>, resourceVersions: ResourceVersion[]): string {
   return libraryDigest({ actions: [...definitions.actions].sort((a, b) => scalarCompare(a.id, b.id)), events: [...definitions.events].sort((a, b) => scalarCompare(a.id, b.id)),
     resourceVersions: [...resourceVersions].sort((a, b) => scalarCompare(a.scope, b.scope) || scalarCompare(a.id, b.id)) });
@@ -61,10 +64,16 @@ export function libraryTarget(mutation: LibraryMutation): string {
   return 'templates';
 }
 function parseIntent(v: unknown): LibraryIntent {
-  if (!exact(v, ['commandId', 'operation', 'target', 'expectedRevision', 'definitionDigest', 'commandHash', 'hostInstanceId', 'createdAt']) ||
+  const baseKeys = ['commandId', 'operation', 'target', 'expectedRevision', 'definitionDigest', 'commandHash', 'hostInstanceId', 'createdAt'];
+  if (!(exact(v, baseKeys) || exact(v, [...baseKeys, 'provenance'])) ||
     typeof v.commandId !== 'string' || !/^owner-library-[0-9a-f]{32}$/.test(v.commandId) || !libraryOperations.includes(v.operation as LibraryOperation) ||
     (v.operation === 'import-templates' ? v.target !== 'templates' : v.operation === 'assign-record' ? !id(v.target) : !profileId(v.target)) ||
     !validRevision(v.expectedRevision) || !digest(v.definitionDigest) || !digest(v.commandHash) || !text(v.hostInstanceId) || !time(v.createdAt)) return invalid();
+  if (v.provenance != null) {
+    const p = v.provenance;
+    if (!exact(p, ['origin', 'accountId', 'documentId', 'revision', 'sha256']) || !text(p.origin, 512) || !text(p.accountId, 128) ||
+      typeof p.documentId !== 'string' || typeof p.revision !== 'string' || !digest(p.sha256)) return invalid();
+  }
   return v as unknown as LibraryIntent;
 }
 function parseReceipt(v: unknown, intent: LibraryIntent): LibraryReceipt {
@@ -203,7 +212,7 @@ export function parseLibrarySubmission(v: unknown, mutation: LibraryMutation, co
   if (v.acknowledgement === null) return { state, acknowledgement: null };
   const a = v.acknowledgement; const result = state.recent[0];
   if (!result || result.outcome !== 'succeeded' || !result.receipt || state.pending || result.intent.operation !== mutation.operation || result.intent.target !== libraryTarget(mutation) ||
-    result.intent.expectedRevision !== context.revision || result.intent.definitionDigest !== context.definitionDigest || result.intent.commandHash !== libraryCommandHash(mutation, context) || result.intent.hostInstanceId !== context.hostInstanceId ||
+    result.intent.expectedRevision !== context.revision || result.intent.definitionDigest !== context.definitionDigest || result.intent.commandHash !== libraryCommandHash(mutation, context, result.intent.provenance ?? null) || result.intent.hostInstanceId !== context.hostInstanceId ||
     !exact(a, ['value', 'resourceVersions', 'command', 'hostInstanceId']) || a.hostInstanceId !== context.hostInstanceId ||
     !exact(a.command, ['commandId', 'state', 'resource', 'committedAt']) || a.command.commandId !== result.intent.commandId || a.command.state !== 'succeeded' || !time(a.command.committedAt) || a.command.committedAt === 0 ||
     !exact(a.command.resource, ['kind', 'scope', 'id']) || a.command.resource.kind !== 'automation' || a.command.resource.scope !== 'library' || a.command.resource.id !== 'catalog' ||

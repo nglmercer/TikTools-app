@@ -90,6 +90,12 @@ fn legacy_audit(
         (ResourceKind::Workflow, "enabled") => "workflows.enable",
         (ResourceKind::Workflow, "disabled") => "workflows.disable",
         (ResourceKind::Workflow, "deleted") => "workflows.delete",
+        (ResourceKind::Competition, "paused") => "competitions.pause",
+        (ResourceKind::Competition, "cancelled") => "competitions.cancel",
+        (ResourceKind::Competition, "created") => "competitions.create",
+        (ResourceKind::Competition, "updated") => "competitions.update",
+        (ResourceKind::Competition, "deleted") => "competitions.delete",
+        (ResourceKind::Competition, "state-changed") => "competitions.state.change",
         (ResourceKind::Viewer, "awarded") => "points.award",
         (ResourceKind::Viewer, "adjusted" | "automation-adjusted") => "points.adjust",
         (ResourceKind::Viewer, "reset") => "points.reset",
@@ -115,8 +121,9 @@ fn legacy_audit(
         .checked_sub(1)
         .filter(|version| *version >= 0)
         .ok_or_else(|| DatabaseError::Invalid("invalid outbox revision".into()))?;
-    let actor = if resource.kind == ResourceKind::Viewer
-        && matches!(row.change.as_str(), "awarded" | "automation-adjusted")
+    let actor = if (resource.kind == ResourceKind::Viewer
+        && matches!(row.change.as_str(), "awarded" | "automation-adjusted"))
+        || (resource.kind == ResourceKind::Competition && row.change == "state-changed")
     {
         "host-runtime"
     } else {

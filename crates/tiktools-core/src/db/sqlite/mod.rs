@@ -19,18 +19,48 @@ mod effects;
 pub(crate) use delivery::{DeliveryToken, PendingDelivery};
 mod competitions;
 pub(crate) use commands::{CommandDatabase, CommandTransaction};
+pub(crate) use competitions::CompetitionActivation;
 mod gift_accounting;
 pub(crate) use competitions::{
     ActionClaimOutcome, GiftInput, GiftOutcome, ScoredInput, ScoredOutcome,
 };
+pub(crate) use competitions::{CompetitionExecutionAdmission, CompetitionExecutionFence};
 mod meta;
 mod owner_adoption;
 mod owner_approval;
 pub(crate) use owner_approval::validate_owner_approval_input;
 mod owner_definition;
 mod owner_library;
+mod plugin_apply_quarantine;
+#[cfg(feature = "cloud-auth")]
+#[allow(dead_code)] // Native cutover preview is not yet exposed to the UI.
+mod plugin_cutover;
 pub(crate) use owner_definition::validate_owner_definition_input;
+#[cfg(feature = "cloud-auth")]
+pub(crate) use plugin_cutover::PluginCutoverSource;
+#[allow(dead_code)] // Storage only, not yet wired to product package operations.
+mod plugin_package_guard;
+#[cfg(all(feature = "plugin-install", feature = "cloud-auth"))]
+pub(crate) use plugin_package_guard::{
+    PackageMutationIntent, PackageMutationKind, PackageMutationPhase,
+};
+#[cfg(feature = "cloud-auth")]
+// The transactional storage boundary is not exposed to the product until the
+// coordinator can enforce draining and identity/session authorization.
+#[allow(dead_code)]
+mod plugin_sync;
+#[cfg(feature = "cloud-auth")]
+// Storage only: product activation still needs coordinator/session fencing.
+#[allow(dead_code)]
+mod plugin_sync_apply;
 mod points;
+#[cfg(feature = "cloud-auth")]
+pub(crate) use plugin_sync_apply::{PluginApplyIntent, PluginApplyPhase, PluginApplyReason};
+#[cfg(feature = "cloud-auth")]
+#[allow(dead_code)]
+mod plugin_sync_rebase;
+#[cfg(feature = "cloud-auth")]
+pub(crate) use plugin_sync::{LocalPluginSyncIntent, PluginSyncOutboxEntry, UntrackedPluginReview};
 mod schema;
 #[cfg(test)]
 mod tests;

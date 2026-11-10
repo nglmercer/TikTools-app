@@ -1,17 +1,2918 @@
 //! Coordinator tests against a mock Cloud speaking the real sync protocol.
 
+mod remote_apply_tests;
+mod v2_product_tests;
+mod v2_remote_apply_tests;
+
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore, TokenStore};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::{SyncCoordError, SyncCoordinator};
+use crate::{PluginSelection, ProtocolFenceError, SyncCoordError, SyncCoordinator};
+
+#[derive(Default)]
+struct ProductOutboxState {
+    entries: BTreeMap<String, crate::V1OutboxCandidate>,
+    receipts: BTreeMap<
+        String,
+        (
+            crate::V1LocalEditContext,
+            crate::V1OutboxCandidate,
+            crate::V1Pending,
+        ),
+    >,
+    source_generations: BTreeMap<String, i64>,
+    fail_ack: bool,
+    runtime_unconfirmed: bool,
+    block_authorization: bool,
+    proof_epoch_override: Option<String>,
+    rebase: Option<(crate::V1LocalEditContext, crate::V1KeepLocalIntent)>,
+    fail_rebase_prepare_after_persist: bool,
+    fail_rebase_finish: bool,
+    fail_rebase_abandon: bool,
+}
+
+#[derive(Clone, Default)]
+struct ProductOutbox(Arc<Mutex<ProductOutboxState>>);
+
+/// Simulates the product's synchronous runtime gate; the assertions in
+/// `next` and `validate_pending` verify the gate remains held through upload
+/// admission but is not retained for the network request.
+struct GuardedOutbox {
+    inner: ProductOutbox,
+    held: Arc<std::sync::atomic::AtomicBool>,
+    after_next: Option<Box<dyn FnOnce() + Send>>,
+}
+impl crate::V1ProductOutbox for GuardedOutbox {
+    fn with_runtime_guard(
+        &mut self,
+        operation: &mut dyn FnMut(&mut dyn crate::V1ProductOutbox) -> Result<(), SyncCoordError>,
+    ) -> Result<(), SyncCoordError> {
+        use std::sync::atomic::Ordering;
+        assert!(!self.held.swap(true, Ordering::SeqCst));
+        struct Release(Arc<std::sync::atomic::AtomicBool>);
+        impl Drop for Release {
+            fn drop(&mut self) {
+                self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        let _held = Release(self.held.clone());
+        operation(self)
+    }
+    fn next(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+    ) -> Result<Option<crate::V1OutboxCandidate>, SyncCoordError> {
+        assert!(self.held.load(std::sync::atomic::Ordering::SeqCst));
+        let candidate = self.inner.next(context)?;
+        if candidate.is_some() {
+            if let Some(after_next) = self.after_next.take() {
+                after_next();
+            }
+        }
+        Ok(candidate)
+    }
+    fn acknowledge(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        candidate: &crate::V1OutboxCandidate,
+        staged: &crate::V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        assert!(self.held.load(std::sync::atomic::Ordering::SeqCst));
+        self.inner.acknowledge(context, candidate, staged)
+    }
+    fn validate_pending(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        key: &str,
+        pending: &crate::V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        assert!(self.held.load(std::sync::atomic::Ordering::SeqCst));
+        self.inner.validate_pending(context, key, pending)
+    }
+    fn has_pending_rebase(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+    ) -> Result<bool, SyncCoordError> {
+        self.inner.has_pending_rebase(context)
+    }
+}
+
+impl ProductOutbox {
+    fn stage(&self, key: &str, generation: i64, enabled: bool) {
+        let candidate = crate::V1OutboxCandidate {
+            key: key.into(),
+            generation,
+            edit: crate::V1Edit::Put(crate::PluginSelection {
+                schema_version: 1,
+                plugin_id: key.into(),
+                version: "1.0.0".into(),
+                enabled,
+            }),
+        };
+        let mut state = self.0.lock().unwrap();
+        state.source_generations.insert(key.into(), generation);
+        state.entries.insert(key.into(), candidate);
+    }
+}
+
+impl crate::V1ProductOutbox for ProductOutbox {
+    fn next(
+        &mut self,
+        _: &crate::V1LocalEditContext,
+    ) -> Result<Option<crate::V1OutboxCandidate>, SyncCoordError> {
+        let state = self.0.lock().unwrap();
+        if state.runtime_unconfirmed && !state.entries.is_empty() {
+            return Err(SyncCoordError::Local(
+                "runtime confirmation required".into(),
+            ));
+        }
+        Ok(state.entries.values().next().cloned())
+    }
+
+    fn acknowledge(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        candidate: &crate::V1OutboxCandidate,
+        staged: &crate::V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        let mut state = self.0.lock().unwrap();
+        if state.fail_ack || state.entries.get(&candidate.key) != Some(candidate) {
+            return Ok(false);
+        }
+        state.receipts.insert(
+            candidate.key.clone(),
+            (context.clone(), candidate.clone(), staged.clone()),
+        );
+        state.entries.remove(&candidate.key);
+        Ok(true)
+    }
+
+    fn validate_pending(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        key: &str,
+        pending: &crate::V1Pending,
+    ) -> Result<bool, SyncCoordError> {
+        let state = self.0.lock().unwrap();
+        Ok(!state.block_authorization
+            && !state.runtime_unconfirmed
+            && state
+                .receipts
+                .get(key)
+                .is_some_and(|(saved_context, receipt, saved_pending)| {
+                    saved_context == context
+                        && receipt.key == key
+                        && receipt.edit == pending.edit
+                        && saved_pending == pending
+                        && state.source_generations.get(key) == Some(&receipt.generation)
+                }))
+    }
+
+    fn conflict_source_proof(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        key: &str,
+        pending: &crate::V1Pending,
+    ) -> Result<Option<crate::V1ConflictSourceProof>, SyncCoordError> {
+        let state = self.0.lock().unwrap();
+        if state.runtime_unconfirmed || state.block_authorization || state.entries.contains_key(key)
+        {
+            return Ok(None);
+        }
+        Ok(state
+            .receipts
+            .get(key)
+            .and_then(|(saved_context, receipt, saved)| {
+                let compatible_conflict = pending.conflict
+                    && saved.edit == pending.edit
+                    && saved.base_revision == pending.base_revision;
+                (saved_context == context
+                    && compatible_conflict
+                    && state.source_generations.get(key) == Some(&receipt.generation))
+                .then(|| {
+                    crate::V1ConflictSourceProof::new(
+                        receipt.generation,
+                        state
+                            .proof_epoch_override
+                            .clone()
+                            .unwrap_or_else(|| "a".repeat(64)),
+                    )
+                })
+                .flatten()
+            }))
+    }
+
+    fn has_pending_rebase(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+    ) -> Result<bool, SyncCoordError> {
+        let state = self.0.lock().unwrap();
+        Ok(state.rebase.as_ref().is_some_and(|(saved, _)| {
+            saved.origin == context.origin && saved.account_id == context.account_id
+        }))
+    }
+
+    fn prepare_rebase(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+        proof: &crate::V1ConflictSourceProof,
+    ) -> Result<bool, SyncCoordError> {
+        let pending = intent.before().pending.as_ref().unwrap();
+        if self
+            .conflict_source_proof(context, intent.key(), pending)?
+            .as_ref()
+            != Some(proof)
+        {
+            return Ok(false);
+        }
+        let mut state = self.0.lock().unwrap();
+        if state.rebase.is_some() {
+            return Ok(false);
+        }
+        state.rebase = Some((context.clone(), intent.clone()));
+        if state.fail_rebase_prepare_after_persist {
+            return Err(SyncCoordError::Local(
+                "simulated lost prepare outcome".into(),
+            ));
+        }
+        Ok(true)
+    }
+
+    fn load_rebase(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        key: &str,
+    ) -> Result<Option<crate::V1KeepLocalIntent>, SyncCoordError> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .rebase
+            .as_ref()
+            .filter(|(saved, intent)| saved == context && intent.key() == key)
+            .map(|(_, intent)| intent.clone()))
+    }
+
+    fn load_rebase_with_previous_consent(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        key: &str,
+    ) -> Result<Option<crate::V1KeepLocalIntent>, SyncCoordError> {
+        Ok(self
+            .0
+            .lock()
+            .unwrap()
+            .rebase
+            .as_ref()
+            .filter(|(saved, intent)| {
+                saved.origin == context.origin
+                    && saved.account_id == context.account_id
+                    && saved.config_generation != context.config_generation
+                    && intent.key() == key
+            })
+            .map(|(_, intent)| intent.clone()))
+    }
+
+    fn abandon_rebase_with_previous_consent(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+    ) -> Result<bool, SyncCoordError> {
+        let mut state = self.0.lock().unwrap();
+        if state.fail_rebase_abandon
+            || !state.rebase.as_ref().is_some_and(|(saved, old)| {
+                saved.origin == context.origin
+                    && saved.account_id == context.account_id
+                    && saved.config_generation != context.config_generation
+                    && old == intent
+            })
+        {
+            return Ok(false);
+        }
+        state.rebase = None;
+        Ok(true)
+    }
+
+    fn rebase_source_proof(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+    ) -> Result<Option<crate::V1ConflictSourceProof>, SyncCoordError> {
+        let state = self.0.lock().unwrap();
+        if state.runtime_unconfirmed
+            || state.rebase.as_ref() != Some(&(context.clone(), intent.clone()))
+            || state.entries.contains_key(intent.key())
+            || state.source_generations.get(intent.key()) != Some(&intent.source_generation())
+        {
+            return Ok(None);
+        }
+        let Some((saved_context, candidate, saved)) = state.receipts.get(intent.key()) else {
+            return Ok(None);
+        };
+        let mut original = saved.clone();
+        original.conflict = true;
+        let matches_before = intent.before().pending.as_ref() == Some(&original);
+        let matches_after = intent.after().pending.as_ref() == Some(saved);
+        if saved_context != context
+            || candidate.generation != intent.source_generation()
+            || !(matches_before || matches_after)
+        {
+            return Ok(None);
+        }
+        Ok(crate::V1ConflictSourceProof::new(
+            candidate.generation,
+            state
+                .proof_epoch_override
+                .clone()
+                .unwrap_or_else(|| "a".repeat(64)),
+        ))
+    }
+
+    fn finish_rebase(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+        proof: &crate::V1ConflictSourceProof,
+    ) -> Result<bool, SyncCoordError> {
+        if self.rebase_source_proof(context, intent)?.as_ref() != Some(proof) {
+            return Ok(false);
+        }
+        let mut state = self.0.lock().unwrap();
+        if state.fail_rebase_finish {
+            return Ok(false);
+        }
+        if let Some(pending) = intent.after().pending.as_ref() {
+            state.receipts.get_mut(intent.key()).unwrap().2 = pending.clone();
+        } else {
+            state.receipts.remove(intent.key());
+        }
+        state.rebase = None;
+        Ok(true)
+    }
+
+    fn newer_rebase_candidate(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+    ) -> Result<Option<(crate::V1OutboxCandidate, crate::V1ConflictSourceProof)>, SyncCoordError>
+    {
+        let state = self.0.lock().unwrap();
+        if state.runtime_unconfirmed
+            || state.block_authorization
+            || state.rebase.as_ref() != Some(&(context.clone(), intent.clone()))
+        {
+            return Ok(None);
+        }
+        let Some(candidate) = state.entries.get(intent.key()) else {
+            return Ok(None);
+        };
+        if candidate.generation <= intent.source_generation()
+            || state.source_generations.get(intent.key()) != Some(&candidate.generation)
+        {
+            return Ok(None);
+        }
+        let proof = crate::V1ConflictSourceProof::new(
+            candidate.generation,
+            state
+                .proof_epoch_override
+                .clone()
+                .unwrap_or_else(|| "a".repeat(64)),
+        );
+        Ok(proof.map(|proof| (candidate.clone(), proof)))
+    }
+
+    fn abandon_rebase(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+        candidate: &crate::V1OutboxCandidate,
+        proof: &crate::V1ConflictSourceProof,
+    ) -> Result<bool, SyncCoordError> {
+        if self.newer_rebase_candidate(context, intent)?.as_ref()
+            != Some(&(candidate.clone(), proof.clone()))
+        {
+            return Ok(false);
+        }
+        let mut state = self.0.lock().unwrap();
+        if state.fail_rebase_abandon {
+            return Ok(false);
+        }
+        state.rebase = None;
+        Ok(true)
+    }
+
+    fn superseded_rebase_generation(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+    ) -> Result<Option<i64>, SyncCoordError> {
+        let state = self.0.lock().unwrap();
+        if state.rebase.as_ref() != Some(&(context.clone(), intent.clone())) {
+            return Ok(None);
+        }
+        Ok(state
+            .source_generations
+            .get(intent.key())
+            .copied()
+            .filter(|generation| *generation > intent.source_generation()))
+    }
+
+    fn abandon_superseded_rebase(
+        &mut self,
+        context: &crate::V1LocalEditContext,
+        intent: &crate::V1KeepLocalIntent,
+        generation: i64,
+    ) -> Result<bool, SyncCoordError> {
+        let mut state = self.0.lock().unwrap();
+        if state.fail_rebase_abandon
+            || state.rebase.as_ref() != Some(&(context.clone(), intent.clone()))
+            || generation <= intent.source_generation()
+            || state.source_generations.get(intent.key()) != Some(&generation)
+        {
+            return Ok(false);
+        }
+        state.rebase = None;
+        Ok(true)
+    }
+}
+
+async fn prepare_product_conflict(
+    sync: &SyncCoordinator,
+    mock: &MockSync,
+    outbox: &mut ProductOutbox,
+) {
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 1, true))
+        .unwrap();
+    outbox.0.lock().unwrap().block_authorization = true;
+    assert!(matches!(
+        sync.sync_now_with_outbox(outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    {
+        let mut server = mock.inner.lock().unwrap();
+        server.cursor = 1;
+        server.records.insert("acme.one".into(), Stored {
+            revision: 1, deleted: false,
+            value: Some(serde_json::json!({"schemaVersion":1,"pluginId":"acme.one","version":"1.0.0","enabled":false})),
+        });
+    }
+    outbox.0.lock().unwrap().block_authorization = false;
+    assert_eq!(
+        sync.sync_now_with_outbox(outbox).await.unwrap().conflicts,
+        vec!["acme.one"]
+    );
+}
+
+#[tokio::test]
+async fn product_conflict_review_is_read_only_and_rejects_source_aba() {
+    let dir = TempDir::new("product-conflict-review");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-conflict-review").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    assert_eq!(review.key(), "acme.one");
+    assert_eq!(review.source_generation(), 1);
+    assert!(review.pending().conflict);
+    assert_eq!(review.cloud().unwrap().revision, 1);
+    assert!(!review.cloud().unwrap().value.as_ref().unwrap().enabled);
+    assert!(sync
+        .product_conflict_review_is_current(&review, &mut outbox)
+        .unwrap());
+    let other = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(!other
+        .product_conflict_review_is_current(&review, &mut outbox)
+        .unwrap());
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    outbox.0.lock().unwrap().proof_epoch_override = Some("b".repeat(64));
+    assert!(!sync
+        .product_conflict_review_is_current(&review, &mut outbox)
+        .unwrap());
+    outbox.0.lock().unwrap().proof_epoch_override = None;
+    assert!(sync
+        .product_conflict_review_is_current(&review, &mut outbox)
+        .unwrap());
+    // A same-value ABA may reconstruct an identical receipt. Its monotonic
+    // source generation still changes, invalidating the earlier review.
+    {
+        let mut state = outbox.0.lock().unwrap();
+        state.source_generations.insert("acme.one".into(), 2);
+        state.receipts.get_mut("acme.one").unwrap().1.generation = 2;
+    }
+    assert!(!sync
+        .product_conflict_review_is_current(&review, &mut outbox)
+        .unwrap());
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn product_conflict_review_rejects_new_edit_during_cloud_read() {
+    let dir = TempDir::new("product-conflict-concurrent");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-conflict-concurrent").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        let mut outbox = outbox.clone();
+        tokio::spawn(async move { sync.review_product_conflict("acme.one", &mut outbox).await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
+        .await
+        .unwrap();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+    mock.held_export.release.notify_one();
+    assert!(matches!(
+        running.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    assert_eq!(outbox.0.lock().unwrap().entries["acme.one"].generation, 2);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn product_conflict_review_discards_response_after_same_account_relogin() {
+    let dir = TempDir::new("product-conflict-relogin");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-conflict-before").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        let mut outbox = outbox.clone();
+        tokio::spawn(async move { sync.review_product_conflict("acme.one", &mut outbox).await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
+        .await
+        .unwrap();
+    auth.logout().await.unwrap();
+    login(&auth, "product-conflict-after").await;
+    mock.held_export.release.notify_one();
+    assert!(matches!(
+        running.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn product_conflict_review_discards_response_after_opt_out_and_in() {
+    let dir = TempDir::new("product-conflict-opt-out");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-conflict-opt-out").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        let mut outbox = outbox.clone();
+        tokio::spawn(async move { sync.review_product_conflict("acme.one", &mut outbox).await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
+        .await
+        .unwrap();
+    sync.set_enabled(false).unwrap();
+    sync.set_enabled(true).unwrap();
+    mock.held_export.release.notify_one();
+    assert!(matches!(
+        running.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_conflict_review_rejects_cloud_rewind_without_mutation() {
+    let dir = TempDir::new("product-conflict-rewind");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-conflict-rewind").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    {
+        let mut server = mock.inner.lock().unwrap();
+        server.records.clear();
+        server.cursor = 0;
+    }
+    assert!(matches!(
+        sync.review_product_conflict("acme.one", &mut outbox).await,
+        Err(SyncCoordError::Engine(crate::SyncError::Protocol))
+    ));
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_conflict_review_requires_source_proof_before_network() {
+    let dir = TempDir::new("product-conflict-source");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-conflict-source").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    outbox.0.lock().unwrap().block_authorization = true;
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    assert!(matches!(
+        sync.review_product_conflict("acme.one", &mut outbox).await,
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(mock
+        .held_export
+        .armed
+        .load(std::sync::atomic::Ordering::SeqCst));
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_keep_local_rebases_only_after_review_and_fresh_cloud_read() {
+    let dir = TempDir::new("product-keep-local");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-keep-local").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    sync.keep_local_product_conflict(&review, &mut outbox)
+        .await
+        .unwrap();
+    assert!(outbox.0.lock().unwrap().rebase.is_none());
+    let snapshot = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let pending = snapshot.state.entries["acme.one"].pending.as_ref().unwrap();
+    assert_eq!(pending.base_revision, Some(1));
+    assert!(!pending.conflict);
+    assert_eq!(outbox.0.lock().unwrap().receipts["acme.one"].2, *pending);
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    assert_eq!(
+        sync.sync_now_with_outbox(&mut outbox).await.unwrap().pushed,
+        1
+    );
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 2);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_keep_local_absent_tombstone_finishes_without_a_write() {
+    let dir = TempDir::new("product-keep-absent-delete");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-keep-absent-delete").await;
+    let mut outbox = ProductOutbox::default();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 1, false))
+        .unwrap();
+    outbox
+        .0
+        .lock()
+        .unwrap()
+        .entries
+        .get_mut("acme.one")
+        .unwrap()
+        .edit = crate::V1Edit::Delete;
+    outbox.0.lock().unwrap().block_authorization = true;
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    outbox.0.lock().unwrap().block_authorization = false;
+    assert_eq!(
+        sync.sync_now_with_outbox(&mut outbox)
+            .await
+            .unwrap()
+            .conflicts,
+        vec!["acme.one"]
+    );
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    assert!(review.cloud().is_none());
+    sync.keep_local_product_conflict(&review, &mut outbox)
+        .await
+        .unwrap();
+    let snapshot = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert!(snapshot.state.entries["acme.one"].pending.is_none());
+    assert!(!outbox.0.lock().unwrap().receipts.contains_key("acme.one"));
+    assert_eq!(
+        sync.sync_now_with_outbox(&mut outbox).await.unwrap().pushed,
+        0
+    );
+    assert!(!mock.inner.lock().unwrap().records.contains_key("acme.one"));
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_keep_local_rejects_changed_cloud_without_journal_or_mutation() {
+    let dir = TempDir::new("product-keep-stale-cloud");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-keep-stale-cloud").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    let before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    {
+        let mut server = mock.inner.lock().unwrap();
+        server.cursor = 2;
+        server.records.get_mut("acme.one").unwrap().revision = 2;
+    }
+    assert!(matches!(
+        sync.keep_local_product_conflict(&review, &mut outbox).await,
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(outbox.0.lock().unwrap().rebase.is_none());
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn previous_consent_rebase_abandon_recovers_after_interrupted_restore() {
+    let dir = TempDir::new("previous-consent-rebase");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "previous-consent-rebase").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let original = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(sync
+        .keep_local_product_conflict(&review, &mut outbox)
+        .await
+        .is_err());
+    sync.set_enabled(false).unwrap();
+    sync.set_enabled(true).unwrap();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+
+    let recovery = sync
+        .review_previous_consent_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    // A new consent identity revokes the opaque review.
+    sync.set_enabled(false).unwrap();
+    sync.set_enabled(true).unwrap();
+    assert!(sync
+        .abandon_previous_consent_rebase(&recovery, &mut outbox)
+        .is_err());
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    let recovery = restarted
+        .review_previous_consent_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_abandon = true;
+    assert!(restarted
+        .abandon_previous_consent_rebase(&recovery, &mut outbox)
+        .is_err());
+    let restored = restarted
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.state, original.state);
+    assert!(outbox.0.lock().unwrap().rebase.is_some());
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    let recovery = restarted
+        .review_previous_consent_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_abandon = false;
+    restarted
+        .abandon_previous_consent_rebase(&recovery, &mut outbox)
+        .unwrap();
+    let saved = outbox.0.lock().unwrap();
+    assert!(saved.rebase.is_none());
+    assert_eq!(saved.entries["acme.one"].generation, 2);
+    assert!(saved.receipts.contains_key("acme.one"));
+    drop(saved);
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_keep_local_recovers_after_json_save_only_after_new_review() {
+    let dir = TempDir::new("product-keep-recover-json");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-keep-recover-json").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(matches!(
+        sync.keep_local_product_conflict(&review, &mut outbox).await,
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(outbox.0.lock().unwrap().rebase.is_some());
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    outbox.0.lock().unwrap().proof_epoch_override = Some("b".repeat(64));
+    let recovery = restarted
+        .review_keep_local_recovery("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = false;
+    restarted
+        .resume_keep_local_recovery(&recovery, &mut outbox)
+        .await
+        .unwrap();
+    assert!(outbox.0.lock().unwrap().rebase.is_none());
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    assert_eq!(
+        restarted
+            .sync_now_with_outbox(&mut outbox)
+            .await
+            .unwrap()
+            .pushed,
+        1
+    );
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_keep_local_preserves_a_newer_edit_after_interrupted_rebase() {
+    let dir = TempDir::new("product-keep-newer-after-crash");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-keep-newer-after-crash").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(matches!(
+        sync.keep_local_product_conflict(&review, &mut outbox).await,
+        Err(SyncCoordError::StaleReview)
+    ));
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(matches!(
+        restarted
+            .review_keep_local_recovery("acme.one", &mut outbox)
+            .await,
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(matches!(
+        restarted.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    let state = outbox.0.lock().unwrap();
+    assert!(state.rebase.is_some());
+    assert_eq!(state.entries["acme.one"].generation, 2);
+    drop(state);
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_abandon_restores_original_conflict_before_draining_newer_candidate() {
+    let dir = TempDir::new("product-abandon-before");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-abandon-before").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let original = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_prepare_after_persist = true;
+    assert!(sync
+        .keep_local_product_conflict(&review, &mut outbox)
+        .await
+        .is_err());
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+    let review = sync
+        .review_keep_local_abandon("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    assert_eq!(review.candidate().generation, 2);
+    sync.abandon_keep_local_recovery(&review, &mut outbox)
+        .unwrap();
+    let restored = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.generation, original.generation);
+    assert_eq!(restored.state, original.state);
+    assert!(outbox.0.lock().unwrap().rebase.is_none());
+    let result = sync.sync_now_with_outbox(&mut outbox).await.unwrap();
+    assert_eq!(result.pushed, 0);
+    assert_eq!(result.conflicts, vec!["acme.one"]);
+    let staged = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let pending = staged.state.entries["acme.one"].pending.as_ref().unwrap();
+    assert!(pending.conflict);
+    assert_eq!(
+        pending.base_revision,
+        original.state.entries["acme.one"]
+            .pending
+            .as_ref()
+            .unwrap()
+            .base_revision
+    );
+    assert!(matches!(&pending.edit, crate::V1Edit::Put(selection) if !selection.enabled));
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_abandon_recovers_after_restoring_json_and_retains_newer_edit() {
+    let dir = TempDir::new("product-abandon-restored");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-abandon-restored").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let original = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(sync
+        .keep_local_product_conflict(&review, &mut outbox)
+        .await
+        .is_err());
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+    let review = sync
+        .review_keep_local_abandon("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_abandon = true;
+    assert!(matches!(
+        sync.abandon_keep_local_recovery(&review, &mut outbox),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let restored = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.generation, original.generation + 2);
+    assert_eq!(restored.state, original.state);
+    assert!(outbox.0.lock().unwrap().rebase.is_some());
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(matches!(
+        restarted.abandon_keep_local_recovery(&review, &mut outbox),
+        Err(SyncCoordError::StaleReview)
+    ));
+    outbox.0.lock().unwrap().proof_epoch_override = Some("b".repeat(64));
+    let fresh = restarted
+        .review_keep_local_abandon("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_abandon = false;
+    restarted
+        .abandon_keep_local_recovery(&fresh, &mut outbox)
+        .unwrap();
+    assert!(outbox.0.lock().unwrap().rebase.is_none());
+    assert_eq!(outbox.0.lock().unwrap().entries["acme.one"].generation, 2);
+    let result = restarted.sync_now_with_outbox(&mut outbox).await.unwrap();
+    assert_eq!(result.pushed, 0);
+    assert_eq!(result.conflicts, vec!["acme.one"]);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_abandon_rejects_review_if_candidate_or_consent_changes() {
+    let dir = TempDir::new("product-abandon-stale");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-abandon-stale").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(sync
+        .keep_local_product_conflict(&review, &mut outbox)
+        .await
+        .is_err());
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+    let review = sync
+        .review_keep_local_abandon("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    let before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 3, true))
+        .unwrap();
+    assert!(matches!(
+        sync.abandon_keep_local_recovery(&review, &mut outbox),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    let current = sync
+        .review_keep_local_abandon("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    sync.set_enabled(false).unwrap();
+    assert!(sync
+        .abandon_keep_local_recovery(&current, &mut outbox)
+        .is_err());
+    let state = outbox.0.lock().unwrap();
+    assert!(state.rebase.is_some());
+    assert_eq!(state.entries["acme.one"].generation, 3);
+    drop(state);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn superseded_rebase_local_only_source_restores_conflict_without_runtime_confirmation() {
+    let dir = TempDir::new("superseded-rebase-local-only");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "superseded-rebase-local-only").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let original = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let reviewed = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_prepare_after_persist = true;
+    assert!(sync
+        .keep_local_product_conflict(&reviewed, &mut outbox)
+        .await
+        .is_err());
+    assert!(matches!(
+        sync.review_superseded_rebase("acme.one", &mut outbox).await,
+        Err(SyncCoordError::StaleReview)
+    ));
+    sync.with_v1_local_edit(|_| {
+        let mut state = outbox.0.lock().unwrap();
+        state.source_generations.insert("acme.one".into(), 2);
+        state.runtime_unconfirmed = true;
+    })
+    .unwrap();
+    let review = sync
+        .review_superseded_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    assert_eq!(review.source_generation(), 2);
+    assert_eq!(review.intent().account_id(), "user-a");
+    sync.abandon_superseded_rebase(&review, &mut outbox)
+        .unwrap();
+    let restored = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.generation, original.generation);
+    assert_eq!(restored.state, original.state);
+    assert!(outbox.0.lock().unwrap().rebase.is_none());
+    // A stale receipt cannot authorize a new review or an upload, even after
+    // native runtime confirmation. The restored conflict remains visible.
+    outbox.0.lock().unwrap().runtime_unconfirmed = false;
+    assert!(matches!(
+        sync.review_product_conflict("acme.one", &mut outbox).await,
+        Err(SyncCoordError::StaleReview)
+    ));
+    let result = sync.sync_now_with_outbox(&mut outbox).await.unwrap();
+    assert_eq!(result.pushed, 0);
+    assert_eq!(result.conflicts, vec!["acme.one"]);
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn superseded_rebase_keeps_foreign_candidate_and_recovers_after_restoring_json() {
+    let dir = TempDir::new("superseded-rebase-foreign-crash");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "superseded-rebase-foreign-crash").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let original = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let reviewed = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(sync
+        .keep_local_product_conflict(&reviewed, &mut outbox)
+        .await
+        .is_err());
+    // This represents another account's private candidate. The generic
+    // review captures only the global generation, never the candidate body.
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+    let foreign_candidate = outbox.0.lock().unwrap().entries["acme.one"].clone();
+    let receipt = outbox.0.lock().unwrap().receipts["acme.one"].clone();
+    let review = sync
+        .review_superseded_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_abandon = true;
+    assert!(matches!(
+        sync.abandon_superseded_rebase(&review, &mut outbox),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let restored = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.generation, original.generation + 2);
+    assert_eq!(restored.state, original.state);
+    {
+        let state = outbox.0.lock().unwrap();
+        assert!(state.rebase.is_some());
+        assert_eq!(state.entries["acme.one"], foreign_candidate);
+        assert_eq!(state.receipts["acme.one"], receipt);
+    }
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(matches!(
+        restarted.abandon_superseded_rebase(&review, &mut outbox),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let before_change = restarted
+        .review_superseded_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    restarted
+        .with_v1_local_edit(|_| {
+            outbox
+                .0
+                .lock()
+                .unwrap()
+                .source_generations
+                .insert("acme.one".into(), 3);
+        })
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_abandon = false;
+    assert!(matches!(
+        restarted.abandon_superseded_rebase(&before_change, &mut outbox),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let new_review = restarted
+        .review_superseded_rebase("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    assert_eq!(new_review.source_generation(), 3);
+    restarted
+        .abandon_superseded_rebase(&new_review, &mut outbox)
+        .unwrap();
+    let state = outbox.0.lock().unwrap();
+    assert!(state.rebase.is_none());
+    assert_eq!(state.entries["acme.one"], foreign_candidate);
+    assert_eq!(state.receipts["acme.one"], receipt);
+    drop(state);
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_keep_local_recovers_after_lost_prepare_outcome() {
+    let dir = TempDir::new("product-keep-recover-before");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-keep-recover-before").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    let before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_prepare_after_persist = true;
+    assert!(matches!(
+        sync.keep_local_product_conflict(&review, &mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert!(outbox.0.lock().unwrap().rebase.is_some());
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    let recovery = restarted
+        .review_keep_local_recovery("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    restarted
+        .resume_keep_local_recovery(&recovery, &mut outbox)
+        .await
+        .unwrap();
+    assert!(outbox.0.lock().unwrap().rebase.is_none());
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn product_keep_local_rejects_new_source_during_fresh_cloud_read() {
+    let dir = TempDir::new("product-keep-new-source");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-keep-new-source").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        let mut outbox = outbox.clone();
+        tokio::spawn(async move { sync.keep_local_product_conflict(&review, &mut outbox).await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
+        .await
+        .unwrap();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+    mock.held_export.release.notify_one();
+    assert!(matches!(
+        running.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let state = outbox.0.lock().unwrap();
+    assert!(state.rebase.is_none());
+    assert_eq!(state.entries["acme.one"].generation, 2);
+    drop(state);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn product_keep_local_journal_blocks_a_concurrent_sync_checkpoint() {
+    let dir = TempDir::new("product-keep-concurrent-checkpoint");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-keep-concurrent-checkpoint").await;
+    let mut outbox = ProductOutbox::default();
+    prepare_product_conflict(&sync, &mock, &mut outbox).await;
+    let review = sync
+        .review_product_conflict("acme.one", &mut outbox)
+        .await
+        .unwrap();
+    mock.held_pull
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        let mut outbox = outbox.clone();
+        tokio::spawn(async move { sync.sync_now_with_outbox(&mut outbox).await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_pull.started.notified())
+        .await
+        .unwrap();
+    outbox.0.lock().unwrap().fail_rebase_finish = true;
+    assert!(matches!(
+        sync.keep_local_product_conflict(&review, &mut outbox).await,
+        Err(SyncCoordError::StaleReview)
+    ));
+    let saved = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    mock.held_pull.release.notify_one();
+    assert!(matches!(
+        running.await.unwrap(),
+        Err(SyncCoordError::Local(_))
+    ));
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(saved.generation, after.generation);
+    assert_eq!(saved.state, after.state);
+    assert!(outbox.0.lock().unwrap().rebase.is_some());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_outbox_mode_blocks_legacy_bypasses_across_restart() {
+    let dir = TempDir::new("outbox-mode");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "outbox-mode").await;
+    assert!(sync
+        .record_local_change("acme.one", "1.0.0", false)
+        .unwrap());
+    let origin = mock.origin.clone();
+    let before = sync
+        .protocol
+        .legacy_snapshot(&origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let gate = sync.protocol.try_cutover().unwrap();
+    gate.require_product_outbox(&origin, "user-a").unwrap();
+    gate.require_product_outbox(&origin, "user-a").unwrap();
+    drop(gate);
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(matches!(
+        restarted.record_local_change("acme.one", "1.0.0", true),
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    assert!(matches!(
+        restarted.keep_local("acme.one"),
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    assert!(matches!(
+        restarted.take_remote("acme.one"),
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    assert!(matches!(
+        restarted.try_reset(),
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    let after = restarted
+        .protocol
+        .legacy_snapshot(&origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(after.generation, before.generation);
+    assert_eq!(after.state, before.state);
+    assert!(matches!(
+        restarted.sync_now().await,
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    let other = restarted.protocol.try_v1().unwrap();
+    assert!(other.ensure_legacy_allowed(&origin, "user-b").is_ok());
+    drop(other);
+    let mut outbox = ProductOutbox::default();
+    restarted
+        .with_v1_local_edit(|_| outbox.stage("acme.one", 1, true))
+        .unwrap();
+    assert!(matches!(
+        restarted.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::ProductOutboxRequired
+        ))
+    ));
+    let mut guarded = GuardedOutbox {
+        inner: outbox,
+        held: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        after_next: None,
+    };
+    assert_eq!(
+        restarted
+            .sync_now_with_marked_outbox(&mut guarded)
+            .await
+            .unwrap()
+            .pushed,
+        1
+    );
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn marked_product_drain_requires_marker_and_rechecks_it_after_network() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let dir = TempDir::new("marked-product-drain");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "marked-product-drain").await;
+    let inner = ProductOutbox::default();
+    sync.with_v1_local_edit(|_| inner.stage("acme.one", 1, true))
+        .unwrap();
+    let held = Arc::new(AtomicBool::new(false));
+    let mut outbox = GuardedOutbox {
+        inner: inner.clone(),
+        held: held.clone(),
+        after_next: None,
+    };
+    let before = mock.inner.lock().unwrap().pull_requests;
+    assert!(matches!(
+        sync.sync_now_with_marked_outbox(&mut outbox).await,
+        Err(SyncCoordError::Protocol(
+            ProtocolFenceError::ProductOutboxNotEnabled
+        ))
+    ));
+    assert_eq!(mock.inner.lock().unwrap().pull_requests, before);
+    assert!(!held.load(Ordering::SeqCst));
+    assert_eq!(inner.0.lock().unwrap().entries.len(), 1);
+
+    let migration = sync.protocol.try_cutover().unwrap();
+    migration
+        .require_product_outbox(&mock.origin, "user-a")
+        .unwrap();
+    drop(migration);
+    // A plain adapter without a native guard cannot authorize the product path.
+    let mut unguarded = inner.clone();
+    assert!(matches!(
+        sync.sync_now_with_marked_outbox(&mut unguarded).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert!(mock.inner.lock().unwrap().records.is_empty());
+
+    // Losing the marker while a candidate is inspected must prevent both
+    // the staging checkpoint and the durable outbox acknowledgement.
+    let marker = fs::read_dir(sync.config_path.parent().unwrap())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("v1-product-outbox-")
+        })
+        .unwrap();
+    let mut interrupted = GuardedOutbox {
+        inner: inner.clone(),
+        held: held.clone(),
+        after_next: Some(Box::new(move || {
+            fs::remove_file(marker).unwrap();
+        })),
+    };
+    assert!(matches!(
+        sync.sync_now_with_marked_outbox(&mut interrupted).await,
+        Err(SyncCoordError::Protocol(
+            ProtocolFenceError::ProductOutboxNotEnabled
+        ))
+    ));
+    assert_eq!(inner.0.lock().unwrap().entries.len(), 1);
+    assert!(inner.0.lock().unwrap().receipts.is_empty());
+    assert!(mock.inner.lock().unwrap().records.is_empty());
+    let snapshot = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert!(!snapshot.state.entries.contains_key("acme.one"));
+    let migration = sync.protocol.try_cutover().unwrap();
+    migration
+        .require_product_outbox(&mock.origin, "user-a")
+        .unwrap();
+    drop(migration);
+
+    mock.held_write.armed.store(true, Ordering::SeqCst);
+    let runner = {
+        let sync = sync.clone();
+        let held = held.clone();
+        let inner = inner.clone();
+        tokio::spawn(async move {
+            let mut outbox = GuardedOutbox {
+                inner,
+                held,
+                after_next: None,
+            };
+            sync.sync_now_with_marked_outbox(&mut outbox).await
+        })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    // The invocation guard is not held during the HTTP wait.
+    assert!(!held.load(Ordering::SeqCst));
+    // Simulate loss of the migration marker after the server has committed.
+    // The uncertain original must survive and the JSON state must not be
+    // acknowledged when the response arrives.
+    let marker = fs::read_dir(sync.config_path.parent().unwrap())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("v1-product-outbox-")
+        })
+        .unwrap();
+    fs::remove_file(marker).unwrap();
+    mock.held_write.release.notify_one();
+    assert!(matches!(
+        runner.await.unwrap(),
+        Err(SyncCoordError::Protocol(
+            ProtocolFenceError::ProductOutboxNotEnabled
+        ))
+    ));
+    let gate = sync.protocol.try_cutover().unwrap();
+    assert_eq!(gate.uncertain_uploads(&mock.origin, "user-a").unwrap(), 1);
+    drop(gate);
+    let snapshot = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert!(snapshot.state.entries["acme.one"].pending.is_some());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn legacy_reset_still_removes_pending_state_without_product_marker() {
+    let dir = TempDir::new("legacy-reset-without-product-marker");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "legacy-reset").await;
+    assert!(sync
+        .record_local_change("acme.one", "1.0.0", false)
+        .unwrap());
+    assert!(sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .is_some());
+    sync.try_reset().unwrap();
+    assert!(sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .is_none());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_marker_fences_legacy_staging_even_without_valid_enabled_config() {
+    let dir = TempDir::new("product-marker-disabled-staging");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "product-marker-disabled").await;
+    sync.set_enabled(false).unwrap();
+    assert!(!sync
+        .record_local_change("acme.one", "1.0.0", false)
+        .unwrap());
+    sync.set_enabled(true).unwrap();
+    let gate = sync.protocol.try_cutover().unwrap();
+    gate.require_product_outbox(&mock.origin, "user-a").unwrap();
+    drop(gate);
+    let rejected = || {
+        assert!(matches!(
+            sync.record_local_change("acme.one", "1.0.0", true),
+            Err(SyncCoordError::Protocol(
+                crate::ProtocolFenceError::ProductOutboxRequired
+            ))
+        ));
+        assert!(matches!(
+            sync.record_local_removal("acme.one"),
+            Err(SyncCoordError::Protocol(
+                crate::ProtocolFenceError::ProductOutboxRequired
+            ))
+        ));
+    };
+    rejected();
+    sync.set_enabled(false).unwrap();
+    rejected();
+    std::fs::write(&sync.config_path, b"invalid").unwrap();
+    rejected();
+    std::fs::remove_file(&sync.config_path).unwrap();
+    rejected();
+    // A truly signed-out context remains local-only; no account's marker is
+    // used to authorize or reject edits for an unknown identity.
+    auth.logout().await.unwrap();
+    assert!(!sync.record_local_change("acme.one", "1.0.0", true).unwrap());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_outbox_receipt_rejects_unreviewed_conflict_rebase() {
+    let dir = TempDir::new("outbox-receipt-rebase");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "receipt-rebase").await;
+    let mut outbox = ProductOutbox::default();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 1, true))
+        .unwrap();
+    outbox.0.lock().unwrap().block_authorization = true;
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    {
+        let mut server = mock.inner.lock().unwrap();
+        server.cursor = 1;
+        server.records.insert("acme.one".into(), Stored {
+            revision: 1, deleted: false,
+            value: Some(serde_json::json!({"schemaVersion":1,"pluginId":"acme.one","version":"1.0.0","enabled":false})),
+        });
+    }
+    outbox.0.lock().unwrap().block_authorization = false;
+    let conflict = sync.sync_now_with_outbox(&mut outbox).await.unwrap();
+    assert_eq!(conflict.conflicts, vec!["acme.one"]);
+    // The unfenced legacy API changes the base; the old receipt must not
+    // authorize dispatch of that newly rebased candidate.
+    sync.keep_local("acme.one").unwrap();
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert_eq!(mock.inner.lock().unwrap().records["acme.one"].revision, 1);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_outbox_requires_receipt_for_legacy_pending() {
+    let dir = TempDir::new("outbox-legacy-pending");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "legacy-pending").await;
+    sync.record_local_change("acme.one", "1.0.0", true).unwrap();
+    let mut outbox = ProductOutbox::default();
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert!(!mock.inner.lock().unwrap().records.contains_key("acme.one"));
+    assert_eq!(sync.status().await.pending, 1);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_outbox_receipt_rejects_another_accounts_newer_source_after_reopen() {
+    let dir = TempDir::new("outbox-receipt-identity");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "receipt-a").await;
+    let mut outbox = ProductOutbox::default();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 1, true))
+        .unwrap();
+    // Emulate interruption after the outbox-to-receipt transaction and
+    // before a marker is published. No HTTP write is dispatched.
+    outbox.0.lock().unwrap().block_authorization = true;
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert!(outbox.0.lock().unwrap().entries.is_empty());
+    assert!(outbox.0.lock().unwrap().receipts.contains_key("acme.one"));
+    assert!(!mock.inner.lock().unwrap().records.contains_key("acme.one"));
+    auth.logout().await.unwrap();
+    mock.inner.lock().unwrap().account_id = "user-b".into();
+    login(&auth, "receipt-b").await;
+    sync.with_v1_local_edit(|ctx| {
+        assert_eq!(ctx.unwrap().account_id, "user-b");
+        // A different identity changes the same global local source.
+        outbox
+            .0
+            .lock()
+            .unwrap()
+            .source_generations
+            .insert("acme.one".into(), 2);
+    })
+    .unwrap();
+    auth.logout().await.unwrap();
+    mock.inner.lock().unwrap().account_id = "user-a".into();
+    login(&auth, "receipt-a-again").await;
+    drop(sync);
+    let reopened = SyncCoordinator::new(auth, dir.join("a-sync")).unwrap();
+    outbox.0.lock().unwrap().block_authorization = false;
+    assert!(matches!(
+        reopened.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert!(!mock.inner.lock().unwrap().records.contains_key("acme.one"));
+    assert_eq!(reopened.status().await.pending, 1);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_outbox_unconfirmed_edit_blocks_old_pending_dispatch() {
+    let dir = TempDir::new("outbox-unconfirmed");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "unconfirmed").await;
+    sync.record_local_change("acme.one", "1.0.0", true).unwrap();
+    let mut outbox = ProductOutbox::default();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 1, false))
+        .unwrap();
+    outbox.0.lock().unwrap().runtime_unconfirmed = true;
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert!(!mock.inner.lock().unwrap().records.contains_key("acme.one"));
+    assert_eq!(sync.status().await.pending, 1);
+    assert_eq!(outbox.0.lock().unwrap().entries.len(), 1);
+    outbox.0.lock().unwrap().runtime_unconfirmed = false;
+    assert_eq!(
+        sync.sync_now_with_outbox(&mut outbox).await.unwrap().pushed,
+        1
+    );
+    assert_eq!(
+        mock.inner.lock().unwrap().records["acme.one"]
+            .value
+            .as_ref()
+            .unwrap()["enabled"],
+        false
+    );
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn product_outbox_edit_before_marker_supersedes_old_staged_edit() {
+    let dir = TempDir::new("outbox-before-marker");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "before-marker").await;
+    sync.record_local_change("acme.one", "1.0.0", true).unwrap();
+    let outbox = ProductOutbox::default();
+    mock.held_pull
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        let mut outbox = outbox.clone();
+        tokio::spawn(async move { sync.sync_now_with_outbox(&mut outbox).await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_pull.started.notified())
+        .await
+        .unwrap();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 1, false))
+        .unwrap();
+    mock.held_pull.release.notify_one();
+    assert_eq!(running.await.unwrap().unwrap().pushed, 1);
+    assert_eq!(
+        mock.inner.lock().unwrap().records["acme.one"]
+            .value
+            .as_ref()
+            .unwrap()["enabled"],
+        false
+    );
+    assert!(outbox.0.lock().unwrap().entries.is_empty());
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn product_outbox_edit_after_marker_survives_for_next_sync() {
+    let dir = TempDir::new("outbox-after-marker");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "after-marker").await;
+    let outbox = ProductOutbox::default();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 1, true))
+        .unwrap();
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        let mut outbox = outbox.clone();
+        tokio::spawn(async move { sync.sync_now_with_outbox(&mut outbox).await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 2, false))
+        .unwrap();
+    mock.held_write.release.notify_one();
+    assert_eq!(running.await.unwrap().unwrap().pushed, 1);
+    assert_eq!(
+        mock.inner.lock().unwrap().records["acme.one"]
+            .value
+            .as_ref()
+            .unwrap()["enabled"],
+        true
+    );
+    assert_eq!(sync.status().await.pending, 1);
+    let mut outbox = outbox.clone();
+    assert_eq!(
+        sync.sync_now_with_outbox(&mut outbox).await.unwrap().pushed,
+        1
+    );
+    assert_eq!(
+        mock.inner.lock().unwrap().records["acme.one"]
+            .value
+            .as_ref()
+            .unwrap()["enabled"],
+        false
+    );
+    mock.stop();
+}
+
+#[tokio::test]
+async fn product_outbox_failed_ack_preserves_candidate_across_reopen() {
+    let dir = TempDir::new("outbox-ack-reopen");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "ack-reopen").await;
+    let mut outbox = ProductOutbox::default();
+    sync.with_v1_local_edit(|_| outbox.stage("acme.one", 1, true))
+        .unwrap();
+    outbox.0.lock().unwrap().fail_ack = true;
+    assert!(matches!(
+        sync.sync_now_with_outbox(&mut outbox).await,
+        Err(SyncCoordError::Local(_))
+    ));
+    assert_eq!(sync.status().await.pending, 1);
+    assert!(!mock.inner.lock().unwrap().records.contains_key("acme.one"));
+    assert_eq!(outbox.0.lock().unwrap().entries.len(), 1);
+    drop(sync);
+    let reopened = SyncCoordinator::new(auth, dir.join("a-sync")).unwrap();
+    outbox.0.lock().unwrap().fail_ack = false;
+    assert_eq!(
+        reopened
+            .sync_now_with_outbox(&mut outbox)
+            .await
+            .unwrap()
+            .pushed,
+        1
+    );
+    assert_eq!(reopened.status().await.pending, 0);
+    assert!(outbox.0.lock().unwrap().entries.is_empty());
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn v1_held_pull_does_not_upload_after_same_account_relogin() {
+    let dir = TempDir::new("v1-pull-relogin");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "v1-before").await;
+    sync.record_local_change("acme.held", "1.0.0", true)
+        .unwrap();
+    mock.held_pull
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_pull.started.notified())
+        .await
+        .unwrap();
+    auth.logout().await.unwrap();
+    login(&auth, "v1-after").await;
+    mock.held_pull.release.notify_one();
+    assert!(matches!(
+        running.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(!mock.inner.lock().unwrap().records.contains_key("acme.held"));
+    assert_eq!(sync.status().await.pending, 1);
+    let gate = sync.protocol.try_cutover().unwrap();
+    assert_eq!(gate.uncertain_uploads(&mock.origin, "v1-user").unwrap(), 0);
+    drop(gate);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn v1_logout_after_dispatched_write_preserves_uncertain_marker() {
+    let dir = TempDir::new("v1-write-logout");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "v1-write-before").await;
+    sync.record_local_change("acme.held", "1.0.0", true)
+        .unwrap();
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    auth.logout().await.unwrap();
+    login(&auth, "v1-write-after").await;
+    mock.held_write.release.notify_one();
+    assert!(matches!(
+        running.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(mock.inner.lock().unwrap().records.contains_key("acme.held"));
+    assert_eq!(sync.status().await.pending, 1);
+    let gate = sync.protocol.try_cutover().unwrap();
+    let records = gate.uncertain_details(&mock.origin, "v1-user").unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].key(), "acme.held");
+    drop(gate);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn v1_changed_config_after_pull_prevents_later_dispatch() {
+    let dir = TempDir::new("v1-pull-opt-out");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "v1-optout").await;
+    sync.record_local_change("acme.held", "1.0.0", true)
+        .unwrap();
+    mock.held_pull
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let running = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_pull.started.notified())
+        .await
+        .unwrap();
+    assert!(matches!(
+        sync.set_enabled(false),
+        Err(SyncCoordError::Protocol(crate::ProtocolFenceError::Busy))
+    ));
+    // Simulate an external noncooperating config writer; the coordinator
+    // must still discard the response and avoid a later write.
+    let config = sync.read_config();
+    sync.write_config(&crate::SyncConfig {
+        version: config.version,
+        enabled: false,
+        generation: config.generation + 1,
+        scope: config.scope,
+    })
+    .unwrap();
+    mock.held_pull.release.notify_one();
+    assert!(matches!(
+        running.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(!mock.inner.lock().unwrap().records.contains_key("acme.held"));
+    assert!(!sync.is_enabled());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn v1_local_edit_and_epoch_bind_identity_and_consent() {
+    let dir = TempDir::new("v1-edit-identity");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "v1-epoch-before").await;
+    let session = auth.session().await.unwrap();
+    let epoch = sync.capture_config_epoch(&session).unwrap();
+    let context = sync
+        .with_v1_local_edit(|context| {
+            assert!(matches!(
+                sync.set_enabled(false),
+                Err(SyncCoordError::Protocol(crate::ProtocolFenceError::Busy))
+            ));
+            context.unwrap()
+        })
+        .unwrap();
+    assert_eq!(context.origin, mock.origin);
+    assert_eq!(context.account_id, "v1-user");
+    assert_eq!(context.config_generation, sync.read_config().generation);
+    assert!(auth
+        .with_current_session(&session, || sync.is_config_epoch_current(&epoch, &session))
+        .unwrap());
+    auth.logout().await.unwrap();
+    login(&auth, "v1-epoch-after").await;
+    let new_session = auth.session().await.unwrap();
+    assert!(!auth
+        .with_current_session(&new_session, || sync
+            .is_config_epoch_current(&epoch, &new_session))
+        .unwrap());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn v2_resume_requires_fresh_review_exact_session_and_unchanged_workspace() {
+    for finish in [false, true] {
+        let dir = TempDir::new("v2-resume-consent");
+        let mock = MockSync::start("resume-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "resume-before").await;
+        sync.record_local_change("acme.plugin", "1.0.0", false)
+            .unwrap();
+        let session = auth.session().await.unwrap();
+        let original_epoch = sync.capture_config_epoch(&session).unwrap();
+        let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+        let lease = sync.protocol.try_cutover().unwrap();
+        lease
+            .prepare(&preview, &mock.origin, "resume-user", &[])
+            .unwrap();
+        let workspace = crate::WorkspaceCoordinator::open(
+            dir.join("a-sync"),
+            mock.origin.clone(),
+            "resume-user".into(),
+        )
+        .unwrap();
+        if finish {
+            workspace.bootstrap_reviewed(&preview).unwrap();
+            lease.finish(&preview, &mock.origin, "resume-user").unwrap();
+        }
+        drop(lease);
+        sync.set_enabled(false).unwrap();
+        #[cfg(unix)]
+        if finish {
+            use std::os::unix::{ffi::OsStrExt, fs::symlink};
+            let backup = sync.config_path.with_extension("saved");
+            fs::rename(&sync.config_path, &backup).unwrap();
+            symlink(&backup, &sync.config_path).unwrap();
+            assert!(sync.review_v2_resume(&session, None).is_err());
+            assert!(!sync.is_enabled());
+            fs::remove_file(&sync.config_path).unwrap();
+            let fifo = std::ffi::CString::new(sync.config_path.as_os_str().as_bytes()).unwrap();
+            // SAFETY: the CString is NUL-terminated and references the private
+            // fixture path for the duration of the call.
+            assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+            let (done, result) = std::sync::mpsc::channel();
+            let worker_sync = sync.clone();
+            let worker_session = session.clone();
+            std::thread::spawn(move || {
+                let _ = done.send(worker_sync.review_v2_resume(&worker_session, None).is_err());
+            });
+            assert!(result
+                .recv_timeout(Duration::from_secs(2))
+                .expect("FIFO read must not block"));
+            assert!(sync.with_v1_local_edit(|_| ()).is_err());
+            fs::remove_file(&sync.config_path).unwrap();
+            fs::rename(&backup, &sync.config_path).unwrap();
+        }
+        if finish {
+            let store =
+                cloud_client::WorkspaceStore::open(dir.join("a-sync"), &mock.origin, "resume-user")
+                    .unwrap();
+            let original = store.load().unwrap().unwrap();
+            let mut incomplete = original.state.clone();
+            incomplete.bootstrap_complete = false;
+            let changed = store.save(Some(original.generation), &incomplete).unwrap();
+            assert!(sync.review_v2_resume(&session, None).is_err());
+            assert_eq!(store.load().unwrap().unwrap().state, incomplete);
+            store
+                .save(Some(changed.generation), &original.state)
+                .unwrap();
+        }
+        assert!(sync
+            .review_v2_resume(&session, if finish { Some(&[]) } else { None })
+            .is_err());
+        let inputs = (!finish).then_some(&[][..]);
+        let review = sync.review_v2_resume(&session, inputs).unwrap();
+        // A workspace change invalidates the exact review, even when the
+        // resulting data would be valid for a later, separately reviewed run.
+        if finish {
+            let key = cloud_client::WorkspaceKey::new("plugin-selections", "acme.other").unwrap();
+            let value = serde_json::to_value(PluginSelection {
+                schema_version: 1,
+                plugin_id: "acme.other".into(),
+                version: "1.0.0".into(),
+                enabled: true,
+            })
+            .unwrap();
+            workspace
+                .stage(key, cloud_client::WorkspaceEdit::Put(value))
+                .unwrap();
+        } else {
+            workspace.bootstrap_reviewed(&preview).unwrap();
+        }
+        assert!(sync.confirm_v2_resume(&review).is_err());
+        assert!(!sync.is_enabled());
+        let review = sync.review_v2_resume(&session, inputs).unwrap();
+        let other = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+        assert!(other.confirm_v2_resume(&review).is_err());
+        let store =
+            cloud_client::WorkspaceStore::open(dir.join("a-sync"), &mock.origin, "resume-user")
+                .unwrap();
+        store
+            .try_with_locked_snapshot::<_, SyncCoordError>(|_| {
+                assert!(matches!(
+                    sync.confirm_v2_resume(&review),
+                    Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+                ));
+                Ok(())
+            })
+            .unwrap()
+            .unwrap();
+        sync.set_enabled(false).unwrap();
+        assert!(sync.confirm_v2_resume(&review).is_err());
+        let review = sync.review_v2_resume(&session, inputs).unwrap();
+        auth.logout().await.unwrap();
+        login(&auth, "resume-after").await;
+        assert!(sync.confirm_v2_resume(&review).is_err());
+        let current = auth.session().await.unwrap();
+        let review = sync.review_v2_resume(&current, inputs).unwrap();
+        let before = workspace.snapshot().unwrap();
+        sync.confirm_v2_resume(&review).unwrap();
+        assert!(sync.is_enabled());
+        assert!(!sync.is_config_epoch_current(&original_epoch, &session));
+        let bytes = fs::read(&sync.config_path).unwrap();
+        let scoped: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(scoped["version"], 2);
+        let mut no_scope = scoped.clone();
+        no_scope.as_object_mut().unwrap().remove("scope");
+        let mut null_scope = scoped.clone();
+        null_scope["scope"] = serde_json::Value::Null;
+        let mut wrong_version = scoped.clone();
+        wrong_version["version"] = serde_json::json!(1);
+        let mut future_version = scoped.clone();
+        future_version["version"] = serde_json::json!(3);
+        for corrupted in [no_scope, null_scope, wrong_version, future_version] {
+            fs::write(&sync.config_path, serde_json::to_vec(&corrupted).unwrap()).unwrap();
+            assert!(!sync.is_enabled());
+            assert!(sync.capture_v2_config_epoch(&current).is_none());
+            assert!(sync.with_v1_local_edit(|_| ()).is_err());
+            assert!(sync
+                .record_local_change("acme.other", "1.0.0", true)
+                .is_err());
+        }
+        fs::write(&sync.config_path, bytes).unwrap();
+        let after = workspace.snapshot().unwrap();
+        assert_eq!(before.generation, after.generation);
+        assert_eq!(before.state, after.state);
+        assert!(sync.confirm_v2_resume(&review).is_err());
+        // The explicit v2 decision for A cannot turn on B's v1 or v2 sync.
+        assert!(sync.capture_v2_config_epoch(&current).is_some());
+        auth.logout().await.unwrap();
+        mock.inner.lock().unwrap().account_id = "other-user".into();
+        login(&auth, "resume-other").await;
+        let other_session = auth.session().await.unwrap();
+        assert!(!sync.is_enabled());
+        assert!(sync.capture_config_epoch(&other_session).is_none());
+        assert!(sync.capture_v2_config_epoch(&other_session).is_none());
+        assert!(!sync
+            .record_local_change("acme.other", "1.0.0", true)
+            .unwrap());
+        assert!(sync
+            .with_v1_local_edit(|context| context.is_none())
+            .unwrap());
+        assert!(sync.sync_now().await.is_err());
+        // A fresh legacy opt-in for B is not a v2 authorization for either
+        // account, including when the user later switches back to A.
+        sync.set_enabled(true).unwrap();
+        assert!(sync.capture_v2_config_epoch(&other_session).is_none());
+        auth.logout().await.unwrap();
+        mock.inner.lock().unwrap().account_id = "resume-user".into();
+        login(&auth, "resume-return").await;
+        assert!(sync.is_enabled());
+        let returned = auth.session().await.unwrap();
+        assert!(sync.capture_config_epoch(&returned).is_some());
+        assert!(sync.capture_v2_config_epoch(&returned).is_none());
+        sync.set_enabled(false).unwrap();
+        let renewed = sync.review_v2_resume(&returned, inputs).unwrap();
+        sync.confirm_v2_resume(&renewed).unwrap();
+        let scoped_epoch = sync.capture_v2_config_epoch(&returned).unwrap();
+        assert!(auth
+            .with_current_session(&returned, || sync
+                .is_v2_config_epoch_current(&scoped_epoch, &returned))
+            .unwrap());
+        mock.stop();
+    }
+}
+
+#[tokio::test]
+async fn opt_out_remains_available_during_and_after_cutover_without_discarding_data() {
+    for finish in [false, true] {
+        let dir = TempDir::new("cutover-opt-out");
+        let mock = MockSync::start("cutover-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "cutover-opt-out").await;
+        sync.record_local_change("acme.plugin", "1.0.0", false)
+            .unwrap();
+        let session = auth.session().await.unwrap();
+        let epoch = sync.capture_config_epoch(&session).unwrap();
+        let before = sync
+            .protocol
+            .legacy_snapshot(&mock.origin, "cutover-user")
+            .unwrap()
+            .unwrap();
+        let preview = sync.preview_v2_cutover(&session, &[]).unwrap();
+        let lease = sync.protocol.try_cutover().unwrap();
+        lease
+            .prepare(&preview, &mock.origin, "cutover-user", &[])
+            .unwrap();
+        assert!(matches!(
+            sync.set_enabled(false),
+            Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+        ));
+        let workspace = crate::WorkspaceCoordinator::open(
+            dir.join("a-sync"),
+            mock.origin.clone(),
+            "cutover-user".into(),
+        )
+        .unwrap();
+        if finish {
+            workspace.bootstrap_reviewed(&preview).unwrap();
+            lease
+                .finish(&preview, &mock.origin, "cutover-user")
+                .unwrap();
+        }
+        let state = workspace.snapshot().unwrap().state;
+        drop(lease);
+        assert!(!sync.set_enabled(false).unwrap().enabled);
+        assert!(!sync.is_config_epoch_current(&epoch, &session));
+        let after = sync
+            .protocol
+            .legacy_snapshot(&mock.origin, "cutover-user")
+            .unwrap()
+            .unwrap();
+        assert_eq!(before.generation, after.generation);
+        assert_eq!(before.state, after.state);
+        assert_eq!(state, workspace.snapshot().unwrap().state);
+        assert!(matches!(
+            sync.protocol
+                .try_v1()
+                .unwrap()
+                .ensure_v1(&mock.origin, "cutover-user"),
+            Err(ProtocolFenceError::NotV1)
+        ));
+        assert_eq!(
+            sync.protocol.try_v2(&mock.origin, "cutover-user").is_ok(),
+            finish
+        );
+        assert!(sync.set_enabled(true).is_err());
+        mock.stop();
+    }
+}
+
+#[tokio::test]
+async fn guarded_cutover_resumes_interrupted_durable_steps_and_retries_once() {
+    use crate::CutoverExecution;
+    let dir = TempDir::new("guarded-cutover-restart");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "cutover-resume").await;
+    sync.record_local_change("acme.plugin", "1.0.0", false)
+        .unwrap();
+    let session = auth.session().await.unwrap();
+    let source = vec![PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: true,
+    }];
+    let review = sync.guarded_cutover_review(&session, &source).unwrap();
+    let legacy_before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "cutover-user")
+        .unwrap()
+        .unwrap();
+    let mut changed = source.clone();
+    changed[0].enabled = false;
+    assert!(sync.execute_guarded_cutover(&review, &changed).is_err());
+    let v1 = sync.protocol.try_v1().unwrap();
+    assert!(v1.ensure_v1(&mock.origin, "cutover-user").is_ok());
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &source),
+        Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+    ));
+    drop(v1);
+    assert!(sync
+        .execute_guarded_cutover_with_hooks(
+            &review,
+            &source,
+            || Err(SyncCoordError::Local("interrupt after prepare".into())),
+            || Ok(())
+        )
+        .is_err());
+    assert!(matches!(
+        sync.protocol
+            .try_v1()
+            .unwrap()
+            .ensure_v1(&mock.origin, "cutover-user"),
+        Err(ProtocolFenceError::NotV1)
+    ));
+    assert!(sync.protocol.try_v2(&mock.origin, "cutover-user").is_err());
+    // A new host/session must explicitly reconstruct and re-review the same
+    // durable inputs; no in-memory approval survives this restart.
+    drop(review);
+    drop(session);
+    drop(sync);
+    drop(auth);
+    let auth = CloudAuth::new(
+        Some(mock.origin.clone()),
+        dir.join("restarted-account.json"),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    login(&auth, "cutover-restarted").await;
+    let session = auth.session().await.unwrap();
+    let sync = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(sync.guarded_cutover_review(&session, &changed).is_err());
+    let review = sync.guarded_cutover_review(&session, &source).unwrap();
+    assert!(sync
+        .execute_guarded_cutover_with_hooks(
+            &review,
+            &source,
+            || Ok(()),
+            || Err(SyncCoordError::Local("interrupt after bootstrap".into()))
+        )
+        .is_err());
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "cutover-user".into(),
+    )
+    .unwrap();
+    let frozen = workspace.snapshot().unwrap();
+    assert!(frozen.state.bootstrap_complete);
+    assert_eq!(frozen.state.cursor, 0);
+    // The review is coordinator-bound and cannot be transferred to a fresh
+    // coordinator; reconstruction again leaves staged values untouched.
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    assert!(matches!(
+        restarted.execute_guarded_cutover(&review, &source),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let review = restarted.guarded_cutover_review(&session, &source).unwrap();
+    let sync = restarted;
+    struct Source<'a> {
+        selections: &'a [PluginSelection],
+        calls: std::cell::Cell<usize>,
+    }
+    impl crate::CutoverSource for Source<'_> {
+        fn with_guarded_source<T>(
+            &self,
+            operation: impl FnOnce(
+                &[PluginSelection],
+                &[crate::V1CutoverReceipt],
+            ) -> Result<T, SyncCoordError>,
+        ) -> Result<T, SyncCoordError> {
+            self.calls.set(self.calls.get() + 1);
+            operation(self.selections, &[])
+        }
+    }
+    let adapter = Source {
+        selections: &source,
+        calls: std::cell::Cell::new(0),
+    };
+    assert_eq!(
+        sync.execute_cutover_with_source(&review, &adapter).unwrap(),
+        CutoverExecution::Completed
+    );
+    assert_eq!(adapter.calls.get(), 1);
+    assert_eq!(workspace.snapshot().unwrap().state, frozen.state);
+    assert_eq!(
+        sync.execute_guarded_cutover(&review, &source).unwrap(),
+        CutoverExecution::AlreadyCompleted
+    );
+    assert!(sync.protocol.try_v2(&mock.origin, "cutover-user").is_ok());
+    let legacy_after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "cutover-user")
+        .unwrap()
+        .unwrap();
+    assert_eq!(legacy_before.generation, legacy_after.generation);
+    assert_eq!(legacy_before.state, legacy_after.state);
+    assert!(mock.inner.lock().unwrap().records.is_empty());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn marked_cutover_binds_receipts_and_resumes_as_conflicts_after_restart() {
+    use crate::{CutoverExecution, CutoverSource, V1CutoverReceipt};
+    let dir = TempDir::new("marked-cutover-receipts");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "marked-cutover").await;
+    sync.record_local_change("acme.plugin", "1.0.0", false)
+        .unwrap();
+    let session = auth.session().await.unwrap();
+    let legacy = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "cutover-user")
+        .unwrap()
+        .unwrap();
+    let pending = legacy.state.entries["acme.plugin"].pending.clone().unwrap();
+    let receipt = V1CutoverReceipt::new(
+        "acme.plugin".into(),
+        1,
+        sync.read_config().generation,
+        "a".repeat(64),
+        pending,
+    )
+    .unwrap();
+    let source = vec![PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: false,
+    }];
+    assert!(sync
+        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .is_err());
+    let marker = sync.protocol.try_cutover().unwrap();
+    marker
+        .require_product_outbox(&mock.origin, "cutover-user")
+        .unwrap();
+    drop(marker);
+    assert!(sync.guarded_cutover_review(&session, &source).is_err());
+    assert!(sync
+        .guarded_marked_cutover_review(&session, &source, &[])
+        .is_err());
+    let review = sync
+        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .unwrap();
+    assert_eq!(
+        review.preview().entries()[0]
+            .pending
+            .as_ref()
+            .unwrap()
+            .status,
+        cloud_client::WorkspacePendingStatus::Conflict
+    );
+    let marker_path = fs::read_dir(dir.join("a-sync"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| {
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("v1-product-outbox-")
+        })
+        .unwrap();
+    let marker_bytes = fs::read(&marker_path).unwrap();
+    let marker_permissions = fs::metadata(&marker_path).unwrap().permissions();
+    fs::remove_file(&marker_path).unwrap();
+    assert!(sync.execute_guarded_cutover(&review, &source).is_err());
+    sync.protocol
+        .try_v1()
+        .unwrap()
+        .ensure_v1(&mock.origin, "cutover-user")
+        .unwrap();
+    fs::write(&marker_path, &marker_bytes).unwrap();
+    fs::set_permissions(&marker_path, marker_permissions.clone()).unwrap();
+    assert!(sync
+        .execute_guarded_cutover_with_hooks(
+            &review,
+            &source,
+            || Err(SyncCoordError::Local("crash after prepare".into())),
+            || Ok(())
+        )
+        .is_err());
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    fs::remove_file(&marker_path).unwrap();
+    assert!(restarted
+        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .is_err());
+    fs::write(&marker_path, &marker_bytes).unwrap();
+    fs::set_permissions(&marker_path, marker_permissions).unwrap();
+    let mut different = receipt.pending().clone();
+    different.base_revision = Some(42);
+    let changed = V1CutoverReceipt::new(
+        "acme.plugin".into(),
+        1,
+        sync.read_config().generation,
+        "a".repeat(64),
+        different,
+    )
+    .unwrap();
+    assert!(restarted
+        .guarded_marked_cutover_review(&session, &source, &[changed])
+        .is_err());
+    // Identical edits must not let a changed source generation or runtime
+    // witness masquerade as the review persisted before the interruption.
+    for (generation, runtime) in [(2, "a"), (1, "b")] {
+        let altered = V1CutoverReceipt::new(
+            "acme.plugin".into(),
+            generation,
+            sync.read_config().generation,
+            runtime.repeat(64),
+            receipt.pending().clone(),
+        )
+        .unwrap();
+        assert!(restarted
+            .guarded_marked_cutover_review(&session, &source, &[altered])
+            .is_err());
+    }
+    let review = restarted
+        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .unwrap();
+    struct Source<'a> {
+        selections: &'a [PluginSelection],
+        receipts: &'a [V1CutoverReceipt],
+    }
+    impl CutoverSource for Source<'_> {
+        fn with_guarded_source<T>(
+            &self,
+            operation: impl FnOnce(&[PluginSelection], &[V1CutoverReceipt]) -> Result<T, SyncCoordError>,
+        ) -> Result<T, SyncCoordError> {
+            operation(self.selections, self.receipts)
+        }
+    }
+    let none = Source {
+        selections: &source,
+        receipts: &[],
+    };
+    assert!(matches!(
+        restarted.execute_cutover_with_source(&review, &none),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let receipts = [receipt];
+    let checked = Source {
+        selections: &source,
+        receipts: &receipts,
+    };
+    assert_eq!(
+        restarted
+            .execute_cutover_and_scope_consent_with_source(&review, &checked)
+            .unwrap(),
+        CutoverExecution::Completed
+    );
+    assert!(restarted.capture_v2_config_epoch(&session).is_some());
+    let scoped_generation = restarted.read_config().generation;
+    assert_eq!(
+        restarted
+            .execute_cutover_and_scope_consent_with_source(&review, &checked)
+            .unwrap(),
+        CutoverExecution::AlreadyCompleted
+    );
+    assert_eq!(restarted.read_config().generation, scoped_generation);
+    assert!(matches!(
+        restarted
+            .with_product_local_edit(|context| context)
+            .unwrap(),
+        crate::ProductLocalEditContext::V2(Some(_))
+    ));
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "cutover-user".into(),
+    )
+    .unwrap();
+    let mut state = workspace.snapshot().unwrap().state;
+    let key = cloud_client::WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+    assert_eq!(
+        state.entry(&key).unwrap().pending.as_ref().unwrap().status,
+        cloud_client::WorkspacePendingStatus::Conflict
+    );
+    assert!(state.prepare_push(&key).is_err());
+    let after = restarted
+        .protocol
+        .legacy_snapshot(&mock.origin, "cutover-user")
+        .unwrap()
+        .unwrap();
+    assert_eq!(legacy.generation, after.generation);
+    assert_eq!(legacy.state, after.state);
+    assert!(mock.inner.lock().unwrap().records.is_empty());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn guarded_cutover_refuses_stale_consent_or_replaced_session() {
+    let dir = TempDir::new("guarded-cutover-stale");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "old-session").await;
+    let session = auth.session().await.unwrap();
+    let review = sync.guarded_cutover_review(&session, &[]).unwrap();
+    sync.set_enabled(false).unwrap();
+    sync.set_enabled(true).unwrap();
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &[]),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let review = sync.guarded_cutover_review(&session, &[]).unwrap();
+    auth.logout().await.unwrap();
+    login(&auth, "new-session").await;
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &[]),
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(sync
+        .protocol
+        .try_v1()
+        .unwrap()
+        .ensure_v1(&mock.origin, "cutover-user")
+        .is_ok());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn guarded_cutover_never_replaces_a_different_bootstrapped_workspace() {
+    let dir = TempDir::new("guarded-cutover-bootstrap-conflict");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "bootstrap-conflict").await;
+    let session = auth.session().await.unwrap();
+    let source = vec![PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: true,
+    }];
+    let review = sync.guarded_cutover_review(&session, &source).unwrap();
+    let mut different = source.clone();
+    different[0].enabled = false;
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "cutover-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap(&different, None).unwrap();
+    let existing = workspace.snapshot().unwrap();
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &source),
+        Err(SyncCoordError::Protocol(ProtocolFenceError::StaleCutover))
+    ));
+    let after = workspace.snapshot().unwrap();
+    assert_eq!(existing.generation, after.generation);
+    assert_eq!(existing.state, after.state);
+    assert!(sync.protocol.try_v2(&mock.origin, "cutover-user").is_err());
+    assert!(sync
+        .protocol
+        .try_v1()
+        .unwrap()
+        .ensure_v1(&mock.origin, "cutover-user")
+        .is_ok());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn incomplete_workspace_pending_edits_survive_cutover_preflight_and_bootstrap() {
+    for existing_key in ["acme.plugin", "other.plugin"] {
+        let dir = TempDir::new("cutover-unfinished-workspace");
+        let mock = MockSync::start("cutover-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "unfinished-workspace").await;
+        let session = auth.session().await.unwrap();
+        let source = vec![PluginSelection {
+            schema_version: 1,
+            plugin_id: "acme.plugin".into(),
+            version: "1.0.0".into(),
+            enabled: true,
+        }];
+        let review = sync.guarded_cutover_review(&session, &source).unwrap();
+        let root = dir.join("a-sync");
+        let store =
+            cloud_client::WorkspaceStore::open(&root, mock.origin.clone(), "cutover-user").unwrap();
+        let mut unfinished =
+            cloud_client::WorkspaceState::new(mock.origin.clone(), "cutover-user".into()).unwrap();
+        let key = cloud_client::WorkspaceKey::new("plugin-selections", existing_key).unwrap();
+        let value = PluginSelection {
+            schema_version: 1,
+            plugin_id: existing_key.into(),
+            version: "1.0.0".into(),
+            enabled: false,
+        };
+        unfinished
+            .stage(
+                key,
+                cloud_client::WorkspaceEdit::Put(serde_json::to_value(value).unwrap()),
+            )
+            .unwrap();
+        let saved = store.save(None, &unfinished).unwrap();
+        let partition = std::fs::read_dir(root.join("workspace-v2"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let path = partition.join("workspace-state.json");
+        let original_bytes = std::fs::read(&path).unwrap();
+        let workspace =
+            crate::WorkspaceCoordinator::open(&root, mock.origin.clone(), "cutover-user".into())
+                .unwrap();
+        assert!(matches!(
+            workspace.bootstrap(&source, None),
+            Err(crate::WorkspaceCoordError::BootstrapNeedsReview)
+        ));
+        assert!(sync.execute_guarded_cutover(&review, &source).is_err());
+        let after = workspace.snapshot().unwrap();
+        assert_eq!(after.generation, saved.generation);
+        assert_eq!(after.state, saved.state);
+        assert_eq!(std::fs::read(&path).unwrap(), original_bytes);
+        assert!(sync
+            .protocol
+            .try_v1()
+            .unwrap()
+            .ensure_v1(&mock.origin, "cutover-user")
+            .is_ok());
+        mock.stop();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn guarded_cutover_linearizes_before_queued_logout_and_blocks_opt_out() {
+    use crate::CutoverExecution;
+    let dir = TempDir::new("guarded-cutover-logout");
+    let mock = MockSync::start("cutover-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "cutover-logout").await;
+    let session = auth.session().await.unwrap();
+    let review = Arc::new(sync.guarded_cutover_review(&session, &[]).unwrap());
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let worker_sync = sync.clone();
+    let worker_review = review.clone();
+    let worker = tokio::task::spawn_blocking(move || {
+        worker_sync.execute_guarded_cutover_with_hooks(
+            &worker_review,
+            &[],
+            || {
+                ready_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                Ok(())
+            },
+            || Ok(()),
+        )
+    });
+    tokio::time::timeout(Duration::from_secs(3), ready_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(
+        sync.set_enabled(false),
+        Err(SyncCoordError::Protocol(ProtocolFenceError::Busy))
+    ));
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!logout.is_finished());
+    tokio::time::timeout(Duration::from_secs(1), auth.status())
+        .await
+        .unwrap();
+    release_tx.send(()).unwrap();
+    assert_eq!(worker.await.unwrap().unwrap(), CutoverExecution::Completed);
+    logout.await.unwrap().unwrap();
+    assert!(matches!(
+        sync.execute_guarded_cutover(&review, &[]),
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(sync.guarded_cutover_review(&session, &[]).is_err());
+    assert!(sync.protocol.try_v2(&mock.origin, "cutover-user").is_ok());
+    mock.stop();
+}
+
+#[tokio::test]
+async fn consent_identity_never_reuses_legacy_epoch_after_config_loss_or_corruption() {
+    let dir = TempDir::new("v1-consent-identity");
+    let mock = MockSync::start("v1-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "consent-identity").await;
+    let session = auth.session().await.unwrap();
+    // Real pre-migration files remain usable and do not silently rewrite or
+    // discard their pending work when read.
+    std::fs::write(&sync.config_path, br#"{"enabled":true,"generation":1}"#).unwrap();
+    let old = sync.capture_config_epoch(&session).unwrap();
+    assert_eq!(sync.read_config().generation, 1);
+    std::fs::write(&sync.config_path, b"{corrupt").unwrap();
+    assert!(!sync.is_enabled());
+    sync.set_enabled(true).unwrap();
+    let after_corruption = sync.read_config();
+    assert!(after_corruption.generation > u64::MAX.into());
+    assert!(!auth
+        .with_current_session(&session, || sync.is_config_epoch_current(&old, &session))
+        .unwrap());
+    let refreshed = sync.capture_config_epoch(&session).unwrap();
+    std::fs::remove_file(&sync.config_path).unwrap();
+    sync.set_enabled(true).unwrap();
+    let after_loss = sync.read_config();
+    assert!(after_loss.generation > u64::MAX.into());
+    assert_ne!(after_loss.generation, after_corruption.generation);
+    assert!(!auth
+        .with_current_session(&session, || sync
+            .is_config_epoch_current(&refreshed, &session))
+        .unwrap());
+    mock.stop();
+}
 
 struct Stored {
     revision: i64,
@@ -27,11 +2928,46 @@ struct MockInner {
     cursor: i64,
     expire_once: bool,
     fail_sync: bool,
+    pull_requests: usize,
+    rebuild_requests: usize,
+    page_size: Option<usize>,
+    v2_put_requests: usize,
+    v2_put_status: Option<u16>,
+    v2_write_epoch: String,
+    v2_epoch_required: Option<bool>,
+    v2_epoch_status: Option<u16>,
+    v2_require_requests: usize,
+    v2_received_epochs: Vec<Option<String>>,
+    v2_record_get_requests: usize,
+    v2_read_record: Option<serde_json::Value>,
 }
 
 struct MockSync {
     origin: String,
     task: tokio::task::JoinHandle<()>,
+    held_write: Arc<HeldWrite>,
+    held_v2_write: Arc<HeldWrite>,
+    held_v2_before_route: Arc<HeldExport>,
+    held_v2_epoch: Arc<HeldExport>,
+    held_v2_barrier: Arc<HeldExport>,
+    held_export: Arc<HeldExport>,
+    held_pull: Arc<HeldExport>,
+    inner: Arc<Mutex<MockInner>>,
+}
+
+#[derive(Default)]
+struct HeldExport {
+    armed: std::sync::atomic::AtomicBool,
+    started: tokio::sync::Notify,
+    release: tokio::sync::Notify,
+}
+
+#[derive(Default)]
+struct HeldWrite {
+    armed: std::sync::atomic::AtomicBool,
+    skip: std::sync::atomic::AtomicUsize,
+    committed: tokio::sync::Notify,
+    release: tokio::sync::Notify,
 }
 
 impl MockSync {
@@ -56,15 +2992,48 @@ impl MockSync {
             cursor: 0,
             expire_once: false,
             fail_sync: false,
+            pull_requests: 0,
+            rebuild_requests: 0,
+            page_size: None,
+            v2_put_requests: 0,
+            v2_put_status: None,
+            v2_write_epoch: "7".into(),
+            v2_epoch_required: Some(true),
+            v2_epoch_status: None,
+            v2_require_requests: 0,
+            v2_received_epochs: Vec::new(),
+            v2_record_get_requests: 0,
+            v2_read_record: None,
         }));
+        let held_write = Arc::new(HeldWrite::default());
+        let held_v2_write = Arc::new(HeldWrite::default());
+        let held_v2_before_route = Arc::new(HeldExport::default());
+        let held_v2_epoch = Arc::new(HeldExport::default());
+        let held_v2_barrier = Arc::new(HeldExport::default());
+        let held_export = Arc::new(HeldExport::default());
+        let held_pull = Arc::new(HeldExport::default());
         let task = tokio::spawn({
             let inner = inner.clone();
+            let held_write = held_write.clone();
+            let held_v2_write = held_v2_write.clone();
+            let held_v2_before_route = held_v2_before_route.clone();
+            let held_v2_epoch = held_v2_epoch.clone();
+            let held_v2_barrier = held_v2_barrier.clone();
+            let held_export = held_export.clone();
+            let held_pull = held_pull.clone();
             async move {
                 loop {
                     let Ok((mut socket, _)) = listener.accept().await else {
                         break;
                     };
                     let inner = inner.clone();
+                    let held_write = held_write.clone();
+                    let held_v2_write = held_v2_write.clone();
+                    let held_v2_before_route = held_v2_before_route.clone();
+                    let held_v2_epoch = held_v2_epoch.clone();
+                    let held_v2_barrier = held_v2_barrier.clone();
+                    let held_export = held_export.clone();
+                    let held_pull = held_pull.clone();
                     tokio::spawn(async move {
                         let mut buffer = vec![0_u8; 32 * 1024];
                         let Ok(read) = socket.read(&mut buffer).await else {
@@ -86,8 +3055,82 @@ impl MockSync {
                             .collect();
                         let body_start = request.find("\r\n\r\n").map(|i| i + 4).unwrap_or(0);
                         let body = request[body_start.min(request.len())..].to_owned();
+                        if method == "PUT"
+                            && path.starts_with("/api/v2/sync/collections/")
+                            && held_v2_before_route
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            held_v2_before_route.started.notify_one();
+                            held_v2_before_route.release.notified().await;
+                        }
                         let (status, payload) =
                             route(&method, path, query, &headers, &body, &inner);
+                        if method == "POST"
+                            && path == "/api/v2/sync/write-barrier"
+                            && held_v2_barrier
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            held_v2_barrier.started.notify_one();
+                            held_v2_barrier.release.notified().await;
+                        }
+                        if method == "GET"
+                            && path == "/api/v2/sync/write-epoch"
+                            && held_v2_epoch
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            held_v2_epoch.started.notify_one();
+                            held_v2_epoch.release.notified().await;
+                        }
+                        if method == "GET"
+                            && path == "/api/v1/native/sync/export"
+                            && held_export
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            held_export.started.notify_one();
+                            held_export.release.notified().await;
+                        }
+                        if method == "GET"
+                            && path == "/api/v1/native/sync/changes"
+                            && held_pull
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            held_pull.started.notify_one();
+                            held_pull.release.notified().await;
+                        }
+                        if method == "PUT"
+                            && path
+                                .starts_with("/api/v1/native/sync/collections/plugin-selections/")
+                            && status.starts_with("200 ")
+                            && held_write.armed.load(std::sync::atomic::Ordering::SeqCst)
+                        {
+                            if held_write.skip.load(std::sync::atomic::Ordering::SeqCst) > 0 {
+                                held_write
+                                    .skip
+                                    .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                            } else if held_write
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                            {
+                                held_write.committed.notify_one();
+                                held_write.release.notified().await;
+                            }
+                        }
+                        if method == "PUT"
+                            && path.starts_with("/api/v2/sync/collections/")
+                            && held_v2_write
+                                .armed
+                                .swap(false, std::sync::atomic::Ordering::SeqCst)
+                        {
+                            // The complete response is ready but has not
+                            // reached the dispatcher yet.
+                            held_v2_write.committed.notify_one();
+                            held_v2_write.release.notified().await;
+                        }
                         let head = format!(
                             "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                             payload.len()
@@ -98,7 +3141,18 @@ impl MockSync {
                 }
             }
         });
-        Self { origin, task }
+        Self {
+            origin,
+            task,
+            held_write,
+            held_v2_write,
+            held_v2_before_route,
+            held_v2_epoch,
+            held_v2_barrier,
+            held_export,
+            held_pull,
+            inner,
+        }
     }
 
     fn stop(self) {
@@ -196,7 +3250,87 @@ fn route(
             200,
             serde_json::json!({"id": state.account_id, "email": "user@example.com"}),
         ),
+        ("GET", "/api/v2/sync/changes") => {
+            let cursor = query
+                .split('&')
+                .find_map(|p| p.strip_prefix("cursor="))
+                .and_then(|n| n.parse::<i64>().ok())
+                .unwrap_or(-1);
+            if cursor < 0 {
+                return json(400, serde_json::json!({}));
+            }
+            json(
+                200,
+                serde_json::json!({"changes": [], "cursor": cursor, "has_more": false}),
+            )
+        }
+        ("GET", "/api/v2/sync/write-epoch") => {
+            if let Some(status) = state.v2_epoch_status {
+                return json(status, serde_json::json!({}));
+            }
+            let mut value = serde_json::json!({"writeEpoch": state.v2_write_epoch});
+            if let Some(required) = state.v2_epoch_required {
+                value["epochRequired"] = required.into();
+            }
+            json(200, value)
+        }
+        ("POST", "/api/v2/sync/write-barrier") => {
+            let Some(next) = state
+                .v2_write_epoch
+                .parse::<i64>()
+                .ok()
+                .and_then(|v| v.checked_add(1))
+            else {
+                return json(503, serde_json::json!({}));
+            };
+            state.v2_write_epoch = next.to_string();
+            json(200, serde_json::json!({"writeEpoch": state.v2_write_epoch}))
+        }
+        ("POST", "/api/v2/sync/require-write-epoch") => {
+            state.v2_require_requests += 1;
+            let Some(next) = state
+                .v2_write_epoch
+                .parse::<i64>()
+                .ok()
+                .and_then(|v| v.checked_add(1))
+            else {
+                return json(503, serde_json::json!({}));
+            };
+            state.v2_write_epoch = next.to_string();
+            state.v2_epoch_required = Some(true);
+            json(
+                200,
+                serde_json::json!({"writeEpoch": state.v2_write_epoch, "epochRequired": true}),
+            )
+        }
+        ("GET", path) if path.starts_with("/api/v2/sync/collections/") => {
+            state.v2_record_get_requests += 1;
+            match &state.v2_read_record {
+                Some(record) => json(200, record.clone()),
+                None => json(404, serde_json::json!({})),
+            }
+        }
+        ("PUT", path) if path.starts_with("/api/v2/sync/collections/") => {
+            state.v2_put_requests += 1;
+            state
+                .v2_received_epochs
+                .push(headers.get("x-workspace-write-epoch").cloned());
+            match state.v2_put_status {
+                Some(200) => {
+                    let suffix = path.strip_prefix("/api/v2/sync/collections/").unwrap();
+                    let (collection, key) = suffix.split_once('/').unwrap();
+                    let value: serde_json::Value = serde_json::from_str(body).unwrap();
+                    json(
+                        200,
+                        serde_json::json!({"collection": collection, "key": key, "revision": 1, "deleted": false, "value": value}),
+                    )
+                }
+                Some(status) => json(status, serde_json::json!({})),
+                None => json(500, serde_json::json!({})),
+            }
+        }
         ("GET", "/api/v1/native/sync/changes") => {
+            state.pull_requests += 1;
             let cursor: i64 = query
                 .split('&')
                 .find_map(|p| p.strip_prefix("cursor="))
@@ -226,8 +3360,19 @@ fn route(
                 })
                 .collect();
             changes.sort_by_key(|(rev, _, _)| *rev);
+            let limit = state.page_size.unwrap_or(usize::MAX);
+            let more = changes.len() > limit;
+            let next_cursor = if more {
+                changes
+                    .get(limit.saturating_sub(1))
+                    .map(|change| change.0)
+                    .unwrap_or(cursor)
+            } else {
+                state.cursor
+            };
             let payload: Vec<serde_json::Value> = changes
                 .into_iter()
+                .take(limit)
                 .map(|(_, key, r)| {
                     serde_json::json!({
                         "collection": "plugin-selections",
@@ -242,11 +3387,29 @@ fn route(
                 200,
                 // NOTE: the engine's Page struct uses snake_case with no
                 // rename_all; only this endpoint speaks snake_case.
-                serde_json::json!({"changes": payload, "cursor": state.cursor, "has_more": false}),
+                serde_json::json!({"changes": payload, "cursor": next_cursor, "has_more": more}),
             )
         }
         ("GET", "/api/v1/native/sync/head") => {
+            state.rebuild_requests += 1;
             json(200, serde_json::json!({"cursor": state.cursor}))
+        }
+        ("GET", "/api/v1/native/sync/export") => {
+            let records: Vec<_> = state
+                .records
+                .iter()
+                .map(|(key, record)| {
+                    serde_json::json!({
+                        "collection": "plugin-selections", "key": key,
+                        "revision": record.revision, "deleted": record.deleted,
+                        "value": record.value,
+                    })
+                })
+                .collect();
+            json(
+                200,
+                serde_json::json!({"schemaVersion": 1, "cursor": state.cursor, "records": records}),
+            )
         }
         ("GET", "/api/v1/native/sync/collections/plugin-selections") => {
             let after = query
@@ -430,6 +3593,116 @@ async fn login(auth: &CloudAuth, code: &str) {
     let waiter = tokio::spawn(async move { waiting.complete_login().await });
     deliver(&begun.browser_url, code).await;
     waiter.await.unwrap().unwrap();
+}
+
+#[tokio::test]
+async fn v2_cutover_preview_is_read_only_and_requires_the_exact_current_session() {
+    let dir = TempDir::new("v2-cutover-product-preview");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "first").await;
+    sync.record_local_change("acme.plugin", "1.0.0", false)
+        .unwrap();
+    let session = auth.session().await.unwrap();
+    let before = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    let selections = [PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: true,
+    }];
+    let preview = sync.preview_v2_cutover(&session, &selections).unwrap();
+    assert_eq!(preview.entries().len(), 1);
+    assert!(preview.entries()[0].pending.is_some());
+    assert!(preview.entries()[0].next.is_some());
+    let after = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap();
+    assert_eq!(before.generation, after.generation);
+    assert_eq!(before.state, after.state);
+    assert!(matches!(
+        sync.protocol.try_v2(&mock.origin, "user-a"),
+        Err(ProtocolFenceError::StaleCutover)
+    ));
+    let oversized: Vec<_> = (0..1001)
+        .map(|index| PluginSelection {
+            schema_version: 1,
+            plugin_id: format!("acme.plugin{index}"),
+            version: "1.0.0".into(),
+            enabled: true,
+        })
+        .collect();
+    assert!(matches!(
+        sync.preview_v2_cutover(&session, &oversized),
+        Err(SyncCoordError::Local(_))
+    ));
+    assert_eq!(
+        sync.protocol
+            .legacy_snapshot(&mock.origin, "user-a")
+            .unwrap()
+            .unwrap()
+            .state,
+        before.state
+    );
+    let guarded = sync.guarded_cutover_review(&session, &selections).unwrap();
+    assert!(sync
+        .verify_guarded_cutover_review(&guarded, &selections, &[])
+        .is_ok());
+    sync.record_local_change("other.plugin", "1.0.0", true)
+        .unwrap();
+    assert!(matches!(
+        sync.verify_guarded_cutover_review(&guarded, &selections, &[]),
+        Err(SyncCoordError::StaleReview)
+    ));
+    sync.set_enabled(false).unwrap();
+    assert!(matches!(
+        sync.preview_v2_cutover(&session, &selections),
+        Err(SyncCoordError::StaleReview)
+    ));
+    sync.set_enabled(true).unwrap();
+    auth.logout().await.unwrap();
+    login(&auth, "second").await;
+    assert!(matches!(
+        sync.preview_v2_cutover(&session, &selections),
+        Err(SyncCoordError::StaleReview)
+    ));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn v2_cutover_preview_releases_admission_during_candidate_build_and_rechecks_consent() {
+    let dir = TempDir::new("v2-cutover-preview-admission");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "preview-admission").await;
+    let session = auth.session().await.unwrap();
+    let (ready_send, ready_recv) = std::sync::mpsc::channel();
+    let (resume_send, resume_recv) = std::sync::mpsc::channel();
+    let worker = {
+        let sync = sync.clone();
+        std::thread::spawn(move || {
+            sync.preview_v2_cutover_with_snapshot_hook(&session, &[], || {
+                ready_send.send(()).unwrap();
+                resume_recv.recv_timeout(Duration::from_secs(5)).unwrap();
+            })
+        })
+    };
+    ready_recv.recv_timeout(Duration::from_secs(5)).unwrap();
+    // This needs exclusive protocol access and can only succeed if the
+    // preview has released both its session and admission/protocol leases.
+    sync.set_enabled(false).unwrap();
+    resume_send.send(()).unwrap();
+    assert!(matches!(
+        worker.join().unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    mock.stop();
 }
 
 fn coordinator(
@@ -623,8 +3896,20 @@ async fn expired_cursor_rebuilds_from_snapshot() {
     assert!(sync
         .record_local_change("acme.late", "1.0.0", true)
         .unwrap());
+    let (pulls_before, rebuilds_before) = {
+        let state = mock.inner.lock().unwrap();
+        (state.pull_requests, state.rebuild_requests)
+    };
     let outcome = sync.sync_now().await.unwrap();
     assert_eq!(outcome.pushed, 1);
+    assert_eq!(outcome.pulled, 1);
+    {
+        let state = mock.inner.lock().unwrap();
+        assert_eq!(state.rebuild_requests - rebuilds_before, 1);
+        // The initial 410 and the rebuild's catch-up read are both necessary;
+        // no extra probe or post-rebuild poll should be dispatched.
+        assert_eq!(state.pull_requests - pulls_before, 2);
+    }
     let keys: HashSet<_> = outcome.remote.into_iter().map(|r| r.key).collect();
     assert!(keys.contains("acme.keep"));
     assert!(keys.contains("acme.late"));
@@ -675,9 +3960,15 @@ async fn duplicate_pulls_are_idempotent() {
         .unwrap());
     let first = sync.sync_now().await.unwrap();
     let second = sync.sync_now().await.unwrap();
-    assert_eq!(second.pulled, 0);
+    // Push acknowledges the record but does not advance the feed cursor.
+    // The next run must count its own echoed change exactly once.
+    assert_eq!(second.pulled, 1);
     assert_eq!(second.pushed, 0);
     assert_eq!(first.remote, second.remote);
+    let third = sync.sync_now().await.unwrap();
+    assert_eq!(third.pulled, 0);
+    assert_eq!(third.pushed, 0);
+    assert_eq!(second.remote, third.remote);
     mock.stop();
 }
 
@@ -890,6 +4181,658 @@ async fn cancelled_sync_releases_the_running_flag() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn held_v1_ack_preserves_newer_stage_and_frozen_original_on_cas_conflict() {
+    let dir = TempDir::new("held-v1-ack");
+    let mock = MockSync::start("user-held").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "code-held").await;
+    sync.record_local_change("acme.held", "1.0.0", false)
+        .unwrap();
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let run = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    sync.record_local_change("acme.held", "2.0.0", true)
+        .unwrap();
+    mock.held_write.release.notify_one();
+    assert!(matches!(
+        run.await.unwrap(),
+        Err(SyncCoordError::Store(
+            cloud_client::StoreError::ConcurrentChange
+        ))
+    ));
+    let saved = cloud_client::StateStore::open(dir.join("a-sync"))
+        .unwrap()
+        .load()
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(&saved.state.entries["acme.held"].pending.as_ref().unwrap().edit, cloud_client::Edit::Put(value) if value.version == "2.0.0" && value.enabled)
+    );
+    let session = auth.session().await.unwrap();
+    assert!(matches!(
+        sync.preview_v2_cutover(&session, &[]),
+        Err(SyncCoordError::Protocol(ProtocolFenceError::UncertainV1))
+    ));
+    let gate = crate::ProtocolFence::open(dir.join("a-sync"))
+        .unwrap()
+        .try_cutover()
+        .unwrap();
+    let records = gate.uncertain_details(&mock.origin, "user-held").unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].key(), "acme.held");
+    assert!(
+        matches!(&records[0].pending().edit, cloud_client::Edit::Put(value) if value.version == "1.0.0" && !value.enabled)
+    );
+    assert!(records[0].base_record().is_none());
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancelled_v1_write_leaves_durable_original_and_releases_cutover_lease() {
+    let dir = TempDir::new("cancelled-v1-write");
+    let mock = MockSync::start("user-write").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "code-write").await;
+    sync.record_local_change("acme.write", "1.0.0", false)
+        .unwrap();
+    assert_eq!(sync.sync_now().await.unwrap().pushed, 1);
+    sync.record_local_change("acme.write", "1.2.3", true)
+        .unwrap();
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let run = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    let fence = crate::ProtocolFence::open(dir.join("a-sync")).unwrap();
+    assert!(matches!(
+        fence.try_cutover(),
+        Err(crate::ProtocolFenceError::Busy)
+    ));
+    assert!(matches!(
+        sync.set_enabled(false),
+        Err(SyncCoordError::Protocol(crate::ProtocolFenceError::Busy))
+    ));
+    assert!(matches!(
+        sync.keep_local("acme.write"),
+        Err(SyncCoordError::Protocol(crate::ProtocolFenceError::Busy))
+    ));
+    assert!(matches!(
+        sync.try_reset(),
+        Err(SyncCoordError::Protocol(crate::ProtocolFenceError::Busy))
+    ));
+    assert!(cloud_client::StateStore::open(dir.join("a-sync"))
+        .unwrap()
+        .load()
+        .unwrap()
+        .is_some());
+    run.abort();
+    assert!(run.await.unwrap_err().is_cancelled());
+    let gate = fence.try_cutover().unwrap();
+    let records = gate.uncertain_details(&mock.origin, "user-write").unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].key(), "acme.write");
+    assert!(
+        matches!(&records[0].pending().edit, cloud_client::Edit::Put(value) if value.version == "1.2.3")
+    );
+    let base = records[0].base_record().unwrap();
+    assert_eq!(base.revision, 1);
+    assert_eq!(base.value.as_ref().unwrap().version, "1.0.0");
+    drop(gate);
+    assert!(matches!(
+        sync.sync_now().await,
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::UncertainV1
+        ))
+    ));
+    sync.set_enabled(false).unwrap();
+    mock.held_write.release.notify_one();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn uncertain_take_cloud_is_fail_closed_until_product_apply_is_durable() {
+    let dir = TempDir::new("recovery-cloud-apply-pending");
+    let mock = MockSync::start("user-recovery").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "code-recovery").await;
+    sync.record_local_change("acme.recovery", "1.2.3", true)
+        .unwrap();
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let run = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    run.abort();
+    assert!(run.await.unwrap_err().is_cancelled());
+    mock.held_write.release.notify_one();
+
+    let store = cloud_client::StateStore::open(dir.join("a-sync")).unwrap();
+    let before = store.load().unwrap().unwrap();
+    assert_eq!(
+        sync.uncertain_v1_keys().await.unwrap(),
+        vec!["acme.recovery"]
+    );
+    let review = sync.review_uncertain_v1("acme.recovery").await.unwrap();
+    assert_eq!(
+        review.remote().unwrap().value.as_ref().unwrap().version,
+        "1.2.3"
+    );
+    for choice in [
+        crate::V1RecoveryChoice::TakeCloudIfUnchanged,
+        crate::V1RecoveryChoice::TakeCloudIncludingNewer,
+    ] {
+        assert!(matches!(
+            sync.resolve_uncertain_v1(&review, choice).await,
+            Err(SyncCoordError::Local(_))
+        ));
+        let after = store.load().unwrap().unwrap();
+        assert_eq!(after.generation, before.generation);
+        assert_eq!(after.state, before.state);
+        assert_eq!(
+            sync.uncertain_v1_keys().await.unwrap(),
+            vec!["acme.recovery"]
+        );
+    }
+    assert!(matches!(
+        sync.sync_now().await,
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::UncertainV1
+        ))
+    ));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn uncertain_take_absent_cloud_preserves_marker_and_local_selection() {
+    let dir = TempDir::new("recovery-absent-cloud");
+    let mock = MockSync::start("user-recovery-absent").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "code-recovery-absent").await;
+    sync.record_local_change("acme.recovery", "1.2.3", true)
+        .unwrap();
+    let store = cloud_client::StateStore::open(dir.join("a-sync")).unwrap();
+    let before = store.load().unwrap().unwrap();
+    // Simulate interruption after the marker was flushed but before dispatch.
+    let lease = sync.protocol.try_v1().unwrap();
+    drop(lease.prepare_upload(&before, "acme.recovery").unwrap());
+    drop(lease);
+
+    let review = sync.review_uncertain_v1("acme.recovery").await.unwrap();
+    assert!(review.remote().is_none());
+    for choice in [
+        crate::V1RecoveryChoice::TakeCloudIfUnchanged,
+        crate::V1RecoveryChoice::TakeCloudIncludingNewer,
+    ] {
+        assert!(matches!(
+            sync.resolve_uncertain_v1(&review, choice).await,
+            Err(SyncCoordError::Local(_))
+        ));
+        let after = store.load().unwrap().unwrap();
+        assert_eq!(after.generation, before.generation);
+        assert_eq!(after.state, before.state);
+        assert_eq!(
+            sync.uncertain_v1_keys().await.unwrap(),
+            vec!["acme.recovery"]
+        );
+    }
+    assert!(matches!(
+        sync.sync_now().await,
+        Err(SyncCoordError::Protocol(
+            crate::ProtocolFenceError::UncertainV1
+        ))
+    ));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn uncertain_review_and_resolution_do_not_block_local_staging_during_cloud_reads() {
+    let dir = TempDir::new("recovery-held-export");
+    let mock = MockSync::start("user-recovery-held").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "code-recovery-held").await;
+    sync.record_local_change("acme.recovery", "1.0.0", false)
+        .unwrap();
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let run = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    run.abort();
+    assert!(run.await.unwrap_err().is_cancelled());
+    mock.held_write.release.notify_one();
+
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let pending_review = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.review_uncertain_v1("acme.recovery").await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
+        .await
+        .unwrap();
+    sync.record_local_change("acme.recovery", "2.0.0", true)
+        .unwrap();
+    mock.held_export.release.notify_one();
+    let review = pending_review.await.unwrap().unwrap();
+    assert!(
+        matches!(&review.local().unwrap().pending.as_ref().unwrap().edit,
+        cloud_client::Edit::Put(value) if value.version == "2.0.0" && value.enabled)
+    );
+
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let pending_resolution = {
+        let sync = sync.clone();
+        tokio::spawn(async move {
+            sync.resolve_uncertain_v1(&review, crate::V1RecoveryChoice::KeepLocal)
+                .await
+        })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
+        .await
+        .unwrap();
+    sync.record_local_change("acme.recovery", "3.0.0", false)
+        .unwrap();
+    mock.held_export.release.notify_one();
+    assert!(matches!(
+        pending_resolution.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    let saved = cloud_client::StateStore::open(dir.join("a-sync"))
+        .unwrap()
+        .load()
+        .unwrap()
+        .unwrap();
+    assert!(
+        matches!(&saved.state.entries["acme.recovery"].pending.as_ref().unwrap().edit,
+        cloud_client::Edit::Put(value) if value.version == "3.0.0" && !value.enabled)
+    );
+    assert_eq!(
+        sync.uncertain_v1_keys().await.unwrap(),
+        vec!["acme.recovery"]
+    );
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn uncertain_review_discards_cloud_response_after_logout() {
+    let dir = TempDir::new("recovery-export-logout");
+    let mock = MockSync::start("user-recovery-logout").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "code-recovery-logout").await;
+    sync.record_local_change("acme.recovery", "1.0.0", false)
+        .unwrap();
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let run = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    run.abort();
+    assert!(run.await.unwrap_err().is_cancelled());
+    mock.held_write.release.notify_one();
+    mock.held_export
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let pending_review = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.review_uncertain_v1("acme.recovery").await })
+    };
+    tokio::time::timeout(Duration::from_secs(10), mock.held_export.started.notified())
+        .await
+        .unwrap();
+    auth.logout().await.unwrap();
+    mock.held_export.release.notify_one();
+    assert!(matches!(
+        pending_review.await.unwrap(),
+        Err(SyncCoordError::StaleReview)
+    ));
+    assert!(matches!(
+        sync.uncertain_v1_keys().await,
+        Err(SyncCoordError::NotSignedIn)
+    ));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn completed_first_v1_write_is_saved_before_second_reply_is_lost() {
+    let dir = TempDir::new("two-v1-writes");
+    let mock = MockSync::start("user-two-writes").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "code-two-writes").await;
+    sync.record_local_change("acme.first", "1.0.0", true)
+        .unwrap();
+    sync.record_local_change("acme.second", "2.0.0", true)
+        .unwrap();
+    mock.held_write
+        .skip
+        .store(1, std::sync::atomic::Ordering::SeqCst);
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let run = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    run.abort();
+    assert!(run.await.unwrap_err().is_cancelled());
+    let state = cloud_client::StateStore::open(dir.join("a-sync"))
+        .unwrap()
+        .load()
+        .unwrap()
+        .unwrap()
+        .state;
+    assert!(state.entries["acme.first"].pending.is_none());
+    assert_eq!(
+        state.entries["acme.first"]
+            .remote
+            .as_ref()
+            .unwrap()
+            .revision,
+        1
+    );
+    assert!(state.entries["acme.second"].pending.is_some());
+    let gate = crate::ProtocolFence::open(dir.join("a-sync"))
+        .unwrap()
+        .try_cutover()
+        .unwrap();
+    let records = gate
+        .uncertain_details(&mock.origin, "user-two-writes")
+        .unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].key(), "acme.second");
+    assert!(
+        matches!(&records[0].pending().edit, cloud_client::Edit::Put(value) if value.version == "2.0.0")
+    );
+    mock.held_write.release.notify_one();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn switched_account_preserves_uncertain_and_other_queued_legacy_edits() {
+    let dir = TempDir::new("v1-account-uncertain");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "account-a-code").await;
+    sync.record_local_change("acme.a", "1.0.0", false).unwrap();
+    sync.record_local_change("acme.z", "2.0.0", true).unwrap();
+    mock.held_write
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let run = {
+        let sync = sync.clone();
+        tokio::spawn(async move { sync.sync_now().await })
+    };
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        mock.held_write.committed.notified(),
+    )
+    .await
+    .unwrap();
+    run.abort();
+    assert!(run.await.unwrap_err().is_cancelled());
+    let root = dir.join("a-sync");
+    let original = fs::read(root.join("sync-state.json")).unwrap();
+    auth.logout().await.unwrap();
+    mock.inner.lock().unwrap().account_id = "user-b".into();
+    login(&auth, "account-b-code").await;
+    sync.set_enabled(true).unwrap();
+    sync.record_local_change("acme.b", "3.0.0", true).unwrap();
+    assert_eq!(fs::read(root.join("sync-state.json")).unwrap(), original);
+    let fence = crate::ProtocolFence::open(&root).unwrap();
+    let state_a = fence
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap()
+        .state;
+    let state_b = fence
+        .legacy_snapshot(&mock.origin, "user-b")
+        .unwrap()
+        .unwrap()
+        .state;
+    assert!(state_a.entries["acme.a"].pending.is_some());
+    assert!(state_a.entries["acme.z"].pending.is_some());
+    assert_eq!(state_b.entries.len(), 1);
+    assert!(state_b.entries["acme.b"].pending.is_some());
+    let gate = fence.try_cutover().unwrap();
+    let unknown = gate.uncertain_details(&mock.origin, "user-a").unwrap();
+    assert_eq!(unknown.len(), 1);
+    assert_eq!(unknown[0].key(), "acme.a");
+    assert_eq!(gate.uncertain_uploads(&mock.origin, "user-b").unwrap(), 0);
+    mock.held_write.release.notify_one();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn switched_account_can_use_v1_without_touching_completed_v2_accounts_legacy_file() {
+    let dir = TempDir::new("v1-account-cutover");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "cutover-a-code").await;
+    sync.record_local_change("acme.a", "1.0.0", true).unwrap();
+    let root = dir.join("a-sync");
+    let original = fs::read(root.join("sync-state.json")).unwrap();
+    let fence = crate::ProtocolFence::open(&root).unwrap();
+    let legacy = fence.legacy_snapshot(&mock.origin, "user-a").unwrap();
+    let preview =
+        crate::CutoverPreview::new(mock.origin.clone(), "user-a".into(), &[], legacy.as_ref())
+            .unwrap();
+    let gate = fence.try_cutover().unwrap();
+    gate.prepare(&preview, &mock.origin, "user-a", &[]).unwrap();
+    let workspace =
+        crate::WorkspaceCoordinator::open(&root, mock.origin.clone(), "user-a".into()).unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    gate.finish(&preview, &mock.origin, "user-a").unwrap();
+    drop(gate);
+    auth.logout().await.unwrap();
+    mock.inner.lock().unwrap().account_id = "user-b".into();
+    login(&auth, "cutover-b-code").await;
+    sync.set_enabled(true).unwrap();
+    sync.record_local_change("acme.b", "2.0.0", false).unwrap();
+    assert_eq!(fs::read(root.join("sync-state.json")).unwrap(), original);
+    let state_b = fence
+        .legacy_snapshot(&mock.origin, "user-b")
+        .unwrap()
+        .unwrap()
+        .state;
+    assert!(state_b.entries["acme.b"].pending.is_some());
+    assert!(fence.try_v2(&mock.origin, "user-a").is_ok());
+    assert!(matches!(
+        fence.try_v2(&mock.origin, "user-b"),
+        Err(crate::ProtocolFenceError::StaleCutover)
+    ));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn simultaneous_first_stages_for_distinct_identities_preserve_both() {
+    let dir = TempDir::new("concurrent-distinct-identities");
+    let a = MockSync::start("user-a").await;
+    let b = MockSync::start("user-b").await;
+    let auth_a = CloudAuth::new(
+        Some(a.origin.clone()),
+        dir.join("account-a.json"),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let auth_b = CloudAuth::new(
+        Some(b.origin.clone()),
+        dir.join("account-b.json"),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let root = dir.join("shared-sync");
+    let sync_a = SyncCoordinator::new(auth_a.clone(), &root).unwrap();
+    let sync_b = SyncCoordinator::new(auth_b.clone(), &root).unwrap();
+    sync_a.set_enabled(true).unwrap();
+    login(&auth_a, "simultaneous-a").await;
+    login(&auth_b, "simultaneous-b").await;
+    let barrier = Arc::new(std::sync::Barrier::new(3));
+    let left = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            sync_a.record_local_change("acme.first", "1.0.0", true)
+        })
+    };
+    let right = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            sync_b.record_local_change("acme.second", "2.0.0", false)
+        })
+    };
+    barrier.wait();
+    assert!(left.join().unwrap().unwrap());
+    assert!(right.join().unwrap().unwrap());
+    let fence = crate::ProtocolFence::open(&root).unwrap();
+    let first = fence.legacy_snapshot(&a.origin, "user-a").unwrap().unwrap();
+    let second = fence.legacy_snapshot(&b.origin, "user-b").unwrap().unwrap();
+    assert!(first.state.entries.contains_key("acme.first"));
+    assert!(!first.state.entries.contains_key("acme.second"));
+    assert!(second.state.entries.contains_key("acme.second"));
+    assert!(!second.state.entries.contains_key("acme.first"));
+    let original = fs::read(root.join("sync-state.json")).unwrap();
+    // Either identity can win the legacy root race. Cut over whichever one
+    // landed in a private partition, preserving the root owner's file.
+    let root_state = cloud_client::StateStore::open(&root)
+        .unwrap()
+        .load()
+        .unwrap()
+        .unwrap()
+        .state;
+    let (partition_origin, partition_account, root_origin, root_account, partition_snapshot) =
+        if root_state.account_id == "user-a" {
+            (&b.origin, "user-b", &a.origin, "user-a", &second)
+        } else {
+            (&a.origin, "user-a", &b.origin, "user-b", &first)
+        };
+    let preview = crate::CutoverPreview::new(
+        partition_origin.clone(),
+        partition_account.into(),
+        &[],
+        Some(partition_snapshot),
+    )
+    .unwrap();
+    let gate = fence.try_cutover().unwrap();
+    gate.prepare(&preview, partition_origin, partition_account, &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        &root,
+        partition_origin.clone(),
+        partition_account.into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    gate.finish(&preview, partition_origin, partition_account)
+        .unwrap();
+    drop(gate);
+    assert_eq!(fs::read(root.join("sync-state.json")).unwrap(), original);
+    assert_eq!(
+        fence
+            .legacy_snapshot(partition_origin, partition_account)
+            .unwrap()
+            .unwrap()
+            .state,
+        partition_snapshot.state
+    );
+    assert!(fence.try_v2(partition_origin, partition_account).is_ok());
+    let lease = fence.try_v1().unwrap();
+    assert!(lease.ensure_v1(root_origin, root_account).is_ok());
+    assert!(matches!(
+        lease.ensure_v1(partition_origin, partition_account),
+        Err(crate::ProtocolFenceError::NotV1)
+    ));
+    drop(lease);
+    a.stop();
+    b.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn simultaneous_stages_for_same_identity_preserve_both_edits() {
+    let dir = TempDir::new("concurrent-same-identity");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync_a) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "simultaneous-same").await;
+    let sync_b = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    let barrier = Arc::new(std::sync::Barrier::new(3));
+    let left = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            sync_a.record_local_change("acme.first", "1.0.0", true)
+        })
+    };
+    let right = {
+        let barrier = barrier.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            sync_b.record_local_change("acme.second", "2.0.0", false)
+        })
+    };
+    barrier.wait();
+    assert!(left.join().unwrap().unwrap());
+    assert!(right.join().unwrap().unwrap());
+    let state = crate::ProtocolFence::open(dir.join("a-sync"))
+        .unwrap()
+        .legacy_snapshot(&mock.origin, "user-a")
+        .unwrap()
+        .unwrap()
+        .state;
+    assert_eq!(state.entries.len(), 2);
+    assert!(state.entries["acme.first"].pending.is_some());
+    assert!(state.entries["acme.second"].pending.is_some());
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn toggling_reports_the_live_session() {
     let dir = TempDir::new("toggle-status");
     let mock = MockSync::start("user-toggle").await;
@@ -900,5 +4843,24 @@ async fn toggling_reports_the_live_session() {
     assert!(enabled.enabled && enabled.signed_in && !enabled.syncing);
     let disabled = sync.set_enabled(false).unwrap();
     assert!(!disabled.enabled && disabled.signed_in);
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn logout_without_sidecar_does_not_stage_or_expose_previous_identity() {
+    let dir = TempDir::new("signed-out-no-staging");
+    let mock = MockSync::start("user-a").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "signed-out-code").await;
+    sync.record_local_change("acme.keep", "1.0.0", true)
+        .unwrap();
+    let root = dir.join("a-sync");
+    let original = fs::read(root.join("sync-state.json")).unwrap();
+    auth.logout().await.unwrap();
+    assert!(!sync
+        .record_local_change("acme.after", "2.0.0", true)
+        .unwrap());
+    assert_eq!(sync.status().await.pending, 0);
+    assert_eq!(fs::read(root.join("sync-state.json")).unwrap(), original);
     mock.stop();
 }

@@ -5,7 +5,64 @@ use crate::plugin_runtime::PluginActivation;
 use crate::*;
 
 impl AppCore {
+    /// Pending remote application may have persisted a desired value before
+    /// its runtime outcome was known. Never infer permission to run from it.
+    pub(crate) fn plugin_apply_quarantined(&self, id: &str) -> bool {
+        recover_rwlock_read(
+            &self.plugin_state.apply_quarantine,
+            "plugin apply quarantine",
+        )
+        .as_ref()
+        .is_none_or(|blocked| blocked.contains(id))
+    }
+
+    /// Future remote-apply integration must call this while holding the
+    /// invocation gate *before* persisting a runtime-pending transition.
+    /// The durable journal takes over on restart. This does not fence other
+    /// processes; product activation also requires shared admission.
+    #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+    #[allow(dead_code)]
+    pub(crate) fn quarantine_plugin_apply_before_commit(&self, id: &str) -> bool {
+        let mut guard = recover_rwlock_write(
+            &self.plugin_state.apply_quarantine,
+            "plugin apply quarantine",
+        );
+        let Some(blocked) = guard.as_mut() else {
+            return false;
+        };
+        blocked.insert(id.to_owned());
+        drop(guard);
+        self.plugin_state
+            .activation_revision
+            .fetch_add(1, Ordering::AcqRel);
+        self.rebuild_processor_index();
+        true
+    }
+
+    /// Re-read durable recovery state under the invocation gate after native
+    /// reconciliation. Failed reads block all plugin execution instead of
+    /// clearing evidence. Never call concurrently with an in-flight apply.
+    #[cfg(feature = "persistence")]
+    #[allow(dead_code)]
+    pub(crate) fn refresh_plugin_apply_quarantine_locked(
+        &self,
+    ) -> Result<(), crate::db::DatabaseError> {
+        let loaded = self.db.plugin_apply_quarantine();
+        *recover_rwlock_write(
+            &self.plugin_state.apply_quarantine,
+            "plugin apply quarantine",
+        ) = loaded.as_ref().ok().cloned();
+        self.plugin_state
+            .activation_revision
+            .fetch_add(1, Ordering::AcqRel);
+        self.rebuild_processor_index();
+        loaded.map(|_| ())
+    }
+
     pub(crate) fn plugin_ready(&self, id: &str) -> bool {
+        if self.plugin_apply_quarantined(id) {
+            return false;
+        }
         let Some(plugin) = self.plugins.get(id) else {
             return false;
         };
@@ -88,7 +145,9 @@ impl AppCore {
         {
             return;
         }
-        self.start_enabled_event_subscribers();
+        // The event receiver must exist before onLoad can emit. The spawned
+        // consumer below drains events buffered while subscribers start.
+        let mut emit_rx = self.plugins.subscribe_emitted_events();
         self.spawn_plugin_event_observer(runtime);
         #[cfg(feature = "plugin-install")]
         {
@@ -99,6 +158,17 @@ impl AppCore {
         let shutdown = Arc::clone(&self.plugin_state.poll_shutdown);
         tracing::info!("plugin event poll started");
         let task = runtime.spawn(async move {
+            let startup_core = Arc::clone(&core);
+            let startup =
+                tokio::task::spawn_blocking(move || startup_core.start_enabled_event_subscribers());
+            tokio::select! {
+                biased;
+                _ = shutdown.notified() => return,
+                result = startup => if let Err(error) = result {
+                    core.shutdown_update_safe.store(false, Ordering::Release);
+                    tracing::warn!(%error, "plugin subscriber startup task failed");
+                },
+            }
             let mut ticker = tokio::time::interval(PLUGIN_POLL_INTERVAL);
             ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
@@ -112,7 +182,6 @@ impl AppCore {
         *recover_mutex(&self.plugin_state.poll_task, "plugin poll task") = Some(task);
         // Subscribe before spawning so the first push cannot race startup.
         // One independently owned receiver; no polling future can starve it.
-        let mut emit_rx = self.plugins.subscribe_emitted_events();
         let core = Arc::clone(self);
         let shutdown = self.plugin_state.observer_shutdown.clone();
         let task = runtime.spawn(async move {
@@ -148,9 +217,7 @@ mod isolation_tests {
     struct SlowRuntime {
         polling: Arc<AtomicBool>,
         release: Arc<AtomicBool>,
-        sender: Arc<
-            Mutex<Option<tokio::sync::broadcast::Sender<tiktools_plugin_loader::EmittedEvent>>>,
-        >,
+        sender: Arc<Mutex<Option<tiktools_plugin_loader::PluginEventSender>>>,
     }
     struct SlowInstance {
         polling: Arc<AtomicBool>,
@@ -254,6 +321,7 @@ mod isolation_tests {
             .unwrap()
             .send(tiktools_plugin_loader::EmittedEvent {
                 plugin_id: "isolation".into(),
+                generation: core.plugins.running_generation("isolation").unwrap(),
                 event_type: "isolation.tick".into(),
                 data: json!({"value": 1}),
             })

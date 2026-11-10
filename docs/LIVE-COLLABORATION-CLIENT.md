@@ -5,13 +5,63 @@ permits scoped reads, workflow/event disable/delete, disabled automation drafts
 and additive points commands in
 [the transport guide](LIVE-COLLABORATION-TRANSPORT.md).
 The desktop has isolated workflow/points controls and a summary-only automation
-board with durable whole-event disable/delete confirmation. A separate native
+board with durable whole-event disable/delete commands. A separate native
 JSON editor retains private author copies and submits disabled proposals through
 the shared durable coordinator. Complete domain UI, activation and delegated
 execution remain incomplete. See the
 [native proposal editor](LIVE-COLLABORATION-CLIENT-COMMANDS.md#native-automation-proposal-editor)
 and the metadata-aware SDK/CLI
 [automation proposal contract](LIVE-COLLABORATION-CLIENT-COMMANDS.md#automation-proposals-through-the-sdkapi).
+
+The web source now includes a separate experimental same-origin browser
+transport. It bootstraps the browser session, requests a CSRF-protected
+single-use socket ticket and negotiates the protocol before exposing the
+connection. The socket identity and grant revision must match the bootstrap;
+frames and requests are bounded by negotiated limits. Disconnects and stream
+gaps invalidate the connection, and reconnection never replays requests.
+Credentials and CSRF values are not written to browser storage. Unit tests use
+mock fetch and sockets and exercise the existing control-client response
+adapter. The native controller bridge cannot simply be reused in a browser.
+An experimental browser workflow recovery primitive now retains the complete
+reliable event envelope, verifies all snapshot pages and workflow restrictions
+before exposing a baseline, buffers bounded events through capture, requires
+ordered acknowledgement and clears the view on disconnect, malformed data,
+gaps or overflow. It retries only explicit pre-dispatch rate limits. Tests use
+mock sockets and responses, including the existing control-client adapter;
+it is not yet a complete browser controller.
+The existing controller screen now has a `remote-web` build mode backed by a
+browser-local adapter for workflows. The adapter exposes a view only
+after recovery, refreshes invalidated records against their host revisions,
+and clears it on disconnect or a sequence gap. It exposes browser workflow
+disable/delete under the granted permissions and a local command
+journal; local profiles, persistent drafts and other browser domain writes are
+not available. It also projects the host's current LIVE connection status for a
+`live.read` grant, including LIVE-only observers without workflow access.
+The bounded, read-only LIVE feed uses decimal cursor strings and honors creator
+restrictions; it is polled and is not a durable event stream. If one event
+exceeds the response budget, its display fields are shortened to allow the
+cursor to advance; a shortened author cannot be used as an action target.
+An explicitly enabled gateway build can embed and serve this mode
+after browser pairing over HTTPS. The browser session is rechecked before
+publishing workflow data and periodically while connected; another pairing tab
+also sends an advisory session-change notification. Clearing after a cookie
+change is not atomic, and background tabs may delay periodic checks. Physical
+two-PC and actual LIVE acceptance remain outstanding.
+
+To include the browser controller, build the web bundle before compiling the
+host with the opt-in feature:
+
+```bash
+bunx vite build
+cargo build -p tiktools-desktop --locked --features remote-browser-app
+```
+
+For a headless host, use `-p tiktools-cli --features remote-browser-app`.
+Pairing displays the app link only when the gateway advertises the feature over
+HTTPS. The browser grant must include `workflows.read` for the workflow view
+or `live.read` for the LIVE status view.
+The browser controller remains experimental; workflow changes require the
+appropriate write and read grants plus `commands.read`.
 
 ## Build and connect
 
@@ -131,8 +181,61 @@ indicator, effective capabilities, permitted workflow view, points board and
 closed automation status with confirmed whole-event stop/delete. Tokens and
 the pairing exchange secret remain in Rust/OS storage. The invitation input
 is cleared on submission; pending approval survives page reload in the native
-engine. The UI currently uses CLI `remote trust`/`forget` for certificate
-rollover or profile removal; their complete desktop forms remain pending.
+engine. The visual proposal builder can prepare a disabled points action for
+an exact literal viewer ID and a bounded nonzero adjustment. Preparing it only
+replaces the open local draft after preview; it neither saves, submits nor
+adjusts points. Submission and owner approval remain separate, and current
+host permissions and effect limits still govern execution. Dynamic viewer
+targets are not offered by this builder.
+
+When preparing a disabled event, the builder can search the current permitted
+host action summaries and copy an action ID into the local draft. It renders at
+most 50 matches and permits manual IDs for actions not in the visible snapshot.
+The list is informational: host access and dependencies can change, and the
+owner still reviews the saved source before a separate activation.
+
+The LIVE activity panel supports creator-restricted access when the host
+advertises `creatorFeed`. The moderator selects among the creators in the
+current grant; switching creators or changing permissions clears the old
+rows. Creator-specific cursors do not expose the shared feed sequence, and
+retention expiry or a host restart is marked as a gap. Scoped projection
+limits author/nickname to 64 characters and message text to 128 characters.
+This is polling, not durable replay or a complete LIVE archive.
+The gap indicator covers retained-history loss, stream resets, and known
+ingress drops attributable to the selected creator's stamped native
+connection. That ingress warning remains visible for the lifetime of the
+in-memory creator stream; it reports no event counts. Broadcast lag can be
+attributed when its entire skipped range is covered by the bounded native
+generation journal. Contention, expired history, ambiguous identities and
+abrupt worker termination may still prevent attribution. Activity can
+therefore be missing even when no gap is shown; the panel always says so.
+When native discovery cannot verify that the selected room belongs to the
+requested creator, the local LIVE can continue but its events and scoped
+status are unavailable to creator-restricted controllers. Owner rules still
+receive the local activity without a verified `creator` field; rules depending
+on that field may not match. The input cannot authorize delegated rules or
+actions, including through an Owner-emitted child event.
+
+The LIVE activity panel can filter its bounded, locally displayed
+entries by kind and search author, nickname or text. Filters do not query the
+host or extend its retained history, and are cleared when the connection or
+grant changes or LIVE access is lost. With points access, the moderator may
+look up an activity author's points directly from that entry. The shortcut is
+read-only, requires the viewer grant, displays the exact lookup ID, and clears
+any previous adjustment amount when the selected viewer changes. It is offered
+only if the native projection retained the complete author ID unchanged and
+the value is not the ambiguous `viewer` fallback. An unavailable or ambiguous
+ID must be looked up manually. The shortcut does not verify a provider identity
+or authorize an adjustment; adjusting points still requires a separate review
+and confirmation.
+A saved profile can be forgotten after explicitly confirming removal
+of its local credentials, drafts and command history. The selected profile
+must first be disconnected, and a pending or actively used command journal
+blocks removal. The confirmed profile identity is rechecked under the native
+profile lease, so an old confirmation cannot remove a replacement with the
+same name. This removes local data only: direct SDK connections already opened
+may remain active until they expire or the owner revokes that session on the
+host. Certificate rollover still uses CLI `remote trust`.
 
 The native `remote::controller::Controller` owns bounded workflow and automation
 projections with independent automation display revisions.

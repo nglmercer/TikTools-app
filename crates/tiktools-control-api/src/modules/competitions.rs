@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tiktools_competitions::Transition;
 pub use tiktools_competitions::{
-    ActionExecution, ActionResolution, Definition, LifecycleState, ResultRecord,
+    ActionExecution, ActionResolution, Definition, Lifecycle, LifecycleState, ResultRecord,
 };
+pub use tiktools_core::control::{CompetitionSummary, CompetitionSummaryPage};
 use tiktools_core::AppCore;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -18,8 +19,26 @@ pub struct CompetitionId {
     pub id: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionStopParams {
+    pub id: String,
+    #[serde(default)]
+    pub expected_generation: Option<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct CompetitionList {
     pub competitions: Vec<Definition>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionSummaryParams {
+    #[serde(default)]
+    pub after: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+    #[serde(default)]
+    pub include_revision: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -68,6 +87,26 @@ pub struct ManualCandidates {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_contextual::<CompetitionSummaryParams, tiktools_core::control::CompetitionSummaryPage, _, _>(
+        "competitions.summary",
+        "Read bounded authorized competition status without definitions or participants",
+        |core, context, params| async move {
+            let grant = match &context {
+                crate::RequestContext::LocalOwner => tiktools_core::collaboration::Grant {
+                    capabilities: [tiktools_core::collaboration::Capability::CompetitionsRead].into(),
+                    ..Default::default()
+                },
+                crate::RequestContext::Remote(session) => session.grant()?,
+            };
+            let budget = match &context {
+                crate::RequestContext::Remote(session) => session.connection_limits().map_or(512 * 1024, |v| v.frame_bytes / 2),
+                _ => 512 * 1024,
+            };
+            crate::modules::blocking_task("competitions.summary", move || {
+                core.competition_summary_page(&grant, params.after.as_deref(), params.limit.unwrap_or(20), budget, params.include_revision)
+            }).await?.map_err(ApiError::from)
+        },
+    );
     router.register_typed::<Definition, OkResult, _, _>(
         "competitions.create",
         "Create a competition definition",
@@ -218,25 +257,88 @@ pub fn register(router: &mut ControlRouter) {
             .map_err(ApiError::from)
         },
     );
-    for (method, transition) in [
-        ("competitions.start", Transition::Start),
-        ("competitions.pause", Transition::Pause),
-        ("competitions.resume", Transition::Resume),
-        ("competitions.cancel", Transition::Cancel),
+    for (method, transition, local_transition) in [
+        (
+            "competitions.start",
+            tiktools_core::control::CompetitionRemoteTransition::Start,
+            Transition::Start,
+        ),
+        (
+            "competitions.resume",
+            tiktools_core::control::CompetitionRemoteTransition::Resume,
+            Transition::Resume,
+        ),
+        (
+            "competitions.pause",
+            tiktools_core::control::CompetitionRemoteTransition::Pause,
+            Transition::Pause,
+        ),
+        (
+            "competitions.cancel",
+            tiktools_core::control::CompetitionRemoteTransition::Cancel,
+            Transition::Cancel,
+        ),
     ] {
-        router.register_typed::<CompetitionId, LifecycleState, _, _>(
+        router.register_versioned::<CompetitionStopParams, serde_json::Value, _, _>(
             method,
-            "Transition competition lifecycle",
+            "Transition a competition with a revision-bound command",
             true,
-            move |core: Arc<AppCore>, params: CompetitionId| async move {
-                core.start_competition_timer();
-                crate::modules::blocking_task("competition transition", move || {
-                    core.competition_transition(&params.id, transition)
+            move |core: Arc<AppCore>, context, params, metadata| async move {
+                crate::modules::blocking_task("competition stop", move || match context {
+                    crate::RequestContext::Remote(session) => {
+                        if matches!(
+                            transition,
+                            tiktools_core::control::CompetitionRemoteTransition::Start
+                                | tiktools_core::control::CompetitionRemoteTransition::Resume
+                        ) {
+                            core.start_competition_timer();
+                        }
+                        let meta = metadata.ok_or_else(|| {
+                            ApiError::invalid_params("command metadata is required")
+                        })?;
+                        let request = tiktools_core::collaboration::CommandRequest {
+                            command_id: meta
+                                .command_id
+                                .ok_or_else(|| ApiError::invalid_params("commandId is required"))?,
+                            host_instance_id: meta.host_instance_id.ok_or_else(|| {
+                                ApiError::invalid_params("hostInstanceId is required")
+                            })?,
+                            expected_revision: meta.expected_revision.ok_or_else(|| {
+                                ApiError::invalid_params("expectedRevision is required")
+                            })?,
+                        };
+                        let generation = params.expected_generation.ok_or_else(|| {
+                            ApiError::invalid_params("expectedGeneration is required")
+                        })?;
+                        core.competition_remote_command(
+                            session.authorization()?,
+                            request,
+                            &params.id,
+                            &generation,
+                            transition,
+                        )
+                        .map_err(ApiError::from)
+                    }
+                    crate::RequestContext::LocalOwner => {
+                        core.start_competition_timer();
+                        core.competition_transition(&params.id, local_transition)
+                            .and_then(|state| {
+                                serde_json::to_value(state).map_err(|_| {
+                                    tiktools_core::control::OperationError::internal(
+                                        "competition state serialization failed",
+                                    )
+                                })
+                            })
+                            .map(|value| {
+                                tiktools_core::collaboration::Versioned::new(value, Vec::new())
+                            })
+                            .map_err(ApiError::from)
+                    }
                 })
                 .await?
-                .map_err(ApiError::from)
             },
         );
+        router.set_durable_commands(method, true);
     }
     router.register_typed::<Empty, CompetitionList, _, _>(
         "competitions.list",

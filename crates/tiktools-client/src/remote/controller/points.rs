@@ -53,6 +53,9 @@ pub(super) fn domains(remote: &RemoteClient) -> std::collections::BTreeSet<Strea
     if automations::readable(remote) {
         result.insert(StreamDomain::Automation);
     }
+    if competitions::readable(remote) {
+        result.insert(StreamDomain::Competitions);
+    }
     result
 }
 pub(super) async fn stream(remote: &RemoteClient) -> Result<Option<RecoveryStream>, ClientError> {
@@ -61,9 +64,21 @@ pub(super) async fn stream(remote: &RemoteClient) -> Result<Option<RecoveryStrea
         return Ok(None);
     }
     let bounded = domains.contains(&StreamDomain::Points).then_some(0);
-    Ok(Some(
-        RecoveryStream::start_projected(remote.clone(), domains, bounded).await?,
-    ))
+    let stream = RecoveryStream::start_projected(remote.clone(), domains, bounded).await?;
+    if stream.baseline().is_some_and(|page| {
+        page.competitions.iter().any(|row| {
+            row.get("id").and_then(Value::as_str).is_none_or(|id| {
+                remote
+                    .hello()
+                    .resource_restrictions
+                    .get(&ResourceKind::Competition)
+                    .is_some_and(|ids| !ids.contains(id))
+            })
+        })
+    }) {
+        return Err(protocol());
+    }
+    Ok(Some(stream))
 }
 fn notify(shared: &Shared, v: &mut View) {
     v.status.points_revision = v

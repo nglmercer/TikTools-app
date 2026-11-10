@@ -1,5 +1,197 @@
 # LIVE collaboration implementation evidence
 
+## Competition updates and winner actions
+
+Competition generations now retain a private execution origin. Existing local
+generations are seeded once as Owner; missing or inconsistent metadata after
+migration is not repaired by inferring Owner. Local starts record their origin
+in the lifecycle transaction, and winner dispatch refuses delegated or missing
+origins until scoped delegated execution is available. This is a prerequisite,
+not remote start/resume: command admission, propagation through competition
+events and delayed effects, and recovery are still required.
+
+An internal generation admission now reconstructs every saved moderator,
+checks the current competition scope, and holds both the business transaction
+and collaboration lock through commit. Unrelated grant revisions can advance
+without invalidating the stored identity; a missing, expired or revoked grant
+denies admission. This primitive is not wired to remote start/resume or to the
+external-effect dispatcher and is not itself an effect authorization.
+The internal start/resume transaction now records the lifecycle, retained
+operator identities, command receipt and invalidation together. Resuming
+rechecks all earlier operators as well as the new caller; a retained receipt
+can be recovered without executing the transition again. This remains private
+until the competition event and winner-action paths can propagate delegated
+authority to every effect.
+An internal execution binding also captures the exact competition revision and
+all current operator/configuration revisions. A later lifecycle change or grant
+change invalidates that binding; a fresh binding can be captured under the
+current reusable grants. The effect pipeline does not yet consume this binding.
+Competition events now distinguish local Owner generations from delegated or
+unknown origins before publishing to plugin observers. A delegated generation
+is limited to presentation and carries a restricted private context; the
+current automation queue rejects that context until a scoped competition-event
+execution policy is implemented. Missing authority never becomes Owner input.
+The internal winner-action preflight can combine the saved action's authors
+with all operators from a trusted competition binding and check their reusable
+effect grants. The resulting candidate cannot use the generic effect executor:
+the generation fence still has to be held at each sink and winner inputs must
+be bound to the saved competition before delegated dispatch is enabled.
+
+The host now reserves competition creation, definition and lifecycle changes in
+the coordination outbox. The competition stream supplies scoped summary
+snapshots and replayable invalidations. The native controller invalidates its
+cached command target and refreshes the visible page on receipt; its periodic
+fallback remains available for older hosts. A local TLS controller test checks
+a host edit and grant narrowing. Physical two-PC and real LIVE acceptance remain
+open, as do remote start/resume and their delayed delegated effects.
+
+Winner selection, durable result storage and action dispatch now use the same
+lookup for user winners and option winners. The challenge fixture checks that
+the persisted user-winner action actually completes through the worker; it does
+not establish delegated winner execution.
+
+## Shared source response revalidation
+
+Before a shared automation definition is released, the API rechecks the current
+grant, trusted author, live record and exact revision without loading the source
+again. API coverage checks that an unchanged response remains authorized, while
+an update, deletion or deletion followed by recreation rejects the old response.
+This is an authorization check at response handling; it cannot prevent a change
+after the final check or replace two-PC and real LIVE acceptance.
+
+## Recovery of activation results
+
+Remote activation receipts now pass the same scoped result checks as the live
+response, including an exact event/action family match. A local TLS controller
+test records the original activation intent, discards its reply, changes the
+host state again, and recovers the original receipt without replaying or undoing
+the later change. A forged family in a retained result is rejected even when
+both families are visible to the principal.
+
+## Explicit edits to Owner automations
+
+Grants can also explicitly permit replacing scoped definitions authored by
+another moderator, with a separate choice to share their full source. Both
+choices default to denied. A replacement transfers the definition's authority
+to the editor; affected event closures still require their own authors' current
+grants. Source access is rechecked against the current grant and revision at
+response time. This supports reusable authorization, not a per-edit Owner
+approval, and does not make unsupported effects executable.
+
+An optional `allowOwnerEdits` policy flag defaults to false and is omitted from
+legacy-format grants. Focused core and API tests verify that an authorized
+remote update changes provenance to the editor, validates every affected event
+closure, rejects unscoped references, private filters and unsupported effects,
+and stops after revocation. The same grant now permits an Owner definition to
+be saved disabled: the API tests check denial without the grant, unsupported
+effects and out-of-scope dependents, as well as durable command recovery. The
+reusable path checks that the authoring grant is still the exact grant used to
+authorize the transaction before committing. A native controller test saves a
+disabled Owner edit and then submits an active update
+over local TLS. A separate default-deny source grant now allows the scoped Owner definition
+to be previewed over local TLS; the test checks grant narrowing and denies a
+different remote author’s source without the separate sharing grant. The controller requires an explicit selection
+before replacing open text. These tests do not establish physical two-PC use.
+
+The controller's field editor can load a compatible open log, delay, points or
+TikTok event definition, retain unrelated fields, and generate an edited local
+draft. It rejects unsupported filter shapes instead of silently dropping them,
+requires a reload if the open text changes, and replaces the configuration when
+the action type changes. The JSON editor remains available for other definitions.
+The UI tests cover shared-source loading, preservation and stale-field handling;
+they do not establish physical two-PC use or LIVE behavior.
+
+The same editor also prepares `core.emit` actions and exact custom-topic event
+triggers, and reloads compatible existing definitions. Its topic syntax and
+object payload are bounded locally; final authorization remains on the host.
+API integration creates an active chat-to-emit-to-custom-event chain under a
+single reusable grant and rejects an ungranted topic. This proves admission and
+storage, not a physical LIVE or delivery of an actual TikTok event.
+
+The field editor also prepares compatible `core.fetch` actions with URL, method,
+string headers, body, timeout, response ceiling and private-network selection.
+It does not issue a request while editing; unsupported response-emission
+configurations remain in the JSON editor. The host still enforces each granted
+destination and effect limit at execution. A reusable-grant runtime test sends
+one request to a local fixture and checks that revocation prevents another.
+
+For `audio.play`, the controller editor takes a path on the host, volume and
+overlap policy without trying to browse or play a file on the controller PC.
+It preserves unchanged file-reference metadata and replaces it when the path
+changes. A host runtime fixture verifies one authorized playback through a mock
+media sink and that removing the file grant prevents a later playback; this does
+not verify a physical audio device or two PCs.
+
+The controller can also prepare and reload bounded `core.code` source. Editing
+does not run the source, and a changed connection/grant clears the form. A core
+test creates an active script and chat rule under one reusable grant, verifies a
+bounded execution with projected public input, and checks that removing the
+delegation stops later runs. Other returned effects remain separately scoped.
+The grant editor enables points-read when selecting delegated points and
+LIVE-read when selecting delegated scripts, because those are required by the
+runtime policy. It discloses those additions, keeps dynamic targets separate,
+and permits a missing read capability to be added to an older grant.
+
+Core runtime tests now execute that kind of chain through an internal event to a
+points adjustment. A two-author fixture checks that removing either author's
+topic grant stops the relevant chain and restoring the child author's grant
+allows a later event to run. Another test injects a constructed native chat
+event: an unverified generation cannot start the chain, a host-injected verified
+generation runs it, and topic revocation stops subsequent events. These tests
+do not connect to TikTok or prove two physical computers can collaborate.
+
+## Reusable grant: native ingress and two controllers
+
+A native TikTok chat fixture now traverses `prepare_live_event_with_generation`
+and the queued runtime. With a reusable points grant, an unverified generation
+cannot invoke delegated automation, a verified generation invokes it, and grant
+removal stops the next event. A separate reusable-grant test revokes a session
+during a delayed action and confirms that the following points effect does not
+run. The native test uses a constructed event and a host-injected verified
+generation; it is not a connection to TikTok.
+
+A local TLS test uses two independently paired native controller profiles. One
+creates and edits active delegated definitions; the second receives each
+updated summary, without receiving source text. This uses separate controller
+profiles on one machine and does not establish cross-machine networking or
+physical two-PC/LIVE acceptance.
+
+```bash
+cargo test --locked --offline -p tiktools-core --features persistence,native-tiktok --lib native_live_ingress_applies_reusable_grants_only_for_verified_generation
+cargo test --locked --offline -p tiktools-core --features persistence --lib reusable_grant_revocation_during_delay_stops_later_effects
+TIKTOOLS_CLOUD_ORIGIN= cargo test --locked --offline -p tiktools-client --features remote-profiles --lib native_proposals_create_and_edit_active_definitions_with_reusable_grant
+```
+
+## Embedded browser workflow controller
+
+With `dist/web` built and the opt-in `browser-app` feature enabled, the ignored
+`browser_controller_pairs_reads_live_updates_and_clears_on_revocation` gateway
+test ran against real Chromium and a local TLS gateway. It paired an approved
+browser, loaded the embedded controller, observed a host workflow update,
+paired a LIVE-only replacement in another tab, checked that the original view
+cleared, observed disconnected LIVE status and a fixture chat message without a
+workflow subscription, and checked that revocation cleared the replacement
+view. At the minimum 4 KiB frame size it also displayed a shortened multibyte
+message followed by a second message. The creator-restricted gateway test denies the unscoped browser feed;
+focused tests cover decimal cursors, filtered fields and response-budget paging.
+The same local Chromium fixture exercised the browser command helper against the
+actual TLS gateway: one workflow disable succeeded, then a workflow deletion
+completed and its reply was deliberately discarded by the fixture. After a page
+reload, a `commands.get` query recovered that original ID and the host state confirmed
+both changes. This is a simulated lost reply after receipt, not process-crash,
+physical two-PC or real LIVE evidence. The UI fixture also reviews missing
+storage, checks a pending outcome after reload and confirms workflow disable.
+The gateway credential
+test also exercises authenticated app/asset delivery, source-map exclusion and
+revocation. Type checking, lint and 31 focused browser tests passed. This is a
+local fixture; it does not establish physical two-PC or actual TikTok LIVE
+acceptance. Cross-tab detection is advisory and periodic, not atomic.
+
+```bash
+bunx vite build
+CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=2 cargo test --locked --offline -p tiktools-remote --features browser-app --test gateway browser_controller_pairs_reads_live_updates_and_clears_on_revocation -- --ignored
+```
+
 Date: 2026-11-08.
 Status: persistent identity/policy, transactional workflow commands, recoverable
 metadata delivery/audit, workflow snapshot/replay, scoped durable remote
@@ -36,6 +228,217 @@ scoped HTTP/audio execution and durable external-effect receipts are now availab
 The v3 policy adds bounded scripts and exact-topic scoped emits with inherited
 authority through downstream rules. Broader remote activation, delegated plugin
 execution, HTTP response emission and full product acceptance remain pending.
+
+## Scoped competition status
+
+Competition definitions and lifecycle changes now advance a transactionally
+maintained revision, including timer/finalization updates. Deleted IDs keep a
+tombstone so recreating one does not reuse its revision. The scoped summary
+can return that revision when requested; native controllers request it only
+when the host advertises `competitionSummaryVersions`, so older hosts and
+clients keep the existing summary shape. A SQLite migration check covers the
+legacy seed, state and definition changes, delete/recreate and missing metadata.
+The host API supports remote `competitions.start`, `competitions.resume`,
+`competitions.pause` and `competitions.cancel` under scoped read/manage grants, with expected generation, revision and durable
+command metadata. The result can be recovered by command ID. Remote stops
+retain the acting moderator when the generation has capacity; their events may
+trigger scoped automation under every retained operator's current grants, without
+promoting them to Owner or invoking Owner plugin observers. The native controller can
+start, resume, pause or cancel a visible competition under the same scoped grant;
+its version-8 command journal stores the generation and revision before sending
+and recovers an uncertain result using the original command ID. Remote start/resume retain every operator's current
+grants, and winner actions remain subject to those grants. Delegated start,
+resume and finish events can trigger scoped automations when every retained
+operator and saved author permits the effects. Cancelling a draft or stopping a
+generation without room to retain the actor produces presentation only. Complete
+release acceptance remains pending.
+For any of these RPCs, send `params: {id, expectedGeneration}` and
+`meta: {commandId, hostInstanceId, expectedRevision}` using the generation and
+revision from the scoped summary. The durable result identifies the
+competition, resulting lifecycle and generation, with its committed revision
+in response metadata. A changed revision or generation rejects a fresh command.
+
+The controller can read a bounded, paginated competition status projection
+when its grant includes `competitions.read`. Each page contains only an
+authorized competition's ID, name, kind, lifecycle and time/generation
+metadata; definitions, ranking IDs, participant information and winner
+actions stay on the host. A grant restricted by LIVE creator is denied until
+competitions have a verified creator association. The host rechecks the grant
+against the rows immediately before remote delivery; the native controller
+also binds a reply to the current connection and grant, and its UI clears
+stale results on scope changes. On a compatible host the UI also refreshes on
+reliable competition invalidations, coalescing changes while a read is in
+flight; periodic reads remain a fallback. At very low gateway
+request limits it rotates among LIVE, feed and competition reads and leaves
+capacity for the native heartbeat or points refresh. Keyset pages are live,
+not a coherent replayable snapshot. At advertised limits of at most two
+requests per second, a competition-enabled controller without a recovery
+stream refreshes its identity and grant every five seconds. Its displayed
+grant can therefore lag a host-side change until the next successful refresh
+or disconnect; a rate-limited heartbeat is retried. The gateway continues to
+authorize each request and response. Remote pause/cancel are available through
+the control API and the native controller.
+
+An isolated ControlApi fixture exercised pagination, projection, denial of
+mutations and LIVE-restricted grants, and response reauthorization after a
+grant change. A native controller connected over local TLS exercised the same
+scope, reconnect and redaction path. A separate local TLS test exercises a
+competition-only grant at one request per second and burst one. Frontend tests
+cover pagination, stale replies, malformed data, escaped rendering and a
+simulated low-rate polling schedule. These tests do not
+demonstrate a real TikTok LIVE or two physical PCs.
+
+Recovery retries only explicit pre-dispatch rate-limit rejections for
+subscribe, snapshot pages and resume; transport failures and timeouts are not
+retried. Local TLS tests at one request per second cover combined competition,
+workflow, points and LIVE grants, as well as a multipage workflow baseline,
+resume and revocation. Snapshot pages retain the existing 30-second lifetime.
+At a very low request rate, a sufficiently large multipage baseline can expire
+before it is fully read, so recovery for every allowed baseline size is not
+guaranteed at the minimum gateway quota. The hub rejects a capture with
+`snapshot_rate_budget` before returning its first page if even a full request
+bucket and its maximum refill strictly before the 30-second expiry cannot cover
+the remaining pages. The expiry boundary itself is not an available refill.
+The hub requires forward pages in order while allowing a previously returned
+page to be retransmitted; a skipped page cannot complete the baseline.
+The test suite covers the boundary, discarding a superseded snapshot on failure,
+and refreshed rate limits after resume. This upper bound does not reserve rate
+capacity or prevent expiry for a smaller baseline; recovery of larger baselines
+remains future work. A local TLS SDK test verifies the error for a baseline
+with 32 pages at one request per second; the controller shows the operator
+guidance in English and Spanish and stops automatic reconnection for that error.
+Frame-aware packing now reserves the RPC envelope and exact page metadata,
+then verifies every serialized page before retaining the snapshot. A TLS SDK
+test recovers 32 medium-sized workflows at one request per second: their
+encoded size required at least 32 pages under the former half-frame budget,
+while the packed baseline completed in under the 30-second lifetime. A
+separate TLS test still rejects 32 larger one-record pages before returning a
+partial baseline. Unit coverage includes the largest allowed escaped RPC ID.
+High event rates can still exhaust retained history during recovery, and large
+records can still exceed the available request budget.
+
+## Creator-scoped LIVE feed
+
+The new `ui.feed.creator` read checks the authenticated `live.read` grant for
+the requested creator and reauthorizes the response before transport. Scoped
+history receives creator identity from stamped LIVE ingress only when its
+generation matches the captured host connection context. A generic event's
+JSON cannot assign its creator. Each retained creator has an independent random
+stream identity and sequence, a 64-entry sanitized ring and explicit gap on
+reset or eviction; a random-source failure makes scoped history unavailable.
+The at-most-64-stream bound can expose that a stream was evicted, but does not
+identify other creators or expose their activity counts. The desktop selects
+among the current grant's creators and clears old rows on a scope or connection
+change; it normally polls every two seconds, slows when the host advertises a
+low request limit, and retains at most 100 displayed rows.
+
+The gap flag also reports known ingress drops attributable to a stamped native
+generation. The pump binds a generation only when native discovery verified
+both the selected room and the requested creator. A room-info response must
+name that exact room and owner; a valid user lookup must name the same room
+and creator. A caller-provided handle, including when explicit-room metadata
+fails, remains a display label and cannot grant a scoped feed or delegated
+execution. Provenance is private native metadata and cannot be supplied by
+JSON. Unknown or rejected generations do not become trusted by later events.
+A drop observed first remains pending until that generation is verified.
+Each bound creator stream keeps a sticky warning without counts until its
+bounded in-memory stream is evicted or the process restarts. Conflicting
+generation bindings or more than 128 unresolved generations make the scoped
+feed unavailable, rather than attributing loss to an uncertain creator.
+The 128 most recent generation bindings are retained; a later loss for an
+evicted generation again waits for a trusted binding. This is a conservative
+signal: a dropped packet can be a type omitted from the scoped projection.
+The native broadcast uses a bounded journal of generation runs and native
+Connected identities to attribute a skipped range when it is completely
+covered. It preserves the original broadcast and never waits for bookkeeping
+on the sending path. Concurrent untracked sends, lost history, ambiguous or
+evicted identities produce an unattributable loss, never an inferred creator.
+Loss of unknown generations that never bind, an aborted worker's remaining
+items, and process failure may also go unreported. The UI always warns that
+events can be missing even when no gap is shown. A false gap result does not
+prove a complete LIVE archive.
+
+An unverified room remains available locally, but its supplied handle cannot
+authorize scoped status, feed or delegated effects. Owner rules receive an
+event without a creator field and cannot promote that event to delegated
+authority. Creator-scoped aggregation and competition participation remain
+unavailable until identity is verified. Connection and disconnection paths
+recheck generation evidence after asynchronous work; a contradiction during
+an already-started local metadata write can still leave local session or
+creator metadata. These checks are not an atomic fence against a later
+generation change.
+
+Executed evidence: five EventBus cases cover creator isolation, independent
+retention, pending and ambiguous loss, forged JSON and entropy failure; 17
+native ingress cases include queue saturation, a reconnect across two creators,
+discard of queued events from an old connection, and a drop observed before its
+creator is known. A protobuf TikTok fixture covers matching, stale and absent
+host connection context, including the scoped loss warning. An actual local TLS
+controller fixture verifies two creators, a disallowed read, grant change and
+stale connection rejection. Thirteen focused frontend model/component cases
+cover selection, switching after a feed error, stale in-flight pages, cursor resets and rendering; Vue type
+checking also passed. These use local fixtures and do not prove a real TikTok
+LIVE, two physical PCs, sustained-load behavior, or durable feed replay.
+
+Seven focused native-journal tests cover the unchanged broadcast, overload
+across creator generations, bounded-history eviction, conflicting identities,
+unverified labels, contended senders, and subscriptions racing an in-flight
+untracked send. A Core test confirms an attributed loss warns only its matching
+creator and an unattributed loss does not disclose another creator's activity.
+Another Core fixture runs in an isolated subprocess, injects a Connected-state
+snapshot only in test code, delivers native Connected through the real admission and worker, and
+checks that only the exact verified creator, room and current generation pass
+the scoped status predicate. It also checks disconnect, replacement and an
+unverified fallback. A separate ControlApi test with a real scoped grant
+rejects an unverified status. These fixtures do not establish a positive
+ControlApi-to-TikTok connection or replace physical two-device acceptance.
+
+## Remote heartbeat cancellation
+
+Socket heartbeat reauthentication now stops waiting when the gateway shuts down
+or the five-second check deadline expires. Blocking checks that outlive either
+condition retain a process-wide permit until they actually finish, limiting
+accumulation across gateway restarts. The focused unit tests cover cancellation,
+timeout, retained capacity and recovery after the blocked check completes; the
+independent-controller TLS integration test also passed. These checks do not
+establish a global shutdown deadline for every gateway operation.
+
+## Independent controllers over TLS
+
+An isolated local gateway test pairs two distinct native principals over TLS.
+One disables a permitted workflow and the other receives the next scoped
+subscription revision. The event omits the first principal's command ID and
+private workflow details. Revoking the first session closes its socket while
+the second retains its own access and cannot read the private workflow. This
+validates the gateway and host on one machine; physical two-PC, real TikTok
+LIVE and Desktop controller acceptance remain pending.
+
+A further local TLS test starts two separate native controller processes with
+independent principals, sessions, profile directories and fixture credential
+stores. Both receive the same workflow baseline; one disables it and the other
+observes revision 2. After the first session is revoked, its controller leaves
+the ready state while the second controller deletes the workflow at revision 3.
+The test checks that neither controller directory contains a host business
+database or plugin directory. Credentials use private temporary fixture files;
+this does not exercise the OS credential store, a real LIVE, separate hosts or
+two physical PCs.
+
+A second loopback TLS integration exercises the native controller and host
+together: a moderator proposes a disabled action and event, the Owner reviews
+and activates them, and the automation engine processes a synthetic chat
+event. Removing the moderator's LIVE-read grant prevents a further successful
+execution. This does not use a real TikTok event or two physical computers.
+
+An isolated stream-hub test now exercises two independent principals while one
+never acknowledges delivery. After its backlog exceeds the 4,096-event limit,
+only that stream requires a new snapshot: the other receives 4,098 ordered
+revisions, continues without reconnecting, and neither stream exceeds its
+bounded retention. A fresh snapshot permits the stalled principal to resume
+receiving changes without exposing another principal's command IDs. A separate
+loopback TLS test stops reading one client while the Owner commits 24 workflow
+changes; a second client receives all 24 revisions and remains able to read.
+The TLS test does not fill the OS socket buffer and neither test measures LIVE
+latency or establishes the complete COL-18 load or physical two-PC acceptance.
 
 ## Atomic Owner library transitions — latest extension
 

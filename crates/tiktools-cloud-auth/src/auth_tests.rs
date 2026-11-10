@@ -56,6 +56,14 @@ struct MockState {
 struct MockCloud {
     origin: String,
     task: tokio::task::JoinHandle<()>,
+    hold: Arc<HeldRequest>,
+}
+
+#[derive(Default)]
+struct HeldRequest {
+    path: Mutex<Option<String>>,
+    observed: tokio::sync::Notify,
+    release: tokio::sync::Notify,
 }
 
 impl MockCloud {
@@ -73,46 +81,66 @@ impl MockCloud {
             logouts: 0,
             expire_tokens,
         }));
-        let task = tokio::spawn(async move {
-            loop {
-                let Ok((mut socket, _)) = listener.accept().await else {
-                    break;
-                };
-                let state = state.clone();
-                tokio::spawn(async move {
-                    let mut buffer = vec![0_u8; 16 * 1024];
-                    let Ok(read) = socket.read(&mut buffer).await else {
-                        return;
+        let hold = Arc::new(HeldRequest::default());
+        let task = tokio::spawn({
+            let hold = hold.clone();
+            async move {
+                loop {
+                    let Ok((mut socket, _)) = listener.accept().await else {
+                        break;
                     };
-                    let request = String::from_utf8_lossy(&buffer[..read]).to_string();
-                    let mut lines = request.lines();
-                    let head = lines.next().unwrap_or_default().to_owned();
-                    let mut parts = head.split_whitespace();
-                    let method = parts.next().unwrap_or_default().to_owned();
-                    let target = parts.next().unwrap_or("/").to_owned();
-                    let (path, query) = target
-                        .split_once('?')
-                        .map_or_else(|| (target.as_str(), ""), |(path, query)| (path, query));
-                    let headers: HashMap<String, String> = lines
-                        .take_while(|line| !line.is_empty())
-                        .filter_map(|line| line.split_once(':'))
-                        .map(|(key, value)| {
-                            (key.trim().to_ascii_lowercase(), value.trim().to_owned())
-                        })
-                        .collect();
-                    let body_start = request.find("\r\n\r\n").map(|index| index + 4).unwrap_or(0);
-                    let body = request[body_start.min(request.len())..].to_owned();
-                    let (status, payload) = route(&method, path, query, &headers, &body, &state);
-                    let head = format!(
+                    let state = state.clone();
+                    let hold = hold.clone();
+                    tokio::spawn(async move {
+                        let mut buffer = vec![0_u8; 16 * 1024];
+                        let Ok(read) = socket.read(&mut buffer).await else {
+                            return;
+                        };
+                        let request = String::from_utf8_lossy(&buffer[..read]).to_string();
+                        let mut lines = request.lines();
+                        let head = lines.next().unwrap_or_default().to_owned();
+                        let mut parts = head.split_whitespace();
+                        let method = parts.next().unwrap_or_default().to_owned();
+                        let target = parts.next().unwrap_or("/").to_owned();
+                        let (path, query) = target
+                            .split_once('?')
+                            .map_or_else(|| (target.as_str(), ""), |(path, query)| (path, query));
+                        let headers: HashMap<String, String> = lines
+                            .take_while(|line| !line.is_empty())
+                            .filter_map(|line| line.split_once(':'))
+                            .map(|(key, value)| {
+                                (key.trim().to_ascii_lowercase(), value.trim().to_owned())
+                            })
+                            .collect();
+                        let body_start =
+                            request.find("\r\n\r\n").map(|index| index + 4).unwrap_or(0);
+                        let body = request[body_start.min(request.len())..].to_owned();
+                        let (status, payload) =
+                            route(&method, path, query, &headers, &body, &state);
+                        let should_hold = {
+                            let mut wanted = hold.path.lock().unwrap();
+                            if wanted.as_deref() == Some(path) {
+                                *wanted = None;
+                                true
+                            } else {
+                                false
+                            }
+                        };
+                        if should_hold {
+                            hold.observed.notify_one();
+                            hold.release.notified().await;
+                        }
+                        let head = format!(
                         "HTTP/1.1 {status}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
                         payload.len()
                     );
-                    let _ = socket.write_all(head.as_bytes()).await;
-                    let _ = socket.write_all(payload.as_bytes()).await;
-                });
+                        let _ = socket.write_all(head.as_bytes()).await;
+                        let _ = socket.write_all(payload.as_bytes()).await;
+                    });
+                }
             }
         });
-        Self { origin, task }
+        Self { origin, task, hold }
     }
 
     fn stop(self) {
@@ -327,10 +355,25 @@ async fn captured_session_is_invalid_after_logout_and_same_account_login() {
     deliver_callback(&begun.browser_url, "first-session").await;
     waiter.await.unwrap().unwrap();
     let first = auth.session().await.unwrap();
+    {
+        assert!(auth
+            .clone()
+            .with_current_session_permit(&first, || ())
+            .is_ok());
+        let independent = manager(
+            &dir,
+            Some(mock.origin.clone()),
+            Arc::new(MemoryTokenStore::new()),
+        );
+        assert!(independent
+            .with_current_session_permit(&first, || ())
+            .is_err());
+    }
     assert!(auth.is_current_session(&first));
     assert!(auth.clone().is_current_session(&first));
     auth.logout().await.unwrap();
     assert!(!auth.is_current_session(&first));
+    assert!(auth.with_current_session_permit(&first, || ()).is_err());
     let begun = auth.begin_login().await.unwrap();
     let waiter = spawn_complete(&auth);
     deliver_callback(&begun.browser_url, "second-session").await;
@@ -339,7 +382,338 @@ async fn captured_session_is_invalid_after_logout_and_same_account_login() {
     assert_eq!(first.account_id(), second.account_id());
     assert!(!auth.is_current_session(&first));
     assert!(auth.is_current_session(&second));
+    assert!(auth.with_current_session_permit(&first, || ()).is_err());
+    assert!(auth.with_current_session_permit(&second, || ()).is_ok());
     auth.logout().await.unwrap();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn session_permit_defers_logout_without_holding_account_mutex() {
+    let dir = TempDir::new("session-permit");
+    let mock = MockCloud::start("permit-account").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "permit-session").await;
+    waiter.await.unwrap().unwrap();
+    let session = auth.session().await.unwrap();
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let holding_auth = auth.clone();
+    let holding_session = session.clone();
+    let worker = tokio::task::spawn_blocking(move || {
+        holding_auth
+            .with_current_session_permit(&holding_session, || {
+                ready_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+            })
+            .unwrap();
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(3), ready_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!logout.is_finished());
+    // The identity permit does not own the account mutex; unrelated reads
+    // stay responsive while logout waits asynchronously for the commit.
+    let status = tokio::time::timeout(std::time::Duration::from_secs(1), auth.status())
+        .await
+        .unwrap();
+    assert_eq!(status.state, AccountState::SignedIn);
+    assert!(auth.with_current_session_permit(&session, || ()).is_err());
+    // Cancellation while queued must release both the pending-writer slot
+    // and transition flag without changing the still-current session.
+    logout.abort();
+    assert!(logout.await.unwrap_err().is_cancelled());
+    assert!(auth.with_current_session_permit(&session, || ()).is_ok());
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!logout.is_finished());
+    release_tx.send(()).unwrap();
+    worker.await.unwrap();
+    assert_eq!(
+        logout.await.unwrap().unwrap().state,
+        AccountState::SignedOut
+    );
+    assert!(auth.with_current_session_permit(&session, || ()).is_err());
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn owned_session_emission_permit_fences_transitions_and_releases_on_cancellation() {
+    let dir = TempDir::new("owned-session-emission");
+    let mock = MockCloud::start("permit-account").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "emission-first").await;
+    waiter.await.unwrap().unwrap();
+    let first = auth.session().await.unwrap();
+
+    // A pending login transition wins against new admissions even before it
+    // acquires the exclusive gate. Cancelling it does not disturb the lease.
+    let lease = auth.clone().try_session_emission_permit(&first).unwrap();
+    let login_auth = auth.clone();
+    let login = tokio::spawn(async move { login_auth.begin_login().await });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!login.is_finished());
+    assert!(auth.try_session_emission_permit(&first).is_err());
+    assert_eq!(auth.status().await.state, AccountState::SignedIn);
+    login.abort();
+    assert!(login.await.unwrap_err().is_cancelled());
+    assert!(auth.try_session_emission_permit(&first).is_ok());
+    drop(lease);
+
+    // The permit is Send and survives an await without retaining the account
+    // mutex. Cancelling its task releases it and lets a queued logout finish.
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let worker_auth = auth.clone();
+    let worker_session = first.clone();
+    let worker = tokio::spawn(async move {
+        let _permit = worker_auth
+            .try_session_emission_permit(&worker_session)
+            .unwrap();
+        ready_tx.send(()).unwrap();
+        std::future::pending::<()>().await;
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(3), ready_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    let logout_auth = auth.clone();
+    let logout = tokio::spawn(async move { logout_auth.logout().await });
+    tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        while auth.try_session_snapshot().is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!logout.is_finished());
+    assert!(auth.try_session_emission_permit(&first).is_err());
+    assert_eq!(
+        tokio::time::timeout(std::time::Duration::from_secs(1), auth.status())
+            .await
+            .unwrap()
+            .state,
+        AccountState::SignedIn
+    );
+    worker.abort();
+    assert!(worker.await.unwrap_err().is_cancelled());
+    assert_eq!(
+        tokio::time::timeout(std::time::Duration::from_secs(3), logout)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .state,
+        AccountState::SignedOut
+    );
+    assert!(auth.try_session_emission_permit(&first).is_err());
+
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "emission-second").await;
+    waiter.await.unwrap().unwrap();
+    let second = auth.session().await.unwrap();
+    assert_eq!(first.account_id(), second.account_id());
+    assert!(auth.try_session_emission_permit(&first).is_err());
+    assert!(auth.try_session_emission_permit(&second).is_ok());
+
+    // A deadline owned by the caller drops the permit, so a transition is
+    // not held forever after the operation's allowed duration.
+    let bounded = tokio::time::timeout(std::time::Duration::from_millis(50), async {
+        let _permit = auth.try_session_emission_permit(&second).unwrap();
+        std::future::pending::<()>().await;
+    });
+    assert!(bounded.await.is_err());
+    assert_eq!(
+        tokio::time::timeout(std::time::Duration::from_secs(3), auth.logout())
+            .await
+            .unwrap()
+            .unwrap()
+            .state,
+        AccountState::SignedOut
+    );
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn identity_is_unavailable_during_pending_and_completing_login() {
+    let dir = TempDir::new("identity-login-transition");
+    let mock = MockCloud::start("user-transition").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let _begun = auth.begin_login().await.unwrap();
+    assert!(auth.try_sync_identity().is_err());
+    let waiter = spawn_complete(&auth);
+    tokio::task::yield_now().await;
+    assert!(auth.try_sync_identity().is_err());
+    auth.cancel_login().await.unwrap();
+    assert!(waiter.await.unwrap().is_err());
+    assert!(matches!(auth.try_sync_identity(), Ok(None)));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cancel_and_logout_during_redeem_do_not_resurrect_session() {
+    for cancel in [true, false] {
+        let dir = TempDir::new("held-redeem");
+        let mock = MockCloud::start("user-held").await;
+        let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
+        let auth = manager(&dir, Some(mock.origin.clone()), store.clone());
+        let begun = auth.begin_login().await.unwrap();
+        *mock.hold.path.lock().unwrap() = Some("/api/v1/native/handoff/redeem".into());
+        let waiter = spawn_complete(&auth);
+        deliver_callback(
+            &begun.browser_url,
+            if cancel { "held-cancel" } else { "held-logout" },
+        )
+        .await;
+        tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            mock.hold.observed.notified(),
+        )
+        .await
+        .unwrap();
+        if cancel {
+            auth.cancel_login().await.unwrap();
+        } else {
+            auth.logout().await.unwrap();
+        }
+        mock.hold.release.notify_one();
+        assert!(waiter.await.unwrap().is_err());
+        assert!(auth.session().await.is_none());
+        assert!(auth.try_sync_identity().unwrap().is_none());
+        assert!(store.load(&mock.origin, "user-held").unwrap().is_none());
+        assert!(!dir.join("cloud-account.json").exists());
+        mock.stop();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn restore_finishing_after_logout_cannot_install_session() {
+    let dir = TempDir::new("held-restore");
+    let mock = MockCloud::start("user-restored").await;
+    let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
+    let original = manager(&dir, Some(mock.origin.clone()), store.clone());
+    let begun = original.begin_login().await.unwrap();
+    let waiter = spawn_complete(&original);
+    deliver_callback(&begun.browser_url, "restore-race").await;
+    waiter.await.unwrap().unwrap();
+    let fresh = manager(&dir, Some(mock.origin.clone()), store.clone());
+    *mock.hold.path.lock().unwrap() = Some("/api/v1/native/me".into());
+    let restoring = {
+        let fresh = fresh.clone();
+        tokio::spawn(async move { fresh.restore().await })
+    };
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        mock.hold.observed.notified(),
+    )
+    .await
+    .unwrap();
+    fresh.logout().await.unwrap();
+    mock.hold.release.notify_one();
+    assert!(restoring.await.unwrap().is_err());
+    assert!(fresh.session().await.is_none());
+    assert!(fresh.try_sync_identity().unwrap().is_none());
+    assert!(store.load(&mock.origin, "user-restored").unwrap().is_none());
+    assert!(!dir.join("cloud-account.json").exists());
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn aborted_logout_does_not_leave_local_credentials_or_identity() {
+    let dir = TempDir::new("held-logout");
+    let mock = MockCloud::start("user-logout").await;
+    let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
+    let auth = manager(&dir, Some(mock.origin.clone()), store.clone());
+    let begun = auth.begin_login().await.unwrap();
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "logout-race").await;
+    waiter.await.unwrap().unwrap();
+    *mock.hold.path.lock().unwrap() = Some("/api/v1/native/logout".into());
+    let logout = {
+        let auth = auth.clone();
+        tokio::spawn(async move { auth.logout().await })
+    };
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        mock.hold.observed.notified(),
+    )
+    .await
+    .unwrap();
+    assert!(!dir.join("cloud-account.json").exists());
+    assert!(store.load(&mock.origin, "user-logout").unwrap().is_none());
+    logout.abort();
+    assert!(logout.await.unwrap_err().is_cancelled());
+    assert!(auth.session().await.is_none());
+    assert!(auth.try_sync_identity().unwrap().is_none());
+    mock.hold.release.notify_one();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn aborting_completion_does_not_leave_identity_permanently_busy() {
+    let dir = TempDir::new("aborted-login");
+    let mock = MockCloud::start("user-aborted").await;
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::new(MemoryTokenStore::new()),
+    );
+    let begun = auth.begin_login().await.unwrap();
+    *mock.hold.path.lock().unwrap() = Some("/api/v1/native/handoff/redeem".into());
+    let waiter = spawn_complete(&auth);
+    deliver_callback(&begun.browser_url, "abort-login").await;
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        mock.hold.observed.notified(),
+    )
+    .await
+    .unwrap();
+    waiter.abort();
+    assert!(waiter.await.unwrap_err().is_cancelled());
+    assert!(matches!(auth.try_sync_identity(), Ok(None)));
+    assert_eq!(auth.status().await.state, AccountState::SignedOut);
+    assert!(auth.begin_login().await.is_ok());
+    auth.cancel_login().await.unwrap();
+    mock.hold.release.notify_one();
     mock.stop();
 }
 

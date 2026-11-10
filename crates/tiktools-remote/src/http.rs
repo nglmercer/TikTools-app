@@ -4,14 +4,14 @@ use crate::{
     state::State,
 };
 use axum::{
+    Json, Router,
     extract::{
-        rejection::JsonRejection, ConnectInfo, DefaultBodyLimit, Request, State as ExtractState,
+        ConnectInfo, DefaultBodyLimit, Request, State as ExtractState, rejection::JsonRejection,
     },
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -19,7 +19,7 @@ use std::{net::SocketAddr, sync::Arc};
 use tiktools_collaboration::{ClientKind, Collect, Redeem};
 
 pub(crate) fn router(state: Arc<State>) -> Router {
-    Router::new()
+    let router = Router::new()
         .route("/remote/v1/info", get(info))
         .route(
             "/remote/v1/join",
@@ -40,7 +40,12 @@ pub(crate) fn router(state: Arc<State>) -> Router {
         .route("/remote/v1/session/refresh", post(refresh))
         .route("/remote/v1/session/logout", post(logout))
         .route("/remote/v1/ws-ticket", post(ticket))
-        .route("/remote/v1/ws", get(socket::upgrade))
+        .route("/remote/v1/ws", get(socket::upgrade));
+    #[cfg(feature = "browser-app")]
+    let router = router
+        .route("/remote/v1/app", get(browser_app))
+        .route("/assets/{*path}", get(browser_asset));
+    router
         .layer(DefaultBodyLimit::max(4096))
         .layer(middleware::from_fn_with_state(Arc::clone(&state), boundary))
         .with_state(state)
@@ -85,14 +90,68 @@ async fn boundary(
     headers.insert(header::CACHE_CONTROL, "no-store".parse().expect("static"));
     headers.insert("referrer-policy", "no-referrer".parse().expect("static"));
     headers.insert("x-content-type-options", "nosniff".parse().expect("static"));
-    headers.insert("content-security-policy","default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'".parse().expect("static"));
+    headers.insert("content-security-policy","default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'".parse().expect("static"));
     response
 }
 
 async fn info(ExtractState(state): ExtractState<Arc<State>>) -> Json<serde_json::Value> {
     Json(
-        json!({"protocolMin":1,"protocolMax":1,"hostId":state.service.host_id(),"name":"TikTools","certificateFingerprint":state.fingerprint}),
+        json!({"protocolMin":1,"protocolMax":1,"hostId":state.service.host_id(),"name":"TikTools","certificateFingerprint":state.fingerprint,"browserApp":browser_app_enabled(&state)}),
     )
+}
+
+pub(crate) fn browser_app_enabled(state: &State) -> bool {
+    cfg!(feature = "browser-app")
+        && state
+            .configuration
+            .advertised_origin
+            .as_deref()
+            .is_some_and(|origin| origin.starts_with("https://"))
+}
+
+#[cfg(feature = "browser-app")]
+async fn browser_app(
+    ExtractState(state): ExtractState<Arc<State>>,
+    headers: HeaderMap,
+) -> Result<Response, HttpError> {
+    if !browser_app_enabled(&state) {
+        return Err(HttpError::forbidden());
+    }
+    let session = auth::authenticate(&state, &headers, false).await?;
+    if !session.browser {
+        return Err(HttpError::forbidden());
+    }
+    session.authority.snapshot()?;
+    let html = crate::browser_assets::INDEX.replacen(
+        "<head>",
+        "<head><meta name=\"tiktools-transport\" content=\"remote-web\">",
+        1,
+    );
+    Ok(([(header::CONTENT_TYPE, "text/html; charset=utf-8")], html).into_response())
+}
+
+#[cfg(feature = "browser-app")]
+async fn browser_asset(
+    ExtractState(state): ExtractState<Arc<State>>,
+    headers: HeaderMap,
+    uri: axum::http::Uri,
+) -> Result<Response, HttpError> {
+    if !browser_app_enabled(&state) {
+        return Err(HttpError::forbidden());
+    }
+    let session = auth::authenticate(&state, &headers, false).await?;
+    if !session.browser {
+        return Err(HttpError::forbidden());
+    }
+    session.authority.snapshot()?;
+    let Some((bytes, mime)) = crate::browser_assets::asset(uri.path()) else {
+        return Ok(StatusCode::NOT_FOUND.into_response());
+    };
+    Ok((
+        [(header::CONTENT_TYPE, mime)],
+        axum::body::Body::from(bytes),
+    )
+        .into_response())
 }
 
 fn body<T>(input: Result<Json<T>, JsonRejection>) -> Result<T, HttpError> {
@@ -227,7 +286,9 @@ async fn ticket(
     }
     auth::check_csrf(&state, &authentication, &headers)?;
     let ticket = auth::issue_ticket(&state, &authentication)?;
-    let cookie=format!("{TICKET_COOKIE}={ticket}; Secure; HttpOnly; SameSite=Strict; Path=/remote/v1/ws; Max-Age=30");
+    let cookie = format!(
+        "{TICKET_COOKIE}={ticket}; Secure; HttpOnly; SameSite=Strict; Path=/remote/v1/ws; Max-Age=30"
+    );
     Ok((
         [(header::SET_COOKIE, cookie)],
         Json(json!({"expiresInSeconds":30})),

@@ -68,6 +68,7 @@ impl Fixture {
             ),
             host_id: "host".into(),
             host_instance_id: "instance".into(),
+            provenance: None,
         }
     }
     fn execute(

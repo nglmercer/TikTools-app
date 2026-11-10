@@ -319,6 +319,66 @@ fn event_command(instance: &str, id: &str, revision: &str) -> Value {
 }
 
 #[tokio::test]
+async fn scoped_moderator_can_disable_action_and_recover_original_receipt() {
+    use tiktools_core::collaboration::*;
+    let f = Fixture::new();
+    for id in ["allowed", "private"] {
+        f.core.automation_create(AutomationKind::Action, json!({"id":id,"name":id,"enabled":true,"typeId":"core.log","config":{"message":"hi"}})).unwrap();
+    }
+    let grant = Grant {
+        capabilities: [
+            Capability::AutomationRead,
+            Capability::AutomationToggle,
+            Capability::CommandsRead,
+        ]
+        .into(),
+        resources: [(ResourceKind::Automation, ["action:allowed".into()].into())].into(),
+        ..Grant::default()
+    };
+    let (context, _) = f.pair(grant);
+    let service = f.core.collaboration().unwrap();
+    let instance = service.instance_id();
+    let denied = f
+        .remote(
+            &context,
+            "automation.disable",
+            json!({"kind":"action","id":"private"}),
+            event_command(instance, "private", "1"),
+        )
+        .await;
+    assert_eq!(denied.error.unwrap().code, "forbidden");
+    let meta = event_command(instance, "disable-action", "1");
+    let response = f
+        .remote(
+            &context,
+            "automation.disable",
+            json!({"kind":"action","id":"allowed"}),
+            meta.clone(),
+        )
+        .await;
+    assert!(response.is_ok(), "{response:?}");
+    assert_eq!(
+        response.result,
+        Some(json!({"kind":"action","id":"allowed","enabled":false}))
+    );
+    assert_eq!(response.meta.unwrap().resource_versions[0].scope, "action");
+    let recovered = f
+        .remote(
+            &context,
+            "collaboration.commands.get",
+            json!({"commandId":"disable-action"}),
+            Value::Null,
+        )
+        .await;
+    assert!(recovered.is_ok(), "{recovered:?}");
+    assert_eq!(
+        recovered.result.unwrap()["result"],
+        json!({"kind":"action","id":"allowed","enabled":false})
+    );
+    f.close().await;
+}
+
+#[tokio::test]
 async fn remote_summaries_and_event_commands_are_family_scoped_recoverable_and_reauthorized() {
     use tiktools_core::collaboration::*;
     let f = Fixture::new();

@@ -32,6 +32,87 @@ fn owner_points_child(f: &Fixture, delta: f64) {
     f.core().automation_create(AutomationKind::Event,json!({"id":"owner-event","name":"Owner child","enabled":true,"trigger":"moderator.adjust","actionIds":["owner-child"]})).unwrap();
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn reusable_script_runs_public_input_once_and_stops_after_revocation() {
+    let f = Fixture::new();
+    let mut allowed = grant();
+    allowed
+        .capabilities
+        .extend([Capability::AutomationToggle, Capability::ScriptsExecute]);
+    allowed.automation_delegation = Some(AutomationDelegation {
+        effects: [DelegatedAutomationEffect::Script].into(),
+        allow_dynamic_targets: true,
+        allow_owner_edits: false,
+        allow_owner_source: false,
+        allow_other_author_edits: false,
+        allow_other_author_source: false,
+    });
+    let auth = f.pair(allowed.clone());
+    let identity = auth.snapshot().unwrap();
+    for (kind, record) in [
+        (
+            AutomationKind::Action,
+            json!({"id":"script","name":"Code","enabled":true,"typeId":"core.code","schemaVersion":2,"config":{"source":"return {log:[event.user.uniqueId]};"}}),
+        ),
+        (
+            AutomationKind::Event,
+            json!({"id":"rule","name":"Chat","enabled":true,"trigger":"tiktok.chat","actionIds":["script"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
+        ),
+    ] {
+        f.core()
+            .automation_command(
+                CommandCaller::Remote(auth.clone()),
+                f.request("0"),
+                AutomationMutation::Create { kind, record },
+            )
+            .unwrap();
+    }
+    f.core()
+        .run_automation_event(AutomationEvent::owner_without_delegation(input("alice")))
+        .await;
+    assert!(f
+        .core()
+        .automation_effect_history(None, 10)
+        .unwrap()
+        .items
+        .is_empty());
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    let receipts = f.core().automation_effect_history(None, 10).unwrap();
+    assert_eq!(receipts.items.len(), 1);
+    assert_eq!(receipts.items[0].kind, EffectKind::Script);
+    assert_eq!(receipts.items[0].state, EffectState::Succeeded);
+    let runs = f.core().automation_runs();
+    assert!(
+        runs.iter()
+            .any(|run| run["actionId"] == "script" && run["status"] == "ok"),
+        "{runs:?}"
+    );
+    assert!(!serde_json::to_string(&runs).unwrap().contains("private-"));
+    allowed.automation_delegation = None;
+    f.core()
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: identity.principal_id,
+            expected_revision: identity.grant_revision,
+            grant: allowed,
+        })
+        .unwrap();
+    f.core()
+        .run_automation_event(AutomationEvent::owner(input("alice")))
+        .await;
+    assert_eq!(
+        f.core()
+            .automation_effect_history(None, 10)
+            .unwrap()
+            .items
+            .len(),
+        1
+    );
+    f.core().shutdown().await;
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn approved_script_emits_to_owner_points_without_losing_limits_or_replaying() {
     let f = Fixture::new();
     owner_points_child(&f, 2.0);

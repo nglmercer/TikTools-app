@@ -25,7 +25,7 @@ mod plugins;
 mod transport;
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     sync::{
         atomic::{AtomicBool, AtomicU64},
         Arc, Mutex, RwLock,
@@ -110,6 +110,9 @@ pub(crate) struct PluginRuntimeState {
     pub(crate) invocation_gate: Mutex<()>,
     pub(crate) health: Mutex<BTreeMap<String, PluginHealth>>,
     pub(crate) activation: RwLock<BTreeMap<String, PluginActivation>>,
+    /// None means recovery evidence could not be read and all plugins are
+    /// blocked. Some contains plugins with an unknown remote-apply outcome.
+    pub(crate) apply_quarantine: RwLock<Option<BTreeSet<String>>>,
     /// Bumped on every activation write (enable/disable/install). The
     /// event fan-out cache validates against this instead of re-reading
     /// activation per plugin per event.
@@ -135,6 +138,7 @@ impl Default for PluginRuntimeState {
             invocation_gate: Mutex::new(()),
             health: Mutex::new(BTreeMap::new()),
             activation: RwLock::new(BTreeMap::new()),
+            apply_quarantine: RwLock::new(Some(BTreeSet::new())),
             activation_revision: AtomicU64::new(1),
             fanout: Mutex::new(FanoutCache::default()),
             fanout_overload_warned_at: AtomicU64::new(0),

@@ -33,6 +33,18 @@
         if (result.approved) {
           status.textContent = 'Device approved. You can close this page.';
           form.hidden = true;
+          try {
+            const channel = new BroadcastChannel('tiktools-remote-session-v1');
+            channel.postMessage('session-changed');
+            channel.close();
+          } catch { /* other tabs also verify their session periodically */ }
+          try {
+            const info = await fetch('/remote/v1/info', { credentials: 'same-origin', cache: 'no-store', redirect: 'error' });
+            if (info.ok && (await info.json()).browserApp === true) {
+              status.textContent = 'Device approved.';
+              document.getElementById('open-app').hidden = false;
+            }
+          } catch { /* pairing succeeded even if app availability cannot be checked */ }
           return;
         }
       }

@@ -6,7 +6,12 @@ mod server;
 mod socket;
 mod state;
 
-pub use server::{start, start_on, supervise, RemoteGateway};
+#[cfg(feature = "browser-app")]
+mod browser_assets {
+    include!(concat!(env!("OUT_DIR"), "/browser_assets.rs"));
+}
+
+pub use server::{RemoteGateway, start, start_on, supervise};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

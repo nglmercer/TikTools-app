@@ -113,6 +113,32 @@ fn grant() -> Grant {
 }
 
 #[tokio::test]
+async fn scoped_live_status_cannot_use_an_unverified_creator_label_as_authority() {
+    let f = Fixture::new();
+    let grant = Grant {
+        capabilities: [Capability::LiveRead].into(),
+        resources: [(ResourceKind::Live, ["alice".into()].into())].into(),
+        ..Grant::default()
+    };
+    let (context, _) = f.pair(grant);
+    let RequestContext::Remote(session) = context else {
+        panic!("expected paired session")
+    };
+    // A matching requested handle is not proof that an arbitrary room belongs
+    // to it. Exercise real host-side grant validation on the response path.
+    let spoofed = json!({"connected":true,"uniqueId":"alice","roomId":"other-room",
+        "connectionId":"connection-0","native":true});
+    assert_eq!(
+        f.api
+            .authorize_remote_response(&session, "live.status", &spoofed)
+            .unwrap_err()
+            .code,
+        "forbidden"
+    );
+    f.close().await;
+}
+
+#[tokio::test]
 async fn display_view_is_minimal_scoped_and_versions_the_union_including_missing_lookup() {
     let f = Fixture::new();
     f.core.points_adjust("alice", 3.0).unwrap();

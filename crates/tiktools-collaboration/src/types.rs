@@ -60,6 +60,45 @@ pub enum Capability {
     ScriptsExecute,
 }
 
+/// Explicit policy for future reusable delegated automation execution. This
+/// is not itself an execution permit: the host must validate the saved closure
+/// and current subjects before it may be used at runtime.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
+)]
+#[serde(rename_all = "kebab-case")]
+pub enum DelegatedAutomationEffect {
+    Log,
+    Delay,
+    Points,
+    Http,
+    Audio,
+    Emit,
+    Script,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AutomationDelegation {
+    pub effects: BTreeSet<DelegatedAutomationEffect>,
+    pub allow_dynamic_targets: bool,
+    /// Explicitly allow scoped changes to existing Owner definitions.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_owner_edits: bool,
+    /// Explicitly share Owner source, which can include sensitive values.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_owner_source: bool,
+    /// Allow scoped definitions authored by another moderator to be replaced.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_other_author_edits: bool,
+    /// Share full source of scoped definitions authored by other moderators.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub allow_other_author_source: bool,
+}
+fn is_false(value: &bool) -> bool {
+    !value
+}
+
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,
 )]
@@ -176,6 +215,9 @@ pub struct Grant {
     /// a missing or empty policy never means unrestricted access.
     #[serde(default, skip_serializing_if = "crate::EffectGrants::is_empty")]
     pub effects: crate::EffectGrants,
+    /// Missing on legacy grants; reusable execution is bounded by this policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub automation_delegation: Option<AutomationDelegation>,
 }
 
 impl Grant {
@@ -210,6 +252,34 @@ impl Grant {
 
     pub fn validate(&self) -> Result<(), crate::Error> {
         self.effects.validate()?;
+        if let Some(policy) = &self.automation_delegation {
+            if policy.effects.is_empty()
+                || (policy.allow_owner_source && !policy.allow_owner_edits)
+                || (policy.allow_other_author_source && !policy.allow_other_author_edits)
+                || ![
+                    Capability::AutomationRead,
+                    Capability::AutomationEdit,
+                    Capability::AutomationToggle,
+                ]
+                .iter()
+                .all(|capability| self.capabilities.contains(capability))
+                || policy.effects.iter().any(|effect| {
+                    let required = match effect {
+                        DelegatedAutomationEffect::Points => Some(Capability::PointsAdjust),
+                        DelegatedAutomationEffect::Http => Some(Capability::HttpRequest),
+                        DelegatedAutomationEffect::Audio => Some(Capability::AudioPlay),
+                        DelegatedAutomationEffect::Emit => Some(Capability::EventsEmit),
+                        DelegatedAutomationEffect::Script => Some(Capability::ScriptsExecute),
+                        DelegatedAutomationEffect::Log | DelegatedAutomationEffect::Delay => None,
+                    };
+                    required.is_some_and(|capability| !self.capabilities.contains(&capability))
+                })
+            {
+                return Err(crate::Error::Invalid(
+                    "invalid automation delegation policy",
+                ));
+            }
+        }
         if self.resources.len() > 32
             || self.settings_fields.len() > 256
             || self.actions.len() > 256
@@ -649,6 +719,81 @@ mod tests {
         let wildcard: Grant =
             serde_json::from_value(serde_json::json!({"resources":{"workflow":["*"]}})).unwrap();
         assert!(wildcard.validate().is_err());
+    }
+    #[test]
+    fn reusable_automation_policy_is_explicit_closed_and_requires_capabilities() {
+        let old: Grant = serde_json::from_value(serde_json::json!({"capabilities":["automation.read","automation.edit","automation.toggle"]})).unwrap();
+        assert!(old.automation_delegation.is_none());
+        assert!(serde_json::to_value(&old)
+            .unwrap()
+            .get("automationDelegation")
+            .is_none());
+        let mut grant = old;
+        grant.automation_delegation = Some(AutomationDelegation {
+            effects: [
+                DelegatedAutomationEffect::Log,
+                DelegatedAutomationEffect::Delay,
+            ]
+            .into(),
+            allow_dynamic_targets: false,
+            allow_owner_edits: false,
+            allow_owner_source: false,
+            allow_other_author_edits: false,
+            allow_other_author_source: false,
+        });
+        grant.validate().unwrap();
+        let serialized = serde_json::to_value(&grant).unwrap();
+        let restored: Grant = serde_json::from_value(serialized.clone()).unwrap();
+        assert_eq!(restored, grant);
+        assert!(serialized["automationDelegation"]
+            .get("allowOwnerEdits")
+            .is_none());
+        let mut shared = grant.clone();
+        shared
+            .automation_delegation
+            .as_mut()
+            .unwrap()
+            .allow_owner_edits = true;
+        let encoded = serde_json::to_value(&shared).unwrap();
+        assert_eq!(encoded["automationDelegation"]["allowOwnerEdits"], true);
+        assert_eq!(serde_json::from_value::<Grant>(encoded).unwrap(), shared);
+        let mut source_only = grant.clone();
+        source_only
+            .automation_delegation
+            .as_mut()
+            .unwrap()
+            .allow_owner_source = true;
+        assert!(source_only.validate().is_err());
+        shared
+            .automation_delegation
+            .as_mut()
+            .unwrap()
+            .allow_owner_source = true;
+        assert!(shared.validate().is_ok());
+        let mut extra = serialized.clone();
+        extra["automationDelegation"]["effects"] = serde_json::json!(["plugin"]);
+        assert!(serde_json::from_value::<Grant>(extra).is_err());
+        let mut widened = serialized;
+        widened["automationDelegation"]["effects"] = serde_json::json!(["http"]);
+        assert!(serde_json::from_value::<Grant>(widened)
+            .unwrap()
+            .validate()
+            .is_err());
+        grant
+            .automation_delegation
+            .as_mut()
+            .unwrap()
+            .effects
+            .clear();
+        assert!(grant.validate().is_err());
+        grant
+            .automation_delegation
+            .as_mut()
+            .unwrap()
+            .effects
+            .insert(DelegatedAutomationEffect::Log);
+        grant.capabilities.remove(&Capability::AutomationToggle);
+        assert!(grant.validate().is_err());
     }
     #[test]
     fn automation_grants_bind_family_and_never_promote_ambiguous_legacy_ids() {

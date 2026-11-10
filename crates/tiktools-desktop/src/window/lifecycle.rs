@@ -51,6 +51,8 @@ impl DesktopApp {
         // Winit constructs this host outside an entered Tokio context.
         // Durable metadata delivery still belongs to the host lifecycle.
         core.start_coordination_worker_on(&runtime);
+        #[cfg(feature = "cloud-auth")]
+        core.start_cloud_sync_worker_on(&runtime);
         #[cfg(feature = "remote-control")]
         {
             core.set_collaboration_gateway_available(true);

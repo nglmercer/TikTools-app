@@ -5,6 +5,7 @@ export type AccountPersistence = 'keychain' | 'memory-only';
 export interface AccountStatus {
   origin: string | null;
   state: AccountState;
+  loginOperationId?: string | null;
   accountId?: string | null;
   email?: string | null;
   displayName?: string | null;

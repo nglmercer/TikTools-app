@@ -182,6 +182,27 @@ pub struct Definition {
     pub on_user_win: Option<WinnerAction>,
 }
 impl Definition {
+    /// Draws and challenges select a user; other competitions select an option.
+    pub fn has_user_winner(&self) -> bool {
+        matches!(
+            self.kind,
+            CompetitionKind::RandomDraw
+                | CompetitionKind::WeightedDraw
+                | CompetitionKind::LeaderboardChallenge
+        )
+    }
+
+    pub fn winner_action(&self, winner: &str) -> Option<&WinnerAction> {
+        if self.has_user_winner() {
+            self.on_user_win.as_ref()
+        } else {
+            self.options
+                .iter()
+                .find(|option| option.id == winner)
+                .and_then(|option| option.on_win.as_ref())
+        }
+    }
+
     /// Reject ambiguous command and gift routing rather than choosing an
     /// arbitrary option. Commands are compared case-insensitively.
     pub fn validate(&self) -> Result<(), Error> {

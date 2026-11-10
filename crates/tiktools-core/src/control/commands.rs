@@ -234,6 +234,11 @@ impl AppCore {
                                 .grant
                                 .capabilities
                                 .contains(&Capability::PointsRead)
+                            || identity
+                                .grant
+                                .capabilities
+                                .contains(&Capability::CompetitionsRead)
+                                && !identity.grant.resources.contains_key(&ResourceKind::Live)
                             || super::automation::automation_read_allowed(&identity.grant))
                         || params
                             .principal_id
@@ -409,6 +414,13 @@ fn authorize_query(caller: &CommandCaller, target: &CommandResource) -> Result<(
                 ResourceKind::Automation => {
                     crate::collaboration::AutomationFamily::from_scope(&target.scope).is_some()
                         && super::automation::automation_read_allowed(&identity.grant)
+                }
+                ResourceKind::Competition => {
+                    identity
+                        .grant
+                        .capabilities
+                        .contains(&Capability::CompetitionsRead)
+                        && !identity.grant.resources.contains_key(&ResourceKind::Live)
                 }
                 _ => false,
             }

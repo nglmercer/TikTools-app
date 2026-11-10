@@ -7,6 +7,8 @@ use crate::Rejection;
 
 #[derive(Debug, Error)]
 pub enum RegistryError {
+    #[error("registry sources are managed by the application")]
+    FixedSources,
     #[error("registry `{0}` is not configured")]
     UnknownRegistry(String),
     #[error("cloud registry at {origin} has no published generation yet")]

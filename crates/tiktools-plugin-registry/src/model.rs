@@ -51,6 +51,21 @@ pub enum AdvisorySeverity {
     Critical,
 }
 
+/// Current Cloud status of the exact host artifact, separate from the
+/// immutable signed snapshot. `Unknown` never authorizes installation.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum LiveReleaseStatus {
+    #[default]
+    Unknown,
+    Approved,
+    Yanked,
+    KeyRevoked,
+    PublisherUnapproved,
+    Advisory,
+    Incompatible,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Advisory {

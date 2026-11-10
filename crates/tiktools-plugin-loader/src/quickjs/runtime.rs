@@ -32,9 +32,10 @@ use super::{
     modules::NativeAliases,
 };
 use crate::{
+    types::StartupUncertainHandler,
     worker::{QueuedCall, WorkerMsg},
-    EmittedEvent, ManagedWorker, PluginInstance, PluginLoaderError, PluginRuntime, PluginSource,
-    WorkerContext,
+    ManagedWorker, PluginEventSender, PluginInstance, PluginLoaderError, PluginRuntime,
+    PluginSource, WorkerContext,
 };
 
 /// Cross-thread wake callback: native callbacks, async completions and
@@ -65,8 +66,10 @@ impl PluginRuntime for QuickJsPluginRuntime {
         let (tx, worker) = spawn_owner(
             manifest,
             directory,
-            orphan_tx,
+            PluginEventSender::live(orphan_tx, manifest.id.clone(), 0),
             crate::manager::PLUGIN_START_DEADLINE,
+            0,
+            None,
         )?;
         Ok(Box::new(NapiVmPluginInstance {
             id: manifest.id.clone(),
@@ -84,7 +87,14 @@ impl PluginRuntime for QuickJsPluginRuntime {
         if let Err(error) = check_manifest(manifest) {
             return Some(Err(error));
         }
-        match spawn_owner(manifest, directory, ctx.emit_sender(), ctx.start_deadline()) {
+        match spawn_owner(
+            manifest,
+            directory,
+            ctx.emit_sender(),
+            ctx.start_deadline(),
+            ctx.generation(),
+            ctx.uncertain_start_handler(),
+        ) {
             Ok((tx, worker)) => Some(Ok(ManagedWorker::new(tx, worker))),
             Err(error) => Some(Err(error)),
         }
@@ -234,7 +244,8 @@ fn guest_context(manifest: &PluginManifest) -> serde_json::Value {
 /// guest import still requires core's per-event validation on delivery.
 fn events_push_for(
     manifest: &PluginManifest,
-    emit_tx: broadcast::Sender<EmittedEvent>,
+    emit_tx: PluginEventSender,
+    generation: u64,
 ) -> Option<Arc<EventsPush>> {
     if !manifest
         .capabilities
@@ -245,6 +256,7 @@ fn events_push_for(
     }
     Some(Arc::new(EventsPush {
         plugin_id: manifest.id.clone(),
+        generation,
         declared: declared_event_types(manifest)
             .into_iter()
             .collect::<HashSet<_>>(),
@@ -260,8 +272,10 @@ fn events_push_for(
 fn spawn_owner(
     manifest: &PluginManifest,
     directory: &Path,
-    emit_tx: broadcast::Sender<EmittedEvent>,
+    emit_tx: PluginEventSender,
     start_deadline: std::time::Duration,
+    generation: u64,
+    retain_uncertain_start: Option<StartupUncertainHandler>,
 ) -> Result<
     (
         mpsc::UnboundedSender<WorkerMsg>,
@@ -276,7 +290,7 @@ fn spawn_owner(
     let entry = manifest.entry.clone();
     let native_addons = manifest.native_addons.clone();
     let directory = directory.to_owned();
-    let events = events_push_for(manifest, emit_tx);
+    let events = events_push_for(manifest, emit_tx, generation);
     let (tx, rx) = mpsc::unbounded_channel();
     let (ready_tx, ready_rx) = std_mpsc::channel();
     let thread_id = id.clone();
@@ -307,9 +321,8 @@ fn spawn_owner(
     // failure, never a half-alive instance. The wait is bounded: a guest
     // wedged in `onLoad` (or a native addon hanging during load) must fail
     // the start instead of freezing every other plugin's lifecycle behind
-    // the manager's lifecycle lock. A timeout asks the thread to unload
-    // itself and then drops its handle (detach) — reported explicitly, so
-    // the abandonment is on record rather than silent.
+    // the manager's lifecycle lock. A timeout asks the worker to unload and
+    // retains its handle for an explicit unknown-outcome recovery.
     match ready_rx.recv_timeout(start_deadline) {
         Ok(result) => result?,
         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -317,9 +330,12 @@ fn spawn_owner(
             tracing::error!(
                 id = %id,
                 deadline_ms = start_deadline.as_millis() as u64,
-                "napi-vm startup missed its deadline; detaching the worker thread (outcome unknown)"
+                "napi-vm startup missed its deadline; worker outcome is unknown"
             );
-            return Err(PluginLoaderError::Runtime(format!(
+            if let Some(retain) = retain_uncertain_start {
+                retain(worker);
+            }
+            return Err(PluginLoaderError::StartupUncertain(format!(
                 "napi-vm plugin `{id}` did not finish loading within {}ms",
                 start_deadline.as_millis()
             )));
@@ -745,7 +761,13 @@ mod tests {
         let bytes = std::fs::read(dir.join("plugin.json")).unwrap();
         let manifest = PluginManifest::from_json_str(std::str::from_utf8(&bytes).unwrap()).unwrap();
         let (emit_tx, _emit_rx) = broadcast::channel(8);
-        let ctx = WorkerContext::new(emit_tx, std::time::Duration::from_secs(15));
+        let ctx = WorkerContext::new(
+            emit_tx,
+            std::time::Duration::from_secs(15),
+            manifest.id.clone(),
+            1,
+            None,
+        );
         let owned = QuickJsPluginRuntime
             .spawn_worker(&manifest, &dir, &ctx)
             .expect("napi-vm provides an owned worker")

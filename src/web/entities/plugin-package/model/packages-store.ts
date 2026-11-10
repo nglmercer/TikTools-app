@@ -11,7 +11,6 @@ import type {
   PackageSpecInput,
   PluginVersions,
   RegistryDefaults,
-  RegistryRootPreview,
   RegistryStatus,
   RegistryPackageView,
   SearchResults,
@@ -33,14 +32,6 @@ export interface ReviewState {
   spec: PackageSpecInput | null;
   preview: PackagePreview | null;
   error: InstallError | null;
-}
-
-export interface RegistryAddInput {
-  name: string;
-  url: string;
-  fingerprints: string[];
-  scopes: string[];
-  priority: number;
 }
 
 function closedReview(): ReviewState {
@@ -78,12 +69,16 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
   const review = ref<ReviewState>(closedReview());
   const remotePackages = ref<Record<string, RegistryPackageView>>({});
   const remoteErrors = ref<Record<string, string>>({});
+  const remoteRequests = new Map<string, number>();
+  const versionRequests = new Map<string, number>();
   const pendingUpdates = new Map<string, { pluginId: string; version?: string }>();
   let subscribed = false;
   let reviewRequest = 0;
+  let updatesRequest = 0;
+  let updatesNotificationPending = false;
 
   const activeJobs = computed(() => jobs.value.filter(isActiveJob));
-  const updateCount = computed(() => updates.value?.updates.filter((entry) => entry.latest).length ?? 0);
+  const updateCount = computed(() => updates.value?.updates.filter((entry) => entry.latest && entry.latestStatus === 'approved' && !entry.pinned).length ?? 0);
 
   function upsertJob(job: JobSnapshot): void {
     const rest = jobs.value.filter((entry) => entry.id !== job.id);
@@ -122,7 +117,11 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
       if (data?.job) upsertJob(data.job);
     });
     client.onTopic<{ report: UpdateReport }>('plugin.updates', (data) => {
-      if (data?.report) updates.value = data.report;
+      // Notifications may be delayed or share a wall-clock timestamp. Treat
+      // them as invalidations and read the host's current report instead.
+      if (!data?.report) return;
+      if (checkingUpdates.value) updatesNotificationPending = true;
+      else void loadUpdates();
     });
     client.onTopic('plugin.updated', () => void automation.refresh());
   }
@@ -150,23 +149,41 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
     }
   }
 
+  function invalidateUpdateApprovals(): void {
+    if (updates.value) updates.value = { ...updates.value, updates: updates.value.updates.map((entry) => ({ ...entry, currentStatus:'unknown', latestStatus:'unknown', autoApplicable:false })) };
+  }
+
   async function loadUpdates(): Promise<void> {
+    if (checkingUpdates.value) return;
+    const request = ++updatesRequest;
+    invalidateUpdateApprovals();
     try {
-      updates.value = await client.call<UpdateReport>('plugins.updates.list', {});
+      const result = await client.call<UpdateReport>('plugins.updates.list', {});
+      if (request === updatesRequest) updates.value = result;
     } catch {
-      updates.value = null;
+      if (request === updatesRequest) updates.value = null;
     }
   }
 
   async function checkUpdates(): Promise<void> {
+    if (checkingUpdates.value) return;
+    const request = ++updatesRequest;
     checkingUpdates.value = true;
     updatesError.value = '';
+    invalidateUpdateApprovals();
     try {
-      updates.value = await client.call<UpdateReport>('plugins.updates.check', {});
+      const result = await client.call<UpdateReport>('plugins.updates.check', {});
+      if (request === updatesRequest) updates.value = result;
     } catch (failure) {
-      updatesError.value = installFailure(failure).message;
+      if (request === updatesRequest) updatesError.value = installFailure(failure).message;
     } finally {
-      checkingUpdates.value = false;
+      if (request === updatesRequest) {
+        checkingUpdates.value = false;
+        if (updatesNotificationPending) {
+          updatesNotificationPending = false;
+          void loadUpdates();
+        }
+      }
     }
   }
 
@@ -228,8 +245,9 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
   }
 
   async function updateAll(): Promise<void> {
+    if (checkingUpdates.value) return;
     for (const entry of updates.value?.updates ?? []) {
-      if (entry.latest && !entry.pinned) await updatePlugin(entry.id, entry.latest);
+      if (entry.latest && !entry.pinned && entry.latestStatus === 'approved') await updatePlugin(entry.id, entry.latest);
     }
   }
 
@@ -254,8 +272,13 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
   }
 
   async function loadVersions(pluginId: string): Promise<void> {
+    const request = (versionRequests.get(pluginId) ?? 0) + 1;
+    versionRequests.set(pluginId, request);
+    const previous = versions.value[pluginId];
+    if (previous) versions.value = { ...versions.value, [pluginId]: { ...previous, available: previous.available.map((entry) => ({ ...entry, liveStatus:'unknown' })) } };
     try {
       const result = await client.call<Partial<PluginVersions>>('plugins.packages.versions', { pluginId });
+      if (versionRequests.get(pluginId) !== request) return;
       // Normalize at the boundary: a partial host response must not leave
       // consumers reading `.length` of a missing list.
       const normalized: PluginVersions = {
@@ -269,6 +292,7 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
       delete rest[pluginId];
       versionsError.value = rest;
     } catch (failure) {
+      if (versionRequests.get(pluginId) !== request) return;
       versionsError.value = { ...versionsError.value, [pluginId]: installFailure(failure).message };
     }
   }
@@ -303,13 +327,19 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
 
   async function loadRemotePackage(registry: string, id: string): Promise<void> {
     const key = `${registry}/${id}`;
+    const request = (remoteRequests.get(key) ?? 0) + 1;
+    remoteRequests.set(key, request);
+    const previous = remotePackages.value[key];
+    if (previous) remotePackages.value = { ...remotePackages.value, [key]: { ...previous, liveStatuses:{} } };
     try {
       const view = await client.call<RegistryPackageView>('registry.package', { id, registry });
+      if (remoteRequests.get(key) !== request) return;
       remotePackages.value = { ...remotePackages.value, [key]: view };
       const rest = { ...remoteErrors.value };
       delete rest[key];
       remoteErrors.value = rest;
     } catch (failure) {
+      if (remoteRequests.get(key) !== request) return;
       remoteErrors.value = { ...remoteErrors.value, [key]: installFailure(failure).message };
     }
   }
@@ -324,55 +354,6 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
       registriesLoaded.value = Array.isArray(list?.registries);
       defaults.value = current;
       registryError.value = '';
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-    }
-  }
-
-  async function refreshRegistries(name?: string): Promise<void> {
-    try {
-      await client.call('registry.refresh', name ? { name } : {});
-      await loadRegistries();
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-    }
-  }
-
-  async function previewRegistry(url: string): Promise<RegistryRootPreview | null> {
-    try {
-      registryError.value = '';
-      return await client.call<RegistryRootPreview>('registry.root', { url });
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-      return null;
-    }
-  }
-
-  async function addRegistry(input: RegistryAddInput): Promise<boolean> {
-    try {
-      registryError.value = '';
-      await client.call('registry.add', { ...input });
-      await loadRegistries();
-      return true;
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-      return false;
-    }
-  }
-
-  async function removeRegistry(name: string): Promise<void> {
-    try {
-      await client.call('registry.remove', { name });
-      await loadRegistries();
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-    }
-  }
-
-  async function setRegistryEnabled(name: string, enabled: boolean): Promise<void> {
-    try {
-      await client.call('registry.enable', { name, enabled });
-      await loadRegistries();
     } catch (failure) {
       registryError.value = installFailure(failure).message;
     }
@@ -426,11 +407,6 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
     search,
     loadRemotePackage,
     loadRegistries,
-    refreshRegistries,
-    previewRegistry,
-    addRegistry,
-    removeRegistry,
-    setRegistryEnabled,
     saveDefaults,
   };
 });

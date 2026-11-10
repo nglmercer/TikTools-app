@@ -88,6 +88,70 @@ fn emitted(context: &ExecutionContext) -> AutomationEvent {
 }
 
 #[tokio::test]
+async fn unverified_native_owner_event_runs_owner_rule_but_cannot_promote_delegation() {
+    let f = Fixture::new();
+    let approved = approved_parent(&f, false).await;
+    owner_child(&f, json!([]));
+    // Exercise a real saved rule with both an Owner and an approved delegated
+    // dependency, not only the low-level intersection helper.
+    f.core()
+        .automation_create(
+            AutomationKind::Event,
+            json!({
+                "id":"mixed-rule", "name":"Mixed rule", "enabled":true,
+                "trigger":"custom.child", "actionIds":["child", "parent"]
+            }),
+        )
+        .unwrap();
+    let unverified = ExecutionContext::owner_without_delegation();
+    assert!(unverified.is_owner());
+    assert!(unverified.intersect(&approved).is_err());
+    assert!(approved.intersect(&unverified).is_err());
+    let child = unverified.child().unwrap();
+    assert!(child.is_owner());
+    assert!(child.intersect(&approved).is_err());
+    assert!(child
+        .intersect(&ExecutionContext::owner())
+        .unwrap()
+        .intersect(&approved)
+        .is_err());
+
+    // A previously approved delegated action cannot acquire authority from
+    // the same input, including through an Owner-emitted nested event.
+    let action = f
+        .core()
+        .automation_get(AutomationKind::Action, "parent")
+        .unwrap();
+    assert!(f
+        .core()
+        .action_execution_context(&action, None, &unverified)
+        .await
+        .is_err());
+    let nested = f
+        .core()
+        .make_internal_automation_event(&payload(), "custom.nested", json!({}), &unverified)
+        .unwrap();
+    assert!(nested.context().intersect(&approved).is_err());
+
+    // The local Owner rule still runs on a payload with no asserted creator.
+    let mut input = payload();
+    input.as_object_mut().unwrap().remove("authority");
+    assert!(input.get("creator").is_none());
+    f.core()
+        .run_automation_event(AutomationEvent::owner_without_delegation(input))
+        .await;
+    let runs = f.core().automation_runs();
+    assert!(
+        runs.iter().any(|run| run["summary"] == "child: public"),
+        "{runs:?}"
+    );
+    assert!(
+        !runs.iter().any(|run| run["summary"] == "approved parent"),
+        "{runs:?}"
+    );
+}
+
+#[tokio::test]
 async fn approved_emit_runs_owner_child_under_inherited_fences_without_owner_observers_or_memory() {
     let f = Fixture::new();
     let context = approved_parent(&f, false).await.mark_script_flow();

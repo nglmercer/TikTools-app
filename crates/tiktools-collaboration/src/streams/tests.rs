@@ -456,6 +456,190 @@ fn immutable_pages_hold_the_watermark_and_wait_for_complete_baseline() {
         Err(Error::ResyncRequired)
     ));
 }
+
+#[test]
+fn impossible_snapshot_rate_budget_fails_before_returning_a_page() {
+    let hub = StreamHub::default();
+    let user = identity();
+    let limits = RemoteLimits {
+        requests_per_second: 1,
+        request_burst: 1,
+        ..RemoteLimits::default()
+    };
+    let sub = hub
+        .subscribe(
+            &user,
+            "conn",
+            "instance-a",
+            SubscribeParams {
+                domains: [StreamDomain::Workflows].into(),
+                feed: false,
+                points_limit: None,
+            },
+            &limits,
+        )
+        .unwrap();
+    let records = |count| {
+        (0..count)
+            .map(|i| {
+                let id = format!("wf-{i:02}");
+                (json!({"id":id,"body":"x".repeat(600)}), version(&id, 1))
+            })
+            .collect()
+    };
+    // One record per page. The first page is in the capture response; the
+    // other 30 are the strict upper bound before the inclusive 30s expiry.
+    let within = hub
+        .capture(&user, "conn", &sub.subscription_id, records(31), 1024)
+        .unwrap();
+    assert!(within.next_page_token.is_some());
+    assert!(matches!(
+        hub.capture(&user, "conn", &sub.subscription_id, records(32), 1024),
+        Err(Error::SnapshotRateBudget)
+    ));
+    // A failed replacement discards the previous snapshot and keeps the
+    // baseline incomplete, rather than returning a partial projection.
+    assert!(matches!(
+        hub.page(
+            &user,
+            "conn",
+            &sub.subscription_id,
+            within.next_page_token.as_deref().unwrap()
+        ),
+        Err(Error::ResyncRequired)
+    ));
+    let state = hub.state.lock().unwrap();
+    let stream = &state.streams[&sub.subscription_id];
+    assert!(stream.snapshot.is_none());
+    assert!(!stream.baseline_complete);
+}
+
+#[test]
+fn snapshot_requires_pages_in_order_but_permits_retransmission() {
+    let hub = StreamHub::default();
+    let user = identity();
+    let sub = subscribe(&hub, &user, "conn");
+    let records = (0..3)
+        .map(|i| {
+            let id = format!("wf-{i}");
+            (json!({"id":id,"body":"x".repeat(600)}), version(&id, 1))
+        })
+        .collect();
+    let first = hub
+        .capture(&user, "conn", &sub.subscription_id, records, 1024)
+        .unwrap();
+    hub.publish(&changed("wf-0", 2)).unwrap();
+    let first_token = first.next_page_token.unwrap();
+    let leaked_later_token = {
+        let state = hub.state.lock().unwrap();
+        state.streams[&sub.subscription_id]
+            .snapshot
+            .as_ref()
+            .unwrap()
+            .tokens[2]
+            .clone()
+    };
+    assert!(matches!(
+        hub.page(&user, "conn", &sub.subscription_id, &leaked_later_token),
+        Err(Error::ResyncRequired)
+    ));
+    assert!(!hub.state.lock().unwrap().streams[&sub.subscription_id].baseline_complete);
+    assert!(hub.next(&user, "conn").unwrap().is_none());
+    let second = hub
+        .page(&user, "conn", &sub.subscription_id, &first_token)
+        .unwrap();
+    let replay = hub
+        .page(&user, "conn", &sub.subscription_id, &first_token)
+        .unwrap();
+    assert_eq!(second, replay);
+    assert!(!hub.state.lock().unwrap().streams[&sub.subscription_id].baseline_complete);
+    assert!(hub.next(&user, "conn").unwrap().is_none());
+    let third = hub
+        .page(
+            &user,
+            "conn",
+            &sub.subscription_id,
+            second.next_page_token.as_deref().unwrap(),
+        )
+        .unwrap();
+    assert!(third.next_page_token.is_none());
+    assert!(hub.state.lock().unwrap().streams[&sub.subscription_id].baseline_complete);
+    assert_eq!(hub.next(&user, "conn").unwrap().unwrap().sequence, "1");
+}
+
+#[test]
+fn frame_aware_packing_fits_the_largest_escaped_rpc_id() {
+    let hub = StreamHub::default();
+    let user = identity();
+    let limits = RemoteLimits {
+        requests_per_second: 1,
+        request_burst: 1,
+        ..RemoteLimits::default()
+    };
+    let sub = hub
+        .subscribe(
+            &user,
+            "conn",
+            "instance-a",
+            SubscribeParams {
+                domains: [StreamDomain::Workflows].into(),
+                feed: false,
+                points_limit: None,
+            },
+            &limits,
+        )
+        .unwrap();
+    let records = (0..32)
+        .map(|i| {
+            let id = format!("wf-{i:02}");
+            (json!({"id":id,"body":"x".repeat(1200)}), version(&id, 1))
+        })
+        .collect();
+    let mut page = hub
+        .capture_with_frame(&user, "conn", &sub.subscription_id, records, 4096)
+        .unwrap();
+    let mut rows = 0;
+    let mut pages = 0;
+    loop {
+        pages += 1;
+        rows += page.workflows.len();
+        let response = json!({"jsonrpc":"2.0", "id":"\u{1}".repeat(128), "result":page});
+        assert!(serde_json::to_vec(&response).unwrap().len() <= 4096);
+        let Some(token) = page.next_page_token else {
+            break;
+        };
+        page = hub
+            .page(&user, "conn", &sub.subscription_id, &token)
+            .unwrap();
+    }
+    assert_eq!(rows, 32);
+    assert!(pages < 32, "packing must reduce recovery requests");
+}
+
+#[test]
+fn resumed_stream_uses_new_snapshot_rate_limits() {
+    let hub = StreamHub::default();
+    let user = identity();
+    let sub = ready(&hub, &user, "old");
+    hub.detach("old");
+    let low = RemoteLimits {
+        requests_per_second: 1,
+        request_burst: 1,
+        ..RemoteLimits::default()
+    };
+    hub.resume(&user, "new", "instance-a", resume(&sub, "0"), &low)
+        .unwrap();
+    let records = (0..33)
+        .map(|i| {
+            let id = format!("wf-{i:02}");
+            (json!({"id":id,"body":"x".repeat(600)}), version(&id, 1))
+        })
+        .collect();
+    assert!(matches!(
+        hub.capture(&user, "new", &sub.subscription_id, records, 1024),
+        Err(Error::SnapshotRateBudget)
+    ));
+}
 #[test]
 fn unsent_count_and_byte_overflow_break_the_stream_without_blocking_publication() {
     for by_bytes in [false, true] {
@@ -485,6 +669,58 @@ fn unsent_count_and_byte_overflow_break_the_stream_without_blocking_publication(
         assert!(stream.snapshot.is_none());
         assert!(stream.events.is_empty());
     }
+}
+
+#[test]
+fn stalled_stream_overflow_does_not_block_another_principal_or_its_recovery() {
+    let hub = StreamHub::default();
+    let stalled = identity();
+    let mut active = identity();
+    active.principal_id = "active-moderator".into();
+    active.session_id = "device-b".into();
+    let stalled_sub = ready(&hub, &stalled, "stalled");
+    let active_sub = ready(&hub, &active, "active");
+
+    // The stalled client never acknowledges a send. The active client
+    // consumes the same committed invalidations without gaps or leaked IDs.
+    for n in 1..=STREAM_EVENTS as u64 + 2 {
+        hub.publish(&changed("welcome", n)).unwrap();
+        let event = hub.next(&active, "active").unwrap().unwrap();
+        assert_eq!(event.sequence, n.to_string());
+        assert_eq!(event.resource.revision, n.to_string());
+        assert!(event.command_id.is_none());
+        hub.sent(&active, "active", &event).unwrap();
+    }
+    assert!(matches!(
+        hub.next(&stalled, "stalled"),
+        Err(Error::ResyncRequired)
+    ));
+    {
+        let state = hub.state.lock().unwrap();
+        let slow = &state.streams[&stalled_sub.subscription_id];
+        let fast = &state.streams[&active_sub.subscription_id];
+        assert!(slow.broken);
+        assert_eq!(slow.bytes, 0);
+        assert!(slow.events.is_empty());
+        assert!(!fast.broken);
+        assert!(fast.bytes <= STREAM_BYTES);
+        assert!(fast.events.len() <= STREAM_EVENTS);
+    }
+
+    // A fresh snapshot restores only the stalled client; the active stream
+    // keeps its sequence and does not need to reconnect.
+    let replacement = ready(&hub, &stalled, "stalled");
+    assert_ne!(replacement.subscription_id, stalled_sub.subscription_id);
+    let next_revision = STREAM_EVENTS as u64 + 3;
+    hub.publish(&changed("welcome", next_revision)).unwrap();
+    let fast = hub.next(&active, "active").unwrap().unwrap();
+    assert_eq!(fast.sequence, next_revision.to_string());
+    assert_eq!(fast.subscription_id, active_sub.subscription_id);
+    hub.sent(&active, "active", &fast).unwrap();
+    let recovered = hub.next(&stalled, "stalled").unwrap().unwrap();
+    assert_eq!(recovered.sequence, "1");
+    assert_eq!(recovered.resource.revision, next_revision.to_string());
+    assert!(recovered.command_id.is_none());
 }
 #[test]
 fn delivered_history_rolls_forward_but_old_reconnect_cursors_require_a_snapshot() {

@@ -356,7 +356,7 @@ impl AppCore {
         #[cfg(feature = "plugin-install")]
         let packages = plugin_packages::PluginPackages::new(&paths, events.clone()).map(Arc::new);
         #[cfg(feature = "cloud-auth")]
-        let cloud = Arc::new(cloud_account::CloudAccount::new(&paths));
+        let cloud = Arc::new(cloud_account::CloudAccount::new(&paths, &events));
         #[cfg(feature = "cloud-auth")]
         let sync = Arc::new(cloud_sync::CloudSync::new(&paths, cloud.auth()));
         #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
@@ -411,6 +411,16 @@ impl AppCore {
         #[cfg(not(feature = "persistence"))]
         let plugin_activation: BTreeMap<String, crate::plugin_runtime::PluginActivation> =
             BTreeMap::new();
+        #[cfg(feature = "persistence")]
+        let plugin_apply_quarantine = match db.plugin_apply_quarantine() {
+            Ok(ids) => Some(ids),
+            Err(error) => {
+                tracing::warn!(%error, "plugin apply recovery is unavailable; plugin execution is blocked");
+                None
+            }
+        };
+        #[cfg(not(feature = "persistence"))]
+        let plugin_apply_quarantine = Some(Default::default());
         #[cfg(feature = "http")]
         let (http_client, http_client_error) = match tiktools_plugin_sdk::http::client_builder()
             .and_then(|builder| {
@@ -512,6 +522,7 @@ impl AppCore {
             option_sources: OptionSourceService::new(),
             plugin_state: PluginRuntimeState {
                 activation: RwLock::new(plugin_activation),
+                apply_quarantine: RwLock::new(plugin_apply_quarantine),
                 ..Default::default()
             },
             processor_state: ProcessorRuntimeState::default(),
@@ -627,20 +638,47 @@ impl AppCore {
             PackageOrigin::File,
             SignaturePolicy::AllowWithConsent,
         )?;
+        let _sideload = packages.try_sideload_permit()?;
         let _invocation =
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 plugin_packages::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let _source_lease = plugin_packages::try_product_mutation_lease(self)?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let package_sync = plugin_packages::capture_package_sync_account(self);
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        plugin_packages::reserve_package_sync_source(self, &prepared.manifest.id)?;
+        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
+        self.db
+            .invalidate_plugin_package_source(&prepared.manifest.id)
+            .map_err(tiktools_plugin_installer::InstallError::io)?;
+        let activation = plugin_packages::CoreActivation::new(self);
         let outcome = packages.installer.commit(
             &prepared,
             &CommitOptions {
                 consent: Consent::Implicit { replace_existing },
                 policy: None,
             },
-            &plugin_packages::CoreActivation(self),
+            &activation,
             &NoopReporter,
-        )?;
+        );
+        #[cfg(feature = "persistence")]
+        let _final_generation = self.db.invalidate_plugin_package_source(&prepared.manifest.id).map_err(|error| {
+            self.rebuild_processor_index(); self.refresh_automation_snapshot();
+            tiktools_plugin_installer::InstallError::io(format!("package operation may have changed files but its final source fence failed: {error}"))
+        })?;
+        let outcome = outcome?;
         self.rebuild_processor_index();
+        activation.finish()?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        plugin_packages::confirm_package_sync_source(
+            self,
+            package_sync,
+            &outcome.receipt.id,
+            &outcome.receipt.version,
+            _final_generation,
+        );
         Ok(outcome)
     }
 
@@ -655,6 +693,8 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 plugin_packages::unavailable("plugin invocation lease is unavailable")
             })?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let _source_lease = plugin_packages::try_product_mutation_lease(self)?;
         let packages = self.plugin_packages()?;
         let plugin = self
             .plugins
@@ -669,17 +709,66 @@ impl AppCore {
         let data = purge_data
             .then(|| plugin_packages::plugin_data_dir(self.db.paths(), id))
             .flatten();
-        packages.installer.uninstall(
-            id,
-            data.as_deref(),
-            &plugin_packages::CoreActivation(self),
-        )?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let package_sync = plugin_packages::capture_package_sync_account(self);
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        let source_generation = plugin_packages::reserve_package_sync_source(self, id)?;
+        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
+        let source_generation = self
+            .db
+            .invalidate_plugin_package_source(id)
+            .map_err(InstallError::io)?;
+        let activation = plugin_packages::CoreActivation::new(self);
+        let removal = packages
+            .installer
+            .uninstall(id, data.as_deref(), &activation);
         #[cfg(feature = "persistence")]
-        if let Err(error) = self.db.remove_plugin_state(id) {
-            tracing::warn!(plugin = %id, %error, "plugin package was removed but persisted state could not be cleared");
+        if removal.is_err() {
+            if let Err(error) = self.db.invalidate_plugin_package_source(id) {
+                self.rebuild_processor_index();
+                self.refresh_automation_snapshot();
+                return Err(InstallError::io(format!(
+                    "package removal may have changed files but its final source fence failed: {error}"
+                )));
+            }
         }
+        removal?;
         self.clear_plugin_activation(id);
         self.rebuild_processor_index();
+        #[cfg(feature = "persistence")]
+        match self
+            .db
+            .remove_plugin_state_after_package(id, source_generation)
+        {
+            Ok(true) => {}
+            Ok(false) => {
+                self.refresh_automation_snapshot();
+                return Err(InstallError::new(
+                    InstallErrorCode::IoError,
+                    "plugin package was removed but its persisted state changed; review required",
+                ));
+            }
+            Err(error) => {
+                // The transaction rolls back its final generation on error.
+                // Preserve a separate fence after filesystem mutation even
+                // when persisted-state cleanup fails.
+                let fence = self.db.invalidate_plugin_package_source(id);
+                self.refresh_automation_snapshot();
+                if let Err(fence_error) = fence {
+                    return Err(InstallError::io(format!(
+                        "plugin was removed, persisted state cleanup failed, and final source fence failed: {fence_error}"
+                    )));
+                }
+                return Err(InstallError::io(format!(
+                    "plugin package was removed but persisted state could not be cleared: {error}"
+                )));
+            }
+        }
+        activation.finish()?;
+        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        if let Some(generation) = source_generation.checked_add(1) {
+            plugin_packages::confirm_package_removal_source(self, package_sync, id, generation);
+        }
         Ok(())
     }
 
@@ -705,9 +794,12 @@ impl AppCore {
                 finished.await;
             }
         }
+        self.plugins.close_start_admission();
         self.automation_write_settled.notify_waiters();
         #[cfg(feature = "persistence")]
         {
+            #[cfg(feature = "cloud-auth")]
+            self.stop_cloud_sync_worker().await;
             self.stop_coordination().await;
             self.stop_competition_action_worker().await;
         }
@@ -735,8 +827,21 @@ impl AppCore {
         self.publish_disconnected_event().await;
         self.live.disconnect().await;
         let task = recover_mutex(&self.plugin_state.poll_task, "plugin poll task").take();
-        if let Some(task) = task {
-            let _ = task.await;
+        if let Some(mut task) = task {
+            match tokio::time::timeout(std::time::Duration::from_secs(2), &mut task).await {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    self.shutdown_update_safe.store(false, Ordering::Release);
+                    tracing::error!(%error, "plugin poll task failed; application update is unsafe");
+                }
+                Err(_) => {
+                    task.abort();
+                    self.shutdown_update_safe.store(false, Ordering::Release);
+                    tracing::error!(
+                        "plugin poll did not stop within two seconds; application update is unsafe"
+                    );
+                }
+            }
         }
         let push_task = recover_mutex(&self.plugin_state.push_task, "plugin push task").take();
         if let Some(task) = push_task {

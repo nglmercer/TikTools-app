@@ -24,7 +24,7 @@ fn provenance_value(p: Option<BehaviorProvenance>) -> Value {
         .unwrap_or(Value::Null)
 }
 
-fn record(
+pub(super) fn record(
     db: &Connection,
     table: &str,
     id: &str,

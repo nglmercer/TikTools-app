@@ -111,13 +111,43 @@ impl AppCore {
     }
 
     async fn execute_competition_action(self: &Arc<Self>, claim: ActionClaim) {
+        // Delegated generations retain their saved subjects and never fall
+        // through to the Owner executor.
+        let db = self.db.clone();
+        let origin_id = claim.competition_id.clone();
+        let origin_generation = claim.generation;
+        let owner = tokio::task::spawn_blocking(move || {
+            db.competition_execution_is_owner(&origin_id, origin_generation)
+        })
+        .await;
+        if !matches!(owner, Ok(Ok(_))) {
+            let db = self.db.clone();
+            let id = claim.competition_id;
+            let generation = claim.generation;
+            let result = tokio::task::spawn_blocking(move || {
+                db.record_competition_action_outcome(
+                    &id,
+                    generation,
+                    tiktools_competitions::ActionStatus::Failed,
+                    Some("authority_unavailable"),
+                    crate::now_millis().min(i64::MAX as u64) as i64,
+                )
+            })
+            .await;
+            if !matches!(result, Ok(Ok(true))) {
+                tracing::error!("competition authority failure could not be persisted");
+            }
+            return;
+        }
+        let owner = matches!(owner, Ok(Ok(true)));
         let core = Arc::clone(self);
         let lookup = claim.clone();
         let prepared = tokio::task::spawn_blocking(move || -> Result<_, &'static str> {
             let result = core.db.load_competition_result(&lookup.competition_id, lookup.generation).map_err(|_| "result_unavailable")?.ok_or("result_unavailable")?;
             let definition = core.competition_get(&lookup.competition_id).map_err(|_| "competition_unavailable")?;
             let winner = result.selection.winner.clone().ok_or("winner_unavailable")?;
-            if definition.options.iter().find(|option| option.id == winner).and_then(|option| option.on_win.as_ref()) != Some(&lookup.action) { return Err("action_reference_mismatch"); }
+            let user_winner = definition.has_user_winner();
+            if definition.winner_action(&winner) != Some(&lookup.action) { return Err("action_reference_mismatch"); }
             let ranking = core.ranking_get(&definition.ranking_id).map_err(|_| "ranking_unavailable")?;
             let mut action = core.automation_get(crate::control::AutomationKind::Action, &lookup.action.action_id).map_err(|_| "action_unavailable")?;
             if action.get("enabled").and_then(serde_json::Value::as_bool) == Some(false) { return Err("action_disabled"); }
@@ -132,8 +162,11 @@ impl AppCore {
             let score = result.selection.eligible.iter().find(|candidate| candidate.key == winner).ok_or("winner_unavailable")?.weight;
             let event = serde_json::json!({"id": lookup.idempotency_key, "type": "competition.winner.selected", "timestamp": result.finalized_at,
                 "creator": {"uniqueId": ranking.creator_id, "roomId": ranking.room_id},
+                // User-based contests expose the selected viewer through the
+                // same bounded public field used by other delegated events.
+                "user": if user_winner { Some(serde_json::json!({"uniqueId": winner})) } else { None },
                 "data": {"competitionId": lookup.competition_id, "generation": lookup.generation,
-                    "optionId": winner, "winnerId": winner, "winnerScore": score,
+                    "optionId": if user_winner { None } else { Some(winner.as_str()) }, "winnerId": winner, "winnerScore": score,
                     "rankingId": result.ranking_id, "selectionMode": result.selection.mode,
                     "selectionId": lookup.idempotency_key, "actionId": lookup.action.action_id} });
             Ok((action, event))
@@ -177,6 +210,35 @@ impl AppCore {
                 return;
             }
         };
+        let context = if owner {
+            crate::automation_runtime::context::ExecutionContext::owner()
+        } else {
+            match self
+                .competition_winner_execution_context(claim.clone(), action.clone())
+                .await
+            {
+                Ok(context) => context,
+                Err(reason) => {
+                    let db = self.db.clone();
+                    let id = claim.competition_id;
+                    let generation = claim.generation;
+                    let persisted = tokio::task::spawn_blocking(move || {
+                        db.record_competition_action_outcome(
+                            &id,
+                            generation,
+                            tiktools_competitions::ActionStatus::Failed,
+                            Some("authority_unavailable"),
+                            crate::now_millis().min(i64::MAX as u64) as i64,
+                        )
+                    })
+                    .await;
+                    if !matches!(persisted, Ok(Ok(true))) {
+                        tracing::error!(%reason, "competition authority failure could not be persisted");
+                    }
+                    return;
+                }
+            }
+        };
         let interrupted = async {
             while !self.shutdown_started.load(Ordering::Acquire) {
                 tokio::time::sleep(Duration::from_millis(50)).await;
@@ -185,7 +247,7 @@ impl AppCore {
         let run = tokio::select! {
             biased;
             _ = interrupted => None,
-            run = self.execute_action(&action, &event, None, false) => Some(run),
+            run = self.execute_action_with_context(&action, &event, None, &context, false) => Some(run),
         };
         let interrupted = run.is_none();
         let succeeded = run.as_ref().is_some_and(|value| {

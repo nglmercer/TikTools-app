@@ -2,12 +2,39 @@
 use super::*;
 use crate::{ControlEvent, TikToolsClient};
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 use std::{collections::BTreeSet, time::Duration};
 #[cfg(feature = "remote-profiles")]
 use tiktools_collaboration::ResumeResult;
 use tiktools_collaboration::{
     stream_sequence, ResourceKind, SnapshotPage, StreamDomain, SubscribeResult, SNAPSHOT_BYTES,
 };
+
+// The gateway rejects rate-limited requests before dispatch. Only that
+// explicit response permits retry: an ambiguous transport failure might have
+// created a subscription already and must never be replayed here.
+async fn retry_recovery_read<T, F, Fut>(mut call: F) -> Result<T, ClientError>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = Result<T, ClientError>>,
+{
+    for attempt in 0..=4 {
+        match call().await {
+            Err(error) if error.code == "rate_limited" && attempt < 4 => {
+                let millis = error
+                    .data
+                    .as_ref()
+                    .and_then(|data| data.get("retryAfterMs"))
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(1000)
+                    .clamp(1000, 2000);
+                tokio::time::sleep(Duration::from_millis(millis)).await;
+            }
+            result => return result,
+        }
+    }
+    unreachable!()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -78,13 +105,14 @@ impl RecoveryStream {
         // retained even if the reader wins the last-page response wakeup race.
         let receiver = remote.subscribe();
         let sdk = TikToolsClient::Remote(remote.clone());
-        let sub: SubscribeResult = sdk
-            .collaboration_subscribe(SubscribeParams {
+        let sub: SubscribeResult = retry_recovery_read(|| {
+            sdk.collaboration_subscribe(SubscribeParams {
                 domains: domains.clone(),
                 feed: false,
                 points_limit,
             })
-            .await?;
+        })
+        .await?;
         if sub.host_instance_id != remote.hello().host_instance_id
             || sub.grant_revision != remote.hello().grant_revision
             || sub.domains != domains
@@ -93,16 +121,18 @@ impl RecoveryStream {
         {
             return Err(protocol());
         }
-        let mut page = sdk
-            .collaboration_snapshot(SnapshotParams {
+        let mut page = retry_recovery_read(|| {
+            sdk.collaboration_snapshot(SnapshotParams {
                 subscription_id: sub.subscription_id.clone(),
                 page_token: None,
             })
-            .await?;
+        })
+        .await?;
         let mut baseline = page.clone();
         baseline.workflows.clear();
         baseline.points.clear();
         baseline.automation.clear();
+        baseline.competitions.clear();
         baseline.resource_versions.clear();
         baseline.next_page_token = None;
         let mut tokens = BTreeSet::new();
@@ -118,7 +148,10 @@ impl RecoveryStream {
                 || page.points_limit != points_limit
                 || !valid_id(&page.snapshot_id)
                 || stream_sequence(&page.through_sequence).is_err()
-                || page.workflows.len() + page.points.len() + page.automation.len()
+                || page.workflows.len()
+                    + page.points.len()
+                    + page.automation.len()
+                    + page.competitions.len()
                     != page.resource_versions.len()
             {
                 return Err(protocol());
@@ -136,6 +169,7 @@ impl RecoveryStream {
             baseline.workflows.append(&mut page.workflows);
             baseline.points.append(&mut page.points);
             baseline.automation.append(&mut page.automation);
+            baseline.competitions.append(&mut page.competitions);
             baseline
                 .resource_versions
                 .append(&mut page.resource_versions);
@@ -145,12 +179,13 @@ impl RecoveryStream {
             if !tokens.insert(token.clone()) || tokens.len() > 4096 {
                 return Err(protocol());
             }
-            page = sdk
-                .collaboration_snapshot(SnapshotParams {
+            page = retry_recovery_read(|| {
+                sdk.collaboration_snapshot(SnapshotParams {
                     subscription_id: sub.subscription_id.clone(),
-                    page_token: Some(token),
+                    page_token: Some(token.clone()),
                 })
-                .await?;
+            })
+            .await?;
         }
         if points_limit.is_some_and(|n| baseline.points.len() > usize::from(n)) {
             return Err(protocol());
@@ -298,13 +333,14 @@ impl RecoveryStream {
         }) {
             let receiver = remote.subscribe();
             let sdk = TikToolsClient::Remote(remote.clone());
-            let resumed: Result<ResumeResult, _> = sdk
-                .collaboration_resume(ResumeParams {
+            let resumed: Result<ResumeResult, _> = retry_recovery_read(|| {
+                sdk.collaboration_resume(ResumeParams {
                     subscription_id: cursor.subscription_id.clone(),
                     host_instance_id: cursor.host_instance_id.clone(),
                     last_applied_sequence: cursor.last_applied_sequence.clone(),
                 })
-                .await;
+            })
+            .await;
             match resumed {
                 Ok(reply) => {
                     if reply.subscription_id != cursor.subscription_id
@@ -370,6 +406,33 @@ fn validate_page_records(
     if !page.automation.is_empty() && !domains.contains(&StreamDomain::Automation) {
         return Err(protocol());
     }
+    if !page.competitions.is_empty() && !domains.contains(&StreamDomain::Competitions) {
+        return Err(protocol());
+    }
+    for record in &page.competitions {
+        let summary: tiktools_control_api::modules::competitions::CompetitionSummary =
+            serde_json::from_value(record.clone()).map_err(|_| protocol())?;
+        let id = record
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(protocol)?;
+        if summary.id.is_empty()
+            || summary.id.len() > 128
+            || summary.id.chars().any(char::is_control)
+            || summary.name.trim().is_empty()
+            || summary.name.len() > 256
+            || summary.name.chars().any(char::is_control)
+            || summary
+                .revision
+                .as_deref()
+                .is_none_or(|n| stream_sequence(n).map_or(true, |n| n == 0))
+            || bodies
+                .insert((ResourceKind::Competition, "host", id), ())
+                .is_some()
+        {
+            return Err(protocol());
+        }
+    }
     for record in &page.automation {
         let summary: tiktools_collaboration::AutomationSummary =
             serde_json::from_value(record.clone()).map_err(|_| protocol())?;
@@ -405,6 +468,15 @@ fn validate_page_records(
         {
             return Err(protocol());
         }
+        if version.kind == ResourceKind::Competition
+            && !page.competitions.iter().any(|row| {
+                row.get("id").and_then(serde_json::Value::as_str) == Some(version.id.as_str())
+                    && row.get("revision").and_then(serde_json::Value::as_str)
+                        == Some(version.revision.as_str())
+            })
+        {
+            return Err(protocol());
+        }
     }
     if !bodies.is_empty() {
         return Err(protocol());
@@ -416,7 +488,10 @@ fn resource_scope_valid(kind: ResourceKind, scope: &str) -> bool {
     if kind == ResourceKind::Automation {
         tiktools_collaboration::AutomationFamily::from_scope(scope).is_some()
     } else {
-        matches!(kind, ResourceKind::Workflow | ResourceKind::Viewer) && scope == "host"
+        matches!(
+            kind,
+            ResourceKind::Workflow | ResourceKind::Viewer | ResourceKind::Competition
+        ) && scope == "host"
     }
 }
 fn valid_event(event: &ReliableEvent, domains: &BTreeSet<StreamDomain>) -> bool {
@@ -447,11 +522,20 @@ fn valid_event(event: &ReliableEvent, domains: &BTreeSet<StreamDomain>) -> bool 
                 && event.data.get("kind").and_then(serde_json::Value::as_str)
                     == Some(event.resource.scope.as_str())
         }
+        "competition.changed" => {
+            event.resource.kind == ResourceKind::Competition
+                && domains.contains(&StreamDomain::Competitions)
+                && event.data.get("id").and_then(serde_json::Value::as_str)
+                    == Some(event.resource.id.as_str())
+        }
         "command.changed" => {
             if !domains.contains(&StreamDomain::Commands)
                 || !matches!(
                     event.resource.kind,
-                    ResourceKind::Workflow | ResourceKind::Viewer | ResourceKind::Automation
+                    ResourceKind::Workflow
+                        | ResourceKind::Viewer
+                        | ResourceKind::Automation
+                        | ResourceKind::Competition
                 )
             {
                 return false;
@@ -494,6 +578,34 @@ impl ReconnectBackoff {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test(start_paused = true)]
+    async fn recovery_retries_only_explicit_rate_limits_with_a_bounded_budget() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let calls = AtomicUsize::new(0);
+        let start = tokio::time::Instant::now();
+        let error = retry_recovery_read(|| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            async { Err::<(), _>(fail("rate_limited", "limited")) }
+        })
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, "rate_limited");
+        assert_eq!(calls.load(Ordering::SeqCst), 5);
+        assert_eq!(start.elapsed(), Duration::from_secs(4));
+
+        for code in ["transport", "timeout", "forbidden"] {
+            calls.store(0, Ordering::SeqCst);
+            let error = retry_recovery_read(|| {
+                calls.fetch_add(1, Ordering::SeqCst);
+                async { Err::<(), _>(fail(code, "failed")) }
+            })
+            .await
+            .unwrap_err();
+            assert_eq!(error.code, code);
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+        }
+    }
 
     #[test]
     fn identical_ids_cannot_cross_stream_domains_or_command_targets() {

@@ -61,22 +61,23 @@ impl AppCore {
             let invoker_for_task = invoker.clone();
             tasks.spawn(async move {
                 let response = match invoker_for_task
-                    .call(&plugin_id_for_call, &request, PLUGIN_POLL_DEADLINE)
+                    .call_poll_identified(&plugin_id_for_call, &request, PLUGIN_POLL_DEADLINE)
                     .await
                 {
-                    Ok(response) => Ok(response),
+                    Ok(Some(response)) => Some(Ok(response)),
+                    Ok(None) => None,
                     Err(crate::plugin_invoker::InvokeError::Timeout) => {
-                        Err("plugin poll timed out".to_owned())
+                        Some(Err("plugin poll timed out".to_owned()))
                     }
                     Err(
                         crate::plugin_invoker::InvokeError::Unavailable(reason)
                         | crate::plugin_invoker::InvokeError::Plugin(reason),
-                    ) => Err(reason),
+                    ) => Some(Err(reason)),
                 };
                 (plugin_id, declared_for_task, response)
             });
             if tasks.len() >= MAX_CONCURRENT_POLLS {
-                if let Some(Ok((plugin_id, declared, response))) = tasks.join_next().await {
+                if let Some(Ok((plugin_id, declared, Some(response)))) = tasks.join_next().await {
                     self.handle_poll_outcome(plugin_id, declared, response, &source)
                         .await;
                 }
@@ -85,7 +86,7 @@ impl AppCore {
         // Outcomes are processed as each poll completes: a slow sibling
         // must not delay another plugin's events behind a batch drain.
         while let Some(joined) = tasks.join_next().await {
-            if let Ok((plugin_id, declared, response)) = joined {
+            if let Ok((plugin_id, declared, Some(response))) = joined {
                 self.handle_poll_outcome(plugin_id, declared, response, &source)
                     .await;
             }
@@ -95,20 +96,74 @@ impl AppCore {
     /// Validates one completed poll response and publishes its events
     /// immediately. Runs per completion (not per batch) so fast plugins
     /// never wait for slow siblings.
-    async fn handle_poll_outcome(
+    pub(crate) async fn handle_poll_outcome(
         self: &Arc<Self>,
         plugin_id: String,
-        declared: Vec<String>,
-        response: Result<serde_json::Value, String>,
+        _declared: Vec<String>,
+        response: Result<(u64, serde_json::Value), String>,
         source: &serde_json::Value,
     ) {
-        let response = match response {
+        // Discard responses received after quarantine, including errors: an
+        // old instance must not publish events or mutate its health state.
+        if self.plugin_apply_quarantined(&plugin_id) {
+            return;
+        }
+        let (generation, response) = match response {
             Ok(response) => response,
             Err(error) => {
                 self.record_plugin_failure(&plugin_id, error);
                 return;
             }
         };
+        // The result belongs to a particular worker, not merely a plugin ID.
+        // Hold delivery admission while handling the complete poll batch so
+        // a package transaction cannot begin between validation and publish.
+        let Some(_delivery) = self
+            .plugins
+            .try_reserve_event_delivery(&plugin_id, generation)
+        else {
+            return;
+        };
+        // The catalog candidate was captured before the call and can refer to
+        // a prior package. Authorize against this worker's immutable manifest.
+        let manifest = _delivery.manifest();
+        let Some(current) = self.plugins.get(&plugin_id) else {
+            return;
+        };
+        if !self.plugin_ready(&plugin_id) {
+            return;
+        }
+        let events_allowed = self
+            .capabilities
+            .require_capability(manifest, tiktools_plugin_api::capabilities::EVENTS_PUBLISH)
+            .is_ok()
+            && self
+                .capabilities
+                .require_capability(
+                    &current.manifest,
+                    tiktools_plugin_api::capabilities::EVENTS_PUBLISH,
+                )
+                .is_ok();
+        let declared = if events_allowed {
+            let current_types = declared_event_types(&current.manifest);
+            declared_event_types(manifest)
+                .into_iter()
+                .filter(|event| current_types.contains(event))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let progress_allowed = self
+            .capabilities
+            .require_capability(manifest, PLUGIN_PROGRESS_CAPABILITY)
+            .is_ok()
+            && self
+                .capabilities
+                .require_capability(&current.manifest, PLUGIN_PROGRESS_CAPABILITY)
+                .is_ok();
+        if !events_allowed && !progress_allowed {
+            return;
+        }
         let response = match tiktools_plugin_sdk::decode_plugin_result(response) {
             Ok(response) => response,
             Err(error) => {
@@ -117,7 +172,10 @@ impl AppCore {
             }
         };
         self.record_plugin_success(&plugin_id);
-        if let Some(progress) = parse_plugin_progress(&response) {
+        if let Some(progress) = progress_allowed
+            .then(|| parse_plugin_progress(&response))
+            .flatten()
+        {
             // Poll progress travels on the domain topic; the legacy
             // push was removed with the migrated duplicates.
             let state = match progress.state {
@@ -162,6 +220,9 @@ impl AppCore {
             );
         }
         for (event_type, data) in parsed.events {
+            if self.plugin_apply_quarantined(&plugin_id) {
+                return;
+            }
             tracing::debug!(
                 plugin = %plugin_id,
                 event_type = %event_type,

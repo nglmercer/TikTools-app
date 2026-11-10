@@ -8,21 +8,73 @@ afterEach(() => { for (const model of models.splice(0)) model.stop(); });
 function fixture() {
   const status = ref<ControllerStatus>({ proposalsSupported: true, epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin: 'https://host.example', errorCode: null,
     hello: { connectionId: 'connection', hostId: 'host', hostInstanceId: 'instance', principalId: 'author', sessionId: 'device', grantRevision: '1', capabilities: ['automation.read', 'automation.edit'], features: { automationDrafts: true } } });
-  let storeRevision = 0; let hostRevision = '0'; let copy: ProposalDraft | null = null; let delayed: Promise<unknown> | undefined;
+  let storeRevision = 0; let hostRevision = '0'; let copy: ProposalDraft | null = null; let delayed: Promise<unknown> | undefined; let delayedSave: Promise<unknown> | undefined;
   const identity = () => ({ epoch: status.value.epoch, connectionId: status.value.hello!.connectionId, hostInstanceId: status.value.hello!.hostInstanceId, grantRevision: status.value.hello!.grantRevision });
   const { client, calls } = createFakeControlClient((method, p) => {
     if (method === 'controller.proposals.list') return { ...identity(), storeRevision: String(storeRevision), rows: copy ? [{ kind: copy.kind, id: copy.id, mode: copy.mode, baseRevision: copy.baseRevision, updatedAt: 1, textBytes: copy.text.length }] : [], next: null };
     if (method === 'controller.proposals.get') return delayed ?? { ...identity(), storeRevision: String(storeRevision), draft: copy };
+    if (method === 'controller.proposals.source') return { ...identity(), kind: p!['kind'], id: p!['id'], revision: '2', record: { id: p!['id'], name: 'Owner source', enabled: true, typeId: 'core.log', config: { message: 'shared sensitive value' } } };
     if (method === 'controller.proposals.inspect') return { ...identity(), inspectionId: `inspection-${hostRevision}`, kind: p!['kind'], id: p!['id'], revision: hostRevision, summary: hostRevision === '0' ? null : { kind: p!['kind'], id: p!['id'], name: 'Closed host summary', enabled: false, definitionRedacted: true } };
-    if (method === 'controller.proposals.save') { copy = { kind: p!['kind'] as 'action', id: String(p!['id']), mode: p!['mode'] as 'create', baseRevision: String(p!['baseRevision']), text: String(p!['text']), updatedAt: 1 }; storeRevision += 1; return { ...identity(), storeRevision: String(storeRevision) }; }
+    if (method === 'controller.proposals.save') { if (delayedSave) return delayedSave; copy = { kind: p!['kind'] as 'action', id: String(p!['id']), mode: p!['mode'] as 'create', baseRevision: String(p!['baseRevision']), text: String(p!['text']), updatedAt: 1 }; storeRevision += 1; return { ...identity(), storeRevision: String(storeRevision) }; }
     if (method === 'controller.proposals.delete') { copy = null; storeRevision += 1; return { ...identity(), storeRevision: String(storeRevision) }; }
     throw new Error(method);
   });
   let blocked = false;
-  const send = vi.fn(async () => true);
+  const send = vi.fn(async (): Promise<boolean | { journal: unknown }> => true);
   const model = createProposalModel(client, { status, blocked: () => blocked, journalMatches: () => true, send }); models.push(model);
-  return { model, status, calls, send, identity, block: () => { blocked = true; }, host: (revision: string) => { hostRevision = revision; }, changeCopy: (draft: ProposalDraft) => { copy = draft; storeRevision += 1; }, delay: (p: Promise<unknown>) => { delayed = p; } };
+  return { model, status, calls, send, identity, block: () => { blocked = true; }, host: (revision: string) => { hostRevision = revision; }, changeCopy: (draft: ProposalDraft) => { copy = draft; storeRevision += 1; }, delay: (p: Promise<unknown>) => { delayed = p; }, delaySave: (p: Promise<unknown>) => { delayedSave = p; } };
 }
+
+it('does not send after the grant changes while saving', async () => {
+  const f = fixture(); await f.model.refresh(); f.model.select('action', 'same'); await f.model.inspect();
+  const oldIdentity = f.identity(); let release: (value: unknown) => void = () => {};
+  f.delaySave(new Promise((resolve) => { release = resolve; }));
+  const submitting = f.model.submit(false);
+  f.status.value.hello!.grantRevision = '2';
+  release({ ...oldIdentity, storeRevision: '1' });
+  await submitting;
+  expect(f.send).not.toHaveBeenCalled();
+});
+
+it('advances the next edit only from the exact confirmed proposal receipt', async () => {
+  const f = fixture(); await ready(f);
+  const binding = { profileId: 'profile-id', origin: 'https://host.example', hostId: 'host', principalId: 'author', sessionId: 'device' };
+  f.status.value.commandJournal = { binding, pending: null, unavailable: false, recent: [] };
+  f.send.mockResolvedValueOnce({ journal: { binding, pending: null, unavailable: false, recent: [{ outcome: 'succeeded', revision: '1', intent: { operation: 'create-action-draft', resourceId: 'same', hostInstanceId: 'instance', expectedRevision: '0', proposalRevision: '1' } }] } });
+  await f.model.submit(false);
+  expect(f.model.mode.value).toBe('update');
+  expect(f.model.baseRevision.value).toBe('1');
+  expect(f.model.matches.value).toBe(false);
+  f.host('1'); f.model.edit(`${f.model.text.value}\n`);
+  await f.model.submit(false);
+  expect(f.send).toHaveBeenCalledTimes(2);
+});
+
+it('does not advance the base from another proposal receipt', async () => {
+  const f = fixture(); await ready(f);
+  const binding = { profileId: 'profile-id', origin: 'https://host.example', hostId: 'host', principalId: 'author', sessionId: 'device' };
+  f.status.value.commandJournal = { binding, pending: null, unavailable: false, recent: [] };
+  f.send.mockResolvedValueOnce({ journal: { binding, pending: null, unavailable: false, recent: [{ outcome: 'succeeded', revision: '1', intent: { operation: 'create-action-draft', resourceId: 'different', hostInstanceId: 'instance', expectedRevision: '0', proposalRevision: '1' } }] } });
+  await f.model.submit(false);
+  expect(f.model.mode.value).toBe('create');
+  expect(f.model.baseRevision.value).toBe('0');
+});
+
+it('inspects, saves and submits in one action without silently replacing a newer host revision', async () => {
+  const f = fixture(); await f.model.refresh(); f.model.select('action', 'same');
+  await f.model.submit(false);
+  expect(f.calls.filter((call) => call.method === 'controller.proposals.inspect')).toHaveLength(1);
+  expect(f.calls.filter((call) => call.method === 'controller.proposals.save')).toHaveLength(1);
+  expect(f.send).toHaveBeenCalledTimes(1);
+  f.host('2'); f.model.edit(`${f.model.text.value}\n`);
+  await f.model.submit(false);
+  expect(f.model.error.value).toBe('proposal_base_changed');
+  expect(f.send).toHaveBeenCalledTimes(1);
+  await f.model.confirm(f.model.prepare('base')!);
+  expect(f.model.error.value).toBe('');
+  await f.model.submit(false);
+  expect(f.send).toHaveBeenCalledTimes(2);
+});
 async function ready(f: ReturnType<typeof fixture>) {
   await f.model.refresh(); f.model.select('action', 'same'); await f.model.inspect();
   const text = JSON.stringify({ id: 'same', enabled: false, typeId: 'core.log', config: { message: 'local secret' } }); f.model.edit(text);
@@ -73,4 +125,34 @@ it('ignores an older selected private read after profile loss', async () => {
   const loading = f.model.load(); f.status.value.phase = 'reconnecting';
   release({ ...oldIdentity, storeRevision: '1', draft: { kind: 'action', id: 'same', mode: 'create', baseRevision: '0', text: 'delayed secret', updatedAt: 1 } });
   await loading; expect(f.model.text.value).toBe(''); expect(f.model.saved.value).toBeNull(); expect(f.model.busy.value).toBe(false);
+});
+
+it('sends an active change only when the host advertises the reusable grant', async () => {
+  const f = fixture(); await ready(f);
+  expect(f.model.prepare('send-active')).toBeNull();
+  f.status.value.hello!.capabilities.push('automation.toggle');
+  f.status.value.hello!.features['automationReusableWrite'] = true;
+  // Changing grant capabilities clears the editor; inspect and save again.
+  await ready(f);
+  const target = f.model.prepare('send-active')!;
+  expect(target).not.toBeNull();
+  await f.model.confirm(target);
+  expect(f.send).toHaveBeenCalledExactlyOnceWith('controller.proposals.submit', expect.objectContaining({ kind: 'action', id: 'same', active: true, expectedStoreRevision: '2' }));
+  expect(f.model.prepare('send-active')).toBeNull();
+});
+
+
+it('previews shared source without overwriting new edits and clears it when access changes', async () => {
+  const f = fixture(); await ready(f);
+  expect(f.model.canReadShared.value).toBe(false);
+  f.status.value.hello!.features['automationSharedSource'] = true;
+  await f.model.loadShared();
+  expect(f.model.sharedSource.value?.text).toContain('shared sensitive value');
+  const before = f.model.text.value; f.model.edit(`${before} `); f.model.useShared();
+  expect(f.model.text.value).toBe(`${before} `);
+  await f.model.loadShared(); f.model.useShared();
+  expect(JSON.parse(f.model.text.value)).toMatchObject({ name: 'Owner source', enabled: false });
+  expect(f.model.baseRevision.value).toBe('2'); expect(f.model.mode.value).toBe('update');
+  await f.model.loadShared(); f.status.value.hello!.grantRevision = '2';
+  expect(f.model.sharedSource.value).toBeNull(); expect(f.model.text.value).toBe('');
 });

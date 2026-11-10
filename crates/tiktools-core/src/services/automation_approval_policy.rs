@@ -5,6 +5,70 @@ use serde_json::{json, Map, Value};
 
 const PUBLIC_FIELDS: &[&str] = crate::collaboration::PUBLIC_EFFECT_RENDER_FIELDS;
 
+/// Read-only preflight for reusable grants. This does not produce a runtime
+/// permit: callers must rebuild and reauthorize under the final admission lock.
+pub(crate) fn reusable_preflight(
+    manifest: &ExecutionManifest,
+    identities: &[crate::collaboration::ExecutionIdentity],
+) -> Result<(), &'static str> {
+    use crate::collaboration::DelegatedAutomationEffect as Allowed;
+    use std::collections::BTreeSet;
+    if identities.is_empty() || identities.len() != manifest.subjects.len() {
+        return Err("subject_mismatch");
+    }
+    bindings(manifest, identities).map_err(|_| "unsupported_closure")?;
+    let mut seen = BTreeSet::new();
+    for identity in identities {
+        if identity.host_id() != manifest.host_id
+            || identity.check_deadline().is_err()
+            || identity.grant().validate().is_err()
+            || !seen.insert((identity.principal_id(), identity.session_id()))
+            || !manifest.subjects.iter().any(|subject| {
+                subject.principal_id == identity.principal_id()
+                    && subject.session_id == identity.session_id()
+                    && subject.grant_revision == identity.grant_revision()
+                    && subject.configuration_revision == identity.configuration_revision()
+            })
+        {
+            return Err("subject_mismatch");
+        }
+        let policy = identity
+            .grant()
+            .automation_delegation
+            .as_ref()
+            .ok_or("delegation_not_granted")?;
+        for definition in std::iter::once(&manifest.primary).chain(manifest.dependencies.iter()) {
+            if !definition.exists
+                || !identity
+                    .grant()
+                    .allows_automation(definition.kind, &definition.id)
+            {
+                return Err("resource_not_granted");
+            }
+        }
+        for effect in &manifest.effects {
+            let class = match effect.kind {
+                EffectKind::Log => Allowed::Log,
+                EffectKind::Delay => Allowed::Delay,
+                EffectKind::Points => Allowed::Points,
+                EffectKind::Http => Allowed::Http,
+                EffectKind::Audio => Allowed::Audio,
+                EffectKind::Emit => Allowed::Emit,
+                EffectKind::Script => Allowed::Script,
+                EffectKind::Plugin | EffectKind::Unknown | EffectKind::MissingDefinition => {
+                    return Err("unsupported_closure")
+                }
+            };
+            if !policy.effects.contains(&class)
+                || effect.dynamic_target && !policy.allow_dynamic_targets
+            {
+                return Err("effect_not_granted");
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Validate the entire closure, including disabled/unselected dependencies.
 /// Unknown effects require a separate policy implementation and fresh review.
 pub(crate) fn bindings(

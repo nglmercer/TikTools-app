@@ -28,6 +28,10 @@ pub enum Persistence {
 pub struct AccountStatus {
     pub origin: Option<String>,
     pub state: AccountState,
+    /// Opaque identifier for the currently observed login attempt. It binds
+    /// cancellation to that attempt and is not a bearer/session credential.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub login_operation_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
     /// Verified account email from `/me`, when the sign-in resolved it.

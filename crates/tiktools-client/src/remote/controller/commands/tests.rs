@@ -65,6 +65,7 @@ fn prepared(profile: &profiles::RemoteProfile, instance: &str, root: &std::path:
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     j.begin(intent.clone()).unwrap();
@@ -122,6 +123,249 @@ impl CredentialStore for FixtureFileStore {
     fn delete(&self, _: &str) -> Result<(), ClientError> {
         panic!("fixture must not delete credentials")
     }
+}
+
+#[tokio::test]
+#[ignore = "private subprocess invoked by the two-controller process test"]
+async fn independent_controller_process_fixture() {
+    let root = std::path::PathBuf::from(std::env::var_os("TIKTOOLS_TWO_CONTROLLER_ROOT").unwrap());
+    let signals =
+        std::path::PathBuf::from(std::env::var_os("TIKTOOLS_TWO_CONTROLLER_SIGNALS").unwrap());
+    let role = std::env::var("TIKTOOLS_TWO_CONTROLLER_ROLE").unwrap();
+    assert!(root.starts_with(std::env::temp_dir()));
+    assert!(signals.starts_with(std::env::temp_dir()));
+    assert!(matches!(role.as_str(), "actor" | "observer"));
+    let manager = ProfileManager::new(
+        root.clone(),
+        Arc::new(FixtureFileStore(root.join("test-credentials.input"))),
+    )
+    .unwrap();
+    let controller = Controller::new(manager);
+    controller.connect("desk").await.unwrap();
+    {
+        let view = controller.shared.view.read().unwrap();
+        assert_eq!(view.rows["welcome"].graph["enabled"], true);
+        assert_eq!(view.rows["welcome"].version.revision, "1");
+    }
+    std::fs::write(signals.join(format!("{role}-ready")), b"ready").unwrap();
+    if role == "actor" {
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            while !signals.join("go").exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        controller
+            .workflow_command(input(&controller, Operation::Disable))
+            .await
+            .unwrap();
+        std::fs::write(signals.join("actor-committed"), b"committed").unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            while controller.status().phase == "ready" {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        std::fs::write(signals.join("actor-revoked"), b"revoked").unwrap();
+    } else {
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            loop {
+                let observed = {
+                    let view = controller.shared.view.read().unwrap();
+                    view.rows.get("welcome").is_some_and(|row| {
+                        row.graph["enabled"] == false && row.version.revision == "2"
+                    })
+                };
+                if observed {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        std::fs::write(signals.join("observer-updated"), b"updated").unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            while !signals.join("go-second").exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert_eq!(controller.status().phase, "ready");
+        controller
+            .workflow_command(input(&controller, Operation::Delete))
+            .await
+            .unwrap();
+        std::fs::write(signals.join("observer-committed"), b"committed").unwrap();
+    }
+    controller.disconnect().await;
+}
+
+#[tokio::test]
+async fn independent_controller_processes_share_host_workflow_updates() {
+    use secrecy::ExposeSecret;
+    struct Child(std::process::Child);
+    impl Drop for Child {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    let f = Fixture::new().await;
+    f.core
+        .workflow_save(json!({"id":"welcome","name":"Host workflow","enabled":true}))
+        .unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let signals = home.path().join("signals");
+    std::fs::create_dir(&signals).unwrap();
+    let mut children = Vec::new();
+    let mut identities = Vec::new();
+    for role in ["actor", "observer"] {
+        let root = home.path().join(role);
+        let store = Arc::new(Store::default());
+        let manager = ProfileManager::new(root.clone(), store.clone()).unwrap();
+        let profile = install(&f, &manager, "desk").await;
+        identities.push((profile.principal_id.clone(), profile.session_id.clone()));
+        let secret = store.load(&profile.credential_key).unwrap().unwrap();
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(root.join("test-credentials.input")).unwrap();
+        serde_json::to_writer(
+            &mut file,
+            &json!({"key":profile.credential_key,"secret":secret.expose_secret()}),
+        )
+        .unwrap();
+        file.sync_all().unwrap();
+        drop(file);
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--ignored",
+                "--exact",
+                "remote::controller::commands::tests::independent_controller_process_fixture",
+            ])
+            .env("TIKTOOLS_TWO_CONTROLLER_ROOT", &root)
+            .env("TIKTOOLS_TWO_CONTROLLER_SIGNALS", &signals)
+            .env("TIKTOOLS_TWO_CONTROLLER_ROLE", role)
+            .current_dir(&root)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        children.push(Child(child));
+    }
+    assert_ne!(identities[0].0, identities[1].0);
+    assert_ne!(identities[0].1, identities[1].1);
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        while !signals.join("actor-ready").exists() || !signals.join("observer-ready").exists() {
+            for child in &mut children {
+                assert!(
+                    child.0.try_wait().unwrap().is_none(),
+                    "controller exited before baseline"
+                );
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(f.core.workflow_get("welcome").unwrap()["enabled"], true);
+    std::fs::write(signals.join("go"), b"go").unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        while !signals.join("actor-committed").exists()
+            || !signals.join("observer-updated").exists()
+        {
+            for child in &mut children {
+                if let Some(status) = child.0.try_wait().unwrap() {
+                    assert!(status.success(), "controller failed before update");
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(f.core.workflow_get("welcome").unwrap()["enabled"], false);
+    assert_eq!(
+        f.core
+            .workflow_get_versioned("welcome")
+            .unwrap()
+            .resource_versions[0]
+            .revision,
+        "2"
+    );
+    assert!(!signals.join("actor-revoked").exists());
+    f.service
+        .revoke_session(&identities[0].1, "local-owner")
+        .unwrap();
+    std::fs::write(signals.join("go-second"), b"go").unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        while !signals.join("actor-revoked").exists()
+            || !signals.join("observer-committed").exists()
+        {
+            for child in &mut children {
+                if let Some(status) = child.0.try_wait().unwrap() {
+                    assert!(status.success(), "controller failed after revocation");
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(f.core.workflow_get("welcome").is_err());
+    assert_eq!(
+        f.core
+            .workflow_get_versioned("welcome")
+            .unwrap()
+            .resource_versions[0]
+            .revision,
+        "3"
+    );
+    for child in &mut children {
+        let status = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Some(status) = child.0.try_wait().unwrap() {
+                    break status;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(status.success());
+    }
+    fn no_host_database(root: &std::path::Path) {
+        for entry in std::fs::read_dir(root).unwrap() {
+            let entry = entry.unwrap();
+            if entry.file_type().unwrap().is_dir() {
+                no_host_database(&entry.path());
+            } else {
+                assert_ne!(
+                    entry.path().extension().and_then(|v| v.to_str()),
+                    Some("db")
+                );
+                assert_ne!(
+                    entry.path().extension().and_then(|v| v.to_str()),
+                    Some("sqlite")
+                );
+            }
+        }
+    }
+    for role in ["actor", "observer"] {
+        assert!(!home.path().join(role).join("data").exists());
+        assert!(!home.path().join(role).join("plugins").exists());
+        no_host_database(&home.path().join(role));
+    }
+    f.finish().await;
 }
 
 #[tokio::test]
@@ -260,6 +504,7 @@ fn points_receipts_bind_the_exact_viewer_unit_and_effective_amount_without_a_fak
         delta: Some(2.0),
         currency_name: Some("Points".into()),
         proposal_revision: None,
+        expected_generation: None,
         created_at: 0,
     };
     let receipt = CommandReceipt {
@@ -484,6 +729,7 @@ async fn points_recovery_confirms_the_original_result_after_later_awards_and_uni
         delta: Some(4.0),
         currency_name: Some("Points".into()),
         proposal_revision: None,
+        expected_generation: None,
         created_at: profiles::commands::timestamp(),
     };
     {
@@ -594,6 +840,14 @@ async fn controller_recovers_a_committed_id_after_restart_without_reapplying_the
     drop(remote);
     f.core.workflow_set_enabled("welcome", true).unwrap();
     let c = Controller::new(manager.clone());
+    let forget = json!({"profile":"desk","profileId":profile.profile_id,"origin":profile.origin,"hostId":profile.host_id,"confirm":true});
+    assert_eq!(
+        c.manage("controller.profile.forget", forget)
+            .await
+            .unwrap_err()
+            .code,
+        "command_pending"
+    );
     c.connect("desk").await.unwrap();
     wait(&c, |s| {
         s.command_journal
@@ -858,6 +1112,7 @@ fn receipt_validation_requires_the_exact_id_resource_and_revision_transition() {
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: 0,
     };
     let mut receipt = CommandReceipt {
@@ -892,3 +1147,41 @@ fn receipt_validation_requires_the_exact_id_resource_and_revision_transition() {
 }
 
 mod event_process_tests;
+
+#[test]
+fn competition_activation_receipt_binds_generation_and_revision() {
+    let mut intent = Intent {
+        command_id: uuid::Uuid::new_v4().to_string(),
+        operation: Operation::StartCompetition,
+        resource_id: "shared".into(),
+        host_instance_id: uuid::Uuid::new_v4().to_string(),
+        expected_revision: Some("7".into()),
+        expected_generation: Some("9007199254740993".into()),
+        delta: None,
+        currency_name: None,
+        proposal_revision: None,
+        created_at: 0,
+    };
+    let receipt = CommandReceipt {
+        command_id: intent.command_id.clone(),
+        state: CommandState::Succeeded,
+        resource: Some(tiktools_collaboration::CommandResource {
+            kind: ResourceKind::Competition,
+            scope: "host".into(),
+            id: "shared".into(),
+        }),
+        committed_at: Some(1),
+    };
+    let version = ResourceVersion {
+        kind: ResourceKind::Competition,
+        scope: "host".into(),
+        id: "shared".into(),
+        revision: "8".into(),
+    };
+    let started = json!({"id":"shared","lifecycle":"active","generation":"9007199254740994"});
+    assert!(validate_success(&intent, &receipt, std::slice::from_ref(&version), &started).is_ok());
+    let wrong = json!({"id":"shared","lifecycle":"active","generation":"9007199254740993"});
+    assert!(validate_success(&intent, &receipt, std::slice::from_ref(&version), &wrong).is_err());
+    intent.operation = Operation::ResumeCompetition;
+    assert!(validate_success(&intent, &receipt, &[version], &wrong).is_ok());
+}

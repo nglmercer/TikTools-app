@@ -16,6 +16,7 @@ fn proposal_receipts_require_a_closed_disabled_body_exact_family_and_next_revisi
             delta: None,
             currency_name: None,
             proposal_revision: Some("7".into()),
+            expected_generation: None,
             created_at: 1,
         };
         let receipt = CommandReceipt {
@@ -85,6 +86,7 @@ fn event_receipts_require_the_exact_family_target_revision_and_closed_body() {
         delta: None,
         currency_name: None,
         proposal_revision: None,
+        expected_generation: None,
         created_at: 1,
     };
     let receipt = CommandReceipt {
@@ -158,4 +160,94 @@ fn event_receipts_require_the_exact_family_target_revision_and_closed_body() {
         &json!({"id":"same","deleted":false})
     )
     .is_ok());
+}
+
+#[test]
+fn activation_receipts_bind_family_id_and_next_revision() {
+    for operation in [Operation::EnableEvent, Operation::EnableAction] {
+        let intent = Intent {
+            command_id: "11111111-1111-4111-8111-111111111111".into(),
+            operation,
+            resource_id: "same".into(),
+            host_instance_id: "22222222-2222-4222-8222-222222222222".into(),
+            expected_revision: Some("1".into()),
+            delta: None,
+            currency_name: None,
+            proposal_revision: None,
+            expected_generation: None,
+            created_at: 1,
+        };
+        let receipt = CommandReceipt {
+            command_id: intent.command_id.clone(),
+            state: CommandState::Succeeded,
+            resource: Some(tiktools_collaboration::CommandResource {
+                kind: ResourceKind::Automation,
+                scope: operation.scope().into(),
+                id: "same".into(),
+            }),
+            committed_at: Some(2),
+        };
+        let version = ResourceVersion {
+            kind: ResourceKind::Automation,
+            scope: operation.scope().into(),
+            id: "same".into(),
+            revision: "2".into(),
+        };
+        let body = json!({"kind":operation.scope(),"id":"same","enabled":true});
+        assert!(validate_success(&intent, &receipt, std::slice::from_ref(&version), &body).is_ok());
+        for altered in [
+            json!({"kind":"wrong","id":"same","enabled":true}),
+            json!({"kind":operation.scope(),"id":"same","enabled":false}),
+            json!({"kind":operation.scope(),"id":"same","enabled":true,"extra":"secret"}),
+        ] {
+            assert!(
+                validate_success(&intent, &receipt, std::slice::from_ref(&version), &altered)
+                    .is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn active_authoring_receipts_require_active_state_and_matching_family() {
+    for operation in [
+        Operation::CreateEventActive,
+        Operation::UpdateEventActive,
+        Operation::CreateActionActive,
+        Operation::UpdateActionActive,
+    ] {
+        let intent = Intent {
+            command_id: "11111111-1111-4111-8111-111111111111".into(),
+            operation,
+            resource_id: "same".into(),
+            host_instance_id: "22222222-2222-4222-8222-222222222222".into(),
+            expected_revision: Some("1".into()),
+            delta: None,
+            currency_name: None,
+            proposal_revision: Some("1".into()),
+            expected_generation: None,
+            created_at: 1,
+        };
+        let receipt = CommandReceipt {
+            command_id: intent.command_id.clone(),
+            state: CommandState::Succeeded,
+            resource: Some(tiktools_collaboration::CommandResource {
+                kind: ResourceKind::Automation,
+                scope: operation.scope().into(),
+                id: "same".into(),
+            }),
+            committed_at: Some(2),
+        };
+        let version = ResourceVersion {
+            kind: ResourceKind::Automation,
+            scope: operation.scope().into(),
+            id: "same".into(),
+            revision: "2".into(),
+        };
+        let mut body =
+            json!({"kind":operation.scope(),"id":"same","enabled":true,"pendingReview":false});
+        assert!(validate_success(&intent, &receipt, std::slice::from_ref(&version), &body).is_ok());
+        body["pendingReview"] = true.into();
+        assert!(validate_success(&intent, &receipt, &[version], &body).is_err());
+    }
 }

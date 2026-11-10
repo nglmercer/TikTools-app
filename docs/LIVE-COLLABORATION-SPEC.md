@@ -603,8 +603,10 @@ its grant or bypass the recovery handshake.
 Implementation status: `collaboration.subscribe`, `snapshot` and `resume` now
 support `workflows`, `points` and caller-owned workflow/viewer `commands`. Workflows
 use their shared write/publication/capture barrier. Snapshot pages expire after
-30 seconds and retain at most 4 MiB including envelopes/token indexes; page
-state budgets are half the actual frame limit, capped at 512 KiB. Reliable
+30 seconds and retain at most 4 MiB including envelopes/token indexes. Page
+packing reserves the RPC envelope and serialized page metadata, caps its
+state budget at 512 KiB and checks each serialized page against the negotiated
+frame limit before publishing any baseline. Reliable
 notifications are withheld until the complete baseline has been requested.
 Resume acknowledges a watermark and replays retained notifications over the
 same WSS channel, preserving IDs/sequences; it does not inline a multi-megabyte

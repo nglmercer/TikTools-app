@@ -1,7 +1,359 @@
 //! Competition definition operations. The host owns the authoritative state.
 use super::OperationError;
 use crate::{recover_mutex, AppCore};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use tiktools_competitions::Definition;
+
+/// Read-only remote projection. Definitions, commands, winner actions,
+/// ranking IDs and participant information never leave the host here.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionSummary {
+    pub id: String,
+    pub name: String,
+    pub kind: tiktools_competitions::CompetitionKind,
+    pub lifecycle: tiktools_competitions::Lifecycle,
+    pub generation: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+    pub deadline_ms: Option<String>,
+    pub remaining_ms: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CompetitionSummaryPage {
+    pub competitions: Vec<CompetitionSummary>,
+    pub next_after: Option<String>,
+}
+
+/// Revision-bound remote competition lifecycle transitions.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum CompetitionRemoteTransition {
+    Start,
+    Resume,
+    Pause,
+    Cancel,
+}
+impl CompetitionRemoteTransition {
+    #[cfg(feature = "persistence")]
+    pub(crate) fn method(self) -> &'static str {
+        match self {
+            Self::Start => "competitions.start",
+            Self::Resume => "competitions.resume",
+            Self::Pause => "competitions.pause",
+            Self::Cancel => "competitions.cancel",
+        }
+    }
+    #[cfg(feature = "persistence")]
+    pub(crate) fn transition(self) -> tiktools_competitions::Transition {
+        match self {
+            Self::Start => tiktools_competitions::Transition::Start,
+            Self::Resume => tiktools_competitions::Transition::Resume,
+            Self::Pause => tiktools_competitions::Transition::Pause,
+            Self::Cancel => tiktools_competitions::Transition::Cancel,
+        }
+    }
+}
+
+impl AppCore {
+    /// Atomic, recoverable stop transition for a scoped remote controller.
+    pub fn competition_remote_command(
+        self: &std::sync::Arc<Self>,
+        auth: crate::collaboration::Authorization,
+        request: crate::collaboration::CommandRequest,
+        id: &str,
+        generation: &str,
+        transition: CompetitionRemoteTransition,
+    ) -> Result<crate::collaboration::Versioned<serde_json::Value>, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            use crate::collaboration::{Capability, ResourceKind};
+            let clean = super::clean_record_id(id, "competition")?;
+            if clean != id || id.contains('*') || id.chars().any(char::is_control) {
+                return Err(OperationError::invalid("invalid competition ID"));
+            }
+            request
+                .validate()
+                .map_err(|_| OperationError::invalid("invalid command metadata"))?;
+            let generation = generation
+                .parse::<u64>()
+                .ok()
+                .filter(|n| n.to_string() == generation && *n <= i64::MAX as u64)
+                .ok_or_else(|| OperationError::invalid("invalid competition generation"))?;
+            let _gate = self
+                .coordination_gate
+                .lock()
+                .map_err(|_| OperationError::internal("command coordination is unavailable"))?;
+            if self.is_shutdown() {
+                return Err(OperationError::unavailable("host is shutting down"));
+            }
+            let _ranking = recover_mutex(&self.aggregations.mutations, "ranking mutations");
+            let _mutation = recover_mutex(&self.competitions.mutations, "competition mutations");
+            if self.competitions.load_failed {
+                return Err(OperationError::unavailable(
+                    "competition definitions unavailable",
+                ));
+            }
+            let identity = auth.snapshot().map_err(super::commands::service_error)?;
+            if !identity
+                .grant
+                .capabilities
+                .contains(&Capability::CompetitionsRead)
+                || !identity
+                    .grant
+                    .capabilities
+                    .contains(&Capability::CompetitionsManage)
+                || identity.grant.resources.contains_key(&ResourceKind::Live)
+                || !identity
+                    .grant
+                    .allows_resource(ResourceKind::Competition, id)
+            {
+                return Err(OperationError::forbidden("competition command unavailable"));
+            }
+            let service = self
+                .collaboration()
+                .map_err(super::commands::service_error)?;
+            let command = crate::db::CommandTransaction {
+                principal_id: identity.principal_id,
+                session_id: identity.session_id,
+                authorization: Some(auth),
+                request,
+                current_instance_id: service.instance_id().into(),
+                max_ids_per_principal: service
+                    .configuration()
+                    .map_err(super::commands::service_error)?
+                    .limits
+                    .command_ids_per_principal,
+            };
+            self.db
+                .check_command_admission(
+                    crate::db::CommandDatabase::Automation,
+                    &command.principal_id,
+                    &command.request.command_id,
+                    command.max_ids_per_principal,
+                )
+                .map_err(|e| super::commands::command_error(e, &command.request.command_id))?;
+            let operation = match transition {
+                CompetitionRemoteTransition::Start => Some(crate::db::CompetitionActivation::Start),
+                CompetitionRemoteTransition::Resume => {
+                    Some(crate::db::CompetitionActivation::Resume)
+                }
+                _ => None,
+            };
+            let outcome = if let Some(operation) = operation {
+                let definition = self.competition_get(id)?;
+                let ranking_paused = self.ranking_snapshot(&definition.ranking_id)?.paused;
+                let owner = self
+                    .aggregations
+                    .checkpoint_owner
+                    .as_deref()
+                    .ok_or_else(|| {
+                        OperationError::unavailable("competition integrity owner unavailable")
+                    })?;
+                self.db.execute_competition_activation(
+                    id,
+                    generation,
+                    operation,
+                    &command,
+                    &service,
+                    owner,
+                    ranking_paused,
+                )
+            } else {
+                self.db.execute_competition_stop(
+                    id,
+                    generation,
+                    transition,
+                    &command,
+                    &service,
+                    self.aggregations.checkpoint_owner.as_deref(),
+                )
+            };
+            let (result, fresh) = outcome.map_err(|e| match e {
+                crate::db::DatabaseError::RevisionConflict(version) => OperationError {
+                    code: "revision_conflict",
+                    message: "competition changed; refresh its status".into(),
+                    data: Some(serde_json::json!({"resourceVersions":[version]})),
+                },
+                crate::db::DatabaseError::Invalid(reason)
+                    if reason == "competition ranking is paused" =>
+                {
+                    OperationError::conflict("resume the competition ranking first")
+                }
+                other => super::commands::command_error(other, &command.request.command_id),
+            })?;
+            if fresh {
+                let resulting_generation = result
+                    .value
+                    .get("generation")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .unwrap_or(generation);
+                if let Some(data) = self.competition_context(id, resulting_generation) {
+                    match transition {
+                        CompetitionRemoteTransition::Start => {
+                            self.publish_competition_event("competition.started", data)
+                        }
+                        CompetitionRemoteTransition::Resume => {
+                            self.publish_competition_event("competition.resumed", data)
+                        }
+                        CompetitionRemoteTransition::Pause
+                        | CompetitionRemoteTransition::Cancel => {
+                            let retained = self
+                                .db
+                                .competition_retains_operator(
+                                    id,
+                                    resulting_generation,
+                                    &command.principal_id,
+                                    &command.session_id,
+                                )
+                                .unwrap_or(false);
+                            if retained {
+                                self.publish_competition_event(
+                                    if matches!(transition, CompetitionRemoteTransition::Pause) {
+                                        "competition.paused"
+                                    } else {
+                                        "competition.cancelled"
+                                    },
+                                    data,
+                                );
+                            } else {
+                                self.events.publish_presentation_domain(
+                                    if matches!(transition, CompetitionRemoteTransition::Pause) {
+                                        crate::events::DomainEvent::CompetitionPaused(data)
+                                    } else {
+                                        crate::events::DomainEvent::CompetitionCancelled(data)
+                                    },
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(result)
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = (auth, request, id, generation, transition);
+            Err(OperationError::unavailable(
+                "competition commands require persistence",
+            ))
+        }
+    }
+}
+
+impl AppCore {
+    /// Coherent bounded status page filtered before serialization. This is a
+    /// live keyset view, not a snapshot or authority to issue a command.
+    pub fn competition_summary_page(
+        &self,
+        grant: &crate::collaboration::Grant,
+        after: Option<&str>,
+        limit: usize,
+        byte_budget: usize,
+        include_revision: bool,
+    ) -> Result<CompetitionSummaryPage, OperationError> {
+        use crate::collaboration::{Capability, ResourceKind};
+        if !grant.capabilities.contains(&Capability::CompetitionsRead)
+            || grant.resources.contains_key(&ResourceKind::Live)
+        {
+            return Err(OperationError::forbidden(
+                "competition status is unavailable",
+            ));
+        }
+        if !(1..=50).contains(&limit)
+            || after.is_some_and(|id| {
+                id.is_empty() || id.len() > 128 || id.chars().any(char::is_control)
+            })
+            || byte_budget < 1024
+        {
+            return Err(OperationError::invalid("invalid competition page"));
+        }
+        let _mutation = recover_mutex(&self.competitions.mutations, "competition mutations");
+        if self.competitions.load_failed {
+            return Err(OperationError::unavailable(
+                "competition definitions unavailable",
+            ));
+        }
+        let definitions = recover_mutex(&self.competitions.definitions, "competition definitions");
+        let mut rows = Vec::new();
+        // Reserve space for the JSON envelope and a fully escaped cursor.
+        let mut bytes = 512usize;
+        let mut more = false;
+        for (id, definition) in definitions.iter() {
+            if after.is_some_and(|cursor| id.as_str() <= cursor)
+                || !grant.allows_resource(ResourceKind::Competition, id)
+            {
+                continue;
+            }
+            if rows.len() == limit {
+                more = true;
+                break;
+            }
+            if id.is_empty()
+                || id.len() > 128
+                || id.chars().any(char::is_control)
+                || definition.name.trim().is_empty()
+                || definition.name.len() > 256
+                || definition.name.chars().any(char::is_control)
+            {
+                return Err(OperationError::unavailable("competition status is invalid"));
+            }
+            #[cfg(feature = "persistence")]
+            let (state, revision) = if include_revision {
+                let (state, revision) = self
+                    .db
+                    .competition_state_revision(id)
+                    .map_err(|_| OperationError::unavailable("competition revision unavailable"))?
+                    .ok_or_else(|| OperationError::unavailable("competition state unavailable"))?;
+                (state, Some(revision.to_string()))
+            } else {
+                (self.competition_state(id)?, None)
+            };
+            #[cfg(not(feature = "persistence"))]
+            let (state, revision) = {
+                let _ = include_revision;
+                (self.competition_state(id)?, None)
+            };
+            let row = CompetitionSummary {
+                id: id.clone(),
+                name: definition.name.clone(),
+                kind: definition.kind,
+                lifecycle: state.lifecycle,
+                generation: state.generation.to_string(),
+                revision,
+                deadline_ms: state.deadline_ms.map(|value| value.to_string()),
+                remaining_ms: state.remaining_ms.map(|value| value.to_string()),
+            };
+            let row_bytes = serde_json::to_vec(&row)
+                .map_err(|_| OperationError::internal("competition status serialization failed"))?
+                .len();
+            if bytes.saturating_add(row_bytes).saturating_add(1) > byte_budget {
+                if rows.is_empty() {
+                    return Err(OperationError::unavailable(
+                        "competition page exceeds transport limit",
+                    ));
+                }
+                more = true;
+                break;
+            }
+            bytes += row_bytes + 1;
+            rows.push(row);
+        }
+        let next_after = if more {
+            rows.last().map(|row| row.id.clone())
+        } else {
+            None
+        };
+        Ok(CompetitionSummaryPage {
+            competitions: rows,
+            next_after,
+        })
+    }
+}
 
 /// Presentation transports have a per-message limit. Preserve accounting
 /// totals and order while dropping optional artwork/identity first, then
@@ -354,29 +706,16 @@ impl AppCore {
         .map_err(|error| {
             OperationError::conflict(format!("winner selection unavailable: {error:?}"))
         })?;
-        let user_winner = participant_draw || challenge;
-        let action = if user_winner {
-            selection
-                .winner
-                .as_ref()
-                .and(definition.on_user_win.as_ref())
-        } else {
-            selection
-                .winner
-                .as_ref()
-                .and_then(|winner| {
-                    definition
-                        .options
-                        .iter()
-                        .find(|option| &option.id == winner)
-                })
-                .and_then(|option| option.on_win.as_ref())
-        };
+        let user_winner = definition.has_user_winner();
+        let action = selection
+            .winner
+            .as_deref()
+            .and_then(|winner| definition.winner_action(winner));
         let result = ResultRecord {
             schema_version: 1,
             competition_id: id.to_owned(),
             generation: state.generation,
-            ranking_id: definition.ranking_id,
+            ranking_id: definition.ranking_id.clone(),
             ranking_revision: snapshot.revision,
             finalized_at: crate::now_millis(),
             selection,

@@ -41,6 +41,13 @@ pub struct WorkspaceOperationGuard {
     _file: File,
 }
 
+struct WorkspaceStateGuard(File);
+impl Drop for WorkspaceStateGuard {
+    fn drop(&mut self) {
+        let _ = FileExt::unlock(&self.0);
+    }
+}
+
 fn private_directory(path: &Path) -> Result<(), StoreError> {
     let mut builder = fs::DirBuilder::new();
     builder.recursive(true);
@@ -153,8 +160,10 @@ impl WorkspaceStore {
         }
         let envelope: Envelope =
             serde_json::from_slice(&bytes).map_err(|_| StoreError::InvalidState)?;
-        if envelope.format_version != 2
-            || envelope.generation == 0
+        if !matches!(
+            (envelope.format_version, envelope.state.is_product_guarded()),
+            (2, false) | (3, true)
+        ) || envelope.generation == 0
             || envelope.state.validate().is_err()
         {
             return Err(StoreError::InvalidState);
@@ -171,6 +180,25 @@ impl WorkspaceStore {
         let _guard = self.lock()?;
         self.read_locked()
     }
+    /// Invoke a synchronous callback while holding the same private state
+    /// lock used by `save`. Returns `None` instead of waiting for a competing
+    /// writer. The callback must not reenter this store, await or do network
+    /// I/O; callers performing filesystem work must use a blocking thread.
+    /// This coordinates only writers that honor the workspace state lock.
+    pub fn try_with_locked_snapshot<T, E: From<StoreError>>(
+        &self,
+        operation: impl FnOnce(Option<WorkspaceStateSnapshot>) -> Result<T, E>,
+    ) -> Result<Option<T>, E> {
+        let file = self.lock_file("workspace-state.lock").map_err(E::from)?;
+        match FileExt::try_lock_exclusive(&file) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(None),
+            Err(error) => return Err(E::from(StoreError::Io(error))),
+        }
+        let _guard = WorkspaceStateGuard(file);
+        let snapshot = self.read_locked().map_err(E::from)?;
+        Ok(Some(operation(snapshot)?))
+    }
     /// A rename may commit before a directory-fsync failure is returned. Reload
     /// on storage error; neither retry a prepared request nor erase uncertainty.
     pub fn save(
@@ -178,14 +206,94 @@ impl WorkspaceStore {
         expected_generation: Option<u64>,
         state: &WorkspaceState,
     ) -> Result<WorkspaceStateSnapshot, StoreError> {
+        self.save_with_publication_guard(expected_generation, state, |publish| publish())
+    }
+
+    /// Prepare and fsync the complete candidate under the state CAS lock,
+    /// then invoke `guard` immediately before its atomic publication. The
+    /// guard must invoke `publish` exactly once on success. This permits a
+    /// caller to fence a short rename against a session transition without
+    /// holding that session fence while serializing or fsyncing the file.
+    /// A blocked native rename may still delay the holder of that fence.
+    /// The parent directory sync occurs after the callback and can report an
+    /// error after the rename has already committed.
+    pub fn save_with_publication_guard<E: From<StoreError>>(
+        &self,
+        expected_generation: Option<u64>,
+        state: &WorkspaceState,
+        guard: impl FnOnce(&mut dyn FnMut() -> Result<(), E>) -> Result<(), E>,
+    ) -> Result<WorkspaceStateSnapshot, E> {
+        let (_state_lock, generation, temp) = self
+            .prepare_save(expected_generation, state)
+            .map_err(E::from)?;
+        let mut temp = Some(temp);
+        let mut published = false;
+        let mut publish_failed = false;
+        {
+            let mut publish = || {
+                let result = match temp.take() {
+                    Some(file) => file
+                        .persist(self.directory.join("workspace-state.json"))
+                        .map(|_| ())
+                        .map_err(|error| E::from(StoreError::Io(error.error))),
+                    None => Err(E::from(StoreError::InvalidState)),
+                };
+                match result {
+                    Ok(()) => {
+                        published = true;
+                        Ok(())
+                    }
+                    Err(error) => {
+                        publish_failed = true;
+                        Err(error)
+                    }
+                }
+            };
+            guard(&mut publish)?;
+        }
+        if !published || publish_failed {
+            return Err(E::from(StoreError::InvalidState));
+        }
+        #[cfg(unix)]
+        File::open(&self.directory)
+            .and_then(|directory| directory.sync_all())
+            .map_err(StoreError::Io)
+            .map_err(E::from)?;
+        Ok(WorkspaceStateSnapshot {
+            generation,
+            state: state.clone(),
+        })
+    }
+
+    fn prepare_save(
+        &self,
+        expected_generation: Option<u64>,
+        state: &WorkspaceState,
+    ) -> Result<(File, u64, tempfile::NamedTempFile), StoreError> {
         state.validate().map_err(|_| StoreError::InvalidState)?;
         if state.origin != self.origin || state.account_id != self.account_id {
             return Err(StoreError::WrongIdentity);
         }
-        let _guard = self.lock()?;
+        // Legacy v2 files containing product receipts are readable for a
+        // reviewed upgrade, but may not be rewritten by a current client
+        // until the workspace guard has been made durable.
+        if state.has_product_receipts() && !state.is_product_guarded() {
+            return Err(StoreError::InvalidState);
+        }
+        let state_lock = self.lock()?;
         let current = self.read_locked()?;
         if current.as_ref().map(|snapshot| snapshot.generation) != expected_generation {
             return Err(StoreError::ConcurrentChange);
+        }
+        // Once a product workspace is published it cannot be rewritten in a
+        // format understood by older, unfenced clients, even by a caller that
+        // has retained a stale unguarded state object.
+        if current
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.state.is_product_guarded())
+            && !state.is_product_guarded()
+        {
+            return Err(StoreError::InvalidState);
         }
         let generation = expected_generation
             .unwrap_or(0)
@@ -199,7 +307,7 @@ impl WorkspaceStore {
         serde_json::to_writer(
             &mut writer,
             &EnvelopeRef {
-                format_version: 2,
+                format_version: if state.is_product_guarded() { 3 } else { 2 },
                 generation,
                 state,
             },
@@ -212,14 +320,7 @@ impl WorkspaceStore {
             }
         })?;
         temp.as_file().sync_all()?;
-        temp.persist(self.directory.join("workspace-state.json"))
-            .map_err(|error| StoreError::Io(error.error))?;
-        #[cfg(unix)]
-        File::open(&self.directory)?.sync_all()?;
-        Ok(WorkspaceStateSnapshot {
-            generation,
-            state: state.clone(),
-        })
+        Ok((state_lock, generation, temp))
     }
 }
 struct CappedWriter<'a> {
