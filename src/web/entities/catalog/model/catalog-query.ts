@@ -84,3 +84,36 @@ export function createCatalogSearch<T>(): CatalogSearch<T> {
     },
   };
 }
+
+/** What the catalog toolbar exposes. Only types the catalog actually serves appear here. */
+export type CatalogView = 'all' | 'installed' | 'mine';
+export type CatalogTypeFilter = 'all' | 'plugin' | 'template' | 'profile';
+
+export interface CatalogFilters {
+  readonly text: string;
+  readonly view: CatalogView;
+  readonly type: CatalogTypeFilter;
+  readonly compatibleOnly: boolean;
+}
+
+export const DEFAULT_CATALOG_FILTERS: CatalogFilters = {
+  text: '',
+  view: 'all',
+  type: 'all',
+  compatibleOnly: true,
+};
+
+/** Number of filters that differ from their defaults, for the dropdown trigger. */
+export function activeFilterCount(filters: CatalogFilters): number {
+  return (filters.view !== 'all' ? 1 : 0)
+    + (filters.type !== 'all' ? 1 : 0)
+    + (filters.compatibleOnly !== DEFAULT_CATALOG_FILTERS.compatibleOnly ? 1 : 0);
+}
+
+/** Maps toolbar filters to the server query. "Mine" and "installed" are resolved locally. */
+export function filtersToQuery(filters: CatalogFilters, target?: string): CatalogQuery {
+  const kinds: CatalogKind[] = filters.type === 'all'
+    ? ['plugin', 'template', 'profile']
+    : [filters.type];
+  return normalizeQuery({ text: filters.text, kinds, ...(filters.compatibleOnly && target ? { target } : {}) });
+}

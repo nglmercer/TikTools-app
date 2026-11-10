@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCatalogSearch, normalizeQuery, queryKey } from './catalog-query.ts';
+import { activeFilterCount, createCatalogSearch, DEFAULT_CATALOG_FILTERS, filtersToQuery, normalizeQuery, queryKey } from './catalog-query.ts';
 
 describe('catalog query', () => {
   it('bounds the text, deduplicates kinds and defaults to every kind', () => {
@@ -44,5 +44,21 @@ describe('catalog search', () => {
     search.begin(normalizeQuery({ text: 'same' }));
     expect(search.items()).toEqual(['kept']);
     expect(search.cursor()).toBe('c1');
+  });
+});
+
+describe('catalog filters', () => {
+  it('counts only filters that differ from the defaults', () => {
+    expect(activeFilterCount(DEFAULT_CATALOG_FILTERS)).toBe(0);
+    expect(activeFilterCount({ ...DEFAULT_CATALOG_FILTERS, view: 'installed', type: 'plugin' })).toBe(2);
+    expect(activeFilterCount({ ...DEFAULT_CATALOG_FILTERS, compatibleOnly: false })).toBe(1);
+  });
+
+  it('sends the selected type and the host target only when compatibility is on', () => {
+    expect(filtersToQuery(DEFAULT_CATALOG_FILTERS, 'windows').kinds).toEqual(['plugin', 'template', 'profile']);
+    expect(filtersToQuery(DEFAULT_CATALOG_FILTERS, 'windows').target).toBe('windows');
+    const off = filtersToQuery({ ...DEFAULT_CATALOG_FILTERS, type: 'template', compatibleOnly: false }, 'windows');
+    expect(off.kinds).toEqual(['template']);
+    expect(off.target).toBeUndefined();
   });
 });
