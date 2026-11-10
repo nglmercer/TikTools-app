@@ -86,7 +86,7 @@ use tiktools_control_api::modules::sync::{
 use tiktools_control_api::modules::system::SaveFileParams;
 #[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::teams::{
-    TeamCreateParams, TeamDecisionParams, TeamDeviceParams, TeamEnrollParams,
+    CommandRunParams, TeamCreateParams, TeamDecisionParams, TeamDeviceParams, TeamEnrollParams,
     TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHostParams, TeamInvitationCreateParams,
     TeamInvitationParams, TeamRedeemParams, TeamSessionParams, TeamUpdateParams,
 };
@@ -561,6 +561,8 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "bundles.packages.preflight" => validate::<PackageIdParams>(params),
         #[cfg(feature = "cloud-auth")]
         "teams.invitations.redeem" => validate::<TeamRedeemParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.commands.run" => validate::<CommandRunParams>(params),
         #[cfg(feature = "cloud-auth")]
         "teams.host.status" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]

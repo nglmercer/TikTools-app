@@ -13,6 +13,7 @@ import {
   type TeamRequest,
   type TeamRole,
   type HostLinkStatus,
+  type CommandOutcome,
   type RedeemResult,
   type TeamSession,
 } from '../api/teams-api.ts';
@@ -37,6 +38,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   const issued = ref<IssuedInvitation | null>(null);
   const link = ref<HostLinkStatus>({ state: 'stopped', hostId: null, lastError: null });
   const lastRedeem = ref<RedeemResult | null>(null);
+  const lastCommand = ref<CommandOutcome | null>(null);
   const loading = ref(false);
   const working = ref(false);
   const error = ref<string | null>(null);
@@ -215,6 +217,16 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     });
   }
 
+  /**
+   * Sends one command to a team as this PC's viewer. The outcome is shown as the host
+   * reported it; a missing result stays `unknown` and is never reported as success.
+   */
+  function runCommand(hostId: string, operation: string): Promise<boolean> {
+    return run(async () => {
+      lastCommand.value = await api.runCommand(hostId.trim(), operation);
+    });
+  }
+
   /** Starts or stops this PC's link for the selected team. The host must be enrolled for that team. */
   function setHostLink(start: boolean): Promise<boolean> {
     return run(async () => {
@@ -240,6 +252,8 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     issued,
     link,
     lastRedeem,
+    lastCommand,
+    runCommand,
     redeem,
     setHostLink,
     loading,

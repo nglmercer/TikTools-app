@@ -104,4 +104,16 @@ describe('teams store', () => {
     expect(calls.find((call) => call.method === 'teams.invitations.redeem')?.params).toEqual({ token });
     expect(calls.some((call) => call.method === 'teams.grants.update')).toBe(false);
   });
+
+  it('shows an unknown outcome as unknown when no result arrives', async () => {
+    const { stores, calls } = host(['teams.hosts.list', 'teams.commands.run'], (method) => {
+      if (method === 'teams.commands.run') return { commandId: 'cmd-1', status: 'unknown', code: 'noResult', result: null };
+      return { items: [] };
+    });
+    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    const teams = stores.use(() => useTeamsStore());
+    expect(await teams.runCommand(team, 'live.status')).toBe(true);
+    expect(teams.lastCommand?.status).toBe('unknown');
+    expect(calls.find((call) => call.method === 'teams.commands.run')?.params).toEqual({ hostId: team, operation: 'live.status' });
+  });
 });

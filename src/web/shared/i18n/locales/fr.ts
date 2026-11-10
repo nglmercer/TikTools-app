@@ -1721,6 +1721,11 @@ export default {
     truncated: 'Les événements les plus anciens ne sont pas affichés pour respecter la taille maximale de cette vue.',
   },
   cloudTeams: {
+    ask: 'Interroger une équipe',
+    askHint: 'Envoie une demande en lecture seule à une équipe qui a approuvé ce PC. L\'hôte décide s\'il répond.',
+    askTeam: 'Identifiant de l\'équipe',
+    readLiveStatus: 'Lire l\'état en direct',
+    outcome: { completed: 'Réponse de l\'hôte.', failed: 'L\'hôte n\'a pas pu répondre.', cancelled: 'L\'hôte a annulé la demande.', expired: 'La demande a expiré avant la réponse de l\'hôte.', unknown: 'Aucune réponse n\'est arrivée. La demande a peut-être été exécutée ; ne supposez pas le contraire.' },
     join: 'Rejoindre une équipe',
     joinHint: 'Collez le jeton d\'invitation que le propriétaire de l\'équipe vous a transmis. Rejoindre envoie une demande ; le propriétaire doit l\'approuver.',
     joinToken: 'Jeton d\'invitation',

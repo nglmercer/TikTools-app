@@ -461,7 +461,7 @@ fn valid_command_id(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || b"-_.:".contains(&byte))
 }
 
-fn socket_url(origin: &str) -> Result<url::Url, OperationError> {
+pub(crate) fn socket_url(origin: &str) -> Result<url::Url, OperationError> {
     let mut url =
         url::Url::parse(origin).map_err(|_| OperationError::unavailable("invalid Cloud origin"))?;
     let scheme = match url.scheme() {
@@ -475,7 +475,7 @@ fn socket_url(origin: &str) -> Result<url::Url, OperationError> {
     Ok(url)
 }
 
-fn now_millis() -> i64 {
+pub(crate) fn now_millis() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)

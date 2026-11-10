@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use serde_json::Value;
+pub use tiktools_core::cloud_remote_controller::{CommandOutcome, CommandRunParams};
 pub use tiktools_core::cloud_remote_host::RemoteHostStatus;
 pub use tiktools_core::cloud_teams::{
     TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList, TeamDeviceParams,
@@ -18,6 +19,14 @@ use super::Empty;
 use crate::{error::ApiError, router::ControlRouter};
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<CommandRunParams, CommandOutcome, _, _>(
+        "teams.commands.run",
+        "Sends one command to a team as this PC's viewer and waits for the host's result",
+        true,
+        |core: Arc<AppCore>, params: CommandRunParams| async move {
+            core.teams_command_run(params).await.map_err(ApiError::from)
+        },
+    );
     router.register_typed::<TeamRedeemParams, TeamRedeemResult, _, _>(
         "teams.invitations.redeem",
         "Redeems an invitation token with this PC's viewer device; the owner still approves the request",

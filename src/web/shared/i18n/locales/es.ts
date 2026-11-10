@@ -1721,6 +1721,11 @@ export default {
     truncated: 'No se muestran los eventos más antiguos para mantener esta vista dentro de su límite de tamaño.',
   },
   cloudTeams: {
+    ask: 'Pedir a un equipo',
+    askHint: 'Envía una petición de solo lectura a un equipo que aprobó este PC. El host decide si responde.',
+    askTeam: 'Id del equipo',
+    readLiveStatus: 'Leer el estado en vivo',
+    outcome: { completed: 'Respondido por el host.', failed: 'El host no pudo responder.', cancelled: 'El host canceló la petición.', expired: 'La petición caducó antes de que el host respondiera.', unknown: 'No llegó respuesta. La petición pudo ejecutarse o no; no asumas que no se ejecutó.' },
     join: 'Unirse a un equipo',
     joinHint: 'Pega el token de invitación que te compartió el propietario del equipo. Unirse envía una solicitud; el propietario debe aprobarla.',
     joinToken: 'Token de invitación',

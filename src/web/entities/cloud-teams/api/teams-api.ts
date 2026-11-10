@@ -79,6 +79,24 @@ export function parseRedeemResult(value: unknown): RedeemResult {
   };
 }
 
+export interface CommandOutcome {
+  readonly commandId: string;
+  /** `completed`, `failed`, `cancelled`, `expired` or `unknown`. `unknown` means no result arrived. */
+  readonly status: string;
+  readonly code: string | null;
+  readonly result: unknown;
+}
+
+export function parseCommandOutcome(value: unknown): CommandOutcome {
+  const outcome = record(value);
+  return {
+    commandId: text(outcome.commandId),
+    status: text(outcome.status),
+    code: optionalText(outcome.code),
+    result: outcome.result ?? null,
+  };
+}
+
 export interface HostLinkStatus {
   readonly state: 'stopped' | 'connecting' | 'ready' | 'retrying' | string;
   readonly hostId: string | null;
@@ -239,6 +257,7 @@ export function teamApi(client: ControlClient): {
   sessions: (hostId: string) => Promise<TeamSession[]>;
   revokeSession: (hostId: string, sessionId: string) => Promise<void>;
   redeem: (token: string) => Promise<RedeemResult>;
+  runCommand: (hostId: string, operation: string) => Promise<CommandOutcome>;
   hostLink: () => Promise<HostLinkStatus>;
   startHostLink: () => Promise<HostLinkStatus>;
   stopHostLink: () => Promise<HostLinkStatus>;
@@ -269,6 +288,7 @@ export function teamApi(client: ControlClient): {
     sessions: async (hostId) => parseSessions(await call('teams.sessions.list', { hostId })),
     revokeSession: async (hostId, sessionId) => void (await call('teams.sessions.revoke', { hostId, sessionId })),
     redeem: async (token) => parseRedeemResult(await call('teams.invitations.redeem', { token })),
+    runCommand: async (hostId, operation) => parseCommandOutcome(await call('teams.commands.run', { hostId, operation })),
     hostLink: async () => parseHostLink(await call('teams.host.status', {})),
     startHostLink: async () => parseHostLink(await call('teams.host.start', {})),
     stopHostLink: async () => parseHostLink(await call('teams.host.stop', {})),

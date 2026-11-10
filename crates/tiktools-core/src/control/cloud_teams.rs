@@ -126,4 +126,11 @@ impl AppCore {
         let device = self.teams.controller_device()?;
         crate::cloud_teams::redeem_invitation(self.cloud.auth(), &device, params).await
     }
+    /// Sends one command to a team as this PC's viewer and returns the host's result.
+    pub async fn teams_command_run(
+        &self,
+        params: crate::cloud_remote_controller::CommandRunParams,
+    ) -> Result<crate::cloud_remote_controller::CommandOutcome, OperationError> {
+        crate::cloud_remote_controller::run_command(self.cloud.auth(), &self.teams, params).await
+    }
 }

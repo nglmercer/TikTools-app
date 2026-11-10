@@ -1,15 +1,17 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::teams::{
-    RemoteHostStatus, TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList,
-    TeamDeviceParams, TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams,
-    TeamGrantUpdateParams, TeamHost, TeamHostList, TeamHostParams, TeamInvitationCreateParams,
-    TeamInvitationCreated, TeamInvitationList, TeamInvitationParams, TeamRedeemParams,
-    TeamRedeemResult, TeamRequestList, TeamSessionList, TeamSessionParams, TeamUpdateParams,
+    CommandOutcome, CommandRunParams, RemoteHostStatus, TeamCreateParams, TeamDecisionParams,
+    TeamDevice, TeamDeviceList, TeamDeviceParams, TeamEnrollParams, TeamGrantList,
+    TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost, TeamHostList, TeamHostParams,
+    TeamInvitationCreateParams, TeamInvitationCreated, TeamInvitationList, TeamInvitationParams,
+    TeamRedeemParams, TeamRedeemResult, TeamRequestList, TeamSessionList, TeamSessionParams,
+    TeamUpdateParams,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
 
 pub(crate) const METHODS: &[&str] = &[
+    TEAMS_COMMANDS_RUN,
     TEAMS_INVITATIONS_REDEEM,
     TEAMS_HOST_STATUS,
     TEAMS_HOST_START,
@@ -33,6 +35,7 @@ pub(crate) const METHODS: &[&str] = &[
     TEAMS_SESSIONS_REVOKE,
 ];
 
+const TEAMS_COMMANDS_RUN: &str = "teams.commands.run";
 const TEAMS_INVITATIONS_REDEEM: &str = "teams.invitations.redeem";
 const TEAMS_HOST_STATUS: &str = "teams.host.status";
 const TEAMS_HOST_START: &str = "teams.host.start";
@@ -163,5 +166,11 @@ impl TikToolsClient {
         params: TeamRedeemParams,
     ) -> Result<TeamRedeemResult, ClientError> {
         self.call(TEAMS_INVITATIONS_REDEEM, params).await
+    }
+    pub async fn teams_commands_run(
+        &self,
+        params: CommandRunParams,
+    ) -> Result<CommandOutcome, ClientError> {
+        self.call(TEAMS_COMMANDS_RUN, params).await
     }
 }

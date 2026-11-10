@@ -16,6 +16,7 @@ const newTeamName = ref('');
 const renameValue = ref('');
 const controllerLabel = ref('');
 const joinToken = ref('');
+const askTeam = ref('');
 const hostDeviceLabel = ref('');
 const inviteRole = ref<TeamRole>('observer');
 const inviteTtl = ref<number>(900);
@@ -29,6 +30,11 @@ const ttlOptions = computed(() => [
   { value: 300, label: t('cloudTeams.ttl.minutes', { count: 5 }) },
   { value: 900, label: t('cloudTeams.ttl.minutes', { count: 15 }) },
 ]);
+async function askLiveStatus(): Promise<void> {
+  const hostId = askTeam.value.trim();
+  if (hostId) await teams.runCommand(hostId, 'live.status');
+}
+
 async function joinWithToken(): Promise<void> {
   const token = joinToken.value.trim();
   if (!token) return;
@@ -133,6 +139,43 @@ onBeforeUnmount(() => {
       >
         {{ t('cloudTeams.joinRequested', { role: t(`cloudTeams.roles.${teams.lastRedeem.requestedRole}`) }) }}
       </p>
+    </form>
+
+    <form
+      class="cloud-teams__block"
+      @submit.prevent="askLiveStatus"
+    >
+      <h4>{{ t('cloudTeams.ask') }}</h4>
+      <p class="cloud-teams__note">
+        {{ t('cloudTeams.askHint') }}
+      </p>
+      <div class="cloud-teams__row">
+        <BaseTextField
+          v-model="askTeam"
+          class="cloud-teams__grow"
+          :placeholder="t('cloudTeams.askTeam')"
+          :aria-label="t('cloudTeams.askTeam')"
+        />
+        <BaseButton
+          type="submit"
+          :disabled="askTeam.trim().length === 0 || teams.working"
+        >
+          {{ t('cloudTeams.readLiveStatus') }}
+        </BaseButton>
+      </div>
+      <p
+        v-if="teams.lastCommand"
+        class="cloud-teams__note"
+      >
+        {{ t(`cloudTeams.outcome.${teams.lastCommand.status}`) }}
+        <template v-if="teams.lastCommand.code">
+          · {{ teams.lastCommand.code }}
+        </template>
+      </p>
+      <pre
+        v-if="teams.lastCommand?.result"
+        class="cloud-teams__code"
+      >{{ JSON.stringify(teams.lastCommand.result, null, 2) }}</pre>
     </form>
 
     <div class="cloud-teams__block">
