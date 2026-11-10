@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n';
 import { capabilities, resourceKinds, viewerGrant, type AutomationDelegation, type Capability, type EffectGrants, type Grant, type ResourceKind } from '@/entities/collaboration/api/types.ts';
 import { parseGrant, splitIds } from '@/entities/collaboration/lib/grants.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
+import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
 import EffectGrantEditor from './EffectGrantEditor.vue';
 
@@ -149,7 +150,7 @@ function applyJson(): void {
         {{ t('collaboration.presetAgent') }}
       </BaseButton>
     </div>
-    <BaseCheckbox
+    <BaseSwitch
       v-for="capability in current"
       :key="capability"
       :model-value="model.capabilities.includes(capability)"
@@ -157,7 +158,7 @@ function applyJson(): void {
       @update:model-value="setCapability(capability, $event)"
     >
       {{ t(`collaboration.${labels[capability]}`) }}
-    </BaseCheckbox>
+    </BaseSwitch>
     <p>{{ t('collaboration.reusableGrantHint') }}</p>
     <label v-if="model.capabilities.includes('points.adjust')">
       {{ t('collaboration.pointsLimit') }}
@@ -171,10 +172,9 @@ function applyJson(): void {
       >
       <span>{{ t('collaboration.pointsLimitHint') }}</span>
     </label>
-    <details>
-      <summary>{{ t('collaboration.futurePermissions') }}</summary>
+    <SettingsDisclosure :title="t('collaboration.futurePermissions')">
       <p>{{ t('collaboration.futureHint') }}</p>
-      <BaseCheckbox
+      <BaseSwitch
         v-for="capability in capabilities.filter((c) => !current.some((v) => v === c) && !effectCaps.some((v) => v === c))"
         :key="capability"
         :model-value="model.capabilities.includes(capability)"
@@ -182,13 +182,12 @@ function applyJson(): void {
         @update:model-value="setCapability(capability, $event)"
       >
         {{ capability }}
-      </BaseCheckbox>
-    </details>
-    <details>
-      <summary>{{ t('collaboration.delegationTitle') }}</summary>
+      </BaseSwitch>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.delegationTitle')">
       <p>{{ t('collaboration.delegationHint') }}</p>
       <p>{{ t('collaboration.delegationReadHint') }}</p>
-      <BaseCheckbox
+      <BaseSwitch
         v-for="effect in delegatedEffects"
         :key="effect"
         :model-value="model.automationDelegation?.effects.includes(effect) ?? false"
@@ -196,42 +195,49 @@ function applyJson(): void {
         @update:model-value="setDelegatedEffect(effect, $event)"
       >
         {{ t(`collaboration.delegationEffects.${effect}`) }}
-      </BaseCheckbox>
-      <BaseCheckbox
+      </BaseSwitch>
+      <BaseSwitch
         :model-value="model.automationDelegation?.allowOwnerEdits ?? false"
         :disabled="disabled || !model.automationDelegation"
         @update:model-value="setOwnerEdits"
       >
         {{ t('collaboration.delegationOwnerEdits') }}
-      </BaseCheckbox>
+      </BaseSwitch>
       <p>{{ t('collaboration.delegationOwnerEditsHint') }}</p>
-      <BaseCheckbox
+      <BaseSwitch
         :model-value="model.automationDelegation?.allowOwnerSource ?? false"
         :disabled="disabled || !model.automationDelegation?.allowOwnerEdits"
         @update:model-value="setOwnerSource"
       >
         {{ t('collaboration.delegationOwnerSource') }}
-      </BaseCheckbox>
+      </BaseSwitch>
       <p>{{ t('collaboration.delegationOwnerSourceHint') }}</p>
-      <BaseCheckbox :model-value="model.automationDelegation?.allowOtherAuthorEdits ?? false" :disabled="disabled || !model.automationDelegation" @update:model-value="setOtherAuthorEdits">
+      <BaseSwitch
+        :model-value="model.automationDelegation?.allowOtherAuthorEdits ?? false"
+        :disabled="disabled || !model.automationDelegation"
+        @update:model-value="setOtherAuthorEdits"
+      >
         {{ t('collaboration.delegationOtherEdits') }}
-      </BaseCheckbox>
+      </BaseSwitch>
       <p>{{ t('collaboration.delegationOtherEditsHint') }}</p>
-      <BaseCheckbox :model-value="model.automationDelegation?.allowOtherAuthorSource ?? false" :disabled="disabled || !model.automationDelegation?.allowOtherAuthorEdits" @update:model-value="setOtherAuthorSource">
+      <BaseSwitch
+        :model-value="model.automationDelegation?.allowOtherAuthorSource ?? false"
+        :disabled="disabled || !model.automationDelegation?.allowOtherAuthorEdits"
+        @update:model-value="setOtherAuthorSource"
+      >
         {{ t('collaboration.delegationOtherSource') }}
-      </BaseCheckbox>
+      </BaseSwitch>
       <p>{{ t('collaboration.delegationOtherSourceHint') }}</p>
-      <BaseCheckbox
+      <BaseSwitch
         :model-value="model.automationDelegation?.allowDynamicTargets ?? false"
         :disabled="disabled || !model.automationDelegation"
         @update:model-value="setDynamicTargets"
       >
         {{ t('collaboration.delegationDynamic') }}
-      </BaseCheckbox>
-    </details>
-    <details>
-      <summary>{{ t('collaboration.effectRules') }}</summary>
-      <BaseCheckbox
+      </BaseSwitch>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.effectRules')">
+      <BaseSwitch
         v-for="capability in effectCaps"
         :key="capability"
         :model-value="model.capabilities.includes(capability)"
@@ -239,15 +245,14 @@ function applyJson(): void {
         @update:model-value="setCapability(capability, $event)"
       >
         {{ t(`collaboration.${effectLabels[capability]}`) }}
-      </BaseCheckbox>
+      </BaseSwitch>
       <EffectGrantEditor
         :model-value="model.effects"
         :disabled="disabled"
         @update:model-value="setEffects"
       />
-    </details>
-    <details>
-      <summary>{{ t('collaboration.scopes') }}</summary>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.scopes')">
       <div
         v-for="kind in resourceKinds"
         :key="kind"
@@ -272,9 +277,8 @@ function applyJson(): void {
           {{ t('collaboration.automationScopeHint') }}
         </p>
       </div>
-    </details>
-    <details>
-      <summary>{{ t('collaboration.extraGrant') }}</summary>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.extraGrant')">
       <BaseTextArea
         v-model="jsonDraft"
         :disabled="disabled"
@@ -296,8 +300,10 @@ function applyJson(): void {
       >
         {{ t('collaboration.invalidGrant') }}
       </p>
-    </details>
-    <details><summary>{{ t('collaboration.grantSummary') }}</summary><pre>{{ JSON.stringify(model, null, 2) }}</pre></details>
+    </SettingsDisclosure>
+    <SettingsDisclosure :title="t('collaboration.grantSummary')">
+      <pre>{{ JSON.stringify(model, null, 2) }}</pre>
+    </SettingsDisclosure>
   </div>
 </template>
 

@@ -10,6 +10,7 @@ import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
+import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 
 const { t } = useI18n();
 const account = useAccountStore();
@@ -384,34 +385,113 @@ onMounted(() => {
         :label="t('diagnostics.syncFailed')"
         source="sync"
       />
-      <BaseSwitch
-        v-model="enabled"
-        :disabled="sync.working || status == null"
+      <SettingsRow
+        toggle
+        for="cloud-sync-enabled"
+        :label="t('sync.toggle')"
+        :description="t('formsDesign.syncDescription')"
       >
-        {{ t('sync.toggle') }}
-      </BaseSwitch>
+        <BaseSwitch
+          id="cloud-sync-enabled"
+          v-model="enabled"
+          :aria-label="t('sync.toggle')"
+          :disabled="sync.working || status == null"
+        />
+      </SettingsRow>
       <template v-if="status != null && enabled">
-        <BaseButton :disabled="v2Busy || sync.working || !protocolReady" @click="checkV2">{{ t('sync.checkV2') }}</BaseButton>
-        <p v-if="v2Selected" role="status">{{ t('sync.v2.selected') }}</p>
-        <p v-if="v2State && (!v2Selected || v2State !== 'backendCompatible')" role="status">{{ t(`sync.v2.${v2State}`) }}</p>
-        <p v-if="v2Error" role="alert">{{ t('sync.v2.error') }}</p>
-        <BaseButton v-if="v2Error && !protocolReady" :disabled="protocolLoading" @click="loadProtocol">{{ t('sync.v2.retry') }}</BaseButton>
+        <BaseButton
+          :disabled="v2Busy || sync.working || !protocolReady"
+          @click="checkV2"
+        >
+          {{ t('sync.checkV2') }}
+        </BaseButton>
+        <p
+          v-if="v2Selected"
+          role="status"
+        >
+          {{ t('sync.v2.selected') }}
+        </p>
+        <p
+          v-if="v2State && (!v2Selected || v2State !== 'backendCompatible')"
+          role="status"
+        >
+          {{ t(`sync.v2.${v2State}`) }}
+        </p>
+        <p
+          v-if="v2Error"
+          role="alert"
+        >
+          {{ t('sync.v2.error') }}
+        </p>
+        <BaseButton
+          v-if="v2Error && !protocolReady"
+          :disabled="protocolLoading"
+          @click="loadProtocol"
+        >
+          {{ t('sync.v2.retry') }}
+        </BaseButton>
         <template v-if="protocolReady && v2Selected">
-          <p v-if="migrationResult" role="status">{{ t('sync.v2.migrateResult', migrationResult) }} <span v-if="!migrationResult.policyActivated">{{ t('sync.v2.migratePolicyPending') }}</span></p>
+          <p
+            v-if="migrationResult"
+            role="status"
+          >
+            {{ t('sync.v2.migrateResult', migrationResult) }} <span v-if="!migrationResult.policyActivated">{{ t('sync.v2.migratePolicyPending') }}</span>
+          </p>
           <p>{{ t('sync.v2.cachedOnly') }}</p>
-          <p v-if="v2Result" role="status">{{ t('sync.v2.result', { pushed: v2Result.pushed, pulled: v2Result.pulled, pending: v2Result.workspacePending, available: v2Result.availableRecords, conflicts: v2Result.conflicts.length }) }} <span v-if="v2Result.moreQueued">{{ t('sync.v2.moreQueued') }}</span></p>
-          <BaseButton variant="primary" :disabled="v2Busy || sync.working" @click="synchronizeV2">{{ t('sync.syncNow') }}</BaseButton>
-          <BaseButton :disabled="v2RebuildBusy || v2Busy || sync.working" @click="rebuildV2">{{ t('sync.v2.rebuild') }}</BaseButton>
-          <p v-if="v2Rebuilt" role="status">{{ t('sync.v2.rebuilt') }}</p>
-          <BaseAlert v-if="v2ConflictError" tone="warning" :title="v2ConflictError" />
-          <p v-if="v2ConflictResolved" role="status">{{ t('sync.v2.conflictResolved') }}</p>
-          <section v-if="v2Conflicts.length" :aria-label="t('sync.v2.conflictTitle')">
+          <p
+            v-if="v2Result"
+            role="status"
+          >
+            {{ t('sync.v2.result', { pushed: v2Result.pushed, pulled: v2Result.pulled, pending: v2Result.workspacePending, available: v2Result.availableRecords, conflicts: v2Result.conflicts.length }) }} <span v-if="v2Result.moreQueued">{{ t('sync.v2.moreQueued') }}</span>
+          </p>
+          <BaseButton
+            variant="primary"
+            :disabled="v2Busy || sync.working"
+            @click="synchronizeV2"
+          >
+            {{ t('sync.syncNow') }}
+          </BaseButton>
+          <BaseButton
+            :disabled="v2RebuildBusy || v2Busy || sync.working"
+            @click="rebuildV2"
+          >
+            {{ t('sync.v2.rebuild') }}
+          </BaseButton>
+          <p
+            v-if="v2Rebuilt"
+            role="status"
+          >
+            {{ t('sync.v2.rebuilt') }}
+          </p>
+          <BaseAlert
+            v-if="v2ConflictError"
+            tone="warning"
+            :title="v2ConflictError"
+          />
+          <p
+            v-if="v2ConflictResolved"
+            role="status"
+          >
+            {{ t('sync.v2.conflictResolved') }}
+          </p>
+          <section
+            v-if="v2Conflicts.length"
+            :aria-label="t('sync.v2.conflictTitle')"
+          >
             <h3>{{ t('sync.v2.conflictTitle') }}</h3>
             <p>{{ t('sync.v2.conflictDescription') }}</p>
             <ul>
-              <li v-for="target in v2Conflicts" :key="`${target.collection}/${target.key}`">
+              <li
+                v-for="target in v2Conflicts"
+                :key="`${target.collection}/${target.key}`"
+              >
                 {{ target.collection }}/{{ target.key }}
-                <BaseButton :disabled="v2ConflictBusy" @click="reviewV2Conflict(target.collection, target.key)">{{ t('sync.review') }}</BaseButton>
+                <BaseButton
+                  :disabled="v2ConflictBusy"
+                  @click="reviewV2Conflict(target.collection, target.key)"
+                >
+                  {{ t('sync.review') }}
+                </BaseButton>
               </li>
             </ul>
             <div v-if="v2ConflictReview">
@@ -419,118 +499,161 @@ onMounted(() => {
               <p>{{ t('sync.base') }}: {{ v2ConflictValueText(v2ConflictReview.base) }}</p>
               <p>{{ t('sync.local') }}: {{ v2ConflictValueText(v2ConflictReview.local) }}</p>
               <p>{{ t('sync.cloud') }}: {{ v2ConflictValueText(v2ConflictReview.cloud) }}</p>
-              <p v-if="v2ConflictReview.hasNewer">{{ t('sync.v2.conflictNewer') }}</p>
-              <BaseButton :disabled="v2ConflictBusy" @click="resolveV2Conflict('keepLocal')">{{ t('sync.keepMine') }}</BaseButton>
-              <BaseButton :disabled="v2ConflictBusy" @click="resolveV2Conflict('takeCloud')">{{ t('sync.useCloud') }}</BaseButton>
+              <p v-if="v2ConflictReview.hasNewer">
+                {{ t('sync.v2.conflictNewer') }}
+              </p>
+              <BaseButton
+                :disabled="v2ConflictBusy"
+                @click="resolveV2Conflict('keepLocal')"
+              >
+                {{ t('sync.keepMine') }}
+              </BaseButton>
+              <BaseButton
+                :disabled="v2ConflictBusy"
+                @click="resolveV2Conflict('takeCloud')"
+              >
+                {{ t('sync.useCloud') }}
+              </BaseButton>
             </div>
           </section>
         </template>
         <template v-else-if="protocolReady">
-        <BaseButton :disabled="v2Busy || sync.working" @click="previewMigration">{{ t('sync.v2.preview') }}</BaseButton>
-        <p v-if="migrationPreview" role="status">{{ t('sync.v2.previewResult', migrationPreview) }} {{ t('sync.v2.previewReady') }}</p>
-        <template v-if="migrationPreview?.migrationAvailable">
-          <p>{{ t('sync.v2.migrateWarning') }}</p>
-          <BaseButton variant="primary" :disabled="v2Busy || sync.working" @click="migrate">{{ t('sync.v2.migrate') }}</BaseButton>
-          <p v-if="migrationResult" role="status">{{ t('sync.v2.migrateResult', migrationResult) }} <span v-if="!migrationResult.policyActivated">{{ t('sync.v2.migratePolicyPending') }}</span></p>
-        </template>
-        <p>{{ t('sync.pending', { count: status.pending }) }}</p>
-        <BaseAlert tone="info" :title="t('sync.applicationDeferred')" />
-        <p v-if="deferredCount !== null" role="status">{{ t('sync.deferredCount', { count: deferredCount }) }}</p>
-        <BaseAlert
-          v-if="recoveryError"
-          tone="warning"
-          :title="recoveryError"
-        />
-        <section
-          v-if="uncertain.length"
-          :aria-label="t('sync.uncertainTitle')"
-        >
-          <h3>{{ t('sync.uncertainTitle') }}</h3>
-          <p>{{ t('sync.uncertainDescription') }}</p>
-          <ul>
+          <BaseButton
+            :disabled="v2Busy || sync.working"
+            @click="previewMigration"
+          >
+            {{ t('sync.v2.preview') }}
+          </BaseButton>
+          <p
+            v-if="migrationPreview"
+            role="status"
+          >
+            {{ t('sync.v2.previewResult', migrationPreview) }} {{ t('sync.v2.previewReady') }}
+          </p>
+          <template v-if="migrationPreview?.migrationAvailable">
+            <p>{{ t('sync.v2.migrateWarning') }}</p>
+            <BaseButton
+              variant="primary"
+              :disabled="v2Busy || sync.working"
+              @click="migrate"
+            >
+              {{ t('sync.v2.migrate') }}
+            </BaseButton>
+            <p
+              v-if="migrationResult"
+              role="status"
+            >
+              {{ t('sync.v2.migrateResult', migrationResult) }} <span v-if="!migrationResult.policyActivated">{{ t('sync.v2.migratePolicyPending') }}</span>
+            </p>
+          </template>
+          <p>{{ t('sync.pending', { count: status.pending }) }}</p>
+          <BaseAlert
+            tone="info"
+            :title="t('sync.applicationDeferred')"
+          />
+          <p
+            v-if="deferredCount !== null"
+            role="status"
+          >
+            {{ t('sync.deferredCount', { count: deferredCount }) }}
+          </p>
+          <BaseAlert
+            v-if="recoveryError"
+            tone="warning"
+            :title="recoveryError"
+          />
+          <section
+            v-if="uncertain.length"
+            :aria-label="t('sync.uncertainTitle')"
+          >
+            <h3>{{ t('sync.uncertainTitle') }}</h3>
+            <p>{{ t('sync.uncertainDescription') }}</p>
+            <ul>
+              <li
+                v-for="key in uncertain"
+                :key="key"
+              >
+                {{ key }}
+                <BaseButton
+                  :disabled="recoveryBusy"
+                  @click="reviewUncertain(key)"
+                >
+                  {{ t('sync.review') }}
+                </BaseButton>
+              </li>
+            </ul>
+            <div v-if="review">
+              <h4>{{ review.key }}</h4>
+              <p>{{ t('sync.base') }}: {{ recoveryValueText(review.base) }}</p>
+              <p>{{ t('sync.original') }}: {{ recoveryValueText(review.original) }}</p>
+              <p>{{ t('sync.local') }}: {{ recoveryValueText(review.local) }}</p>
+              <p>{{ t('sync.cloud') }}: {{ recoveryValueText(review.cloud) }}</p>
+              <BaseAlert
+                tone="info"
+                :title="t('sync.recoveryUnavailable')"
+              />
+              <p v-if="newerNeedsReview">
+                {{ t('sync.newerWarning') }}
+              </p>
+              <BaseButton
+                disabled
+                @click="resolveUncertain('keepLocal')"
+              >
+                {{ t('sync.keepMine') }}
+              </BaseButton>
+              <BaseButton
+                disabled
+                @click="resolveUncertain('takeCloud')"
+              >
+                {{ t('sync.useCloud') }}
+              </BaseButton>
+              <BaseButton
+                v-if="newerNeedsReview"
+                disabled
+                @click="resolveUncertain('takeCloudIncludingNewer')"
+              >
+                {{ t('sync.discardNewer') }}
+              </BaseButton>
+            </div>
+          </section>
+          <p v-if="lastSynced != null">
+            {{ t('sync.lastSynced', { when: lastSynced }) }}
+          </p>
+          <BaseAlert
+            v-if="conflicts.length > 0"
+            tone="warning"
+            :title="t('sync.conflicts', { count: conflicts.length })"
+          />
+          <p v-if="conflicts.length > 0">
+            {{ t('sync.conflictResolutionUnavailable') }}
+          </p>
+          <ul v-if="conflicts.length > 0">
             <li
-              v-for="key in uncertain"
+              v-for="key in conflicts"
               :key="key"
             >
               {{ key }}
               <BaseButton
-                :disabled="recoveryBusy"
-                @click="reviewUncertain(key)"
+                disabled
+                @click="sync.resolve(key, true)"
               >
-                {{ t('sync.review') }}
+                {{ t('sync.keepMine') }}
+              </BaseButton>
+              <BaseButton
+                disabled
+                @click="sync.resolve(key, false)"
+              >
+                {{ t('sync.useCloud') }}
               </BaseButton>
             </li>
           </ul>
-          <div v-if="review">
-            <h4>{{ review.key }}</h4>
-            <p>{{ t('sync.base') }}: {{ recoveryValueText(review.base) }}</p>
-            <p>{{ t('sync.original') }}: {{ recoveryValueText(review.original) }}</p>
-            <p>{{ t('sync.local') }}: {{ recoveryValueText(review.local) }}</p>
-            <p>{{ t('sync.cloud') }}: {{ recoveryValueText(review.cloud) }}</p>
-            <BaseAlert
-              tone="info"
-              :title="t('sync.recoveryUnavailable')"
-            />
-            <p v-if="newerNeedsReview">
-              {{ t('sync.newerWarning') }}
-            </p>
-            <BaseButton
-              disabled
-              @click="resolveUncertain('keepLocal')"
-            >
-              {{ t('sync.keepMine') }}
-            </BaseButton>
-            <BaseButton
-              disabled
-              @click="resolveUncertain('takeCloud')"
-            >
-              {{ t('sync.useCloud') }}
-            </BaseButton>
-            <BaseButton
-              v-if="newerNeedsReview"
-              disabled
-              @click="resolveUncertain('takeCloudIncludingNewer')"
-            >
-              {{ t('sync.discardNewer') }}
-            </BaseButton>
-          </div>
-        </section>
-        <p v-if="lastSynced != null">
-          {{ t('sync.lastSynced', { when: lastSynced }) }}
-        </p>
-        <BaseAlert
-          v-if="conflicts.length > 0"
-          tone="warning"
-          :title="t('sync.conflicts', { count: conflicts.length })"
-        />
-        <p v-if="conflicts.length > 0">{{ t('sync.conflictResolutionUnavailable') }}</p>
-        <ul v-if="conflicts.length > 0">
-          <li
-            v-for="key in conflicts"
-            :key="key"
+          <BaseButton
+            variant="primary"
+            :disabled="sync.working"
+            @click="synchronize"
           >
-            {{ key }}
-            <BaseButton
-              disabled
-              @click="sync.resolve(key, true)"
-            >
-              {{ t('sync.keepMine') }}
-            </BaseButton>
-            <BaseButton
-              disabled
-              @click="sync.resolve(key, false)"
-            >
-              {{ t('sync.useCloud') }}
-            </BaseButton>
-          </li>
-        </ul>
-        <BaseButton
-          variant="primary"
-          :disabled="sync.working"
-          @click="synchronize"
-        >
-          {{ t('sync.syncNow') }}
-        </BaseButton>
+            {{ t('sync.syncNow') }}
+          </BaseButton>
         </template>
       </template>
       <p v-else-if="status != null">
