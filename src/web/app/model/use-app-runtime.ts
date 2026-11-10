@@ -4,6 +4,7 @@ import { parsePluginNavId } from '../../../automation/plugins/declarative.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { definitionJournal } from '@/entities/automation/model/definition-journal.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { filterEvents } from '@/entities/live-event/lib/event-filter.ts';
 import { emoteImageFailureCount } from '@/entities/live-event/lib/emote-failures.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
@@ -25,6 +26,8 @@ import { useNavigationStore } from '@/shared/model/navigation-store.ts';
 import type { AppTab } from '@/types.ts';
 
 const FRAME_SAMPLES = 240;
+// One desktop host per app session; per-host contexts arrive with remote control.
+const LOCAL_HOST_CONTEXT = 'local-host';
 
 export function useAppRuntime() {
   const control = useControlClient();
@@ -34,6 +37,7 @@ export function useAppRuntime() {
   const points = usePointsStore();
   const automation = useAutomationStore();
   const connection = useConnectionStore();
+  const capabilities = useCapabilityStore();
   const plugins = usePluginsStore();
   const processors = useProcessorsStore();
   const globals = useGlobalsStore();
@@ -59,6 +63,7 @@ export function useAppRuntime() {
     resyncInFlight = true;
     resyncAgain = false;
     void Promise.allSettled([
+      capabilities.refresh(LOCAL_HOST_CONTEXT),
       processors.refresh(),
       connection.refreshStatus(),
       connection.refreshMonitor(),
@@ -201,6 +206,7 @@ export function useAppRuntime() {
   onMounted(() => {
     control.attach();
     void appUpdater.initialize();
+    void capabilities.refresh(LOCAL_HOST_CONTEXT).catch(() => false);
     presentationMounted = true;
     document.addEventListener('visibilitychange', onVisibilityChange);
     updatePresentation();

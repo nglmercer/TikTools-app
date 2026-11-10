@@ -2,10 +2,12 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import type { AccountStatus, CloudLoginUrlResult } from '../api/account-types.ts';
 
 export const useAccountStore = defineStore('cloud-account', () => {
   const client = useControlClient();
+  const capabilities = useCapabilityStore();
   const status = ref<AccountStatus | null>(null);
   const loading = ref(false);
   const working = ref(false);
@@ -24,6 +26,8 @@ export const useAccountStore = defineStore('cloud-account', () => {
   const current = (ticket: number) => ticket === generation;
 
   function read(kind: 'refresh' | 'restore', run: (ticket: number) => Promise<void>): Promise<void> {
+    // A host without Cloud features is not a failed sign-in: skip the call and keep the state empty.
+    if (capabilities.supports('cloud.status') === false) return Promise.resolve();
     const ticket = ++generation;
     loading.value = true;
     const promise = (async () => {

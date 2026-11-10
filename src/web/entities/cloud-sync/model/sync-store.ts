@@ -2,10 +2,12 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import type { SyncNowResult, SyncStatus } from '../api/sync-types.ts';
 
 export const useSyncStore = defineStore('cloud-sync', () => {
   const client = useControlClient();
+  const capabilities = useCapabilityStore();
   const status = ref<SyncStatus | null>(null);
   const loading = ref(false);
   const working = ref(false);
@@ -15,6 +17,8 @@ export const useSyncStore = defineStore('cloud-sync', () => {
   let refreshAfterWork = false;
 
   async function refresh(): Promise<void> {
+    // Absent sync methods mean this host cannot sync; never call them.
+    if (capabilities.supports('sync.status') === false) return;
     if (working.value) { refreshAfterWork = true; return; }
     const ticket = ++generation;
     loading.value = true;
