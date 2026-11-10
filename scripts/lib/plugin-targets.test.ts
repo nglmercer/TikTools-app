@@ -12,8 +12,6 @@ describe('plugin target mapping', () => {
     ['aarch64-pc-windows-msvc', 'win32-arm64-msvc'],
     ['x86_64-unknown-linux-gnu', 'linux-x64-gnu'],
     ['aarch64-unknown-linux-gnu', 'linux-arm64-gnu'],
-    ['x86_64-apple-darwin', 'darwin-x64-darwin'],
-    ['aarch64-apple-darwin', 'darwin-arm64-darwin'],
   ];
 
   for (const [rustTarget, pluginTarget] of cases) {
@@ -27,7 +25,6 @@ describe('plugin target mapping', () => {
     expect(resolveRustTarget('x86_64-pc-windows-msvc').executableExtension).toBe('.exe');
     expect(resolveRustTarget('aarch64-pc-windows-msvc').executableExtension).toBe('.exe');
     expect(resolveRustTarget('x86_64-unknown-linux-gnu').executableExtension).toBe('');
-    expect(resolveRustTarget('aarch64-apple-darwin').executableExtension).toBe('');
   });
 
   test('unsupported targets produce clear errors', () => {
@@ -35,6 +32,8 @@ describe('plugin target mapping', () => {
       'i686-pc-windows-msvc',
       'wasm32-unknown-unknown',
       'x86_64-unknown-linux-musl',
+      'x86_64-apple-darwin',
+      'aarch64-apple-darwin',
     ]) {
       expect(() => resolveRustTarget(unsupported)).toThrow(/Unsupported Rust target/);
     }
@@ -47,14 +46,13 @@ describe('host target detection', () => {
     expect(detectHostTarget('win32', 'arm64').rustTarget).toBe('aarch64-pc-windows-msvc');
     expect(detectHostTarget('linux', 'x64').rustTarget).toBe('x86_64-unknown-linux-gnu');
     expect(detectHostTarget('linux', 'arm64').rustTarget).toBe('aarch64-unknown-linux-gnu');
-    expect(detectHostTarget('darwin', 'x64').rustTarget).toBe('x86_64-apple-darwin');
-    expect(detectHostTarget('darwin', 'arm64').rustTarget).toBe('aarch64-apple-darwin');
   });
 
   test('rejects unsupported host combinations', () => {
     expect(() => detectHostTarget('freebsd' as never, 'x64')).toThrow(
       /Unsupported host combination/,
     );
+    expect(() => detectHostTarget('darwin', 'arm64')).toThrow(/Unsupported host combination/);
   });
 });
 

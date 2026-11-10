@@ -1,4 +1,4 @@
-export type PluginTargetOs = 'windows' | 'linux' | 'macos';
+export type PluginTargetOs = 'windows' | 'linux';
 export type PluginTargetArch = 'x64' | 'arm64';
 
 export type PluginBuildTarget = {
@@ -43,22 +43,6 @@ const PLUGIN_BUILD_TARGETS: Record<string, PluginBuildTarget> = {
     arch: 'arm64',
     executableExtension: '',
   },
-  'x86_64-apple-darwin': {
-    rustTarget: 'x86_64-apple-darwin',
-    pluginTarget: 'darwin-x64-darwin',
-    napiTarget: 'darwin-x64',
-    os: 'macos',
-    arch: 'x64',
-    executableExtension: '',
-  },
-  'aarch64-apple-darwin': {
-    rustTarget: 'aarch64-apple-darwin',
-    pluginTarget: 'darwin-arm64-darwin',
-    napiTarget: 'darwin-arm64',
-    os: 'macos',
-    arch: 'arm64',
-    executableExtension: '',
-  },
 };
 
 export function supportedRustTargets(): string[] {
@@ -96,7 +80,7 @@ export function detectHostTarget(
   if (!key) {
     throw new Error(
       `Unsupported host combination: platform "${platform}" arch "${arch}". ` +
-        `Supported: win32/darwin/linux with x64/arm64. Pass --target <rust-target-triple> explicitly.`,
+        `Supported: win32/linux with x64/arm64. Pass --target <rust-target-triple> explicitly.`,
     );
   }
   return resolveRustTarget(key);
@@ -107,8 +91,6 @@ function hostRustTriple(platform: NodeJS.Platform, arch: NodeJS.Architecture): s
   if (platform === 'win32' && arch === 'arm64') return 'aarch64-pc-windows-msvc';
   if (platform === 'linux' && arch === 'x64') return 'x86_64-unknown-linux-gnu';
   if (platform === 'linux' && arch === 'arm64') return 'aarch64-unknown-linux-gnu';
-  if (platform === 'darwin' && arch === 'x64') return 'x86_64-apple-darwin';
-  if (platform === 'darwin' && arch === 'arm64') return 'aarch64-apple-darwin';
   return null;
 }
 

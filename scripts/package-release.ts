@@ -13,16 +13,6 @@ const supportedPlatforms = {
     binaryName: 'tiktools-desktop',
     rustTarget: 'x86_64-unknown-linux-gnu',
   },
-  'macos-arm64': {
-    archiveExtension: '.tar.gz',
-    binaryName: 'tiktools-desktop',
-    rustTarget: 'aarch64-apple-darwin',
-  },
-  'macos-x86_64': {
-    archiveExtension: '.tar.gz',
-    binaryName: 'tiktools-desktop',
-    rustTarget: 'x86_64-apple-darwin',
-  },
 } as const;
 
 type ReleasePlatform = keyof typeof supportedPlatforms;

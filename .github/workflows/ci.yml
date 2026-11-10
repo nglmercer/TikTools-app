@@ -228,7 +228,8 @@ jobs:
   plugin-runtime:
     # The QuickJS plugin runtime and its in-process Node-API host (native
     # `.node` addons) ship C and platform-specific code, so run the loader's
-    # tests, including the napi-rs addon integration tests, on every desktop OS.
+    # tests, including the napi-rs addon integration tests, on Linux and Windows.
+    # macOS is not a supported target yet.
     name: plugin runtime (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -237,7 +238,6 @@ jobs:
         os:
           - ubuntu-24.04
           - windows-latest
-          - macos-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
