@@ -119,6 +119,12 @@ jobs:
       - name: Install dependencies for plugin packaging
         run: bun ci
 
+      # `tiktools-remote` with `browser-app` (enabled by --all-features below)
+      # embeds dist/web at build time; dist/ is not committed and the frontend
+      # job's output is not shared with this job, so build it here.
+      - name: Build frontend for browser-app assets
+        run: bun scripts/task.ts frontend-build
+
       - name: Cache Cargo dependencies and build output
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

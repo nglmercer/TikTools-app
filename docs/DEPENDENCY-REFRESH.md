@@ -16,7 +16,7 @@ there and contains no separate local-browser feature commits.
   rand 0.10.3 and getrandom 0.4.3. Refresh includes the
   independent example and native-fixture manifests and lockfiles.
 - tiktok-signer Git crates pinned together to
-  `141d39ea795536190fcf26b9dcab60c50637417b`; the revision verifier uses the same pin.
+  `26ae0954276c0be572c0091b06e1d15033a3a255` (upstream main); the revision verifier uses the same pin.
 - textintel example pinned to `ab4377212a3a295bda099d4d5c4900f01acdf730`.
 - GitHub Actions updated to CodeQL 4.39.1, upload-artifact 7.0.2 and
   download-artifact 8.0.2, retaining immutable commit pins. Other configured
