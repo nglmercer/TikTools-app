@@ -1,4 +1,5 @@
 //! Metadata-only native library intents. No source is retained or replayed.
+use super::owner_journal_values::{revision, text_columns_within};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandOutcome, CommandRequest, CommandState, ResourceKind},
@@ -27,12 +28,6 @@ struct Stored {
 }
 fn invalid() -> DatabaseError {
     DatabaseError::Invalid("Owner library journal is invalid".into())
-}
-fn revision(value: &str) -> Option<i64> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|number| *number >= 0 && number.to_string() == value)
 }
 
 fn validate_receipt(
@@ -179,20 +174,20 @@ fn bound_ledger(db: &Connection, stored: &Stored) -> Result<bool, DatabaseError>
     let Some(row) = query.next()? else {
         return Ok(false);
     };
-    for (column, max) in [
-        (0, 64),
-        (1, 128),
-        (2, 64),
-        (3, 32),
-        (4, 7),
-        (5, 128),
-        (6, 128),
-        (7, 16),
-    ] {
-        match row.get_ref(column)? {
-            rusqlite::types::ValueRef::Text(bytes) if bytes.len() <= max => {}
-            _ => return Err(invalid()),
-        }
+    if !text_columns_within(
+        row,
+        &[
+            (0, 64),
+            (1, 128),
+            (2, 64),
+            (3, 32),
+            (4, 7),
+            (5, 128),
+            (6, 128),
+            (7, 16),
+        ],
+    )? {
+        return Err(invalid());
     }
     for (column, max) in [(8, ENTRY_BYTES as i64), (9, VERSIONS_BYTES as i64)] {
         if row

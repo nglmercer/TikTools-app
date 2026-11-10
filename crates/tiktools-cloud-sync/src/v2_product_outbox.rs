@@ -224,7 +224,56 @@ pub trait V2ProductSource {
     ) -> Result<T, SyncCoordError>;
 }
 
+/// A product-cloud operation admitted by `admit_product_operation`. The
+/// leases stay held for as long as this value (or its remaining fields) lives.
+struct ProductOperation {
+    epoch: crate::SyncConfigEpoch,
+    workspace: WorkspaceCoordinator,
+    _lease: crate::V2Lease,
+    _marker_lease: crate::protocol_fence::V1Lease,
+}
+
 impl SyncCoordinator {
+    /// Shared preflight for every product-cloud operation: refuses cancelled or
+    /// expired work, then holds the v2 and v1 leases and opens the workspace.
+    fn admit_product_operation(
+        &self,
+        session: &Arc<cloud_client::Session>,
+        cancelled: &AtomicBool,
+        deadline: Instant,
+    ) -> Result<ProductOperation, crate::WorkspaceCoordError> {
+        if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
+            return Err(crate::WorkspaceCoordError::Ineligible);
+        }
+        let epoch = self
+            .capture_v2_config_epoch(session)
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let origin = session.instance_origin();
+        let account = session.account_id().to_owned();
+        let lease = self
+            .protocol
+            .try_v2(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let marker_lease = self
+            .protocol
+            .try_v1()
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        marker_lease
+            .ensure_product_outbox(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let root = self
+            .config_path
+            .parent()
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        Ok(ProductOperation {
+            epoch,
+            workspace,
+            _lease: lease,
+            _marker_lease: marker_lease,
+        })
+    }
+
     /// Product-only dispatcher. The source must fence and validate each
     /// receipt immediately before its durable prepare; queued workspace data
     /// without a matching native decision is never automatically sent.
@@ -250,30 +299,8 @@ impl SyncCoordinator {
         cancelled: Arc<AtomicBool>,
         deadline: Instant,
     ) -> Result<crate::WorkspaceOutcome, crate::WorkspaceCoordError> {
-        if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
-            return Err(crate::WorkspaceCoordError::Ineligible);
-        }
-        let epoch = self
-            .capture_v2_config_epoch(&session)
-            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
-        let origin = session.instance_origin();
-        let account = session.account_id().to_owned();
-        let _lease = self
-            .protocol
-            .try_v2(&origin, &account)
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        let marker_lease = self
-            .protocol
-            .try_v1()
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        marker_lease
-            .ensure_product_outbox(&origin, &account)
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        let root = self
-            .config_path
-            .parent()
-            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
-        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        let admission = self.admit_product_operation(&session, &cancelled, deadline)?;
+        let (epoch, workspace) = (admission.epoch, admission.workspace);
         let generation = epoch.config.generation;
         let eligibility = self.v2_product_eligibility(session.clone(), epoch, cancelled, deadline);
         workspace
@@ -308,30 +335,8 @@ impl SyncCoordinator {
         cancelled: Arc<AtomicBool>,
         deadline: Instant,
     ) -> Result<(), crate::WorkspaceCoordError> {
-        if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
-            return Err(crate::WorkspaceCoordError::Ineligible);
-        }
-        let epoch = self
-            .capture_v2_config_epoch(&session)
-            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
-        let origin = session.instance_origin();
-        let account = session.account_id().to_owned();
-        let _lease = self
-            .protocol
-            .try_v2(&origin, &account)
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        let marker_lease = self
-            .protocol
-            .try_v1()
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        marker_lease
-            .ensure_product_outbox(&origin, &account)
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        let root = self
-            .config_path
-            .parent()
-            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
-        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        let admission = self.admit_product_operation(&session, &cancelled, deadline)?;
+        let (epoch, workspace) = (admission.epoch, admission.workspace);
         let eligibility = self.v2_product_eligibility(session.clone(), epoch, cancelled, deadline);
         workspace
             .rebuild_remote_cache_guarded(&session, &eligibility)
@@ -378,30 +383,8 @@ impl SyncCoordinator {
         cancelled: Arc<AtomicBool>,
         deadline: Instant,
     ) -> Result<V2ProductConflictSnapshot, crate::WorkspaceCoordError> {
-        if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
-            return Err(crate::WorkspaceCoordError::Ineligible);
-        }
-        let epoch = self
-            .capture_v2_config_epoch(&session)
-            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
-        let origin = session.instance_origin();
-        let account = session.account_id().to_owned();
-        let _lease = self
-            .protocol
-            .try_v2(&origin, &account)
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        let marker_lease = self
-            .protocol
-            .try_v1()
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        marker_lease
-            .ensure_product_outbox(&origin, &account)
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        let root = self
-            .config_path
-            .parent()
-            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
-        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        let admission = self.admit_product_operation(&session, &cancelled, deadline)?;
+        let (epoch, workspace) = (admission.epoch, admission.workspace);
         let eligibility = self.v2_product_eligibility(session.clone(), epoch, cancelled, deadline);
         let review = workspace
             .review_product_guarded(&session, &target, &eligibility)
@@ -447,30 +430,8 @@ impl SyncCoordinator {
         cancelled: Arc<AtomicBool>,
         deadline: Instant,
     ) -> Result<(), crate::WorkspaceCoordError> {
-        if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
-            return Err(crate::WorkspaceCoordError::Ineligible);
-        }
-        let epoch = self
-            .capture_v2_config_epoch(&session)
-            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
-        let origin = session.instance_origin();
-        let account = session.account_id().to_owned();
-        let _lease = self
-            .protocol
-            .try_v2(&origin, &account)
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        let marker_lease = self
-            .protocol
-            .try_v1()
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        marker_lease
-            .ensure_product_outbox(&origin, &account)
-            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
-        let root = self
-            .config_path
-            .parent()
-            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
-        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        let admission = self.admit_product_operation(&session, &cancelled, deadline)?;
+        let (epoch, workspace) = (admission.epoch, admission.workspace);
         let generation = epoch.config.generation;
         let eligibility = self.v2_product_eligibility(session.clone(), epoch, cancelled, deadline);
         let review = workspace

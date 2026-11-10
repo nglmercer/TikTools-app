@@ -1,5 +1,8 @@
 //! Native metadata-only definition intents. Recovery reads the immutable
 //! original business ledger and never dispatches a saved mutation again.
+use super::owner_journal_values::{
+    digest, id, revision, scope, text_columns_within, CONTROL_COMMAND_TEXT_LIMITS,
+};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandOutcome, CommandRequest, CommandState, ResourceKind},
@@ -34,31 +37,6 @@ struct Stored {
 
 fn invalid() -> DatabaseError {
     DatabaseError::Invalid("owner definition journal is invalid".into())
-}
-fn id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.trim() == value
-        && !value.contains('*')
-        && !value.chars().any(char::is_control)
-}
-fn revision(value: &str) -> Option<i64> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|n| *n >= 0 && n.to_string() == value)
-}
-fn digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-fn scope(kind: AutomationKind) -> &'static str {
-    match kind {
-        AutomationKind::Action => "action",
-        AutomationKind::Event => "event",
-    }
 }
 fn operation_kind(
     operation: &AutomationMutation,
@@ -455,20 +433,8 @@ fn bound_ledger(db: &Connection, stored: &Stored) -> Result<bool, DatabaseError>
     let Some(row) = rows.next()? else {
         return Ok(false);
     };
-    for (column, max) in [
-        (0, 64),
-        (1, 128),
-        (2, 64),
-        (3, 32),
-        (4, 6),
-        (5, 128),
-        (6, 128),
-        (7, 16),
-    ] {
-        match row.get_ref(column)? {
-            rusqlite::types::ValueRef::Text(bytes) if bytes.len() <= max => {}
-            _ => return Err(invalid()),
-        }
+    if !text_columns_within(row, &CONTROL_COMMAND_TEXT_LIMITS)? {
+        return Err(invalid());
     }
     for (column, max) in [(8, RECORD_BYTES as i64), (9, VERSIONS_BYTES as i64)] {
         if row

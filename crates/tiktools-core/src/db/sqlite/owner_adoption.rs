@@ -1,11 +1,12 @@
 //! Metadata-only owner journal. Business results remain in the shared ledger.
+use super::owner_journal_values::{id, revision, scope};
 use super::{commands, DatabaseError, DatabaseManager};
 use crate::{
     collaboration::{CommandRequest, ResourceKind},
     control::{
         automation_adoption::{adoption_now, adoption_rejection},
-        AutomationKind, AutomationMutation, OwnerAdoptionIntent, OwnerAdoptionOutcome,
-        OwnerAdoptionRecord, OwnerAdoptionState,
+        AutomationMutation, OwnerAdoptionIntent, OwnerAdoptionOutcome, OwnerAdoptionRecord,
+        OwnerAdoptionState,
     },
 };
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
@@ -26,25 +27,6 @@ struct Stored {
 }
 fn invalid() -> DatabaseError {
     DatabaseError::Invalid("owner adoption journal is invalid".into())
-}
-fn id(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.trim() == value
-        && !value.contains('*')
-        && !value.chars().any(char::is_control)
-}
-fn revision(value: &str) -> Option<i64> {
-    value
-        .parse::<i64>()
-        .ok()
-        .filter(|n| *n >= 0 && n.to_string() == value)
-}
-fn scope(kind: AutomationKind) -> &'static str {
-    match kind {
-        AutomationKind::Event => "event",
-        AutomationKind::Action => "action",
-    }
 }
 fn validate(stored: &Stored, host: &str, pending: bool) -> Result<(), DatabaseError> {
     let intent = &stored.intent;

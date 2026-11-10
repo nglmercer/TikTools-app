@@ -30,6 +30,7 @@ mod owner_adoption;
 mod owner_approval;
 pub(crate) use owner_approval::validate_owner_approval_input;
 mod owner_definition;
+mod owner_journal_values;
 mod owner_library;
 mod plugin_apply_quarantine;
 #[cfg(feature = "cloud-auth")]
