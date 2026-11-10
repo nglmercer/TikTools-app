@@ -1796,6 +1796,9 @@ export default {
     status: { ready: 'Listo', missing: 'Falta', notInstallable: 'No instalable', revisionChanged: 'Cambió desde que se empaquetó', noActiveGeneration: 'Sin registro activo' },
   },
   cloudOverlays: {
+    copyObsUrl: 'Copiar URL de OBS',
+    obsCopied: 'URL de OBS copiada. Pégala en un origen de navegador.',
+    tooLarge: 'Este overlay es demasiado grande para una URL de OBS. Quita elementos o acorta el texto.',
     title: 'Overlays',
     hint: 'Diseños para el directo: texto, avatar e imágenes sobre un lienzo fijo. Solo se pueden mostrar en vivo los campos permitidos por la app.',
     overlayId: 'Id del overlay',

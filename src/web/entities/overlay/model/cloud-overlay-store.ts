@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { createOverlay, readOverlay, reviseOverlay } from '../api/cloud-overlays-api.ts';
+import { encodeOverlayFragment } from '../../../../shared/cloud-overlay-fragment.ts';
 import {
   addElement,
   emptyOverlay,
@@ -27,6 +28,7 @@ export const useCloudOverlayStore = defineStore('overlay', () => {
   const revision = ref<number | null>(null);
   const saving = ref(false);
   const error = ref<string | null>(null);
+  const copied = ref(false);
   const problems = computed(() => validateOverlay(draft.value));
 
   function startNew(kind: OverlayKind, title: string): void {
@@ -70,6 +72,29 @@ export const useCloudOverlayStore = defineStore('overlay', () => {
     }
   }
 
+  /**
+   * Copies the OBS Browser Source URL of the draft. The document travels in the URL, so a
+   * draft that does not fit is refused before anything is copied.
+   */
+  async function copyObsUrl(): Promise<boolean> {
+    copied.value = false;
+    if (problems.value.length > 0) return false;
+    const payload = encodeOverlayFragment(toWire(draft.value));
+    if (payload === null) {
+      error.value = 'too-large';
+      return false;
+    }
+    try {
+      await client.call('widgets.copyCloudOverlayUrl', { overlay: payload });
+      copied.value = true;
+      error.value = null;
+      return true;
+    } catch (failure) {
+      error.value = errorMessage(failure);
+      return false;
+    }
+  }
+
   function setCanvas(width: number, height: number): void {
     draft.value = { ...draft.value, canvas: { width, height } };
   }
@@ -104,7 +129,9 @@ export const useCloudOverlayStore = defineStore('overlay', () => {
     revision,
     saving,
     error,
+    copied,
     problems,
+    copyObsUrl,
     startNew,
     load,
     save,

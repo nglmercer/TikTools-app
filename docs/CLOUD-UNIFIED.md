@@ -82,6 +82,12 @@ view says when older events were not shown.
   overlays: widget designs for the seven kinds, served by the local gateway as
   stacked cards. A cloud overlay is an absolute canvas with positioned elements.
   The cloud editor and its files are named `cloud-overlay-*` to keep them apart.
+- **Overlay in OBS.** The editor copies an OBS Browser Source URL for the draft.
+  The document travels in the URL fragment as base64url JSON, at most 6000
+  characters; a larger overlay is refused with a message. The widget
+  `cloud-overlay` renders the canvas, scaled to the source, and fills live text
+  fields from the gateway: viewer name and handle, gift name, count and diamonds,
+  and chat message.
 - **Overlay editor** creates and revises cloud overlays of schema version 1. The editor
   checks each change against the Cloud's rules and refuses a save while a problem
   remains. The preview is drawn by the editor; the live stream does not render
@@ -98,14 +104,10 @@ view says when older events were not shown.
 
 ## Not implemented
 
-- Overlay rendering in the live stream. The preview in the editor is not the
-  stream renderer.
-- Overlays as package items: they are skipped during an apply. Applying one
-  would need an absolute-layout renderer in the local gateway. Mapping a cloud
-  canvas onto the card-based widget designs would lose the layout, so the apply
-  does not attempt it.
-- Overlay assets: the owner-only asset endpoint cannot be used as an image source
-  in the webview, so images are shown as placeholders in the preview.
+- Overlay art. The owner-only asset endpoint cannot be read by a browser source,
+  so art elements render as empty boxes. Avatars show the viewer's initial.
+- `points.total` in overlays: no live source is wired to the overlay yet.
+- Verification in OBS itself. The widget is checked in headless Chromium only.
 - End-to-end verification of the app's bearer-token path against a running
   backend. The backend's own suite passes; the app's bearer path depends on a
   browser handoff that cannot be scripted here.

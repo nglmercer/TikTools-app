@@ -9,6 +9,7 @@ import type { JobSnapshot } from '@/entities/plugin-package/api/package-types.ts
 import { packagePreflight, uploadAsset, type AssetRecord, type PackagePreflight } from '../api/bundles-api.ts';
 import { importLibraryTemplate } from '../lib/library-import.ts';
 import { importLibraryProfile } from '../lib/library-profile.ts';
+import { validateOverlay, type OverlayDocument } from '../../overlay/lib/cloud-overlay-schema.ts';
 import {
   createJournal,
   nextPending,
@@ -172,13 +173,32 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
     }
   }
 
+  /**
+   * An overlay is applied by reading the pinned revision and checking it with the
+   * Cloud's rules. It then stays available in the overlay editor, which loads it by id
+   * and copies its OBS URL.
+   */
+  async function runOverlay(id: string, revision: number | null): Promise<Outcome> {
+    if (revision === null) return { status: 'failed', message: 'the overlay has no revision' };
+    try {
+      const record = await client.call<{ revision: number; document: unknown }>('bundles.overlays.read', { id });
+      if (record.revision !== revision) return { status: 'failed', message: 'the overlay changed since it was packaged' };
+      if (validateOverlay(record.document as OverlayDocument).length > 0) {
+        return { status: 'failed', message: 'this overlay cannot be read by this version of the app' };
+      }
+      return { status: 'done' };
+    } catch (failure) {
+      return { status: 'failed', message: errorMessage(failure) };
+    }
+  }
+
   async function runEntry(index: number): Promise<Outcome> {
     const entry = journal.value?.entries[index];
     if (!entry) return { status: 'failed', message: 'the journal entry is missing' };
     if (entry.kind === 'plugin') return runPlugin(entry.id, entry.version);
     if (entry.kind === 'template') return runTemplate(entry.id, entry.revision);
     if (entry.kind === 'profile') return runProfile(entry.id, entry.revision);
-    return { status: 'skipped', message: 'overlays cannot be applied in this version' };
+    return runOverlay(entry.id, entry.revision);
   }
 
   /**

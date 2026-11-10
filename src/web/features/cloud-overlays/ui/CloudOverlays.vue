@@ -242,7 +242,7 @@ function setKind(value: string): void {
     <BaseAlert
       v-if="overlay.error"
       tone="error"
-      :title="overlay.error"
+      :title="overlay.error === 'too-large' ? t('cloudOverlays.tooLarge') : overlay.error"
       compact
     />
 
@@ -254,6 +254,18 @@ function setKind(value: string): void {
       >
         {{ overlay.overlayId ? t('cloudOverlays.saveRevision') : t('cloudOverlays.create') }}
       </BaseButton>
+      <BaseButton
+        :disabled="overlay.problems.length > 0"
+        @click="overlay.copyObsUrl()"
+      >
+        {{ t('cloudOverlays.copyObsUrl') }}
+      </BaseButton>
+      <span
+        v-if="overlay.copied"
+        class="cloud-overlays__note"
+      >
+        {{ t('cloudOverlays.obsCopied') }}
+      </span>
       <span
         v-if="overlay.overlayId"
         class="cloud-overlays__note"

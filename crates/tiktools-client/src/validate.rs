@@ -91,7 +91,7 @@ use tiktools_control_api::modules::teams::{
     TeamInvitationParams, TeamRedeemParams, TeamSessionParams, TeamUpdateParams,
 };
 use tiktools_control_api::modules::updates::{CheckParams as UpdateCheckParams, NoUpdateParams};
-use tiktools_control_api::modules::widgets::WidgetsCopyParams;
+use tiktools_control_api::modules::widgets::{WidgetsCopyCloudOverlayParams, WidgetsCopyParams};
 use tiktools_control_api::modules::workflows::{WorkflowIdParams, WorkflowSaveParams};
 use tiktools_control_api::modules::Empty;
 
@@ -452,6 +452,9 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
             .map_err(invalid),
         "widgets.status" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "widgets.copyObsUrl" => WidgetsCopyParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
+        "widgets.copyCloudOverlayUrl" => WidgetsCopyCloudOverlayParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
         "workflows.list" => Empty::deserialize(params).map(|_| ()).map_err(invalid),

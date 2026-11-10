@@ -25,6 +25,13 @@ pub struct WidgetsCopyParams {
     pub show_legend: Option<bool>,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WidgetsCopyCloudOverlayParams {
+    /// base64url JSON of the cloud overlay document, at most 6000 characters.
+    pub overlay: String,
+}
+
 pub fn register(router: &mut ControlRouter) {
     router.register_typed::<crate::modules::Empty, WidgetsStatusResult, _, _>(
         "widgets.status",
@@ -32,6 +39,18 @@ pub fn register(router: &mut ControlRouter) {
         false,
         |core: Arc<AppCore>, _params: crate::modules::Empty| async move {
             core.widgets_status().await.map_err(ApiError::from)
+        },
+    );
+    router.register_typed_full::<WidgetsCopyCloudOverlayParams, WidgetsCopyResult, _, _>(
+        "widgets.copyCloudOverlayUrl",
+        "Copies the OBS Browser Source URL of a cloud overlay, with its widget credential, to the OS clipboard",
+        true,
+        false,
+        true,
+        |core: Arc<AppCore>, params: WidgetsCopyCloudOverlayParams| async move {
+            blocking_task("cloud overlay clipboard", move || core.widgets_copy_cloud_overlay_url(&params.overlay))
+                .await?
+                .map_err(ApiError::from)
         },
     );
     router.register_typed_full::<WidgetsCopyParams, WidgetsCopyResult, _, _>(

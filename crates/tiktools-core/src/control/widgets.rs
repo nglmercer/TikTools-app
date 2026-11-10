@@ -358,6 +358,49 @@ impl AppCore {
     }
 }
 
+impl AppCore {
+    /// Copies the OBS URL of a cloud overlay. The document travels in the fragment as
+    /// base64url JSON; the browser source never needs a second request to render it.
+    pub fn widgets_copy_cloud_overlay_url(
+        &self,
+        overlay: &str,
+    ) -> Result<WidgetsCopyResult, OperationError> {
+        if overlay.is_empty()
+            || overlay.len() > 6000
+            || !overlay
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        {
+            return Err(OperationError::invalid(
+                "the overlay does not fit an OBS URL; remove elements and try again",
+            ));
+        }
+        let plugin = self.require_discovered(GATEWAY_PLUGIN_ID)?;
+        let values = self
+            .capabilities
+            .load_plugin_settings_raw(&plugin.manifest)
+            .map_err(|error| OperationError::internal(error.to_string()))?;
+        let port = self.gateway_port(&values);
+        let bind = self.gateway_bind(&values);
+        let Some(credential) = self.gateway_widget_credential(&values) else {
+            return Err(OperationError::unavailable(
+                "no widget credential is stored; start the Event Gateway once, then retry",
+            ));
+        };
+        let host = match bind {
+            std::net::IpAddr::V4(_) => GATEWAY_LOOPBACK_V4.to_owned(),
+            std::net::IpAddr::V6(addr) => format!("[{addr}]"),
+        };
+        let url = format!(
+            "http://{host}:{port}/widgets/cloud-overlay/#token={}&overlay={overlay}",
+            percent_encode_fragment(&credential)
+        );
+        copy_text_to_clipboard(&url)?;
+        tracing::debug!("cloud overlay OBS URL copied to clipboard");
+        Ok(WidgetsCopyResult { ok: true })
+    }
+}
+
 const GATEWAY_LOOPBACK_V4: &str = "127.0.0.1";
 
 /// Copy only known style tokens, never arbitrary application state or CSS.

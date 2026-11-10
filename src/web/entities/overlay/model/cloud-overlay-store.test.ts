@@ -38,4 +38,22 @@ describe('overlay store', () => {
     expect(await overlay.save()).toBe(true);
     expect((calls[0]?.params as { document: { capabilities?: string[] } }).document.capabilities).toEqual(['live.read']);
   });
+
+  it('copies the draft as an OBS URL payload and refuses one that does not fit', async () => {
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'widgets.copyCloudOverlayUrl') return { ok: true };
+      throw new Error(method);
+    });
+    const overlay = createStoreHarness(client).use(() => useCloudOverlayStore());
+    overlay.startNew('chat', 'Chat');
+    overlay.add('text');
+    expect(await overlay.copyObsUrl()).toBe(true);
+    expect(overlay.copied).toBe(true);
+    expect(calls.at(-1)?.method).toBe('widgets.copyCloudOverlayUrl');
+    const before = calls.length;
+    overlay.add('text');
+    overlay.patch(overlay.draft.elements[1]!.id, { width: 0 });
+    expect(await overlay.copyObsUrl()).toBe(false);
+    expect(calls.length).toBe(before);
+  });
 });
