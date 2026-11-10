@@ -37,6 +37,21 @@ pub struct WorkspaceV2Preview {
     pub migration_available: bool,
 }
 
+/// Result of the one-time v1 to v2 migration. `completed` means the local
+/// cutover committed; `policy_activated` means the server write-epoch policy
+/// is active for this account. A completed migration with
+/// `policy_activated` false can be retried by calling migrate again.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceV2Migration {
+    pub selections: usize,
+    pub pending: usize,
+    pub conflicts: usize,
+    pub retained_v1_only: usize,
+    pub completed: bool,
+    pub policy_activated: bool,
+}
+
 fn discovery(state: WorkspaceV2DiscoveryState) -> WorkspaceV2Discovery {
     WorkspaceV2Discovery {
         state,
@@ -78,7 +93,7 @@ impl AppCore {
                         })
                         .count(),
                     retained_v1_only: candidate.unseeded_legacy_keys().len(),
-                    migration_available: false,
+                    migration_available: true,
                 };
                 preview.check_local_fresh(&core)?;
                 Ok(result)
@@ -92,6 +107,100 @@ impl AppCore {
         {
             Err(OperationError::unavailable(
                 "Cloud migration review requires persistence",
+            ))
+        }
+    }
+
+    /// Execute the one-time v1 to v2 cutover, then activate the server
+    /// write-epoch policy. Idempotent: a retry after a completed cutover
+    /// only retries policy activation. The user must confirm first; the
+    /// policy is irreversible on the server and affects older v2 clients.
+    pub async fn workspace_v2_migrate(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<WorkspaceV2Migration, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let session = self.cloud.auth().session().await.ok_or_else(changed)?;
+            let core = self.clone();
+            let core_for_policy = self.clone();
+            let origin = session.instance_origin();
+            let account = session.account_id().to_owned();
+            let origin_check = origin.clone();
+            let account_check = account.clone();
+            let counts = tokio::task::spawn_blocking(move || -> Result<(usize, usize, usize, usize), OperationError> {
+                use tiktools_cloud_sync::ProductLocalEditContext;
+                let coordinator = core.sync.coordinator().map_err(|_| changed())?;
+                let already_v2 = coordinator
+                    .with_product_local_edit(|context| match context {
+                        ProductLocalEditContext::V2(Some(identity)) => {
+                            identity.origin == origin && identity.account_id == account
+                        }
+                        ProductLocalEditContext::V2(None)
+                        | ProductLocalEditContext::Legacy
+                        | ProductLocalEditContext::OptedOut => false,
+                    })
+                    .map_err(|_| changed())?;
+                if already_v2 {
+                    return Ok((0, 0, 0, 0));
+                }
+                // Recover a crash between marker commit and consent scoping.
+                // Best effort: a stale window error is ignored; the fresh
+                // preview and execute below handle the normal case.
+                let _ = coordinator.complete_interrupted_v2_scope(&session);
+                let already_v2 = coordinator
+                    .with_product_local_edit(|context| match context {
+                        ProductLocalEditContext::V2(Some(identity)) => {
+                            identity.origin == origin && identity.account_id == account
+                        }
+                        _ => false,
+                    })
+                    .map_err(|_| changed())?;
+                if already_v2 {
+                    return Ok((0, 0, 0, 0));
+                }
+                let preview = core.preview_local_v2_cutover(session.clone())?;
+                let candidate = preview.preview();
+                let counts = (
+                    candidate.selections().len(),
+                    candidate.entries().iter().filter(|entry| entry.pending.is_some()).count(),
+                    candidate.entries().iter().filter(|entry| entry.pending.as_ref().is_some_and(|pending| pending.status == cloud_client::WorkspacePendingStatus::Conflict)).count(),
+                    candidate.unseeded_legacy_keys().len(),
+                );
+                core.execute_local_v2_cutover(&preview)?;
+                Ok(counts)
+            })
+            .await
+            .map_err(|_| OperationError::unavailable("Cloud migration worker is unavailable"))??;
+            // Policy activation requires the current v2-scoped consent.
+            let coordinator = self.sync.coordinator().map_err(|_| changed())?.clone();
+            let session = self.cloud.auth().session().await.ok_or_else(changed)?;
+            if session.instance_origin() != origin_check || session.account_id() != account_check {
+                return Err(changed());
+            }
+            let expected = tokio::task::spawn_blocking(move || -> Result<tiktools_cloud_sync::V2LocalEditContext, OperationError> {
+                let coordinator = core_for_policy.sync.coordinator().map_err(|_| changed())?;
+                match coordinator.with_product_local_edit(|context| context).map_err(|_| changed())? {
+                    tiktools_cloud_sync::ProductLocalEditContext::V2(Some(identity)) => Ok(identity),
+                    _ => Err(changed()),
+                }
+            })
+            .await
+            .map_err(|_| OperationError::unavailable("Cloud migration worker is unavailable"))??;
+            let policy = coordinator.ensure_v2_write_epoch_policy(session, expected).await;
+            let policy_activated = policy.is_ok();
+            Ok(WorkspaceV2Migration {
+                selections: counts.0,
+                pending: counts.1,
+                conflicts: counts.2,
+                retained_v1_only: counts.3,
+                completed: true,
+                policy_activated,
+            })
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            Err(OperationError::unavailable(
+                "Cloud migration requires persistence",
             ))
         }
     }

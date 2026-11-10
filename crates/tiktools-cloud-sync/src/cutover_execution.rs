@@ -48,6 +48,83 @@ pub trait CutoverSource {
 }
 
 impl SyncCoordinator {
+    /// Review an existing v1 installation for product migration. Legacy edits
+    /// without native receipts are retained as conflicts, never replayed.
+    /// This does not create the product marker or change any stored state.
+    #[doc(hidden)]
+    pub fn guarded_legacy_promotion_review(
+        &self,
+        session: &Arc<Session>,
+        selections: &[PluginSelection],
+    ) -> Result<GuardedCutoverReview, SyncCoordError> {
+        let consent = self
+            .capture_config_epoch(session)
+            .ok_or(SyncCoordError::StaleReview)?;
+        let origin = session.instance_origin();
+        let account = session.account_id();
+        let snapshot = || -> Result<_, SyncCoordError> {
+            let lease = self.protocol.try_v1()?;
+            let _admission = lease.try_admission()?;
+            lease.ensure_v1(&origin, account)?;
+            match lease.ensure_product_outbox(&origin, account) {
+                Ok(()) | Err(crate::ProtocolFenceError::ProductOutboxNotEnabled) => {}
+                Err(error) => return Err(error.into()),
+            }
+            lease.ensure_no_uncertain(&origin, account)?;
+            self.auth
+                .with_current_session_permit(session, || {
+                    if !self.is_config_epoch_current(&consent, session) {
+                        return Err(SyncCoordError::StaleReview);
+                    }
+                    Ok(lease.legacy_store(&origin, account)?.0.load()?)
+                })
+                .map_err(|_| SyncCoordError::StaleReview)?
+        };
+        let preview = match snapshot() {
+            Ok(legacy) => {
+                let preview = CutoverPreview::new_legacy_promotion(
+                    origin.clone(),
+                    account.to_owned(),
+                    selections,
+                    legacy.as_ref(),
+                )
+                .map_err(|error| SyncCoordError::Local(error.to_string()))?;
+                let current = snapshot()?;
+                preview
+                    .verify_inputs(&origin, account, selections, current.as_ref())
+                    .map_err(|_| SyncCoordError::StaleReview)?;
+                preview
+            }
+            Err(SyncCoordError::Protocol(crate::ProtocolFenceError::NotV1)) => {
+                let lease = self.protocol.try_cutover()?;
+                self.auth
+                    .with_current_session_permit(session, || {
+                        if !self.is_config_epoch_current(&consent, session) {
+                            return Err(SyncCoordError::StaleReview);
+                        }
+                        Ok(lease
+                            .preview_preparing_legacy_promotion(&origin, account, selections)?)
+                    })
+                    .map_err(|_| SyncCoordError::StaleReview)??
+            }
+            Err(error) => return Err(error),
+        };
+        self.auth
+            .with_current_session_permit(session, || {
+                if self.is_config_epoch_current(&consent, session) {
+                    Ok(())
+                } else {
+                    Err(SyncCoordError::StaleReview)
+                }
+            })
+            .map_err(|_| SyncCoordError::StaleReview)??;
+        Ok(GuardedCutoverReview {
+            session: session.clone(),
+            consent,
+            preview,
+        })
+    }
+
     /// Capture the exact live session and opt-in decision along with the
     /// informational preview. A separate product consent step is required.
     pub fn guarded_cutover_review(
@@ -124,7 +201,12 @@ impl SyncCoordinator {
         selections: &[PluginSelection],
         receipts: &[crate::V1CutoverReceipt],
     ) -> Result<(), SyncCoordError> {
-        let fresh = if review.preview.is_marked() {
+        let fresh = if review.preview.is_legacy_promotion() {
+            if !receipts.is_empty() {
+                return Err(SyncCoordError::StaleReview);
+            }
+            self.guarded_legacy_promotion_review(&review.session, selections)?
+        } else if review.preview.is_marked() {
             self.guarded_marked_cutover_review(&review.session, selections, receipts)?
         } else {
             if !receipts.is_empty() {
@@ -286,6 +368,14 @@ impl SyncCoordinator {
                     return Err(SyncCoordError::Local(
                         WorkspaceCoordError::BootstrapNeedsReview.to_string(),
                     ));
+                }
+                if review.preview.is_legacy_promotion() {
+                    let legacy = lease.legacy_store(&origin, account)?.0.load()?;
+                    review
+                        .preview
+                        .verify_inputs(&origin, account, selections, legacy.as_ref())
+                        .map_err(|_| SyncCoordError::StaleReview)?;
+                    lease.ensure_legacy_promotion_marker(&origin, account)?;
                 }
                 lease.prepare(&review.preview, &origin, account, selections)?;
                 after_prepare()?;

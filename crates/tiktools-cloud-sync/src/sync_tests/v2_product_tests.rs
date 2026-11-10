@@ -1,6 +1,117 @@
 use super::*;
 
 #[tokio::test]
+async fn legacy_promotion_preserves_pending_edits_and_resumes_after_interruption() {
+    struct Source(Vec<PluginSelection>);
+    impl crate::CutoverSource for Source {
+        fn with_guarded_source<T>(
+            &self,
+            operation: impl FnOnce(
+                &[PluginSelection],
+                &[crate::V1CutoverReceipt],
+            ) -> Result<T, SyncCoordError>,
+        ) -> Result<T, SyncCoordError> {
+            operation(&self.0, &[])
+        }
+    }
+    let dir = TempDir::new("legacy-product-promotion");
+    let mock = MockSync::start("promotion-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "promotion-login").await;
+    let session = auth.session().await.unwrap();
+    sync.record_local_change("acme.plugin", "1.0.0", false)
+        .unwrap();
+    let source = Source(vec![PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.plugin".into(),
+        version: "1.0.0".into(),
+        enabled: true,
+    }]);
+    let stale = sync
+        .guarded_legacy_promotion_review(&session, &source.0)
+        .unwrap();
+    sync.record_local_change("acme.other", "1.0.0", true)
+        .unwrap();
+    assert!(sync
+        .execute_cutover_and_scope_consent_with_source(&stale, &source)
+        .is_err());
+    assert!(matches!(
+        sync.protocol
+            .try_v1()
+            .unwrap()
+            .ensure_product_outbox(&mock.origin, "promotion-user"),
+        Err(ProtocolFenceError::ProductOutboxNotEnabled)
+    ));
+    let legacy = sync
+        .protocol
+        .legacy_snapshot(&mock.origin, "promotion-user")
+        .unwrap()
+        .unwrap();
+    let review = sync
+        .guarded_legacy_promotion_review(&session, &source.0)
+        .unwrap();
+    assert!(review.preview().entries().iter().all(|entry| entry
+        .pending
+        .as_ref()
+        .is_some_and(|pending| pending.status == WorkspacePendingStatus::Conflict)));
+    // Both crash windows reconstruct the exact reviewed legacy source.
+    sync.protocol
+        .try_cutover()
+        .unwrap()
+        .ensure_legacy_promotion_marker(&mock.origin, "promotion-user")
+        .unwrap();
+    let review = sync
+        .guarded_legacy_promotion_review(&session, &source.0)
+        .unwrap();
+    assert!(sync
+        .execute_guarded_cutover_with_hooks(
+            &review,
+            &source.0,
+            || Err(SyncCoordError::Local("interrupted".into())),
+            || Ok(())
+        )
+        .is_err());
+    let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
+    let changed = vec![PluginSelection {
+        enabled: false,
+        ..source.0[0].clone()
+    }];
+    assert!(restarted
+        .guarded_legacy_promotion_review(&session, &changed)
+        .is_err());
+    let review = restarted
+        .guarded_legacy_promotion_review(&session, &source.0)
+        .unwrap();
+    assert_eq!(
+        restarted
+            .execute_cutover_and_scope_consent_with_source(&review, &source)
+            .unwrap(),
+        crate::CutoverExecution::Completed
+    );
+    assert!(restarted.capture_v2_config_epoch(&session).is_some());
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "promotion-user".into(),
+    )
+    .unwrap();
+    let state = workspace.snapshot().unwrap().state;
+    assert!(state.is_product_guarded());
+    assert!(state.entries.iter().all(|entry| entry
+        .pending
+        .as_ref()
+        .is_some_and(|pending| pending.status == WorkspacePendingStatus::Conflict)));
+    let after = restarted
+        .protocol
+        .legacy_snapshot(&mock.origin, "promotion-user")
+        .unwrap()
+        .unwrap();
+    assert_eq!(legacy.generation, after.generation);
+    assert_eq!(legacy.state, after.state);
+    mock.stop();
+}
+
+#[tokio::test]
 async fn v2_epoch_policy_setup_is_once_and_bound_to_current_consent() {
     let dir = TempDir::new("v2-policy-setup");
     let mock = MockSync::start("policy-setup-user").await;

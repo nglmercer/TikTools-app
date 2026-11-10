@@ -114,10 +114,13 @@ pub use cloud_library::{
 #[cfg(feature = "cloud-auth")]
 pub use cloud_sync::{
     SyncNowResult, SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncRecoveryValue,
+    V2ConflictChoice, V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, V2ConflictValue,
     WorkspaceV2SyncResult,
 };
 #[cfg(feature = "cloud-auth")]
-pub use cloud_workspace::{WorkspaceV2Discovery, WorkspaceV2DiscoveryState, WorkspaceV2Preview};
+pub use cloud_workspace::{
+    WorkspaceV2Discovery, WorkspaceV2DiscoveryState, WorkspaceV2Migration, WorkspaceV2Preview,
+};
 #[cfg(any(test, feature = "native-tiktok"))]
 pub(crate) use helpers::check_session_cookie_len;
 pub(crate) use helpers::{clean_plugin_id, clean_record_id, fresh_record_id};

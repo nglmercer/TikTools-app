@@ -882,6 +882,50 @@ impl CutoverLease {
         Ok(preview)
     }
 
+    pub(crate) fn preview_preparing_legacy_promotion(
+        &self,
+        origin: &str,
+        account: &str,
+        selections: &[PluginSelection],
+    ) -> Result<CutoverPreview, ProtocolFenceError> {
+        self.ensure_reviewed_mode(origin, account, true)?;
+        if self.uncertain_uploads(origin, account)? != 0 {
+            return Err(ProtocolFenceError::UncertainV1);
+        }
+        let record = self
+            .fence
+            .read_record(origin, account)?
+            .ok_or(ProtocolFenceError::StaleCutover)?;
+        if record.format_version != 3 || record.mode != ProtocolMode::Preparing {
+            return Err(ProtocolFenceError::StaleCutover);
+        }
+        let legacy = self.fence.legacy_store(origin, account)?.0.load()?;
+        let preview = CutoverPreview::new_legacy_promotion(
+            origin.into(),
+            account.into(),
+            selections,
+            legacy.as_ref(),
+        )
+        .map_err(|_| ProtocolFenceError::StaleCutover)?;
+        if record.candidate_sha256 != candidate_hash(&preview)? {
+            return Err(ProtocolFenceError::StaleCutover);
+        }
+        Ok(preview)
+    }
+
+    /// Marker creation is idempotent across a crash between publication and
+    /// preparing the migration. The caller has already revalidated the review.
+    pub(crate) fn ensure_legacy_promotion_marker(
+        &self,
+        origin: &str,
+        account: &str,
+    ) -> Result<(), ProtocolFenceError> {
+        if self.fence.product_outbox_required(origin, account)? {
+            return Ok(());
+        }
+        self.require_product_outbox(origin, account)
+    }
+
     /// Detect a repeated acknowledgement of the same completed cutover.
     /// Workspace content can legitimately evolve after completion, so the
     /// immutable protocol record is the evidence, not the present snapshot.

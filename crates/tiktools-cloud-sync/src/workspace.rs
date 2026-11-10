@@ -928,9 +928,9 @@ impl WorkspaceCoordinator {
     }
 
     /// Capture a private product recovery comparison. It can only authorize a
-    /// later explicit keep-local rebase under the matching native source
-    /// fence; it never applies a remote value or resends a request itself.
-    #[allow(dead_code)] // Product review integration is not enabled yet.
+    /// later explicit keep-local or take-cloud resolution under the matching
+    /// native source fence; it never applies a remote value or resends a
+    /// request itself.
     pub(crate) async fn review_product_guarded(
         &self,
         session: &Session,
@@ -1072,7 +1072,6 @@ impl WorkspaceCoordinator {
     /// An explicit keep-local choice only rebases the durable pending edit;
     /// it does not apply Cloud state or send a request. Both the exact source
     /// and session/consent publication fences are required through the save.
-    #[allow(dead_code)] // Product review integration is not enabled yet.
     pub(crate) async fn resolve_product_keep_local_guarded(
         &self,
         session: &Session,
@@ -1084,6 +1083,24 @@ impl WorkspaceCoordinator {
             return Err(WorkspaceCoordError::Ineligible);
         }
         self.resolve_inner(session, review, true, Some(eligibility), Some(admission))
+            .await
+    }
+
+    /// An explicit take-cloud choice discards the pending edit and retains
+    /// the fresh Cloud record as the cache baseline. It never applies Cloud
+    /// state locally or sends a request. The same source and session/consent
+    /// publication fences as keep-local are required through the save.
+    pub(crate) async fn resolve_product_take_cloud_guarded(
+        &self,
+        session: &Session,
+        review: &WorkspaceReview,
+        eligibility: &WorkspaceEligibility,
+        admission: &ProductUploadAdmission<'_>,
+    ) -> Result<(), WorkspaceCoordError> {
+        if eligibility.publication.is_none() || review.product_proof.is_none() {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        self.resolve_inner(session, review, false, Some(eligibility), Some(admission))
             .await
     }
     async fn resolve_inner(

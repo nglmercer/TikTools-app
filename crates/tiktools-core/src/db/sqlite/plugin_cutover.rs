@@ -78,6 +78,7 @@ fn read_source(
     // not establish that the remaining state is safe to expose to a user.
     let unresolved: bool = db.query_row(
         "SELECT EXISTS(SELECT 1 FROM plugin_package_mutation_intents)
+               OR EXISTS(SELECT 1 FROM plugin_sync_untracked_local)
                OR EXISTS(SELECT 1 FROM plugin_sync_apply_intents)
                OR EXISTS(SELECT 1 FROM plugin_sync_apply_finalizations)
                OR EXISTS(SELECT 1 FROM plugin_sync_outbox)

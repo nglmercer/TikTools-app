@@ -17,6 +17,17 @@ use std::{
 const PRODUCT_SYNC_DEADLINE: Duration = Duration::from_secs(60);
 const MAX_PRODUCT_WORKERS: usize = 4;
 
+/// Serializable comparison captured by one product review. The live
+/// [`crate::WorkspaceReview`] is never stored across RPCs; resolution
+/// replays the review and rejects it unless every field still matches.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct V2ProductConflictSnapshot {
+    pub target: cloud_client::WorkspaceKey,
+    pub generation: u64,
+    pub entry: cloud_client::WorkspaceEntry,
+    pub cloud_record: Option<cloud_client::WorkspaceRecord>,
+}
+
 // Eligibility may itself perform blocking native I/O. Cancellation or the
 // caller deadline can occur during that check, so never return an earlier
 // observation without checking both again after the operation has finished.
@@ -275,6 +286,163 @@ impl SyncCoordinator {
                 },
             )
             .await
+    }
+
+    /// Local-only conflict listing for the current account. Reads the durable
+    /// workspace without network I/O, session fences or product-worker
+    /// leases. Callers must revalidate session and consent around this read.
+    pub fn v2_product_conflict_keys(
+        &self,
+        session: &Arc<cloud_client::Session>,
+    ) -> Result<Vec<cloud_client::WorkspaceKey>, crate::WorkspaceCoordError> {
+        let origin = session.instance_origin();
+        let account = session.account_id().to_owned();
+        let root = self
+            .config_path
+            .parent()
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        Ok(workspace.snapshot()?.state.conflict_keys())
+    }
+
+    /// Product-only conflict comparison. Runs one fenced review under a
+    /// worker lease and returns a serializable snapshot; the caller stores
+    /// only the snapshot and a random handle, never the live review.
+    pub async fn review_v2_product(
+        &self,
+        session: Arc<cloud_client::Session>,
+        target: cloud_client::WorkspaceKey,
+    ) -> Result<V2ProductConflictSnapshot, crate::WorkspaceCoordError> {
+        let sync = self.clone();
+        run_product_worker(move |cancelled, deadline| async move {
+            sync.review_v2_product_inner(session, target, cancelled, deadline)
+                .await
+        })
+        .await
+    }
+
+    async fn review_v2_product_inner(
+        &self,
+        session: Arc<cloud_client::Session>,
+        target: cloud_client::WorkspaceKey,
+        cancelled: Arc<AtomicBool>,
+        deadline: Instant,
+    ) -> Result<V2ProductConflictSnapshot, crate::WorkspaceCoordError> {
+        if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
+            return Err(crate::WorkspaceCoordError::Ineligible);
+        }
+        let epoch = self
+            .capture_v2_config_epoch(&session)
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let origin = session.instance_origin();
+        let account = session.account_id().to_owned();
+        let _lease = self
+            .protocol
+            .try_v2(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let marker_lease = self
+            .protocol
+            .try_v1()
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        marker_lease
+            .ensure_product_outbox(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let root = self
+            .config_path
+            .parent()
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        let eligibility = self.v2_product_eligibility(session.clone(), epoch, cancelled, deadline);
+        let review = workspace
+            .review_product_guarded(&session, &target, &eligibility)
+            .await?;
+        Ok(V2ProductConflictSnapshot {
+            target: review.target().clone(),
+            generation: review.local_generation(),
+            entry: review.entry().clone(),
+            cloud_record: review.remote().cloned(),
+        })
+    }
+
+    /// Product-only conflict resolution bound to a prior snapshot. Replays
+    /// one fenced review with the same eligibility and rejects it unless the
+    /// fresh generation, entry and Cloud read still match the snapshot, then
+    /// resolves under the same eligibility and product source admission.
+    pub async fn resolve_v2_product(
+        &self,
+        session: Arc<cloud_client::Session>,
+        source: Arc<dyn V2ProductUploadSource + 'static>,
+        target: cloud_client::WorkspaceKey,
+        expected: V2ProductConflictSnapshot,
+        keep_local: bool,
+    ) -> Result<(), crate::WorkspaceCoordError> {
+        let sync = self.clone();
+        run_product_worker(move |cancelled, deadline| async move {
+            sync.resolve_v2_product_inner(session, source, target, expected, keep_local, cancelled, deadline)
+                .await
+        })
+        .await
+    }
+
+    async fn resolve_v2_product_inner(
+        &self,
+        session: Arc<cloud_client::Session>,
+        source: Arc<dyn V2ProductUploadSource + 'static>,
+        target: cloud_client::WorkspaceKey,
+        expected: V2ProductConflictSnapshot,
+        keep_local: bool,
+        cancelled: Arc<AtomicBool>,
+        deadline: Instant,
+    ) -> Result<(), crate::WorkspaceCoordError> {
+        if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
+            return Err(crate::WorkspaceCoordError::Ineligible);
+        }
+        let epoch = self
+            .capture_v2_config_epoch(&session)
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let origin = session.instance_origin();
+        let account = session.account_id().to_owned();
+        let _lease = self
+            .protocol
+            .try_v2(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let marker_lease = self
+            .protocol
+            .try_v1()
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        marker_lease
+            .ensure_product_outbox(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let root = self
+            .config_path
+            .parent()
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        let generation = epoch.config.generation;
+        let eligibility = self.v2_product_eligibility(session.clone(), epoch, cancelled, deadline);
+        let review = workspace
+            .review_product_guarded(&session, &target, &eligibility)
+            .await?;
+        if review.target() != &expected.target
+            || review.local_generation() != expected.generation
+            || review.entry() != &expected.entry
+            || review.remote() != expected.cloud_record.as_ref()
+        {
+            return Err(cloud_client::WorkspaceStateError::StaleReview.into());
+        }
+        let admission = crate::workspace::ProductUploadAdmission {
+            source: source.as_ref(),
+            config_generation: generation,
+        };
+        if keep_local {
+            workspace
+                .resolve_product_keep_local_guarded(&session, &review, &eligibility, &admission)
+                .await
+        } else {
+            workspace
+                .resolve_product_take_cloud_guarded(&session, &review, &eligibility, &admission)
+                .await
+        }
     }
 
     // The caller must hold the v2 protocol lease for the lifetime of this guard.

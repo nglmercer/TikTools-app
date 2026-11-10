@@ -147,19 +147,21 @@ impl AppCore {
         let origin = session.instance_origin();
         let account = session.account_id();
         let source = self.cutover_local_source(&origin, account)?;
-        let review = match coordinator.guarded_cutover_review(&session, &source.selections) {
-            Ok(review) if source.sqlite.receipts.is_empty() => review,
-            Ok(_) => return Err(unavailable()),
-            Err(SyncCoordError::Protocol(
-                tiktools_cloud_sync::ProtocolFenceError::ProductOutboxRequired,
-            )) => coordinator
+        let review = if source.sqlite.receipts.is_empty() {
+            coordinator
+                .guarded_legacy_promotion_review(&session, &source.selections)
+                .or_else(|_| {
+                    coordinator.guarded_marked_cutover_review(&session, &source.selections, &[])
+                })
+                .map_err(|_| unavailable())?
+        } else {
+            coordinator
                 .guarded_marked_cutover_review(
                     &session,
                     &source.selections,
                     &source.sqlite.receipts,
                 )
-                .map_err(|_| unavailable())?,
-            Err(_) => return Err(unavailable()),
+                .map_err(|_| unavailable())?
         };
         if self.cutover_local_source(&origin, account)? != source {
             return Err(unavailable());
@@ -436,7 +438,11 @@ mod tests {
         let result = core.workspace_v2_preview().await.unwrap();
         assert_eq!(result.selections, 1);
         assert_eq!(result.pending, 1);
-        assert!(!result.migration_available);
+        assert!(result.migration_available);
+        core.db
+            .invalidate_plugin_package_source_untracked("demo")
+            .unwrap();
+        assert!(core.workspace_v2_preview().await.is_err());
         core.shutdown().await;
         server.abort();
         let _ = std::fs::remove_dir_all(root);

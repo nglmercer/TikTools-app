@@ -18,6 +18,7 @@ pub struct CutoverPreview {
     legacy: Option<StateSnapshot>,
     candidate: WorkspaceState,
     marked_receipts: Option<Vec<V1CutoverReceipt>>,
+    legacy_promotion: bool,
 }
 
 impl CutoverPreview {
@@ -60,7 +61,24 @@ impl CutoverPreview {
             legacy: legacy.cloned(),
             candidate,
             marked_receipts: None,
+            legacy_promotion: false,
         })
+    }
+
+    /// Preserve legacy edits without inventing receipts. Every imported or
+    /// local selection is a conflict until its source and Cloud base have
+    /// been reconciled after migration.
+    pub(crate) fn new_legacy_promotion(
+        origin: String,
+        account_id: String,
+        selections: &[PluginSelection],
+        legacy: Option<&StateSnapshot>,
+    ) -> Result<Self, WorkspaceStateError> {
+        let mut preview = Self::new(origin, account_id, selections, legacy)?;
+        preview.marked_receipts = Some(Vec::new());
+        preview.legacy_promotion = true;
+        Self::force_receipt_review(&mut preview.candidate, &[])?;
+        Ok(preview)
     }
 
     /// A marked candidate can never replay a receipt automatically. It must
@@ -166,6 +184,9 @@ impl CutoverPreview {
     pub(crate) fn is_marked(&self) -> bool {
         self.marked_receipts.is_some()
     }
+    pub(crate) fn is_legacy_promotion(&self) -> bool {
+        self.legacy_promotion
+    }
     pub(crate) fn receipts(&self) -> Option<&[V1CutoverReceipt]> {
         self.marked_receipts.as_deref()
     }
@@ -206,6 +227,9 @@ impl CutoverPreview {
         );
         match &self.marked_receipts {
             None => serde_json::to_vec(&legacy),
+            Some(receipts) if self.legacy_promotion => {
+                serde_json::to_vec(&("tiktools-legacy-product-promotion-v1", legacy, receipts))
+            }
             Some(receipts) => {
                 serde_json::to_vec(&("tiktools-marked-cutover-review-v3", legacy, receipts))
             }

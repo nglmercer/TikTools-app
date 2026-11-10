@@ -62,7 +62,7 @@ describe('CloudSyncEditor', () => {
     expect(calls.some((call) => call.method === 'sync.v2.discover')).toBe(false);
     await wrapper.findAll('button').find((item) => item.text() === 'Check Cloud v2 compatibility')!.trigger('click');
     await flushPromises();
-    expect(wrapper.text()).toContain('The server supports v2. Migration in this app is not available yet.');
+    expect(wrapper.text()).toContain('The server supports v2.');
     expect(calls.filter((call) => call.method === 'sync.v2.discover')).toHaveLength(1);
     expect(calls.some((call) => call.method === 'sync.enable' || call.method === 'sync.now')).toBe(false);
     wrapper.unmount();
@@ -75,7 +75,8 @@ describe('CloudSyncEditor', () => {
       if (method === 'sync.status') return status({ enabled: true });
       if (method === 'sync.v2.selected') return false;
       if (method === 'sync.uncertain.list') return [];
-      if (method === 'sync.v2.preview') return { selections: 3, pending: 2, conflicts: 1, retainedV1Only: 1, migrationAvailable: false };
+      if (method === 'sync.v2.preview') return { selections: 3, pending: 2, conflicts: 1, retainedV1Only: 1, migrationAvailable: true };
+      if (method === 'sync.v2.migrate') return { selections: 3, pending: 2, conflicts: 1, retainedV1Only: 1, completed: true, policyActivated: true };
       throw new Error(`unexpected ${method}`);
     });
     client.onTopic = (topic, handler) => { if (topic === 'plugin.started') pluginChanged = () => handler(undefined as never); return () => {}; };
@@ -84,7 +85,11 @@ describe('CloudSyncEditor', () => {
     await wrapper.findAll('button').find((item) => item.text() === 'Review Cloud v2 migration')!.trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('Local selections: 3. Pending changes: 2.');
-    expect(wrapper.text()).toContain('Migration cannot yet be enabled from the app.');
+    expect(wrapper.text()).toContain('Migration is available.');
+    expect(wrapper.text()).toContain('Migrate to v2');
+    await wrapper.findAll('button').find((item) => item.text() === 'Migrate to v2')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Migration completed.');
     expect(calls.some((call) => call.method === 'sync.enable' || call.method === 'sync.v2.now')).toBe(false);
     pluginChanged();
     await flushPromises();
@@ -100,6 +105,7 @@ describe('CloudSyncEditor', () => {
       if (method === 'sync.uncertain.list') return [];
       if (method === 'sync.v2.discover') return { state: 'backendCompatible', desktopSyncAvailable: false, selected: true };
       if (method === 'sync.v2.now') return { pushed: 1, pulled: 2, workspacePending: 0, availableRecords: 2, conflicts: [], moreQueued: true };
+      if (method === 'sync.v2.conflict.list') return [];
       throw new Error(`unexpected ${method}`);
     });
     const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: storePlugins(client) } });
@@ -222,6 +228,37 @@ describe('CloudSyncEditor', () => {
     expect(wrapper.text()).toContain('The recovery response was invalid.');
     expect(wrapper.text()).not.toContain('Original base');
     expect(wrapper.text()).not.toContain('Use cloud');
+  });
+
+  it('resolves a reviewed v2 conflict without applying Cloud state', async () => {
+    const present = (revision: number | null) => ({ state: 'present', revision, value: { version: '1.0.0', enabled: true }, version: '1.0.0', enabled: true });
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'cloud.status') return account();
+      if (method === 'sync.v2.selected') return true;
+      if (method === 'sync.status') return status({ enabled: true });
+      if (method === 'sync.uncertain.list') return [];
+      if (method === 'sync.v2.conflict.list') return [{ collection: 'plugin-selections', key: 'acme.plugin' }];
+      if (method === 'sync.v2.conflict.review') return { handle: 'b'.repeat(64), collection: 'plugin-selections', key: 'acme.plugin', base: present(1), local: present(null), cloud: present(2), hasNewer: false };
+      if (method === 'sync.v2.conflict.resolve') return 'resolved';
+      throw new Error(`unexpected ${method}`);
+    });
+    const wrapper = mountWithPlugins(CloudSyncEditor, { global: { plugins: storePlugins(client) } });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Conflicts needing review');
+    expect(wrapper.text()).toContain('plugin-selections/acme.plugin');
+    await wrapper.findAll('button').find((item) => item.text() === 'Review')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Current local');
+    expect(wrapper.text()).toContain('Version 1.0.0, enabled');
+    expect(calls.some((call) => call.method === 'sync.v2.conflict.review')).toBe(true);
+    const keep = wrapper.findAll('button').find((item) => item.text() === 'Keep mine')!;
+    expect(keep.attributes('disabled')).toBeUndefined();
+    await keep.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Conflict resolved.');
+    const resolveCall = calls.find((call) => call.method === 'sync.v2.conflict.resolve');
+    expect(resolveCall?.params).toMatchObject({ handle: 'b'.repeat(64), choice: 'keepLocal' });
+    wrapper.unmount();
   });
 
   it('discards a late recovery review when the same account signs in again', async () => {

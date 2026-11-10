@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 pub use tiktools_core::control::{
     CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus, SyncNowResult,
-    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, WorkspaceV2Discovery,
-    WorkspaceV2Preview, WorkspaceV2SyncResult,
+    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, V2ConflictChoice, V2ConflictOutcome,
+    V2ConflictReview, V2ConflictTarget, WorkspaceV2Discovery, WorkspaceV2Migration, WorkspaceV2Preview,
+    WorkspaceV2SyncResult,
 };
 use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
 
@@ -48,6 +49,20 @@ pub struct SyncUncertainResolveParams {
     pub choice: SyncRecoveryChoice,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncV2ConflictReviewParams {
+    pub collection: String,
+    pub key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncV2ConflictResolveParams {
+    pub handle: String,
+    pub choice: V2ConflictChoice,
+}
+
 fn map_error(error: OperationError) -> ApiError {
     ApiError::from(error)
 }
@@ -58,6 +73,12 @@ pub fn register(router: &mut ControlRouter) {
         "Reviews local migration inputs without changing or enabling synchronization",
         false,
         |core: Arc<AppCore>, _| async move { core.workspace_v2_preview().await.map_err(map_error) },
+    );
+    router.register_typed::<Empty, WorkspaceV2Migration, _, _>(
+        "sync.v2.migrate",
+        "Migrates this account from v1 to v2 and activates the server write-epoch policy",
+        true,
+        |core: Arc<AppCore>, _| async move { core.workspace_v2_migrate().await.map_err(map_error) },
     );
     router.register_typed::<Empty, bool, _, _>(
         "sync.v2.selected",
@@ -149,6 +170,32 @@ pub fn register(router: &mut ControlRouter) {
         "Synchronize an already selected v2 workspace without applying Cloud records",
         true,
         |core: Arc<AppCore>, _| async move { core.sync_v2_now().await.map_err(map_error) },
+    );
+    router.register_typed::<Empty, Vec<V2ConflictTarget>, _, _>(
+        "sync.v2.conflict.list",
+        "Lists v2 conflicts for the current account without contacting Cloud",
+        false,
+        |core: Arc<AppCore>, _| async move { core.sync_v2_conflict_list().await.map_err(map_error) },
+    );
+    router.register_typed::<SyncV2ConflictReviewParams, V2ConflictReview, _, _>(
+        "sync.v2.conflict.review",
+        "Reads the Cloud comparison for one reviewed v2 conflict",
+        false,
+        |core: Arc<AppCore>, params: SyncV2ConflictReviewParams| async move {
+            core.sync_v2_review_conflict(&params.collection, &params.key)
+                .await
+                .map_err(map_error)
+        },
+    );
+    router.register_typed::<SyncV2ConflictResolveParams, V2ConflictOutcome, _, _>(
+        "sync.v2.conflict.resolve",
+        "Resolves a reviewed v2 conflict",
+        true,
+        |core: Arc<AppCore>, params: SyncV2ConflictResolveParams| async move {
+            core.sync_v2_resolve_conflict(&params.handle, params.choice)
+                .await
+                .map_err(map_error)
+        },
     );
     router.register_typed::<Empty, SyncNowResult, _, _>(
         "sync.now",

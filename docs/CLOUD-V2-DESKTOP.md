@@ -1,6 +1,6 @@
 # Desktop Cloud v2 implementation and acceptance specification
 
-Status: **the native v2 foundation and read-only Cloud catalog and library UI are implemented. Product sync cutover, broader local application and full Desktop v2 acceptance are pending.**
+Status: **the native v2 foundation, one-time v1 to v2 migration, product conflict resolution and read-only Cloud catalog and library UI are implemented. Broader local application of non-plugin collections and full Desktop v2 acceptance are pending.**
 
 The native reconciliation barrier can now admit a downloaded plugin record
 only when the cached record exactly matches the authenticated post-barrier
@@ -18,18 +18,29 @@ start or stop. After a v2 network pass, the product now schedules bounded
 application and recovery attempts for eligible installed plugin selections;
 unresolved runtime mismatches and bounded history compaction remain pending.
 
-The marked native cutover can select v2 and scope the existing opt-in to the
+The marked native cutover selects v2 and scopes the existing opt-in to the
 same account under one source, session and protocol boundary. If persistence
 is interrupted between those steps, a native completion checks the durable
-workspace and never re-enables an opted-out setting. This is not yet connected
-to the migration controls.
+workspace and never re-enables an opted-out setting. The one-time migration
+RPC `sync.v2.migrate` invokes this cutover after an explicit preview review.
 
-Native setup can also enable the server's account-wide required write-epoch
+For an existing unmarked v1 installation, native promotion preserves
+pending legacy selections as v2 conflicts without inventing receipts. The
+review is bound to the full legacy snapshot, and interrupted marker or
+preparation steps can be reconstructed from the same inputs. Untracked local
+package changes block migration until reconciled. Reviewed v2 conflicts are
+listed, compared (base, local and fresh Cloud value) and resolved through
+`sync.v2.conflict.*`; keep-local rebases onto the fresh base and take-cloud
+discards the pending edit, and neither choice applies Cloud state locally.
+
+Native setup enables the server's account-wide required write-epoch
 policy after v2 is selected and the account-scoped consent is current. The
 policy is irreversible on the server and affects older v2 clients, so the
-one-time migration flow must explain it before calling this setup. A retry
-checks the current policy first and does not repeat an already completed
-activation. This setup is not yet connected to the migration controls.
+migration UI explains it before calling this setup. A retry checks the
+current policy first and does not repeat an already completed activation.
+The migration RPC runs this setup as the second phase; a cutover that
+completed with the policy still pending can be retried by calling migrate
+again.
 
 The earlier inspected Desktop baseline was 7864562, including the atomic Owner
 library delivery e6728c9. The reviewed backend commit is RemakeBackend 952e512,
@@ -173,20 +184,19 @@ and remaining product wiring are not yet connected.
 The primitive is not a user-facing migration and does not authorize local
 application.
 
-The marked cutover remains an internal experiment, not a product migration.
-Its review binds the receipt evidence, source selections, v1 snapshot and
-resulting v2 candidate to the preparation marker, and restart requires the
-same evidence and a fresh review. Settled deletes are retained as reviewable
-tombstones. Every imported pending selection is marked as a conflict, so it
-cannot be sent automatically while runtime continuity is unproven. The
-product-outbox marker must remain valid before preparation, during recovery
-and after selection of v2; its loss or corruption blocks these paths. The
-receipts' historical consent is evidence only: later v2 networking requires
-current, account-scoped consent. Remaining work includes proving source
-provenance for legacy/local-only changes, fencing all relevant runtime and
-package mutations, independent processes and authentication managers, and
-integrating reviewed conflict handling and product controls. Older binaries
-do not participate in these cooperative fences.
+The marked cutover is the one-time product migration path. Its review binds
+the receipt evidence, source selections, v1 snapshot and resulting v2
+candidate to the preparation marker, and restart requires the same evidence
+and a fresh review. Settled deletes are retained as reviewable tombstones.
+Every imported pending selection is marked as a conflict, so it cannot be
+sent automatically while runtime continuity is unproven. The product-outbox
+marker must remain valid before preparation, during recovery and after
+selection of v2; its loss or corruption blocks these paths. The receipts'
+historical consent is evidence only: later v2 networking requires current,
+account-scoped consent. Remaining work includes proving source provenance
+for legacy/local-only changes, fencing all relevant runtime and package
+mutations, and independent processes and authentication managers. Older
+binaries do not participate in these cooperative fences.
 
 The in-progress v1 uncertain-upload recovery must not be treated as a finished
 product flow. A plugin change can currently be applied locally before its
@@ -379,11 +389,13 @@ it does not migrate, sync, or apply account data. Cloud Sync settings expose
 this as an on-demand compatibility check and clear the result when the account
 or sync context changes.
 
-No v2 product synchronization RPC/UI, account eligibility integration, single-engine cutover,
-collection-specific local application or durable local-application outcome
-adapter is wired yet. The foundation never applies downloaded source itself.
-Its bootstrap helper preserves the v1 file and imports no v1 cursor or revision;
-it does not constitute product migration consent or a completed cutover.
+The v2 product synchronization RPC/UI, account eligibility integration and
+single-engine cutover are wired. Collection-specific local application and
+the durable local-application outcome adapter are not fully wired yet. The
+foundation never applies downloaded source itself. Its bootstrap helper
+preserves the v1 file and imports no v1 cursor or revision; by itself it
+does not constitute product migration consent, and only the explicit
+migration RPC constitutes a completed cutover.
 
 | Executed local check | Result and boundary |
 | --- | --- |

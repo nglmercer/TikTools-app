@@ -28,6 +28,8 @@ pub(crate) struct CloudSync {
     /// every local feature keeps working, instead of aborting the host.
     coordinator: Result<SyncCoordinator, String>,
     pub(crate) recovery: tokio::sync::Mutex<Option<crate::control::cloud_sync::RecoveryHandle>>,
+    pub(crate) v2_conflict:
+        tokio::sync::Mutex<Option<crate::control::cloud_sync::V2ConflictHandle>>,
     /// Only this host lifetime may acknowledge an observed runtime state.
     /// Lazy initialization preserves local operation when Cloud is unused.
     #[cfg(feature = "persistence")]
@@ -57,6 +59,7 @@ impl CloudSync {
         Self {
             coordinator,
             recovery: tokio::sync::Mutex::new(None),
+            v2_conflict: tokio::sync::Mutex::new(None),
             #[cfg(feature = "persistence")]
             runtime_epoch: OnceLock::new(),
             #[cfg(feature = "persistence")]
