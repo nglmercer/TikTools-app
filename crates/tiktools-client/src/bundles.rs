@@ -1,12 +1,13 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::bundles::{
-    AssetUploadParams, CloudAsset, OverlayCreateParams, OverlayIdParams, OverlayRecord,
-    OverlayReviseParams, OverlayWriteResult, PackageCreateParams, PackageCreated, PackageIdParams,
-    PackagePreflight, PackageRecord,
+    AssetUploadParams, CloudAsset, LibraryItemPage, LibraryItemsQuery, OverlayCreateParams,
+    OverlayIdParams, OverlayRecord, OverlayReviseParams, OverlayWriteResult, PackageCreateParams,
+    PackageCreated, PackageIdParams, PackagePreflight, PackageRecord,
 };
 use tiktools_control_api::ClientError;
 
 pub(crate) const METHODS: &[&str] = &[
+    CATALOG_MINE,
     BUNDLES_ASSETS_UPLOAD,
     BUNDLES_OVERLAYS_CREATE,
     BUNDLES_OVERLAYS_READ,
@@ -16,6 +17,7 @@ pub(crate) const METHODS: &[&str] = &[
     BUNDLES_PACKAGES_PREFLIGHT,
 ];
 
+const CATALOG_MINE: &str = "catalog.mine";
 const BUNDLES_ASSETS_UPLOAD: &str = "bundles.assets.upload";
 const BUNDLES_OVERLAYS_CREATE: &str = "bundles.overlays.create";
 const BUNDLES_OVERLAYS_READ: &str = "bundles.overlays.read";
@@ -66,5 +68,11 @@ impl TikToolsClient {
         params: PackageIdParams,
     ) -> Result<PackagePreflight, ClientError> {
         self.call(BUNDLES_PACKAGES_PREFLIGHT, params).await
+    }
+    pub async fn catalog_mine(
+        &self,
+        params: LibraryItemsQuery,
+    ) -> Result<LibraryItemPage, ClientError> {
+        self.call(CATALOG_MINE, params).await
     }
 }

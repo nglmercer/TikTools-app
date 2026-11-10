@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { DEFAULT_CATALOG_FILTERS } from './catalog-query.ts';
@@ -75,16 +76,41 @@ describe('unified catalog store', () => {
     expect(catalog.hasMore).toBe(false);
   });
 
-  it('shows installed plugins only under the installed view', async () => {
-    const { stores } = host(['catalog.items'], () => ({
-      items: [item('a.one'), item('b.two')],
-      nextCursor: null,
-    }));
+  it('resolves installed plugins one by one and keeps local-only ones labelled', async () => {
+    const { stores, calls } = host(['catalog.items', 'catalog.item'], (method, params) => {
+      if (method === 'catalog.item') {
+        if ((params as { id: string }).id === 'b.two') return item('b.two');
+        throw new ControlCallError('not_found', 'catalog item not found');
+      }
+      return { items: [item('a.one')], nextCursor: null };
+    });
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
-    catalog.setInstalled(new Set(['b.two']));
+    await catalog.setInstalled(new Set(['z.local', 'b.two']));
     await catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, view: 'installed' });
-    expect(catalog.items.map((i) => i.id)).toEqual(['b.two']);
+    expect(catalog.items.map((entry) => [entry.id, entry.published])).toEqual([['b.two', true], ['z.local', false]]);
+    expect(catalog.hasMore).toBe(false);
+    expect(calls.filter((call) => call.method === 'catalog.items')).toHaveLength(0);
+    expect(calls.filter((call) => call.method === 'catalog.item').map((call) => call.params)).toEqual([
+      { kind: 'plugin', id: 'b.two' },
+      { kind: 'plugin', id: 'z.local' },
+    ]);
+  });
+
+  it('pages the owner library through catalog.mine and never asks it for plugins', async () => {
+    const { stores, calls } = host(['catalog.items', 'catalog.mine'], (method) => {
+      if (method === 'catalog.mine') return { items: [item('tpl-1', 'template')], nextCursor: null };
+      return { items: [], nextCursor: null };
+    });
+    await discover(stores);
+    const catalog = stores.use(() => useCatalogStore());
+    await catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, view: 'mine', type: 'template' });
+    expect(catalog.items.map((entry) => entry.id)).toEqual(['tpl-1']);
+    expect(calls.at(-1)).toEqual({ method: 'catalog.mine', params: { query: '', limit: 25, kind: 'template' } });
+    const before = calls.length;
+    await catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, view: 'mine', type: 'plugin' });
+    expect(catalog.items).toEqual([]);
+    expect(calls.slice(before).some((call) => call.method === 'catalog.mine')).toBe(false);
   });
 
   it('sends the host target only while compatibility filtering is on', async () => {
@@ -104,12 +130,23 @@ describe('unified catalog store', () => {
     });
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
-    const plugin = { kind: 'plugin', id: 'acme.gift', title: '', summary: '', publisher: null, categories: [], targets: [], version: '1.0.0', yanked: false } as const;
+    const plugin = { kind: 'plugin', id: 'acme.gift', title: '', summary: '', publisher: null, categories: [], targets: [], version: '1.0.0', yanked: false, published: true, revision: null, sha256: null } as const;
     await catalog.install(plugin);
     expect(calls.at(-1)).toEqual({ method: 'plugins.packages.inspect', params: { spec: { kind: 'registry', id: 'acme.gift' } } });
     const before = calls.length;
     await catalog.install({ ...plugin, yanked: true });
     await catalog.install({ ...plugin, kind: 'template' });
     expect(calls.length).toBe(before);
+  });
+
+  it('imports a template only with a signed-in account and a published revision', async () => {
+    const { stores, calls } = host(['catalog.items'], () => ({ items: [], nextCursor: null }));
+    await discover(stores);
+    const catalog = stores.use(() => useCatalogStore());
+    const template = { kind: 'template', id: 'tpl-1', title: 'T', summary: '', publisher: null, categories: [], targets: [], version: null, yanked: false, published: true, revision: 3, sha256: 'a'.repeat(64) } as const;
+    expect(await catalog.importTemplate(template)).toBe(false);
+    expect(catalog.importState).toBe('signIn');
+    expect(await catalog.importTemplate({ ...template, revision: null })).toBe(false);
+    expect(calls.some((call) => call.method === 'cloudLibrary.read')).toBe(false);
   });
 });

@@ -9,6 +9,9 @@ import CatalogToolbar from '@/widgets/catalog-toolbar/ui/CatalogToolbar.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
+import { MAX_INSTALLED_LOOKUPS } from '@/entities/catalog/model/catalog-store.ts';
+
+const MAX_INSTALLED = MAX_INSTALLED_LOOKUPS;
 
 const props = defineProps<{
   /** Plugin identifiers already installed on this host. */
@@ -78,13 +81,15 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
       compact
     />
 
-    <BaseEmptyState
-      v-if="catalog.mineUnavailable"
-      :title="t('unifiedCatalog.mineUnavailable')"
-    />
+    <p
+      v-if="catalog.installedLimited"
+      class="unified-catalog__note"
+    >
+      {{ t('unifiedCatalog.installedLimited', { max: MAX_INSTALLED }) }}
+    </p>
 
     <BaseEmptyState
-      v-else-if="!catalog.loading && catalog.items.length === 0"
+      v-if="!catalog.loading && catalog.items.length === 0"
       :title="t('unifiedCatalog.empty')"
       :description="t('unifiedCatalog.emptyHint')"
     />
@@ -109,7 +114,8 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
             <span v-if="item.version">{{ t('unifiedCatalog.version', { version: item.version }) }}</span>
             <span v-if="item.publisher">{{ t('unifiedCatalog.publisher', { publisher: item.publisher }) }}</span>
             <span v-if="item.yanked">{{ t('unifiedCatalog.yanked') }}</span>
-            <span v-if="installedIds.has(item.id)">{{ t('unifiedCatalog.installed') }}</span>
+            <span v-if="!item.published">{{ t('unifiedCatalog.unpublished') }}</span>
+            <span v-else-if="installedIds.has(item.id)">{{ t('unifiedCatalog.installed') }}</span>
           </span>
           <span
             v-if="item.summary"
@@ -170,11 +176,50 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
       >
         {{ t('unifiedCatalog.install') }}
       </BaseButton>
+      <template v-else-if="catalog.detail.kind === 'template' && catalog.detail.published">
+        <BaseButton
+          variant="primary"
+          :disabled="catalog.importState === 'working'"
+          @click="catalog.importTemplate(catalog.detail)"
+        >
+          {{ t('unifiedCatalog.importTemplate') }}
+        </BaseButton>
+        <p
+          v-if="catalog.importState === 'staged'"
+          class="unified-catalog__note"
+        >
+          {{ t('unifiedCatalog.templateStaged') }}
+        </p>
+        <p
+          v-else-if="catalog.importState === 'signIn'"
+          class="unified-catalog__note"
+        >
+          {{ t('unifiedCatalog.signInToImport') }}
+        </p>
+        <p
+          v-else-if="catalog.importState === 'invalid'"
+          class="unified-catalog__note"
+        >
+          {{ t('unifiedCatalog.templateInvalid') }}
+        </p>
+        <BaseAlert
+          v-else-if="catalog.importState === 'failed'"
+          tone="error"
+          :title="catalog.importMessage"
+          compact
+        />
+      </template>
       <p
-        v-else-if="catalog.detail.kind !== 'plugin'"
+        v-else-if="catalog.detail.kind === 'profile'"
         class="unified-catalog__note"
       >
-        {{ t('unifiedCatalog.nonPluginNote') }}
+        {{ t('unifiedCatalog.profileLater') }}
+      </p>
+      <p
+        v-else-if="!catalog.detail.published"
+        class="unified-catalog__note"
+      >
+        {{ t('unifiedCatalog.localOnly') }}
       </p>
     </aside>
   </section>

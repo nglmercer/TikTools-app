@@ -1,4 +1,4 @@
-import type { ControlClient } from '@/shared/api/control-client.ts';
+import { ControlCallError, type ControlClient } from '@/shared/api/control-client.ts';
 import type { CatalogKind, CatalogPage, CatalogQuery } from '../model/catalog-query.ts';
 
 /**
@@ -17,6 +17,11 @@ export interface CatalogItemSummary {
   /** Version of the published plugin release, when the item is a plugin. */
   readonly version: string | null;
   readonly yanked: boolean;
+  /** False for an installed plugin that the catalog does not publish (local only). */
+  readonly published: boolean;
+  /** Published revision of a template or profile. */
+  readonly revision: number | null;
+  readonly sha256: string | null;
 }
 
 export const CATALOG_PAGE_SIZE = 25;
@@ -69,6 +74,9 @@ export function parseCatalogItem(value: unknown): CatalogItemSummary {
     targets: strings(compatibility?.targets),
     version: pluginRelease && typeof release?.version === 'string' ? release.version : null,
     yanked: publication?.yanked === true,
+    published: true,
+    revision: release?.type === 'documentRevision' && typeof release.revision === 'number' ? release.revision : null,
+    sha256: typeof release?.sha256 === 'string' ? release.sha256 : null,
   };
 }
 
@@ -117,5 +125,63 @@ export async function fetchCatalogItem(
 ): Promise<CatalogItemSummary> {
   return parseCatalogItem(
     await client.call<unknown>('catalog.item', { kind, id, ...(target ? { target } : {}) }),
+  );
+}
+
+/** An installed plugin the catalog does not publish: shown with its identifier and a local state. */
+export function localPluginEntry(id: string): CatalogItemSummary {
+  return {
+    kind: 'plugin',
+    id,
+    title: id,
+    summary: '',
+    publisher: null,
+    categories: [],
+    targets: [],
+    version: null,
+    yanked: false,
+    published: false,
+    revision: null,
+    sha256: null,
+  };
+}
+
+/**
+ * Resolves one installed plugin with a bounded lookup. Only a plugin the catalog
+ * does not know becomes a local entry; any other failure is reported.
+ */
+export async function resolveInstalledPlugin(
+  client: ControlClient,
+  id: string,
+  target?: string,
+): Promise<CatalogItemSummary> {
+  try {
+    return await fetchCatalogItem(client, 'plugin', id, target);
+  } catch (failure) {
+    if (failure instanceof ControlCallError && (failure.code === 'not_found' || failure.code === 'invalid_params')) {
+      return localPluginEntry(id);
+    }
+    throw failure;
+  }
+}
+
+/**
+ * One page of the owner's library (Míos). Plugins are never library documents, so a
+ * plugin-only filter resolves to an empty page without a request.
+ */
+export async function fetchMinePage(
+  client: ControlClient,
+  query: CatalogQuery,
+  cursor: string | null,
+): Promise<CatalogPage<CatalogItemSummary>> {
+  const kinds = query.kinds.filter((kind) => kind !== 'plugin');
+  if (kinds.length === 0) return { items: [], nextCursor: null };
+  return parseCatalogPage(
+    await client.call<unknown>('catalog.mine', {
+      query: query.text,
+      limit: CATALOG_PAGE_SIZE,
+      ...(kinds.length === 1 ? { kind: kinds[0] } : {}),
+      ...(cursor ? { cursor } : {}),
+    }),
   );
 }

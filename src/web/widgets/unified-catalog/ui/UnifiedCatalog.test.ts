@@ -64,7 +64,7 @@ describe('UnifiedCatalog', () => {
     await flushPromises();
     expect(wrapper.find('.unified-catalog__detail').exists()).toBe(true);
     expect(wrapper.findAll('button').some((node) => node.text() === 'Install')).toBe(false);
-    expect(wrapper.text()).toContain('Templates and profiles are imported');
+    expect(wrapper.text()).toContain('Import template');
   });
 
   it('appends the next page with the cursor of the same query', async () => {

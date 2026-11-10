@@ -4,15 +4,26 @@
 use std::sync::Arc;
 
 pub use tiktools_core::cloud_bundles::{
-    AssetUploadParams, CloudAsset, OverlayCreateParams, OverlayIdParams, OverlayRecord,
-    OverlayReviseParams, OverlayWriteResult, PackageCreateParams, PackageCreated, PackageIdParams,
-    PackageItemParams, PackagePreflight, PackageRecord, PreflightItem,
+    AssetUploadParams, CloudAsset, LibraryItemPage, LibraryItemsQuery, OverlayCreateParams,
+    OverlayIdParams, OverlayRecord, OverlayReviseParams, OverlayWriteResult, PackageCreateParams,
+    PackageCreated, PackageIdParams, PackageItemParams, PackagePreflight, PackageRecord,
+    PreflightItem,
 };
 use tiktools_core::AppCore;
 
 use crate::{error::ApiError, router::ControlRouter};
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<LibraryItemsQuery, LibraryItemPage, _, _>(
+        "catalog.mine",
+        "Lists the signed-in owner's templates and profiles in any status (Míos)",
+        false,
+        |core: Arc<AppCore>, params: LibraryItemsQuery| async move {
+            core.bundles_library_list(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
     router.register_typed::<AssetUploadParams, CloudAsset, _, _>(
         "bundles.assets.upload",
         "Uploads a PNG, JPEG or WebP image to the owner's Cloud asset store",

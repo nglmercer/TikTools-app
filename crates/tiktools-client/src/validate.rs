@@ -27,6 +27,8 @@ use tiktools_control_api::modules::automation_library::{
     OwnerLibraryEmpty, OwnerLibraryReviewUnknown, OwnerLibrarySubmit,
 };
 #[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::bundles::LibraryItemsQuery;
+#[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::bundles::{
     AssetUploadParams, OverlayCreateParams, OverlayIdParams, OverlayReviseParams,
     PackageCreateParams, PackageIdParams,
@@ -541,6 +543,8 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "cloudLibrary.read" => validate::<CloudLibraryRead>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.uncertain.resolve" => validate::<SyncUncertainResolveParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "catalog.mine" => validate::<LibraryItemsQuery>(params),
         #[cfg(feature = "cloud-auth")]
         "bundles.assets.upload" => validate::<AssetUploadParams>(params),
         #[cfg(feature = "cloud-auth")]

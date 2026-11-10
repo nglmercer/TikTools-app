@@ -529,16 +529,16 @@ pub(crate) async fn credentials(auth: &CloudAuth) -> Result<(String, NativeToken
         .map(|(origin, _)| origin)
         .filter(|origin| !origin.is_empty())
         .ok_or_else(|| {
-            OperationError::unavailable("teams need a signed-in Cloud account; sign in first")
+            OperationError::unavailable("this needs a signed-in Cloud account; sign in first")
         })?;
     let token = auth
         .native_token()
         .await
-        .ok_or_else(|| OperationError::unavailable("teams need a signed-in Cloud account"))?;
+        .ok_or_else(|| OperationError::unavailable("this needs a signed-in Cloud account"))?;
     Ok((origin, token))
 }
 
-fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
+pub(crate) fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
     let code = serde_json::from_slice::<Value>(body)
         .ok()
         .and_then(|value| value.get("code").and_then(Value::as_str).map(str::to_owned));

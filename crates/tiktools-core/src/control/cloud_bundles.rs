@@ -4,9 +4,10 @@
 use super::OperationError;
 use crate::{
     cloud_bundles::{
-        self, AssetUploadParams, CloudAsset, OverlayCreateParams, OverlayIdParams, OverlayRecord,
-        OverlayReviseParams, OverlayWriteResult, PackageCreateParams, PackageCreated,
-        PackageIdParams, PackagePreflight, PackageRecord,
+        self, AssetUploadParams, CloudAsset, LibraryItemPage, LibraryItemsQuery,
+        OverlayCreateParams, OverlayIdParams, OverlayRecord, OverlayReviseParams,
+        OverlayWriteResult, PackageCreateParams, PackageCreated, PackageIdParams, PackagePreflight,
+        PackageRecord,
     },
     AppCore,
 };
@@ -53,5 +54,11 @@ impl AppCore {
         params: PackageIdParams,
     ) -> Result<PackagePreflight, OperationError> {
         cloud_bundles::preflight_package(self.cloud.auth(), params).await
+    }
+    pub async fn bundles_library_list(
+        &self,
+        query: LibraryItemsQuery,
+    ) -> Result<LibraryItemPage, OperationError> {
+        cloud_bundles::list_library_items(self.cloud.auth(), query).await
     }
 }

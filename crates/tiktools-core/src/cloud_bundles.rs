@@ -10,9 +10,10 @@ use serde_json::{json, Value};
 use tiktools_cloud_auth::CloudAuth;
 
 use crate::{
-    cloud_teams::{credentials, send, valid_uuid},
+    cloud_teams::{credentials, http, map_failure, send, valid_uuid},
     control::OperationError,
 };
+use reqwest::StatusCode;
 
 const MAX_ASSET_BYTES: usize = 512 * 1024;
 const MAX_DOCUMENT_BYTES: usize = 128 * 1024;
@@ -144,6 +145,104 @@ pub struct PackageCreateParams {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PackageIdParams {
     pub id: String,
+}
+
+// ---- Owner library (Míos) --------------------------------------------------------
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LibraryItemsQuery {
+    #[serde(default)]
+    pub query: String,
+    /// `template` or `profile`. Plugins are not library documents.
+    pub kind: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryItemPage {
+    /// Same item shape as the public catalog, in any publication status.
+    pub items: Vec<Value>,
+    pub next_cursor: Option<String>,
+}
+
+const MAX_LIBRARY_PAGE_BYTES: usize = 768 * 1024;
+
+/// Lists the signed-in owner's templates and profiles, in any status.
+pub async fn list_library_items(
+    auth: &CloudAuth,
+    query: LibraryItemsQuery,
+) -> Result<LibraryItemPage, OperationError> {
+    if query.query.chars().count() > 100 || query.query.chars().any(char::is_control) {
+        return Err(OperationError::invalid("search text is not valid"));
+    }
+    if let Some(kind) = &query.kind {
+        if kind != "template" && kind != "profile" {
+            return Err(OperationError::invalid(
+                "library kind must be template or profile",
+            ));
+        }
+    }
+    if let Some(cursor) = &query.cursor {
+        if cursor.is_empty()
+            || cursor.len() > 1024
+            || !cursor
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"-_=".contains(&b))
+        {
+            return Err(OperationError::invalid("cursor is not valid"));
+        }
+    }
+    let limit = query.limit.unwrap_or(25);
+    if !(1..=50).contains(&limit) {
+        return Err(OperationError::invalid("limit must be between 1 and 50"));
+    }
+    let (origin, token) = credentials(auth).await?;
+    let mut params: Vec<(&str, String)> = vec![("limit", limit.to_string())];
+    if !query.query.is_empty() {
+        params.push(("q", query.query.clone()));
+    }
+    if let Some(kind) = &query.kind {
+        params.push(("kind", kind.clone()));
+    }
+    if let Some(cursor) = &query.cursor {
+        params.push(("cursor", cursor.clone()));
+    }
+    let response = http()
+        .get(format!("{origin}/api/v3/library/items"))
+        .query(&params)
+        .header(AUTHORIZATION, format!("Bearer {}", token.expose()))
+        .send()
+        .await
+        .map_err(|_| OperationError::unavailable("cloud request failed"))?;
+    let status: StatusCode = response.status();
+    let body = response
+        .bytes()
+        .await
+        .map_err(|_| OperationError::unavailable("cloud reply could not be read"))?;
+    if !status.is_success() {
+        return Err(map_failure(status, &body));
+    }
+    if body.len() > MAX_LIBRARY_PAGE_BYTES {
+        return Err(OperationError::unavailable(
+            "library page exceeds the transport limit",
+        ));
+    }
+    let value: Value = serde_json::from_slice(&body)
+        .map_err(|_| OperationError::internal("cloud sent an unreadable reply"))?;
+    let items = value
+        .get("items")
+        .and_then(Value::as_array)
+        .cloned()
+        .ok_or_else(|| OperationError::internal("cloud sent an unexpected library page"))?;
+    let next_cursor = match value.get("nextCursor") {
+        Some(Value::String(cursor)) => Some(cursor.clone()),
+        Some(Value::Null) | None => None,
+        _ => return Err(OperationError::internal("cloud sent an unexpected cursor")),
+    };
+    Ok(LibraryItemPage { items, next_cursor })
 }
 
 // ---- Validation --------------------------------------------------------------
