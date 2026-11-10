@@ -82,7 +82,7 @@ view says when older events were not shown.
   overlays: widget designs for the seven kinds, served by the local gateway as
   stacked cards. A cloud overlay is an absolute canvas with positioned elements.
   The cloud editor and its files are named `cloud-overlay-*` to keep them apart.
-- **Overlay in OBS.** The editor copies an OBS Browser Source URL for the draft.
+- **Overlay in OBS (TODO: not verified in OBS).** The editor copies an OBS Browser Source URL for the draft.
   The document travels in the URL fragment as base64url JSON, at most 6000
   characters; a larger overlay is refused with a message. The widget
   `cloud-overlay` renders the canvas, scaled to the source, and fills live text
@@ -107,7 +107,7 @@ view says when older events were not shown.
 - Overlay art. The owner-only asset endpoint cannot be read by a browser source,
   so art elements render as empty boxes. Avatars show the viewer's initial.
 - `points.total` in overlays: no live source is wired to the overlay yet.
-- Verification in OBS itself. The widget is checked in headless Chromium only.
+- TODO (OBS): verify the `cloud-overlay` widget in OBS Browser Source. Today it is checked in headless Chromium only.
 - End-to-end verification of the app's bearer-token path against a running
   backend. The backend's own suite passes; the app's bearer path depends on a
   browser handoff that cannot be scripted here.
