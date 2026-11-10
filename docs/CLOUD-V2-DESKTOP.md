@@ -1,6 +1,6 @@
 # Desktop Cloud v2 implementation and acceptance specification
 
-Status: **the native v2 foundation, one-time v1 to v2 migration, product conflict resolution, explicit rebuild, fixed-origin catalog trust and read-only Cloud catalog and library UI are implemented. Reviewed library import, settings adapters, broader local application and full Desktop v2 acceptance are pending.**
+Status: **the native v2 foundation, one-time v1 to v2 migration, product conflict resolution, explicit rebuild, fixed-origin catalog trust, portable adapters, preferences staging and reviewed template import are implemented. Settings-store consolidation/hook, plugin-settings staging and full Desktop v2 acceptance are pending.**
 
 The native reconciliation barrier can now admit a downloaded plugin record
 only when the cached record exactly matches the authenticated post-barrier
