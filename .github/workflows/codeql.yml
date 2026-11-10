@@ -1,14 +1,12 @@
 name: CodeQL
 
 on:
-  pull_request:
-    branches:
-      - remake
+  # Same trigger as release.yml: runs only when a release tag is pushed.
+  # Manual runs remain available from the Actions tab.
   push:
-    branches:
-      - remake
-  schedule:
-    - cron: '30 2 * * 0'
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: read
