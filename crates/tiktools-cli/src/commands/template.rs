@@ -311,6 +311,7 @@ async fn submit_library(
             definition_digest: snapshot.definition_digest,
             host_id: snapshot.host_id,
             host_instance_id: snapshot.host_instance_id,
+            provenance: None,
         })
         .await?;
     if let Some(acknowledgement) = submission.acknowledgement {

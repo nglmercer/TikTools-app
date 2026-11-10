@@ -121,6 +121,7 @@ fn input(core: &AppCore, mutation: OwnerLibraryMutation) -> OwnerLibrarySubmit {
         definition_digest: snapshot.definition_digest,
         host_id: snapshot.host_id,
         host_instance_id: snapshot.host_instance_id,
+        provenance: None,
     }
 }
 fn mutation(operation: OwnerLibraryOperation) -> OwnerLibraryMutation {
@@ -295,6 +296,7 @@ fn library_pending_blocks_all_other_journals_and_exact_unknown_review_never_disp
         command_hash: owner_library_command_hash(&request),
         host_instance_id: request.host_instance_id.clone(),
         created_at: library_now(),
+        provenance: None,
     };
     f.core()
         .db

@@ -147,6 +147,18 @@ impl OwnerLibraryMutation {
     }
 }
 
+/// Exact remote identity of a Cloud document staged for local review. It is
+/// evidence bound to one review, never authority to send or apply data.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OwnerLibraryCloudProvenance {
+    pub origin: String,
+    pub account_id: String,
+    pub document_id: String,
+    pub revision: String,
+    pub sha256: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OwnerLibrarySubmit {
@@ -155,6 +167,8 @@ pub struct OwnerLibrarySubmit {
     pub definition_digest: String,
     pub host_id: String,
     pub host_instance_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<OwnerLibraryCloudProvenance>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -180,6 +194,8 @@ pub struct OwnerLibraryIntent {
     pub command_hash: String,
     pub host_instance_id: String,
     pub created_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<OwnerLibraryCloudProvenance>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -334,9 +350,13 @@ pub fn owner_library_command_params(
 }
 
 pub fn owner_library_command_hash(input: &OwnerLibrarySubmit) -> String {
+    let mut params = owner_library_command_params(&input.mutation, &input.definition_digest);
+    if let Some(provenance) = &input.provenance {
+        params["cloudProvenance"] = json!(provenance);
+    }
     owner_library_digest(&json!({
         "method":"automation.library.apply",
-        "params":owner_library_command_params(&input.mutation,&input.definition_digest),
+        "params":params,
         "expectedRevision":input.expected_revision,
     }))
 }
@@ -355,6 +375,61 @@ pub fn validate_owner_library_submit(input: &OwnerLibrarySubmit) -> Result<(), O
         return Err(OperationError::invalid(
             "invalid reviewed library identity or version",
         ));
+    }
+    if let Some(provenance) = &input.provenance {
+        // Std-only Cloud identity checks: owner library must work offline
+        // without the optional cloud-auth/uuid features.
+        let origin_valid = {
+            let origin = provenance.origin.as_str();
+            let scheme_len = origin
+                .find("://")
+                .filter(|index| *index == 5 || *index == 4)
+                .unwrap_or(usize::MAX);
+            let scheme = origin.get(..scheme_len).unwrap_or_default();
+            let rest = origin.get(scheme_len + 3..).unwrap_or_default();
+            (scheme == "https" || scheme == "http")
+                && !rest.is_empty()
+                && !rest.contains('@')
+                && !rest.contains('/')
+                && !rest.contains('?')
+                && !rest.contains('#')
+                && rest.chars().all(|ch| !ch.is_control())
+        };
+        let document_valid = provenance.document_id.len() == 36
+            && provenance
+                .document_id
+                .chars()
+                .enumerate()
+                .all(|(index, ch)| {
+                    if [8, 13, 18, 23].contains(&index) {
+                        ch == '-'
+                    } else {
+                        ch.is_ascii_hexdigit()
+                    }
+                })
+            && provenance
+                .revision
+                .parse::<i64>()
+                .is_ok_and(|value| value > 0 && value.to_string() == provenance.revision);
+        let sha_valid = provenance.sha256.len() == 64
+            && provenance
+                .sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
+        let mutation_valid = matches!(
+            &input.mutation,
+            OwnerLibraryMutation::ImportProfile { .. } | OwnerLibraryMutation::ImportTemplates { .. }
+        );
+        if !origin_valid
+            || !document_valid
+            || !sha_valid
+            || provenance.account_id.is_empty()
+            || !mutation_valid
+        {
+            return Err(OperationError::invalid(
+                "invalid Cloud provenance for library import",
+            ));
+        }
     }
     let mut targets = std::collections::BTreeSet::new();
     let mut check_entry = |entry: &OwnerLibraryEntry| -> Result<(), OperationError> {

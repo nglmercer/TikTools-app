@@ -9,11 +9,11 @@ use tiktools_core::collaboration::Versioned;
 pub use tiktools_core::control::{
     owner_library_command_hash, owner_library_definition_digest, owner_library_digest,
     owner_library_versions_digest, validate_owner_library_submit, OwnerLibraryAcknowledgement,
-    OwnerLibraryCatalog, OwnerLibraryEntry, OwnerLibraryIntent, OwnerLibraryMutation,
-    OwnerLibraryOperation, OwnerLibraryOutcome, OwnerLibraryPack, OwnerLibraryProfile,
-    OwnerLibraryReceipt, OwnerLibraryRecord, OwnerLibraryReviewUnknown, OwnerLibrarySnapshot,
-    OwnerLibraryState, OwnerLibrarySubmission, OwnerLibrarySubmit, OWNER_LIBRARY_MAX_BYTES,
-    OWNER_LIBRARY_MAX_CATALOG_BYTES, OWNER_LIBRARY_MAX_RECORDS,
+    OwnerLibraryCatalog, OwnerLibraryCloudProvenance, OwnerLibraryEntry, OwnerLibraryIntent,
+    OwnerLibraryMutation, OwnerLibraryOperation, OwnerLibraryOutcome, OwnerLibraryPack,
+    OwnerLibraryProfile, OwnerLibraryReceipt, OwnerLibraryRecord, OwnerLibraryReviewUnknown,
+    OwnerLibrarySnapshot, OwnerLibraryState, OwnerLibrarySubmission, OwnerLibrarySubmit,
+    OWNER_LIBRARY_MAX_BYTES, OWNER_LIBRARY_MAX_CATALOG_BYTES, OWNER_LIBRARY_MAX_RECORDS,
 };
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema)]

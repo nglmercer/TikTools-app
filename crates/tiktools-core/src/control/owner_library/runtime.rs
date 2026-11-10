@@ -307,6 +307,7 @@ impl AppCore {
                 command_hash: owner_library_command_hash(&input),
                 host_instance_id: input.host_instance_id.clone(),
                 created_at: library_now(),
+                provenance: input.provenance.clone(),
             };
             crash("before_intent");
             self.db

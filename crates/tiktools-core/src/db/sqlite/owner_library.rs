@@ -315,6 +315,7 @@ impl DatabaseManager {
             || intent.expected_revision != input.expected_revision
             || intent.definition_digest != input.definition_digest
             || intent.host_instance_id != input.host_instance_id
+            || intent.provenance != input.provenance
             || intent.command_hash != owner_library_command_hash(input)
         {
             return Err(invalid());
