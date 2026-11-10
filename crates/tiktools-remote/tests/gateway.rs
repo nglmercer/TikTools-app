@@ -2,17 +2,17 @@
 //! credentials are generated only in a temporary test directory.
 use futures_util::{SinkExt, StreamExt};
 use reqwest::{Client, StatusCode};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{sync::Arc, time::Duration};
 use tiktools_collaboration::{
     CollaborationService, Configuration, Credentials, Grant, GrantSet, InviteCreate,
 };
 use tiktools_control_api::ControlApi;
-use tiktools_core::{AppCore, HostEmitter, ipc::messages::HostMessage};
+use tiktools_core::{ipc::messages::HostMessage, AppCore, HostEmitter};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{
+    tungstenite::{client::IntoClientRequest, Message},
     Connector, MaybeTlsStream, WebSocketStream,
-    tungstenite::{Message, client::IntoClientRequest},
 };
 
 static ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -446,13 +446,11 @@ async fn small_frame_snapshot_pages_remain_immutable_and_incomplete_disconnect_r
         count += page["workflows"].as_array().unwrap().len();
         assert_eq!(page["snapshotId"], first["result"]["snapshotId"]);
         assert_eq!(page["throughSequence"], first["result"]["throughSequence"]);
-        assert!(
-            page["workflows"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .all(|row| row["enabled"] == false)
-        );
+        assert!(page["workflows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|row| row["enabled"] == false));
         let Some(token) = page["nextPageToken"].as_str() else {
             break;
         };
@@ -704,20 +702,18 @@ impl Fixture {
         }
         assert!(!self.service.gateway_status().unwrap().running);
         assert_eq!(self.service.gateway_status().unwrap().connections, 0);
-        assert!(
-            self.service
-                .gateway_status()
-                .unwrap()
-                .session_connections
-                .is_empty()
-        );
-        assert!(
-            self.service
-                .gateway_status()
-                .unwrap()
-                .certificate_fingerprint
-                .is_none()
-        );
+        assert!(self
+            .service
+            .gateway_status()
+            .unwrap()
+            .session_connections
+            .is_empty());
+        assert!(self
+            .service
+            .gateway_status()
+            .unwrap()
+            .certificate_fingerprint
+            .is_none());
         self.core.shutdown().await;
         drop(self.api);
         drop(self.service);
@@ -826,12 +822,10 @@ async fn tls_deactivation_receipts_replay_and_recover_under_small_frame_limits()
         json!({"subscriptionId":id}),
     )
     .await;
-    assert!(
-        baseline["result"]["workflows"]
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
+    assert!(baseline["result"]["workflows"]
+        .as_array()
+        .unwrap()
+        .is_empty());
     let meta = json!({"commandId":"disable-over-tls","hostInstanceId":fixture.service.instance_id(),"expectedRevision":"1"});
     assert_eq!(
         rpc_meta(
@@ -923,13 +917,11 @@ async fn tls_deactivation_receipts_replay_and_recover_under_small_frame_limits()
 async fn native_tls_protocol_permissions_rotation_and_revocation_share_one_runtime() {
     let _env = ENV.lock().await;
     let fixture = Fixture::new(true).await;
-    assert!(
-        Client::new()
-            .get(format!("{}/remote/v1/info", fixture.origin))
-            .send()
-            .await
-            .is_err()
-    );
+    assert!(Client::new()
+        .get(format!("{}/remote/v1/info", fixture.origin))
+        .send()
+        .await
+        .is_err());
     let info = fixture
         .client
         .get(format!("{}/remote/v1/info", fixture.origin))
@@ -940,7 +932,8 @@ async fn native_tls_protocol_permissions_rotation_and_revocation_share_one_runti
     let info: Value = info.json().await.unwrap();
     assert_eq!(info["certificateFingerprint"].as_str().unwrap().len(), 64);
     assert_eq!(
-        serde_json::to_value(fixture.service.gateway_status().unwrap()).unwrap()["certificateFingerprint"],
+        serde_json::to_value(fixture.service.gateway_status().unwrap()).unwrap()
+            ["certificateFingerprint"],
         info["certificateFingerprint"]
     );
     assert!(
@@ -985,13 +978,11 @@ async fn native_tls_protocol_permissions_rotation_and_revocation_share_one_runti
     );
     assert!(!fixture.core.is_shutdown());
     let methods = rpc(&mut socket_a, 4, "rpc.discover", json!({})).await;
-    assert!(
-        !methods["result"]["methods"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|method| method["name"] == "collaboration.configure")
-    );
+    assert!(!methods["result"]["methods"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|method| method["name"] == "collaboration.configure"));
     fixture
         .service
         .set_grant(GrantSet {
@@ -1071,8 +1062,8 @@ async fn native_tls_protocol_permissions_rotation_and_revocation_share_one_runti
 }
 
 #[tokio::test]
-async fn tls_points_lost_ack_recovers_original_outcome_without_reapplying_or_exposing_hidden_viewers()
- {
+async fn tls_points_lost_ack_recovers_original_outcome_without_reapplying_or_exposing_hidden_viewers(
+) {
     use tiktools_collaboration::{Capability, ResourceKind};
     let _env = ENV.lock().await;
     let fixture = Fixture::configured(true, |c| {
@@ -1272,12 +1263,10 @@ async fn browser_credentials_require_origin_csrf_and_single_use_socket_ticket() 
             .unwrap()
             .error_for_status()
             .unwrap();
-        assert!(
-            app.headers()["content-type"]
-                .to_str()
-                .unwrap()
-                .starts_with("text/html")
-        );
+        assert!(app.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/html"));
         let html = app.text().await.unwrap();
         assert!(html.contains("name=\"tiktools-transport\" content=\"remote-web\""));
         let script = format!(
@@ -1305,12 +1294,10 @@ async fn browser_credentials_require_origin_csrf_and_single_use_socket_ticket() 
             .unwrap()
             .error_for_status()
             .unwrap();
-        assert!(
-            asset.headers()["content-type"]
-                .to_str()
-                .unwrap()
-                .starts_with("text/javascript")
-        );
+        assert!(asset.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/javascript"));
         assert!(!asset.bytes().await.unwrap().is_empty());
         let source_map = fixture
             .client
@@ -1398,16 +1385,14 @@ async fn browser_credentials_require_origin_csrf_and_single_use_socket_ticket() 
         cfg!(feature = "browser-app")
     );
     let reused = fixture.ws_request(&[("origin", fixture.origin.clone()), ("cookie", cookies)]);
-    assert!(
-        tokio_tungstenite::connect_async_tls_with_config(
-            reused,
-            None,
-            false,
-            fixture.connector.clone()
-        )
-        .await
-        .is_err()
-    );
+    assert!(tokio_tungstenite::connect_async_tls_with_config(
+        reused,
+        None,
+        false,
+        fixture.connector.clone()
+    )
+    .await
+    .is_err());
     let logout = fixture
         .client
         .post(format!("{}/remote/v1/session/logout", fixture.origin))
@@ -1564,12 +1549,10 @@ async fn supervisor_does_not_create_a_database_for_local_only_startup() {
     let api = Arc::new(ControlApi::new(Arc::clone(&core)));
     let monitor = tokio::spawn(tiktools_remote::supervise(Arc::clone(&api)));
     tokio::time::sleep(Duration::from_millis(650)).await;
-    assert!(
-        !home
-            .path()
-            .join("data/collaboration/collaboration.db")
-            .exists()
-    );
+    assert!(!home
+        .path()
+        .join("data/collaboration/collaboration.db")
+        .exists());
     let status = api
         .execute_value(&json!({"id":1,"method":"collaboration.status","params":{}}))
         .await
@@ -1599,7 +1582,10 @@ async fn live_resource_restrictions_do_not_expose_another_creator_or_unscoped_hi
     let credentials = fixture.native(grant).await;
     let mut socket = fixture.socket(&credentials.access_token).await;
     let hello = fixture.hello(&mut socket).await;
-    assert_eq!(rpc(&mut socket, 5, "ui.feed.browser", json!({"after":"0"})).await["error"]["code"], "forbidden");
+    assert_eq!(
+        rpc(&mut socket, 5, "ui.feed.browser", json!({"after":"0"})).await["error"]["code"],
+        "forbidden"
+    );
     assert_eq!(
         hello["result"]["resourceRestrictions"]["live"][0],
         "allowed-creator"
@@ -1619,13 +1605,11 @@ async fn live_resource_restrictions_do_not_expose_another_creator_or_unscoped_hi
         "forbidden"
     );
     let discovered = rpc(&mut socket, 4, "rpc.discover", json!({})).await;
-    assert!(
-        !discovered["result"]["methods"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|method| method["name"] == "ui.feed.backfill" || method["name"] == "ui.feed.browser")
-    );
+    assert!(!discovered["result"]["methods"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|method| method["name"] == "ui.feed.backfill" || method["name"] == "ui.feed.browser"));
     drop(socket);
     fixture.finish().await;
 }
@@ -1666,15 +1650,11 @@ async fn supervisor_restores_configuration_restarts_limits_and_disables_only_rem
     let mut configuration = fixture.service.configuration().unwrap();
     configuration.limits.connections = 1;
     configuration.limits.connections_per_principal = 1;
-    assert!(
-        fixture
-            .api
-            .execute_value(
-                &json!({"id":3,"method":"collaboration.configure","params":configuration})
-            )
-            .await
-            .is_ok()
-    );
+    assert!(fixture
+        .api
+        .execute_value(&json!({"id":3,"method":"collaboration.configure","params":configuration}))
+        .await
+        .is_ok());
     closed(&mut socket).await;
     drop(socket);
     running(&fixture, true).await;
@@ -1684,37 +1664,27 @@ async fn supervisor_restores_configuration_restarts_limits_and_disables_only_rem
         1
     );
     configuration.enabled = false;
-    assert!(
-        fixture
-            .api
-            .execute_value(
-                &json!({"id":4,"method":"collaboration.configure","params":configuration})
-            )
-            .await
-            .is_ok()
-    );
+    assert!(fixture
+        .api
+        .execute_value(&json!({"id":4,"method":"collaboration.configure","params":configuration}))
+        .await
+        .is_ok());
     closed(&mut updated).await;
     drop(updated);
     running(&fixture, false).await;
     assert!(!fixture.core.is_shutdown());
-    assert!(
-        fixture
-            .client
-            .get(format!("{}/remote/v1/info", fixture.origin))
-            .send()
-            .await
-            .is_err()
-    );
+    assert!(fixture
+        .client
+        .get(format!("{}/remote/v1/info", fixture.origin))
+        .send()
+        .await
+        .is_err());
     configuration.enabled = true;
-    assert!(
-        fixture
-            .api
-            .execute_value(
-                &json!({"id":5,"method":"collaboration.configure","params":configuration})
-            )
-            .await
-            .is_ok()
-    );
+    assert!(fixture
+        .api
+        .execute_value(&json!({"id":5,"method":"collaboration.configure","params":configuration}))
+        .await
+        .is_ok());
     running(&fixture, true).await;
     assert_eq!(
         fixture
@@ -1791,14 +1761,12 @@ async fn reapplying_configuration_reloads_rotated_tls_files_at_the_same_paths() 
     drop(socket);
     applied(&fixture, revision).await;
     // The old trusted certificate cannot silently trust its replacement.
-    assert!(
-        fixture
-            .client
-            .get(format!("{}/remote/v1/info", fixture.origin))
-            .send()
-            .await
-            .is_err()
-    );
+    assert!(fixture
+        .client
+        .get(format!("{}/remote/v1/info", fixture.origin))
+        .send()
+        .await
+        .is_err());
     fixture.client = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(5))
@@ -1890,18 +1858,33 @@ async fn browser_controller_pairs_reads_live_updates_and_clears_on_revocation() 
     let fixture = Fixture::configured(true, |config| {
         config.limits.frame_bytes = 4096;
         config.limits.params_bytes = 1024;
-    }).await;
+    })
+    .await;
     fixture.core.events.publish_live_event_from_creator(json!({"kind":"chat","author":"viewer1","text":format!("Long message {}", "🔥".repeat(2048))}), Some("creator"));
-    fixture.core.events.publish_live_event_from_creator(json!({"kind":"chat","author":"viewer1","text":"Browser feed message"}), Some("creator"));
+    fixture.core.events.publish_live_event_from_creator(
+        json!({"kind":"chat","author":"viewer1","text":"Browser feed message"}),
+        Some("creator"),
+    );
     fixture
         .core
         .workflow_save(json!({"id":"welcome","name":"Host initial","enabled":true}))
         .unwrap();
-    fixture.core.workflow_save(json!({"id":"other","name":"Other workflow","enabled":true})).unwrap();
-    fixture.core.workflow_save(json!({"id":"ui","name":"UI workflow","enabled":true})).unwrap();
+    fixture
+        .core
+        .workflow_save(json!({"id":"other","name":"Other workflow","enabled":true}))
+        .unwrap();
+    fixture
+        .core
+        .workflow_save(json!({"id":"ui","name":"UI workflow","enabled":true}))
+        .unwrap();
     let grant = Grant {
-        capabilities: [tiktools_collaboration::Capability::WorkflowsRead, tiktools_collaboration::Capability::WorkflowsToggle,
-            tiktools_collaboration::Capability::WorkflowsEdit, tiktools_collaboration::Capability::CommandsRead].into(),
+        capabilities: [
+            tiktools_collaboration::Capability::WorkflowsRead,
+            tiktools_collaboration::Capability::WorkflowsToggle,
+            tiktools_collaboration::Capability::WorkflowsEdit,
+            tiktools_collaboration::Capability::CommandsRead,
+        ]
+        .into(),
         resources: [(
             tiktools_collaboration::ResourceKind::Workflow,
             ["welcome".into(), "other".into(), "ui".into()].into(),
@@ -1966,7 +1949,10 @@ async fn browser_controller_pairs_reads_live_updates_and_clears_on_revocation() 
         .unwrap();
     stage(&mut child, signals.path(), "updated").await;
     stage(&mut child, signals.path(), "commands-complete").await;
-    assert_eq!(fixture.core.workflow_get("welcome").unwrap()["enabled"], false);
+    assert_eq!(
+        fixture.core.workflow_get("welcome").unwrap()["enabled"],
+        false
+    );
     assert!(fixture.core.workflow_get("other").is_err());
     assert_eq!(fixture.core.workflow_get("ui").unwrap()["enabled"], false);
     stage(&mut child, signals.path(), "replacement-requested").await;

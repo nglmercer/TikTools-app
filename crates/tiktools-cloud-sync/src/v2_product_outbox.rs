@@ -428,8 +428,10 @@ impl SyncCoordinator {
     ) -> Result<(), crate::WorkspaceCoordError> {
         let sync = self.clone();
         run_product_worker(move |cancelled, deadline| async move {
-            sync.resolve_v2_product_inner(session, source, target, expected, keep_local, cancelled, deadline)
-                .await
+            sync.resolve_v2_product_inner(
+                session, source, target, expected, keep_local, cancelled, deadline,
+            )
+            .await
         })
         .await
     }

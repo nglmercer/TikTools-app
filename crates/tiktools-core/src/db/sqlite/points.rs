@@ -42,8 +42,8 @@ const VIEWER_COLUMNS_SQL: &str = "SELECT unique_id, user_id, nickname, avatar_ur
                     total_shares, first_seen, last_seen
              FROM viewers";
 
-mod commands;
 mod approved;
+mod commands;
 mod projection;
 #[cfg(test)]
 mod tests;

@@ -31,7 +31,9 @@ pub fn preference_apply(native: &mut Value, portable: &Value) -> bool {
     if !native.is_object() {
         *native = Value::Object(Map::new());
     }
-    let map = native.as_object_mut().expect("native preferences must be an object");
+    let map = native
+        .as_object_mut()
+        .expect("native preferences must be an object");
     let mut changed = false;
     for key in ["theme", "locale", "reducedMotion", "updateChannel"] {
         if let Some(value) = portable.get(key) {
@@ -59,11 +61,7 @@ pub fn settings_from_native(plugin_id: &str, native_settings: &Value) -> Option<
 
 /// Merge portable plugin-settings into a native settings object, preserving
 /// unknown top-level fields. Returns true when the native object changed.
-pub fn settings_apply(
-    plugin_id: &str,
-    native: &mut Value,
-    portable: &Value,
-) -> bool {
+pub fn settings_apply(plugin_id: &str, native: &mut Value, portable: &Value) -> bool {
     let Some(portable) = portable.as_object() else {
         return false;
     };
@@ -76,7 +74,9 @@ pub fn settings_apply(
     if !native.is_object() {
         *native = Value::Object(Map::new());
     }
-    let map = native.as_object_mut().expect("native settings must be an object");
+    let map = native
+        .as_object_mut()
+        .expect("native settings must be an object");
     let mut changed = false;
     if let Some(portable_map) = portable_settings.as_object() {
         for (key, value) in portable_map {

@@ -418,7 +418,8 @@ pub fn validate_owner_library_submit(input: &OwnerLibrarySubmit) -> Result<(), O
                 .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));
         let mutation_valid = matches!(
             &input.mutation,
-            OwnerLibraryMutation::ImportProfile { .. } | OwnerLibraryMutation::ImportTemplates { .. }
+            OwnerLibraryMutation::ImportProfile { .. }
+                | OwnerLibraryMutation::ImportTemplates { .. }
         );
         if !origin_valid
             || !document_valid

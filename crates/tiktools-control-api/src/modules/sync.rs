@@ -11,9 +11,9 @@ use serde::{Deserialize, Serialize};
 pub use tiktools_core::control::{
     CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus, SyncNowResult,
-    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, V2ConflictChoice, V2ConflictOutcome,
-    V2ConflictReview, V2ConflictTarget, WorkspaceV2Discovery, WorkspaceV2Migration, WorkspaceV2Preview,
-    WorkspaceV2SyncResult,
+    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, V2ConflictChoice,
+    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, WorkspaceV2Discovery,
+    WorkspaceV2Migration, WorkspaceV2Preview, WorkspaceV2SyncResult,
 };
 use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
 
@@ -189,7 +189,9 @@ pub fn register(router: &mut ControlRouter) {
         "Stages desktop preferences for v2 sync",
         true,
         |core: Arc<AppCore>, native: serde_json::Value| async move {
-            core.sync_v2_stage_preferences(native).await.map_err(map_error)
+            core.sync_v2_stage_preferences(native)
+                .await
+                .map_err(map_error)
         },
     );
     router.register_typed::<SyncV2StagePluginSettingsParams, (), _, _>(

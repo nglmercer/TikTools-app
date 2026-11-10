@@ -1697,12 +1697,28 @@ async fn shared_source_requires_explicit_scoped_grant_and_current_identity() {
     let shared = author_grant.automation_delegation.as_mut().unwrap();
     shared.allow_other_author_edits = true;
     shared.allow_other_author_source = true;
-    f.core.collaboration().unwrap().set_grant(GrantSet {
-        principal_id: author.principal.clone(), expected_revision: "4".into(), grant: author_grant.clone(),
-    }).unwrap();
-    let visible = f.remote(&author, "automation.source.get", json!({"kind":"action","id":"foreign"}), Value::Null).await;
+    f.core
+        .collaboration()
+        .unwrap()
+        .set_grant(GrantSet {
+            principal_id: author.principal.clone(),
+            expected_revision: "4".into(),
+            grant: author_grant.clone(),
+        })
+        .unwrap();
+    let visible = f
+        .remote(
+            &author,
+            "automation.source.get",
+            json!({"kind":"action","id":"foreign"}),
+            Value::Null,
+        )
+        .await;
     assert!(visible.is_ok(), "{visible:?}");
-    assert_eq!(visible.result.unwrap()["record"]["config"]["message"], "foreign-sensitive");
+    assert_eq!(
+        visible.result.unwrap()["record"]["config"]["message"],
+        "foreign-sensitive"
+    );
     let mut narrowed = author_grant;
     narrowed
         .resources
