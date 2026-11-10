@@ -2,8 +2,12 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
+import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
+import { parseRuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
+import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 
 type Scope = 'public' | 'mine';
@@ -61,6 +65,9 @@ const loading = ref(false);
 const detailLoading = ref(false);
 const error = ref('');
 const detailError = ref('');
+const importing = ref(false);
+const staged = ref(false);
+const importError = ref('');
 const cursor = ref<string | null>(null);
 const history = ref<(string | null)[]>([]);
 const mineAvailable = computed(() => account.status?.state === 'signed-in' && !account.working && !account.loading);
@@ -86,6 +93,7 @@ let disposed = false;
 function clear(): void {
   generation += 1; shown.value = null; selected.value = null; cursor.value = null; history.value = [];
   loading.value = false; detailLoading.value = false; error.value = ''; detailError.value = '';
+  importing.value = false; staged.value = false; importError.value = '';
 }
 async function load(next: string | null, previous: (string | null)[]): Promise<void> {
   const requestedScope = scope.value;
@@ -113,7 +121,7 @@ function previousPage(): void {
 async function open(item: Meta): Promise<void> {
   if (loading.value || detailLoading.value || (scope.value === 'mine' && !mineAvailable.value)) return;
   const ticket = ++generation;
-  detailLoading.value = true; selected.value = null; detailError.value = '';
+  detailLoading.value = true; selected.value = null; detailError.value = ''; staged.value = false; importError.value = '';
   try {
     const result = await client.call<unknown>('cloudLibrary.read', { scope: scope.value, id: item.id, revision: item.revision });
     if (disposed || ticket !== generation) return;
@@ -121,6 +129,29 @@ async function open(item: Meta): Promise<void> {
     selected.value = result;
   } catch { if (!disposed && ticket === generation) detailError.value = t('cloudLibrary.unavailable'); }
   finally { if (!disposed && ticket === generation) detailLoading.value = false; }
+}
+
+async function importTemplate(): Promise<void> {
+  const current = selected.value;
+  if (!current || importing.value || current.meta.kind !== 'template') return;
+  const origin = account.status?.origin ?? null;
+  const accountId = account.status?.accountId ?? null;
+  if (!origin || !accountId) { importError.value = t('cloudLibrary.signIn'); return; }
+  const parsed = parseRuleTemplate(current.document);
+  if (!parsed.ok) { importError.value = parsed.errors[0] ?? t('cloudLibrary.unavailable'); return; }
+  importing.value = true; importError.value = ''; staged.value = false;
+  try {
+    await libraryJournal(client).request(
+      { operation: 'import-templates', templates: [parsed.template] },
+      null,
+      { origin, accountId, documentId: current.meta.id, revision: current.meta.revision, sha256: current.meta.sha256 },
+    );
+    staged.value = true;
+  } catch (failure) {
+    importError.value = errorMessage(failure);
+  } finally {
+    importing.value = false;
+  }
 }
 watch(scope, () => search());
 // Observe the status object itself as well as transition flags: a logout and
@@ -175,6 +206,11 @@ onUnmounted(() => { disposed = true; generation += 1; offCloudContext(); offGap(
       <p v-if="detail?.event">{{ t('cloudLibrary.event', { name: detail.event }) }}</p>
       <div v-if="detail?.names.length"><p>{{ t('cloudLibrary.actions') }}</p><ul><li v-for="(name, index) in detail.names" :key="index">{{ name }}</li></ul></div>
       <div v-if="detail?.templates.length"><p>{{ t('cloudLibrary.templates') }}</p><ul><li v-for="(name, index) in detail.templates" :key="index">{{ name }}</li></ul></div>
+      <template v-if="selected.meta.kind === 'template'">
+        <BaseButton :disabled="importing" @click="importTemplate">{{ t('cloudLibrary.import') }}</BaseButton>
+        <p v-if="staged" role="status">{{ t('cloudLibrary.staged') }}</p>
+        <p v-if="importError" role="alert">{{ importError }}</p>
+      </template>
       <button type="button" @click="selected = null">{{ t('common.close') }}</button>
     </section>
   </BaseGroupBox>
