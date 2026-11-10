@@ -144,9 +144,9 @@ describe('unified catalog store', () => {
     await discover(stores);
     const catalog = stores.use(() => useCatalogStore());
     const template = { kind: 'template', id: 'tpl-1', title: 'T', summary: '', publisher: null, categories: [], targets: [], version: null, yanked: false, published: true, revision: 3, sha256: 'a'.repeat(64) } as const;
-    expect(await catalog.importTemplate(template)).toBe(false);
+    expect(await catalog.importItem(template)).toBe(false);
     expect(catalog.importState).toBe('signIn');
-    expect(await catalog.importTemplate({ ...template, revision: null })).toBe(false);
+    expect(await catalog.importItem({ ...template, revision: null })).toBe(false);
     expect(calls.some((call) => call.method === 'cloudLibrary.read')).toBe(false);
   });
 });

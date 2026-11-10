@@ -35,7 +35,7 @@ describe('package apply', () => {
     expect(writes).toHaveLength(0);
   });
 
-  it('records skipped overlays and profiles honestly and persists every step', async () => {
+  it('records skipped overlays honestly, attempts profiles, and persists every step', async () => {
     const { stores, writes } = host(report([
       { kind: 'overlay', id, version: null, revision: 2, required: true, status: 'ready', permissions: 'none' },
       { kind: 'profile', id, version: null, revision: 1, required: false, status: 'ready', permissions: 'none' },
@@ -45,7 +45,8 @@ describe('package apply', () => {
     await bundles.checkPackage(id);
     expect(await bundles.applyPackage()).toBe(true);
     const journal = bundles.journal;
-    expect(journal?.entries.map((entry) => entry.status)).toEqual(['skipped', 'skipped']);
+    expect(journal?.entries.map((entry) => entry.status)).toEqual(['skipped', 'failed']);
+    expect(journal?.entries[1]?.message).toBe('sign in to Cloud to import this profile');
     expect(journal?.entries[0]?.message).toMatch(/overlays cannot be applied/);
     expect(writes.length).toBeGreaterThanOrEqual(4);
     expect(writes.every((write) => write.key === JOURNAL_KEY)).toBe(true);

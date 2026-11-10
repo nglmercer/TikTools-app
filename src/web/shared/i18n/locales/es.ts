@@ -1672,11 +1672,10 @@ export default {
     manageProcessors: 'Gestionar procesadores',
   },
   unifiedCatalog: {
+    importProfile: 'Importar perfil',
     importTemplate: 'Importar plantilla',
     templateStaged: 'Plantilla preparada en tu biblioteca. Revísala allí antes de usarla. Las automatizaciones siguen desactivadas hasta que las actives.',
     signInToImport: 'Inicia sesión en Cloud para importar esta plantilla.',
-    templateInvalid: 'Esta versión de la app no puede leer esta plantilla.',
-    profileLater: 'Importar perfiles desde el catálogo todavía no está disponible. Usa por ahora la biblioteca Cloud en Ajustes.',
     installedLimited: 'Solo se resuelven aquí los primeros {max} plugins instalados.',
     unpublished: 'No publicado',
     localOnly: 'Este plugin está instalado aquí, pero no está publicado en el catálogo.',
@@ -1696,7 +1695,6 @@ export default {
     publisherLabel: 'Editor',
     targets: 'Destinos',
     install: 'Instalar',
-    nonPluginNote: 'Las plantillas y perfiles se importan desde su propio flujo, no se instalan aquí.',
   },
   cloudConnections: {
     title: 'Conexiones',

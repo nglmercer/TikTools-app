@@ -176,13 +176,13 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
       >
         {{ t('unifiedCatalog.install') }}
       </BaseButton>
-      <template v-else-if="catalog.detail.kind === 'template' && catalog.detail.published">
+      <template v-else-if="(catalog.detail.kind === 'template' || catalog.detail.kind === 'profile') && catalog.detail.published">
         <BaseButton
           variant="primary"
           :disabled="catalog.importState === 'working'"
-          @click="catalog.importTemplate(catalog.detail)"
+          @click="catalog.importItem(catalog.detail)"
         >
-          {{ t('unifiedCatalog.importTemplate') }}
+          {{ catalog.detail.kind === 'template' ? t('unifiedCatalog.importTemplate') : t('unifiedCatalog.importProfile') }}
         </BaseButton>
         <p
           v-if="catalog.importState === 'staged'"
@@ -196,12 +196,6 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
         >
           {{ t('unifiedCatalog.signInToImport') }}
         </p>
-        <p
-          v-else-if="catalog.importState === 'invalid'"
-          class="unified-catalog__note"
-        >
-          {{ t('unifiedCatalog.templateInvalid') }}
-        </p>
         <BaseAlert
           v-else-if="catalog.importState === 'failed'"
           tone="error"
@@ -209,12 +203,6 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
           compact
         />
       </template>
-      <p
-        v-else-if="catalog.detail.kind === 'profile'"
-        class="unified-catalog__note"
-      >
-        {{ t('unifiedCatalog.profileLater') }}
-      </p>
       <p
         v-else-if="!catalog.detail.published"
         class="unified-catalog__note"

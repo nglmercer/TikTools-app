@@ -1670,11 +1670,10 @@ export default {
     manageProcessors: 'Manage processors',
   },
   unifiedCatalog: {
+    importProfile: 'Import profile',
     importTemplate: 'Import template',
     templateStaged: 'Template staged in your library. Review it there before using it. Automations stay off until you enable them.',
     signInToImport: 'Sign in to Cloud to import this template.',
-    templateInvalid: 'This template could not be read by this version of the app.',
-    profileLater: 'Importing profiles from the catalog is not available yet. Use the Cloud library in Settings for now.',
     installedLimited: 'Only the first {max} installed plugins are resolved here.',
     unpublished: 'Not published',
     localOnly: 'This plugin is installed here but is not published in the catalog.',
@@ -1694,7 +1693,6 @@ export default {
     publisherLabel: 'Publisher',
     targets: 'Targets',
     install: 'Install',
-    nonPluginNote: 'Templates and profiles are imported from their own flow, not installed here.',
   },
   cloudConnections: {
     title: 'Connections',

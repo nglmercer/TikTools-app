@@ -8,6 +8,7 @@ import { usePackagesStore } from '@/entities/plugin-package/model/packages-store
 import type { JobSnapshot } from '@/entities/plugin-package/api/package-types.ts';
 import { packagePreflight, uploadAsset, type AssetRecord, type PackagePreflight } from '../api/bundles-api.ts';
 import { importLibraryTemplate } from '../lib/library-import.ts';
+import { importLibraryProfile } from '../lib/library-profile.ts';
 import {
   createJournal,
   nextPending,
@@ -158,13 +159,26 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
     }
   }
 
+  async function runProfile(id: string, revision: number | null): Promise<Outcome> {
+    const origin = account.status?.origin ?? null;
+    const accountId = account.status?.accountId ?? null;
+    if (!origin || !accountId) return { status: 'failed', message: 'sign in to Cloud to import this profile' };
+    if (revision === null) return { status: 'failed', message: 'the profile has no revision' };
+    try {
+      await importLibraryProfile(client, origin, accountId, id, revision);
+      return { status: 'done' };
+    } catch (failure) {
+      return { status: 'failed', message: errorMessage(failure) };
+    }
+  }
+
   async function runEntry(index: number): Promise<Outcome> {
     const entry = journal.value?.entries[index];
     if (!entry) return { status: 'failed', message: 'the journal entry is missing' };
     if (entry.kind === 'plugin') return runPlugin(entry.id, entry.version);
     if (entry.kind === 'template') return runTemplate(entry.id, entry.revision);
-    if (entry.kind === 'overlay') return { status: 'skipped', message: 'overlays cannot be applied in this version' };
-    return { status: 'skipped', message: 'profiles cannot be imported from a package in this version' };
+    if (entry.kind === 'profile') return runProfile(entry.id, entry.revision);
+    return { status: 'skipped', message: 'overlays cannot be applied in this version' };
   }
 
   /**

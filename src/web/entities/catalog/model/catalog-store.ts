@@ -5,8 +5,8 @@ import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
-import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
-import { parseRuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
+import { importLibraryTemplate } from '@/entities/cloud-bundles/lib/library-import.ts';
+import { importLibraryProfile } from '@/entities/cloud-bundles/lib/library-profile.ts';
 import {
   fetchCatalogItem,
   fetchCatalogPage,
@@ -61,7 +61,7 @@ export const useCatalogStore = defineStore('catalog', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const detail = ref<CatalogItemSummary | null>(null);
-  const importState = ref<'idle' | 'working' | 'staged' | 'signIn' | 'invalid' | 'failed'>('idle');
+  const importState = ref<'idle' | 'working' | 'staged' | 'signIn' | 'failed'>('idle');
   const importMessage = ref('');
   const account = useAccountStore();
   let installedTicket = 0;
@@ -172,11 +172,11 @@ export const useCatalogStore = defineStore('catalog', () => {
   }
 
   /**
-   * Imports a published or owned template through the local library journal, the
-   * same path as the Cloud library. The imported template stays inert until the user acts.
+   * Imports a published or owned template or profile through the local library
+   * journal, the same path as the Cloud library. Imported automations stay disabled.
    */
-  async function importTemplate(item: CatalogItemSummary): Promise<boolean> {
-    if (item.kind !== 'template' || !item.published || item.revision === null || item.sha256 === null) return false;
+  async function importItem(item: CatalogItemSummary): Promise<boolean> {
+    if ((item.kind !== 'template' && item.kind !== 'profile') || !item.published || item.revision === null) return false;
     const origin = account.status?.origin ?? null;
     const accountId = account.status?.accountId ?? null;
     if (!origin || !accountId) {
@@ -186,21 +186,8 @@ export const useCatalogStore = defineStore('catalog', () => {
     importState.value = 'working';
     importMessage.value = '';
     try {
-      const document = await client.call<{ document: unknown }>('cloudLibrary.read', {
-        scope: filters.value.view === 'mine' ? 'mine' : 'public',
-        id: item.id,
-        revision: String(item.revision),
-      });
-      const parsed = parseRuleTemplate(document.document);
-      if (!parsed.ok) {
-        importState.value = 'invalid';
-        return false;
-      }
-      await libraryJournal(client).request(
-        { operation: 'import-templates', templates: [parsed.template] },
-        null,
-        { origin, accountId, documentId: item.id, revision: String(item.revision), sha256: item.sha256 },
-      );
+      if (item.kind === 'template') await importLibraryTemplate(client, origin, accountId, item.id, item.revision);
+      else await importLibraryProfile(client, origin, accountId, item.id, item.revision);
       importState.value = 'staged';
       return true;
     } catch (failure) {
@@ -238,7 +225,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     openDetail,
     closeDetail,
     install,
-    importTemplate,
+    importItem,
     importState,
     importMessage,
   };
