@@ -44,6 +44,8 @@ const capabilities = useCapabilityStore();
 // Connections appear only when the host announces them; an unknown answer keeps the panel hidden.
 const connectionsAvailable = computed(() => capabilities.supports('integrations.connections') === true);
 const teamsAvailable = computed(() => capabilities.supports('teams.hosts.list') === true);
+// The unified catalog (Míos, templates and profiles) replaces the Settings library when the host announces it.
+const catalogAvailable = computed(() => capabilities.supports('catalog.items') === true);
 const bundlesAvailable = computed(() => capabilities.supports('bundles.packages.preflight') === true);
 const overlaysAvailable = computed(() => capabilities.supports('bundles.overlays.create') === true);
 const router = useRouter();
@@ -123,7 +125,7 @@ const locale = computed<Locale>({
       <template v-else-if="section === 'account'">
         <CloudAccountEditor />
         <CloudSyncEditor />
-        <CloudLibrary />
+        <CloudLibrary v-if="!catalogAvailable" />
         <CloudTeams v-if="teamsAvailable" />
         <CloudBundles v-if="bundlesAvailable" />
         <CloudOverlays v-if="overlaysAvailable" />

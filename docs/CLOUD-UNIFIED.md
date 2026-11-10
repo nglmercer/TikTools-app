@@ -40,7 +40,9 @@ unknown as absent. Older hosts keep the legacy Cloud views.
 - **Import a template** submits the published revision through the local library
   journal, with the Cloud origin, account and revision as provenance. The
   imported template is inert until the user enables it.
-- **Profiles** are not importable from the catalog yet. The detail panel says so.
+- **Profiles** import the same way as templates: the profile is parsed, its
+  default parameters are applied, and it is submitted to the library journal.
+  Imported automations stay disabled.
 
 ## Connections
 
@@ -70,14 +72,33 @@ view says when older events were not shown.
   from the bytes; the app does not decode them.
 - **Package check** reads the preflight of a package by id. It applies nothing.
   The report lists each item's status and whether the package could be applied.
+- **Package apply** runs only after a check that allows it. Each item goes through
+  its own flow: plugins through the install review, templates and profiles
+  through the library journal. Every step is written to the host's app state
+  before and after it runs. A step that was running when the app stopped is
+  marked interrupted and is never retried automatically. Overlays are recorded as
+  skipped, because they are not applied from a package yet.
+- **Overlay editor** creates and revises overlays of schema version 1. The editor
+  checks each change against the Cloud's rules and refuses a save while a problem
+  remains. The preview is drawn by the editor; the live stream does not render
+  overlays yet.
+
+## Retirement and compatibility
+
+- The Settings "Biblioteca Cloud" panel is shown only on hosts that do not
+  announce `catalog.items`. Its services remain in use by the catalog.
+- The legacy Cloud plugin view stays for hosts without the unified catalog.
+  Removing it needs a migration note and is not done.
+- Saved view state for the plugins page keeps its names; no preference needed a
+  rewrite.
 
 ## Not implemented
 
-- Overlay editing and rendering in the app.
-- The package apply journal. A package can be checked, not applied from the app.
-- Profile import from the catalog.
-- Retiring the Settings Cloud library and the legacy plugin catalog. They remain
-  until the replacements are verified on hosts in use.
+- Overlay rendering in the live stream. The preview in the editor is not the
+  stream renderer.
+- Overlays as package items: they are skipped during an apply.
+- Overlay assets: the owner-only asset endpoint cannot be used as an image source
+  in the webview, so images are shown as placeholders in the preview.
 - End-to-end verification of the app's bearer-token path against a running
   backend. The backend's own suite passes; the app's bearer path depends on a
   browser handoff that cannot be scripted here.
