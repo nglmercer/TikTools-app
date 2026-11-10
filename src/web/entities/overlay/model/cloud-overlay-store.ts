@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
-import { createOverlay, readOverlay, reviseOverlay } from '../api/overlays-api.ts';
+import { createOverlay, readOverlay, reviseOverlay } from '../api/cloud-overlays-api.ts';
 import {
   addElement,
   emptyOverlay,
@@ -13,14 +13,14 @@ import {
   type OverlayDocument,
   type OverlayElement,
   type OverlayKind,
-} from '../lib/overlay-schema.ts';
+} from '../lib/cloud-overlay-schema.ts';
 
 /**
  * One overlay being edited. The draft lives in memory until saved. A save is refused
  * while the schema reports problems; a saved overlay is revised with the revision the
  * editor last read, so a concurrent change is reported, not overwritten.
  */
-export const useOverlayStore = defineStore('overlay', () => {
+export const useCloudOverlayStore = defineStore('overlay', () => {
   const client = useControlClient();
   const draft = ref<OverlayDocument>(emptyOverlay('gift', 'New overlay'));
   const overlayId = ref<string | null>(null);

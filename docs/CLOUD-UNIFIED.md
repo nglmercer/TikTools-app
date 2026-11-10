@@ -78,7 +78,11 @@ view says when older events were not shown.
   before and after it runs. A step that was running when the app stopped is
   marked interrupted and is never retried automatically. Overlays are recorded as
   skipped, because they are not applied from a package yet.
-- **Overlay editor** creates and revises overlays of schema version 1. The editor
+- **Local and cloud overlays are different things.** The app already had local
+  overlays: widget designs for the seven kinds, served by the local gateway as
+  stacked cards. A cloud overlay is an absolute canvas with positioned elements.
+  The cloud editor and its files are named `cloud-overlay-*` to keep them apart.
+- **Overlay editor** creates and revises cloud overlays of schema version 1. The editor
   checks each change against the Cloud's rules and refuses a save while a problem
   remains. The preview is drawn by the editor; the live stream does not render
   overlays yet.
@@ -96,7 +100,10 @@ view says when older events were not shown.
 
 - Overlay rendering in the live stream. The preview in the editor is not the
   stream renderer.
-- Overlays as package items: they are skipped during an apply.
+- Overlays as package items: they are skipped during an apply. Applying one
+  would need an absolute-layout renderer in the local gateway. Mapping a cloud
+  canvas onto the card-based widget designs would lose the layout, so the apply
+  does not attempt it.
 - Overlay assets: the owner-only asset endpoint cannot be used as an image source
   in the webview, so images are shown as placeholders in the preview.
 - End-to-end verification of the app's bearer-token path against a running

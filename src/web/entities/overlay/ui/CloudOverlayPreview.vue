@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { OverlayDocument, OverlayElement } from '../lib/overlay-schema.ts';
+import type { OverlayDocument, OverlayElement } from '../lib/cloud-overlay-schema.ts';
 
 const props = defineProps<{ document: OverlayDocument }>();
 const { t } = useI18n();

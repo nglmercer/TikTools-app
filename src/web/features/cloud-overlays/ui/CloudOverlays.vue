@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { OVERLAY_FIELDS, OVERLAY_KINDS, type OverlayElement, type OverlayKind } from '@/entities/overlay/lib/overlay-schema.ts';
-import { useOverlayStore } from '@/entities/overlay/model/overlay-store.ts';
+import { OVERLAY_FIELDS, OVERLAY_KINDS, type OverlayElement, type OverlayKind } from '@/entities/overlay/lib/cloud-overlay-schema.ts';
+import { useCloudOverlayStore } from '@/entities/overlay/model/cloud-overlay-store.ts';
 import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
-import OverlayPreview from '@/entities/overlay/ui/OverlayPreview.vue';
+import CloudOverlayPreview from '@/entities/overlay/ui/CloudOverlayPreview.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
 const { t, te } = useI18n();
-const overlay = useOverlayStore();
+const overlay = useCloudOverlayStore();
 const bundles = useBundlesStore();
 const loadId = ref('');
 
@@ -225,7 +225,7 @@ function setKind(value: string): void {
       </li>
     </ul>
 
-    <OverlayPreview :document="overlay.draft" />
+    <CloudOverlayPreview :document="overlay.draft" />
 
     <ul
       v-if="overlay.problems.length"

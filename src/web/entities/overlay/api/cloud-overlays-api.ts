@@ -1,5 +1,5 @@
 import type { ControlClient } from '@/shared/api/control-client.ts';
-import type { OverlayDocument } from '../lib/overlay-schema.ts';
+import type { OverlayDocument } from '../lib/cloud-overlay-schema.ts';
 
 export interface OverlayRecord {
   readonly id: string;
