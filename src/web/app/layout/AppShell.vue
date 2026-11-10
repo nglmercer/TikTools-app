@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { useDiagnostics } from '../model/use-diagnostics.ts';
-import DiagnosticsPanel from '@/shared/diagnostics/DiagnosticsPanel.vue';
-import { diagnosticLog } from '@/shared/diagnostics/log.ts';
+import { diagnosticLog, diagnosticView } from '@/shared/diagnostics/log.ts';
 import { useDiagnosticNavigation } from '@/shared/diagnostics/navigation.ts';
 import { storeToRefs } from 'pinia';
-import { computed, markRaw, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
+import { computed, defineAsyncComponent, markRaw, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue';
+
+// The panel and its code load only when Diagnostics is opened; closing unmounts it but never clears the log.
+const DiagnosticsPanel = defineAsyncComponent(() => import('@/shared/diagnostics/DiagnosticsPanel.vue'));
+const diagnosticsOpen = computed(() => diagnosticView.open.value);
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { isConnectionOnlyPage, pluginNavId } from '../../../automation/plugins/declarative.ts';
@@ -278,7 +281,7 @@ function connect(): void {
       </main>
     </div>
 
-    <DiagnosticsPanel />
+    <DiagnosticsPanel v-if="diagnosticsOpen" />
     <AppStatusBar
       :status="status"
       :creator="activeCreator"
