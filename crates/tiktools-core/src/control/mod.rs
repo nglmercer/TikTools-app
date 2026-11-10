@@ -92,6 +92,9 @@ mod system;
 mod widgets;
 mod workflows;
 
+#[cfg(all(test, feature = "persistence"))]
+pub(crate) mod approval_test_support;
+
 pub use crate::input_access::InputAccessResult;
 pub use analytics::GiftDebugResult;
 pub use automation::{

@@ -2,243 +2,912 @@
 
 export const EVENT_REGISTRY_VERSION = 9 as const;
 
-const INTEL_SAMPLE_CHAT = {
-  "comment": {
-    "casefolded": "sample",
-    "composition": {
-      "allCaps": false,
-      "digits": 1,
-      "elongated": false,
-      "emojiCount": 1,
-      "emojiOnly": false,
-      "emojiRatio": 1,
-      "letters": 1,
-      "mentions": 1,
-      "repetitionScore": 1,
-      "urls": 1
-    },
-    "language": {
-      "candidates": [],
-      "confidence": 0.9,
-      "top": "en"
-    },
-    "nfc": "sample",
-    "nfkc": "sample",
-    "normalized": "hello there",
-    "obfuscation": {
-      "confusables": false,
-      "detected": false,
-      "flags": [],
-      "leetspeak": false,
-      "mixedScripts": false,
-      "punctuationFlood": false,
-      "repetition": false,
-      "score": 1
-    },
-    "rebus": {
-      "candidate": "sample",
-      "confidence": 1,
-      "score": 1,
-      "strong": false
-    },
-    "spam": {
-      "calibrated": false,
-      "detected": false,
-      "model": "sample",
-      "reasons": [],
-      "score": 0.04
-    },
-    "truncated": false,
-    "tts": {
-      "confidence": 0.9,
-      "language": "en",
-      "pronunciation": {
-        "confidence": 1,
-        "dialect": "sample",
-        "ipa": "sample",
-        "language": "sample"
-      },
-      "reason": "sample",
-      "source": "sample",
-      "speak": false,
-      "text": "hello there"
-    },
-    "unicode": {
-      "bidirectional": 1,
-      "confusables": 1,
-      "invisible": 1,
-      "mixedScripts": false,
-      "score": 1,
-      "suspicious": false
-    }
-  },
-  "processing": {
-    "status": "sample"
-  },
-  "providers": {},
-  "user": {
-    "nickname": {
-      "language": {
-        "candidates": [],
-        "confidence": 1,
-        "top": "sample"
-      },
-      "normalized": "Viewer Demo",
-      "tts": {
-        "confidence": 1,
-        "language": "sample",
-        "pronunciation": {
-          "confidence": 1,
-          "dialect": "sample",
-          "ipa": "sample",
-          "language": "sample"
-        },
-        "reason": "sample",
-        "source": "sample",
-        "speak": false,
-        "text": "Viewer Demo"
-      }
-    },
-    "uniqueId": {
-      "composition": {
-        "allCaps": false,
-        "digits": 1,
-        "elongated": false,
-        "emojiCount": 1,
-        "emojiOnly": false,
-        "emojiRatio": 1,
-        "letters": 1,
-        "mentions": 1,
-        "repetitionScore": 1,
-        "urls": 1
-      },
-      "language": {
-        "candidates": [],
-        "confidence": 1,
-        "top": "sample"
-      }
-    }
+const SHARED_REGISTRY_1 = {
+  "allCaps": false,
+  "digits": 1,
+  "elongated": false,
+  "emojiCount": 1,
+  "emojiOnly": false,
+  "emojiRatio": 1,
+  "letters": 1,
+  "mentions": 1,
+  "repetitionScore": 1,
+  "urls": 1
+} as const;
+
+const SHARED_REGISTRY_2 = {
+  "confusables": false,
+  "detected": false,
+  "flags": [],
+  "leetspeak": false,
+  "mixedScripts": false,
+  "punctuationFlood": false,
+  "repetition": false,
+  "score": 1
+} as const;
+
+const SHARED_REGISTRY_3 = {
+  "composition": SHARED_REGISTRY_1,
+  "language": {
+    "candidates": [],
+    "confidence": 1,
+    "top": "sample"
   }
 } as const;
 
-const INTEL_SAMPLE_DEFAULT = {
-  "comment": {
-    "casefolded": "sample",
-    "composition": {
-      "allCaps": false,
-      "digits": 1,
-      "elongated": false,
-      "emojiCount": 1,
-      "emojiOnly": false,
-      "emojiRatio": 1,
-      "letters": 1,
-      "mentions": 1,
-      "repetitionScore": 1,
-      "urls": 1
-    },
-    "language": {
-      "candidates": [],
-      "confidence": 1,
-      "top": "sample"
-    },
-    "nfc": "sample",
-    "nfkc": "sample",
-    "normalized": "sample",
-    "obfuscation": {
-      "confusables": false,
-      "detected": false,
-      "flags": [],
-      "leetspeak": false,
-      "mixedScripts": false,
-      "punctuationFlood": false,
-      "repetition": false,
-      "score": 1
-    },
-    "rebus": {
-      "candidate": "sample",
-      "confidence": 1,
-      "score": 1,
-      "strong": false
-    },
-    "spam": {
-      "calibrated": false,
-      "detected": false,
-      "model": "sample",
-      "reasons": [],
-      "score": 1
-    },
-    "truncated": false,
-    "tts": {
-      "confidence": 1,
-      "language": "sample",
-      "pronunciation": {
-        "confidence": 1,
-        "dialect": "sample",
-        "ipa": "sample",
-        "language": "sample"
-      },
-      "reason": "sample",
-      "source": "sample",
-      "speak": false,
-      "text": "sample"
-    },
-    "unicode": {
-      "bidirectional": 1,
-      "confusables": 1,
-      "invisible": 1,
-      "mixedScripts": false,
-      "score": 1,
-      "suspicious": false
-    }
+const SHARED_REGISTRY_4 = {
+  "path": "event.user.avatarUrl",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Avatar Url",
+    "es": "Avatar Url"
   },
+  "hint": {
+    "en": "AutomationUser.avatarUrl",
+    "es": "AutomationUser.avatarUrl"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_5 = {
+  "path": "event.user.nickname",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Nickname",
+    "es": "Nickname"
+  },
+  "hint": {
+    "en": "AutomationUser.nickname",
+    "es": "AutomationUser.nickname"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_6 = {
+  "path": "event.user.secUid",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Sec Uid",
+    "es": "Sec Uid"
+  },
+  "hint": {
+    "en": "AutomationUser.secUid",
+    "es": "AutomationUser.secUid"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_7 = {
+  "path": "event.user.uniqueId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Unique Id",
+    "es": "Unique Id"
+  },
+  "hint": {
+    "en": "AutomationUser.uniqueId",
+    "es": "AutomationUser.uniqueId"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_8 = {
+  "path": "event.user.userId",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "User Id",
+    "es": "User Id"
+  },
+  "hint": {
+    "en": "AutomationUser.userId",
+    "es": "AutomationUser.userId"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_9 = {
+  "path": "event.intel.processing.status",
+  "tsType": "string",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Status",
+    "es": "Status"
+  },
+  "hint": {
+    "en": "EventIntel.processing.status",
+    "es": "EventIntel.processing.status"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_10 = {
+  "path": "event.intel.user.nickname.language.candidates",
+  "tsType": "JsonValue[] | null",
+  "kind": "array",
+  "optional": true,
+  "label": {
+    "en": "Candidates",
+    "es": "Candidates"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.language.candidates",
+    "es": "EventIntel.user.nickname.language.candidates"
+  },
+  "sample": []
+} as const;
+
+const SHARED_REGISTRY_11 = {
+  "path": "event.intel.user.nickname.language.confidence",
+  "tsType": "number",
+  "kind": "number",
+  "optional": true,
+  "label": {
+    "en": "Confidence",
+    "es": "Confidence"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.language.confidence",
+    "es": "EventIntel.user.nickname.language.confidence"
+  },
+  "sample": 1
+} as const;
+
+const SHARED_REGISTRY_12 = {
+  "path": "event.intel.user.nickname.language.top",
+  "tsType": "string",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Top",
+    "es": "Top"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.language.top",
+    "es": "EventIntel.user.nickname.language.top"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_13 = {
+  "path": "event.intel.user.nickname.normalized",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Normalized",
+    "es": "Normalized"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.normalized",
+    "es": "EventIntel.user.nickname.normalized"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_14 = {
+  "path": "event.intel.user.nickname.tts.confidence",
+  "tsType": "number | null",
+  "kind": "number",
+  "optional": true,
+  "label": {
+    "en": "Confidence",
+    "es": "Confidence"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.confidence",
+    "es": "EventIntel.user.nickname.tts.confidence"
+  },
+  "sample": 1
+} as const;
+
+const SHARED_REGISTRY_15 = {
+  "path": "event.intel.user.nickname.tts.language",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Language",
+    "es": "Language"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.language",
+    "es": "EventIntel.user.nickname.tts.language"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_16 = {
+  "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
+  "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
+} as const;
+
+const SHARED_REGISTRY_17 = {
+  "path": "event.intel.user.nickname.tts.pronunciation.confidence",
+  "tsType": "number | null",
+  "kind": "number",
+  "optional": true,
+  "label": {
+    "en": "Confidence",
+    "es": "Confidence"
+  },
+  "hint": SHARED_REGISTRY_16,
+  "sample": 1
+} as const;
+
+const SHARED_REGISTRY_18 = {
+  "path": "event.intel.user.nickname.tts.pronunciation.dialect",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Dialect",
+    "es": "Dialect"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
+    "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_19 = {
+  "path": "event.intel.user.nickname.tts.pronunciation.ipa",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Ipa",
+    "es": "Ipa"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
+    "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_20 = {
+  "path": "event.intel.user.nickname.tts.pronunciation.language",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Language",
+    "es": "Language"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.pronunciation.language",
+    "es": "EventIntel.user.nickname.tts.pronunciation.language"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_21 = {
+  "path": "event.intel.user.nickname.tts.reason",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Reason",
+    "es": "Reason"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.reason",
+    "es": "EventIntel.user.nickname.tts.reason"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_22 = {
+  "path": "event.intel.user.nickname.tts.source",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Source",
+    "es": "Source"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.source",
+    "es": "EventIntel.user.nickname.tts.source"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_23 = {
+  "path": "event.intel.user.nickname.tts.speak",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": true,
+  "label": {
+    "en": "Speak",
+    "es": "Speak"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.speak",
+    "es": "EventIntel.user.nickname.tts.speak"
+  },
+  "sample": false
+} as const;
+
+const SHARED_REGISTRY_24 = {
+  "path": "event.intel.user.nickname.tts.text",
+  "tsType": "string",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Text",
+    "es": "Text"
+  },
+  "hint": {
+    "en": "EventIntel.user.nickname.tts.text",
+    "es": "EventIntel.user.nickname.tts.text"
+  },
+  "sample": "sample"
+} as const;
+
+const SHARED_REGISTRY_25 = {
+  "name": "emotes",
+  "tsType": "{ \"emoteType\": number | null; \"id\": string; \"imageUrl\": string | null; \"index\": number | null; \"packageId\": string | null; \"shortcode\": string | null }[]",
+  "optional": true
+} as const;
+
+const SHARED_REGISTRY_26 = {
+  "confidence": 1,
+  "language": "sample",
+  "pronunciation": {
+    "confidence": 1,
+    "dialect": "sample",
+    "ipa": "sample",
+    "language": "sample"
+  },
+  "reason": "sample",
+  "source": "sample",
+  "speak": false,
+  "text": "sample"
+} as const;
+
+const SHARED_REGISTRY_27 = {
+  "casefolded": "sample",
+  "composition": SHARED_REGISTRY_1,
+  "language": {
+    "candidates": [],
+    "confidence": 1,
+    "top": "sample"
+  },
+  "nfc": "sample",
+  "nfkc": "sample",
+  "normalized": "sample",
+  "obfuscation": SHARED_REGISTRY_2,
+  "rebus": {
+    "candidate": "sample",
+    "confidence": 1,
+    "score": 1,
+    "strong": false
+  },
+  "spam": {
+    "calibrated": false,
+    "detected": false,
+    "model": "sample",
+    "reasons": [],
+    "score": 1
+  },
+  "truncated": false,
+  "tts": SHARED_REGISTRY_26,
+  "unicode": {
+    "bidirectional": 1,
+    "confusables": 1,
+    "invisible": 1,
+    "mixedScripts": false,
+    "score": 1,
+    "suspicious": false
+  }
+} as const;
+
+const SHARED_REGISTRY_28 = {
+  "language": {
+    "candidates": [],
+    "confidence": 1,
+    "top": "sample"
+  },
+  "normalized": "sample",
+  "tts": SHARED_REGISTRY_26
+} as const;
+
+const SHARED_REGISTRY_29 = {
+  "nickname": SHARED_REGISTRY_28,
+  "uniqueId": SHARED_REGISTRY_3
+} as const;
+
+const SHARED_REGISTRY_30 = {
+  "comment": SHARED_REGISTRY_27,
   "processing": {
     "status": "sample"
   },
   "providers": {},
-  "user": {
-    "nickname": {
-      "language": {
-        "candidates": [],
-        "confidence": 1,
-        "top": "sample"
-      },
-      "normalized": "sample",
-      "tts": {
-        "confidence": 1,
-        "language": "sample",
-        "pronunciation": {
-          "confidence": 1,
-          "dialect": "sample",
-          "ipa": "sample",
-          "language": "sample"
-        },
-        "reason": "sample",
-        "source": "sample",
-        "speak": false,
-        "text": "sample"
-      }
-    },
-    "uniqueId": {
-      "composition": {
-        "allCaps": false,
-        "digits": 1,
-        "elongated": false,
-        "emojiCount": 1,
-        "emojiOnly": false,
-        "emojiRatio": 1,
-        "letters": 1,
-        "mentions": 1,
-        "repetitionScore": 1,
-        "urls": 1
-      },
-      "language": {
-        "candidates": [],
-        "confidence": 1,
-        "top": "sample"
-      }
-    }
-  }
+  "user": SHARED_REGISTRY_29
 } as const;
+
+const SHARED_REGISTRY_31 = {
+  "path": "event.data.followCount",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Follow Count",
+    "es": "Follow Count"
+  },
+  "hint": {
+    "en": "SocialAutomationData.followCount",
+    "es": "SocialAutomationData.followCount"
+  },
+  "sample": 1,
+  "sourceField": "followCount",
+  "sourceMethod": "WebcastSocialMessage",
+  "sourcePath": "follow_count",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "followCount",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_32 = {
+  "path": "event.data.isHistory",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": false,
+  "label": {
+    "en": "Is History",
+    "es": "Is History"
+  },
+  "hint": {
+    "en": "SocialAutomationData.isHistory",
+    "es": "SocialAutomationData.isHistory"
+  },
+  "sample": false,
+  "sourceField": "isHistory"
+} as const;
+
+const SHARED_REGISTRY_33 = {
+  "path": "event.data.method",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Method",
+    "es": "Method"
+  },
+  "hint": {
+    "en": "SocialAutomationData.method",
+    "es": "SocialAutomationData.method"
+  },
+  "sample": "WebcastSampleMessage",
+  "sourceField": "method"
+} as const;
+
+const SHARED_REGISTRY_34 = {
+  "path": "event.data.msgId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Msg Id",
+    "es": "Msg Id"
+  },
+  "hint": {
+    "en": "SocialAutomationData.msgId",
+    "es": "SocialAutomationData.msgId"
+  },
+  "sample": "1",
+  "sourceField": "msgId"
+} as const;
+
+const SHARED_REGISTRY_35 = {
+  "path": "event.data.shareCount",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Share Count",
+    "es": "Share Count"
+  },
+  "hint": {
+    "en": "SocialAutomationData.shareCount",
+    "es": "SocialAutomationData.shareCount"
+  },
+  "sample": 1,
+  "sourceField": "shareCount",
+  "sourceMethod": "WebcastSocialMessage",
+  "sourcePath": "share_count",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "shareCount",
+  "sourceProtoType": "int32",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_36 = [
+  {
+    "name": "action",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "followCount",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "isHistory",
+    "tsType": "boolean",
+    "optional": false
+  },
+  {
+    "name": "method",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "msgId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "shareCount",
+    "tsType": "number",
+    "optional": false
+  }
+] as const;
+
+const SHARED_REGISTRY_37 = {
+  "path": "event.data.roomId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Room Id",
+    "es": "Room Id"
+  },
+  "hint": {
+    "en": "ConnectionAutomationData.roomId",
+    "es": "ConnectionAutomationData.roomId"
+  },
+  "sample": "sample",
+  "sourceField": "roomId"
+} as const;
+
+const SHARED_REGISTRY_38 = {
+  "path": "event.data.uniqueId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Unique Id",
+    "es": "Unique Id"
+  },
+  "hint": {
+    "en": "ConnectionAutomationData.uniqueId",
+    "es": "ConnectionAutomationData.uniqueId"
+  },
+  "sample": "sample",
+  "sourceField": "uniqueId"
+} as const;
+
+const SHARED_REGISTRY_39 = [
+  SHARED_REGISTRY_37,
+  SHARED_REGISTRY_38,
+  SHARED_REGISTRY_9
+] as const;
+
+const SHARED_REGISTRY_40 = {
+  "actionId": "sample",
+  "actionStatus": "pending",
+  "competitionId": "sample",
+  "creatorId": "sample",
+  "generation": 1,
+  "optionId": "sample",
+  "rankingId": "sample",
+  "roomId": "sample",
+  "selectionId": "sample",
+  "selectionMode": "highest_score",
+  "winnerId": "sample",
+  "winnerScore": 1
+} as const;
+
+const SHARED_REGISTRY_41 = {
+  "path": "event.data.actionId",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Action Id",
+    "es": "Action Id"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.actionId",
+    "es": "CompetitionAutomationData.actionId"
+  },
+  "sample": "sample",
+  "sourceField": "actionId"
+} as const;
+
+const SHARED_REGISTRY_42 = {
+  "path": "event.data.actionStatus",
+  "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Action Status",
+    "es": "Action Status"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.actionStatus",
+    "es": "CompetitionAutomationData.actionStatus"
+  },
+  "sample": "pending",
+  "sourceField": "actionStatus"
+} as const;
+
+const SHARED_REGISTRY_43 = {
+  "path": "event.data.competitionId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Competition Id",
+    "es": "Competition Id"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.competitionId",
+    "es": "CompetitionAutomationData.competitionId"
+  },
+  "sample": "sample",
+  "sourceField": "competitionId"
+} as const;
+
+const SHARED_REGISTRY_44 = {
+  "path": "event.data.creatorId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Creator Id",
+    "es": "Creator Id"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.creatorId",
+    "es": "CompetitionAutomationData.creatorId"
+  },
+  "sample": "sample",
+  "sourceField": "creatorId"
+} as const;
+
+const SHARED_REGISTRY_45 = {
+  "path": "event.data.generation",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Generation",
+    "es": "Generation"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.generation",
+    "es": "CompetitionAutomationData.generation"
+  },
+  "sample": 1,
+  "sourceField": "generation"
+} as const;
+
+const SHARED_REGISTRY_46 = {
+  "path": "event.data.optionId",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Option Id",
+    "es": "Option Id"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.optionId",
+    "es": "CompetitionAutomationData.optionId"
+  },
+  "sample": "sample",
+  "sourceField": "optionId"
+} as const;
+
+const SHARED_REGISTRY_47 = {
+  "path": "event.data.rankingId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Ranking Id",
+    "es": "Ranking Id"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.rankingId",
+    "es": "CompetitionAutomationData.rankingId"
+  },
+  "sample": "sample",
+  "sourceField": "rankingId"
+} as const;
+
+const SHARED_REGISTRY_48 = {
+  "path": "event.data.roomId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Room Id",
+    "es": "Room Id"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.roomId",
+    "es": "CompetitionAutomationData.roomId"
+  },
+  "sample": "sample",
+  "sourceField": "roomId"
+} as const;
+
+const SHARED_REGISTRY_49 = {
+  "path": "event.data.selectionId",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Selection Id",
+    "es": "Selection Id"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.selectionId",
+    "es": "CompetitionAutomationData.selectionId"
+  },
+  "sample": "sample",
+  "sourceField": "selectionId"
+} as const;
+
+const SHARED_REGISTRY_50 = {
+  "path": "event.data.selectionMode",
+  "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Selection Mode",
+    "es": "Selection Mode"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.selectionMode",
+    "es": "CompetitionAutomationData.selectionMode"
+  },
+  "sample": "highest_score",
+  "sourceField": "selectionMode"
+} as const;
+
+const SHARED_REGISTRY_51 = {
+  "path": "event.data.winnerId",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Winner Id",
+    "es": "Winner Id"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.winnerId",
+    "es": "CompetitionAutomationData.winnerId"
+  },
+  "sample": "sample",
+  "sourceField": "winnerId"
+} as const;
+
+const SHARED_REGISTRY_52 = {
+  "path": "event.data.winnerScore",
+  "tsType": "number | null",
+  "kind": "number",
+  "optional": true,
+  "label": {
+    "en": "Winner Score",
+    "es": "Winner Score"
+  },
+  "hint": {
+    "en": "CompetitionAutomationData.winnerScore",
+    "es": "CompetitionAutomationData.winnerScore"
+  },
+  "sample": 1,
+  "sourceField": "winnerScore"
+} as const;
+
+const SHARED_REGISTRY_53 = [
+  SHARED_REGISTRY_41,
+  SHARED_REGISTRY_42,
+  SHARED_REGISTRY_43,
+  SHARED_REGISTRY_44,
+  SHARED_REGISTRY_45,
+  SHARED_REGISTRY_46,
+  SHARED_REGISTRY_47,
+  SHARED_REGISTRY_48,
+  SHARED_REGISTRY_49,
+  SHARED_REGISTRY_50,
+  SHARED_REGISTRY_51,
+  SHARED_REGISTRY_52,
+  SHARED_REGISTRY_9
+] as const;
+
+const SHARED_REGISTRY_54 = {
+  "name": "actionStatus",
+  "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
+  "optional": true
+} as const;
+
+const SHARED_REGISTRY_55 = [
+  {
+    "name": "actionId",
+    "tsType": "string | null",
+    "optional": true
+  },
+  SHARED_REGISTRY_54,
+  {
+    "name": "competitionId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "creatorId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "generation",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "optionId",
+    "tsType": "string | null",
+    "optional": true
+  },
+  {
+    "name": "rankingId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "roomId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "selectionId",
+    "tsType": "string | null",
+    "optional": true
+  },
+  {
+    "name": "selectionMode",
+    "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
+    "optional": true
+  },
+  {
+    "name": "winnerId",
+    "tsType": "string | null",
+    "optional": true
+  },
+  {
+    "name": "winnerScore",
+    "tsType": "number | null",
+    "optional": true
+  }
+] as const;
 
 export const GENERATED_EVENT_REGISTRY = {
   "version": 9,
@@ -269,84 +938,93 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1"
         },
-        "intel": INTEL_SAMPLE_CHAT
+        "intel": {
+          "comment": {
+            "casefolded": "sample",
+            "composition": SHARED_REGISTRY_1,
+            "language": {
+              "candidates": [],
+              "confidence": 0.9,
+              "top": "en"
+            },
+            "nfc": "sample",
+            "nfkc": "sample",
+            "normalized": "hello there",
+            "obfuscation": SHARED_REGISTRY_2,
+            "rebus": {
+              "candidate": "sample",
+              "confidence": 1,
+              "score": 1,
+              "strong": false
+            },
+            "spam": {
+              "calibrated": false,
+              "detected": false,
+              "model": "sample",
+              "reasons": [],
+              "score": 0.04
+            },
+            "truncated": false,
+            "tts": {
+              "confidence": 0.9,
+              "language": "en",
+              "pronunciation": {
+                "confidence": 1,
+                "dialect": "sample",
+                "ipa": "sample",
+                "language": "sample"
+              },
+              "reason": "sample",
+              "source": "sample",
+              "speak": false,
+              "text": "hello there"
+            },
+            "unicode": {
+              "bidirectional": 1,
+              "confusables": 1,
+              "invisible": 1,
+              "mixedScripts": false,
+              "score": 1,
+              "suspicious": false
+            }
+          },
+          "processing": {
+            "status": "sample"
+          },
+          "providers": {},
+          "user": {
+            "nickname": {
+              "language": {
+                "candidates": [],
+                "confidence": 1,
+                "top": "sample"
+              },
+              "normalized": "Viewer Demo",
+              "tts": {
+                "confidence": 1,
+                "language": "sample",
+                "pronunciation": {
+                  "confidence": 1,
+                  "dialect": "sample",
+                  "ipa": "sample",
+                  "language": "sample"
+                },
+                "reason": "sample",
+                "source": "sample",
+                "speak": false,
+                "text": "Viewer Demo"
+              }
+            },
+            "uniqueId": SHARED_REGISTRY_3
+          }
+        }
       },
       "fields": [
-        {
-          "path": "event.user.avatarUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Avatar Url",
-            "es": "Avatar Url"
-          },
-          "hint": {
-            "en": "AutomationUser.avatarUrl",
-            "es": "AutomationUser.avatarUrl"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.nickname",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Nickname",
-            "es": "Nickname"
-          },
-          "hint": {
-            "en": "AutomationUser.nickname",
-            "es": "AutomationUser.nickname"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.secUid",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Sec Uid",
-            "es": "Sec Uid"
-          },
-          "hint": {
-            "en": "AutomationUser.secUid",
-            "es": "AutomationUser.secUid"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "AutomationUser.uniqueId",
-            "es": "AutomationUser.uniqueId"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.userId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "User Id",
-            "es": "User Id"
-          },
-          "hint": {
-            "en": "AutomationUser.userId",
-            "es": "AutomationUser.userId"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_4,
+        SHARED_REGISTRY_5,
+        SHARED_REGISTRY_6,
+        SHARED_REGISTRY_7,
+        SHARED_REGISTRY_8,
         {
           "path": "event.data.comment",
           "tsType": "string",
@@ -1204,231 +1882,21 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": false
         },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.language.candidates",
-          "tsType": "JsonValue[] | null",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Candidates",
-            "es": "Candidates"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.candidates",
-            "es": "EventIntel.user.nickname.language.candidates"
-          },
-          "sample": []
-        },
-        {
-          "path": "event.intel.user.nickname.language.confidence",
-          "tsType": "number",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.confidence",
-            "es": "EventIntel.user.nickname.language.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.language.top",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Top",
-            "es": "Top"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.top",
-            "es": "EventIntel.user.nickname.language.top"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.normalized",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Normalized",
-            "es": "Normalized"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.normalized",
-            "es": "EventIntel.user.nickname.normalized"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.confidence",
-            "es": "EventIntel.user.nickname.tts.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.language",
-            "es": "EventIntel.user.nickname.tts.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
-            "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.dialect",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Dialect",
-            "es": "Dialect"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
-            "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.ipa",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Ipa",
-            "es": "Ipa"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
-            "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.language",
-            "es": "EventIntel.user.nickname.tts.pronunciation.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.reason",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Reason",
-            "es": "Reason"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.reason",
-            "es": "EventIntel.user.nickname.tts.reason"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.source",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Source",
-            "es": "Source"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.source",
-            "es": "EventIntel.user.nickname.tts.source"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.speak",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": true,
-          "label": {
-            "en": "Speak",
-            "es": "Speak"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.speak",
-            "es": "EventIntel.user.nickname.tts.speak"
-          },
-          "sample": false
-        },
-        {
-          "path": "event.intel.user.nickname.tts.text",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Text",
-            "es": "Text"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.text",
-            "es": "EventIntel.user.nickname.tts.text"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_9,
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_15,
+        SHARED_REGISTRY_17,
+        SHARED_REGISTRY_18,
+        SHARED_REGISTRY_19,
+        SHARED_REGISTRY_20,
+        SHARED_REGISTRY_21,
+        SHARED_REGISTRY_22,
+        SHARED_REGISTRY_23,
+        SHARED_REGISTRY_24,
         {
           "path": "event.intel.user.uniqueId.composition.allCaps",
           "tsType": "boolean | null",
@@ -1631,11 +2099,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "tsType": "string",
           "optional": false
         },
-        {
-          "name": "emotes",
-          "tsType": "{ \"emoteType\": number | null; \"id\": string; \"imageUrl\": string | null; \"index\": number | null; \"packageId\": string | null; \"shortcode\": string | null }[]",
-          "optional": true
-        },
+        SHARED_REGISTRY_25,
         {
           "name": "isHistory",
           "tsType": "boolean",
@@ -1674,84 +2138,14 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1"
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
-        {
-          "path": "event.user.avatarUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Avatar Url",
-            "es": "Avatar Url"
-          },
-          "hint": {
-            "en": "AutomationUser.avatarUrl",
-            "es": "AutomationUser.avatarUrl"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.nickname",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Nickname",
-            "es": "Nickname"
-          },
-          "hint": {
-            "en": "AutomationUser.nickname",
-            "es": "AutomationUser.nickname"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.secUid",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Sec Uid",
-            "es": "Sec Uid"
-          },
-          "hint": {
-            "en": "AutomationUser.secUid",
-            "es": "AutomationUser.secUid"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "AutomationUser.uniqueId",
-            "es": "AutomationUser.uniqueId"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.userId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "User Id",
-            "es": "User Id"
-          },
-          "hint": {
-            "en": "AutomationUser.userId",
-            "es": "AutomationUser.userId"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_4,
+        SHARED_REGISTRY_5,
+        SHARED_REGISTRY_6,
+        SHARED_REGISTRY_7,
+        SHARED_REGISTRY_8,
         {
           "path": "event.data.emotes",
           "tsType": "{ \"emoteType\": number | null; \"id\": string; \"imageUrl\": string | null; \"index\": number | null; \"packageId\": string | null; \"shortcode\": string | null }[]",
@@ -1822,238 +2216,24 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": "1",
           "sourceField": "msgId"
         },
-        {
-          "path": "event.intel.user.nickname.language.candidates",
-          "tsType": "JsonValue[] | null",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Candidates",
-            "es": "Candidates"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.candidates",
-            "es": "EventIntel.user.nickname.language.candidates"
-          },
-          "sample": []
-        },
-        {
-          "path": "event.intel.user.nickname.language.confidence",
-          "tsType": "number",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.confidence",
-            "es": "EventIntel.user.nickname.language.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.language.top",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Top",
-            "es": "Top"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.top",
-            "es": "EventIntel.user.nickname.language.top"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.normalized",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Normalized",
-            "es": "Normalized"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.normalized",
-            "es": "EventIntel.user.nickname.normalized"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.confidence",
-            "es": "EventIntel.user.nickname.tts.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.language",
-            "es": "EventIntel.user.nickname.tts.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
-            "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.dialect",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Dialect",
-            "es": "Dialect"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
-            "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.ipa",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Ipa",
-            "es": "Ipa"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
-            "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.language",
-            "es": "EventIntel.user.nickname.tts.pronunciation.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.reason",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Reason",
-            "es": "Reason"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.reason",
-            "es": "EventIntel.user.nickname.tts.reason"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.source",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Source",
-            "es": "Source"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.source",
-            "es": "EventIntel.user.nickname.tts.source"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.speak",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": true,
-          "label": {
-            "en": "Speak",
-            "es": "Speak"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.speak",
-            "es": "EventIntel.user.nickname.tts.speak"
-          },
-          "sample": false
-        },
-        {
-          "path": "event.intel.user.nickname.tts.text",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Text",
-            "es": "Text"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.text",
-            "es": "EventIntel.user.nickname.tts.text"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_15,
+        SHARED_REGISTRY_17,
+        SHARED_REGISTRY_18,
+        SHARED_REGISTRY_19,
+        SHARED_REGISTRY_20,
+        SHARED_REGISTRY_21,
+        SHARED_REGISTRY_22,
+        SHARED_REGISTRY_23,
+        SHARED_REGISTRY_24,
+        SHARED_REGISTRY_9
       ],
       "sourceFields": [
-        {
-          "name": "emotes",
-          "tsType": "{ \"emoteType\": number | null; \"id\": string; \"imageUrl\": string | null; \"index\": number | null; \"packageId\": string | null; \"shortcode\": string | null }[]",
-          "optional": true
-        },
+        SHARED_REGISTRY_25,
         {
           "name": "isHistory",
           "tsType": "boolean",
@@ -2105,84 +2285,14 @@ export const GENERATED_EVENT_REGISTRY = {
           "repeatEnd": false,
           "streakable": false
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
-        {
-          "path": "event.user.avatarUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Avatar Url",
-            "es": "Avatar Url"
-          },
-          "hint": {
-            "en": "AutomationUser.avatarUrl",
-            "es": "AutomationUser.avatarUrl"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.nickname",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Nickname",
-            "es": "Nickname"
-          },
-          "hint": {
-            "en": "AutomationUser.nickname",
-            "es": "AutomationUser.nickname"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.secUid",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Sec Uid",
-            "es": "Sec Uid"
-          },
-          "hint": {
-            "en": "AutomationUser.secUid",
-            "es": "AutomationUser.secUid"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "AutomationUser.uniqueId",
-            "es": "AutomationUser.uniqueId"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.userId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "User Id",
-            "es": "User Id"
-          },
-          "hint": {
-            "en": "AutomationUser.userId",
-            "es": "AutomationUser.userId"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_4,
+        SHARED_REGISTRY_5,
+        SHARED_REGISTRY_6,
+        SHARED_REGISTRY_7,
+        SHARED_REGISTRY_8,
         {
           "path": "event.data.aggregation",
           "tsType": "{ \"cumulative\": number; \"diamonds\": number; \"increment\": number } | null",
@@ -2437,231 +2547,21 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": false,
           "sourceField": "streakable"
         },
-        {
-          "path": "event.intel.user.nickname.language.candidates",
-          "tsType": "JsonValue[] | null",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Candidates",
-            "es": "Candidates"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.candidates",
-            "es": "EventIntel.user.nickname.language.candidates"
-          },
-          "sample": []
-        },
-        {
-          "path": "event.intel.user.nickname.language.confidence",
-          "tsType": "number",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.confidence",
-            "es": "EventIntel.user.nickname.language.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.language.top",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Top",
-            "es": "Top"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.top",
-            "es": "EventIntel.user.nickname.language.top"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.normalized",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Normalized",
-            "es": "Normalized"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.normalized",
-            "es": "EventIntel.user.nickname.normalized"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.confidence",
-            "es": "EventIntel.user.nickname.tts.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.language",
-            "es": "EventIntel.user.nickname.tts.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
-            "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.dialect",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Dialect",
-            "es": "Dialect"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
-            "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.ipa",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Ipa",
-            "es": "Ipa"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
-            "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.language",
-            "es": "EventIntel.user.nickname.tts.pronunciation.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.reason",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Reason",
-            "es": "Reason"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.reason",
-            "es": "EventIntel.user.nickname.tts.reason"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.source",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Source",
-            "es": "Source"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.source",
-            "es": "EventIntel.user.nickname.tts.source"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.speak",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": true,
-          "label": {
-            "en": "Speak",
-            "es": "Speak"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.speak",
-            "es": "EventIntel.user.nickname.tts.speak"
-          },
-          "sample": false
-        },
-        {
-          "path": "event.intel.user.nickname.tts.text",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Text",
-            "es": "Text"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.text",
-            "es": "EventIntel.user.nickname.tts.text"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_15,
+        SHARED_REGISTRY_17,
+        SHARED_REGISTRY_18,
+        SHARED_REGISTRY_19,
+        SHARED_REGISTRY_20,
+        SHARED_REGISTRY_21,
+        SHARED_REGISTRY_22,
+        SHARED_REGISTRY_23,
+        SHARED_REGISTRY_24,
+        SHARED_REGISTRY_9
       ],
       "sourceFields": [
         {
@@ -2763,84 +2663,14 @@ export const GENERATED_EVENT_REGISTRY = {
           "msgId": "1",
           "total": 1
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
-        {
-          "path": "event.user.avatarUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Avatar Url",
-            "es": "Avatar Url"
-          },
-          "hint": {
-            "en": "AutomationUser.avatarUrl",
-            "es": "AutomationUser.avatarUrl"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.nickname",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Nickname",
-            "es": "Nickname"
-          },
-          "hint": {
-            "en": "AutomationUser.nickname",
-            "es": "AutomationUser.nickname"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.secUid",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Sec Uid",
-            "es": "Sec Uid"
-          },
-          "hint": {
-            "en": "AutomationUser.secUid",
-            "es": "AutomationUser.secUid"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "AutomationUser.uniqueId",
-            "es": "AutomationUser.uniqueId"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.userId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "User Id",
-            "es": "User Id"
-          },
-          "hint": {
-            "en": "AutomationUser.userId",
-            "es": "AutomationUser.userId"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_4,
+        SHARED_REGISTRY_5,
+        SHARED_REGISTRY_6,
+        SHARED_REGISTRY_7,
+        SHARED_REGISTRY_8,
         {
           "path": "event.data.aggregation",
           "tsType": "{ \"global\": { \"previous\": number; \"total\": number } | null; \"user\": { \"previous\": number; \"total\": number } | null } | null",
@@ -2958,231 +2788,21 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceProtoType": "int64",
           "sourceCardinality": "optional"
         },
-        {
-          "path": "event.intel.user.nickname.language.candidates",
-          "tsType": "JsonValue[] | null",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Candidates",
-            "es": "Candidates"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.candidates",
-            "es": "EventIntel.user.nickname.language.candidates"
-          },
-          "sample": []
-        },
-        {
-          "path": "event.intel.user.nickname.language.confidence",
-          "tsType": "number",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.confidence",
-            "es": "EventIntel.user.nickname.language.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.language.top",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Top",
-            "es": "Top"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.top",
-            "es": "EventIntel.user.nickname.language.top"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.normalized",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Normalized",
-            "es": "Normalized"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.normalized",
-            "es": "EventIntel.user.nickname.normalized"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.confidence",
-            "es": "EventIntel.user.nickname.tts.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.language",
-            "es": "EventIntel.user.nickname.tts.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
-            "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.dialect",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Dialect",
-            "es": "Dialect"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
-            "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.ipa",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Ipa",
-            "es": "Ipa"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
-            "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.language",
-            "es": "EventIntel.user.nickname.tts.pronunciation.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.reason",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Reason",
-            "es": "Reason"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.reason",
-            "es": "EventIntel.user.nickname.tts.reason"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.source",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Source",
-            "es": "Source"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.source",
-            "es": "EventIntel.user.nickname.tts.source"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.speak",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": true,
-          "label": {
-            "en": "Speak",
-            "es": "Speak"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.speak",
-            "es": "EventIntel.user.nickname.tts.speak"
-          },
-          "sample": false
-        },
-        {
-          "path": "event.intel.user.nickname.tts.text",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Text",
-            "es": "Text"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.text",
-            "es": "EventIntel.user.nickname.tts.text"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_15,
+        SHARED_REGISTRY_17,
+        SHARED_REGISTRY_18,
+        SHARED_REGISTRY_19,
+        SHARED_REGISTRY_20,
+        SHARED_REGISTRY_21,
+        SHARED_REGISTRY_22,
+        SHARED_REGISTRY_23,
+        SHARED_REGISTRY_24,
+        SHARED_REGISTRY_9
       ],
       "sourceFields": [
         {
@@ -3240,84 +2860,14 @@ export const GENERATED_EVENT_REGISTRY = {
           "msgId": "1",
           "shareCount": 1
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
-        {
-          "path": "event.user.avatarUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Avatar Url",
-            "es": "Avatar Url"
-          },
-          "hint": {
-            "en": "AutomationUser.avatarUrl",
-            "es": "AutomationUser.avatarUrl"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.nickname",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Nickname",
-            "es": "Nickname"
-          },
-          "hint": {
-            "en": "AutomationUser.nickname",
-            "es": "AutomationUser.nickname"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.secUid",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Sec Uid",
-            "es": "Sec Uid"
-          },
-          "hint": {
-            "en": "AutomationUser.secUid",
-            "es": "AutomationUser.secUid"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "AutomationUser.uniqueId",
-            "es": "AutomationUser.uniqueId"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.userId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "User Id",
-            "es": "User Id"
-          },
-          "hint": {
-            "en": "AutomationUser.userId",
-            "es": "AutomationUser.userId"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_4,
+        SHARED_REGISTRY_5,
+        SHARED_REGISTRY_6,
+        SHARED_REGISTRY_7,
+        SHARED_REGISTRY_8,
         {
           "path": "event.data.action",
           "tsType": "number",
@@ -3340,356 +2890,28 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceProtoType": "int64",
           "sourceCardinality": "optional"
         },
-        {
-          "path": "event.data.followCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Follow Count",
-            "es": "Follow Count"
-          },
-          "hint": {
-            "en": "SocialAutomationData.followCount",
-            "es": "SocialAutomationData.followCount"
-          },
-          "sample": 1,
-          "sourceField": "followCount",
-          "sourceMethod": "WebcastSocialMessage",
-          "sourcePath": "follow_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "followCount",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.isHistory",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Is History",
-            "es": "Is History"
-          },
-          "hint": {
-            "en": "SocialAutomationData.isHistory",
-            "es": "SocialAutomationData.isHistory"
-          },
-          "sample": false,
-          "sourceField": "isHistory"
-        },
-        {
-          "path": "event.data.method",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Method",
-            "es": "Method"
-          },
-          "hint": {
-            "en": "SocialAutomationData.method",
-            "es": "SocialAutomationData.method"
-          },
-          "sample": "WebcastSampleMessage",
-          "sourceField": "method"
-        },
-        {
-          "path": "event.data.msgId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Msg Id",
-            "es": "Msg Id"
-          },
-          "hint": {
-            "en": "SocialAutomationData.msgId",
-            "es": "SocialAutomationData.msgId"
-          },
-          "sample": "1",
-          "sourceField": "msgId"
-        },
-        {
-          "path": "event.data.shareCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Share Count",
-            "es": "Share Count"
-          },
-          "hint": {
-            "en": "SocialAutomationData.shareCount",
-            "es": "SocialAutomationData.shareCount"
-          },
-          "sample": 1,
-          "sourceField": "shareCount",
-          "sourceMethod": "WebcastSocialMessage",
-          "sourcePath": "share_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "shareCount",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.intel.user.nickname.language.candidates",
-          "tsType": "JsonValue[] | null",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Candidates",
-            "es": "Candidates"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.candidates",
-            "es": "EventIntel.user.nickname.language.candidates"
-          },
-          "sample": []
-        },
-        {
-          "path": "event.intel.user.nickname.language.confidence",
-          "tsType": "number",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.confidence",
-            "es": "EventIntel.user.nickname.language.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.language.top",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Top",
-            "es": "Top"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.top",
-            "es": "EventIntel.user.nickname.language.top"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.normalized",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Normalized",
-            "es": "Normalized"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.normalized",
-            "es": "EventIntel.user.nickname.normalized"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.confidence",
-            "es": "EventIntel.user.nickname.tts.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.language",
-            "es": "EventIntel.user.nickname.tts.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
-            "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.dialect",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Dialect",
-            "es": "Dialect"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
-            "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.ipa",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Ipa",
-            "es": "Ipa"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
-            "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.language",
-            "es": "EventIntel.user.nickname.tts.pronunciation.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.reason",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Reason",
-            "es": "Reason"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.reason",
-            "es": "EventIntel.user.nickname.tts.reason"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.source",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Source",
-            "es": "Source"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.source",
-            "es": "EventIntel.user.nickname.tts.source"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.speak",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": true,
-          "label": {
-            "en": "Speak",
-            "es": "Speak"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.speak",
-            "es": "EventIntel.user.nickname.tts.speak"
-          },
-          "sample": false
-        },
-        {
-          "path": "event.intel.user.nickname.tts.text",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Text",
-            "es": "Text"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.text",
-            "es": "EventIntel.user.nickname.tts.text"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_31,
+        SHARED_REGISTRY_32,
+        SHARED_REGISTRY_33,
+        SHARED_REGISTRY_34,
+        SHARED_REGISTRY_35,
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_15,
+        SHARED_REGISTRY_17,
+        SHARED_REGISTRY_18,
+        SHARED_REGISTRY_19,
+        SHARED_REGISTRY_20,
+        SHARED_REGISTRY_21,
+        SHARED_REGISTRY_22,
+        SHARED_REGISTRY_23,
+        SHARED_REGISTRY_24,
+        SHARED_REGISTRY_9
       ],
-      "sourceFields": [
-        {
-          "name": "action",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "followCount",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "isHistory",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "method",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "msgId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "shareCount",
-          "tsType": "number",
-          "optional": false
-        }
-      ],
+      "sourceFields": SHARED_REGISTRY_36,
       "note": "Generated from SocialAutomationData JSON Schema."
     },
     "tiktok.share": {
@@ -3714,84 +2936,14 @@ export const GENERATED_EVENT_REGISTRY = {
           "msgId": "1",
           "shareCount": 1
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
-        {
-          "path": "event.user.avatarUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Avatar Url",
-            "es": "Avatar Url"
-          },
-          "hint": {
-            "en": "AutomationUser.avatarUrl",
-            "es": "AutomationUser.avatarUrl"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.nickname",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Nickname",
-            "es": "Nickname"
-          },
-          "hint": {
-            "en": "AutomationUser.nickname",
-            "es": "AutomationUser.nickname"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.secUid",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Sec Uid",
-            "es": "Sec Uid"
-          },
-          "hint": {
-            "en": "AutomationUser.secUid",
-            "es": "AutomationUser.secUid"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "AutomationUser.uniqueId",
-            "es": "AutomationUser.uniqueId"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.userId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "User Id",
-            "es": "User Id"
-          },
-          "hint": {
-            "en": "AutomationUser.userId",
-            "es": "AutomationUser.userId"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_4,
+        SHARED_REGISTRY_5,
+        SHARED_REGISTRY_6,
+        SHARED_REGISTRY_7,
+        SHARED_REGISTRY_8,
         {
           "path": "event.data.action",
           "tsType": "number",
@@ -3814,356 +2966,28 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceProtoType": "int64",
           "sourceCardinality": "optional"
         },
-        {
-          "path": "event.data.followCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Follow Count",
-            "es": "Follow Count"
-          },
-          "hint": {
-            "en": "SocialAutomationData.followCount",
-            "es": "SocialAutomationData.followCount"
-          },
-          "sample": 1,
-          "sourceField": "followCount",
-          "sourceMethod": "WebcastSocialMessage",
-          "sourcePath": "follow_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "followCount",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.isHistory",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Is History",
-            "es": "Is History"
-          },
-          "hint": {
-            "en": "SocialAutomationData.isHistory",
-            "es": "SocialAutomationData.isHistory"
-          },
-          "sample": false,
-          "sourceField": "isHistory"
-        },
-        {
-          "path": "event.data.method",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Method",
-            "es": "Method"
-          },
-          "hint": {
-            "en": "SocialAutomationData.method",
-            "es": "SocialAutomationData.method"
-          },
-          "sample": "WebcastSampleMessage",
-          "sourceField": "method"
-        },
-        {
-          "path": "event.data.msgId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Msg Id",
-            "es": "Msg Id"
-          },
-          "hint": {
-            "en": "SocialAutomationData.msgId",
-            "es": "SocialAutomationData.msgId"
-          },
-          "sample": "1",
-          "sourceField": "msgId"
-        },
-        {
-          "path": "event.data.shareCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Share Count",
-            "es": "Share Count"
-          },
-          "hint": {
-            "en": "SocialAutomationData.shareCount",
-            "es": "SocialAutomationData.shareCount"
-          },
-          "sample": 1,
-          "sourceField": "shareCount",
-          "sourceMethod": "WebcastSocialMessage",
-          "sourcePath": "share_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "shareCount",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.intel.user.nickname.language.candidates",
-          "tsType": "JsonValue[] | null",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Candidates",
-            "es": "Candidates"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.candidates",
-            "es": "EventIntel.user.nickname.language.candidates"
-          },
-          "sample": []
-        },
-        {
-          "path": "event.intel.user.nickname.language.confidence",
-          "tsType": "number",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.confidence",
-            "es": "EventIntel.user.nickname.language.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.language.top",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Top",
-            "es": "Top"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.top",
-            "es": "EventIntel.user.nickname.language.top"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.normalized",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Normalized",
-            "es": "Normalized"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.normalized",
-            "es": "EventIntel.user.nickname.normalized"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.confidence",
-            "es": "EventIntel.user.nickname.tts.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.language",
-            "es": "EventIntel.user.nickname.tts.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
-            "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.dialect",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Dialect",
-            "es": "Dialect"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
-            "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.ipa",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Ipa",
-            "es": "Ipa"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
-            "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.language",
-            "es": "EventIntel.user.nickname.tts.pronunciation.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.reason",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Reason",
-            "es": "Reason"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.reason",
-            "es": "EventIntel.user.nickname.tts.reason"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.source",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Source",
-            "es": "Source"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.source",
-            "es": "EventIntel.user.nickname.tts.source"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.speak",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": true,
-          "label": {
-            "en": "Speak",
-            "es": "Speak"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.speak",
-            "es": "EventIntel.user.nickname.tts.speak"
-          },
-          "sample": false
-        },
-        {
-          "path": "event.intel.user.nickname.tts.text",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Text",
-            "es": "Text"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.text",
-            "es": "EventIntel.user.nickname.tts.text"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_31,
+        SHARED_REGISTRY_32,
+        SHARED_REGISTRY_33,
+        SHARED_REGISTRY_34,
+        SHARED_REGISTRY_35,
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_15,
+        SHARED_REGISTRY_17,
+        SHARED_REGISTRY_18,
+        SHARED_REGISTRY_19,
+        SHARED_REGISTRY_20,
+        SHARED_REGISTRY_21,
+        SHARED_REGISTRY_22,
+        SHARED_REGISTRY_23,
+        SHARED_REGISTRY_24,
+        SHARED_REGISTRY_9
       ],
-      "sourceFields": [
-        {
-          "name": "action",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "followCount",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "isHistory",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "method",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "msgId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "shareCount",
-          "tsType": "number",
-          "optional": false
-        }
-      ],
+      "sourceFields": SHARED_REGISTRY_36,
       "note": "Generated from SocialAutomationData JSON Schema."
     },
     "tiktok.join": {
@@ -4187,84 +3011,14 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1"
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
-        {
-          "path": "event.user.avatarUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Avatar Url",
-            "es": "Avatar Url"
-          },
-          "hint": {
-            "en": "AutomationUser.avatarUrl",
-            "es": "AutomationUser.avatarUrl"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.nickname",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Nickname",
-            "es": "Nickname"
-          },
-          "hint": {
-            "en": "AutomationUser.nickname",
-            "es": "AutomationUser.nickname"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.secUid",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Sec Uid",
-            "es": "Sec Uid"
-          },
-          "hint": {
-            "en": "AutomationUser.secUid",
-            "es": "AutomationUser.secUid"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "AutomationUser.uniqueId",
-            "es": "AutomationUser.uniqueId"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.userId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "User Id",
-            "es": "User Id"
-          },
-          "hint": {
-            "en": "AutomationUser.userId",
-            "es": "AutomationUser.userId"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_4,
+        SHARED_REGISTRY_5,
+        SHARED_REGISTRY_6,
+        SHARED_REGISTRY_7,
+        SHARED_REGISTRY_8,
         {
           "path": "event.data.action",
           "tsType": "number",
@@ -4357,231 +3111,21 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": "1",
           "sourceField": "msgId"
         },
-        {
-          "path": "event.intel.user.nickname.language.candidates",
-          "tsType": "JsonValue[] | null",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Candidates",
-            "es": "Candidates"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.candidates",
-            "es": "EventIntel.user.nickname.language.candidates"
-          },
-          "sample": []
-        },
-        {
-          "path": "event.intel.user.nickname.language.confidence",
-          "tsType": "number",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.confidence",
-            "es": "EventIntel.user.nickname.language.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.language.top",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Top",
-            "es": "Top"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.top",
-            "es": "EventIntel.user.nickname.language.top"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.normalized",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Normalized",
-            "es": "Normalized"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.normalized",
-            "es": "EventIntel.user.nickname.normalized"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.confidence",
-            "es": "EventIntel.user.nickname.tts.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.language",
-            "es": "EventIntel.user.nickname.tts.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
-            "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.dialect",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Dialect",
-            "es": "Dialect"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
-            "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.ipa",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Ipa",
-            "es": "Ipa"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
-            "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.language",
-            "es": "EventIntel.user.nickname.tts.pronunciation.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.reason",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Reason",
-            "es": "Reason"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.reason",
-            "es": "EventIntel.user.nickname.tts.reason"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.source",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Source",
-            "es": "Source"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.source",
-            "es": "EventIntel.user.nickname.tts.source"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.speak",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": true,
-          "label": {
-            "en": "Speak",
-            "es": "Speak"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.speak",
-            "es": "EventIntel.user.nickname.tts.speak"
-          },
-          "sample": false
-        },
-        {
-          "path": "event.intel.user.nickname.tts.text",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Text",
-            "es": "Text"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.text",
-            "es": "EventIntel.user.nickname.tts.text"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_15,
+        SHARED_REGISTRY_17,
+        SHARED_REGISTRY_18,
+        SHARED_REGISTRY_19,
+        SHARED_REGISTRY_20,
+        SHARED_REGISTRY_21,
+        SHARED_REGISTRY_22,
+        SHARED_REGISTRY_23,
+        SHARED_REGISTRY_24,
+        SHARED_REGISTRY_9
       ],
       "sourceFields": [
         {
@@ -4634,84 +3178,14 @@ export const GENERATED_EVENT_REGISTRY = {
           "msgId": "1",
           "shareCount": 1
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
-        {
-          "path": "event.user.avatarUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Avatar Url",
-            "es": "Avatar Url"
-          },
-          "hint": {
-            "en": "AutomationUser.avatarUrl",
-            "es": "AutomationUser.avatarUrl"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.nickname",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Nickname",
-            "es": "Nickname"
-          },
-          "hint": {
-            "en": "AutomationUser.nickname",
-            "es": "AutomationUser.nickname"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.secUid",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Sec Uid",
-            "es": "Sec Uid"
-          },
-          "hint": {
-            "en": "AutomationUser.secUid",
-            "es": "AutomationUser.secUid"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "AutomationUser.uniqueId",
-            "es": "AutomationUser.uniqueId"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.user.userId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "User Id",
-            "es": "User Id"
-          },
-          "hint": {
-            "en": "AutomationUser.userId",
-            "es": "AutomationUser.userId"
-          },
-          "sample": "sample"
-        },
+        SHARED_REGISTRY_4,
+        SHARED_REGISTRY_5,
+        SHARED_REGISTRY_6,
+        SHARED_REGISTRY_7,
+        SHARED_REGISTRY_8,
         {
           "path": "event.data.action",
           "tsType": "number",
@@ -4734,356 +3208,28 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceProtoType": "int64",
           "sourceCardinality": "optional"
         },
-        {
-          "path": "event.data.followCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Follow Count",
-            "es": "Follow Count"
-          },
-          "hint": {
-            "en": "SocialAutomationData.followCount",
-            "es": "SocialAutomationData.followCount"
-          },
-          "sample": 1,
-          "sourceField": "followCount",
-          "sourceMethod": "WebcastSocialMessage",
-          "sourcePath": "follow_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "followCount",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.isHistory",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Is History",
-            "es": "Is History"
-          },
-          "hint": {
-            "en": "SocialAutomationData.isHistory",
-            "es": "SocialAutomationData.isHistory"
-          },
-          "sample": false,
-          "sourceField": "isHistory"
-        },
-        {
-          "path": "event.data.method",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Method",
-            "es": "Method"
-          },
-          "hint": {
-            "en": "SocialAutomationData.method",
-            "es": "SocialAutomationData.method"
-          },
-          "sample": "WebcastSampleMessage",
-          "sourceField": "method"
-        },
-        {
-          "path": "event.data.msgId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Msg Id",
-            "es": "Msg Id"
-          },
-          "hint": {
-            "en": "SocialAutomationData.msgId",
-            "es": "SocialAutomationData.msgId"
-          },
-          "sample": "1",
-          "sourceField": "msgId"
-        },
-        {
-          "path": "event.data.shareCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Share Count",
-            "es": "Share Count"
-          },
-          "hint": {
-            "en": "SocialAutomationData.shareCount",
-            "es": "SocialAutomationData.shareCount"
-          },
-          "sample": 1,
-          "sourceField": "shareCount",
-          "sourceMethod": "WebcastSocialMessage",
-          "sourcePath": "share_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "shareCount",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.intel.user.nickname.language.candidates",
-          "tsType": "JsonValue[] | null",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Candidates",
-            "es": "Candidates"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.candidates",
-            "es": "EventIntel.user.nickname.language.candidates"
-          },
-          "sample": []
-        },
-        {
-          "path": "event.intel.user.nickname.language.confidence",
-          "tsType": "number",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.confidence",
-            "es": "EventIntel.user.nickname.language.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.language.top",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Top",
-            "es": "Top"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.language.top",
-            "es": "EventIntel.user.nickname.language.top"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.normalized",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Normalized",
-            "es": "Normalized"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.normalized",
-            "es": "EventIntel.user.nickname.normalized"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.confidence",
-            "es": "EventIntel.user.nickname.tts.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.language",
-            "es": "EventIntel.user.nickname.tts.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.confidence",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Confidence",
-            "es": "Confidence"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
-            "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
-          },
-          "sample": 1
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.dialect",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Dialect",
-            "es": "Dialect"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.dialect",
-            "es": "EventIntel.user.nickname.tts.pronunciation.dialect"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.ipa",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Ipa",
-            "es": "Ipa"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.ipa",
-            "es": "EventIntel.user.nickname.tts.pronunciation.ipa"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.pronunciation.language",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Language",
-            "es": "Language"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.pronunciation.language",
-            "es": "EventIntel.user.nickname.tts.pronunciation.language"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.reason",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Reason",
-            "es": "Reason"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.reason",
-            "es": "EventIntel.user.nickname.tts.reason"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.source",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Source",
-            "es": "Source"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.source",
-            "es": "EventIntel.user.nickname.tts.source"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.user.nickname.tts.speak",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": true,
-          "label": {
-            "en": "Speak",
-            "es": "Speak"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.speak",
-            "es": "EventIntel.user.nickname.tts.speak"
-          },
-          "sample": false
-        },
-        {
-          "path": "event.intel.user.nickname.tts.text",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Text",
-            "es": "Text"
-          },
-          "hint": {
-            "en": "EventIntel.user.nickname.tts.text",
-            "es": "EventIntel.user.nickname.tts.text"
-          },
-          "sample": "sample"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_31,
+        SHARED_REGISTRY_32,
+        SHARED_REGISTRY_33,
+        SHARED_REGISTRY_34,
+        SHARED_REGISTRY_35,
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_15,
+        SHARED_REGISTRY_17,
+        SHARED_REGISTRY_18,
+        SHARED_REGISTRY_19,
+        SHARED_REGISTRY_20,
+        SHARED_REGISTRY_21,
+        SHARED_REGISTRY_22,
+        SHARED_REGISTRY_23,
+        SHARED_REGISTRY_24,
+        SHARED_REGISTRY_9
       ],
-      "sourceFields": [
-        {
-          "name": "action",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "followCount",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "isHistory",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "method",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "msgId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "shareCount",
-          "tsType": "number",
-          "optional": false
-        }
-      ],
+      "sourceFields": SHARED_REGISTRY_36,
       "note": "Generated from SocialAutomationData JSON Schema."
     },
     "tiktok.room_stats": {
@@ -5102,7 +3248,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "totalUsers": 1,
           "viewers": 1
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
         {
@@ -5241,21 +3387,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceProtoType": "int64",
           "sourceCardinality": "optional"
         },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_9
       ],
       "sourceFields": [
         {
@@ -5307,57 +3439,9 @@ export const GENERATED_EVENT_REGISTRY = {
           "roomId": "sample",
           "uniqueId": "sample"
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "ConnectionAutomationData.roomId",
-            "es": "ConnectionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "ConnectionAutomationData.uniqueId",
-            "es": "ConnectionAutomationData.uniqueId"
-          },
-          "sample": "sample",
-          "sourceField": "uniqueId"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
+      "fields": SHARED_REGISTRY_39,
       "sourceFields": [
         {
           "name": "roomId",
@@ -5383,57 +3467,9 @@ export const GENERATED_EVENT_REGISTRY = {
           "roomId": "sample",
           "uniqueId": "sample"
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "ConnectionAutomationData.roomId",
-            "es": "ConnectionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.uniqueId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Unique Id",
-            "es": "Unique Id"
-          },
-          "hint": {
-            "en": "ConnectionAutomationData.uniqueId",
-            "es": "ConnectionAutomationData.uniqueId"
-          },
-          "sample": "sample",
-          "sourceField": "uniqueId"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
+      "fields": SHARED_REGISTRY_39,
       "sourceFields": [
         {
           "name": "roomId",
@@ -5463,7 +3499,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "totalPoints": 1,
           "uniqueId": "sample"
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
         {
@@ -5562,21 +3598,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": "sample",
           "sourceField": "uniqueId"
         },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_9
       ],
       "sourceFields": [
         {
@@ -5624,7 +3646,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "emitType": "plugin.sample",
           "payload": {}
         },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "intel": SHARED_REGISTRY_30
       },
       "fields": [
         {
@@ -5675,21 +3697,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": {},
           "sourceField": "payload"
         },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
+        SHARED_REGISTRY_9
       ],
       "sourceFields": [
         {
@@ -5717,293 +3725,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.started",
         "timestamp": 0,
-        "data": {
-          "actionId": "sample",
-          "actionStatus": "pending",
-          "competitionId": "sample",
-          "creatorId": "sample",
-          "generation": 1,
-          "optionId": "sample",
-          "rankingId": "sample",
-          "roomId": "sample",
-          "selectionId": "sample",
-          "selectionMode": "highest_score",
-          "winnerId": "sample",
-          "winnerScore": 1
-        },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "data": SHARED_REGISTRY_40,
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.actionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Id",
-            "es": "Action Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionId",
-            "es": "CompetitionAutomationData.actionId"
-          },
-          "sample": "sample",
-          "sourceField": "actionId"
-        },
-        {
-          "path": "event.data.actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Status",
-            "es": "Action Status"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionStatus",
-            "es": "CompetitionAutomationData.actionStatus"
-          },
-          "sample": "pending",
-          "sourceField": "actionStatus"
-        },
-        {
-          "path": "event.data.competitionId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Competition Id",
-            "es": "Competition Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.competitionId",
-            "es": "CompetitionAutomationData.competitionId"
-          },
-          "sample": "sample",
-          "sourceField": "competitionId"
-        },
-        {
-          "path": "event.data.creatorId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Creator Id",
-            "es": "Creator Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.creatorId",
-            "es": "CompetitionAutomationData.creatorId"
-          },
-          "sample": "sample",
-          "sourceField": "creatorId"
-        },
-        {
-          "path": "event.data.generation",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Generation",
-            "es": "Generation"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.generation",
-            "es": "CompetitionAutomationData.generation"
-          },
-          "sample": 1,
-          "sourceField": "generation"
-        },
-        {
-          "path": "event.data.optionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Option Id",
-            "es": "Option Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.optionId",
-            "es": "CompetitionAutomationData.optionId"
-          },
-          "sample": "sample",
-          "sourceField": "optionId"
-        },
-        {
-          "path": "event.data.rankingId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Ranking Id",
-            "es": "Ranking Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.rankingId",
-            "es": "CompetitionAutomationData.rankingId"
-          },
-          "sample": "sample",
-          "sourceField": "rankingId"
-        },
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.roomId",
-            "es": "CompetitionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.selectionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Id",
-            "es": "Selection Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionId",
-            "es": "CompetitionAutomationData.selectionId"
-          },
-          "sample": "sample",
-          "sourceField": "selectionId"
-        },
-        {
-          "path": "event.data.selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Mode",
-            "es": "Selection Mode"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionMode",
-            "es": "CompetitionAutomationData.selectionMode"
-          },
-          "sample": "highest_score",
-          "sourceField": "selectionMode"
-        },
-        {
-          "path": "event.data.winnerId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Winner Id",
-            "es": "Winner Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerId",
-            "es": "CompetitionAutomationData.winnerId"
-          },
-          "sample": "sample",
-          "sourceField": "winnerId"
-        },
-        {
-          "path": "event.data.winnerScore",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Winner Score",
-            "es": "Winner Score"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerScore",
-            "es": "CompetitionAutomationData.winnerScore"
-          },
-          "sample": 1,
-          "sourceField": "winnerScore"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
-      "sourceFields": [
-        {
-          "name": "actionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "optional": true
-        },
-        {
-          "name": "competitionId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "creatorId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "generation",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "optionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "rankingId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "roomId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "selectionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "optional": true
-        },
-        {
-          "name": "winnerId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "winnerScore",
-          "tsType": "number | null",
-          "optional": true
-        }
-      ],
+      "fields": SHARED_REGISTRY_53,
+      "sourceFields": SHARED_REGISTRY_55,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.paused": {
@@ -6013,293 +3739,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.paused",
         "timestamp": 0,
-        "data": {
-          "actionId": "sample",
-          "actionStatus": "pending",
-          "competitionId": "sample",
-          "creatorId": "sample",
-          "generation": 1,
-          "optionId": "sample",
-          "rankingId": "sample",
-          "roomId": "sample",
-          "selectionId": "sample",
-          "selectionMode": "highest_score",
-          "winnerId": "sample",
-          "winnerScore": 1
-        },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "data": SHARED_REGISTRY_40,
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.actionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Id",
-            "es": "Action Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionId",
-            "es": "CompetitionAutomationData.actionId"
-          },
-          "sample": "sample",
-          "sourceField": "actionId"
-        },
-        {
-          "path": "event.data.actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Status",
-            "es": "Action Status"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionStatus",
-            "es": "CompetitionAutomationData.actionStatus"
-          },
-          "sample": "pending",
-          "sourceField": "actionStatus"
-        },
-        {
-          "path": "event.data.competitionId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Competition Id",
-            "es": "Competition Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.competitionId",
-            "es": "CompetitionAutomationData.competitionId"
-          },
-          "sample": "sample",
-          "sourceField": "competitionId"
-        },
-        {
-          "path": "event.data.creatorId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Creator Id",
-            "es": "Creator Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.creatorId",
-            "es": "CompetitionAutomationData.creatorId"
-          },
-          "sample": "sample",
-          "sourceField": "creatorId"
-        },
-        {
-          "path": "event.data.generation",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Generation",
-            "es": "Generation"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.generation",
-            "es": "CompetitionAutomationData.generation"
-          },
-          "sample": 1,
-          "sourceField": "generation"
-        },
-        {
-          "path": "event.data.optionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Option Id",
-            "es": "Option Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.optionId",
-            "es": "CompetitionAutomationData.optionId"
-          },
-          "sample": "sample",
-          "sourceField": "optionId"
-        },
-        {
-          "path": "event.data.rankingId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Ranking Id",
-            "es": "Ranking Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.rankingId",
-            "es": "CompetitionAutomationData.rankingId"
-          },
-          "sample": "sample",
-          "sourceField": "rankingId"
-        },
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.roomId",
-            "es": "CompetitionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.selectionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Id",
-            "es": "Selection Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionId",
-            "es": "CompetitionAutomationData.selectionId"
-          },
-          "sample": "sample",
-          "sourceField": "selectionId"
-        },
-        {
-          "path": "event.data.selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Mode",
-            "es": "Selection Mode"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionMode",
-            "es": "CompetitionAutomationData.selectionMode"
-          },
-          "sample": "highest_score",
-          "sourceField": "selectionMode"
-        },
-        {
-          "path": "event.data.winnerId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Winner Id",
-            "es": "Winner Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerId",
-            "es": "CompetitionAutomationData.winnerId"
-          },
-          "sample": "sample",
-          "sourceField": "winnerId"
-        },
-        {
-          "path": "event.data.winnerScore",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Winner Score",
-            "es": "Winner Score"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerScore",
-            "es": "CompetitionAutomationData.winnerScore"
-          },
-          "sample": 1,
-          "sourceField": "winnerScore"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
-      "sourceFields": [
-        {
-          "name": "actionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "optional": true
-        },
-        {
-          "name": "competitionId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "creatorId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "generation",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "optionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "rankingId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "roomId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "selectionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "optional": true
-        },
-        {
-          "name": "winnerId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "winnerScore",
-          "tsType": "number | null",
-          "optional": true
-        }
-      ],
+      "fields": SHARED_REGISTRY_53,
+      "sourceFields": SHARED_REGISTRY_55,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.resumed": {
@@ -6309,293 +3753,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.resumed",
         "timestamp": 0,
-        "data": {
-          "actionId": "sample",
-          "actionStatus": "pending",
-          "competitionId": "sample",
-          "creatorId": "sample",
-          "generation": 1,
-          "optionId": "sample",
-          "rankingId": "sample",
-          "roomId": "sample",
-          "selectionId": "sample",
-          "selectionMode": "highest_score",
-          "winnerId": "sample",
-          "winnerScore": 1
-        },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "data": SHARED_REGISTRY_40,
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.actionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Id",
-            "es": "Action Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionId",
-            "es": "CompetitionAutomationData.actionId"
-          },
-          "sample": "sample",
-          "sourceField": "actionId"
-        },
-        {
-          "path": "event.data.actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Status",
-            "es": "Action Status"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionStatus",
-            "es": "CompetitionAutomationData.actionStatus"
-          },
-          "sample": "pending",
-          "sourceField": "actionStatus"
-        },
-        {
-          "path": "event.data.competitionId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Competition Id",
-            "es": "Competition Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.competitionId",
-            "es": "CompetitionAutomationData.competitionId"
-          },
-          "sample": "sample",
-          "sourceField": "competitionId"
-        },
-        {
-          "path": "event.data.creatorId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Creator Id",
-            "es": "Creator Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.creatorId",
-            "es": "CompetitionAutomationData.creatorId"
-          },
-          "sample": "sample",
-          "sourceField": "creatorId"
-        },
-        {
-          "path": "event.data.generation",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Generation",
-            "es": "Generation"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.generation",
-            "es": "CompetitionAutomationData.generation"
-          },
-          "sample": 1,
-          "sourceField": "generation"
-        },
-        {
-          "path": "event.data.optionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Option Id",
-            "es": "Option Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.optionId",
-            "es": "CompetitionAutomationData.optionId"
-          },
-          "sample": "sample",
-          "sourceField": "optionId"
-        },
-        {
-          "path": "event.data.rankingId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Ranking Id",
-            "es": "Ranking Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.rankingId",
-            "es": "CompetitionAutomationData.rankingId"
-          },
-          "sample": "sample",
-          "sourceField": "rankingId"
-        },
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.roomId",
-            "es": "CompetitionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.selectionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Id",
-            "es": "Selection Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionId",
-            "es": "CompetitionAutomationData.selectionId"
-          },
-          "sample": "sample",
-          "sourceField": "selectionId"
-        },
-        {
-          "path": "event.data.selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Mode",
-            "es": "Selection Mode"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionMode",
-            "es": "CompetitionAutomationData.selectionMode"
-          },
-          "sample": "highest_score",
-          "sourceField": "selectionMode"
-        },
-        {
-          "path": "event.data.winnerId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Winner Id",
-            "es": "Winner Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerId",
-            "es": "CompetitionAutomationData.winnerId"
-          },
-          "sample": "sample",
-          "sourceField": "winnerId"
-        },
-        {
-          "path": "event.data.winnerScore",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Winner Score",
-            "es": "Winner Score"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerScore",
-            "es": "CompetitionAutomationData.winnerScore"
-          },
-          "sample": 1,
-          "sourceField": "winnerScore"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
-      "sourceFields": [
-        {
-          "name": "actionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "optional": true
-        },
-        {
-          "name": "competitionId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "creatorId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "generation",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "optionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "rankingId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "roomId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "selectionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "optional": true
-        },
-        {
-          "name": "winnerId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "winnerScore",
-          "tsType": "number | null",
-          "optional": true
-        }
-      ],
+      "fields": SHARED_REGISTRY_53,
+      "sourceFields": SHARED_REGISTRY_55,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.cancelled": {
@@ -6605,293 +3767,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.cancelled",
         "timestamp": 0,
-        "data": {
-          "actionId": "sample",
-          "actionStatus": "pending",
-          "competitionId": "sample",
-          "creatorId": "sample",
-          "generation": 1,
-          "optionId": "sample",
-          "rankingId": "sample",
-          "roomId": "sample",
-          "selectionId": "sample",
-          "selectionMode": "highest_score",
-          "winnerId": "sample",
-          "winnerScore": 1
-        },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "data": SHARED_REGISTRY_40,
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.actionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Id",
-            "es": "Action Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionId",
-            "es": "CompetitionAutomationData.actionId"
-          },
-          "sample": "sample",
-          "sourceField": "actionId"
-        },
-        {
-          "path": "event.data.actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Status",
-            "es": "Action Status"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionStatus",
-            "es": "CompetitionAutomationData.actionStatus"
-          },
-          "sample": "pending",
-          "sourceField": "actionStatus"
-        },
-        {
-          "path": "event.data.competitionId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Competition Id",
-            "es": "Competition Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.competitionId",
-            "es": "CompetitionAutomationData.competitionId"
-          },
-          "sample": "sample",
-          "sourceField": "competitionId"
-        },
-        {
-          "path": "event.data.creatorId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Creator Id",
-            "es": "Creator Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.creatorId",
-            "es": "CompetitionAutomationData.creatorId"
-          },
-          "sample": "sample",
-          "sourceField": "creatorId"
-        },
-        {
-          "path": "event.data.generation",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Generation",
-            "es": "Generation"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.generation",
-            "es": "CompetitionAutomationData.generation"
-          },
-          "sample": 1,
-          "sourceField": "generation"
-        },
-        {
-          "path": "event.data.optionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Option Id",
-            "es": "Option Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.optionId",
-            "es": "CompetitionAutomationData.optionId"
-          },
-          "sample": "sample",
-          "sourceField": "optionId"
-        },
-        {
-          "path": "event.data.rankingId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Ranking Id",
-            "es": "Ranking Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.rankingId",
-            "es": "CompetitionAutomationData.rankingId"
-          },
-          "sample": "sample",
-          "sourceField": "rankingId"
-        },
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.roomId",
-            "es": "CompetitionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.selectionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Id",
-            "es": "Selection Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionId",
-            "es": "CompetitionAutomationData.selectionId"
-          },
-          "sample": "sample",
-          "sourceField": "selectionId"
-        },
-        {
-          "path": "event.data.selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Mode",
-            "es": "Selection Mode"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionMode",
-            "es": "CompetitionAutomationData.selectionMode"
-          },
-          "sample": "highest_score",
-          "sourceField": "selectionMode"
-        },
-        {
-          "path": "event.data.winnerId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Winner Id",
-            "es": "Winner Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerId",
-            "es": "CompetitionAutomationData.winnerId"
-          },
-          "sample": "sample",
-          "sourceField": "winnerId"
-        },
-        {
-          "path": "event.data.winnerScore",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Winner Score",
-            "es": "Winner Score"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerScore",
-            "es": "CompetitionAutomationData.winnerScore"
-          },
-          "sample": 1,
-          "sourceField": "winnerScore"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
-      "sourceFields": [
-        {
-          "name": "actionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "optional": true
-        },
-        {
-          "name": "competitionId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "creatorId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "generation",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "optionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "rankingId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "roomId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "selectionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "optional": true
-        },
-        {
-          "name": "winnerId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "winnerScore",
-          "tsType": "number | null",
-          "optional": true
-        }
-      ],
+      "fields": SHARED_REGISTRY_53,
+      "sourceFields": SHARED_REGISTRY_55,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.finished": {
@@ -6901,293 +3781,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.finished",
         "timestamp": 0,
-        "data": {
-          "actionId": "sample",
-          "actionStatus": "pending",
-          "competitionId": "sample",
-          "creatorId": "sample",
-          "generation": 1,
-          "optionId": "sample",
-          "rankingId": "sample",
-          "roomId": "sample",
-          "selectionId": "sample",
-          "selectionMode": "highest_score",
-          "winnerId": "sample",
-          "winnerScore": 1
-        },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "data": SHARED_REGISTRY_40,
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.actionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Id",
-            "es": "Action Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionId",
-            "es": "CompetitionAutomationData.actionId"
-          },
-          "sample": "sample",
-          "sourceField": "actionId"
-        },
-        {
-          "path": "event.data.actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Status",
-            "es": "Action Status"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionStatus",
-            "es": "CompetitionAutomationData.actionStatus"
-          },
-          "sample": "pending",
-          "sourceField": "actionStatus"
-        },
-        {
-          "path": "event.data.competitionId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Competition Id",
-            "es": "Competition Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.competitionId",
-            "es": "CompetitionAutomationData.competitionId"
-          },
-          "sample": "sample",
-          "sourceField": "competitionId"
-        },
-        {
-          "path": "event.data.creatorId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Creator Id",
-            "es": "Creator Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.creatorId",
-            "es": "CompetitionAutomationData.creatorId"
-          },
-          "sample": "sample",
-          "sourceField": "creatorId"
-        },
-        {
-          "path": "event.data.generation",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Generation",
-            "es": "Generation"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.generation",
-            "es": "CompetitionAutomationData.generation"
-          },
-          "sample": 1,
-          "sourceField": "generation"
-        },
-        {
-          "path": "event.data.optionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Option Id",
-            "es": "Option Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.optionId",
-            "es": "CompetitionAutomationData.optionId"
-          },
-          "sample": "sample",
-          "sourceField": "optionId"
-        },
-        {
-          "path": "event.data.rankingId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Ranking Id",
-            "es": "Ranking Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.rankingId",
-            "es": "CompetitionAutomationData.rankingId"
-          },
-          "sample": "sample",
-          "sourceField": "rankingId"
-        },
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.roomId",
-            "es": "CompetitionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.selectionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Id",
-            "es": "Selection Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionId",
-            "es": "CompetitionAutomationData.selectionId"
-          },
-          "sample": "sample",
-          "sourceField": "selectionId"
-        },
-        {
-          "path": "event.data.selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Mode",
-            "es": "Selection Mode"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionMode",
-            "es": "CompetitionAutomationData.selectionMode"
-          },
-          "sample": "highest_score",
-          "sourceField": "selectionMode"
-        },
-        {
-          "path": "event.data.winnerId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Winner Id",
-            "es": "Winner Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerId",
-            "es": "CompetitionAutomationData.winnerId"
-          },
-          "sample": "sample",
-          "sourceField": "winnerId"
-        },
-        {
-          "path": "event.data.winnerScore",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Winner Score",
-            "es": "Winner Score"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerScore",
-            "es": "CompetitionAutomationData.winnerScore"
-          },
-          "sample": 1,
-          "sourceField": "winnerScore"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
-      "sourceFields": [
-        {
-          "name": "actionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "optional": true
-        },
-        {
-          "name": "competitionId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "creatorId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "generation",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "optionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "rankingId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "roomId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "selectionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "optional": true
-        },
-        {
-          "name": "winnerId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "winnerScore",
-          "tsType": "number | null",
-          "optional": true
-        }
-      ],
+      "fields": SHARED_REGISTRY_53,
+      "sourceFields": SHARED_REGISTRY_55,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.winner.selected": {
@@ -7197,293 +3795,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.winner.selected",
         "timestamp": 0,
-        "data": {
-          "actionId": "sample",
-          "actionStatus": "pending",
-          "competitionId": "sample",
-          "creatorId": "sample",
-          "generation": 1,
-          "optionId": "sample",
-          "rankingId": "sample",
-          "roomId": "sample",
-          "selectionId": "sample",
-          "selectionMode": "highest_score",
-          "winnerId": "sample",
-          "winnerScore": 1
-        },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "data": SHARED_REGISTRY_40,
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.actionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Id",
-            "es": "Action Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionId",
-            "es": "CompetitionAutomationData.actionId"
-          },
-          "sample": "sample",
-          "sourceField": "actionId"
-        },
-        {
-          "path": "event.data.actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Status",
-            "es": "Action Status"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionStatus",
-            "es": "CompetitionAutomationData.actionStatus"
-          },
-          "sample": "pending",
-          "sourceField": "actionStatus"
-        },
-        {
-          "path": "event.data.competitionId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Competition Id",
-            "es": "Competition Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.competitionId",
-            "es": "CompetitionAutomationData.competitionId"
-          },
-          "sample": "sample",
-          "sourceField": "competitionId"
-        },
-        {
-          "path": "event.data.creatorId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Creator Id",
-            "es": "Creator Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.creatorId",
-            "es": "CompetitionAutomationData.creatorId"
-          },
-          "sample": "sample",
-          "sourceField": "creatorId"
-        },
-        {
-          "path": "event.data.generation",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Generation",
-            "es": "Generation"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.generation",
-            "es": "CompetitionAutomationData.generation"
-          },
-          "sample": 1,
-          "sourceField": "generation"
-        },
-        {
-          "path": "event.data.optionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Option Id",
-            "es": "Option Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.optionId",
-            "es": "CompetitionAutomationData.optionId"
-          },
-          "sample": "sample",
-          "sourceField": "optionId"
-        },
-        {
-          "path": "event.data.rankingId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Ranking Id",
-            "es": "Ranking Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.rankingId",
-            "es": "CompetitionAutomationData.rankingId"
-          },
-          "sample": "sample",
-          "sourceField": "rankingId"
-        },
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.roomId",
-            "es": "CompetitionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.selectionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Id",
-            "es": "Selection Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionId",
-            "es": "CompetitionAutomationData.selectionId"
-          },
-          "sample": "sample",
-          "sourceField": "selectionId"
-        },
-        {
-          "path": "event.data.selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Mode",
-            "es": "Selection Mode"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionMode",
-            "es": "CompetitionAutomationData.selectionMode"
-          },
-          "sample": "highest_score",
-          "sourceField": "selectionMode"
-        },
-        {
-          "path": "event.data.winnerId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Winner Id",
-            "es": "Winner Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerId",
-            "es": "CompetitionAutomationData.winnerId"
-          },
-          "sample": "sample",
-          "sourceField": "winnerId"
-        },
-        {
-          "path": "event.data.winnerScore",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Winner Score",
-            "es": "Winner Score"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerScore",
-            "es": "CompetitionAutomationData.winnerScore"
-          },
-          "sample": 1,
-          "sourceField": "winnerScore"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
-      "sourceFields": [
-        {
-          "name": "actionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "optional": true
-        },
-        {
-          "name": "competitionId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "creatorId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "generation",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "optionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "rankingId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "roomId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "selectionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "optional": true
-        },
-        {
-          "name": "winnerId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "winnerScore",
-          "tsType": "number | null",
-          "optional": true
-        }
-      ],
+      "fields": SHARED_REGISTRY_53,
+      "sourceFields": SHARED_REGISTRY_55,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.action.completed": {
@@ -7493,293 +3809,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.action.completed",
         "timestamp": 0,
-        "data": {
-          "actionId": "sample",
-          "actionStatus": "pending",
-          "competitionId": "sample",
-          "creatorId": "sample",
-          "generation": 1,
-          "optionId": "sample",
-          "rankingId": "sample",
-          "roomId": "sample",
-          "selectionId": "sample",
-          "selectionMode": "highest_score",
-          "winnerId": "sample",
-          "winnerScore": 1
-        },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "data": SHARED_REGISTRY_40,
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.actionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Id",
-            "es": "Action Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionId",
-            "es": "CompetitionAutomationData.actionId"
-          },
-          "sample": "sample",
-          "sourceField": "actionId"
-        },
-        {
-          "path": "event.data.actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Status",
-            "es": "Action Status"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionStatus",
-            "es": "CompetitionAutomationData.actionStatus"
-          },
-          "sample": "pending",
-          "sourceField": "actionStatus"
-        },
-        {
-          "path": "event.data.competitionId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Competition Id",
-            "es": "Competition Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.competitionId",
-            "es": "CompetitionAutomationData.competitionId"
-          },
-          "sample": "sample",
-          "sourceField": "competitionId"
-        },
-        {
-          "path": "event.data.creatorId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Creator Id",
-            "es": "Creator Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.creatorId",
-            "es": "CompetitionAutomationData.creatorId"
-          },
-          "sample": "sample",
-          "sourceField": "creatorId"
-        },
-        {
-          "path": "event.data.generation",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Generation",
-            "es": "Generation"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.generation",
-            "es": "CompetitionAutomationData.generation"
-          },
-          "sample": 1,
-          "sourceField": "generation"
-        },
-        {
-          "path": "event.data.optionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Option Id",
-            "es": "Option Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.optionId",
-            "es": "CompetitionAutomationData.optionId"
-          },
-          "sample": "sample",
-          "sourceField": "optionId"
-        },
-        {
-          "path": "event.data.rankingId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Ranking Id",
-            "es": "Ranking Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.rankingId",
-            "es": "CompetitionAutomationData.rankingId"
-          },
-          "sample": "sample",
-          "sourceField": "rankingId"
-        },
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.roomId",
-            "es": "CompetitionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.selectionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Id",
-            "es": "Selection Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionId",
-            "es": "CompetitionAutomationData.selectionId"
-          },
-          "sample": "sample",
-          "sourceField": "selectionId"
-        },
-        {
-          "path": "event.data.selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Mode",
-            "es": "Selection Mode"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionMode",
-            "es": "CompetitionAutomationData.selectionMode"
-          },
-          "sample": "highest_score",
-          "sourceField": "selectionMode"
-        },
-        {
-          "path": "event.data.winnerId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Winner Id",
-            "es": "Winner Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerId",
-            "es": "CompetitionAutomationData.winnerId"
-          },
-          "sample": "sample",
-          "sourceField": "winnerId"
-        },
-        {
-          "path": "event.data.winnerScore",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Winner Score",
-            "es": "Winner Score"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerScore",
-            "es": "CompetitionAutomationData.winnerScore"
-          },
-          "sample": 1,
-          "sourceField": "winnerScore"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
-      "sourceFields": [
-        {
-          "name": "actionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "optional": true
-        },
-        {
-          "name": "competitionId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "creatorId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "generation",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "optionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "rankingId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "roomId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "selectionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "optional": true
-        },
-        {
-          "name": "winnerId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "winnerScore",
-          "tsType": "number | null",
-          "optional": true
-        }
-      ],
+      "fields": SHARED_REGISTRY_53,
+      "sourceFields": SHARED_REGISTRY_55,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.action.failed": {
@@ -7789,293 +3823,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.action.failed",
         "timestamp": 0,
-        "data": {
-          "actionId": "sample",
-          "actionStatus": "pending",
-          "competitionId": "sample",
-          "creatorId": "sample",
-          "generation": 1,
-          "optionId": "sample",
-          "rankingId": "sample",
-          "roomId": "sample",
-          "selectionId": "sample",
-          "selectionMode": "highest_score",
-          "winnerId": "sample",
-          "winnerScore": 1
-        },
-        "intel": INTEL_SAMPLE_DEFAULT
+        "data": SHARED_REGISTRY_40,
+        "intel": SHARED_REGISTRY_30
       },
-      "fields": [
-        {
-          "path": "event.data.actionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Id",
-            "es": "Action Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionId",
-            "es": "CompetitionAutomationData.actionId"
-          },
-          "sample": "sample",
-          "sourceField": "actionId"
-        },
-        {
-          "path": "event.data.actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Action Status",
-            "es": "Action Status"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.actionStatus",
-            "es": "CompetitionAutomationData.actionStatus"
-          },
-          "sample": "pending",
-          "sourceField": "actionStatus"
-        },
-        {
-          "path": "event.data.competitionId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Competition Id",
-            "es": "Competition Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.competitionId",
-            "es": "CompetitionAutomationData.competitionId"
-          },
-          "sample": "sample",
-          "sourceField": "competitionId"
-        },
-        {
-          "path": "event.data.creatorId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Creator Id",
-            "es": "Creator Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.creatorId",
-            "es": "CompetitionAutomationData.creatorId"
-          },
-          "sample": "sample",
-          "sourceField": "creatorId"
-        },
-        {
-          "path": "event.data.generation",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Generation",
-            "es": "Generation"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.generation",
-            "es": "CompetitionAutomationData.generation"
-          },
-          "sample": 1,
-          "sourceField": "generation"
-        },
-        {
-          "path": "event.data.optionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Option Id",
-            "es": "Option Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.optionId",
-            "es": "CompetitionAutomationData.optionId"
-          },
-          "sample": "sample",
-          "sourceField": "optionId"
-        },
-        {
-          "path": "event.data.rankingId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Ranking Id",
-            "es": "Ranking Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.rankingId",
-            "es": "CompetitionAutomationData.rankingId"
-          },
-          "sample": "sample",
-          "sourceField": "rankingId"
-        },
-        {
-          "path": "event.data.roomId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Room Id",
-            "es": "Room Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.roomId",
-            "es": "CompetitionAutomationData.roomId"
-          },
-          "sample": "sample",
-          "sourceField": "roomId"
-        },
-        {
-          "path": "event.data.selectionId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Id",
-            "es": "Selection Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionId",
-            "es": "CompetitionAutomationData.selectionId"
-          },
-          "sample": "sample",
-          "sourceField": "selectionId"
-        },
-        {
-          "path": "event.data.selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Selection Mode",
-            "es": "Selection Mode"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.selectionMode",
-            "es": "CompetitionAutomationData.selectionMode"
-          },
-          "sample": "highest_score",
-          "sourceField": "selectionMode"
-        },
-        {
-          "path": "event.data.winnerId",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Winner Id",
-            "es": "Winner Id"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerId",
-            "es": "CompetitionAutomationData.winnerId"
-          },
-          "sample": "sample",
-          "sourceField": "winnerId"
-        },
-        {
-          "path": "event.data.winnerScore",
-          "tsType": "number | null",
-          "kind": "number",
-          "optional": true,
-          "label": {
-            "en": "Winner Score",
-            "es": "Winner Score"
-          },
-          "hint": {
-            "en": "CompetitionAutomationData.winnerScore",
-            "es": "CompetitionAutomationData.winnerScore"
-          },
-          "sample": 1,
-          "sourceField": "winnerScore"
-        },
-        {
-          "path": "event.intel.processing.status",
-          "tsType": "string",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Status",
-            "es": "Status"
-          },
-          "hint": {
-            "en": "EventIntel.processing.status",
-            "es": "EventIntel.processing.status"
-          },
-          "sample": "sample"
-        }
-      ],
-      "sourceFields": [
-        {
-          "name": "actionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "actionStatus",
-          "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
-          "optional": true
-        },
-        {
-          "name": "competitionId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "creatorId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "generation",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "optionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "rankingId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "roomId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "selectionId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "selectionMode",
-          "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
-          "optional": true
-        },
-        {
-          "name": "winnerId",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "winnerScore",
-          "tsType": "number | null",
-          "optional": true
-        }
-      ],
+      "fields": SHARED_REGISTRY_53,
+      "sourceFields": SHARED_REGISTRY_55,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     }
   }

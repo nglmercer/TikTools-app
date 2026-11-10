@@ -20,6 +20,8 @@ use crate::ipc::messages::{PartialPointsConfig, PointsConfig};
 use tiktools_plugin_api::sync::{recover_mutex, recover_rwlock_read, recover_rwlock_write};
 
 #[cfg(feature = "persistence")]
+mod admission;
+#[cfg(feature = "persistence")]
 mod approved;
 #[cfg(feature = "persistence")]
 mod commands;

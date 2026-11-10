@@ -361,11 +361,48 @@ function intelSampleFor(schema: JsonRecord, curated: boolean): unknown {
 
 const EVENT_REGISTRY_VERSION = 9;
 
-// Sentinels replaced with shared sample references after stringifying, so
-// the identical `intel` sample is emitted once instead of per event. The
-// runtime value is unchanged; `sampleEventForType` deep-clones on read.
-const INTEL_CHAT_SENTINEL = '@@TIKTOOLS_INTEL_CHAT@@';
-const INTEL_DEFAULT_SENTINEL = '@@TIKTOOLS_INTEL_DEFAULT@@';
+// Subtrees at least this long (as compact JSON) that occur more than once are
+// emitted as one named constant and referenced by name. Shorter repeats stay
+// inline, where a reference would cost more than it saves. The runtime value
+// is unchanged; `sampleEventForType` deep-clones samples on read.
+const SHARED_MIN_JSON_LENGTH = 120;
+const SHARED_PLACEHOLDER = /"@@TIKTOOLS_SHARED_(\d+)@@"/g;
+
+function shareRepeatedSubtrees(root: unknown): { constants: Array<{ name: string; json: string }>; body: string } {
+  const counts = new Map<string, number>();
+  const count = (node: unknown): void => {
+    if (node === null || typeof node !== 'object') return;
+    const key = JSON.stringify(node);
+    if (key.length >= SHARED_MIN_JSON_LENGTH) counts.set(key, (counts.get(key) ?? 0) + 1);
+    for (const child of Object.values(node)) count(child);
+  };
+  count(root);
+
+  const indexByKey = new Map<string, number>();
+  const constants: Array<{ name: string; json: string }> = [];
+  const visit = (node: unknown): unknown => {
+    if (node === null || typeof node !== 'object') return node;
+    const key = JSON.stringify(node);
+    const transformed = Array.isArray(node)
+      ? node.map(visit)
+      : Object.fromEntries(Object.entries(node).map(([name, child]) => [name, visit(child)]));
+    if (key.length < SHARED_MIN_JSON_LENGTH || (counts.get(key) ?? 0) < 2) return transformed;
+    let index = indexByKey.get(key);
+    if (index === undefined) {
+      index = constants.length + 1;
+      indexByKey.set(key, index);
+      constants.push({ name: `SHARED_REGISTRY_${index}`, json: JSON.stringify(transformed, null, 2) });
+    }
+    return `@@TIKTOOLS_SHARED_${index}@@`;
+  };
+  const replaceReferences = (text: string): string => text.replace(SHARED_PLACEHOLDER, (_, index: string) => `SHARED_REGISTRY_${index}`);
+  // Visit before reading `constants`: the body walk is what fills it.
+  const body = replaceReferences(JSON.stringify(visit(root), null, 2));
+  return {
+    constants: constants.map((constant) => ({ name: constant.name, json: replaceReferences(constant.json) })),
+    body,
+  };
+}
 
 function registrySource(schema: JsonRecord): string {
   const defs = isRecord(schema.$defs) ? schema.$defs : {};
@@ -432,33 +469,24 @@ function registrySource(schema: JsonRecord): string {
         timestamp: 0,
         ...(hasUser ? { user: sampleUser } : {}),
         data: sampleData,
-        intel: eventType === 'tiktok.chat' ? INTEL_CHAT_SENTINEL : INTEL_DEFAULT_SENTINEL,
+        intel: intelSampleFor(schema, eventType === 'tiktok.chat'),
       },
       fields: [...(hasUser ? envelopePaths : []), ...fields, ...intelFields],
       sourceFields: fields.map((field) => ({ name: field.sourceField, tsType: field.tsType, optional: field.optional })),
       note: `Generated from ${contractName ?? 'the automation envelope'} JSON Schema.`,
     };
   }
-  const body = JSON.stringify(
-    {
-      version: EVENT_REGISTRY_VERSION,
-      generatedBy: 'tiktools-core automation contracts',
-      generatedFrom: [
-        'crates/tiktools-core/src/contracts',
-        'src/automation/contracts/generated/automation-events.schema.json',
-      ],
-      events,
-    },
-    null,
-    2,
-  )
-    .split(`"${INTEL_CHAT_SENTINEL}"`)
-    .join('INTEL_SAMPLE_CHAT')
-    .split(`"${INTEL_DEFAULT_SENTINEL}"`)
-    .join('INTEL_SAMPLE_DEFAULT');
-  const chatSample = JSON.stringify(intelSampleFor(schema, true), null, 2);
-  const defaultSample = JSON.stringify(intelSampleFor(schema, false), null, 2);
-  return `// THIS FILE IS GENERATED. Run bun scripts/task.ts contracts.\n\nexport const EVENT_REGISTRY_VERSION = ${EVENT_REGISTRY_VERSION} as const;\n\nconst INTEL_SAMPLE_CHAT = ${chatSample} as const;\n\nconst INTEL_SAMPLE_DEFAULT = ${defaultSample} as const;\n\nexport const GENERATED_EVENT_REGISTRY = ${body} as const satisfies Record<string, unknown>;\n`;
+  const registry = shareRepeatedSubtrees({
+    version: EVENT_REGISTRY_VERSION,
+    generatedBy: 'tiktools-core automation contracts',
+    generatedFrom: [
+      'crates/tiktools-core/src/contracts',
+      'src/automation/contracts/generated/automation-events.schema.json',
+    ],
+    events,
+  });
+  const constants = registry.constants.map((constant) => `const ${constant.name} = ${constant.json} as const;\n\n`).join('');
+  return `// THIS FILE IS GENERATED. Run bun scripts/task.ts contracts.\n\nexport const EVENT_REGISTRY_VERSION = ${EVENT_REGISTRY_VERSION} as const;\n\n${constants}export const GENERATED_EVENT_REGISTRY = ${registry.body} as const satisfies Record<string, unknown>;\n`;
 }
 
 async function runSchemaGenerator(output: string): Promise<void> {
