@@ -27,6 +27,11 @@ use tiktools_control_api::modules::automation_library::{
     OwnerLibraryEmpty, OwnerLibraryReviewUnknown, OwnerLibrarySubmit,
 };
 #[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::bundles::{
+    AssetUploadParams, OverlayCreateParams, OverlayIdParams, OverlayReviseParams,
+    PackageCreateParams, PackageIdParams,
+};
+#[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::cloud::CloudLoginOperationParams;
 use tiktools_control_api::modules::competitions::{
     CompetitionActionId, CompetitionId, CompetitionResultsRequest, CompetitionSummaryParams,
@@ -536,6 +541,20 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "cloudLibrary.read" => validate::<CloudLibraryRead>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.uncertain.resolve" => validate::<SyncUncertainResolveParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.assets.upload" => validate::<AssetUploadParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.create" => validate::<OverlayCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.read" => validate::<OverlayIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.revise" => validate::<OverlayReviseParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.packages.create" => validate::<PackageCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.packages.read" => validate::<PackageIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.packages.preflight" => validate::<PackageIdParams>(params),
         #[cfg(feature = "cloud-auth")]
         "teams.host.status" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]

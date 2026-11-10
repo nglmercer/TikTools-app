@@ -22,6 +22,8 @@ pub mod automation_definition;
 pub mod automation_effects;
 pub mod automation_library;
 #[cfg(feature = "cloud-auth")]
+pub mod bundles;
+#[cfg(feature = "cloud-auth")]
 pub mod cloud;
 pub mod collaboration;
 pub mod competitions;
@@ -203,6 +205,8 @@ impl TikToolsClient {
             integrations::METHODS,
             #[cfg(feature = "cloud-auth")]
             teams::METHODS,
+            #[cfg(feature = "cloud-auth")]
+            bundles::METHODS,
             points::METHODS,
             rankings::METHODS,
             registry::METHODS,

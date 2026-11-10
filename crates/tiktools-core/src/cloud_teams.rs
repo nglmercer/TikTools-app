@@ -34,7 +34,7 @@ const MAX_LABEL_CHARS: usize = 120;
 const KEY_FILE: &str = "remote-device-ed25519.pk8";
 const HOST_BINDING_FILE: &str = "remote-host-binding.json";
 
-fn http() -> &'static Client {
+pub(crate) fn http() -> &'static Client {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
         Client::builder()
