@@ -177,6 +177,14 @@ pub fn register(router: &mut ControlRouter) {
         true,
         |core: Arc<AppCore>, _| async move { core.sync_v2_rebuild().await.map_err(map_error) },
     );
+    router.register_typed::<serde_json::Value, (), _, _>(
+        "sync.v2.stagePreferences",
+        "Stages desktop preferences for v2 sync",
+        true,
+        |core: Arc<AppCore>, native: serde_json::Value| async move {
+            core.sync_v2_stage_preferences(native).await.map_err(map_error)
+        },
+    );
     router.register_typed::<Empty, Vec<V2ConflictTarget>, _, _>(
         "sync.v2.conflict.list",
         "Lists v2 conflicts for the current account without contacting Cloud",

@@ -464,6 +464,47 @@ impl AppCore {
         }
     }
 
+    /// Stage owner-owned desktop preferences under v2 fences. The native
+    /// object is adapted to the portable subset; unknown fields stay local.
+    pub async fn sync_v2_stage_preferences(
+        self: &std::sync::Arc<Self>,
+        native: serde_json::Value,
+    ) -> Result<(), OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let portable = tiktools_cloud_sync::preference_from_native(&native)
+                .ok_or_else(|| OperationError::invalid("preferences must be an object"))?;
+            let (session, _) = self.v2_identity().await?;
+            let coordinator = self.sync_coordinator()?.clone();
+            let epoch = self.v2_epoch(&coordinator, &session)?;
+            let core_session = session.clone();
+            let target = cloud_client::WorkspaceKey::new("preferences", "desktop")
+                .map_err(|_| OperationError::invalid("invalid preferences key"))?;
+            let edit = cloud_client::WorkspaceEdit::Put(portable);
+            let core = self.clone();
+            tokio::task::spawn_blocking(move || {
+                core.sync
+                    .coordinator()
+                    .map_err(|_| OperationError::unavailable("Cloud sync storage is unavailable"))?
+                    .stage_v2_product_edit(core_session, target, edit)
+                    .map_err(|_| OperationError::conflict("Cloud v2 staging was rejected"))
+            })
+            .await
+            .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))??;
+            self.cloud
+                .auth()
+                .with_current_session(&session, || coordinator.is_v2_config_epoch_current(&epoch, &session))
+                .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
+                .then_some(())
+                .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            let _ = native;
+            Err(OperationError::unavailable("Cloud v2 preferences require persistence"))
+        }
+    }
+
     async fn v2_identity(
         self: &std::sync::Arc<Self>,
     ) -> Result<(std::sync::Arc<cloud_client::Session>, tiktools_cloud_sync::V2LocalEditContext), OperationError> {

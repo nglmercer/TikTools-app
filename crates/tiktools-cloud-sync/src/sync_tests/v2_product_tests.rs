@@ -583,6 +583,64 @@ async fn v2_product_outbox_replays_receipt_after_ack_failure_and_obeys_consent()
     mock.stop();
 }
 
+#[tokio::test]
+async fn stage_v2_product_edit_queues_preferences_once() {
+    let dir = TempDir::new("v2-product-edit");
+    let mock = MockSync::start("v2-edit-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "edit-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = marked_preview(&sync, &session);
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "v2-edit-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "v2-edit-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    lease
+        .finish(&preview, &mock.origin, "v2-edit-user")
+        .unwrap();
+    drop(lease);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    let target = WorkspaceKey::new("preferences", "desktop").unwrap();
+    let edit = WorkspaceEdit::Put(serde_json::json!({
+        "schemaVersion": 1,
+        "theme": "dark",
+        "locale": "es-PE"
+    }));
+    let (generation, staged) = sync
+        .stage_v2_product_edit(session.clone(), target.clone(), edit.clone())
+        .unwrap();
+    assert!(staged);
+    assert!(generation > 0);
+    let after_stage = workspace.snapshot().unwrap().generation;
+    assert!(after_stage >= generation);
+    let staged_snapshot = workspace.snapshot().unwrap();
+    let entry = staged_snapshot
+        .state
+        .entries
+        .iter()
+        .find(|entry| entry.target == target)
+        .expect("staged preferences entry");
+    let pending = entry.pending.as_ref().expect("queued pending");
+    assert_eq!(pending.status, WorkspacePendingStatus::Queued);
+    let before_restage = workspace.snapshot().unwrap().generation;
+    let (again, restaged) = sync
+        .stage_v2_product_edit(session.clone(), target, edit)
+        .unwrap();
+    assert_eq!(again, generation);
+    assert!(!restaged);
+    assert_eq!(workspace.snapshot().unwrap().generation, before_restage);
+    mock.stop();
+}
+
 struct ResumeSource {
     selections: Vec<PluginSelection>,
     receipts: Vec<crate::V1CutoverReceipt>,

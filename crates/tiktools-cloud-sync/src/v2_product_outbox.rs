@@ -634,4 +634,85 @@ impl SyncCoordinator {
                 .map_err(|_| SyncCoordError::Protocol(ProtocolFenceError::Busy))?
         })
     }
+
+    /// Stage one owner-owned edit (for example `preferences/desktop`) under
+    /// the same fences as source decisions, without a source row. The edit
+    /// becomes `Queued` and syncs like any other pending edit. The digest
+    /// makes re-staging the same edit idempotent.
+    pub fn stage_v2_product_edit(
+        &self,
+        session: Arc<cloud_client::Session>,
+        target: cloud_client::WorkspaceKey,
+        edit: cloud_client::WorkspaceEdit,
+    ) -> Result<(u64, bool), SyncCoordError> {
+        let identity = self
+            .auth
+            .try_sync_identity()
+            .map_err(|_| ProtocolFenceError::Busy)?
+            .ok_or(SyncCoordError::NotSignedIn)?;
+        if identity.0 != session.instance_origin() || identity.1 != session.account_id() {
+            return Err(SyncCoordError::StaleReview);
+        }
+        let _lease = self.protocol.try_v2(&identity.0, &identity.1)?;
+        let marker_lease = self.protocol.try_v1()?;
+        marker_lease.ensure_product_outbox(&identity.0, &identity.1)?;
+        self.auth
+            .with_sync_identity_permit(|current| {
+                if current.as_ref() != Some(&identity) {
+                    return Err(SyncCoordError::StaleReview);
+                }
+                let config = self.read_staging_config()?;
+                if !config.enabled
+                    || config.version != 2
+                    || config.scope.is_none()
+                    || !config.allows(&identity.0, &identity.1)
+                {
+                    return Err(SyncCoordError::StaleReview);
+                }
+                let digest_input = serde_json::json!({
+                    "collection": target.collection,
+                    "key": target.key,
+                    "edit": edit,
+                    "generation": config.generation.to_string(),
+                });
+                let digest = {
+                    let encoded = serde_json::to_vec(&digest_input)
+                        .map_err(|_| SyncCoordError::StaleReview)?;
+                    Sha256::digest(encoded)
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>()
+                };
+                let root = self
+                    .config_path
+                    .parent()
+                    .ok_or_else(|| SyncCoordError::Io("invalid config directory".into()))?;
+                let workspace =
+                    WorkspaceCoordinator::open(root, identity.0.clone(), identity.1.clone())
+                        .map_err(|_| SyncCoordError::StaleReview)?;
+                let state = workspace
+                    .snapshot()
+                    .map_err(|_| SyncCoordError::StaleReview)?
+                    .state;
+                if let Some(proof) = state.product_queued_proof(&target) {
+                    if proof.decision_digest() == digest && proof.edit() == &edit {
+                        return Ok((proof.local_generation(), false));
+                    }
+                }
+                let next_generation = state
+                    .product_queued_proof(&target)
+                    .map(|proof| proof.source_generation().saturating_add(1))
+                    .unwrap_or(1);
+                workspace
+                    .stage_product_decision_with_base(
+                        target.clone(),
+                        edit.clone(),
+                        next_generation,
+                        &digest,
+                        None,
+                    )
+                    .map_err(|_| SyncCoordError::StaleReview)
+            })
+            .map_err(|_| SyncCoordError::Protocol(ProtocolFenceError::Busy))?
+    }
 }
