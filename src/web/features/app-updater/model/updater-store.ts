@@ -19,10 +19,19 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
   let latestChecked = 0;
   let saveQueue = Promise.resolve();
 
+  let stagedChannel: string | null = null;
   function save(): Promise<void> {
     const value = JSON.stringify(preferences.value);
+    const channel = preferences.value.channel;
+    const mustStage = stagedChannel !== null && stagedChannel !== channel;
     saveQueue = saveQueue.then(async () => {
       await client.call('app.state.set', { key: KEY, value });
+      if (mustStage) {
+        // Best-effort v2 staging: never blocks local persistence, only queues
+        // the portable subset when v2 is selected for the account.
+        await client.call('sync.v2.stagePreferences', { updateChannel: channel }).catch(() => {});
+      }
+      stagedChannel = channel;
     }).catch((failure: unknown) => { error.value = errorMessage(failure); });
     return saveQueue;
   }
@@ -49,6 +58,7 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
         lastChecked: typeof parsed.lastChecked === 'number' && Number.isFinite(parsed.lastChecked) ? parsed.lastChecked : 0,
         lastAttempt: typeof parsed.lastAttempt === 'number' && Number.isFinite(parsed.lastAttempt) ? parsed.lastAttempt : 0,
       };
+      stagedChannel = preferences.value.channel;
       preferencesLoaded.value = true;
       if (latestChecked > preferences.value.lastChecked) {
         preferences.value.lastChecked = latestChecked;
