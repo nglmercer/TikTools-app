@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
@@ -23,6 +23,18 @@ function onFile(event: Event): void {
 async function upload(): Promise<void> {
   if (file.value) await bundles.upload(file.value);
 }
+
+function journalStatus(value: string): string {
+  return t(`cloudBundles.journal.${value}`);
+}
+
+async function apply(): Promise<void> {
+  await bundles.applyPackage();
+}
+
+onMounted(() => {
+  if (bundles.available !== false) void bundles.loadJournal();
+});
 
 async function check(): Promise<void> {
   const id = packageInput.value.trim();
@@ -107,7 +119,59 @@ async function check(): Promise<void> {
             <span>{{ statusLabel(item.status) }}</span>
           </li>
         </ul>
+        <div class="cloud-bundles__row">
+          <BaseButton
+            v-if="bundles.preflight.canApply && !bundles.applying"
+            variant="primary"
+            @click="apply"
+          >
+            {{ t('cloudBundles.apply') }}
+          </BaseButton>
+          <BaseButton
+            v-if="bundles.applying"
+            variant="ghost"
+            @click="bundles.cancelApply()"
+          >
+            {{ t('cloudBundles.cancelApply') }}
+          </BaseButton>
+        </div>
       </template>
+    </div>
+
+    <div
+      v-if="bundles.journal"
+      class="cloud-bundles__block"
+    >
+      <h4>{{ t('cloudBundles.journalTitle') }}</h4>
+      <ol class="cloud-bundles__list">
+        <li
+          v-for="(entry, index) in bundles.journal.entries"
+          :key="index"
+          class="cloud-bundles__row"
+        >
+          <span class="cloud-bundles__grow">
+            {{ t(`cloudBundles.kinds.${entry.kind}`) }} · {{ entry.id }}
+            <template v-if="entry.message">
+              <br>
+              <small>{{ entry.message }}</small>
+            </template>
+          </span>
+          <span>{{ journalStatus(entry.status) }}</span>
+        </li>
+      </ol>
+      <BaseAlert
+        v-if="bundles.applyError"
+        tone="error"
+        :title="bundles.applyError"
+        compact
+      />
+      <BaseButton
+        v-if="!bundles.applying"
+        variant="ghost"
+        @click="bundles.dismissJournal()"
+      >
+        {{ t('cloudBundles.dismissJournal') }}
+      </BaseButton>
     </div>
   </section>
 </template>

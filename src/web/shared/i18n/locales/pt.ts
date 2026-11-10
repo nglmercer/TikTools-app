@@ -1767,6 +1767,11 @@ export default {
     grantStatus: { pendingHost: 'Aguardando o PC', active: 'Ativa', revoked: 'Revogada' },
   },
   cloudBundles: {
+    apply: 'Aplicar pacote',
+    cancelApply: 'Parar após esta etapa',
+    journalTitle: 'Progresso da aplicação',
+    dismissJournal: 'Limpar este registro',
+    journal: { pending: 'Aguardando', running: 'Em andamento', done: 'Concluído', failed: 'Falhou', skipped: 'Ignorado', interrupted: 'Interrompido: verifique antes de tentar de novo' },
     title: 'Imagens e pacotes',
     hint: 'Envie imagens para overlays e verifique se um pacote pode ser aplicado neste PC. Verificar não aplica nada.',
     tooLarge: 'A imagem deve ter entre 1 byte e 512 KiB.',
