@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn preference_round_trip_preserves_unknown_fields() {
-        let mut native = json!({
+        let native = json!({
             "theme": "light",
             "locale": "en-US",
             "reducedMotion": false,

@@ -1107,6 +1107,20 @@ fn verified_room_creator(
     }
 }
 
+fn default_preset() -> ttl_sign_core::Preset {
+    #[cfg(target_os = "windows")]
+    let device = ttl_sign_core::DevicePreset::chrome_windows();
+    #[cfg(target_os = "macos")]
+    let device = ttl_sign_core::DevicePreset::chrome_macos();
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let device = ttl_sign_core::DevicePreset::chrome_linux();
+    ttl_sign_core::Preset::new(
+        device,
+        ttl_sign_core::LocationPreset::us_east(),
+        ttl_sign_core::ScreenPreset::FHD,
+    )
+}
+
 #[cfg(test)]
 mod verified_room_tests {
     use super::*;
@@ -1194,18 +1208,4 @@ mod verified_room_tests {
         assert_eq!(info.unique_id, "alice");
         assert!(info.verified_creator.is_none());
     }
-}
-
-fn default_preset() -> ttl_sign_core::Preset {
-    #[cfg(target_os = "windows")]
-    let device = ttl_sign_core::DevicePreset::chrome_windows();
-    #[cfg(target_os = "macos")]
-    let device = ttl_sign_core::DevicePreset::chrome_macos();
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    let device = ttl_sign_core::DevicePreset::chrome_linux();
-    ttl_sign_core::Preset::new(
-        device,
-        ttl_sign_core::LocationPreset::us_east(),
-        ttl_sign_core::ScreenPreset::FHD,
-    )
 }

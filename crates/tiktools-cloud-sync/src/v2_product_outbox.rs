@@ -436,6 +436,7 @@ impl SyncCoordinator {
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn resolve_v2_product_inner(
         &self,
         session: Arc<cloud_client::Session>,

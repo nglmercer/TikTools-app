@@ -356,6 +356,7 @@ struct CreatorFeedStream {
     events: std::collections::VecDeque<CreatorFeedEvent>,
 }
 #[derive(Default)]
+#[cfg_attr(not(feature = "native-tiktok"), allow(dead_code))]
 struct FeedHistoryState {
     entries: std::collections::VecDeque<FeedHistoryEntry>,
     creators: std::collections::BTreeMap<String, CreatorFeedStream>,

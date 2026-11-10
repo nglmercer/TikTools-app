@@ -2529,7 +2529,7 @@ async fn marked_cutover_binds_receipts_and_resumes_as_conflicts_after_restart() 
         enabled: false,
     }];
     assert!(sync
-        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .guarded_marked_cutover_review(&session, &source, std::slice::from_ref(&receipt))
         .is_err());
     let marker = sync.protocol.try_cutover().unwrap();
     marker
@@ -2541,7 +2541,7 @@ async fn marked_cutover_binds_receipts_and_resumes_as_conflicts_after_restart() 
         .guarded_marked_cutover_review(&session, &source, &[])
         .is_err());
     let review = sync
-        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .guarded_marked_cutover_review(&session, &source, std::slice::from_ref(&receipt))
         .unwrap();
     assert_eq!(
         review.preview().entries()[0]
@@ -2583,7 +2583,7 @@ async fn marked_cutover_binds_receipts_and_resumes_as_conflicts_after_restart() 
     let restarted = SyncCoordinator::new(auth.clone(), dir.join("a-sync")).unwrap();
     fs::remove_file(&marker_path).unwrap();
     assert!(restarted
-        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .guarded_marked_cutover_review(&session, &source, std::slice::from_ref(&receipt))
         .is_err());
     fs::write(&marker_path, &marker_bytes).unwrap();
     fs::set_permissions(&marker_path, marker_permissions).unwrap();
@@ -2616,7 +2616,7 @@ async fn marked_cutover_binds_receipts_and_resumes_as_conflicts_after_restart() 
             .is_err());
     }
     let review = restarted
-        .guarded_marked_cutover_review(&session, &source, &[receipt.clone()])
+        .guarded_marked_cutover_review(&session, &source, std::slice::from_ref(&receipt))
         .unwrap();
     struct Source<'a> {
         selections: &'a [PluginSelection],

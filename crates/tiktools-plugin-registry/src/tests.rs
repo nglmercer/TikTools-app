@@ -176,8 +176,10 @@ async fn fixed_client_ignores_legacy_sources_and_persisted_trust_controls() {
     spoofed.scopes = vec!["evil.*".into()];
     let custom = RegistrySource::new("custom", &foreign.base).unwrap();
     let path = directory.join("registries.json");
-    let mut stored = RegistriesConfig::default();
-    stored.registries = vec![spoofed, custom];
+    let mut stored = RegistriesConfig {
+        registries: vec![spoofed, custom],
+        ..Default::default()
+    };
     stored.defaults.allow_sideload = false;
     stored.save(&path).unwrap();
     let client = RegistryClient::new_fixed(
@@ -191,10 +193,11 @@ async fn fixed_client_ignores_legacy_sources_and_persisted_trust_controls() {
     assert_eq!(effective.registries, vec![builtin]);
     assert!(!effective.defaults.allow_sideload);
     let trust = client.trust();
-    let pinned = trust.read().unwrap();
-    let root = pinned.get(&KeyId::parse("root-1").unwrap()).unwrap();
-    assert_eq!(root.key, trusted.root.public_key());
-    drop(pinned);
+    {
+        let pinned = trust.read().unwrap();
+        let root = pinned.get(&KeyId::parse("root-1").unwrap()).unwrap();
+        assert_eq!(root.key, trusted.root.public_key());
+    }
     assert!(matches!(
         client.add(RegistrySource::new("new", &foreign.base).unwrap()),
         Err(RegistryError::FixedSources)
