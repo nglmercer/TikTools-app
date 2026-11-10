@@ -63,6 +63,13 @@ pub struct SyncV2ConflictResolveParams {
     pub choice: V2ConflictChoice,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncV2StagePluginSettingsParams {
+    pub plugin_id: String,
+    pub settings: serde_json::Value,
+}
+
 fn map_error(error: OperationError) -> ApiError {
     ApiError::from(error)
 }
@@ -183,6 +190,16 @@ pub fn register(router: &mut ControlRouter) {
         true,
         |core: Arc<AppCore>, native: serde_json::Value| async move {
             core.sync_v2_stage_preferences(native).await.map_err(map_error)
+        },
+    );
+    router.register_typed::<SyncV2StagePluginSettingsParams, (), _, _>(
+        "sync.v2.stagePluginSettings",
+        "Stages plugin settings for v2 sync",
+        true,
+        |core: Arc<AppCore>, params: SyncV2StagePluginSettingsParams| async move {
+            core.sync_v2_stage_plugin_settings(&params.plugin_id, params.settings)
+                .await
+                .map_err(map_error)
         },
     );
     router.register_typed::<Empty, Vec<V2ConflictTarget>, _, _>(
