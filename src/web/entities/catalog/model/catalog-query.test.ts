@@ -37,6 +37,14 @@ describe('catalog search', () => {
     expect(search.cursor()).toBeNull();
   });
 
+  it('reports whether a request is still the newest', () => {
+    const search = createCatalogSearch<string>();
+    const old = search.begin(normalizeQuery({ text: 'a' }));
+    const newer = search.begin(normalizeQuery({ text: 'b' }));
+    expect(search.isNewest(old)).toBe(false);
+    expect(search.isNewest(newer)).toBe(true);
+  });
+
   it('keeps items for a repeated query while it is refreshed', () => {
     const search = createCatalogSearch<string>();
     const first = search.begin(normalizeQuery({ text: 'same' }));

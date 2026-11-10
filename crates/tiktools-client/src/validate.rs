@@ -63,8 +63,9 @@ use tiktools_control_api::modules::rankings::{
     Definition, ExternalContribution, RankingId, RankingUpdate,
 };
 use tiktools_control_api::modules::registry::{
-    CloudCatalogQuery, CloudCatalogSummariesQuery, CloudCatalogVersionsQuery, RegistryDefaults,
-    RegistryPackageParams, RegistryRefreshParams, SearchQuery,
+    CloudCatalogItemQuery, CloudCatalogItemsQuery, CloudCatalogQuery, CloudCatalogSummariesQuery,
+    CloudCatalogVersionsQuery, RegistryDefaults, RegistryPackageParams, RegistryRefreshParams,
+    SearchQuery,
 };
 use tiktools_control_api::modules::rpc::SchemaParams;
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
@@ -472,6 +473,8 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "registry.search" => validate::<SearchQuery>(params),
         "registry.cloudCatalog" => validate::<CloudCatalogQuery>(params),
         "registry.cloudCatalogSummaries" => validate::<CloudCatalogSummariesQuery>(params),
+        "catalog.items" => validate::<CloudCatalogItemsQuery>(params),
+        "catalog.item" => validate::<CloudCatalogItemQuery>(params),
         "registry.cloudCatalogVersions" => validate::<CloudCatalogVersionsQuery>(params),
         "registry.package" => validate::<RegistryPackageParams>(params),
         "registry.defaults.set" => validate::<RegistryDefaults>(params),

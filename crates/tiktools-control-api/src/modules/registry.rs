@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 use tiktools_core::AppCore;
 pub use tiktools_core::{
     control::{
-        CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
-        CloudCatalogSummariesPage, CloudCatalogSummariesQuery, CloudCatalogVersionsPage,
-        CloudCatalogVersionsQuery, RegistryPackageView,
+        CloudCatalogItemPage, CloudCatalogItemQuery, CloudCatalogItemsQuery, CloudCatalogPage,
+        CloudCatalogPaginationCapabilities, CloudCatalogQuery, CloudCatalogSummariesPage,
+        CloudCatalogSummariesQuery, CloudCatalogVersionsPage, CloudCatalogVersionsQuery,
+        RegistryPackageView,
     },
     plugin_registry::{RegistryDefaults, RegistryStatus, SearchQuery, SearchResults},
 };
@@ -62,6 +63,24 @@ pub fn register(router: &mut ControlRouter) {
         false,
         |core: Arc<AppCore>, params: CloudCatalogVersionsQuery| async move {
             core.cloud_catalog_versions(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<CloudCatalogItemsQuery, CloudCatalogItemPage, _, _>(
+        "catalog.items",
+        "Reads one bounded page of the unified catalog (plugins, templates, profiles); presentation only",
+        false,
+        |core: Arc<AppCore>, params: CloudCatalogItemsQuery| async move {
+            core.cloud_catalog_items(params).await.map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<CloudCatalogItemQuery, serde_json::Value, _, _>(
+        "catalog.item",
+        "Reads one unified catalog item; installation still requires the signed release",
+        false,
+        |core: Arc<AppCore>, params: CloudCatalogItemQuery| async move {
+            core.cloud_catalog_item(params)
                 .await
                 .map_err(ApiError::from)
         },

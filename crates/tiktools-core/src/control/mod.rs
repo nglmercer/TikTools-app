@@ -105,7 +105,8 @@ pub use automation::{
 pub use cloud_account::CloudLoginUrl;
 #[cfg(feature = "plugin-install")]
 pub use cloud_catalog::{
-    CloudCatalogAdvisory, CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
+    CloudCatalogAdvisory, CloudCatalogItemPage, CloudCatalogItemQuery, CloudCatalogItemsQuery,
+    CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
     CloudCatalogSummariesPage, CloudCatalogSummariesQuery, CloudCatalogSummary,
     CloudCatalogVersion, CloudCatalogVersionsPage, CloudCatalogVersionsQuery,
 };

@@ -18,6 +18,8 @@ import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import MasterDetailLayout from '@/shared/ui/layout/MasterDetailLayout.vue';
 import CollectionToolbar from '@/shared/ui/collection-toolbar/CollectionToolbar.vue';
 import CloudPluginCatalog from '@/widgets/cloud-plugin-catalog/ui/CloudPluginCatalog.vue';
+import UnifiedCatalog from '@/widgets/unified-catalog/ui/UnifiedCatalog.vue';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
@@ -81,6 +83,10 @@ function runCommand(id: string, command: PluginCommand): void {
 }
 
 const behavior = computed(() => plugins.behavior.value);
+const installedIds = computed(() => new Set(behavior.value.plugins.map((plugin) => plugin.descriptor.id)));
+// The unified catalog needs the host to announce catalog.items; otherwise the legacy Cloud view stays.
+const capabilities = useCapabilityStore();
+const unifiedCatalog = computed(() => capabilities.supports('catalog.items') === true);
 const selectedPlugin = computed(
   () => behavior.value.plugins.find((plugin) => plugin.descriptor.id === selected.value) ?? null,
 );
@@ -243,6 +249,11 @@ watch([view, catalog, query, selected, detailsTab], persist);
       v-else-if="view === 'processors'"
       v-model:query="processorQuery"
       :plugins="behavior.plugins"
+    />
+    <UnifiedCatalog
+      v-else-if="unifiedCatalog"
+      :installed-ids="installedIds"
+      @manage-processors="view = 'processors'"
     />
     <CloudPluginCatalog v-else />
     <InstallPluginDialog />

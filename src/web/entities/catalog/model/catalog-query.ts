@@ -41,6 +41,8 @@ export interface CatalogSearch<T> {
   begin(query: CatalogQuery): number;
   /** Applies a reply only if it is still the newest request. */
   settle(generation: number, page: CatalogPage<T>): boolean;
+  /** True while no newer request has started; failures from older requests are ignored. */
+  isNewest(generation: number): boolean;
   /** Cursor for the current query, or null when the query is not paged. */
   cursor(): string | null;
   /** Current accepted items, empty before the first accepted reply. */
@@ -66,6 +68,9 @@ export function createCatalogSearch<T>(): CatalogSearch<T> {
         activeKey = key;
       }
       return newest;
+    },
+    isNewest(generation) {
+      return generation === newest;
     },
     settle(generation, page) {
       if (generation !== newest) return false;

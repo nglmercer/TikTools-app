@@ -1,9 +1,10 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::registry::{
-    CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
-    CloudCatalogSummariesPage, CloudCatalogSummariesQuery, CloudCatalogVersionsPage,
-    CloudCatalogVersionsQuery, RegistryDefaults, RegistryListResult, RegistryPackageParams,
-    RegistryPackageView, RegistryRefreshParams, SearchQuery, SearchResults,
+    CloudCatalogItemPage, CloudCatalogItemQuery, CloudCatalogItemsQuery, CloudCatalogPage,
+    CloudCatalogPaginationCapabilities, CloudCatalogQuery, CloudCatalogSummariesPage,
+    CloudCatalogSummariesQuery, CloudCatalogVersionsPage, CloudCatalogVersionsQuery,
+    RegistryDefaults, RegistryListResult, RegistryPackageParams, RegistryPackageView,
+    RegistryRefreshParams, SearchQuery, SearchResults,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
@@ -16,11 +17,15 @@ pub(crate) const METHODS: &[&str] = &[
     REGISTRY_CLOUD_CATALOG_CAPABILITIES,
     REGISTRY_CLOUD_CATALOG_SUMMARIES,
     REGISTRY_CLOUD_CATALOG_VERSIONS,
+    CATALOG_ITEMS,
+    CATALOG_ITEM,
     REGISTRY_PACKAGE,
     REGISTRY_DEFAULTS_GET,
     REGISTRY_DEFAULTS_SET,
 ];
 
+const CATALOG_ITEMS: &str = "catalog.items";
+const CATALOG_ITEM: &str = "catalog.item";
 const REGISTRY_LIST: &str = "registry.list";
 const REGISTRY_REFRESH: &str = "registry.refresh";
 const REGISTRY_SEARCH: &str = "registry.search";
@@ -33,6 +38,18 @@ const REGISTRY_DEFAULTS_GET: &str = "registry.defaults.get";
 const REGISTRY_DEFAULTS_SET: &str = "registry.defaults.set";
 
 impl TikToolsClient {
+    pub async fn catalog_items(
+        &self,
+        params: CloudCatalogItemsQuery,
+    ) -> Result<CloudCatalogItemPage, ClientError> {
+        self.call(CATALOG_ITEMS, params).await
+    }
+    pub async fn catalog_item(
+        &self,
+        params: CloudCatalogItemQuery,
+    ) -> Result<serde_json::Value, ClientError> {
+        self.call(CATALOG_ITEM, params).await
+    }
     pub async fn registry_cloud_catalog_pagination_capabilities(
         &self,
     ) -> Result<CloudCatalogPaginationCapabilities, ClientError> {

@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 mod bounded_catalog;
 mod capabilities;
+mod catalog_v3;
 mod validation;
 mod write_epoch;
 pub use bounded_catalog::{
@@ -20,6 +21,7 @@ pub use bounded_catalog::{
     CatalogVersionPage,
 };
 pub use capabilities::WorkspaceSyncCapabilities;
+use catalog_v3::{valid_item_id_v3, valid_v3_cursor, validate_item_v3, validate_items_v3};
 use validation::*;
 pub use write_epoch::WorkspaceWriteEpoch;
 
@@ -123,6 +125,59 @@ impl CloudCatalog {
             .get(&format!("api/v2/catalog/plugins/{id}"), &params)
             .await?;
         validate_plugin(&value, id, generation, target)?;
+        Ok(value)
+    }
+    /// Unified catalog page (`/api/v3/catalog/items`). Anonymous, keyset paged.
+    pub async fn items_v3(
+        &self,
+        query: &str,
+        kind: Option<&str>,
+        target: Option<&str>,
+        cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<Value, SyncError> {
+        if query.len() > 100
+            || kind.is_some_and(|k| !matches!(k, "plugin" | "template" | "profile"))
+            || target.is_some_and(|target| !valid_target(target))
+            || cursor.is_some_and(|c| !valid_v3_cursor(c))
+            || !(1..=50).contains(&limit)
+        {
+            return Err(SyncError::Configuration);
+        }
+        let mut params = vec![("q", query.to_string()), ("limit", limit.to_string())];
+        if let Some(kind) = kind {
+            params.push(("kind", kind.into()));
+        }
+        if let Some(target) = target {
+            params.push(("target", target.into()));
+        }
+        if let Some(cursor) = cursor {
+            params.push(("cursor", cursor.into()));
+        }
+        let value = self.get("api/v3/catalog/items", &params).await?;
+        validate_items_v3(&value)?;
+        Ok(value)
+    }
+    /// One unified catalog item (`/api/v3/catalog/items/{kind}/{id}`).
+    pub async fn item_v3(
+        &self,
+        kind: &str,
+        id: &str,
+        target: Option<&str>,
+    ) -> Result<Value, SyncError> {
+        if !matches!(kind, "plugin" | "template" | "profile")
+            || !valid_item_id_v3(id)
+            || target.is_some_and(|target| !valid_target(target))
+        {
+            return Err(SyncError::Configuration);
+        }
+        let params: Vec<(&str, String)> = target
+            .map(|target| vec![("target", target.to_string())])
+            .unwrap_or_default();
+        let value = self
+            .get(&format!("api/v3/catalog/items/{kind}/{id}"), &params)
+            .await?;
+        validate_item_v3(&value)?;
         Ok(value)
     }
     pub async fn documents(
