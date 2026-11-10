@@ -166,52 +166,169 @@ onUnmounted(() => { disposed = true; generation += 1; offCloudContext(); offGap(
 </script>
 
 <template>
-  <BaseGroupBox :title="t('cloudLibrary.title')" :description="t('cloudLibrary.description')">
-    <form class="cloud-library__filters" @submit.prevent="search">
+  <BaseGroupBox
+    :title="t('cloudLibrary.title')"
+    :description="t('cloudLibrary.description')"
+  >
+    <form
+      class="cloud-library__filters"
+      @submit.prevent="search"
+    >
       <label>{{ t('cloudLibrary.scope') }}
         <select v-model="scope">
           <option value="public">{{ t('cloudLibrary.public') }}</option>
-          <option value="mine" :disabled="!mineAvailable">{{ t('cloudLibrary.mine') }}</option>
+          <option
+            value="mine"
+            :disabled="!mineAvailable"
+          >{{ t('cloudLibrary.mine') }}</option>
         </select>
       </label>
       <label>{{ t('cloudLibrary.kind') }}
         <select v-model="kind"><option value="">{{ t('cloudLibrary.all') }}</option><option value="template">{{ t('cloudLibrary.template') }}</option><option value="profile">{{ t('cloudLibrary.profile') }}</option></select>
       </label>
-      <label>{{ t('cloudLibrary.query') }} <input v-model="query" maxlength="100" type="search"></label>
-      <button type="submit" :disabled="loading || (scope === 'mine' && !mineAvailable)">{{ t('cloudLibrary.search') }}</button>
+      <label>{{ t('cloudLibrary.query') }} <input
+        v-model="query"
+        maxlength="100"
+        type="search"
+      ></label>
+      <button
+        type="submit"
+        :disabled="loading || (scope === 'mine' && !mineAvailable)"
+      >
+        {{ t('cloudLibrary.search') }}
+      </button>
     </form>
-    <p v-if="scope === 'mine' && !mineAvailable" role="status">{{ t('cloudLibrary.signIn') }}</p>
-    <p v-if="loading" role="status">{{ t('cloudLibrary.loading') }}</p>
-    <p v-if="error" role="alert">{{ error }}</p>
+    <p
+      v-if="scope === 'mine' && !mineAvailable"
+      role="status"
+    >
+      {{ t('cloudLibrary.signIn') }}
+    </p>
+    <p
+      v-if="loading"
+      role="status"
+    >
+      {{ t('cloudLibrary.loading') }}
+    </p>
+    <p
+      v-if="error"
+      role="alert"
+    >
+      {{ error }}
+    </p>
     <template v-if="shown">
-      <p v-if="!shown.items.length">{{ t('cloudLibrary.empty') }}</p>
-      <ul v-else class="cloud-library__list">
-        <li v-for="item in shown.items" :key="item.id">
-          <button type="button" :disabled="loading || detailLoading" @click="open(item)">{{ item.title }}</button>
+      <p v-if="!shown.items.length">
+        {{ t('cloudLibrary.empty') }}
+      </p>
+      <ul
+        v-else
+        class="cloud-library__list"
+      >
+        <li
+          v-for="item in shown.items"
+          :key="item.id"
+        >
+          <button
+            type="button"
+            :disabled="loading || detailLoading"
+            @click="open(item)"
+          >
+            {{ item.title }}
+          </button>
           <span>{{ t(`cloudLibrary.${item.kind}`) }} · {{ t(`cloudLibrary.status.${item.status}`) }} · {{ t('cloudLibrary.revision', { revision: item.revision }) }}</span>
         </li>
       </ul>
       <nav :aria-label="t('cloudLibrary.pages')">
-        <button type="button" :disabled="loading || !history.length" @click="previousPage">{{ t('cloudLibrary.previous') }}</button>
-        <button type="button" :disabled="loading || !shown.nextCursor" @click="nextPage">{{ t('cloudLibrary.next') }}</button>
+        <button
+          type="button"
+          :disabled="loading || !history.length"
+          @click="previousPage"
+        >
+          {{ t('cloudLibrary.previous') }}
+        </button>
+        <button
+          type="button"
+          :disabled="loading || !shown.nextCursor"
+          @click="nextPage"
+        >
+          {{ t('cloudLibrary.next') }}
+        </button>
       </nav>
     </template>
-    <p v-if="detailLoading" role="status">{{ t('cloudLibrary.loading') }}</p>
-    <p v-if="detailError" role="alert">{{ detailError }}</p>
-    <section v-if="selected" class="cloud-library__detail" :aria-label="selected.meta.title">
+    <p
+      v-if="detailLoading"
+      role="status"
+    >
+      {{ t('cloudLibrary.loading') }}
+    </p>
+    <p
+      v-if="detailError"
+      role="alert"
+    >
+      {{ detailError }}
+    </p>
+    <section
+      v-if="selected"
+      class="cloud-library__detail"
+      :aria-label="selected.meta.title"
+    >
       <h3>{{ selected.meta.title }}</h3>
       <p>{{ t('cloudLibrary.revision', { revision: selected.meta.revision }) }} · {{ t(`cloudLibrary.status.${selected.meta.status}`) }}</p>
-      <p v-if="detail?.title && detail.title !== selected.meta.title">{{ detail.title }}</p>
-      <p v-if="detail?.description">{{ detail.description }}</p>
-      <p v-if="detail?.event">{{ t('cloudLibrary.event', { name: detail.event }) }}</p>
-      <div v-if="detail?.names.length"><p>{{ t('cloudLibrary.actions') }}</p><ul><li v-for="(name, index) in detail.names" :key="index">{{ name }}</li></ul></div>
-      <div v-if="detail?.templates.length"><p>{{ t('cloudLibrary.templates') }}</p><ul><li v-for="(name, index) in detail.templates" :key="index">{{ name }}</li></ul></div>
+      <p v-if="detail?.title && detail.title !== selected.meta.title">
+        {{ detail.title }}
+      </p>
+      <p v-if="detail?.description">
+        {{ detail.description }}
+      </p>
+      <p v-if="detail?.event">
+        {{ t('cloudLibrary.event', { name: detail.event }) }}
+      </p>
+      <div v-if="detail?.names.length">
+        <p>{{ t('cloudLibrary.actions') }}</p><ul>
+          <li
+            v-for="(name, index) in detail.names"
+            :key="index"
+          >
+            {{ name }}
+          </li>
+        </ul>
+      </div>
+      <div v-if="detail?.templates.length">
+        <p>{{ t('cloudLibrary.templates') }}</p><ul>
+          <li
+            v-for="(name, index) in detail.templates"
+            :key="index"
+          >
+            {{ name }}
+          </li>
+        </ul>
+      </div>
       <template v-if="selected.meta.kind === 'template'">
-        <BaseButton :disabled="importing" @click="importTemplate">{{ t('cloudLibrary.import') }}</BaseButton>
-        <p v-if="staged" role="status">{{ t('cloudLibrary.staged') }}</p>
-        <p v-if="importError" role="alert">{{ importError }}</p>
+        <BaseButton
+          :disabled="importing"
+          @click="importTemplate"
+        >
+          {{ t('cloudLibrary.import') }}
+        </BaseButton>
+        <p
+          v-if="staged"
+          role="status"
+        >
+          {{ t('cloudLibrary.staged') }}
+        </p>
+        <p
+          v-if="importError"
+          role="alert"
+        >
+          {{ importError }}
+        </p>
       </template>
-      <button type="button" @click="selected = null">{{ t('common.close') }}</button>
+      <button
+        type="button"
+        @click="selected = null"
+      >
+        {{ t('common.close') }}
+      </button>
     </section>
   </BaseGroupBox>
 </template>

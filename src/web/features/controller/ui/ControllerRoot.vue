@@ -408,14 +408,22 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       {{ labels.pending }} <code>{{ pending }}</code>
     </p>
     <ControllerLiveStatus :model="model.live" />
-    <ControllerLiveFeed :model="model.liveFeed" :can-lookup-points="canLookupFeedViewer" :show-ambiguous-viewer="ready && pointsAllowed" @lookup-points="lookupFeedViewer" />
+    <ControllerLiveFeed
+      :model="model.liveFeed"
+      :can-lookup-points="canLookupFeedViewer"
+      :show-ambiguous-viewer="ready && pointsAllowed"
+      @lookup-points="lookupFeedViewer"
+    />
     <ControllerCompetitions :model="model.competitions" />
     <ControllerAutomations
       :model="model.automation"
       :epoch="status.epoch"
       :busy="busy || commandSending"
     />
-    <ControllerProposals :model="model.proposals" :automation="model.automation" />
+    <ControllerProposals
+      :model="model.proposals"
+      :automation="model.automation"
+    />
     <section
       v-if="ready && pointsAllowed"
       ref="pointsSection"

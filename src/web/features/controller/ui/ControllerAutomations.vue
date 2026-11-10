@@ -60,7 +60,13 @@ async function request(item: AutomationRow, operation: EventOperation): Promise<
             <p>{{ item.summary.enabled ? text.enabled : text.disabled }} · {{ text.revision }} {{ item.version.revision }}</p>
           </div>
           <div class="automation-board__actions">
-            <button v-if="item.summary.kind === 'action' && item.summary.enabled" :disabled="!model.canChange(item, 'disable-action')" @click="request(item, 'disable-action')">{{ text.disableAction }}</button>
+            <button
+              v-if="item.summary.kind === 'action' && item.summary.enabled"
+              :disabled="!model.canChange(item, 'disable-action')"
+              @click="request(item, 'disable-action')"
+            >
+              {{ text.disableAction }}
+            </button>
             <button
               v-if="!item.summary.enabled"
               :disabled="!model.canChange(item, item.summary.kind === 'event' ? 'enable-event' : 'enable-action')"

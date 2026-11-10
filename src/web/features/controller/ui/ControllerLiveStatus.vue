@@ -17,13 +17,31 @@ const text = computed(() => locale.value === 'es' ? {
 </script>
 
 <template>
-  <section v-if="model.allowed.value" class="live-status" :aria-label="text.title">
+  <section
+    v-if="model.allowed.value"
+    class="live-status"
+    :aria-label="text.title"
+  >
     <h2>{{ text.title }}</h2>
-    <p v-if="model.error.value" role="alert">{{ text.unavailable }}</p>
-    <p v-else-if="!model.data.value" role="status">{{ text.loading }}</p>
+    <p
+      v-if="model.error.value"
+      role="alert"
+    >
+      {{ text.unavailable }}
+    </p>
+    <p
+      v-else-if="!model.data.value"
+      role="status"
+    >
+      {{ text.loading }}
+    </p>
     <template v-else>
-      <p role="status">{{ model.data.value.connected ? text.connected : text.disconnected }}</p>
-      <p v-if="model.data.value.uniqueId">{{ text.creator }}: {{ model.data.value.uniqueId }}</p>
+      <p role="status">
+        {{ model.data.value.connected ? text.connected : text.disconnected }}
+      </p>
+      <p v-if="model.data.value.uniqueId">
+        {{ text.creator }}: {{ model.data.value.uniqueId }}
+      </p>
     </template>
     <p>{{ text.polling }}</p>
   </section>

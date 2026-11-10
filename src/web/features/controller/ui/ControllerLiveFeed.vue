@@ -35,38 +35,88 @@ watch(() => props.model.scopeRevision.value, () => { selectedKind.value = 'all';
 </script>
 
 <template>
-  <section v-if="model.allowed.value" class="live-feed" :aria-label="text.title">
+  <section
+    v-if="model.allowed.value"
+    class="live-feed"
+    :aria-label="text.title"
+  >
     <h2>{{ text.title }}</h2>
-    <p v-if="model.error.value" role="alert">{{ text.unavailable }}</p>
-    <p v-else-if="model.gap.value" role="status">{{ text.gap }}</p>
+    <p
+      v-if="model.error.value"
+      role="alert"
+    >
+      {{ text.unavailable }}
+    </p>
+    <p
+      v-else-if="model.gap.value"
+      role="status"
+    >
+      {{ text.gap }}
+    </p>
     <div class="filters">
       <label v-if="model.creatorOptions.value.length">{{ text.creator }}
-        <select :value="model.selectedCreator.value ?? ''" @change="model.selectCreator(($event.target as HTMLSelectElement).value)">
-          <option v-for="creator in model.creatorOptions.value" :key="creator" :value="creator">{{ creator }}</option>
+        <select
+          :value="model.selectedCreator.value ?? ''"
+          @change="model.selectCreator(($event.target as HTMLSelectElement).value)"
+        >
+          <option
+            v-for="creator in model.creatorOptions.value"
+            :key="creator"
+            :value="creator"
+          >{{ creator }}</option>
         </select>
       </label>
       <template v-if="!model.error.value">
         <label>{{ text.kind }}
           <select v-model="selectedKind">
             <option value="all">{{ text.all }}</option>
-            <option v-for="(label, kind) in text.kinds" :key="kind" :value="kind">{{ label }}</option>
+            <option
+              v-for="(label, kind) in text.kinds"
+              :key="kind"
+              :value="kind"
+            >{{ label }}</option>
           </select>
         </label>
         <label>{{ text.search }}
-          <input v-model="query" type="search" maxlength="128" autocomplete="off">
+          <input
+            v-model="query"
+            type="search"
+            maxlength="128"
+            autocomplete="off"
+          >
         </label>
       </template>
     </div>
     <template v-if="!model.error.value">
-      <p v-if="model.events.value.length === 0">{{ text.empty }}</p>
-      <p v-else-if="visibleEvents.length === 0">{{ text.noMatches }}</p>
-      <ol v-else role="log" :aria-label="text.title">
-        <li v-for="event in visibleEvents" :key="event.cursor">
+      <p v-if="model.events.value.length === 0">
+        {{ text.empty }}
+      </p>
+      <p v-else-if="visibleEvents.length === 0">
+        {{ text.noMatches }}
+      </p>
+      <ol
+        v-else
+        role="log"
+        :aria-label="text.title"
+      >
+        <li
+          v-for="event in visibleEvents"
+          :key="event.cursor"
+        >
           <strong>{{ event.nickname || event.author }}</strong>
           <span class="kind">{{ text.kinds[event.kind] }}</span>
           <span>{{ event.text }}</span>
-          <button v-if="event.authorLookupId && canLookupPoints?.(event)" type="button" @click="emit('lookupPoints', event)">{{ text.points(event.authorLookupId) }}</button>
-          <span v-else-if="showAmbiguousViewer && event.authorLookupId === null" class="ambiguous">{{ text.ambiguousViewer }}</span>
+          <button
+            v-if="event.authorLookupId && canLookupPoints?.(event)"
+            type="button"
+            @click="emit('lookupPoints', event)"
+          >
+            {{ text.points(event.authorLookupId) }}
+          </button>
+          <span
+            v-else-if="showAmbiguousViewer && event.authorLookupId === null"
+            class="ambiguous"
+          >{{ text.ambiguousViewer }}</span>
         </li>
       </ol>
     </template>

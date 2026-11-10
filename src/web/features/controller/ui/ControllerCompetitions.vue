@@ -23,27 +23,82 @@ const text = computed(() => locale.value === 'es' ? {
 </script>
 
 <template>
-  <section v-if="model.allowed.value" class="controller-competitions" :aria-label="text.title">
+  <section
+    v-if="model.allowed.value"
+    class="controller-competitions"
+    :aria-label="text.title"
+  >
     <h2>{{ text.title }}</h2>
     <p>{{ text.description }}</p>
-    <p v-if="model.error.value" role="alert">{{ text.error }}</p>
-    <p v-else-if="model.loading.value && !model.rows.value.length" role="status">{{ text.loading }}</p>
-    <p v-else-if="!model.rows.value.length">{{ text.empty }}</p>
+    <p
+      v-if="model.error.value"
+      role="alert"
+    >
+      {{ text.error }}
+    </p>
+    <p
+      v-else-if="model.loading.value && !model.rows.value.length"
+      role="status"
+    >
+      {{ text.loading }}
+    </p>
+    <p v-else-if="!model.rows.value.length">
+      {{ text.empty }}
+    </p>
     <ul v-else>
-      <li v-for="row in model.rows.value" :key="row.id">
+      <li
+        v-for="row in model.rows.value"
+        :key="row.id"
+      >
         <strong>{{ row.name }}</strong>
         <span>{{ text.kinds[row.kind] }}</span>
         <span>{{ text.states[row.lifecycle] }}</span>
-        <button v-if="model.canStop(row, 'start-competition')" type="button" @click="model.stopCompetition(row, 'start-competition')">{{ text.start }}</button>
-        <button v-if="model.canStop(row, 'resume-competition')" type="button" @click="model.stopCompetition(row, 'resume-competition')">{{ text.resume }}</button>
-        <button v-if="model.canStop(row, 'pause-competition')" type="button" @click="model.stopCompetition(row, 'pause-competition')">{{ text.pause }}</button>
-        <button v-if="model.canStop(row, 'cancel-competition')" type="button" @click="model.stopCompetition(row, 'cancel-competition')">{{ text.cancel }}</button>
+        <button
+          v-if="model.canStop(row, 'start-competition')"
+          type="button"
+          @click="model.stopCompetition(row, 'start-competition')"
+        >
+          {{ text.start }}
+        </button>
+        <button
+          v-if="model.canStop(row, 'resume-competition')"
+          type="button"
+          @click="model.stopCompetition(row, 'resume-competition')"
+        >
+          {{ text.resume }}
+        </button>
+        <button
+          v-if="model.canStop(row, 'pause-competition')"
+          type="button"
+          @click="model.stopCompetition(row, 'pause-competition')"
+        >
+          {{ text.pause }}
+        </button>
+        <button
+          v-if="model.canStop(row, 'cancel-competition')"
+          type="button"
+          @click="model.stopCompetition(row, 'cancel-competition')"
+        >
+          {{ text.cancel }}
+        </button>
       </li>
     </ul>
     <nav :aria-label="text.title">
-      <button type="button" :disabled="model.loading.value || model.pageIndex.value === 0" @click="model.previous()">{{ text.previous }}</button>
+      <button
+        type="button"
+        :disabled="model.loading.value || model.pageIndex.value === 0"
+        @click="model.previous()"
+      >
+        {{ text.previous }}
+      </button>
       <span>{{ text.page }} {{ model.pageIndex.value + 1 }}</span>
-      <button type="button" :disabled="model.loading.value || model.nextAfter.value === null" @click="model.next()">{{ text.next }}</button>
+      <button
+        type="button"
+        :disabled="model.loading.value || model.nextAfter.value === null"
+        @click="model.next()"
+      >
+        {{ text.next }}
+      </button>
     </nav>
   </section>
 </template>
