@@ -63,4 +63,6 @@ export default {
   states: { created: 'Creada', redeemed: 'Utilizada', pending: 'Por aprobar', approved: 'Aprobada', rejected: 'Rechazada', revoked: 'Revocada', expired: 'Caducada' },
   uncertain: 'No se confirmó el resultado del cambio. Puede haberse completado. Consulta el estado actual y el registro de actividad antes de repetirlo; no se reintenta automáticamente.', acknowledge: 'Revisé el estado actual',
   limits: { connections: 'Conexiones totales', connectionsPerPrincipal: 'Conexiones por identidad', frameBytes: 'Bytes por mensaje', paramsBytes: 'Bytes de parámetros', pendingCalls: 'Llamadas pendientes por conexión', requestsPerSecond: 'Solicitudes por segundo', requestBurst: 'Ráfaga de solicitudes', commandIdsPerPrincipal: 'IDs de comandos retenidos por identidad' },
+  metrics: { connections: 'Conexiones abiertas', sessions: 'Sesiones de dispositivo activas', pending: 'Esperando aprobación', listener: 'Listener remoto' },
+  tlsTitle: 'TLS', originsTitle: 'Orígenes permitidos', grantGroups: { read: 'Acceso de lectura', write: 'Cambios y control' },
 } satisfies typeof en;

@@ -12,7 +12,13 @@ import EffectGrantEditor from './EffectGrantEditor.vue';
 defineProps<{ disabled?: boolean }>();
 const model = defineModel<Grant>({ required: true });
 const { t } = useI18n();
-const current = ['live.read', 'workflows.read', 'workflows.toggle', 'workflows.edit', 'automation.read', 'automation.toggle', 'automation.edit', 'points.read', 'points.adjust', 'competitions.read', 'competitions.manage', 'commands.read'] as const;
+const readCapabilityIds = ['live.read', 'workflows.read', 'automation.read', 'points.read', 'competitions.read', 'commands.read'] as const;
+const writeCapabilityIds = ['workflows.toggle', 'workflows.edit', 'automation.toggle', 'automation.edit', 'points.adjust', 'competitions.manage'] as const;
+const current = [...readCapabilityIds, ...writeCapabilityIds] as const;
+const capabilityGroups = [
+  { key: 'read', ids: readCapabilityIds },
+  { key: 'write', ids: writeCapabilityIds },
+] as const;
 const labels = { 'live.read': 'capLive', 'workflows.read': 'capWorkflow', 'workflows.toggle': 'capWorkflowDisable', 'workflows.edit': 'capWorkflowDelete', 'automation.read': 'capAutomation', 'automation.toggle': 'capEventDisable', 'automation.edit': 'capEventDelete', 'points.read': 'capPoints', 'points.adjust': 'capPointsAdjust', 'competitions.read': 'capCompetitions', 'competitions.manage': 'capCompetitionStop', 'commands.read': 'capCommands' } as const;
 const effectCaps = ['http.request', 'audio.play', 'events.emit', 'scripts.execute'] as const;
 const effectLabels = { 'http.request': 'capHttp', 'audio.play': 'capAudio', 'events.emit': 'capEmit', 'scripts.execute': 'capScript' } as const;
@@ -150,15 +156,24 @@ function applyJson(): void {
         {{ t('collaboration.presetAgent') }}
       </BaseButton>
     </div>
-    <BaseSwitch
-      v-for="capability in current"
-      :key="capability"
-      :model-value="model.capabilities.includes(capability)"
-      :disabled="disabled || requiredByDelegation(capability)"
-      @update:model-value="setCapability(capability, $event)"
+    <div
+      v-for="group in capabilityGroups"
+      :key="group.key"
+      class="grant-editor__group"
     >
-      {{ t(`collaboration.${labels[capability]}`) }}
-    </BaseSwitch>
+      <h4>{{ t(`collaboration.grantGroups.${group.key}`) }}</h4>
+      <div class="grant-editor__switches">
+        <BaseSwitch
+          v-for="capability in group.ids"
+          :key="capability"
+          :model-value="model.capabilities.includes(capability)"
+          :disabled="disabled || requiredByDelegation(capability)"
+          @update:model-value="setCapability(capability, $event)"
+        >
+          {{ t(`collaboration.${labels[capability]}`) }}
+        </BaseSwitch>
+      </div>
+    </div>
     <p>{{ t('collaboration.reusableGrantHint') }}</p>
     <label v-if="model.capabilities.includes('points.adjust')">
       {{ t('collaboration.pointsLimit') }}
@@ -311,6 +326,9 @@ function applyJson(): void {
 .grant-editor { display: flex; flex-direction: column; gap: var(--space-3); }
 .grant-editor__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .grant-editor__scope { margin: var(--space-3) 0; }
+.grant-editor__group { display: flex; flex-direction: column; gap: var(--space-3); }
+.grant-editor__group h4 { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.grant-editor__switches { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3) var(--space-4); }
 .grant-editor label { display: grid; gap: var(--space-2); }
 .grant-editor select, .grant-editor input { padding: var(--space-3); color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; } summary { cursor: pointer; }

@@ -61,4 +61,6 @@ export default {
   states: { created: 'Created', redeemed: 'Used', pending: 'Awaiting approval', approved: 'Approved', rejected: 'Rejected', revoked: 'Revoked', expired: 'Expired' },
   uncertain: 'The change result was not confirmed. It may have completed. Read the current state and activity log before repeating it; nothing is retried automatically.', acknowledge: 'I reviewed the current state',
   limits: { connections: 'Total connections', connectionsPerPrincipal: 'Connections per identity', frameBytes: 'Frame bytes', paramsBytes: 'Parameter bytes', pendingCalls: 'Pending calls per connection', requestsPerSecond: 'Requests per second', requestBurst: 'Request burst', commandIdsPerPrincipal: 'Retained command IDs per identity' },
+  metrics: { connections: 'Open connections', sessions: 'Active device sessions', pending: 'Waiting for approval', listener: 'Remote listener' },
+  tlsTitle: 'TLS', originsTitle: 'Allowed origins', grantGroups: { read: 'Read access', write: 'Changes and control' },
 };
