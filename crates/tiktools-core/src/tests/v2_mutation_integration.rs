@@ -252,7 +252,6 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     assert!(other.db.has_untracked_plugin_sync().unwrap());
     assert!(core.db.has_untracked_plugin_sync().unwrap());
     other.shutdown().await;
-    drop(other_source);
     let _ = std::fs::remove_dir_all(other_root);
 
     let proof = sync
@@ -463,7 +462,6 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
         .unwrap()
         .unwrap();
     source.confirm_reconciled_runtime(&runtime_review).unwrap();
-    drop(source);
     Arc::get_mut(&mut core).unwrap().cloud = Arc::new(
         crate::cloud_account::CloudAccount::with_test_auth(auth.clone()),
     );
@@ -692,7 +690,6 @@ async fn reviewed_local_change_transfers_only_under_matching_session_and_barrier
     source
         .with_fenced_upload(&decision, &mut || Ok(()))
         .unwrap();
-    drop(source);
     // A successful package operation under the same session can transfer its
     // fresh marker into the ordinary v2 outbox without another approval.
     {
@@ -837,7 +834,6 @@ async fn product_upload_source_rejects_new_admission_after_shutdown() {
         })
         .is_err());
     assert!(!admitted);
-    drop(source);
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -887,7 +883,6 @@ async fn reconciled_runtime_confirmation_can_be_rebuilt_after_host_restart() {
     source.confirm_reconciled_runtime(&review).unwrap();
     let old_epoch = first.sync.runtime_epoch().unwrap().to_owned();
     first.shutdown().await;
-    drop(source);
     drop(first);
 
     let (manager, manager_root) =
@@ -924,7 +919,6 @@ async fn reconciled_runtime_confirmation_can_be_rebuilt_after_host_restart() {
         Some(new_epoch)
     );
     restarted.shutdown().await;
-    drop(source);
     let _ = std::fs::remove_dir_all(manager_root);
     let _ = std::fs::remove_dir_all(root);
 }
@@ -1026,7 +1020,6 @@ async fn untracked_local_review_revalidates_runtime_and_source_before_callback()
         .unwrap()
         .is_some());
     core.shutdown().await;
-    drop(source);
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -1618,7 +1611,6 @@ async fn v2_native_mutations_stage_confirmed_sqlite_intents_and_reject_stale_run
         .unwrap();
     assert!(core.db.has_untracked_plugin_sync().unwrap());
     assert!(source.acquire_emission_guard().is_err());
-    drop(source);
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }

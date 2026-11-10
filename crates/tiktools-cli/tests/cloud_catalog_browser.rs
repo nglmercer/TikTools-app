@@ -252,35 +252,36 @@ async fn packaged_cloud_catalog_uses_native_http_and_pinned_pagination() {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
-        let captured = requests.lock().unwrap();
-        assert!(captured.len() >= 6, "expected real native catalog requests");
-        assert!(captured.iter().any(|request| request
-            .lines()
-            .next()
-            .unwrap_or_default()
-            .contains(SUMMARY_CURSOR)
-            && request
+        {
+            let captured = requests.lock().unwrap();
+            assert!(captured.len() >= 6, "expected real native catalog requests");
+            assert!(captured.iter().any(|request| request
                 .lines()
                 .next()
                 .unwrap_or_default()
-                .contains("generation=9007199254740993")));
-        assert!(captured.iter().any(|request| request
-            .lines()
-            .next()
-            .unwrap_or_default()
-            .contains(VERSION_CURSOR)
-            && request
+                .contains(SUMMARY_CURSOR)
+                && request
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .contains("generation=9007199254740993")));
+            assert!(captured.iter().any(|request| request
                 .lines()
                 .next()
                 .unwrap_or_default()
-                .contains("generation=9007199254740993")));
-        assert!(
-            captured
-                .iter()
-                .all(|request| !request.to_ascii_lowercase().contains("\nauthorization:")),
-            "catalog requests must be anonymous"
-        );
-        drop(captured);
+                .contains(VERSION_CURSOR)
+                && request
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .contains("generation=9007199254740993")));
+            assert!(
+                captured
+                    .iter()
+                    .all(|request| !request.to_ascii_lowercase().contains("\nauthorization:")),
+                "catalog requests must be anonymous"
+            );
+        }
         assert!(host.try_wait().unwrap().is_none());
         let _ = web.kill().await;
         let _ = web.wait().await;

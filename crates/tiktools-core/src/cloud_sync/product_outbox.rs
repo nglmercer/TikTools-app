@@ -35,6 +35,7 @@ fn unavailable() -> SyncCoordError {
     SyncCoordError::Local("local sync source needs review".into())
 }
 
+#[allow(dead_code)]
 fn candidate(entry: &PluginSyncOutboxEntry) -> Result<V1OutboxCandidate, SyncCoordError> {
     let edit = match (&entry.version, entry.enabled) {
         (Some(version), Some(enabled)) => V1Edit::Put(PluginSelection {
@@ -273,11 +274,13 @@ impl<'a> RuntimeProductOutbox<'a> {
     }
 }
 
+#[allow(dead_code)]
 struct UnderRuntimeGuard<'a, 'g> {
     inner: &'a mut SqliteProductOutbox<'g>,
     runtime: &'a PluginSyncRuntimeGuard<'g>,
 }
 
+#[allow(dead_code)]
 fn runtime_agrees(runtime: &PluginSyncRuntimeGuard<'_>, key: &str, edit: &V1Edit) -> bool {
     match edit {
         V1Edit::Put(selection) if selection.plugin_id == key => {
@@ -675,13 +678,11 @@ mod tests {
             }),
         ));
         let outcome = sync.sync_now_with_outbox(&mut outbox).await.unwrap();
-        assert_eq!(outcome.remote[0].selection.as_ref().unwrap().enabled, false);
+        assert!(!outcome.remote[0].selection.as_ref().unwrap().enabled);
         let review = sync
             .review_product_remote_apply("acme.plugin", &mut outbox)
             .await
             .unwrap();
-        let gate = std::sync::Mutex::new(());
-        let _guard = gate.lock().unwrap();
         assert!(super::super::product_apply::prepare_pulled(
             &sync,
             &db,

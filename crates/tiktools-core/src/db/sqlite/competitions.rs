@@ -67,6 +67,7 @@ pub(super) fn validate_competition_winner_claim(
         .ok()
         .filter(|g| *g > 0)
         .ok_or_else(denied)?;
+    #[allow(clippy::type_complexity)]
     let row: Option<(String, String, String, String, String, i64, String, String)> = tx.query_row(
         "SELECT d.definition_json,s.state_json,o.idempotency_key,o.action_id,o.action_json,r.created_at,r.ranking_id,r.result_json FROM competition_action_outbox o JOIN competition_definitions d ON d.id=o.competition_id JOIN competition_state s ON s.competition_id=o.competition_id JOIN competition_results r ON r.competition_id=o.competition_id AND r.generation=o.generation WHERE o.competition_id=?1 AND o.generation=?2 AND o.status='running'",
         params![claim.competition_id, generation],
@@ -291,6 +292,7 @@ impl DatabaseManager {
     /// Caller must hold the ranking and competition mutation barriers and
     /// verify that the ranking is unpaused. No event or effect is dispatched.
     #[allow(dead_code)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn execute_competition_activation(
         &self,
         id: &str,

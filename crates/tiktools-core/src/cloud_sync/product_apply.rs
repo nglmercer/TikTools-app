@@ -16,6 +16,7 @@ fn local_error() -> SyncCoordError {
 
 #[cfg(feature = "plugin-install")]
 #[derive(Debug, PartialEq, Eq)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum V2PulledApplyRecovery {
     Ready(PluginApplyIntent),
     Finalized,
@@ -92,6 +93,7 @@ pub(super) fn prepare_pulled(
 /// review binds the same live session and durable Cloud record; the SQLite
 /// phase/source check ensures restart or a later local change cannot turn a
 /// saved intent into permission to repeat a runtime effect.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn resume_pulled(
     sync: &SyncCoordinator,
     db: &DatabaseManager,
