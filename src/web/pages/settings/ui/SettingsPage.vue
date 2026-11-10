@@ -9,6 +9,7 @@ import CloudLibrary from '@/features/cloud-library/ui/CloudLibrary.vue';
 import CloudConnections from '@/features/cloud-integrations/ui/CloudConnections.vue';
 import CloudTeams from '@/features/cloud-teams/ui/CloudTeams.vue';
 import CloudBundles from '@/features/cloud-bundles/ui/CloudBundles.vue';
+import CloudOverlays from '@/features/cloud-overlays/ui/CloudOverlays.vue';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import CloudSyncEditor from '@/features/cloud-sync/ui/CloudSyncEditor.vue';
 import CollaborationEditor from '@/features/manage-collaboration/ui/CollaborationEditor.vue';
@@ -44,6 +45,7 @@ const capabilities = useCapabilityStore();
 const connectionsAvailable = computed(() => capabilities.supports('integrations.connections') === true);
 const teamsAvailable = computed(() => capabilities.supports('teams.hosts.list') === true);
 const bundlesAvailable = computed(() => capabilities.supports('bundles.packages.preflight') === true);
+const overlaysAvailable = computed(() => capabilities.supports('bundles.overlays.create') === true);
 const router = useRouter();
 const localeStore = useLocaleStore();
 
@@ -124,6 +126,7 @@ const locale = computed<Locale>({
         <CloudLibrary />
         <CloudTeams v-if="teamsAvailable" />
         <CloudBundles v-if="bundlesAvailable" />
+        <CloudOverlays v-if="overlaysAvailable" />
         <CloudConnections v-if="connectionsAvailable" />
         <SettingsDisclosure :title="t('settingsLayout.diagnostics')">
           <CloudAccountDiagnostics />
