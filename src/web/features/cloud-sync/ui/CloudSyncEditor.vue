@@ -44,6 +44,8 @@ const v2ConflictReview = ref<V2ConflictReview | null>(null);
 const v2ConflictBusy = ref(false);
 const v2ConflictError = ref('');
 const v2ConflictResolved = ref(false);
+const v2RebuildBusy = ref(false);
+const v2Rebuilt = ref(false);
 let requestGeneration = 0;
 let previewGeneration = 0;
 function validRecoveryValue(value: unknown): value is RecoveryValue {
@@ -233,6 +235,21 @@ async function synchronizeV2(): Promise<void> {
   }
 }
 
+async function rebuildV2(): Promise<void> {
+  if (!v2Selected.value || v2RebuildBusy.value || v2Busy.value || sync.working) return;
+  const generation = requestGeneration;
+  v2RebuildBusy.value = true; v2Error.value = false; v2Rebuilt.value = false;
+  try {
+    await client.call<unknown>('sync.v2.rebuild', {});
+    if (generation !== requestGeneration) return;
+    v2Rebuilt.value = true; await refreshV2Conflicts();
+  } catch {
+    if (generation === requestGeneration) v2Error.value = true;
+  } finally {
+    if (generation === requestGeneration) v2RebuildBusy.value = false;
+  }
+}
+
 async function refreshV2Conflicts(): Promise<void> {
   const generation = requestGeneration;
   if (!signedIn.value || !enabled.value || !v2Selected.value) return;
@@ -324,7 +341,7 @@ async function migrate(): Promise<void> {
 function clearReviews(): void {
   requestGeneration += 1; previewGeneration += 1; uncertain.value = []; review.value = null; recoveryError.value = ''; recoveryBusy.value = false; newerNeedsReview.value = false;
   deferredCount.value = null; v2State.value = null; v2Busy.value = false; v2Error.value = false; v2Selected.value = false; v2Result.value = null; migrationPreview.value = null; migrationResult.value = null; protocolReady.value = false; protocolLoading.value = false;
-  v2Conflicts.value = []; v2ConflictReview.value = null; v2ConflictBusy.value = false; v2ConflictError.value = ''; v2ConflictResolved.value = false;
+  v2Conflicts.value = []; v2ConflictReview.value = null; v2ConflictBusy.value = false; v2ConflictError.value = ''; v2ConflictResolved.value = false; v2RebuildBusy.value = false; v2Rebuilt.value = false;
 }
 watch(() => [account.status, account.working, account.loading, enabled.value], () => {
   clearReviews();
@@ -384,6 +401,8 @@ onMounted(() => {
           <p>{{ t('sync.v2.cachedOnly') }}</p>
           <p v-if="v2Result" role="status">{{ t('sync.v2.result', { pushed: v2Result.pushed, pulled: v2Result.pulled, pending: v2Result.workspacePending, available: v2Result.availableRecords, conflicts: v2Result.conflicts.length }) }} <span v-if="v2Result.moreQueued">{{ t('sync.v2.moreQueued') }}</span></p>
           <BaseButton variant="primary" :disabled="v2Busy || sync.working" @click="synchronizeV2">{{ t('sync.syncNow') }}</BaseButton>
+          <BaseButton :disabled="v2RebuildBusy || v2Busy || sync.working" @click="rebuildV2">{{ t('sync.v2.rebuild') }}</BaseButton>
+          <p v-if="v2Rebuilt" role="status">{{ t('sync.v2.rebuilt') }}</p>
           <BaseAlert v-if="v2ConflictError" tone="warning" :title="v2ConflictError" />
           <p v-if="v2ConflictResolved" role="status">{{ t('sync.v2.conflictResolved') }}</p>
           <section v-if="v2Conflicts.length" :aria-label="t('sync.v2.conflictTitle')">

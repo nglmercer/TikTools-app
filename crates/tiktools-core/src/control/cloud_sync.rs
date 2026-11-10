@@ -437,6 +437,33 @@ impl AppCore {
         }
     }
 
+    /// Explicit rebuild from a consistent export after cursor expiry. Never
+    /// adopts contents into the running host.
+    pub async fn sync_v2_rebuild(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<(), OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let (session, _) = self.v2_identity().await?;
+            let coordinator = self.sync_coordinator()?.clone();
+            let epoch = self.v2_epoch(&coordinator, &session)?;
+            coordinator
+                .rebuild_v2_product(session.clone())
+                .await
+                .map_err(|_| OperationError::unavailable("Cloud v2 rebuild could not complete"))?;
+            self.cloud
+                .auth()
+                .with_current_session(&session, || coordinator.is_v2_config_epoch_current(&epoch, &session))
+                .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
+                .then_some(())
+                .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            Err(OperationError::unavailable("Cloud v2 rebuild requires persistence"))
+        }
+    }
+
     async fn v2_identity(
         self: &std::sync::Arc<Self>,
     ) -> Result<(std::sync::Arc<cloud_client::Session>, tiktools_cloud_sync::V2LocalEditContext), OperationError> {

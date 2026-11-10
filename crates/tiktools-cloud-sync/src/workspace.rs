@@ -1212,10 +1212,18 @@ impl WorkspaceCoordinator {
         check_eligibility(eligibility, session)?;
         let snapshot = session.workspace_snapshot().await?;
         check_eligibility(eligibility, session)?;
-        self.update(|state| {
-            state.install_rebuild(snapshot.clone())?;
-            Ok(())
-        })
+        if self.snapshot()?.state.is_product_guarded() {
+            let eligibility = eligibility.ok_or(WorkspaceCoordError::Ineligible)?;
+            self.update_product(eligibility, |state| {
+                state.install_rebuild(snapshot.clone())?;
+                Ok(())
+            })
+        } else {
+            self.update(|state| {
+                state.install_rebuild(snapshot.clone())?;
+                Ok(())
+            })
+        }
     }
 }
 

@@ -288,6 +288,56 @@ impl SyncCoordinator {
             .await
     }
 
+    /// Product-only explicit rebuild from a consistent export. Preserves
+    /// pending edits and never adopts contents into the running host.
+    pub async fn rebuild_v2_product(
+        &self,
+        session: Arc<cloud_client::Session>,
+    ) -> Result<(), crate::WorkspaceCoordError> {
+        let sync = self.clone();
+        run_product_worker(move |cancelled, deadline| async move {
+            sync.rebuild_v2_product_inner(session, cancelled, deadline)
+                .await
+        })
+        .await
+    }
+
+    async fn rebuild_v2_product_inner(
+        &self,
+        session: Arc<cloud_client::Session>,
+        cancelled: Arc<AtomicBool>,
+        deadline: Instant,
+    ) -> Result<(), crate::WorkspaceCoordError> {
+        if cancelled.load(Ordering::Acquire) || Instant::now() >= deadline {
+            return Err(crate::WorkspaceCoordError::Ineligible);
+        }
+        let epoch = self
+            .capture_v2_config_epoch(&session)
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let origin = session.instance_origin();
+        let account = session.account_id().to_owned();
+        let _lease = self
+            .protocol
+            .try_v2(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let marker_lease = self
+            .protocol
+            .try_v1()
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        marker_lease
+            .ensure_product_outbox(&origin, &account)
+            .map_err(|_| crate::WorkspaceCoordError::Ineligible)?;
+        let root = self
+            .config_path
+            .parent()
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        let eligibility = self.v2_product_eligibility(session.clone(), epoch, cancelled, deadline);
+        workspace
+            .rebuild_remote_cache_guarded(&session, &eligibility)
+            .await
+    }
+
     /// Local-only conflict listing for the current account. Reads the durable
     /// workspace without network I/O, session fences or product-worker
     /// leases. Callers must revalidate session and consent around this read.

@@ -171,6 +171,12 @@ pub fn register(router: &mut ControlRouter) {
         true,
         |core: Arc<AppCore>, _| async move { core.sync_v2_now().await.map_err(map_error) },
     );
+    router.register_typed::<Empty, (), _, _>(
+        "sync.v2.rebuild",
+        "Rebuilds the fetched Cloud baseline after cursor expiry",
+        true,
+        |core: Arc<AppCore>, _| async move { core.sync_v2_rebuild().await.map_err(map_error) },
+    );
     router.register_typed::<Empty, Vec<V2ConflictTarget>, _, _>(
         "sync.v2.conflict.list",
         "Lists v2 conflicts for the current account without contacting Cloud",
