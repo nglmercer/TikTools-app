@@ -27,7 +27,14 @@ use tiktools_control_api::{
 use tokio::{sync::Semaphore, task::JoinSet};
 
 const PAIRING_RENEW_COOLDOWN: Duration = Duration::from_secs(30);
+/// Sliding idle window. Authenticated activity on the socket or session touch
+/// endpoint renews it, so an open tab is never logged out for being open.
 const SESSION_LIFETIME: Duration = Duration::from_secs(3600);
+/// Hard ceiling from pairing. Activity cannot renew a browser session forever.
+const SESSION_ABSOLUTE_LIFETIME: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+/// The cookie outlives the idle window so activity can renew it without a
+/// re-pair. The server still enforces both windows above.
+const SESSION_COOKIE_MAX_AGE: u64 = 7 * 24 * 60 * 60;
 #[cfg(test)]
 const MAX_FRAME: usize = 1024 * 1024;
 /// Lifetime of a pairing code, in seconds. Bounds the in-memory check in
@@ -40,9 +47,44 @@ const PAIRING_FIXTURE_ENV: &str = "TIKTOOLS_PAIRING_FIXTURE";
 struct Auth {
     pairing: Option<String>,
     issued: Instant,
+    /// Session token paired with the last authenticated activity that keeps it
+    /// alive. Activity slides this window; it never extends the ceiling below.
     session: Option<(String, Instant)>,
+    /// Pairing time. Bounds how long activity may keep renewing the session.
+    paired_at: Option<Instant>,
     attempts: u8,
     renewed_at: Option<Instant>,
+}
+
+impl Auth {
+    fn session_valid(&self) -> bool {
+        match (&self.session, self.paired_at) {
+            (Some((_, last)), Some(paired)) => {
+                last.elapsed() < SESSION_LIFETIME
+                    && paired.elapsed() < SESSION_ABSOLUTE_LIFETIME
+            }
+            _ => false,
+        }
+    }
+
+    /// Slide the idle window after a request proved possession of the cookie.
+    fn touch(&mut self) {
+        if self.session_valid() {
+            if let Some((_, last)) = self.session.as_mut() {
+                *last = Instant::now();
+            }
+        }
+    }
+
+    /// Seconds until the idle or absolute window closes, whichever is first.
+    fn remaining_seconds(&self) -> u64 {
+        let (Some((_, last)), Some(paired)) = (&self.session, self.paired_at) else {
+            return 0;
+        };
+        let idle = SESSION_LIFETIME.saturating_sub(last.elapsed());
+        let absolute = SESSION_ABSOLUTE_LIFETIME.saturating_sub(paired.elapsed());
+        idle.min(absolute).as_secs()
+    }
 }
 struct App {
     root: PathBuf,
@@ -200,6 +242,17 @@ fn secret() -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+fn cookie_matches(headers: &HeaderMap, name: &str, token: &str) -> bool {
+    headers
+        .get(header::COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            value
+                .split(';')
+                .any(|cookie| cookie.trim() == format!("{name}={token}"))
+        })
+}
+
 impl App {
     fn cookie_name(&self) -> String {
         format!(
@@ -208,22 +261,52 @@ impl App {
         )
     }
 
+    fn session_cookie(&self, token: &str) -> String {
+        format!(
+            "{}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={SESSION_COOKIE_MAX_AGE}",
+            self.cookie_name()
+        )
+    }
+
     fn authorized(&self, headers: &HeaderMap) -> bool {
         let Ok(auth) = self.auth.lock() else {
             return false;
         };
-        let Some((token, since)) = &auth.session else {
+        if !auth.session_valid() {
+            return false;
+        }
+        let Some((token, _)) = &auth.session else {
             return false;
         };
-        since.elapsed() < SESSION_LIFETIME
-            && headers
-                .get(header::COOKIE)
-                .and_then(|value| value.to_str().ok())
-                .is_some_and(|value| {
-                    value
-                        .split(';')
-                        .any(|cookie| cookie.trim() == format!("{}={token}", self.cookie_name()))
-                })
+        cookie_matches(headers, &self.cookie_name(), token)
+    }
+
+    /// Validate the cookie and slide the idle window. Returns the token and the
+    /// remaining lifetime so the caller can also refresh the cookie.
+    fn authorized_touch(&self, headers: &HeaderMap) -> Option<(String, u64)> {
+        let mut auth = self.auth.lock().ok()?;
+        if !auth.session_valid() {
+            return None;
+        }
+        let token = auth.session.as_ref()?.0.clone();
+        if !cookie_matches(headers, &self.cookie_name(), &token) {
+            return None;
+        }
+        auth.touch();
+        Some((token, auth.remaining_seconds()))
+    }
+
+    /// Keep the session alive while its socket is open. Returns false once the
+    /// session is no longer valid so the caller can close the connection.
+    fn touch_session(&self) -> bool {
+        let Ok(mut auth) = self.auth.lock() else {
+            return false;
+        };
+        if !auth.session_valid() {
+            return false;
+        }
+        auth.touch();
+        true
     }
     fn same_origin(&self, headers: &HeaderMap) -> bool {
         headers
@@ -410,6 +493,7 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
             pairing: Some(pairing),
             issued: Instant::now(),
             session: None,
+            paired_at: None,
             attempts: 0,
             renewed_at: None,
         }),
@@ -421,6 +505,7 @@ async fn start(assets: PathBuf, port: u16, join_origin: Option<String>) -> Resul
     let router = Router::new()
         .route("/__local/pair", post(pair))
         .route("/__local/pair/renew", post(renew_pairing))
+        .route("/__local/session/touch", post(session_touch))
         .route("/__local/pair.js", get(pair_script))
         .route("/__local/ws", get(upgrade))
         .fallback(get(asset))
@@ -505,12 +590,28 @@ async fn pair(
     // The spent code must not linger in the readout file.
     let _ = std::fs::remove_file(&app.pairing_file);
     let session = secret();
-    let cookie = format!(
-        "{}={session}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600",
-        app.cookie_name()
-    );
-    auth.session = Some((session, Instant::now()));
+    let cookie = app.session_cookie(&session);
+    let now = Instant::now();
+    auth.session = Some((session, now));
+    auth.paired_at = Some(now);
     ([(header::SET_COOKIE, cookie)], Json(json!({"ok": true}))).into_response()
+}
+
+/// Slide a live session without re-pairing. Same-origin only: a cross-site
+/// request cannot keep a session alive, and the response reissues the cookie so
+/// a long-lived tab never loses it to the browser's own expiry.
+async fn session_touch(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
+    if !app.same_origin(&headers) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let Some((token, remaining)) = app.authorized_touch(&headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    (
+        [(header::SET_COOKIE, app.session_cookie(&token))],
+        Json(json!({"ok": true, "remainingSeconds": remaining})),
+    )
+        .into_response()
 }
 
 // Renewal changes only the human code. It never returns credentials or resets
@@ -522,11 +623,7 @@ async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMap) -> Respo
     let Ok(mut auth) = app.auth.lock() else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
-    if auth
-        .session
-        .as_ref()
-        .is_some_and(|(_, issued)| issued.elapsed() < SESSION_LIFETIME)
-    {
+    if auth.session_valid() {
         return (
             StatusCode::CONFLICT,
             Json(json!({"error":"already_paired"})),
@@ -620,13 +717,14 @@ async fn socket_loop(mut socket: WebSocket, client: ControlClient, app: Arc<App>
     let mut events = client.subscribe();
     let mut calls = JoinSet::new();
     let mut session_clock = tokio::time::interval(Duration::from_secs(10));
-    let started = Instant::now();
     loop {
         let outgoing = tokio::select! {
             _ = stopping.changed() => break,
             _ = session_clock.tick() => {
-                let valid = app.auth.lock().ok().and_then(|auth| auth.session.as_ref().map(|(_, since)| since.elapsed() < SESSION_LIFETIME)).unwrap_or(false);
-                if !valid || client.is_closed() || started.elapsed() >= SESSION_LIFETIME { break; }
+                // An open, authenticated socket is activity: slide the idle
+                // window so a working tab is never logged out. The absolute
+                // ceiling still ends the session eventually.
+                if !app.touch_session() || client.is_closed() { break; }
                 continue;
             }
             message = socket.recv() => {
@@ -1146,6 +1244,7 @@ mod tests {
                 pairing: Some("012345".into()),
                 issued: Instant::now(),
                 session: None,
+                paired_at: None,
                 attempts: 0,
                 renewed_at: None,
             }),
@@ -1170,6 +1269,91 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::ORIGIN, "http://127.0.0.1:8787".parse().unwrap());
         headers
+    }
+    fn session_headers(app: &App, token: &str) -> HeaderMap {
+        let mut headers = origin();
+        headers.insert(
+            header::COOKIE,
+            format!("{}={token}", app.cookie_name()).parse().unwrap(),
+        );
+        headers
+    }
+    #[tokio::test]
+    async fn pairing_issues_a_cookie_that_outlives_the_idle_window() {
+        let app = state(PathBuf::new());
+        let response = pair(State(app.clone()), origin(), Json(json!({"code":"012345"}))).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let cookie = response
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(cookie.contains(&format!("Max-Age={SESSION_COOKIE_MAX_AGE}")));
+        assert!(cookie.contains("HttpOnly"));
+    }
+    #[tokio::test]
+    async fn activity_slides_the_idle_window_but_not_the_absolute_ceiling() {
+        let app = state(PathBuf::new());
+        let response = pair(State(app.clone()), origin(), Json(json!({"code":"012345"}))).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let token = app.auth.lock().unwrap().session.as_ref().unwrap().0.clone();
+        // Nearly idle: an authenticated touch renews it.
+        app.auth.lock().unwrap().session.as_mut().unwrap().1 =
+            Instant::now() - (SESSION_LIFETIME - Duration::from_secs(5));
+        assert!(app.authorized(&session_headers(&app, &token)));
+        let touched = session_touch(State(app.clone()), session_headers(&app, &token)).await;
+        assert_eq!(touched.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(touched.into_body(), 4096).await.unwrap();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert!(body["remainingSeconds"].as_u64().unwrap() > 3000);
+        assert!(app.auth.lock().unwrap().session.as_ref().unwrap().1.elapsed() < Duration::from_secs(1));
+        // Idle again: the touch endpoint refuses and never revives the session.
+        app.auth.lock().unwrap().session.as_mut().unwrap().1 =
+            Instant::now() - SESSION_LIFETIME;
+        assert!(!app.authorized(&session_headers(&app, &token)));
+        assert_eq!(
+            session_touch(State(app.clone()), session_headers(&app, &token))
+                .await
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
+        // Activity cannot outlive the absolute pairing ceiling.
+        app.auth.lock().unwrap().session.as_mut().unwrap().1 = Instant::now();
+        app.auth.lock().unwrap().paired_at = Some(Instant::now() - SESSION_ABSOLUTE_LIFETIME);
+        assert!(!app.touch_session());
+        assert_eq!(
+            session_touch(State(app.clone()), session_headers(&app, &token))
+                .await
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    #[tokio::test]
+    async fn session_touch_requires_same_origin_and_the_session_cookie() {
+        let app = state(PathBuf::new());
+        pair(State(app.clone()), origin(), Json(json!({"code":"012345"}))).await;
+        let token = app.auth.lock().unwrap().session.as_ref().unwrap().0.clone();
+        assert_eq!(
+            session_touch(State(app.clone()), HeaderMap::new()).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        let mut foreign = session_headers(&app, &token);
+        foreign.insert(header::ORIGIN, "https://example.invalid".parse().unwrap());
+        assert_eq!(
+            session_touch(State(app.clone()), foreign).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            session_touch(State(app.clone()), origin()).await.status(),
+            StatusCode::UNAUTHORIZED
+        );
+        assert_eq!(
+            session_touch(State(app.clone()), session_headers(&app, "not-the-token"))
+                .await
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
     }
     #[tokio::test]
     async fn renewal_is_origin_checked_and_does_not_return_or_reuse_the_code() {
@@ -1388,6 +1572,7 @@ mod tests {
             .unwrap();
         let app = state(root.clone());
         app.auth.lock().unwrap().session = Some(("test-session".into(), Instant::now()));
+        app.auth.lock().unwrap().paired_at = Some(Instant::now());
         let mut headers = HeaderMap::new();
         headers.insert(
             header::COOKIE,

@@ -4,12 +4,46 @@ import type { ControlTransport } from './control-transport.ts';
 // Remote controller transports retain their independent negotiated limits.
 const OWNER_RESPONSE_BYTES = 8 * 1024 * 1024;
 const REQUEST_QUEUE_BYTES = 1024 * 1024;
+const SESSION_TOUCH = '/__local/session/touch';
+
+export type LocalSessionState = 'ok' | 'expired' | 'unavailable';
+
+/** A failed session probe, so callers never mistake auth loss for a blip. */
+export class LocalSessionError extends Error {
+  constructor(readonly kind: Exclude<LocalSessionState, 'ok'>) {
+    super(kind === 'expired' ? 'Local browser session expired' : 'Local host unavailable');
+    this.name = 'LocalSessionError';
+  }
+}
+
+/**
+ * Validates the cookie and slides the adapter's idle window. Same-origin POST so
+ * the adapter can both check Origin and reissue the cookie. A network failure
+ * is `unavailable`, never `expired`: the session may still be valid.
+ */
+export async function touchLocalSession(): Promise<LocalSessionState> {
+  try {
+    const response = await fetch(SESSION_TOUCH, {
+      method: 'POST', credentials: 'same-origin', cache: 'no-store', redirect: 'error',
+    });
+    if (response.ok) return 'ok';
+    if (response.status === 401 || response.status === 403) return 'expired';
+    return 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
+}
 
 /** No queued/replayed requests: accepted mutations may finish after disconnect. */
 export function createBrowserTransport(options: {
   url: string;
   socket?: (url: string) => WebSocket;
   status?: (status: string) => void;
+  /** When false, the owner retries; the transport only reports the loss. */
+  autoReconnect?: boolean;
+  /** Preflight that distinguishes an expired cookie from an unreachable host. */
+  session?: { probe: () => Promise<LocalSessionState> };
+  sessionState?: (state: LocalSessionState | 'reconnecting') => void;
 }): ControlTransport & { connect(): Promise<void> } {
   const makeSocket = options.socket ?? ((url: string) => new WebSocket(url));
   let socket: WebSocket | undefined;
@@ -36,7 +70,7 @@ export function createBrowserTransport(options: {
     previous?.close();
     stopped = false;
     options.status?.(wasConnected ? 'Reconnecting to TikTools…' : 'Connecting to TikTools…');
-    return new Promise((resolve, reject) => {
+    const open = (): Promise<void> => new Promise((resolve, reject) => {
       const current = makeSocket(options.url);
       socket = current;
       const deadline = setTimeout(() => current.close(), 10_000);
@@ -49,6 +83,7 @@ export function createBrowserTransport(options: {
         clearTimeout(deadline);
         cancelOpening = undefined;
         failures = 0;
+        options.sessionState?.('ok');
         options.status?.('Connected');
         if (wasConnected) reconnected?.();
         wasConnected = true;
@@ -77,13 +112,23 @@ export function createBrowserTransport(options: {
         cancelOpening = undefined;
         initialMessages.length = 0; initialBytes = 0;
         if (wasConnected) initialGap = true;
-        options.status?.('Disconnected. Reconnecting… If pairing expired, reload to pair again.');
+        options.sessionState?.('reconnecting');
+        options.status?.('Disconnected. Reconnecting…');
         disconnected?.('connection lost; accepted operations may still complete');
         reject(new Error('Local host unavailable or pairing expired'));
+        if (options.autoReconnect === false) return;
         const delay = Math.min(30_000, 500 * 2 ** Math.min(failures++, 6));
         retry = setTimeout(() => { retry = undefined; void connect().catch(() => {}); }, delay);
       };
       current.onerror = () => { if (socket === current && !stopped) current.close(); };
+    });
+    if (!options.session) return open();
+    return options.session.probe().then((state) => {
+      if (stopped) throw new Error('Local browser connection cancelled');
+      if (state === 'ok') return open();
+      options.sessionState?.(state);
+      options.status?.(state === 'expired' ? 'Pairing expired. Pair again to continue.' : 'Local host unavailable.');
+      throw new LocalSessionError(state);
     });
   }
   return {

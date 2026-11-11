@@ -1,5 +1,5 @@
 import { ControlCallError, type ControlClient, type ResourceVersion, type RpcParams } from '@/shared/api/control-client.ts';
-import type { RemoteBrowserHello, RemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
+import { RemoteSessionError, type RemoteBrowserHello, type RemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
 import { createBrowserWorkflowRecovery, type BrowserWorkflowRow } from './browser-workflow-recovery.ts';
 import type { ControllerStatus } from './controller.ts';
 import { finishBrowserCommand, initializeBrowserCommandJournal, withBrowserCommandJournal, withBrowserCommandLock, type BrowserCommandBinding } from './browser-command-journal.ts';
@@ -158,7 +158,12 @@ export function createBrowserControllerClient(remote: ControlClient, transport: 
       rows = baseline.sort((a, b) => a.version.id < b.version.id ? -1 : a.version.id > b.version.id ? 1 : 0);
       hello = negotiated; phase = 'ready'; viewRevision += 1; notify(); void pump();
     } catch (error) {
-      if (generation === epoch) { invalidate(error instanceof ControlCallError ? error.code : 'connection_failed', 'failed'); transport.disconnect(); }
+      if (generation === epoch) {
+        const code = error instanceof RemoteSessionError
+          ? (error.kind === 'expired' ? 'session_expired' : 'host_unavailable')
+          : error instanceof ControlCallError ? error.code : 'connection_failed';
+        invalidate(code, 'failed'); transport.disconnect();
+      }
       throw error;
     }
   }

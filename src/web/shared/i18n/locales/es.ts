@@ -171,6 +171,15 @@ export default {
     recoveryEnabled: 'activado', recoveryDisabled: 'desactivado',
     recoveryUnavailable: 'La resolución no está disponible temporalmente mientras se completa la protección de los cambios locales más recientes.',
   },
+  sessionRecovery: {
+    expiredTitle: 'Sesión caducada',
+    expiredMessage: 'Este navegador ya no está emparejado con el anfitrión. Vuelve a emparejarlo para continuar.',
+    unavailableTitle: 'Anfitrión no disponible',
+    unavailableMessage: 'El anfitrión no responde. Puede estar apagado o reiniciándose. La sesión se conserva mientras se recupera.',
+    reconnecting: 'Reconectando…',
+    retry: 'Reintentar ahora',
+    pair: 'Volver a emparejar',
+  },
   globals: {
     title: 'Globales en tiempo de ejecución',
     hint: 'Pares clave/valor renderizados por evento como {token}. Un cambio aquí actualiza todas las reglas sin reimportar. Ideal para hosts, puertos y tokens de integraciones.',

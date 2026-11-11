@@ -92,6 +92,17 @@ function hello(value: unknown, expected: Identity): RemoteBrowserHello {
     features: Object.freeze({ ...features } as Record<string, boolean>), resourceRestrictions: frozenRestrictions });
 }
 
+/** Session outcomes a browser can act on: renew or pair again. */
+export type RemoteSessionState = 'ok' | 'expired' | 'unavailable';
+
+/** A classified session failure, never a bare network error. */
+export class RemoteSessionError extends Error {
+  constructor(readonly kind: Exclude<RemoteSessionState, 'ok'>, message = 'Remote browser session is unavailable') {
+    super(message);
+    this.name = 'RemoteSessionError';
+  }
+}
+
 /**
  * Same-origin browser session transport for the remote gateway. It never
  * stores credentials or queues requests. A reconnect obtains a new ticket and
@@ -102,6 +113,8 @@ function hello(value: unknown, expected: Identity): RemoteBrowserHello {
 export function createRemoteBrowserTransport(options: {
   fetch?: typeof fetch;
   socket?: (url: string) => WebSocket;
+  /** Observes session health so the UI can recover without a manual reload. */
+  onSessionState?: (state: RemoteSessionState | 'reconnecting') => void;
 } = {}): RemoteBrowserTransport {
   const fetcher = options.fetch ?? globalThis.fetch.bind(globalThis);
   const makeSocket = options.socket ?? ((url: string) => new WebSocket(url));
@@ -135,6 +148,7 @@ export function createRemoteBrowserTransport(options: {
     ++generation;
     abort?.abort(); abort = undefined;
     clearInterval(sessionTimer); sessionTimer = undefined;
+    stopSessionSignals();
     verification = undefined;
     const previous = socket; socket = undefined;
     const wasReady = ready !== undefined;
@@ -149,6 +163,22 @@ export function createRemoteBrowserTransport(options: {
       if (disconnected) disconnected(reason);
       else missedDisconnect = reason;
     }
+  }
+  const onVisibility = (): void => { if (document.visibilityState === 'visible' && ready) void verifySession(); };
+  const onOnline = (): void => { if (ready) void verifySession(); };
+  function stopSessionSignals(): void {
+    if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility);
+    if (typeof window !== 'undefined') window.removeEventListener('online', onOnline);
+  }
+  function startSessionSignals(): void {
+    clearInterval(sessionTimer);
+    // A 15 s keepalive, not a liveness probe: the socket heartbeat reports
+    // transport health, and each check also slides the session's idle window.
+    sessionTimer = setInterval(() => {
+      if (document.visibilityState !== 'hidden') void verifySession();
+    }, 15_000);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
   }
   async function verifySession(): Promise<boolean> {
     const expected = ready;
@@ -165,17 +195,29 @@ export function createRemoteBrowserTransport(options: {
         const response = await fetcher('/remote/v1/session', {
           credentials: 'same-origin', mode: 'same-origin', redirect: 'error', cache: 'no-store', signal: check.signal,
         });
-        if (!response.ok) throw new Error('remote session unavailable');
+        if (!response.ok) {
+          // Only an auth answer invalidates the connection. A 5xx or a proxy
+          // hiccup would otherwise log out a browser whose cookie is fine.
+          if (response.status === 401 || response.status === 403) {
+            throw new RemoteSessionError('expired', 'remote browser session expired');
+          }
+          return false;
+        }
         const value: unknown = await response.json();
-        if (!record(value)) throw new Error('invalid browser session');
+        if (!record(value)) throw new RemoteSessionError('unavailable', 'invalid browser session');
         const observed = identity(value['identity']);
         if (epoch !== generation || ready !== expected) return false;
         if (observed.principalId !== expected.principalId || observed.sessionId !== expected.sessionId || observed.grantRevision !== expected.grantRevision) {
-          throw new Error('remote session changed');
+          throw new RemoteSessionError('expired', 'remote session changed');
         }
         return true;
-      } catch {
-        if (epoch === generation && ready === expected) close('remote browser session changed or could not be verified', true);
+      } catch (error) {
+        if (error instanceof RemoteSessionError && error.kind === 'expired' && epoch === generation && ready === expected) {
+          options.onSessionState?.('expired');
+          close('remote browser session expired', true);
+        }
+        // Network or timeout: the socket may still be healthy. Never drop a
+        // session because one request was slow; the next tick retries.
         return false;
       } finally {
         clearTimeout(deadline);
@@ -196,7 +238,12 @@ export function createRemoteBrowserTransport(options: {
     try {
       const response = await fetcher('/remote/v1/session', { credentials: 'same-origin', mode: 'same-origin', redirect: 'error', cache: 'no-store', signal: controller.signal });
       current(epoch);
-      if (!response.ok) throw new Error('remote browser session unavailable');
+      if (!response.ok) {
+        throw new RemoteSessionError(
+          response.status === 401 || response.status === 403 ? 'expired' : 'unavailable',
+          'remote browser session unavailable',
+        );
+      }
       const session: unknown = await response.json(); current(epoch);
       if (!record(session) || !id(session['csrfToken'])) throw new Error('invalid browser session');
       const expected = identity(session['identity']);
@@ -236,7 +283,7 @@ export function createRemoteBrowserTransport(options: {
               const negotiated = hello(value['result'], expected);
               settled = true;
               ready = negotiated;
-              sessionTimer = setInterval(() => { void verifySession(); }, 2000);
+              startSessionSignals();
               controller.signal.removeEventListener('abort', cancelled);
               resolve(negotiated);
             } catch { fail('remote negotiation failed'); close('remote negotiation failed', true); }
@@ -267,11 +314,15 @@ export function createRemoteBrowserTransport(options: {
         ws.onclose = () => {
           controller.signal.removeEventListener('abort', cancelled);
           fail('remote connection closed');
-          if (epoch === generation && socket === ws) close('remote connection lost; accepted operations may still complete', true);
+          if (epoch === generation && socket === ws) {
+            options.onSessionState?.('reconnecting');
+            close('remote connection lost; accepted operations may still complete', true);
+          }
         };
         ws.onerror = () => { fail('remote connection failed'); ws.close(); };
       });
       current(epoch);
+      options.onSessionState?.('ok');
       if (everConnected) reconnected?.();
       everConnected = true;
       return result;

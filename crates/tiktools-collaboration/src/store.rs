@@ -18,6 +18,9 @@ const INVITE_TTL: i64 = 5 * MINUTE;
 const ACCESS_TTL: i64 = 15 * MINUTE;
 const IDLE_TTL: i64 = 24 * 60 * MINUTE;
 const SESSION_TTL: i64 = 7 * IDLE_TTL;
+/// Browsers have no refresh token, so authenticated activity renews their
+/// session in place. This ceiling bounds that renewal from the pairing time.
+const BROWSER_SESSION_MAX: i64 = 30 * IDLE_TTL;
 
 #[cfg(test)]
 std::thread_local! {
@@ -1124,17 +1127,29 @@ fn authenticate_db(
         return Err(Error::Unauthorized);
     }
     enabled(db)?;
-    let result:Option<(Authenticated,i64)>=db.query_row("SELECT p.id,s.id,p.grant_json,p.revision,s.kind,s.access_expires,s.last_activity FROM sessions s JOIN principals p ON p.id=s.principal_id WHERE s.access_hash=?1 AND s.revoked=0 AND p.revoked=0 AND s.access_expires>?2 AND s.absolute_expires>?2 AND s.last_activity>?3",params![hash_secret(token),now(),now().saturating_sub(IDLE_TTL)],|r|Ok((Authenticated {principal_id:r.get(0)?,session_id:r.get(1)?,grant:grant(r,2)?,grant_revision:r.get::<_,i64>(3)?.to_string(),client_kind:parse_kind(&r.get::<_,String>(4)?)?,access_expires_at:r.get(5)?},r.get(6)?))).optional()?;
-    let (mut identity, last_activity) = result.ok_or(Error::Unauthorized)?;
+    let result:Option<(Authenticated,i64,i64)>=db.query_row("SELECT p.id,s.id,p.grant_json,p.revision,s.kind,s.access_expires,s.last_activity,s.created_at FROM sessions s JOIN principals p ON p.id=s.principal_id WHERE s.access_hash=?1 AND s.revoked=0 AND p.revoked=0 AND s.access_expires>?2 AND s.absolute_expires>?2 AND s.last_activity>?3",params![hash_secret(token),now(),now().saturating_sub(IDLE_TTL)],|r|Ok((Authenticated {principal_id:r.get(0)?,session_id:r.get(1)?,grant:grant(r,2)?,grant_revision:r.get::<_,i64>(3)?.to_string(),client_kind:parse_kind(&r.get::<_,String>(4)?)?,access_expires_at:r.get(5)?},r.get(6)?,r.get(7)?))).optional()?;
+    let (mut identity, last_activity, created_at) = result.ok_or(Error::Unauthorized)?;
     if (identity.client_kind == ClientKind::Browser) != browser {
         return Err(Error::Unauthorized);
     }
     let last_activity = if touch {
         let at = now();
-        db.execute(
-            "UPDATE sessions SET last_activity=?2 WHERE id=?1",
-            params![identity.session_id, at],
-        )?;
+        if identity.client_kind == ClientKind::Browser {
+            // No refresh token exists for a browser. Prove the session is live
+            // by using it, and slide both expiries together, bounded by a hard
+            // ceiling measured from pairing.
+            let extended = (at + IDLE_TTL).min(created_at + BROWSER_SESSION_MAX);
+            db.execute(
+                "UPDATE sessions SET last_activity=?2, absolute_expires=MAX(absolute_expires,?3), access_expires=MAX(access_expires,?3) WHERE id=?1",
+                params![identity.session_id, at, extended],
+            )?;
+            identity.access_expires_at = identity.access_expires_at.max(extended);
+        } else {
+            db.execute(
+                "UPDATE sessions SET last_activity=?2 WHERE id=?1",
+                params![identity.session_id, at],
+            )?;
+        }
         at
     } else {
         last_activity

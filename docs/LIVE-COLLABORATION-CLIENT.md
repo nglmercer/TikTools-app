@@ -44,9 +44,16 @@ cursor to advance; a shortened author cannot be used as an action target.
 An explicitly enabled gateway build can embed and serve this mode
 after browser pairing over HTTPS. The browser session is rechecked before
 publishing workflow data and periodically while connected; another pairing tab
-also sends an advisory session-change notification. Clearing after a cookie
-change is not atomic, and background tabs may delay periodic checks. Physical
-two-PC and actual LIVE acceptance remain outstanding.
+also sends an advisory session-change notification. A browser has no refresh
+token, so an authenticated check slides both its idle window and its cookie up
+to a hard 30-day ceiling from pairing, and every bootstrap reissues the cookie.
+Only an auth answer (401/403) ends the connection: a timeout or network blip
+keeps the socket and is retried, because a dropped request is not a revoked
+session. The client distinguishes an expired session from an unreachable host
+and offers retry or a fresh pairing instead of a permanent failure screen.
+Clearing after a cookie change is not atomic, and background tabs may delay
+periodic checks (they do not renew while hidden). Physical two-PC and actual
+LIVE acceptance remain outstanding.
 
 To include the browser controller, build the web bundle before compiling the
 host with the opt-in feature:

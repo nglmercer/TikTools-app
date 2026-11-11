@@ -1,5 +1,5 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { createBrowserTransport } from './browser-transport.ts';
+import { createBrowserTransport, touchLocalSession } from './browser-transport.ts';
 
 class Socket {
   readyState = 0;
@@ -151,4 +151,51 @@ test('replacing an open connection invalidates pending work and old buffered eve
   expect(disconnected).toHaveBeenCalledWith(expect.stringContaining('connection replaced'));
   sockets[2]!.open(); await third;
   transport.detach();
+});
+
+test('probes the session before opening and reports an expired pairing', async () => {
+  const factory = vi.fn();
+  const states: string[] = [];
+  const transport = createBrowserTransport({
+    url: 'ws://127.0.0.1/__local/ws',
+    socket: factory,
+    session: { probe: async () => 'expired' },
+    sessionState: (state) => states.push(state),
+  });
+  await expect(transport.connect()).rejects.toMatchObject({ name: 'LocalSessionError', kind: 'expired' });
+  expect(factory).not.toHaveBeenCalled();
+  expect(states).toEqual(['expired']);
+});
+
+test('leaves reconnection to the owner when autoReconnect is disabled', async () => {
+  vi.useFakeTimers();
+  const sockets: Socket[] = [];
+  const states: string[] = [];
+  const transport = createBrowserTransport({
+    url: 'ws://127.0.0.1/__local/ws',
+    autoReconnect: false,
+    socket: () => { const socket = new Socket(); sockets.push(socket); return socket as unknown as WebSocket; },
+    sessionState: (state) => states.push(state),
+  });
+  const connected = transport.connect(); sockets[0]!.open(); await connected;
+  expect(states).toEqual(['ok']);
+  sockets[0]!.close();
+  expect(states).toEqual(['ok', 'reconnecting']);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(sockets).toHaveLength(1);
+  transport.detach();
+});
+
+test('session touch distinguishes an expired cookie from an unreachable adapter', async () => {
+  const fetcher = vi.fn()
+    .mockResolvedValueOnce({ ok: true, status: 200 })
+    .mockResolvedValueOnce({ ok: false, status: 401 })
+    .mockRejectedValueOnce(new Error('offline'));
+  vi.stubGlobal('fetch', fetcher);
+  expect(await touchLocalSession()).toBe('ok');
+  expect(await touchLocalSession()).toBe('expired');
+  expect(await touchLocalSession()).toBe('unavailable');
+  expect(fetcher.mock.calls[0]?.[0]).toBe('/__local/session/touch');
+  expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ method: 'POST', credentials: 'same-origin' });
+  vi.unstubAllGlobals();
 });

@@ -521,6 +521,30 @@ fn idle_absolute_and_access_expiries_are_enforced() {
 }
 
 #[test]
+fn browser_activity_slides_the_session_up_to_a_hard_ceiling() {
+    let clock = FrozenNow::at(now());
+    let (_dir, s) = service();
+    let b = pair(&s, ClientKind::Browser);
+    let start = now();
+    let hour = 60 * MINUTE;
+    // Browsers have no refresh token: an actively used tab must survive past
+    // the original seven-day absolute expiry by renewing in place.
+    let mut elapsed = 0;
+    while elapsed < BROWSER_SESSION_MAX {
+        elapsed += 20;
+        clock.set(start + elapsed * hour);
+        if elapsed < 30 * 24 {
+            assert!(
+                s.authenticate(&b.access_token, true, true).is_ok(),
+                "hour {elapsed}"
+            );
+        }
+    }
+    // The ceiling is measured from pairing, so activity cannot renew forever.
+    assert!(s.authenticate(&b.access_token, true, true).is_err());
+}
+
+#[test]
 fn grants_use_atomic_revision_checks_and_are_read_live() {
     let (_dir, s) = service();
     let a = pair(&s, ClientKind::Desktop);

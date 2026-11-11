@@ -18,6 +18,10 @@ use serde_json::json;
 use std::{net::SocketAddr, sync::Arc};
 use tiktools_collaboration::{ClientKind, Collect, Redeem};
 
+/// Browser sessions have no refresh token; activity slides both the server
+/// window and this cookie, bounded by the same hard ceiling.
+const BROWSER_COOKIE_MAX_AGE: u64 = 30 * 24 * 3600;
+
 pub(crate) fn router(state: Arc<State>) -> Router {
     let router = Router::new()
         .route("/remote/v1/info", get(info))
@@ -197,7 +201,7 @@ async fn collect(
     .map_err(|_| HttpError::internal())??;
     if browser {
         let cookie = format!(
-            "{SESSION_COOKIE}={}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age=604800",
+            "{SESSION_COOKIE}={}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age={BROWSER_COOKIE_MAX_AGE}",
             credentials.access_token
         );
         Ok((
@@ -213,15 +217,24 @@ async fn collect(
 async fn bootstrap(
     ExtractState(state): ExtractState<Arc<State>>,
     headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, HttpError> {
+) -> Result<Response, HttpError> {
     let authentication = auth::authenticate(&state, &headers, false).await?;
     let identity = authentication.authority.snapshot()?;
-    let csrf = if authentication.browser {
-        Some(auth::csrf(&state, &authentication)?)
-    } else {
-        None
-    };
-    Ok(Json(json!({"identity":identity,"csrfToken":csrf})))
+    if !authentication.browser {
+        return Ok(Json(json!({"identity":identity,"csrfToken":null})).into_response());
+    }
+    let csrf = auth::csrf(&state, &authentication)?;
+    // Reissue the cookie on every check so an actively used browser is not
+    // logged out by the cookie's own expiry while the session is still alive.
+    let cookie = format!(
+        "{SESSION_COOKIE}={}; Secure; HttpOnly; SameSite=Strict; Path=/; Max-Age={BROWSER_COOKIE_MAX_AGE}",
+        authentication.token
+    );
+    Ok((
+        [(header::SET_COOKIE, cookie)],
+        Json(json!({"identity":identity,"csrfToken":csrf})),
+    )
+        .into_response())
 }
 
 #[derive(Deserialize)]

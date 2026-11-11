@@ -227,3 +227,37 @@ test('browser recovery retains sequence metadata across the actual control-clien
   expect(recovery.baseline()).toBeNull(); expect(recovery.next()).toBeNull();
   recovery.close(); client.detach();
 });
+
+test('a missing cookie expires the session while a network blip keeps the socket alive', async () => {
+  const fetcher = vi.fn().mockResolvedValueOnce(ok(session)).mockResolvedValueOnce(ok({}))
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ ok: false, status: 401 } as Response);
+  const socket = new Socket();
+  const states: string[] = [];
+  const transport = createRemoteBrowserTransport({
+    fetch: fetcher as unknown as typeof fetch,
+    socket: () => socket as unknown as WebSocket,
+    onSessionState: (state) => states.push(state),
+  });
+  const connecting = transport.connect(); await flush(); socket.open(); await connecting;
+  expect(states).toEqual(['ok']);
+  await expect(transport.verifySession()).resolves.toBe(false);
+  expect(socket.readyState).toBe(1);
+  expect(states).not.toContain('expired');
+  await expect(transport.verifySession()).resolves.toBe(false);
+  expect(states).toContain('expired');
+  expect(socket.readyState).toBe(3);
+  expect(transport.currentHello()).toBeUndefined();
+  transport.detach();
+});
+
+test('classifies an unauthenticated bootstrap as an expired pairing', async () => {
+  const expired = createRemoteBrowserTransport({
+    fetch: vi.fn().mockResolvedValueOnce({ ok: false, status: 401 } as Response) as unknown as typeof fetch,
+  });
+  await expect(expired.connect()).rejects.toMatchObject({ name: 'RemoteSessionError', kind: 'expired' });
+  const down = createRemoteBrowserTransport({
+    fetch: vi.fn().mockRejectedValueOnce(new Error('offline')) as unknown as typeof fetch,
+  });
+  await expect(down.connect()).rejects.toThrow('offline');
+});

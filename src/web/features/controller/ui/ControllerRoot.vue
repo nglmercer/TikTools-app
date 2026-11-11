@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { MessageSchema } from '@/shared/i18n/i18n.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { sessionRecoveryKey } from '@/shared/api/session-recovery.ts';
 import { createControllerModel, type PendingCommand, type ProfileForgetTarget, type RemoteProfile, type ReviewTarget, type WorkflowOperation } from '../model/controller.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
+import SessionRecoveryDialog from '@/shared/ui/dialog/SessionRecoveryDialog.vue';
 import ControllerAutomations from './ControllerAutomations.vue';
 import ControllerProposals from './ControllerProposals.vue';
 import ControllerLiveStatus from './ControllerLiveStatus.vue';
@@ -15,12 +17,23 @@ import type { DraftSaveTarget } from '../model/drafts.ts';
 
 const props = defineProps<{ browserMode?: boolean }>();
 const control = useControlClient();
+const recovery = inject(sessionRecoveryKey, null);
 const model = createControllerModel(control);
 const { status, profiles, rows, points, pointsError, pointsAllowed, error, busy, ready, commandSending } = model;
 const { supported: draftsSupported, error: draftError, busy: draftBusy, loading: draftLoading } = model.draftStorage;
 const { t, tm } = useI18n();
 const labels = computed(() => tm('controller.root.labels') as MessageSchema['controller']['root']['labels']);
 const phase = computed(() => labels.value[status.value.phase as 'idle' | 'pairing' | 'connecting' | 'ready' | 'reconnecting' | 'failed'] ?? status.value.phase);
+// A lost browser session must offer recovery instead of a dead "failed"
+// screen. The store retries quietly and only escalates to a dialog once its
+// budget is spent or the cookie is provably invalid.
+watch(() => [status.value.phase, status.value.errorCode] as const, ([current, code]) => {
+  if (!props.browserMode || !recovery) return;
+  if (current === 'ready') { recovery.report('ok'); return; }
+  if (current !== 'failed' || !code) return;
+  if (code === 'session_expired') { recovery.report('expired'); return; }
+  if (['transport', 'connection_failed', 'host_unavailable', 'resync_required'].includes(code)) recovery.report('unavailable');
+});
 const snapshotBudgetHelp = computed(() => t('controller.root.snapshotBudgetHelp'));
 const forgetLabels = computed(() => tm('controller.root.forget') as MessageSchema['controller']['root']['forget']);
 const cmd = computed(() => tm('controller.root.commands') as MessageSchema['controller']['root']['commands']);
@@ -664,6 +677,7 @@ onUnmounted(() => { stopped = true; if (pollTimer) clearTimeout(pollTimer); mode
       @confirm="initializeBrowserJournal"
     />
   </main>
+  <SessionRecoveryDialog />
 </template>
 
 <style scoped>

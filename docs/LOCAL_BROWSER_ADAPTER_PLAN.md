@@ -106,8 +106,16 @@ recover a missed print without restarting the adapter. The readout never
 extends, consumes, or retries the code and fails closed once it is spent,
 expired, or the adapter is gone. `TIKTOOLS_PAIRING_FIXTURE` overrides the code
 with a deterministic six-digit value for automated login tests only; never set
-it in production. Exchange it through a same-origin POST for a short-lived,
+it in production. Exchange it through a same-origin POST for an
 HttpOnly, SameSite=Strict session cookie; rotate/invalidate sessions on restart.
+The session slides while it is used: an open authenticated socket, or a
+same-origin `POST /__local/session/touch`, renews the one-hour idle window and
+reissues the cookie, up to a seven-day ceiling measured from pairing. Activity
+never revives an idle-expired or revoked session, and the ceiling still forces a
+re-pair. An expired session is not a dead end: the browser client reports
+`expired` separately from an unreachable host, retries transient losses with
+bounded backoff, and shows a recovery dialog whose pairing action returns to the
+pair page.
 Use same-origin validation and a session-bound CSRF mechanism for state-changing
 HTTP endpoints. Authenticate before accepting a WebSocket upgrade. Keep codes,
 cookies and TikTok credentials out of URLs, access logs and persistent browser

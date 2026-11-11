@@ -169,6 +169,15 @@ export default {
     recoveryEnabled: 'enabled', recoveryDisabled: 'disabled',
     recoveryUnavailable: 'Choosing a resolution is temporarily unavailable while protection for newer local changes is completed.',
   },
+  sessionRecovery: {
+    expiredTitle: 'Session expired',
+    expiredMessage: 'This browser is no longer paired with the host. Pair it again to continue.',
+    unavailableTitle: 'Host unavailable',
+    unavailableMessage: 'The host is not responding. It may be offline or restarting. Your session is kept while it recovers.',
+    reconnecting: 'Reconnecting…',
+    retry: 'Retry now',
+    pair: 'Pair again',
+  },
   globals: {
     title: 'Runtime globals',
     hint: 'Key/value pairs rendered at event time as {token}. One edit here repoints every rule — no re-import needed. Ideal for integration hosts, ports, and tokens.',

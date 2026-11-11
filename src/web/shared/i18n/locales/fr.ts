@@ -171,6 +171,15 @@ export default {
     recoveryEnabled: 'activé', recoveryDisabled: 'désactivé',
     recoveryUnavailable: 'Le choix d’une résolution est temporairement indisponible pendant la finalisation de la protection des modifications locales plus récentes.',
   },
+  sessionRecovery: {
+    expiredTitle: 'Session expirée',
+    expiredMessage: "Ce navigateur n'est plus associé à l'hôte. Associez-le à nouveau pour continuer.",
+    unavailableTitle: 'Hôte indisponible',
+    unavailableMessage: "L'hôte ne répond pas. Il est peut-être hors ligne ou en redémarrage. La session est conservée pendant la reconnexion.",
+    reconnecting: 'Reconnexion…',
+    retry: 'Réessayer',
+    pair: 'Associer à nouveau',
+  },
   globals: {
     title: 'Variables globales d’exécution',
     hint: 'Paires clé/valeur affichées au moment de l’événement sous la forme {token}. Une modification ici redirige toutes les règles, sans réimportation. Idéal pour les hôtes d’intégration, les ports et les jetons.',
