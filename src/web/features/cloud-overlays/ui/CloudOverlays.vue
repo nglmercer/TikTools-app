@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { OVERLAY_FIELDS, OVERLAY_KINDS, type OverlayElement, type OverlayKind } from '@/entities/overlay/lib/cloud-overlay-schema.ts';
+import { OVERLAY_FIELDS, OVERLAY_KINDS, type OverlayElement, type OverlayKind } from '../../../../shared/cloud-overlay-schema.ts';
 import { useCloudOverlayStore } from '@/entities/overlay/model/cloud-overlay-store.ts';
 import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
 import CloudOverlayPreview from '@/entities/overlay/ui/CloudOverlayPreview.vue';

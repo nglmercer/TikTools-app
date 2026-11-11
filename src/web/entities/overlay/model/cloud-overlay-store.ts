@@ -14,7 +14,7 @@ import {
   type OverlayDocument,
   type OverlayElement,
   type OverlayKind,
-} from '../lib/cloud-overlay-schema.ts';
+} from '../../../../shared/cloud-overlay-schema.ts';
 
 /**
  * One overlay being edited. The draft lives in memory until saved. A save is refused

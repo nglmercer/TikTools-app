@@ -142,3 +142,22 @@ export function toWire(document: OverlayDocument): OverlayDocument {
   delete wire.capabilities;
   return needsLiveRead(document) ? { ...wire, capabilities: ['live.read'] } : wire;
 }
+
+/**
+ * Reads untrusted JSON (for example the OBS URL fragment) as an overlay document.
+ * Returns `null` for anything that is not an object, is structurally incomplete or
+ * fails `validateOverlay`; a partial layout is never returned.
+ */
+export function readOverlayDocument(value: unknown): OverlayDocument | null {
+  if (value === null || typeof value !== 'object') return null;
+  const candidate = value as Partial<OverlayDocument>;
+  if (typeof candidate.title !== 'string'
+    || !candidate.canvas || typeof candidate.canvas !== 'object' || !Array.isArray(candidate.elements)) {
+    return null;
+  }
+  try {
+    return validateOverlay(candidate as OverlayDocument).length === 0 ? (candidate as OverlayDocument) : null;
+  } catch {
+    return null;
+  }
+}

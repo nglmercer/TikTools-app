@@ -1,7 +1,7 @@
 import { createApp, h, reactive } from 'vue';
 import CloudOverlay from './CloudOverlay.vue';
 import { decodeOverlayFragment } from '../../shared/cloud-overlay-fragment.ts';
-import { validateOverlay, type OverlayDocument } from '../../web/entities/overlay/lib/cloud-overlay-schema.ts';
+import { readOverlayDocument } from '../../shared/cloud-overlay-schema.ts';
 import { createWidgetRuntime } from '../shared/widget-runtime.ts';
 import { liveFieldsFrom, type LiveFieldValues } from '../shared/cloud-overlay-fields.ts';
 import { DEFAULT_TOPICS } from '../shared/config.ts';
@@ -12,16 +12,14 @@ import './cloud-overlay.css';
  * checked with the same rules the Cloud applies; an invalid one shows nothing rather
  * than a partial layout. Live fields come from the gateway through the shared runtime.
  */
-const decoded = decodeOverlayFragment(window.location.hash);
-const document = decoded as OverlayDocument | null;
-const valid = document !== null && typeof document === 'object' && validateOverlay(document).length === 0;
+const document = readOverlayDocument(decodeOverlayFragment(window.location.hash));
 const values = reactive<LiveFieldValues>({});
 
 createApp({
-  render: () => h(CloudOverlay, { document: valid ? document : null, values }),
+  render: () => h(CloudOverlay, { document, values }),
 }).mount('#app');
 
-if (valid) {
+if (document) {
   const runtime = createWidgetRuntime({
     topics: DEFAULT_TOPICS,
     onEnvelope: (envelope) => {

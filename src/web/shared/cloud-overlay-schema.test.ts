@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addElement, emptyOverlay, needsLiveRead, toWire, updateElement, validateOverlay } from './cloud-overlay-schema.ts';
+import { addElement, emptyOverlay, needsLiveRead, readOverlayDocument, toWire, updateElement, validateOverlay } from '../../shared/cloud-overlay-schema.ts';
 
 const asset = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
@@ -43,5 +43,18 @@ describe('overlay schema', () => {
     const live = addElement(plain, 'avatar');
     expect(needsLiveRead(live)).toBe(true);
     expect(toWire(live).capabilities).toEqual(['live.read']);
+  });
+});
+
+describe('readOverlayDocument', () => {
+  it('returns a valid document and refuses everything else without throwing', () => {
+    const doc = addElement(emptyOverlay('gift', 'Gift'), 'text');
+    expect(readOverlayDocument(doc)).toEqual(doc);
+    expect(readOverlayDocument(null)).toBeNull();
+    expect(readOverlayDocument('text')).toBeNull();
+    expect(readOverlayDocument({})).toBeNull();
+    expect(readOverlayDocument({ ...doc, canvas: null })).toBeNull();
+    expect(readOverlayDocument({ ...doc, elements: [null] })).toBeNull();
+    expect(readOverlayDocument({ ...doc, canvas: { width: 10, height: 10 } })).toBeNull();
   });
 });

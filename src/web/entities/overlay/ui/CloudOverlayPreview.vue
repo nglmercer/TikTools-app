@@ -1,25 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { OverlayDocument, OverlayElement } from '../lib/cloud-overlay-schema.ts';
+import { overlayBoxStyle, overlayFrameStyle } from '../../../../shared/cloud-overlay-geometry.ts';
+import type { OverlayDocument, OverlayElement } from '../../../../shared/cloud-overlay-schema.ts';
 
 const props = defineProps<{ document: OverlayDocument }>();
 const { t } = useI18n();
 
-const frame = computed(() => ({
-  aspectRatio: `${props.document.canvas.width} / ${props.document.canvas.height}`,
-}));
+const frame = computed(() => overlayFrameStyle(props.document));
 
-/** Element geometry as percentages of the canvas, so the preview scales to any width. */
+/** Element geometry comes from the shared overlay layout, so the preview matches OBS. */
 function box(element: OverlayElement): Record<string, string> {
-  const { width, height } = props.document.canvas;
-  return {
-    left: `${(element.x / width) * 100}%`,
-    top: `${(element.y / height) * 100}%`,
-    width: `${(element.width / width) * 100}%`,
-    height: `${(element.height / height) * 100}%`,
-    opacity: String(element.opacity ?? 1),
-  };
+  return { ...overlayBoxStyle(props.document.canvas, element) };
 }
 
 /** Text shows its static value, or a sample for a live field. Art and avatars are placeholders. */

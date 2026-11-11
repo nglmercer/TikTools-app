@@ -1,25 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { OverlayDocument, OverlayElement } from '../../web/entities/overlay/lib/cloud-overlay-schema.ts';
+import { overlayBoxStyle, overlayFrameStyle } from '../../shared/cloud-overlay-geometry.ts';
+import type { OverlayDocument, OverlayElement } from '../../shared/cloud-overlay-schema.ts';
 import type { LiveFieldValues } from '../shared/cloud-overlay-fields.ts';
 
 const props = defineProps<{ document: OverlayDocument | null; values: LiveFieldValues }>();
 
-const frame = computed(() =>
-  props.document ? { aspectRatio: `${props.document.canvas.width} / ${props.document.canvas.height}` } : {},
-);
+const frame = computed(() => overlayFrameStyle(props.document));
 
-/** Position and size as percentages of the canvas, so the layout scales to any source size. */
+/** Element geometry comes from the shared overlay layout, so OBS matches the editor preview. */
 function box(element: OverlayElement): Record<string, string> {
-  const canvas = props.document?.canvas;
-  if (!canvas) return {};
-  return {
-    left: `${(element.x / canvas.width) * 100}%`,
-    top: `${(element.y / canvas.height) * 100}%`,
-    width: `${(element.width / canvas.width) * 100}%`,
-    height: `${(element.height / canvas.height) * 100}%`,
-    opacity: String(element.opacity ?? 1),
-  };
+  return { ...overlayBoxStyle(props.document?.canvas, element) };
 }
 
 /** Static text as written; a live field shows its latest value and nothing until one arrives. */

@@ -8,9 +8,8 @@ import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import type { JobSnapshot } from '@/entities/plugin-package/api/package-types.ts';
 import { packagePreflight, uploadAsset, type AssetRecord, type PackagePreflight } from '../api/bundles-api.ts';
-import { importLibraryTemplate } from '../lib/library-import.ts';
-import { importLibraryProfile } from '../lib/library-profile.ts';
-import { validateOverlay, type OverlayDocument } from '../../overlay/lib/cloud-overlay-schema.ts';
+import { useLibraryImport } from './use-library-import.ts';
+import { validateOverlay, type OverlayDocument } from '../../../../shared/cloud-overlay-schema.ts';
 import {
   createJournal,
   nextPending,
