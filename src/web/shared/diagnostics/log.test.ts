@@ -37,4 +37,32 @@ describe('diagnostic retention and redaction', () => {
     const secret = 'x'.repeat(5000);
     expect(redactDiagnostic(`password="${secret}"`)).toBe('password=[redacted]');
   });
+  test('keeps entries recorded before an account is known, then drops them when the account changes', () => {
+    const log = createDiagnosticLog();
+    log.record({ ...failure, message: 'before sign-in' });
+    expect(log.setContext('')).toBe(false);
+    expect(log.setContext('account-a')).toBe(false);
+    expect(log.entries.value.map((e) => e.message)).toEqual(['before sign-in']);
+    log.record({ ...failure, message: 'account a detail' });
+    expect(log.setContext('account-a')).toBe(false);
+    expect(log.entries.value).toHaveLength(2);
+    expect(log.setContext('account-b')).toBe(true);
+    expect(log.entries.value).toEqual([]);
+    log.record({ ...failure, message: 'account b detail' });
+    expect(log.setContext('')).toBe(true);
+    expect(log.entries.value).toEqual([]);
+    expect(log.unread.value).toBe(0);
+  });
+  test('records the Cloud sources with a redacted request id and exports it', () => {
+    const log = createDiagnosticLog();
+    for (const source of ['catalog', 'install', 'collaboration', 'relay', 'integrations'] as const) {
+      log.record({ source, level: 'error', code: `${source}.failed`, message: 'could not reach the service', requestId: 'req-42 token=abc123' });
+    }
+    expect(log.entries.value.map((e) => e.source)).toEqual(['catalog', 'install', 'collaboration', 'relay', 'integrations']);
+    const exported = formatDiagnostics(log.entries.value);
+    expect(exported).toContain('request=req-42');
+    expect(exported).not.toContain('abc123');
+    log.record({ source: 'relay', level: 'error', code: 'relay.failed', message: 'could not reach the service', requestId: 'req-43' });
+    expect(log.entries.value).toHaveLength(6);
+  });
 });

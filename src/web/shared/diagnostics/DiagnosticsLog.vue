@@ -29,8 +29,8 @@ const filterCount = computed(() => [source.value, entityId.value, level.value, s
 const hasFilters = computed(() => filterCount.value > 0);
 function closeFilters(): void { filtersOpen.value = false; (filtersButton.value?.$el as HTMLElement | undefined)?.focus(); }
 const fallback = ref('');
-const sources = ['live', 'monitor', 'discovery', 'plugins', 'account', 'sync', 'updates', 'transport'] as const;
-const filtered = computed(() => entries.value.filter(e => (!source.value || e.source === source.value) && (!entityId.value || e.entityId === entityId.value) && (!level.value || e.level === level.value) && (!search.value.trim() || `${e.message} ${e.details} ${e.code} ${e.entityId}`.toLowerCase().includes(search.value.trim().toLowerCase()))));
+const sources = ['live', 'monitor', 'discovery', 'plugins', 'account', 'sync', 'updates', 'transport', 'catalog', 'install', 'collaboration', 'relay', 'integrations'] as const;
+const filtered = computed(() => entries.value.filter(e => (!source.value || e.source === source.value) && (!entityId.value || e.entityId === entityId.value) && (!level.value || e.level === level.value) && (!search.value.trim() || `${e.message} ${e.details} ${e.code} ${e.entityId} ${e.requestId}`.toLowerCase().includes(search.value.trim().toLowerCase()))));
 const selected = computed(() => entries.value.find(e => e.id === selectedId.value));
 const sourceOptions = computed(() => [{ value: '', label: t('diagnostics.allSources') }, ...sources.map(value => ({ value, label: t(`diagnostics.sources.${value}`) }))]);
 const levelOptions = computed(() => [{ value: '', label: t('diagnostics.allLevels') }, ...(['info', 'warning', 'error'] as const).map(value => ({ value, label: t(`diagnostics.${value}`) }))]);

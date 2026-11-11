@@ -14,5 +14,5 @@ export default {
   newEntries: '{count} novos registros', filterEntity: 'Filtro de entidade: {entity}', resetFilters: 'Limpar filtros',
   connectionFailed: 'Falha na conexão', monitorFailed: 'O monitor precisa de atenção', accountFailed: 'O login precisa de atenção',
   syncFailed: 'A sincronização precisa de atenção', updateFailed: 'A atualização precisa de atenção', updaterUnavailable: 'Atualizações automáticas indisponíveis aqui',
-  discoveryFailed: 'Não foi possível carregar as salas', sources: { live: 'LIVE do TikTok', monitor: 'Monitor da LIVE', discovery: 'Explorador de salas', plugins: 'Plugins', account: 'Conta na Cloud', sync: 'Sincronização na Cloud', updates: 'Atualizações', transport: 'Conexão com o host' },
+  discoveryFailed: 'Não foi possível carregar as salas', sources: { live: 'LIVE do TikTok', monitor: 'Monitor da LIVE', discovery: 'Explorador de salas', plugins: 'Plugins', account: 'Conta na Cloud', sync: 'Sincronização na Cloud', updates: 'Atualizações', transport: 'Conexão com o host', catalog: 'Catálogo', install: 'Instalação e registro', collaboration: 'Colaboração', relay: 'Relay Cloud', integrations: 'Integrações' },
 };

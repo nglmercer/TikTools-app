@@ -14,5 +14,5 @@ export default {
   newEntries: '{count} new entries', filterEntity: 'Entity filter: {entity}', resetFilters: 'Clear filters',
   connectionFailed: 'Connection failed', monitorFailed: 'Monitor needs attention', accountFailed: 'Sign-in needs attention',
   syncFailed: 'Sync needs attention', updateFailed: 'Update needs attention', updaterUnavailable: 'Automatic updates unavailable here',
-  discoveryFailed: 'Could not load rooms', sources: { live: 'TikTok LIVE', monitor: 'Live monitor', discovery: 'Room explorer', plugins: 'Plugins', account: 'Cloud account', sync: 'Cloud sync', updates: 'Updates', transport: 'Host connection' },
+  discoveryFailed: 'Could not load rooms', sources: { live: 'TikTok LIVE', monitor: 'Live monitor', discovery: 'Room explorer', plugins: 'Plugins', account: 'Cloud account', sync: 'Cloud sync', updates: 'Updates', transport: 'Host connection', catalog: 'Catalog', install: 'Install and registry', collaboration: 'Collaboration', relay: 'Cloud relay', integrations: 'Integrations' },
 };
