@@ -3,9 +3,11 @@ import { describe, expect, test } from 'bun:test';
 import {
   BUN_AREA_DIRS,
   FAST_BUN_ROOTS,
+  WIDGETS_VITEST_CONFIG,
   buildTestCommands,
   bunPathArg,
   bunTargetDir,
+  fastSuiteCommands,
   parseCargoMetadata,
   parseFeatureList,
   parseTestArgs,
@@ -14,6 +16,7 @@ import {
   rustFilterMatchesList,
   validateRustCrate,
 } from './test-runner.ts';
+import { ProcessCancelled, createProcessRunner } from './process-runner.ts';
 
 const CRATES = ['tiktools-cli', 'tiktools-core', 'tiktools-desktop'];
 
@@ -165,12 +168,28 @@ describe('workspace metadata and crate validation', () => {
 });
 
 describe('command dispatch', () => {
-  test('default builds the fast unit commands', () => {
+  test('default builds the three fast suites through the shared builder', () => {
     const cmds = buildTestCommands({ area: 'default', watch: false, changed: false }, {});
-    expect(cmds).toHaveLength(2);
-    expect(cmds[0]?.slice(1, 3)).toEqual(['test', './src/automation']);
-    expect(cmds[0]).toEqual(expect.arrayContaining(FAST_BUN_ROOTS.map(bunPathArg)));
-    expect(cmds[1]?.slice(-2)).toEqual(['vitest', 'run']);
+    expect(cmds).toEqual(fastSuiteCommands());
+    expect(cmds).toHaveLength(3);
+    expect(cmds[0]?.slice(1)).toEqual(['test', ...FAST_BUN_ROOTS.map(bunPathArg)]);
+    expect(cmds[0]?.[2]).toBe('./src/automation');
+    expect(cmds[1]?.slice(1)).toEqual(['x', '--no-install', 'vitest', 'run']);
+    expect(cmds[2]?.slice(1)).toEqual(['x', '--no-install', 'vitest', 'run', '--config', WIDGETS_VITEST_CONFIG]);
+  });
+
+  test('--changed reaches every fast suite and filters stay name based', () => {
+    const cmds = fastSuiteCommands({ bun: 'bun', changed: true });
+    expect(cmds[0]).toEqual(['bun', 'test', '--changed', ...FAST_BUN_ROOTS.map(bunPathArg)]);
+    expect(cmds[1]).toEqual(['bun', 'x', '--no-install', 'vitest', 'run', '--changed']);
+    expect(cmds[2]).toEqual(['bun', 'x', '--no-install', 'vitest', 'run', '--config', 'vitest.widgets.config.ts', '--changed']);
+    expect(buildTestCommands({ area: 'default', watch: false, changed: true }, {})).toEqual(fastSuiteCommands({ changed: true }));
+  });
+
+  test('the fast suites never launch e2e, cargo, plugin checkouts or browser downloads', () => {
+    const joined = fastSuiteCommands().flat().join(' ');
+    for (const forbidden of ['playwright', 'cargo', 'git', 'clone']) expect(joined).not.toContain(forbidden);
+    for (const cmd of fastSuiteCommands().filter((c) => c.includes('vitest'))) expect(cmd).toContain('--no-install');
   });
 
   test('bun roots are explicit paths, never substring filters', () => {
@@ -276,5 +295,31 @@ describe('failure propagation', () => {
         },
       }),
     ).rejects.toThrow(/no Rust tests match/);
+  });
+});
+
+describe('cancellation through the shared runner', () => {
+  test('cancelling during the first suite never starts the next suite', async () => {
+    const started: string[][] = [];
+    let finishFirst: (code: number) => void = () => {};
+    const runner = createProcessRunner({
+      cwd: '/repo',
+      log: () => {},
+      spawn: ((cmd: string[]) => {
+        started.push(cmd);
+        return { exited: new Promise<number>((resolve) => (finishFirst = resolve)), kill: () => finishFirst(143) };
+      }) as never,
+    });
+    const outcome = runTargetedTests([], { root: '/repo', runner }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    await Bun.sleep(10);
+    expect(started).toHaveLength(1);
+    runner.cancel('SIGTERM');
+    const error = await outcome;
+    expect(error).toBeInstanceOf(ProcessCancelled);
+    expect((error as ProcessCancelled).exitCode).toBe(143);
+    expect(started).toHaveLength(1);
   });
 });

@@ -9,6 +9,7 @@
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { resolvePluginsRepository } from './external-plugins.ts';
+import { createProcessRunner, type ProcessRunner } from './process-runner.ts';
 
 export const TEST_USAGE =
   'Usage: bun run test [area] [target] [filter] [options]\n' +
@@ -18,6 +19,44 @@ export const TEST_USAGE =
   'Examples: bun run test | bun run test rust tiktools-core batched_likes | bun run test web live-batch | bun run test e2e.';
 
 export const FAST_BUN_ROOTS = ['src/automation', 'src/plugin-ui', 'src/shared', 'src/widgets', 'scripts', 'packages'];
+
+export const WIDGETS_VITEST_CONFIG = 'vitest.widgets.config.ts';
+
+/** `bun x --no-install vitest ...`: never installs, always the locked local binary. */
+function vitestCommand(
+  bun: string,
+  options: { config?: string; filter?: string; changed?: boolean; watch?: boolean } = {},
+): string[] {
+  return [
+    bun,
+    'x',
+    '--no-install',
+    'vitest',
+    ...(options.watch ? [] : ['run']),
+    ...(options.config ? ['--config', options.config] : []),
+    ...(options.filter ? [options.filter] : []),
+    ...(options.changed ? ['--changed'] : []),
+    ...(options.watch ? ['--watch'] : []),
+  ];
+}
+
+/**
+ * The fast frontend suites, in order: Bun units over `FAST_BUN_ROOTS`, the
+ * web Vitest project, and the widgets Vitest project. Shared by
+ * `bun run test`, `frontend-test` and the frontend step of `ci`, so the
+ * three can never drift. Pure; launches no E2E, Rust build, plugin clone or
+ * browser download.
+ */
+export function fastSuiteCommands(options: { bun?: string; changed?: boolean } = {}): string[][] {
+  const bun = options.bun ?? process.execPath;
+  const changed = options.changed ?? false;
+  return [
+    // `bun test --changed` and the `./` root prefixes are covered by `bunPathArg`.
+    [bun, 'test', ...(changed ? ['--changed'] : []), ...FAST_BUN_ROOTS.map(bunPathArg)],
+    vitestCommand(bun, { changed }),
+    vitestCommand(bun, { config: WIDGETS_VITEST_CONFIG, changed }),
+  ];
+}
 
 /** Shorthand `bun <area>` directories (repo-relative). */
 export const BUN_AREA_DIRS: Record<string, string> = {
@@ -225,18 +264,10 @@ export function pluginTestRoots(plugin: string): string[] {
 }
 
 /** Resolve workspace crate names via `cargo metadata`. Reuses the normal toolchain. */
-export async function getWorkspaceCrateNames(): Promise<string[]> {
-  const child = Bun.spawn(['cargo', 'metadata', '--no-deps', '--format-version', '1'], {
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  const [out, err, code] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
-    child.exited,
-  ]);
-  if (code !== 0) throw new Error(`could not read workspace metadata (exit ${code ?? 'signal'}): ${err.trim()}`);
-  return parseCargoMetadata(out);
+export async function getWorkspaceCrateNames(runner: Pick<ProcessRunner, 'capture'>): Promise<string[]> {
+  const { code, stdout, stderr } = await runner.capture(['cargo', 'metadata', '--no-deps', '--format-version', '1']);
+  if (code !== 0) throw new Error(`could not read workspace metadata (exit ${code ?? 'signal'}): ${stderr.trim()}`);
+  return parseCargoMetadata(stdout);
 }
 
 async function pathExists(root: string, relative: string): Promise<boolean> {
@@ -247,6 +278,8 @@ async function pathExists(root: string, relative: string): Promise<boolean> {
 
 export type TestDeps = {
   root?: string;
+  /** Shared executor (children tracked, cancellable). Defaults to a plain runner without signal handlers. */
+  runner?: ProcessRunner;
   workspaceCrates?: string[];
   pluginRootsExist?: (roots: string[]) => Promise<string[]>;
   pluginsRepository?: string;
@@ -263,10 +296,7 @@ export function buildTestCommands(
   const changedFlag = (request.area !== 'rust' && request.area !== 'e2e' && request.changed) ? ['--changed'] : [];
   switch (request.area) {
     case 'default':
-      return [
-        [bun, 'test', ...changedFlag, ...FAST_BUN_ROOTS.map(bunPathArg)],
-        [bun, 'x', '--no-install', 'vitest', 'run', ...(request.changed ? ['--changed'] : [])],
-      ];
+      return fastSuiteCommands({ bun, changed: request.changed });
     case 'rust': {
       if (!ctx.workspaceCrates) throw new Error('workspace crate list is required for rust targets');
       validateRustCrate(request.crate, ctx.workspaceCrates);
@@ -276,10 +306,7 @@ export function buildTestCommands(
       return [cmd];
     }
     case 'web': {
-      if (request.watch) return [[bun, 'x', '--no-install', 'vitest', ...(request.filter ? [request.filter] : []), '--watch']];
-      return [
-        [bun, 'x', '--no-install', 'vitest', 'run', ...(request.filter ? [request.filter] : []), ...(request.changed ? ['--changed'] : [])],
-      ];
+      return [vitestCommand(bun, { filter: request.filter, changed: request.changed, watch: request.watch })];
     }
     case 'bun': {
       const dir = bunTargetDir(request.target);
@@ -298,45 +325,40 @@ export function buildTestCommands(
   }
 }
 
-/** Fail when a filtered Rust run would pass with 0 tests (mirrors CI). */
-export async function defaultVerifyRustFilter(
-  root: string,
-  crate: string,
-  features: string | undefined,
-  filter: string,
+/**
+ * Fail when a filtered Rust run would pass with 0 tests (mirrors CI): a bare
+ * `cargo test <filter>` succeeds when nothing matches. `lib` limits the
+ * listing to the library target, as the CI regression guard does.
+ */
+export async function verifyRustFilter(
+  runner: Pick<ProcessRunner, 'capture'>,
+  check: { crate: string; features?: string; filter: string; lib?: boolean },
 ): Promise<void> {
   const bun = process.execPath;
-  const listArgs = [bun, 'scripts/cargo-with-linker.mjs', 'test', '-p', crate, '--locked'];
-  if (features) listArgs.push('--features', features);
-  listArgs.push('--', '--list');
-  const child = Bun.spawn(listArgs, { cwd: root, stdout: 'pipe', stderr: 'inherit', env: process.env });
-  const output = await new Response(child.stdout).text();
-  const code = await child.exited;
-  if (code !== 0) throw new Error(`could not list Rust tests for ${crate} (exit ${code ?? 'signal'})`);
-  if (!rustFilterMatchesList(output, filter)) {
-    throw new Error(`no Rust tests match ${JSON.stringify(filter)} in crate ${JSON.stringify(crate)}`);
+  const cmd = [bun, 'scripts/cargo-with-linker.mjs', 'test', '-p', check.crate, '--locked'];
+  if (check.features) cmd.push('--features', check.features);
+  if (check.lib) cmd.push('--lib');
+  cmd.push('--', '--list');
+  const { code, stdout } = await runner.capture(cmd, { stderr: 'inherit' });
+  if (code !== 0) throw new Error(`could not list Rust tests for ${check.crate} (exit ${code ?? 'signal'})`);
+  if (!rustFilterMatchesList(stdout, check.filter)) {
+    throw new Error(`no Rust tests match ${JSON.stringify(check.filter)} in crate ${JSON.stringify(check.crate)}`);
   }
-}
-
-async function defaultRun(root: string, cmd: string[]): Promise<void> {
-  console.log(`\n> ${cmd.join(' ')}`);
-  const child = Bun.spawn(cmd, { cwd: root, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', env: process.env });
-  const code = await child.exited;
-  if (code !== 0) throw new Error(`command failed (exit ${code ?? 'signal'}): ${cmd.join(' ')}`);
 }
 
 /** Parse, validate, and run a `test ...` invocation. Never falls back silently. */
 export async function runTargetedTests(rawArgs: string[], deps: TestDeps = {}): Promise<void> {
   const root = deps.root ?? join(import.meta.dir, '..', '..');
   const request = parseTestArgs(rawArgs);
-  const run = deps.run ?? ((cmd: string[]) => defaultRun(root, cmd));
+  const runner = deps.runner ?? createProcessRunner({ cwd: root });
+  const run = deps.run ?? ((cmd: string[]) => runner.run(cmd));
 
   if (request.area === 'rust') {
-    const workspaceCrates = deps.workspaceCrates ?? (await getWorkspaceCrateNames());
+    const workspaceCrates = deps.workspaceCrates ?? (await getWorkspaceCrateNames(runner));
     validateRustCrate(request.crate, workspaceCrates);
     if (request.filter) {
       const verify =
-        deps.verifyRustFilter ?? ((crate, features, filter) => defaultVerifyRustFilter(root, crate, features, filter));
+        deps.verifyRustFilter ?? ((crate, features, filter) => verifyRustFilter(runner, { crate, features, filter }));
       await verify(request.crate, request.features, request.filter);
     }
     for (const cmd of buildTestCommands(request, { workspaceCrates })) await run(cmd);

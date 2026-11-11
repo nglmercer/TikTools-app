@@ -1,7 +1,8 @@
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { assertWidgetBundle } from './lib/gateway-widgets.ts';
-import { FAST_BUN_ROOTS, bunPathArg, runTargetedTests } from './lib/test-runner.ts';
+import { ProcessCancelled, createProcessRunner, exitCodeForSignal, forwardTerminationSignals } from './lib/process-runner.ts';
+import { fastSuiteCommands, runTargetedTests, verifyRustFilter } from './lib/test-runner.ts';
 
 const root = join(import.meta.dir, '..');
 const bun = process.execPath;
@@ -20,43 +21,14 @@ const USAGE =
   'rust-lint, rust <cargo args>, widgets, plugins <args>, e2e [args], package,\n' +
   'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins.';
 
-// Every spawned child is tracked so SIGINT/SIGTERM terminate the whole
-// launcher tree instead of orphaning Vite, the desktop host, or cargo.
-const children = new Set<ReturnType<typeof Bun.spawn>>();
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => {
-    process.exitCode = signal === 'SIGINT' ? 130 : 143;
-    for (const child of [...children]) {
-      try {
-        child.kill(signal);
-      } catch {
-        // Already exited; nothing to stop.
-      }
-    }
-  });
-}
+// Every spawned child is tracked by the shared runner so SIGINT/SIGTERM stop
+// the whole launcher tree (Vite, the desktop host, cargo) instead of orphaning
+// it, and no further command starts once cancelled. Only this entry point
+// registers the signal handlers; imported helpers never do.
+const runner = createProcessRunner({ cwd: root });
+forwardTerminationSignals(runner);
 
-async function run(...cmd: string[]): Promise<void> {
-  if (cmd.length === 0) throw new Error('refusing to run an empty command');
-  console.log(`\n> ${cmd.join(' ')}`);
-  const child = Bun.spawn(cmd, {
-    cwd: root,
-    stdin: 'inherit',
-    stdout: 'inherit',
-    stderr: 'inherit',
-    env: process.env,
-  });
-  children.add(child);
-  try {
-    const code = await child.exited;
-    // A forwarded signal already set the canonical 130/143 exit code: stop
-    // immediately instead of reporting the killed child as a plain failure.
-    if (process.exitCode === 130 || process.exitCode === 143) process.exit(process.exitCode);
-    if (code !== 0) throw new Error(`command failed (exit ${code ?? 'signal'}): ${cmd.join(' ')}`);
-  } finally {
-    children.delete(child);
-  }
-}
+const run = (...cmd: string[]): Promise<void> => runner.run(cmd);
 
 const script = (name: string, ...args: string[]) => run(bun, `scripts/${name}`, ...args);
 const tool = (name: string, ...args: string[]) => run(bun, 'x', '--no-install', name, ...args);
@@ -105,36 +77,22 @@ async function rustLint(): Promise<void> {
 }
 
 async function tests(): Promise<void> {
-  // One invocation per area so an unmatched pattern fails loudly instead
-  // of hiding behind a sibling area that still matches.
-  // `./` keeps Bun from treating each root as a path-substring filter that
-  // would also collect Vitest-only files elsewhere in the tree.
-  await run(bun, 'test', ...FAST_BUN_ROOTS.map(bunPathArg));
+  // The same three suites as `bun run test`: Bun units, web Vitest and
+  // widgets Vitest, one invocation each so an unmatched pattern fails loudly
+  // instead of hiding behind a sibling suite that still matches.
   // Plugin packages live in the external plugins-example-tiktools
   // repository and run their own suites there.
   // Browser specs (tests/e2e, widget/gateway .e2e.ts) need
   // built assets and Playwright browsers; run them explicitly with
   // `bun scripts/task.ts e2e ...` after `bun run build`.
-  await tool('vitest', 'run');
-  await tool('vitest', 'run', '--config', 'vitest.widgets.config.ts');
+  for (const cmd of fastSuiteCommands({ bun })) await run(...cmd);
 }
 
 /** Fail when a required Rust regression test no longer exists: a bare
  * filtered `cargo test <name>` would otherwise pass with 0 tests run. */
 async function verifyRustTestExists(pkg: string, features: string, name: string): Promise<void> {
   console.log(`\n> cargo test -p ${pkg} --features ${features} -- --list (verifying ${name})`);
-  const child = Bun.spawn(
-    [bun, 'scripts/cargo-with-linker.mjs', 'test', '-p', pkg, '--locked', '--features', features, '--lib', '--', '--list'],
-    { cwd: root, stdout: 'pipe', stderr: 'inherit', env: process.env },
-  );
-  const output = await new Response(child.stdout).text();
-  const code = await child.exited;
-  if (code !== 0) throw new Error(`could not list Rust tests for ${pkg} (exit ${code ?? 'signal'})`);
-  if (!output.split('\n').some((line) => line.includes(`${name}: test`))) {
-    throw new Error(
-      `required Rust regression test missing: ${name} (package ${pkg}, features ${features})`,
-    );
-  }
+  await verifyRustFilter(runner, { crate: pkg, features, filter: name, lib: true });
   console.log(`Found required Rust test: ${name}`);
 }
 
@@ -219,7 +177,7 @@ try {
       await ci();
       break;
     case 'test':
-      await runTargetedTests(args);
+      await runTargetedTests(args, { root, runner });
       break;
     case 'frontend-lint':
       needNoArgs('frontend-lint', args);
@@ -276,6 +234,12 @@ try {
       process.exitCode = 2;
   }
 } catch (error) {
-  console.error(`task ${command ?? '(none)'} failed: ${error instanceof Error ? error.message : error}`);
-  process.exitCode = 1;
+  if (error instanceof ProcessCancelled) {
+    // Cancelled by SIGINT/SIGTERM: keep the conventional 130/143 exit code.
+    process.exitCode = error.exitCode;
+  } else {
+    console.error(`task ${command ?? '(none)'} failed: ${error instanceof Error ? error.message : error}`);
+    process.exitCode = 1;
+  }
 }
+if (runner.cancelledBy && !process.exitCode) process.exitCode = exitCodeForSignal(runner.cancelledBy);

@@ -1435,3 +1435,50 @@ mod settings_defaults_validation_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod plugin_id_corpus_tests {
+    use super::is_valid_plugin_id;
+    use crate::manifest::PluginManifest;
+    use serde_json::{json, Value};
+
+    /// Shared with `scripts/lib/plugin-id.test.ts`, which also checks the
+    /// same cases against `plugin.schema.json`.
+    const CORPUS: &str = include_str!("../../../../packages/plugin-sdk/plugin-id-corpus.json");
+
+    fn cases(kind: &str) -> Vec<String> {
+        let corpus: Value = serde_json::from_str(CORPUS).expect("corpus is valid JSON");
+        corpus[kind]
+            .as_array()
+            .expect("corpus lists cases")
+            .iter()
+            .map(|case| case["id"].as_str().expect("case has an id").to_owned())
+            .collect()
+    }
+
+    fn manifest_accepts(id: &str) -> bool {
+        let document = json!({
+            "schemaVersion": 3,
+            "id": id,
+            "name": "Corpus",
+            "version": "1.0.0",
+            "runtime": "declarative"
+        });
+        PluginManifest::from_json_str(&document.to_string()).is_ok()
+    }
+
+    #[test]
+    fn host_accepts_and_rejects_the_shared_corpus() {
+        let valid = cases("valid");
+        let invalid = cases("invalid");
+        assert!(!valid.is_empty() && !invalid.is_empty());
+        for id in &valid {
+            assert!(is_valid_plugin_id(id), "{id:?} should be a valid plugin id");
+            assert!(manifest_accepts(id), "manifest should accept {id:?}");
+        }
+        for id in &invalid {
+            assert!(!is_valid_plugin_id(id), "{id:?} should be rejected");
+            assert!(!manifest_accepts(id), "manifest should reject {id:?}");
+        }
+    }
+}

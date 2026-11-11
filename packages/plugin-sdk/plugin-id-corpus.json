@@ -1,0 +1,163 @@
+{
+  "description": "Plugin id contract shared by the TypeScript tooling, the Rust host and plugin.schema.json: ^[a-z][a-z0-9._-]{1,127}$ (2-128 ASCII characters, lowercase initial).",
+  "valid": [
+    {
+      "label": "min length 2",
+      "id": "ab"
+    },
+    {
+      "label": "length 64",
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "label": "length 65",
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "label": "max length 128",
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "label": "dots, dashes and underscores",
+      "id": "my-plugin_v1.beta"
+    },
+    {
+      "label": "reverse-dns style",
+      "id": "tiktools.event-gateway"
+    },
+    {
+      "label": "digit after the first letter",
+      "id": "a0"
+    },
+    {
+      "label": "trailing separator",
+      "id": "ab-"
+    },
+    {
+      "label": "consecutive dots",
+      "id": "a..b"
+    }
+  ],
+  "invalid": [
+    {
+      "label": "empty",
+      "id": ""
+    },
+    {
+      "label": "length 1",
+      "id": "a"
+    },
+    {
+      "label": "length 129",
+      "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "label": "uppercase initial",
+      "id": "Ab"
+    },
+    {
+      "label": "uppercase inner",
+      "id": "aB"
+    },
+    {
+      "label": "all uppercase",
+      "id": "PLUGIN"
+    },
+    {
+      "label": "digit initial",
+      "id": "1ab"
+    },
+    {
+      "label": "dash initial",
+      "id": "-ab"
+    },
+    {
+      "label": "dot initial",
+      "id": ".ab"
+    },
+    {
+      "label": "underscore initial",
+      "id": "_ab"
+    },
+    {
+      "label": "inner space",
+      "id": "a b"
+    },
+    {
+      "label": "leading space",
+      "id": " ab"
+    },
+    {
+      "label": "trailing space",
+      "id": "ab "
+    },
+    {
+      "label": "trailing newline",
+      "id": "ab\n"
+    },
+    {
+      "label": "tab",
+      "id": "a\tb"
+    },
+    {
+      "label": "accented letter",
+      "id": "\u00e1b"
+    },
+    {
+      "label": "accented inner",
+      "id": "a\u00e9"
+    },
+    {
+      "label": "CJK",
+      "id": "\u65e5\u672c\u8a9e"
+    },
+    {
+      "label": "fullwidth letters",
+      "id": "\uff41\uff42"
+    },
+    {
+      "label": "emoji",
+      "id": "a\ud83d\ude00"
+    },
+    {
+      "label": "parent traversal",
+      "id": "../plugin"
+    },
+    {
+      "label": "nested traversal",
+      "id": "a/../b"
+    },
+    {
+      "label": "forward slash",
+      "id": "a/b"
+    },
+    {
+      "label": "backslash",
+      "id": "a\\b"
+    },
+    {
+      "label": "absolute path",
+      "id": "/ab"
+    },
+    {
+      "label": "drive path",
+      "id": "c:\\ab"
+    },
+    {
+      "label": "NUL byte",
+      "id": "a\u0000b"
+    },
+    {
+      "label": "semicolon",
+      "id": "a;b"
+    },
+    {
+      "label": "percent encoding",
+      "id": "a%2fb"
+    },
+    {
+      "label": "too long and uppercase",
+      "id": "Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

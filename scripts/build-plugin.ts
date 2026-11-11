@@ -1,13 +1,14 @@
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { PLUGINS_REPO_ENV, PLUGINS_REPO_NAME, externalPluginDirectories, resolvePluginsRepository } from './lib/external-plugins.ts';
+import { compileNapiVmGuest, prepareNativeAddons } from './lib/napi-vm.ts';
+import { assertPluginId } from './lib/plugin-id.ts';
 import { GATEWAY_PLUGIN_ID, GATEWAY_WIDGET_KINDS, stageGatewayWidgets } from './lib/gateway-widgets.ts';
 import {
   artifactFileName,
   detectHostTarget,
   resolveRustTarget,
   supportedRustTargets,
-  validatePluginId,
   validatePluginVersion,
   type PluginBuildTarget,
 } from './lib/plugin-targets.ts';
@@ -152,122 +153,47 @@ if (!buildAll && selected.length === 0) {
 if (!outDirectory.trim()) fail('output directory must not be empty');
 outDirectory = resolve(repositoryRoot, outDirectory);
 
-type NativeAddonDeclaration = {
-  package?: unknown;
-  root?: unknown;
-};
-
-/// Whether every declared package has a sibling source checkout
-/// beside the repository (a directory carrying its `package.json`).
-async function siblingSourcesPresent(declarations: NativeAddonDeclaration[]): Promise<boolean> {
-  for (const declaration of declarations) {
-    if (typeof declaration.package !== 'string') return false;
-    if (!(await exists(join(repositoryRoot, '..', declaration.package, 'package.json')))) {
-      return false;
-    }
-  }
-  return true;
-}
-
 /// Compiles a napi-vm example guest with the repository tsc, stages
 /// each declared native package, and returns the built entry path for
 /// the packager. Staging prefers a sibling source checkout on host
 /// builds (fast, offline, local iteration); otherwise a declared
 /// `nativeLibs` entry plus its committed lockfile is fetched from its
 /// pinned provider — which also unlocks cross-target builds, since the
-/// provider serves every target's binary from one manifest.
+/// provider serves every target's binary from one manifest. Packaging
+/// fails when the required native components cannot be provided.
 async function buildNapiVmExample(
   directory: string,
   manifestPath: string,
   manifest: ExampleManifest,
   sourceEntry: string,
 ): Promise<string> {
-  const tsconfigPath = join(directory, 'tsconfig.json');
-  if (!(await exists(tsconfigPath))) {
-    fail(`${manifestPath} is napi-vm but has no tsconfig.json`);
-  }
-  runInherit('node', [
-    join(repositoryRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
-    '-p',
-    tsconfigPath,
-    '--typeRoots',
-    join(repositoryRoot, 'node_modules', '@types'),
-  ]);
-  const nativeAddons = Array.isArray(manifest['nativeAddons'])
-    ? (manifest['nativeAddons'] as NativeAddonDeclaration[])
-    : [];
-  if (nativeAddons.length > 0) {
-    const addons = nativeAddons.map((declaration) => {
-      if (typeof declaration.package !== 'string' || typeof declaration.root !== 'string') {
-        fail(`${manifestPath} has a malformed nativeAddons entry`);
-      }
-      return declaration as { package: string; root: string };
+  const exec = (command: string, args: string[]) => runInherit(command, args);
+  try {
+    await compileNapiVmGuest({ repositoryRoot, packageDirectory: directory, manifestPath, exec });
+    const host = detectHostTarget();
+    const native = await prepareNativeAddons({
+      repositoryRoot,
+      packageDirectory: directory,
+      manifestPath,
+      manifest,
+      host,
+      target: selectedTarget,
+      profile,
+      cargo: (args) => runInherit('node', [cargoWrapper, ...args]),
+      exec,
     });
-    runInherit('node', [
-      cargoWrapper,
-      'build',
-      ...(profile === 'release' ? ['--release'] : []),
-      '-p',
-      'tiktools-plugin-devkit',
-      '--bin',
-      'tiktools-plugin-stage-native',
-    ]);
-    // The staging tool always runs on this host, even for
-    // cross-target builds, so the suffix follows the host OS.
-    const stageBinary =
-      join(repositoryRoot, 'target', profile, 'tiktools-plugin-stage-native') +
-      (detectHostTarget().os === 'windows' ? '.exe' : '');
-    const crossTarget = selectedTarget.rustTarget !== detectHostTarget().rustTarget;
-    const nativeLibs = manifest['nativeLibs'];
-    const lockfilePath = join(directory, 'native-libs.lock.json');
-    const canFetch =
-      Array.isArray(nativeLibs) && nativeLibs.length > 0 && (await exists(lockfilePath));
-    if (!crossTarget && (await siblingSourcesPresent(addons))) {
-      for (const declaration of addons) {
-        runInherit(stageBinary, [
-          '--package',
-          declaration.package,
-          '--source',
-          join(repositoryRoot, '..', declaration.package),
-          '--plugin-dir',
-          directory,
-          '--root',
-          declaration.root,
-          '--overwrite',
-        ]);
-      }
-    } else if (canFetch) {
-      runInherit(stageBinary, [
-        '--provider',
-        'all',
-        '--manifest',
-        manifestPath,
-        '--plugin-dir',
-        directory,
-        '--lockfile',
-        lockfilePath,
-        '--target',
-        selectedTarget.napiTarget,
-        '--overwrite',
-      ]);
-    } else if (crossTarget) {
-      fail(
-        `${manifestPath} is napi-vm: cross-target builds need per-target native binaries (${selectedTarget.rustTarget} requested on a ${detectHostTarget().rustTarget} host); declare nativeLibs in the manifest and pin native-libs.lock.json with stage-native --pin`,
-      );
-    } else {
-      const missing = (
-        await Promise.all(
-          addons.map(async (declaration) =>
-            !(await exists(join(repositoryRoot, '..', declaration.package, 'package.json')))
-              ? declaration.package
-              : null,
-          ),
-        )
-      ).filter((name): name is string => name !== null);
-      fail(
-        `${manifestPath} needs the ${missing.join(', ')} source checkout beside the repository, or a nativeLibs declaration with native-libs.lock.json to fetch from`,
+    if (native.status === 'unavailable') {
+      throw new Error(
+        native.reason === 'cross-target'
+          ? `${manifestPath} is napi-vm: cross-target builds need per-target native binaries (${selectedTarget.rustTarget} requested on a ${host.rustTarget} host); declare nativeLibs in the manifest and pin native-libs.lock.json with stage-native --pin`
+          : `${manifestPath} needs the ${native.missing.join(', ')} source checkout beside the repository, or a nativeLibs declaration with native-libs.lock.json to fetch from`,
       );
     }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    // `runInherit` failures already carry the packaging prefix.
+    if (message.startsWith('Plugin packaging failed:')) throw error;
+    fail(message);
   }
   const builtEntryPath = join(directory, sourceEntry);
   if (!(await exists(builtEntryPath))) {
@@ -316,7 +242,7 @@ const VALID_RUNTIMES = new Set(['native', 'process', 'wasm', 'napi-vm', 'declara
 
 const built: string[] = [];
 for (const { directory, manifestPath, manifest } of targets) {
-  const id = validatePluginId(manifest.id, manifestPath);
+  const id = assertPluginId(manifest.id, `Plugin packaging failed: ${manifestPath}`);
   const version = validatePluginVersion(manifest.version, manifestPath);
   if (signingKey && (typeof manifest.publisher !== 'string' || !manifest.publisher)) {
     fail(`${manifestPath} needs a publisher when signing`);

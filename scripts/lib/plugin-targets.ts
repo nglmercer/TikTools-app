@@ -94,14 +94,8 @@ function hostRustTriple(platform: NodeJS.Platform, arch: NodeJS.Architecture): s
   return null;
 }
 
+/** File name segment (versions). Plugin ids use `plugin-id.ts`, not this pattern. */
 const SAFE_FILENAME = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
-
-export function validatePluginId(id: unknown, file: string): string {
-  if (typeof id !== 'string' || !SAFE_FILENAME.test(id) || id.length < 2 || id.length > 128) {
-    throw new Error(`Plugin packaging failed: ${file} has an unsafe plugin id: ${String(id)}`);
-  }
-  return id;
-}
 
 export function validatePluginVersion(version: unknown, file: string): string {
   if (

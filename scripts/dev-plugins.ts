@@ -1,6 +1,8 @@
 import { chmod, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { externalPluginDirectories, PLUGINS_REPO_ENV, PLUGINS_REPO_NAME, resolvePluginsRepository } from './lib/external-plugins.ts';
+import { compileNapiVmGuest, prepareNativeAddons, siblingSourceDirectory } from './lib/napi-vm.ts';
+import { assertPluginId } from './lib/plugin-id.ts';
 import { GATEWAY_PLUGIN_ID, stageGatewayWidgets } from './lib/gateway-widgets.ts';
 import { detectHostTarget } from './lib/plugin-targets.ts';
 
@@ -13,11 +15,6 @@ type PluginManifest = {
   entry?: unknown;
   runtime?: unknown;
   [key: string]: unknown;
-};
-
-type NativeAddonDeclaration = {
-  package?: unknown;
-  root?: unknown;
 };
 
 function run(command: string, args: string[], cwd = repositoryRoot): void {
@@ -76,11 +73,8 @@ function stagedEntryName(entry: string): string {
 async function stagePlugin(pluginsRepository: string, packageDirectory: string): Promise<boolean> {
   const manifestPath = join(packageDirectory, 'plugin.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as PluginManifest;
-  const id = requiredString(manifest.id, 'id', manifestPath);
+  const id = assertPluginId(manifest.id, manifestPath);
   const runtime = requiredString(manifest.runtime, 'runtime', manifestPath);
-  if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(id)) {
-    throw new Error(`${manifestPath} has an unsafe plugin id: ${id}`);
-  }
   const stagedDirectory = join(developmentPluginRoot, id);
   if (runtime === 'napi-vm') {
     return await stageNapiVm(packageDirectory, manifestPath, manifest, id, stagedDirectory);
@@ -185,69 +179,26 @@ async function stageNapiVm(
   stagedDirectory: string,
 ): Promise<boolean> {
   console.log(`Building development plugin ${id}...`);
-  const tsconfigPath = join(packageDirectory, 'tsconfig.json');
-  if (!(await exists(tsconfigPath))) {
-    throw new Error(`${manifestPath} is napi-vm but has no tsconfig.json`);
-  }
-  run('node', [
-    join(repositoryRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
-    '-p',
-    tsconfigPath,
-    // Resolve ambient types from TikTools when the plugin checkout has no
-    // node_modules of its own.
-    '--typeRoots',
-    join(repositoryRoot, 'node_modules', '@types'),
-  ]);
-
-  const nativeAddons = Array.isArray(manifest['nativeAddons'])
-    ? (manifest['nativeAddons'] as NativeAddonDeclaration[])
-    : [];
-  if (nativeAddons.length > 0) {
-    run('node', [cargoWrapper, 'build', '-p', 'tiktools-plugin-devkit', '--bin', 'tiktools-plugin-stage-native']);
-    const stageBinary =
-      join(repositoryRoot, 'target', 'debug', 'tiktools-plugin-stage-native') +
-      (process.platform === 'win32' ? '.exe' : '');
-    const lockfilePath = join(packageDirectory, 'native-libs.lock.json');
-    const canFetch =
-      Array.isArray(manifest['nativeLibs']) &&
-      (manifest['nativeLibs'] as unknown[]).length > 0 &&
-      (await exists(lockfilePath));
-    const addons = nativeAddons.map((declaration) => ({
-      packageName: requiredString(declaration.package, 'nativeAddons[].package', manifestPath),
-      root: requiredString(declaration.root, 'nativeAddons[].root', manifestPath),
-    }));
-    const siblingOf = (name: string) => join(repositoryRoot, '..', name);
-    let missingSibling: string | null = null;
-    for (const addon of addons) {
-      if (!(await exists(join(siblingOf(addon.packageName), 'package.json')))) {
-        missingSibling = addon.packageName;
-        break;
-      }
-    }
-    if (missingSibling === null) {
-      for (const addon of addons) {
-        run(stageBinary, [
-          '--package', addon.packageName,
-          '--source', siblingOf(addon.packageName),
-          '--plugin-dir', packageDirectory,
-          '--root', addon.root,
-          '--overwrite',
-        ]);
-      }
-    } else if (canFetch) {
-      run(stageBinary, [
-        '--provider', 'all',
-        '--manifest', manifestPath,
-        '--plugin-dir', packageDirectory,
-        '--lockfile', lockfilePath,
-        '--overwrite',
-      ]);
-    } else {
-      console.log(
-        `Skipping ${id}: native package source is missing ${siblingOf(missingSibling)} (clone ${missingSibling} beside TikTools, or declare nativeLibs with native-libs.lock.json to fetch from).`,
-      );
-      return false;
-    }
+  await compileNapiVmGuest({ repositoryRoot, packageDirectory, manifestPath, exec: (command, args) => run(command, args) });
+  const host = detectHostTarget();
+  const native = await prepareNativeAddons({
+    repositoryRoot,
+    packageDirectory,
+    manifestPath,
+    manifest,
+    host,
+    target: host,
+    profile: 'debug',
+    cargo: (args) => run('node', [cargoWrapper, ...args]),
+    exec: (command, args) => run(command, args),
+  });
+  if (native.status === 'unavailable') {
+    // Development never fails startup over optional native sources: skip the package.
+    const missing = native.missing[0] ?? 'the native package';
+    console.log(
+      `Skipping ${id}: native package source is missing ${siblingSourceDirectory(repositoryRoot, missing)} (clone ${missing} beside TikTools, or declare nativeLibs with native-libs.lock.json to fetch from).`,
+    );
+    return false;
   }
 
   await rm(stagedDirectory, { recursive: true, force: true });

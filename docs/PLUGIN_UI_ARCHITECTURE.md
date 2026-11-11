@@ -119,8 +119,8 @@ frame stays blank with a bare 200 status. The desktop custom protocol is
 NOT exempt by construction. This applies to every plugin-asset host:
 the desktop `PluginAssetServer`/`SharedPluginAssetServer` (success AND
 error responses, so a 404 surfaces as its real status instead of a
-misleading CORS failure), the Vite dev middleware (`/__plugins/…`), and
-`vite preview`. Error responses carry the same CORS/CSP headers as
+misleading CORS failure), the local web adapter (`/__plugins/<token>/`, which the Vite
+dev server proxies), and `vite preview`. Error responses carry the same CORS/CSP headers as
 successful ones; both desktop servers share one response builder so the
 headers cannot drift.
 
