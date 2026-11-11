@@ -12,20 +12,16 @@ import { fieldOptionsFor, optionSources } from '@/entities/plugin/lib/plugin-opt
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import IconClock from '@/shared/ui/icon/icons/IconClock.vue';
-import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
-import IconFile from '@/shared/ui/icon/icons/IconFile.vue';
-import IconFolder from '@/shared/ui/icon/icons/IconFolder.vue';
-import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconHash from '@/shared/ui/icon/icons/IconHash.vue';
 import IconKey from '@/shared/ui/icon/icons/IconKey.vue';
 import IconMapPin from '@/shared/ui/icon/icons/IconMapPin.vue';
-import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import BaseSection from '@/shared/ui/section/BaseSection.vue';
 import type { PluginSettingsState } from '@/types.ts';
 import { useConnectionAutosave } from '../model/use-connection-autosave.ts';
+import PluginCredentialsBlock from './PluginCredentialsBlock.vue';
 import ProvisionTokenDialog from './ProvisionTokenDialog.vue';
 
 const props = withDefaults(
@@ -117,6 +113,20 @@ const provisionResult = computed(() =>
     : undefined,
 );
 
+/** Authorization is offered when the service needs a token, or on request in the advanced view. */
+const authorizable = computed(() => props.supportsProvisioning === true && (!guided.value || needsAuthorization.value === true || advanced.value));
+const showCredentials = computed(() => props.supportsTokenImport === true || authorizable.value);
+/** The credentials block only renders these; every action it reports is handled here. */
+const credentialsProps = computed(() => ({
+  supportsTokenImport: props.supportsTokenImport,
+  supportsTokenDiscovery: props.supportsTokenDiscovery,
+  authorizable: authorizable.value,
+  guided: guided.value,
+  working: working.value,
+  disabled: importDisabled.value,
+  state: props.provisionState,
+}));
+
 const tone = computed(() => {
   if (dirty.value || testing.value || !props.connection) return 'idle';
   return props.connection.ok ? 'ok' : 'error';
@@ -177,6 +187,11 @@ function requestOptions(): void {
 function startImport(options?: TokenSetupOptions): void {
   autosave.reset();
   emit('importToken', props.pluginId, options);
+}
+
+function authorize(): void {
+  if (guided.value) connect();
+  else provisionOpen.value = true;
 }
 
 function onFocusout(event: FocusEvent): void {
@@ -343,97 +358,13 @@ defineExpose({ flush: autosave.flush });
         </BaseButton>
       </template>
 
-      <section
-        v-if="supportsTokenImport"
-        class="connection-editor__token"
-      >
-        <div class="connection-editor__actions">
-          <template v-if="supportsTokenDiscovery">
-            <BaseButton
-              variant="primary"
-              :disabled="importDisabled"
-              :title="t('plugins.connection.autoConnectHint')"
-              @click="startImport({ mode: 'auto' })"
-            >
-              <template #icon>
-                <IconSearch />
-              </template>
-              {{ working ? t('plugins.connection.importing') : t('plugins.connection.autoConnect') }}
-            </BaseButton>
-            <BaseButton
-              :disabled="importDisabled"
-              :title="t('plugins.connection.autoConnectHint')"
-              @click="startImport({ mode: 'folder' })"
-            >
-              <template #icon>
-                <IconFolder />
-              </template>
-              {{ t('plugins.connection.selectFolder') }}
-            </BaseButton>
-          </template>
-          <BaseButton
-            :disabled="importDisabled"
-            :title="t('plugins.connection.importTokenHint')"
-            @click="startImport()"
-          >
-            <template #icon>
-              <IconDownload />
-            </template>
-            {{ working ? t('plugins.connection.importing') : t('plugins.connection.importToken') }}
-          </BaseButton>
-        </div>
-        <div
-          v-if="provisionState?.candidates?.length"
-          class="connection-editor__candidates"
-        >
-          <p class="connection-editor__note">
-            {{ t('plugins.connection.chooseConfiguration') }}
-          </p>
-          <ul class="connection-editor__candidate-list">
-            <li
-              v-for="candidate in provisionState.candidates"
-              :key="candidate.id"
-            >
-              <span class="connection-editor__candidate">{{ candidate.label }}</span>
-              <BaseButton
-                size="sm"
-                :disabled="importDisabled"
-                @click="startImport({ mode: 'candidate', candidateId: candidate.id })"
-              >
-                {{ t('plugins.connection.useConfiguration') }}
-              </BaseButton>
-            </li>
-          </ul>
-        </div>
-        <p
-          v-if="provisionState?.message"
-          class="connection-editor__details"
-          :class="{ 'connection-editor__details--ok': provisionState.ok }"
-          role="status"
-        >
-          {{ provisionState.message }}
-        </p>
-      </section>
-
-      <div
-        v-if="supportsProvisioning && (!guided || needsAuthorization || advanced)"
-        class="connection-editor__actions"
-      >
-        <BaseButton
-          :disabled="importDisabled"
-          @click="guided ? connect() : provisionOpen = true"
-        >
-          {{ t(guided ? 'plugins.connection.authorize' : 'plugins.connection.getToken') }}
-        </BaseButton>
-        <ProvisionTokenDialog
-          v-model:open="provisionOpen"
-          :plugin-name="pluginName"
-          :simple="guided"
-          :working="working"
-          :result="provisionResult"
-          @submit="(username, password) => emit('provision', pluginId, username, password)"
-        />
-      </div>
+      <PluginCredentialsBlock
+        v-if="showCredentials"
+        v-bind="credentialsProps"
+        variant="stacked"
+        @import="startImport"
+        @authorize="authorize"
+      />
     </template>
 
     <template v-else>
@@ -499,96 +430,13 @@ defineExpose({ flush: autosave.flush });
             {{ t('plugins.connection.advanced') }}
           </BaseButton>
 
-          <div
-            v-if="supportsTokenImport"
-            class="connection-editor__import"
-          >
-            <template v-if="supportsTokenDiscovery">
-              <BaseButton
-                variant="primary"
-                :disabled="importDisabled"
-                :title="t('plugins.connection.autoConnectHint')"
-                @click="startImport({ mode: 'auto' })"
-              >
-                <template #icon>
-                  <IconGear />
-                </template>
-                {{ working ? t('plugins.connection.importing') : t('plugins.connection.actions.auto') }}
-              </BaseButton>
-              <BaseButton
-                :disabled="importDisabled"
-                :title="t('plugins.connection.autoConnectHint')"
-                @click="startImport({ mode: 'folder' })"
-              >
-                <template #icon>
-                  <IconFolder />
-                </template>
-                {{ t('plugins.connection.actions.folder') }}
-              </BaseButton>
-            </template>
-            <BaseButton
-              :disabled="importDisabled"
-              :title="t('plugins.connection.importTokenHint')"
-              @click="startImport()"
-            >
-              <template #icon>
-                <IconFile />
-              </template>
-              {{ working ? t('plugins.connection.importing') : t('plugins.connection.actions.import') }}
-            </BaseButton>
-          </div>
-
-          <div
-            v-if="provisionState?.candidates?.length"
-            class="connection-editor__candidates"
-          >
-            <p class="connection-editor__note">
-              {{ t('plugins.connection.chooseConfiguration') }}
-            </p>
-            <ul class="connection-editor__candidate-list">
-              <li
-                v-for="candidate in provisionState.candidates"
-                :key="candidate.id"
-              >
-                <span class="connection-editor__candidate">{{ candidate.label }}</span>
-                <BaseButton
-                  size="sm"
-                  :disabled="importDisabled"
-                  @click="startImport({ mode: 'candidate', candidateId: candidate.id })"
-                >
-                  {{ t('plugins.connection.useConfiguration') }}
-                </BaseButton>
-              </li>
-            </ul>
-          </div>
-          <p
-            v-if="provisionState?.message"
-            class="connection-editor__details"
-            :class="{ 'connection-editor__details--ok': provisionState.ok }"
-            role="status"
-          >
-            {{ provisionState.message }}
-          </p>
-
-          <div
-            v-if="supportsProvisioning && (!guided || needsAuthorization || advanced)"
-            class="connection-editor__actions"
-          >
-            <BaseButton
-              :disabled="importDisabled"
-              @click="guided ? connect() : provisionOpen = true"
-            >
-              {{ t(guided ? 'plugins.connection.authorize' : 'plugins.connection.getToken') }}
-            </BaseButton>
-            <ProvisionTokenDialog
-              v-model:open="provisionOpen"
-              :plugin-name="pluginName"
-              :simple="guided"
-              :working="working"
-              :result="provisionResult"
-              @submit="(username, password) => emit('provision', pluginId, username, password)"
-            />
-          </div>
+          <PluginCredentialsBlock
+            v-if="showCredentials"
+            v-bind="credentialsProps"
+            variant="sections"
+            @import="startImport"
+            @authorize="authorize"
+          />
         </BaseSection>
 
         <BaseSection
@@ -624,6 +472,16 @@ defineExpose({ flush: autosave.flush });
         role="status"
       >{{ t(`plugins.connection.save.${saveState}`) }}</span>
     </template>
+
+    <ProvisionTokenDialog
+      v-if="supportsProvisioning"
+      v-model:open="provisionOpen"
+      :plugin-name="pluginName"
+      :simple="guided"
+      :working="working"
+      :result="provisionResult"
+      @submit="(username, password) => emit('provision', pluginId, username, password)"
+    />
   </div>
 </template>
 
@@ -723,47 +581,5 @@ defineExpose({ flush: autosave.flush });
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
-}
-
-.connection-editor__import {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.connection-editor__import :deep(.base-button) {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 0 var(--space-3);
-}
-
-.connection-editor__token {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: var(--border-width) solid var(--color-border-subtle);
-}
-
-.connection-editor__candidate-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  max-height: 20rem;
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  overflow-y: auto;
-  list-style: none;
-}
-
-.connection-editor__candidate-list li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.connection-editor__candidate {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 </style>
