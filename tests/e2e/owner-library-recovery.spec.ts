@@ -6,6 +6,7 @@ import { mkdir } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import english from '../../src/web/shared/i18n/locales/en.ts';
 import spanish from '../../src/web/shared/i18n/locales/es.ts';
+import { openHistoryEntry } from './fixtures/automation-history.ts';
 
 const execute = promisify(execFile);
 const ownerUrl = process.env['TIKTOOLS_OWNER_LIBRARY_URL'];
@@ -93,7 +94,7 @@ async function history(page: Page, words: Words): Promise<Locator> {
   // Open recovery after that boot phase, rather than racing its busy transition.
   await expect(page.getByRole('button', { name: words.automations.profile.menu, exact: true })).toBeEnabled();
   await expect(page.getByTestId('library-loading')).toHaveCount(0);
-  await page.getByTestId('library-history').last().click();
+  await openHistoryEntry(page, 'library-history', 'library');
   const dialog = page.getByRole('dialog', { name: words.libraryRecovery.title, exact: true });
   await expect(dialog).toBeVisible(); return dialog;
 }

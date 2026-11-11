@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, inject, markRaw, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { routeLocationKey, routerKey } from 'vue-router';
 import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
@@ -38,14 +38,20 @@ import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
-import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
+import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
+import IconFile from '@/shared/ui/icon/icons/IconFile.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
+import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
+import IconLock from '@/shared/ui/icon/icons/IconLock.vue';
+import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
+import type { MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
-import BaseSplitter from '@/shared/ui/splitter/BaseSplitter.vue';
 import { isLibraryTab, type LibraryTab } from '@/widgets/automation-library/model/library-tab.ts';
+import AutomationHistoryMenu from '@/widgets/automation-history-menu/ui/AutomationHistoryMenu.vue';
 import AutomationLibrary from '@/widgets/automation-library/ui/AutomationLibrary.vue';
 import AutomationRunsPanel from '@/widgets/automation-runs/ui/AutomationRunsPanel.vue';
 
@@ -89,9 +95,9 @@ const actionSort = ref<RecordSort>(isRecordSort(saved?.actionSort) ? saved.actio
 const dirty = editor.dirty;
 const reviewOpen = ref(false);
 const proposalReviewOpen = ref(false);
-const proposalReviewPanel = ref<{ openReview: () => void } | null>(null);
+const proposalReviewPanel = ref<{ openReview: () => void; openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const approvalReviewOpen = ref(false);
-const approvalReviewPanel = ref<{ openReview: () => void } | null>(null);
+const approvalReviewPanel = ref<{ openReview: () => void; openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const definitionRecoveryPanel = ref<{ openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const toggleOpen = ref(false);
 const toggleBusy = ref(false);
@@ -111,12 +117,45 @@ async function retryLibrary(): Promise<void> {
   try { await automation.loadProfiles(); }
   finally { retryingLibrary.value = false; }
 }
-// Wide enough for the four event columns without truncating triggers.
-const libraryWidth = ref(600);
-const runsHeight = ref(200);
 const isNarrow = useMediaQuery('(width < 900px)');
 
 const snapshot = computed(() => automation.snapshot.value);
+
+// One menu for every host history and review; each entry opens the existing dialog of its panel.
+const historyItems = computed<MenuEntry[]>(() => {
+  const persistent = automation.persistent.value;
+  const entry = (id: string, label: string, icon: typeof IconFile, panel: { busy: boolean } | null): MenuEntry =>
+    ({ id, label, icon: markRaw(icon), disabled: !panel || panel.busy });
+  const items: MenuEntry[] = [];
+  const proposal = proposalReviewPanel.value;
+  const definition = definitionRecoveryPanel.value;
+  const library = libraryPanel.value;
+  const approval = approvalReviewPanel.value;
+  if (persistent === true) items.push(entry('adoption', t(proposal?.hasPending ? 'automationProposal.pendingButton' : 'automationProposal.history'), IconFile, proposal));
+  if (persistent === true || automation.sourceHost.value !== null) items.push(entry('definition', t(definition?.hasPending ? 'definitionRecovery.pendingButton' : 'definitionRecovery.history'), IconFlow, definition));
+  if (persistent !== false) items.push(entry('library', t(library?.hasPending ? 'libraryRecovery.pendingButton' : 'libraryRecovery.history'), IconLayers, library));
+  if (persistent === true) items.push(entry('approval', t(approval?.hasPending ? 'automationApproval.pendingButton' : 'automationApproval.history'), IconCheck, approval));
+  if (persistent === true && proposalTarget.value) {
+    items.push({ type: 'separator', id: 'reviews' });
+    items.push(entry('review-authority', t('automationProposal.open'), IconSearch, proposal));
+    items.push(entry('review-approval', t('automationApproval.open'), IconLock, approval));
+  }
+  return items;
+});
+const historyAttention = computed(() =>
+  Boolean(proposalReviewPanel.value?.hasPending || definitionRecoveryPanel.value?.hasPending || libraryPanel.value?.hasPending || approvalReviewPanel.value?.hasPending),
+);
+function openHistory(id: string): void {
+  const open: Record<string, (() => void) | undefined> = {
+    adoption: () => proposalReviewPanel.value?.openHistory(),
+    definition: () => definitionRecoveryPanel.value?.openHistory(),
+    library: () => libraryPanel.value?.openHistory(),
+    approval: () => approvalReviewPanel.value?.openHistory(),
+    'review-authority': () => proposalReviewPanel.value?.openReview(),
+    'review-approval': () => approvalReviewPanel.value?.openReview(),
+  };
+  open[id]?.();
+}
 const eventTypes = computed(() => snapshot.value.eventTypes ?? []);
 const packs = computed(() =>
   resolvedPacks(
@@ -406,26 +445,26 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
         class="automations-page__divider"
         aria-hidden="true"
       />
-      <BaseButton
-        size="sm"
+      <BaseIconButton
+        :label="t('automations.templates.open')"
+        variant="default"
         :disabled="automation.profileLoading.value"
         @click="templatesOpen = true"
       >
-        <template #icon>
-          <IconPlus />
-        </template>
-        {{ t('automations.templates.open') }}
-      </BaseButton>
+        <IconPlus />
+      </BaseIconButton>
       <AutomationProposalReview
         v-if="automation.persistent.value === true"
         ref="proposalReviewPanel"
         v-model:open="proposalReviewOpen"
+        hide-triggers
         :target="proposalTarget"
         :host-versions="proposalVersions"
       />
       <OwnerDefinitionRecovery
         v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
         ref="definitionRecoveryPanel"
+        hide-triggers
         :selection-key="`${tab}:${selected ?? ''}:${editor.state.value?.candidate.id ?? ''}`"
         @recovered="recoveredDefinition"
         @observed="observedDefinitionState = $event"
@@ -433,6 +472,7 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
       <OwnerLibraryChanges
         v-if="automation.persistent.value !== false"
         ref="libraryPanel"
+        hide-triggers
         :selection-key="`${tab}:${selected ?? ''}:${editor.state.value?.candidate.id ?? ''}`"
         @recovered="recoveredDefinition"
       />
@@ -440,8 +480,15 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
         v-if="automation.persistent.value === true"
         ref="approvalReviewPanel"
         v-model:open="approvalReviewOpen"
+        hide-triggers
         :target="proposalTarget"
         :host-versions="proposalVersions"
+      />
+      <AutomationHistoryMenu
+        v-if="historyItems.length"
+        :items="historyItems"
+        :attention="historyAttention"
+        @select="openHistory"
       />
       <span class="automations-page__spacer" />
       <HotkeyIndicator
@@ -483,41 +530,86 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
       {{ automation.profileNotice.value }}
     </p>
 
-    <BaseSplitter
-      v-if="!isNarrow"
-      v-model:size="runsHeight"
-      class="automations-page__workspace"
-      orientation="vertical"
-      :min="96"
-      sized="end"
-    >
-      <template #start>
-        <BaseSplitter
-          v-model:size="libraryWidth"
-          class="automations-page__main"
-          :min="320"
-          :max="900"
+    <!-- One navigation area: the library, or the open record with a way back. Runs stay below. -->
+    <div class="automations-page__work">
+      <div class="automations-page__nav">
+        <AutomationLibrary
+          v-if="!editing || isNarrow"
+          v-model:tab="libraryTab"
+          v-model:selected="librarySelected"
+          v-model:event-query="eventQuery"
+          v-model:action-query="actionQuery"
+          v-model:event-sort="eventSort"
+          v-model:action-sort="actionSort"
+          :events="events"
+          :actions="actions"
+          :action-types="snapshot.actionTypes"
+          :available-types="availableTypes"
+          :event-types="eventTypes"
+          :runs="automation.runs.value"
+          @new-event="newEvent"
+          @new-action="pickerOpen = true"
+          @set-enabled="setEnabled"
+        />
+        <div
+          v-if="editing"
+          class="automations-page__sheet"
+          :role="isNarrow ? 'dialog' : 'region'"
+          :aria-modal="isNarrow ? 'true' : undefined"
+          :aria-label="editing.record.name"
         >
-          <template #start>
-            <AutomationLibrary
-              v-model:tab="libraryTab"
-              v-model:selected="librarySelected"
-              v-model:event-query="eventQuery"
-              v-model:action-query="actionQuery"
-              v-model:event-sort="eventSort"
-              v-model:action-sort="actionSort"
-              :events="events"
-              :actions="actions"
-              :action-types="snapshot.actionTypes"
-              :available-types="availableTypes"
-              :event-types="eventTypes"
-              :runs="automation.runs.value"
-              @new-event="newEvent"
-              @new-action="pickerOpen = true"
-              @set-enabled="setEnabled"
-            />
-          </template>
-          <template #end>
+          <!-- On narrow screens the sheet covers the toolbar, so it carries its own bar with the record tools. -->
+          <header
+            v-if="isNarrow"
+            class="automations-page__sheet-bar"
+          >
+            <BaseIconButton
+              :label="t('common.back')"
+              variant="default"
+              size="sm"
+              @click="closeEditor"
+            >
+              <IconChevronLeft />
+            </BaseIconButton>
+            <span class="automations-page__sheet-title">{{ editing.record.name }}</span>
+            <template v-if="isNarrow">
+              <BaseButton
+                v-if="automation.persistent.value !== false"
+                size="sm"
+                :disabled="!libraryPanel || libraryPanel.busy"
+                data-test="library-history"
+                @click="libraryPanel?.openHistory()"
+              >
+                {{ t(libraryPanel?.hasPending ? 'libraryRecovery.pendingButton' : 'libraryRecovery.history') }}
+              </BaseButton>
+              <BaseButton
+                v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
+                size="sm"
+                :disabled="!definitionRecoveryPanel || definitionRecoveryPanel.busy"
+                data-test="definition-history"
+                @click="definitionRecoveryPanel?.openHistory()"
+              >
+                {{ t(definitionRecoveryPanel?.hasPending ? 'definitionRecovery.pendingButton' : 'definitionRecovery.history') }}
+              </BaseButton>
+              <BaseButton
+                v-if="automation.persistent.value === true && proposalTarget"
+                class="automations-page__proposal-button"
+                size="sm"
+                @click="proposalReviewPanel?.openReview()"
+              >
+                {{ t('automationProposal.open') }}
+              </BaseButton>
+              <BaseButton
+                v-if="automation.persistent.value === true && proposalTarget"
+                size="sm"
+                data-test="approval-open"
+                @click="approvalReviewPanel?.openReview()"
+              >
+                {{ t('automationApproval.open') }}
+              </BaseButton>
+            </template>
+          </header>
+          <div class="automations-page__sheet-body">
             <AutomationEditNotice
               :edit="editor.state.value"
               :host-changed="hostChanged"
@@ -525,7 +617,7 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
               @compare="compare"
             />
             <EventEditor
-              v-if="editing?.kind === 'event'"
+              v-if="editing.kind === 'event'"
               :key="editor.state.value?.token"
               :baseline="eventBaseline ?? undefined"
               :busy="editor.state.value?.busy"
@@ -544,9 +636,23 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
               @delete="removeRecord('events', $event)"
               @test="automation.testEvent"
               @fire="automation.fireEvent"
-            />
+            >
+              <template
+                v-if="!isNarrow"
+                #leading
+              >
+                <BaseIconButton
+                  :label="t('common.back')"
+                  variant="default"
+                  size="sm"
+                  @click="closeEditor"
+                >
+                  <IconChevronLeft />
+                </BaseIconButton>
+              </template>
+            </EventEditor>
             <ActionEditor
-              v-else-if="editing?.kind === 'action'"
+              v-else
               :key="editor.state.value?.token"
               :baseline="actionBaseline ?? undefined"
               :busy="editor.state.value?.busy"
@@ -565,157 +671,29 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
               @delete="removeRecord('actions', $event)"
               @test="automation.testAction"
               @load-options="automation.loadOptions"
-            />
-            <div
-              v-else
-              class="automations-page__placeholder"
             >
-              <BaseEmptyState
-                :title="t('automations.editor.emptyTitle')"
-                :description="t('automations.editor.emptyLead')"
+              <template
+                v-if="!isNarrow"
+                #leading
               >
-                <template #icon>
-                  <IconFlow :size="28" />
-                </template>
-              </BaseEmptyState>
-            </div>
-          </template>
-        </BaseSplitter>
-      </template>
-      <template #end>
-        <AutomationRunsPanel :runs="automation.runs.value" />
-      </template>
-    </BaseSplitter>
-
-    <template v-else>
-      <div class="automations-page__narrow">
-        <AutomationLibrary
-          v-model:tab="libraryTab"
-          v-model:selected="librarySelected"
-          v-model:event-query="eventQuery"
-          v-model:action-query="actionQuery"
-          v-model:event-sort="eventSort"
-          v-model:action-sort="actionSort"
-          :events="events"
-          :actions="actions"
-          :action-types="snapshot.actionTypes"
-          :available-types="availableTypes"
-          :event-types="eventTypes"
-          :runs="automation.runs.value"
-          @new-event="newEvent"
-          @new-action="pickerOpen = true"
-          @set-enabled="setEnabled"
-        />
-        <AutomationRunsPanel
-          class="automations-page__runs"
-          :runs="automation.runs.value"
-        />
-      </div>
-      <div
-        v-if="editing"
-        class="automations-page__sheet"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="editing.record.name"
-      >
-        <header class="automations-page__sheet-bar">
-          <BaseButton
-            size="sm"
-            @click="closeEditor"
-          >
-            <template #icon>
-              <IconChevronLeft />
-            </template>
-            {{ t('common.back') }}
-          </BaseButton>
-          <BaseButton
-            v-if="automation.persistent.value !== false"
-            size="sm"
-            :disabled="!libraryPanel || libraryPanel.busy"
-            data-test="library-history"
-            @click="libraryPanel?.openHistory()"
-          >
-            {{ t(libraryPanel?.hasPending ? 'libraryRecovery.pendingButton' : 'libraryRecovery.history') }}
-          </BaseButton>
-          <span class="automations-page__sheet-title">{{ editing.record.name }}</span>
-          <BaseButton
-            v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
-            size="sm"
-            :disabled="!definitionRecoveryPanel || definitionRecoveryPanel.busy"
-            data-test="definition-history"
-            @click="definitionRecoveryPanel?.openHistory()"
-          >
-            {{ t(definitionRecoveryPanel?.hasPending ? 'definitionRecovery.pendingButton' : 'definitionRecovery.history') }}
-          </BaseButton>
-          <BaseButton
-            v-if="automation.persistent.value === true && proposalTarget"
-            class="automations-page__proposal-button"
-            size="sm"
-            @click="proposalReviewPanel?.openReview()"
-          >
-            {{ t('automationProposal.open') }}
-          </BaseButton>
-          <BaseButton
-            v-if="automation.persistent.value === true && proposalTarget"
-            size="sm"
-            data-test="approval-open"
-            @click="approvalReviewPanel?.openReview()"
-          >
-            {{ t('automationApproval.open') }}
-          </BaseButton>
-        </header>
-        <div class="automations-page__sheet-body">
-          <AutomationEditNotice
-            :edit="editor.state.value"
-            :host-changed="hostChanged"
-            :memory="automation.persistent.value === false"
-            @compare="compare"
-          />
-          <EventEditor
-            v-if="editing.kind === 'event'"
-            :key="editor.state.value?.token"
-            :baseline="eventBaseline ?? undefined"
-            :busy="editor.state.value?.busy"
-            :save-blocked="editor.saveBlocked.value"
-            :event="editing.record"
-            :is-new="editing.isNew"
-            :actions="actions"
-            :event-types="eventTypes"
-            :gifts="gifts"
-            :viewers="viewers"
-            :test-runs="automation.testRuns.value"
-            :hotkey-status="automation.hotkeyStatus.value"
-            :error="automation.error.value"
-            @save="saveEvent"
-            @change="editor.change"
-            @delete="removeRecord('events', $event)"
-            @test="automation.testEvent"
-            @fire="automation.fireEvent"
-          />
-          <ActionEditor
-            v-else
-            :key="editor.state.value?.token"
-            :baseline="actionBaseline ?? undefined"
-            :busy="editor.state.value?.busy"
-            :save-blocked="editor.saveBlocked.value"
-            :action="editing.record"
-            :is-new="editing.isNew"
-            :action-types="snapshot.actionTypes"
-            :test-runs="automation.testRuns.value"
-            :globals="automation.globals.value"
-            :action-options="automation.actionOptions.value"
-            :action-option-errors="automation.actionOptionErrors.value"
-            :open-media-picker="automation.openMediaPicker"
-            :error="automation.error.value"
-            @save="saveAction"
-            @change="editor.change"
-            @delete="removeRecord('actions', $event)"
-            @test="automation.testAction"
-            @load-options="automation.loadOptions"
-          />
+                <BaseIconButton
+                  :label="t('common.back')"
+                  variant="default"
+                  size="sm"
+                  @click="closeEditor"
+                >
+                  <IconChevronLeft />
+                </BaseIconButton>
+              </template>
+            </ActionEditor>
+          </div>
         </div>
       </div>
-    </template>
+      <AutomationRunsPanel
+        class="automations-page__runs"
+        :runs="automation.runs.value"
+      />
+    </div>
 
     <ActionTypeDialog
       v-model:open="pickerOpen"
@@ -842,21 +820,66 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
 .automations-page__target { overflow-wrap: anywhere; }
 .automations-page__proposal-button { height: auto; max-width: 45%; min-height: var(--control-height-sm); white-space: normal; }
 
-.automations-page__workspace {
-  flex: 1;
-}
-
-.automations-page__main {
-  flex: 1;
-}
-
-.automations-page__placeholder {
+.automations-page__work {
   display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.automations-page__nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.automations-page__nav > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.automations-page__runs {
+  flex: none;
+}
+
+.automations-page__sheet {
+  display: flex;
+  flex-direction: column;
+}
+
+.automations-page__sheet-bar {
+  display: flex;
+  flex: none;
   align-items: center;
-  justify-content: center;
-  border: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-panel);
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-height: var(--control-height-lg);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-bg-panel-header);
+}
+
+.automations-page__sheet-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automations-page__sheet-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.automations-page__sheet-body > :deep(.base-panel) {
+  flex: 1;
 }
 
 @media (width < 900px) {
@@ -875,55 +898,27 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
     display: none;
   }
 
-  .automations-page__narrow {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: var(--space-3);
-    min-height: 0;
+  .automations-page__work {
+    flex: none;
+    min-height: auto;
   }
 
-  .automations-page__narrow > :first-child {
+  .automations-page__nav {
     flex: none;
     height: min(64dvh, 560px);
   }
 
-  .automations-page__runs {
-    flex: none;
-  }
-
+  /* On narrow screens the open record becomes a full-screen sheet over the page. */
   .automations-page__sheet {
     position: fixed;
     inset: 30px 0 0 0;
     z-index: 30;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+    border: 0;
     background: var(--color-bg-app);
   }
 
   .automations-page__sheet-bar {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: var(--border-width) solid var(--color-border-subtle);
-    background: var(--color-bg-panel-header);
-  }
-
-  .automations-page__sheet-title {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .automations-page__sheet-body {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-height: 0;
-    overflow-y: auto;
+    flex-wrap: nowrap;
   }
 }
 </style>

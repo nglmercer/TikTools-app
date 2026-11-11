@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BehaviorRun } from '../../../../automation/behavior/types.ts';
 import { formatClockTime } from '@/entities/analytics/lib/analytics-range.ts';
 import { useMediaQuery } from '@/shared/lib/media-query.ts';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
+import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
 import type { TableColumn } from '@/shared/ui/table/table-types.ts';
@@ -15,6 +18,8 @@ const props = defineProps<{
 }>();
 
 const { t, locale } = useI18n();
+// The log is always at hand but can be folded away to give the workspace the full height.
+const open = ref(true);
 
 // Phones keep the columns that identify a run; the result text needs room.
 const isPhone = useMediaQuery('(width < 600px)');
@@ -45,7 +50,19 @@ const rows = computed(() =>
     :title="t('automations.runs.title')"
     flush
   >
+    <template #leading>
+      <BaseIconButton
+        :label="open ? t('automations.runs.collapse') : t('automations.runs.expand')"
+        size="sm"
+        :aria-expanded="open"
+        @click="open = !open"
+      >
+        <IconChevronDown v-if="open" />
+        <IconChevronRight v-else />
+      </BaseIconButton>
+    </template>
     <BaseTable
+      v-if="open"
       class="automation-runs__table"
       :columns="columns"
       :rows="rows"
@@ -83,12 +100,8 @@ const rows = computed(() =>
 </template>
 
 <style scoped>
-.automation-runs {
-  height: 100%;
-}
-
 .automation-runs__table {
-  height: 100%;
+  height: 180px;
 }
 
 .automation-runs__status {

@@ -8,9 +8,10 @@ import { useControlClient } from '@/shared/api/use-control-client.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
+import DialogRefreshBar from '@/shared/ui/dialog/DialogRefreshBar.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
-const props = defineProps<{ selectionKey: string }>();
+const props = defineProps<{ selectionKey: string; hideTriggers?: boolean }>();
 const emit = defineEmits<{ recovered: [] }>();
 const { t } = useI18n(); const journal = libraryJournal(useControlClient());
 const history = ref(false); const acknowledged = ref(false);
@@ -47,6 +48,7 @@ defineExpose({ openHistory, busy, hasPending });
 
 <template>
   <BaseButton
+    v-if="!hideTriggers"
     size="sm"
     :disabled="busy"
     data-test="library-history"
@@ -200,7 +202,14 @@ defineExpose({ openHistory, busy, hasPending });
     :width="900"
     class="library-changes"
   >
-    <p>{{ t('libraryRecovery.lead') }}</p>
+    <p class="library-changes__lead">
+      {{ t('libraryRecovery.lead') }}
+    </p>
+    <DialogRefreshBar
+      :label="t('definitionRecovery.refresh')"
+      :busy="busy"
+      @refresh="journal.refresh"
+    />
     <p
       v-if="journal.unavailable.value"
       role="alert"
@@ -244,12 +253,6 @@ defineExpose({ openHistory, busy, hasPending });
     <p v-else>
       {{ t('libraryRecovery.noPending') }}
     </p>
-    <BaseButton
-      :disabled="busy"
-      @click="journal.refresh"
-    >
-      {{ t('definitionRecovery.refresh') }}
-    </BaseButton>
     <ol class="library-changes__rows">
       <li
         v-for="record in journal.state.value?.recent ?? []"
@@ -268,12 +271,15 @@ defineExpose({ openHistory, busy, hasPending });
         </p>
       </li>
     </ol>
-    <p>{{ t('libraryRecovery.noResend') }}</p>
+    <p class="library-changes__lead">
+      {{ t('libraryRecovery.noResend') }}
+    </p>
   </BaseDialog>
 </template>
 
 <style scoped>
 .library-changes :deep(.base-dialog__body) { display: grid; gap: 12px; min-width: 0; }
+.library-changes__lead { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .library-changes p, .library-changes li { overflow-wrap: anywhere; }
 .library-changes pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; }
 .library-changes__rows { display: grid; gap: 12px; padding-inline-start: 22px; }

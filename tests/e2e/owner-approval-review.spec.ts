@@ -8,6 +8,7 @@ import type { ApprovalState } from '../../src/web/features/review-automation-app
 import type { CapturedApprovalReview } from '../../src/web/features/review-automation-approval/model/contracts.ts';
 import english from '../../src/web/shared/i18n/locales/automation-approval.en.ts';
 import spanish from '../../src/web/shared/i18n/locales/automation-approval.es.ts';
+import { openHistoryEntry } from './fixtures/automation-history.ts';
 
 const execute = promisify(execFile);
 const ownerUrl = process.env['TIKTOOLS_OWNER_APPROVAL_URL'];
@@ -38,9 +39,7 @@ async function rpc<T = Json>(method: string, params: Json = {}, metadata = false
 
 function dialog(page: Page): Locator { return page.getByRole('dialog').filter({ has: page.getByTestId('approval-journal') }); }
 async function openReview(page: Page): Promise<Locator> {
-  const sheet = page.locator('.automations-page__sheet');
-  const scope = await sheet.isVisible() ? sheet : page;
-  await scope.getByTestId('approval-open').filter({ visible: true }).first().click();
+  await openHistoryEntry(page, 'approval-open', 'review-approval');
   const view = dialog(page);
   await expect(view.getByTestId('approval-source').locator('pre')).toBeVisible();
   return view;
@@ -177,7 +176,7 @@ for (const locale of ['en', 'es'] as const) {
     if (await restoredSheet.isVisible()) {
       await restoredSheet.getByRole('button', { name: locale === 'es' ? 'Atrás' : 'Back', exact: true }).click();
     }
-    await page.getByTestId('approval-history').filter({ visible: true }).first().click();
+    await openHistoryEntry(page, 'approval-history', 'approval');
     view = dialog(page);
     await expect(view.getByTestId('approval-journal')).toContainText(activation.intent.commandId);
     await expect(view.getByTestId('approval-source')).toHaveCount(0);
@@ -298,7 +297,7 @@ for (const locale of ['en', 'es'] as const) {
     const scriptSheet = page.locator('.automations-page__sheet');
     if (locale === 'es') await expect(scriptSheet).toBeVisible();
     if (await scriptSheet.isVisible()) await scriptSheet.getByRole('button', { name: locale === 'es' ? 'Atrás' : 'Back', exact: true }).click();
-    await page.getByTestId('approval-history').filter({ visible: true }).first().click();
+    await openHistoryEntry(page, 'approval-history', 'approval');
     view = dialog(page);
     await expect(view.getByTestId('approval-journal')).toContainText(scriptActivation.intent.commandId);
     await expect(view.getByTestId('approval-journal')).toContainText(activation.intent.commandId);

@@ -11,16 +11,19 @@ import { templateVariables } from '@/entities/automation/lib/template-variables.
 import TestRunList from '@/entities/automation/ui/TestRunList.vue';
 import { fieldOptionsFor, optionSources } from '@/entities/plugin/lib/plugin-options.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
-import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
-import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
-import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
+import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
+import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
+import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
 import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
+import BaseSection from '@/shared/ui/section/BaseSection.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
 const props = withDefaults(
@@ -110,153 +113,155 @@ function confirmDelete(): void {
     :subtitle="changed ? t('automations.editor.unsaved') : origin"
     flush
   >
+    <template
+      v-if="$slots.leading"
+      #leading
+    >
+      <slot name="leading" />
+    </template>
     <template #actions>
-      <BaseButton
+      <BaseIconButton
+        :label="t('automations.editor.test')"
+        variant="default"
         size="sm"
         @click="emit('test', draft)"
       >
-        {{ t('automations.editor.test') }}
-      </BaseButton>
+        <IconFlask />
+      </BaseIconButton>
+      <span
+        class="action-editor__divider"
+        aria-hidden="true"
+      />
+      <BaseIconButton
+        :label="t('automations.editor.discard')"
+        variant="default"
+        size="sm"
+        :disabled="!changed || isNew || busy"
+        @click="draft = cloneRecord(baseline ?? action)"
+      >
+        <IconUndo />
+      </BaseIconButton>
+      <BaseIconButton
+        :label="t('automations.editor.save')"
+        variant="primary"
+        size="sm"
+        :disabled="!changed || busy || saveBlocked"
+        @click="emit('save', draft)"
+      >
+        <IconCheck />
+      </BaseIconButton>
+      <BaseIconButton
+        v-if="!isNew"
+        :label="t('automations.editor.delete')"
+        variant="danger"
+        size="sm"
+        :disabled="busy || saveBlocked"
+        @click="deleteOpen = true"
+      >
+        <IconTrash />
+      </BaseIconButton>
     </template>
     <div class="action-editor__body">
       <BaseAlert
         v-if="error"
         :title="error"
       />
-      <BaseGroupBox
-        :title="t('automations.event.general')"
-        :description="type ? localizedText(type.description) : undefined"
-      >
-        <BaseFormGrid>
-          <BaseFormRow
-            :for="`${id}-name`"
-            :label="t('automations.editor.name')"
+      <div class="action-editor__columns">
+        <div class="action-editor__column">
+          <BaseSection
+            :title="t('automations.event.general')"
+            :description="type ? localizedText(type.description) : undefined"
           >
             <BaseTextField
               :id="`${id}-name`"
               :model-value="draft.name"
-              :placeholder="type ? localizedText(type.title) : undefined"
+              :placeholder="type ? localizedText(type.title) : t('automations.editor.name')"
+              :aria-label="t('automations.editor.name')"
               @update:model-value="draft = { ...draft, name: $event }"
             />
-          </BaseFormRow>
-          <BaseFormRow
-            :for="`${id}-type`"
-            :label="t('automations.action.type')"
-          >
-            <span
-              :id="`${id}-type`"
-              class="action-editor__type"
-            >{{ origin }}</span>
-          </BaseFormRow>
-          <BaseFormRow
-            :for="`${id}-enabled`"
-            :label="t('automations.editor.enabled')"
-          >
-            <BaseCheckbox
+            <BaseSwitch
               :id="`${id}-enabled`"
               :model-value="draft.enabled"
               @update:model-value="draft = { ...draft, enabled: $event }"
-            />
-          </BaseFormRow>
-        </BaseFormGrid>
-      </BaseGroupBox>
-
-      <BaseGroupBox :title="t('automations.action.settings')">
-        <BaseAlert
-          v-if="!form"
-          :title="t('automations.action.unknownType', { type: draft.typeId })"
-        />
-        <template v-else>
-          <div
-            v-if="sources.length"
-            class="action-editor__tools"
-          >
-            <BaseButton
-              size="sm"
-              @click="requestOptions(true)"
             >
-              {{ t('automations.action.refreshOptions') }}
-            </BaseButton>
-          </div>
-          <BaseAlert
-            v-if="optionErrors.length"
-            v-tooltip="optionErrors.join('\n')"
-            :title="t('automations.action.optionsFailed', optionErrors.length)"
-            compact
-          />
-          <BaseSchemaForm
-            v-model="config"
-            :schema="form.schema"
-            :ui-hints="form.uiHints"
-            :field-options="fieldOptions"
-            :suggestions-for="suggestionsFor"
-            :open-media-picker="openMediaPicker"
-          />
-        </template>
-      </BaseGroupBox>
+              {{ t('automations.editor.enabled') }}
+            </BaseSwitch>
+          </BaseSection>
 
-      <BaseGroupBox :title="t('automations.action.permissions')">
-        <dl class="action-editor__permissions">
-          <dt :title="t('automations.action.networkHint')">
-            {{ t('automations.action.network') }}
-          </dt>
-          <dd>
-            <span
-              v-if="!permissions.network.length"
-              class="action-editor__muted"
-            >{{ t('automations.action.none') }}</span>
-            <span
-              v-for="host in permissions.network"
-              :key="host"
-              class="action-editor__chip"
-            >{{ host }}</span>
-          </dd>
-          <dt :title="t('automations.action.capabilitiesHint')">
-            {{ t('automations.action.capabilities') }}
-          </dt>
-          <dd>
-            <span
-              v-if="!permissions.capabilities.length"
-              class="action-editor__muted"
-            >{{ t('automations.action.none') }}</span>
-            <span
-              v-for="capability in permissions.capabilities"
-              :key="capability"
-              class="action-editor__chip"
-            >{{ capability }}</span>
-          </dd>
-        </dl>
-      </BaseGroupBox>
+          <BaseSection :title="t('automations.action.permissions')">
+            <dl class="action-editor__permissions">
+              <dt :title="t('automations.action.networkHint')">
+                {{ t('automations.action.network') }}
+              </dt>
+              <dd>
+                <span
+                  v-if="!permissions.network.length"
+                  class="action-editor__muted"
+                >{{ t('automations.action.none') }}</span>
+                <span
+                  v-for="host in permissions.network"
+                  :key="host"
+                  class="action-editor__chip"
+                >{{ host }}</span>
+              </dd>
+              <dt :title="t('automations.action.capabilitiesHint')">
+                {{ t('automations.action.capabilities') }}
+              </dt>
+              <dd>
+                <span
+                  v-if="!permissions.capabilities.length"
+                  class="action-editor__muted"
+                >{{ t('automations.action.none') }}</span>
+                <span
+                  v-for="capability in permissions.capabilities"
+                  :key="capability"
+                  class="action-editor__chip"
+                >{{ capability }}</span>
+              </dd>
+            </dl>
+          </BaseSection>
+        </div>
+
+        <div class="action-editor__column">
+          <BaseSection :title="t('automations.action.settings')">
+            <template
+              v-if="form && sources.length"
+              #actions
+            >
+              <BaseIconButton
+                :label="t('automations.action.refreshOptions')"
+                size="sm"
+                @click="requestOptions(true)"
+              >
+                <IconRefresh />
+              </BaseIconButton>
+            </template>
+            <BaseAlert
+              v-if="!form"
+              :title="t('automations.action.unknownType', { type: draft.typeId })"
+            />
+            <template v-else>
+              <BaseAlert
+                v-if="optionErrors.length"
+                v-tooltip="optionErrors.join('\n')"
+                :title="t('automations.action.optionsFailed', optionErrors.length)"
+                compact
+              />
+              <BaseSchemaForm
+                v-model="config"
+                :schema="form.schema"
+                :ui-hints="form.uiHints"
+                :field-options="fieldOptions"
+                :suggestions-for="suggestionsFor"
+                :open-media-picker="openMediaPicker"
+              />
+            </template>
+          </BaseSection>
+        </div>
+      </div>
 
       <TestRunList :runs="runs" />
     </div>
-    <template #footer>
-      <BaseButton
-        v-if="!isNew"
-        size="sm"
-        variant="danger"
-        :disabled="busy || saveBlocked"
-        @click="deleteOpen = true"
-      >
-        {{ t('automations.editor.delete') }}
-      </BaseButton>
-      <span class="action-editor__spacer" />
-      <BaseButton
-        size="sm"
-        :disabled="!changed || isNew || busy"
-        @click="draft = cloneRecord(baseline ?? action)"
-      >
-        {{ t('automations.editor.discard') }}
-      </BaseButton>
-      <BaseButton
-        size="sm"
-        variant="primary"
-        :disabled="!changed || busy || saveBlocked"
-        @click="emit('save', draft)"
-      >
-        {{ t('automations.editor.save') }}
-      </BaseButton>
-    </template>
     <BaseConfirmDialog
       v-model:open="deleteOpen"
       :title="t('automations.editor.deleteActionTitle')"
@@ -277,21 +282,30 @@ function confirmDelete(): void {
 .action-editor__body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  max-width: 820px;
-  padding: var(--space-5);
+  gap: var(--space-4);
+  padding: var(--space-4);
 }
 
-.action-editor__type {
-  color: var(--color-text-muted);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
+/* Identity and permissions on one side, the type's settings on the other; wraps on narrow widths. */
+.action-editor__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
 }
 
-.action-editor__tools {
+.action-editor__column {
   display: flex;
-  justify-content: flex-end;
-  margin-bottom: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.action-editor__divider {
+  align-self: stretch;
+  width: var(--border-width);
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border);
 }
 
 .action-editor__permissions {

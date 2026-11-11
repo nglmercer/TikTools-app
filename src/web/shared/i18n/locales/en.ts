@@ -547,6 +547,9 @@ export default {
       conditionCount: 'no conditions | 1 condition | {count} conditions',
       actionCount: 'no actions | 1 action | {count} actions',
     },
+    history: {
+      menu: 'History and reviews',
+    },
     profile: {
       label: 'Profile',
       default: 'Default',
@@ -797,6 +800,8 @@ export default {
     runs: {
       title: 'Recent runs',
       empty: 'No runs yet.',
+      collapse: 'Collapse recent runs',
+      expand: 'Expand recent runs',
       columns: {
         status: 'Status',
         time: 'Time',

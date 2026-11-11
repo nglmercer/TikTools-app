@@ -5,6 +5,7 @@ import type { PluginStatus } from '../../../../automation/behavior/types.ts';
 import type { HotkeyStatusData } from '../../../../shared/messages.ts';
 import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import IconKeyboard from '@/shared/ui/icon/icons/IconKeyboard.vue';
 import {
   formatHotkeyChord,
   hotkeyListenerState,
@@ -51,13 +52,14 @@ const canGrant = computed(() => tone.value === 'error' && hotkeyNeedsSeatAccess(
     class="hotkey-indicator"
     :class="`hotkey-indicator--${tone}`"
     role="status"
+    :aria-label="`${t('automations.hotkeys.title')}: ${t(`automations.hotkeys.states.${state}`)}`"
   >
+    <!-- Icon and dot only; the title, state and last key are in the tooltip and the accessible name. -->
+    <IconKeyboard />
     <span
       class="hotkey-indicator__dot"
       aria-hidden="true"
     />
-    <span class="hotkey-indicator__title">{{ t('automations.hotkeys.title') }}</span>
-    <span>{{ t(`automations.hotkeys.states.${state}`) }}</span>
     <BaseButton
       v-if="canGrant"
       size="sm"
@@ -76,10 +78,6 @@ const canGrant = computed(() => tone.value === 'error' && hotkeyNeedsSeatAccess(
   gap: var(--space-3);
   color: var(--color-text-muted);
   white-space: nowrap;
-}
-
-.hotkey-indicator__title {
-  color: var(--color-text);
 }
 
 .hotkey-indicator__dot {

@@ -9,28 +9,35 @@ import { registerLiveGoalTemplates } from '../../../../automation/behavior/live-
 import { registerModerationTemplates } from '../../../../automation/behavior/moderation-templates.ts';
 import type { BehaviorRun, LiveAction, LiveEvent, PluginEventType } from '../../../../automation/behavior/types.ts';
 import type { HotkeyStatusData } from '../../../../shared/messages.ts';
-import { cloneRecord, COOLDOWN_CHOICES, moveId, toggleId } from '@/entities/automation/lib/automation-records.ts';
+import { cloneRecord, moveId, toggleId } from '@/entities/automation/lib/automation-records.ts';
 import { rawHotkeyInputHint, requiresRawHotkeyInput } from '@/entities/automation/lib/hotkey-status.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import TestRunList from '@/entities/automation/ui/TestRunList.vue';
 import { localizedText } from '@/shared/i18n/i18n.ts';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
-import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
-import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
-import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
 import IconChevronUp from '@/shared/ui/icon/icons/IconChevronUp.vue';
+import IconClock from '@/shared/ui/icon/icons/IconClock.vue';
+import IconDice from '@/shared/ui/icon/icons/IconDice.vue';
+import IconFile from '@/shared/ui/icon/icons/IconFile.vue';
+import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
+import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
+import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
+import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
+import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
+import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
-import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
+import BaseSection from '@/shared/ui/section/BaseSection.vue';
+import BaseSpinBox from '@/shared/ui/spin-box/BaseSpinBox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
-import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 import ConditionsEditor from './ConditionsEditor.vue';
 import ConditionTemplateDialog from './ConditionTemplateDialog.vue';
 
@@ -65,7 +72,7 @@ const dirty = defineModel<boolean>('dirty', { default: false });
 registerModerationTemplates();
 registerLiveGoalTemplates();
 
-const { t, triggers, sentence } = useAutomationText();
+const { t, triggers } = useAutomationText();
 const id = useId();
 const draft = ref<LiveEvent>(cloneRecord(props.event));
 const deleteOpen = ref(false);
@@ -81,7 +88,6 @@ const triggerOptions = computed(() =>
     label: option.plugin ? `${option.label} (${option.plugin})` : option.label,
   })),
 );
-const summary = computed(() => sentence(draft.value, props.actions, props.eventTypes));
 const templates = computed(() => conditionTemplatesFor(draft.value.trigger));
 const templateMenu = computed<MenuEntry[]>(() =>
   templates.value.map((template) => ({ id: template.id, label: localizedText(template.title) })),
@@ -97,16 +103,11 @@ const orderedActions = computed(() => {
     .filter((action): action is LiveAction => action !== undefined);
   return [...chosen, ...props.actions.filter((action) => !draft.value.actionIds.includes(action.id))];
 });
-const cooldownOptions = computed(() =>
-  COOLDOWN_CHOICES.map((ms) => ({
-    value: ms,
-    label: ms === 0 ? t('automations.event.cooldownNone') : t('automations.event.cooldownSeconds', { count: ms / 1000 }),
-  })),
-);
-const scopeOptions = computed(() => [
-  { value: 'user' as const, label: t('automations.event.scopeUser') },
-  { value: 'global' as const, label: t('automations.event.scopeGlobal') },
-]);
+// Cooldown is edited in whole seconds; the record keeps milliseconds.
+const cooldownSeconds = computed({
+  get: () => Math.round(draft.value.cooldownMs / 1000),
+  set: (seconds: number) => update({ cooldownMs: Math.max(0, seconds) * 1000 }),
+});
 const filters = computed({
   get: () => draft.value.filters,
   set: (next) => update({ filters: next }),
@@ -162,21 +163,63 @@ function discard(): void {
     :subtitle="changed ? t('automations.editor.unsaved') : undefined"
     flush
   >
+    <template
+      v-if="$slots.leading"
+      #leading
+    >
+      <slot name="leading" />
+    </template>
     <template #actions>
-      <BaseButton
-        v-tooltip="t('automations.editor.testHint')"
+      <BaseIconButton
+        :label="t('automations.editor.test')"
+        :hint="t('automations.editor.testHint')"
+        variant="default"
         size="sm"
         @click="emit('test', draft)"
       >
-        {{ t('automations.editor.test') }}
-      </BaseButton>
-      <BaseButton
-        v-tooltip="t('automations.editor.fireHint')"
+        <IconFlask />
+      </BaseIconButton>
+      <BaseIconButton
+        :label="t('automations.editor.fire')"
+        :hint="t('automations.editor.fireHint')"
+        variant="default"
         size="sm"
         @click="emit('fire', draft)"
       >
-        {{ t('automations.editor.fire') }}
-      </BaseButton>
+        <IconZap />
+      </BaseIconButton>
+      <span
+        class="event-editor__divider"
+        aria-hidden="true"
+      />
+      <BaseIconButton
+        :label="t('automations.editor.discard')"
+        variant="default"
+        size="sm"
+        :disabled="!changed || isNew || busy"
+        @click="discard"
+      >
+        <IconUndo />
+      </BaseIconButton>
+      <BaseIconButton
+        :label="t('automations.editor.save')"
+        variant="primary"
+        size="sm"
+        :disabled="!changed || busy || saveBlocked"
+        @click="emit('save', draft)"
+      >
+        <IconCheck />
+      </BaseIconButton>
+      <BaseIconButton
+        v-if="!isNew"
+        :label="t('automations.editor.delete')"
+        variant="danger"
+        size="sm"
+        :disabled="busy || saveBlocked"
+        @click="deleteOpen = true"
+      >
+        <IconTrash />
+      </BaseIconButton>
     </template>
     <div class="event-editor__body">
       <p
@@ -186,187 +229,162 @@ function discard(): void {
       >
         {{ error }}
       </p>
-      <p class="event-editor__summary">
-        {{ summary }}
-      </p>
-      <BaseGroupBox :title="t('automations.event.general')">
-        <BaseFormGrid>
-          <BaseFormRow
-            :for="`${id}-name`"
-            :label="t('automations.editor.name')"
-          >
+      <div class="event-editor__columns">
+        <div class="event-editor__column">
+          <BaseSection :title="t('automations.event.general')">
             <BaseTextField
               :id="`${id}-name`"
               :model-value="draft.name"
+              :placeholder="t('automations.editor.name')"
+              :aria-label="t('automations.editor.name')"
               @update:model-value="update({ name: $event })"
             />
-          </BaseFormRow>
-          <BaseFormRow
-            :for="`${id}-trigger`"
-            :label="t('automations.event.trigger')"
-          >
             <BaseComboBox
               :id="`${id}-trigger`"
               :model-value="draft.trigger"
               :options="triggerOptions"
+              :aria-label="t('automations.event.trigger')"
               @update:model-value="$event && update({ trigger: $event })"
             />
-          </BaseFormRow>
-          <BaseFormRow
-            :for="`${id}-enabled`"
-            :label="t('automations.editor.enabled')"
-          >
-            <BaseCheckbox
+            <BaseSwitch
               :id="`${id}-enabled`"
               :model-value="draft.enabled"
               @update:model-value="update({ enabled: $event })"
-            />
-          </BaseFormRow>
-        </BaseFormGrid>
-      </BaseGroupBox>
-
-      <BaseGroupBox
-        :title="t('automations.event.conditions')"
-        :description="t('automations.event.conditionsHint')"
-      >
-        <div
-          v-if="templates.length"
-          class="event-editor__tools"
-        >
-          <BaseButton
-            size="sm"
-            aria-haspopup="menu"
-            @click="openTemplates"
-          >
-            {{ t('automations.conditions.templates') }}
-          </BaseButton>
-        </div>
-        <p
-          v-if="rawHotkey"
-          class="event-editor__warning"
-          role="note"
-        >
-          {{ t('automations.event.rawHotkey') }}
-        </p>
-        <ConditionsEditor
-          v-model="filters"
-          :trigger="draft.trigger"
-          :gifts="gifts"
-          :viewers="viewers"
-        />
-      </BaseGroupBox>
-
-      <BaseGroupBox
-        :title="t('automations.event.run')"
-        :description="t('automations.event.runHint')"
-      >
-        <p
-          v-if="!actions.length"
-          class="event-editor__muted"
-        >
-          {{ t('automations.event.noActions') }}
-        </p>
-        <ul
-          v-else
-          class="event-editor__actions"
-        >
-          <li
-            v-for="action in orderedActions"
-            :key="action.id"
-            class="event-editor__action"
-          >
-            <BaseCheckbox
-              :model-value="draft.actionIds.includes(action.id)"
-              @update:model-value="update({ actionIds: toggleId(draft.actionIds, action.id) })"
             >
-              {{ action.name }}
-            </BaseCheckbox>
-            <span class="event-editor__type">{{ action.typeId }}</span>
-            <template v-if="draft.actionIds.includes(action.id)">
+              {{ t('automations.editor.enabled') }}
+            </BaseSwitch>
+          </BaseSection>
+
+          <BaseSection
+            :title="t('automations.event.conditions')"
+            :description="rawHotkey ? t('automations.event.rawHotkey') : undefined"
+          >
+            <template
+              v-if="templates.length"
+              #actions
+            >
               <BaseIconButton
-                :label="t('automations.event.moveUp')"
+                :label="t('automations.conditions.templates')"
                 size="sm"
-                :disabled="draft.actionIds.indexOf(action.id) === 0"
-                @click="update({ actionIds: moveId(draft.actionIds, action.id, -1) })"
+                aria-haspopup="menu"
+                @click="openTemplates"
               >
-                <IconChevronUp />
-              </BaseIconButton>
-              <BaseIconButton
-                :label="t('automations.event.moveDown')"
-                size="sm"
-                :disabled="draft.actionIds.indexOf(action.id) === draft.actionIds.length - 1"
-                @click="update({ actionIds: moveId(draft.actionIds, action.id, 1) })"
-              >
-                <IconChevronDown />
+                <IconFile />
               </BaseIconButton>
             </template>
-          </li>
-        </ul>
-        <BaseCheckbox
-          v-if="draft.actionIds.length > 1"
-          :model-value="draft.runMode === 'random'"
-          @update:model-value="update({ runMode: $event ? 'random' : 'all' })"
-        >
-          {{ t('automations.event.random') }}
-        </BaseCheckbox>
-        <BaseFormGrid>
-          <BaseFormRow
-            :for="`${id}-cooldown`"
-            :label="t('automations.event.cooldown')"
-          >
-            <BaseComboBox
+            <ConditionsEditor
+              v-model="filters"
+              :trigger="draft.trigger"
+              :gifts="gifts"
+              :viewers="viewers"
+            />
+          </BaseSection>
+        </div>
+
+        <div class="event-editor__column">
+          <BaseSection :title="t('automations.event.run')">
+            <template
+              v-if="draft.actionIds.length > 1"
+              #actions
+            >
+              <BaseIconButton
+                :label="t('automations.event.random')"
+                size="sm"
+                :pressed="draft.runMode === 'random'"
+                @click="update({ runMode: draft.runMode === 'random' ? 'all' : 'random' })"
+              >
+                <IconDice />
+              </BaseIconButton>
+            </template>
+            <p
+              v-if="!actions.length"
+              class="event-editor__muted"
+            >
+              {{ t('automations.event.noActions') }}
+            </p>
+            <ul
+              v-else
+              class="event-editor__actions"
+            >
+              <li
+                v-for="action in orderedActions"
+                :key="action.id"
+                class="event-editor__action"
+              >
+                <BaseCheckbox
+                  :model-value="draft.actionIds.includes(action.id)"
+                  @update:model-value="update({ actionIds: toggleId(draft.actionIds, action.id) })"
+                >
+                  {{ action.name }}
+                </BaseCheckbox>
+                <span class="event-editor__type">{{ action.typeId }}</span>
+                <template v-if="draft.actionIds.includes(action.id)">
+                  <BaseIconButton
+                    :label="t('automations.event.moveUp')"
+                    size="sm"
+                    :disabled="draft.actionIds.indexOf(action.id) === 0"
+                    @click="update({ actionIds: moveId(draft.actionIds, action.id, -1) })"
+                  >
+                    <IconChevronUp />
+                  </BaseIconButton>
+                  <BaseIconButton
+                    :label="t('automations.event.moveDown')"
+                    size="sm"
+                    :disabled="draft.actionIds.indexOf(action.id) === draft.actionIds.length - 1"
+                    @click="update({ actionIds: moveId(draft.actionIds, action.id, 1) })"
+                  >
+                    <IconChevronDown />
+                  </BaseIconButton>
+                </template>
+              </li>
+            </ul>
+          </BaseSection>
+
+          <BaseSection :title="t('automations.event.cooldown')">
+            <BaseSpinBox
               :id="`${id}-cooldown`"
-              :model-value="draft.cooldownMs"
-              :options="cooldownOptions"
-              @update:model-value="$event !== undefined && update({ cooldownMs: $event })"
-            />
-          </BaseFormRow>
-          <BaseFormRow
-            v-if="draft.cooldownMs > 0"
-            :for="`${id}-scope`"
-            :label="t('automations.event.scope')"
-            :hint="t('automations.event.scopeHint')"
-          >
-            <BaseSegmented
-              :id="`${id}-scope`"
-              :model-value="draft.cooldownScope"
-              :options="scopeOptions"
-              size="sm"
-              @update:model-value="update({ cooldownScope: $event })"
-            />
-          </BaseFormRow>
-        </BaseFormGrid>
-      </BaseGroupBox>
+              v-model="cooldownSeconds"
+              orientation="horizontal"
+              :min="0"
+              :max="86400"
+              suffix="s"
+              :aria-label="t('automations.event.cooldown')"
+            >
+              <template #prefix>
+                <IconClock />
+              </template>
+            </BaseSpinBox>
+            <div
+              v-if="draft.cooldownMs > 0"
+              class="event-editor__scope"
+              role="group"
+              :aria-label="t('automations.event.scope')"
+            >
+              <BaseIconButton
+                :label="t('automations.event.scopeUser')"
+                variant="default"
+                size="sm"
+                :pressed="draft.cooldownScope === 'user'"
+                @click="update({ cooldownScope: 'user' })"
+              >
+                <IconUser />
+              </BaseIconButton>
+              <BaseIconButton
+                :label="t('automations.event.scopeGlobal')"
+                variant="default"
+                size="sm"
+                :pressed="draft.cooldownScope === 'global'"
+                @click="update({ cooldownScope: 'global' })"
+              >
+                <IconGlobe />
+              </BaseIconButton>
+            </div>
+          </BaseSection>
+        </div>
+      </div>
 
       <TestRunList :runs="testRuns" />
     </div>
-    <template #footer>
-      <BaseButton
-        v-if="!isNew"
-        size="sm"
-        variant="danger"
-        :disabled="busy || saveBlocked"
-        @click="deleteOpen = true"
-      >
-        {{ t('automations.editor.delete') }}
-      </BaseButton>
-      <span class="event-editor__spacer" />
-      <BaseButton
-        size="sm"
-        :disabled="!changed || isNew || busy"
-        @click="discard"
-      >
-        {{ t('automations.editor.discard') }}
-      </BaseButton>
-      <BaseButton
-        size="sm"
-        variant="primary"
-        :disabled="!changed || busy || saveBlocked"
-        @click="emit('save', draft)"
-      >
-        {{ t('automations.editor.save') }}
-      </BaseButton>
-    </template>
     <BaseMenu
       v-model:open="templatesOpen"
       :items="templateMenu"
@@ -398,37 +416,38 @@ function discard(): void {
 .event-editor__body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  max-width: 820px;
-  padding: var(--space-5);
+  gap: var(--space-4);
+  padding: var(--space-4);
 }
 
-.event-editor__error,
-.event-editor__warning {
+/* Two columns that wrap on narrow widths: what triggers it | what it runs. */
+.event-editor__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.event-editor__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.event-editor__divider {
+  align-self: stretch;
+  width: var(--border-width);
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border);
+}
+
+.event-editor__error {
   margin: 0;
   padding: var(--space-3) var(--space-4);
   border: var(--border-width) solid var(--color-danger);
   border-radius: var(--radius-sm);
   color: var(--color-danger-hover);
-}
-
-.event-editor__warning {
-  border-color: var(--color-warning);
-  color: var(--color-warning);
-}
-
-.event-editor__summary {
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-left: 3px solid var(--color-accent);
-  background: var(--color-bg-field);
-  color: var(--color-text);
-}
-
-.event-editor__tools {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: var(--space-3);
 }
 
 .event-editor__muted {
@@ -440,7 +459,7 @@ function discard(): void {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  margin: 0 0 var(--space-4);
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -463,7 +482,8 @@ function discard(): void {
   font-size: var(--font-size-sm);
 }
 
-.event-editor__spacer {
-  flex: 1;
+.event-editor__scope {
+  display: flex;
+  gap: var(--space-2);
 }
 </style>

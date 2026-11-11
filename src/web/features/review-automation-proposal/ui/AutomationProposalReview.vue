@@ -6,11 +6,12 @@ import { recordKey, type AutomationKind } from '@/entities/automation/model/reco
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
+import DialogRefreshBar from '@/shared/ui/dialog/DialogRefreshBar.vue';
 import type { ProposalTarget } from '../model/contracts.ts';
 import { useProposalReview } from '../model/proposal-review.ts';
 import ReviewedAutomationDefinition from './ReviewedAutomationDefinition.vue';
 
-const props = defineProps<{ target: ProposalTarget | null; hostVersions: ReadonlyMap<string, string> }>();
+const props = defineProps<{ target: ProposalTarget | null; hostVersions: ReadonlyMap<string, string>; hideTriggers?: boolean }>();
 const open = defineModel<boolean>('open', { default: false });
 const { t } = useI18n();
 const model = useProposalReview(useControlClient());
@@ -43,11 +44,15 @@ async function archiveUnknown(): Promise<void> {
   await model.reviewUnknown(pending.commandId);
   unknownAcknowledged.value = false;
 }
-defineExpose({ openReview });
+const hasPending = computed(() => !!journal.state.value?.pending);
+defineExpose({ openReview, openHistory, busy, hasPending });
 </script>
 
 <template>
-  <div class="proposal-tools">
+  <div
+    v-if="!hideTriggers"
+    class="proposal-tools"
+  >
     <BaseButton
       v-if="target"
       size="sm"
@@ -178,12 +183,11 @@ defineExpose({ openReview });
       >
         {{ journal.error.value }}
       </p>
-      <BaseButton
-        :disabled="busy"
-        @click="model.refreshJournals"
-      >
-        {{ t('automationProposal.refreshJournal') }}
-      </BaseButton>
+      <DialogRefreshBar
+        :label="t('automationProposal.refreshJournal')"
+        :busy="busy"
+        @refresh="model.refreshJournals"
+      />
       <div
         v-if="journal.state.value?.pending"
         class="proposal-pending"

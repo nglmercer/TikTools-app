@@ -549,6 +549,9 @@ export default {
       conditionCount: 'sin condiciones | 1 condición | {count} condiciones',
       actionCount: 'sin acciones | 1 acción | {count} acciones',
     },
+    history: {
+      menu: 'Historial y revisiones',
+    },
     profile: {
       label: 'Perfil',
       default: 'Predeterminado',
@@ -799,6 +802,8 @@ export default {
     runs: {
       title: 'Ejecuciones recientes',
       empty: 'Aún no hay ejecuciones.',
+      collapse: 'Contraer ejecuciones recientes',
+      expand: 'Expandir ejecuciones recientes',
       columns: {
         status: 'Estado',
         time: 'Hora',

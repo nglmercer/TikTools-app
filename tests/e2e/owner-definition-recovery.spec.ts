@@ -6,6 +6,7 @@ import { mkdir } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import english from '../../src/web/shared/i18n/locales/en.ts';
 import spanish from '../../src/web/shared/i18n/locales/es.ts';
+import { openHistoryEntry } from './fixtures/automation-history.ts';
 
 const execute = promisify(execFile);
 const ownerUrl = process.env['TIKTOOLS_OWNER_DEFINITION_URL'];
@@ -89,7 +90,7 @@ async function storageIsPrivate(page: Page, locale: string, commands: string[]):
 async function history(page: Page): Promise<Locator> {
   // Keep the locator live while an asynchronously restored mobile selection
   // mounts its sheet; the sheet's mirrored control follows the page header.
-  await page.getByTestId('definition-history').last().click();
+  await openHistoryEntry(page, 'definition-history', 'definition');
   const view = page.getByRole('dialog').filter({ has: page.getByTestId('definition-receipt') });
   await expect(view).toBeVisible();
   return view;

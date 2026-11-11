@@ -7,8 +7,9 @@ import { useControlClient } from '@/shared/api/use-control-client.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
+import DialogRefreshBar from '@/shared/ui/dialog/DialogRefreshBar.vue';
 
-const props = defineProps<{ selectionKey: string }>();
+const props = defineProps<{ selectionKey: string; hideTriggers?: boolean }>();
 const emit = defineEmits<{ recovered: []; observed: [state: DefinitionState | null] }>();
 const { t } = useI18n();
 const journal = definitionJournal(useControlClient());
@@ -36,6 +37,7 @@ async function archiveUnknown(): Promise<void> {
 
 <template>
   <BaseButton
+    v-if="!hideTriggers"
     size="sm"
     :disabled="busy"
     data-test="definition-history"
@@ -49,13 +51,18 @@ async function archiveUnknown(): Promise<void> {
     :width="900"
     class="definition-recovery"
   >
-    <p>{{ t('definitionRecovery.lead') }}</p>
-    <p
-      v-if="journal.state.value"
-      class="definition-recovery__identity"
-    >
-      {{ t('definitionRecovery.host', { id: journal.state.value.hostId, instance: journal.state.value.hostInstanceId }) }}
+    <p class="definition-recovery__lead">
+      {{ t('definitionRecovery.lead') }}
     </p>
+    <DialogRefreshBar
+      :label="t('definitionRecovery.refresh')"
+      :busy="busy"
+      @refresh="journal.refresh"
+    >
+      <template v-if="journal.state.value">
+        {{ t('definitionRecovery.host', { id: journal.state.value.hostId, instance: journal.state.value.hostInstanceId }) }}
+      </template>
+    </DialogRefreshBar>
     <p
       v-if="journal.unavailable.value"
       role="alert"
@@ -104,13 +111,9 @@ async function archiveUnknown(): Promise<void> {
     <p v-else>
       {{ t('definitionRecovery.noPending') }}
     </p>
-    <p>{{ t('definitionRecovery.compare') }}</p>
-    <BaseButton
-      :disabled="busy"
-      @click="journal.refresh"
-    >
-      {{ t('definitionRecovery.refresh') }}
-    </BaseButton>
+    <p class="definition-recovery__lead">
+      {{ t('definitionRecovery.compare') }}
+    </p>
     <ol
       v-if="journal.state.value?.recent.length"
       class="definition-recovery__history"
@@ -145,6 +148,7 @@ async function archiveUnknown(): Promise<void> {
 <style scoped>
 .definition-recovery :deep(.base-dialog__body) { display: grid; gap: 12px; min-width: 0; }
 .definition-recovery section { display: grid; gap: 10px; min-width: 0; }
+.definition-recovery__lead { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .definition-recovery__identity, .definition-recovery__history p { overflow-wrap: anywhere; }
 .definition-recovery__history { display: grid; gap: 14px; padding-inline-start: 22px; }
 </style>

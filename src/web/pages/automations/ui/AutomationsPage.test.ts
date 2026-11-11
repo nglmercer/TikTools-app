@@ -117,8 +117,27 @@ async function mountPage(intercept?: (method: string, params: RpcParams | undefi
   return { wrapper, calls, requests, snapshot, versions, automation, client, initializing };
 }
 
+// Icon-only buttons are found by their accessible label, the rest by their text.
 function buttonByText(wrapper: VueWrapper, label: string) {
-  return wrapper.findAll('button').find((button) => button.text() === label)!;
+  return wrapper.findAll('button').find((button) => button.text() === label || button.attributes('aria-label') === label)!;
+}
+
+// Icon-only buttons are named by their accessible label.
+function buttonByLabel(wrapper: VueWrapper, label: string) {
+  return wrapper.get(`button[aria-label="${label}"]`);
+}
+
+// The open record replaces the library; this is the way back (it asks first when the draft is dirty).
+async function goBack(wrapper: VueWrapper) {
+  await buttonByLabel(wrapper, 'Back').trigger('click');
+  await nextTick();
+}
+
+// Histories and reviews live in one toolbar menu; returns the menu entry with this label.
+async function historyEntry(wrapper: VueWrapper, label: string): Promise<HTMLElement | undefined> {
+  await wrapper.get('[data-test="history-menu"]').trigger('click');
+  await nextTick();
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((entry) => entry.textContent?.trim() === label);
 }
 
 function documentButton(label: string): HTMLButtonElement {
@@ -139,7 +158,7 @@ describe('AutomationsPage', () => {
     const profile = f.wrapper.get('.profile-toolbar [role="combobox"]');
     const menu = f.wrapper.get('.profile-toolbar [aria-haspopup="menu"]');
     expect(profile.attributes('disabled')).toBeDefined(); expect(menu.attributes('disabled')).toBeDefined();
-    expect(buttonByText(f.wrapper, 'From template…').attributes('disabled')).toBeDefined();
+    expect(buttonByLabel(f.wrapper, 'From template…').attributes('disabled')).toBeDefined();
     expect(f.wrapper.get('[data-test="library-loading"]').text()).toContain('Loading saved profiles');
     expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
     await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click'); await flushPromises();
@@ -148,7 +167,7 @@ describe('AutomationsPage', () => {
     expect(menu.attributes('disabled')).toBeDefined();
     await f.wrapper.get('[data-test="library-retry-loading"]').trigger('click'); await flushPromises();
     expect(profile.attributes('disabled')).toBeUndefined(); expect(menu.attributes('disabled')).toBeUndefined();
-    expect(buttonByText(f.wrapper, 'From template…').attributes('disabled')).toBeUndefined();
+    expect(buttonByLabel(f.wrapper, 'From template…').attributes('disabled')).toBeUndefined();
     expect(f.wrapper.find('[data-test="library-loading"]').exists()).toBe(false);
     expect(f.wrapper.text()).not.toContain('initial snapshot unavailable');
     expect(f.calls.some((call) => call.method === 'automation.library.submit' || call.method === 'app.state.set')).toBe(false);
@@ -164,13 +183,20 @@ describe('AutomationsPage', () => {
     f.automation.dispose();
   });
 
-  it('lists events and opens the editor with a readable summary', async () => {
+  it('lists events and opens the editor', async () => {
     const { wrapper } = await mountPage();
     const rows = wrapper.findAll('.automation-library tbody tr');
     expect(rows.map((row) => row.text())).toEqual([expect.stringContaining('Big gifts'), expect.stringContaining('Chat hello')]);
-    expect(wrapper.text()).toContain('Nothing selected');
+    expect(wrapper.find('.event-editor').exists()).toBe(false);
     await selectRow(wrapper, 'Big gifts');
-    expect(wrapper.get('.event-editor__summary').text()).toBe('When someone sends a gift and Gift Name is Rose, run Log gift.');
+    expect(wrapper.get('.event-editor .base-panel__title').text()).toBe('Big gifts');
+    // The old one-sentence summary only repeated the fields below it.
+    expect(wrapper.find('.event-editor__summary').exists()).toBe(false);
+    // One navigation area: the open record replaces the library until you go back.
+    expect(wrapper.find('.automation-library').exists()).toBe(false);
+    await goBack(wrapper);
+    expect(wrapper.find('.event-editor').exists()).toBe(false);
+    expect(wrapper.findAll('.automation-library tbody tr')).toHaveLength(2);
   });
 
   it('sorts the library from the filter menu', async () => {
@@ -233,10 +259,11 @@ describe('AutomationsPage', () => {
     const { wrapper } = await mountPage();
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Renamed');
-    await selectRow(wrapper, 'Chat hello');
+    await goBack(wrapper);
     expect(document.body.textContent).toContain('Discard changes?');
     documentButton('Discard').click();
     await nextTick();
+    await selectRow(wrapper, 'Chat hello');
     expect(wrapper.get('.event-editor .base-panel__title').text()).toBe('Chat hello');
   });
 
@@ -252,7 +279,7 @@ describe('AutomationsPage', () => {
 
   it('applies a built-in rule template', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'From template…').trigger('click');
+    await buttonByLabel(wrapper, 'From template…').trigger('click');
     await nextTick();
     const card = Array.from(document.querySelectorAll<HTMLButtonElement>('.rule-templates__card')).find((entry) =>
       entry.textContent?.includes('Chat points'),
@@ -305,6 +332,14 @@ describe('AutomationsPage', () => {
     expect(wrapper.get('.automation-runs').text()).toContain('logged');
   });
 
+  it('folds the recent runs away and back', async () => {
+    const { wrapper } = await mountPage();
+    await buttonByLabel(wrapper, 'Collapse recent runs').trigger('click');
+    expect(wrapper.get('.automation-runs').text()).not.toContain('Log gift');
+    await buttonByLabel(wrapper, 'Expand recent runs').trigger('click');
+    expect(wrapper.get('.automation-runs').text()).toContain('Log gift');
+  });
+
   it('opens the editor as a full-screen sheet with a back button on narrow screens', async () => {
     vi.stubGlobal('matchMedia', () => ({
       matches: true,
@@ -315,7 +350,6 @@ describe('AutomationsPage', () => {
     }));
     try {
       const { wrapper, client } = await mountPage();
-      expect(wrapper.find('.automations-page__workspace').exists()).toBe(false);
       expect(wrapper.find('.automations-page__sheet').exists()).toBe(false);
       await selectRow(wrapper, 'Big gifts');
       const sheet = wrapper.find('.automations-page__sheet');
@@ -323,6 +357,8 @@ describe('AutomationsPage', () => {
       expect(sheet.attributes('role')).toBe('dialog');
       expect(sheet.get('.automations-page__sheet-title').text()).toBe('Big gifts');
       expect(wrapper.find('.automations-page__sheet .event-editor').exists()).toBe(true);
+      // On narrow screens the library stays underneath the sheet.
+      expect(wrapper.find('.automation-library').exists()).toBe(true);
       const original = client.call.bind(client);
       let release!: () => void;
       const loading = new Promise<void>((resolve) => { release = resolve; });
@@ -341,10 +377,10 @@ describe('AutomationsPage', () => {
       expect(wrapper.findAll('.definition-recovery[open]')).toHaveLength(1);
       await wrapper.get('.definition-recovery [aria-label="Close"]').trigger('click'); await flushPromises();
       calls.mockRestore();
-      await buttonByText(wrapper, 'Back').trigger('click');
+      await goBack(wrapper);
       await nextTick();
       expect(wrapper.find('.automations-page__sheet').exists()).toBe(false);
-      expect(wrapper.find('.automations-page__narrow').exists()).toBe(true);
+      expect(wrapper.find('.automation-library').exists()).toBe(true);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -417,7 +453,7 @@ describe('AutomationsPage', () => {
     expect(wrapper.text()).toContain('outcome is unconfirmed');
     expect(wrapper.text()).toContain('Unsaved changes');
     expect(calls.filter((r) => r.method === 'automation.definition.submit' && r.params?.operation === 'update')).toHaveLength(1);
-    await selectRow(wrapper, 'Chat hello');
+    await goBack(wrapper);
     expect(document.body.textContent).toContain('Discard changes?');
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Unconfirmed draft');
   });
@@ -456,7 +492,8 @@ describe('AutomationsPage', () => {
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Pending first edit');
     await buttonByText(wrapper, 'Save').trigger('click');
-    await selectRow(wrapper, 'Chat hello'); documentButton('Discard').click(); await flushPromises();
+    await goBack(wrapper); documentButton('Discard').click(); await flushPromises();
+    await selectRow(wrapper, 'Chat hello');
     await wrapper.get('.event-editor input[type="text"]').setValue('Second draft');
     snapshot.events[0] = submitted; versions.set('event:e1', '2'); finish(submitted); await flushPromises();
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Second draft');
@@ -507,11 +544,13 @@ describe('AutomationsPage', () => {
       { kind: 'automation', scope: 'action', id: 'a1', revision: '1' });
     const { wrapper, calls } = await mountPage((method, params, options) =>
       method === 'automation.review' || method === 'automation.approval.get' || method.startsWith('automation.adoption.') ? native.handle(method, params, options) : undefined);
-    expect(buttonByText(wrapper, 'Review saved authority')).toBeUndefined();
-    expect(buttonByText(wrapper, 'Adoption history').exists()).toBe(true);
+    // No record is open yet: the menu offers the histories but not the record review.
+    expect(await historyEntry(wrapper, 'Review saved authority')).toBeUndefined();
+    expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((entry) => entry.textContent?.trim())).toContain('Adoption history');
+    await wrapper.get('[data-test="history-menu"]').trigger('click'); await nextTick();
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('My untouched unsaved draft');
-    await buttonByText(wrapper, 'Review saved authority').trigger('click'); await flushPromises();
+    (await historyEntry(wrapper, 'Review saved authority'))!.click(); await flushPromises();
     const review = wrapper.get('.proposal-dialog');
     expect(review.text()).toContain('Big gifts');
     expect(review.text()).not.toContain('My untouched unsaved draft');

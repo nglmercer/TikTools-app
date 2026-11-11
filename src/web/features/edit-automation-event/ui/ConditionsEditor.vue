@@ -17,7 +17,6 @@ import {
   withValues,
 } from '@/entities/automation/lib/conditions.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
@@ -258,16 +257,15 @@ onBeforeUnmount(stopRecording);
     >
       {{ t('automations.conditions.empty') }}
     </p>
-    <BaseButton
+    <BaseIconButton
       class="conditions__add"
+      :label="t('automations.conditions.add')"
+      variant="default"
       size="sm"
       @click="add"
     >
-      <template #icon>
-        <IconPlus />
-      </template>
-      {{ t('automations.conditions.add') }}
-    </BaseButton>
+      <IconPlus />
+    </BaseIconButton>
   </div>
 </template>
 
@@ -292,9 +290,14 @@ onBeforeUnmount(stopRecording);
   align-items: center;
 }
 
+/* Every control carries its own label, so the column titles are only kept for assistive tech. */
 .conditions__head {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .conditions__value {

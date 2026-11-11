@@ -5,22 +5,25 @@ import type { ControlSize } from '../types.ts';
 withDefaults(
   defineProps<{
     label: string;
-    variant?: 'default' | 'ghost';
+    /** Longer explanation shown as the tooltip (and described to assistive tech) instead of the label. */
+    hint?: string;
+    variant?: 'default' | 'ghost' | 'primary' | 'danger';
     size?: ControlSize;
     disabled?: boolean;
     pressed?: boolean;
   }>(),
-  { variant: 'ghost', size: 'md', pressed: undefined },
+  { variant: 'ghost', size: 'md', hint: undefined, pressed: undefined },
 );
 </script>
 
 <template>
   <button
-    v-tooltip="label"
+    v-tooltip="hint ?? label"
     class="base-icon-button"
     :class="[`base-icon-button--${variant}`, `base-icon-button--${size}`]"
     type="button"
     :aria-label="label"
+    :aria-description="hint"
     :disabled="disabled"
     :aria-pressed="pressed"
   >
@@ -75,6 +78,21 @@ withDefaults(
   background: var(--color-bg-control-hover);
 }
 
+.base-icon-button--primary {
+  border-color: var(--color-border-selected);
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.base-icon-button--primary:hover {
+  border-color: var(--color-border-focus);
+  background: var(--color-accent-hover);
+}
+
+.base-icon-button--danger {
+  color: var(--color-danger-hover);
+}
+
 .base-icon-button--sm {
   width: var(--control-height-sm);
   height: var(--control-height-sm);
@@ -84,5 +102,10 @@ withDefaults(
   background: transparent;
   color: var(--color-text-disabled);
   cursor: default;
+}
+
+.base-icon-button--primary:disabled {
+  border-color: var(--color-border-subtle);
+  background: var(--color-bg-control-active);
 }
 </style>

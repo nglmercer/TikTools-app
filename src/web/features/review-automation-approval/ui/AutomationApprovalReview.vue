@@ -8,9 +8,10 @@ import ReviewedAutomationDefinition from '@/features/review-automation-proposal/
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
+import DialogRefreshBar from '@/shared/ui/dialog/DialogRefreshBar.vue';
 import { useApprovalReview } from '../model/approval-review.ts';
 
-const props = defineProps<{ target: ProposalTarget | null; hostVersions: ReadonlyMap<string, string> }>();
+const props = defineProps<{ target: ProposalTarget | null; hostVersions: ReadonlyMap<string, string>; hideTriggers?: boolean }>();
 const open = defineModel<boolean>('open', { default: false });
 const { t } = useI18n();
 const model = useApprovalReview(useControlClient());
@@ -42,11 +43,15 @@ async function archiveUnknown(): Promise<void> {
   const pending = journal.state.value?.pending;
   if (pending) await model.reviewUnknown(pending.commandId);
 }
-defineExpose({ openReview });
+const hasPending = computed(() => !!journal.state.value?.pending);
+defineExpose({ openReview, openHistory, busy, hasPending });
 </script>
 
 <template>
-  <div class="approval-tools">
+  <div
+    v-if="!hideTriggers"
+    class="approval-tools"
+  >
     <BaseButton
       v-if="target"
       size="sm"
@@ -378,12 +383,11 @@ defineExpose({ openReview });
       >
         {{ model.adoption.error.value }}
       </p>
-      <BaseButton
-        :disabled="busy"
-        @click="model.refreshJournals"
-      >
-        {{ t('automationApproval.refreshJournal') }}
-      </BaseButton>
+      <DialogRefreshBar
+        :label="t('automationApproval.refreshJournal')"
+        :busy="busy"
+        @refresh="model.refreshJournals"
+      />
       <div
         v-if="journal.state.value?.pending"
         class="approval-card"
