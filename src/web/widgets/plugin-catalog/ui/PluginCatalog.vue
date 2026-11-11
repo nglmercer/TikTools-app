@@ -14,7 +14,6 @@ import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconCompass from '@/shared/ui/icon/icons/IconCompass.vue';
 import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
-import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
@@ -47,8 +46,6 @@ const props = defineProps<{
   marketplaceAvailable?: boolean;
   /** The package review is open: a second .plugin cannot be chosen yet. */
   installDisabled?: boolean;
-  /** Label of the button that leaves for the Cloud catalog; omitted when the host has none to offer. */
-  catalogLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -59,7 +56,6 @@ const emit = defineEmits<{
   update: [id: string, version?: string];
   'update-all': [];
   'refresh-processors': [];
-  'open-catalog': [];
   open: [key: string];
   command: [id: string, command: PluginCommand];
 }>();
@@ -246,15 +242,6 @@ function submitSpec(): void {
               @click="emit('refresh-processors')"
             >
               <IconRefresh />
-            </BaseIconButton>
-            <BaseIconButton
-              v-if="catalogLabel"
-              :label="catalogLabel"
-              variant="default"
-              size="sm"
-              @click="emit('open-catalog')"
-            >
-              <IconGlobe />
             </BaseIconButton>
             <BaseIconButton
               :label="t('plugins.install.package')"

@@ -201,15 +201,6 @@ function menuItem(label: string): HTMLElement {
 }
 
 describe('PluginsPage', () => {
-  it('opens Cloud catalog discovery without an installation request', async () => {
-    const { wrapper, calls } = await mountPage();
-    await buttonByLabel(wrapper, 'Cloud catalog').trigger('click');
-    await flushPromises();
-    expect(wrapper.text()).toContain('cloud.test');
-    expect(calls.find((call) => call.method === 'registry.cloudCatalogSummaries')?.params).toEqual({ query: '' });
-    expect(calls.some((call) => call.method === 'plugins.packages.install')).toBe(false);
-  });
-
   it('opens plugin details in the same panel and returns to the list, on narrow screens too', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
     try {
@@ -492,45 +483,28 @@ describe('PluginsPage', () => {
     const unified = (plugins?: PluginStatus[]) => mountPage(plugins, undefined, undefined, ['catalog.items']);
     const savedView = () => JSON.parse(localStorage.getItem('tiktok-live-view-state') ?? '{}').plugins?.view;
 
-    it('opens on the catalog with no view selector and no standing paragraph', async () => {
-      const { wrapper } = await unified();
-      expect(wrapper.find('.catalog-toolbar').exists()).toBe(true);
-      expect(wrapper.find('[role="radiogroup"], .segmented').exists()).toBe(false);
-      expect(wrapper.text()).not.toContain('Plugins bring an external dependency');
-    });
-
-    it('reaches processors and installed plugins from the menu and returns to the catalog', async () => {
-      const { wrapper } = await unified();
-      await buttonByText(wrapper, 'Manage processors').trigger('click');
-      await flushPromises();
-      expect(wrapper.find('.processors').exists()).toBe(true);
-      expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Processors');
+    it('still opens on the installed plugins and never requests the Cloud catalog', async () => {
+      const { wrapper, calls } = await unified();
+      expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
       expect(wrapper.find('.catalog-toolbar').exists()).toBe(false);
-      await buttonByLabel(wrapper, 'Catalog').trigger('click');
-      expect(wrapper.find('.catalog-toolbar').exists()).toBe(true);
-      await buttonByText(wrapper, 'Manage installed plugins').trigger('click');
-      await flushPromises();
-      expect(wrapper.text()).toContain('DECK');
-      expect(wrapper.find('.catalog-toolbar').exists()).toBe(false);
+      expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toContain('Installed');
+      expect(wrapper.find('button[aria-label="Cloud catalog"]').exists()).toBe(false);
+      expect(calls.some((call) => call.method === 'catalog.items')).toBe(false);
     });
 
-    it('moves the saved Cloud view to the catalog and ignores a stale default', async () => {
-      localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view: 'cloud' } }));
-      expect((await unified()).wrapper.find('.catalog-toolbar').exists()).toBe(true);
-      localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view: 'plugins' } }));
-      expect((await unified()).wrapper.find('.catalog-toolbar').exists()).toBe(true);
-    });
-
-    it('keeps the plugin workspace when a plugin was open', async () => {
-      localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view: 'plugins', selected: 'deck' } }));
-      const { wrapper } = await unified();
-      expect(detailsTitle(wrapper)).toBe('DECK');
+    it('sends a saved catalog or Cloud view to the installed plugins', async () => {
+      for (const view of ['catalog', 'cloud']) {
+        localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view } }));
+        const { wrapper } = await unified();
+        expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
+        expect(wrapper.find('.catalog-toolbar').exists()).toBe(false);
+      }
     });
 
     it('does not write the implicit view as a choice', async () => {
       const { wrapper } = await unified();
       expect(savedView()).toBeUndefined();
-      await buttonByText(wrapper, 'Manage processors').trigger('click');
+      await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Processors')!.trigger('click');
       await new Promise((resolve) => setTimeout(resolve, 400));
       expect(savedView()).toBe('processors');
     });
