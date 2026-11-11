@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { errorMessage } from '@/shared/api/control-client.ts';
+import { useCloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
@@ -60,6 +61,7 @@ export const useCatalogStore = defineStore('catalog', () => {
   const cursor = ref<string | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  const { detail: errorDetail, capture } = useCloudFailure();
   const detail = ref<CatalogItemSummary | null>(null);
   const importState = ref<'idle' | 'working' | 'staged' | 'signIn' | 'failed'>('idle');
   const importMessage = ref('');
@@ -98,7 +100,7 @@ export const useCatalogStore = defineStore('catalog', () => {
         : page;
       if (search.settle(generation, accepted)) publish();
     } catch (failure) {
-      if (search.isNewest(generation)) error.value = errorMessage(failure);
+      if (search.isNewest(generation)) error.value = capture(failure);
     } finally {
       if (search.isNewest(generation)) loading.value = false;
     }
@@ -117,7 +119,7 @@ export const useCatalogStore = defineStore('catalog', () => {
       );
       if (ticket === installedTicket) installedEntries.value = entries;
     } catch (failure) {
-      if (ticket === installedTicket) error.value = errorMessage(failure);
+      if (ticket === installedTicket) error.value = capture(failure);
     } finally {
       if (ticket === installedTicket) loading.value = false;
     }
@@ -163,7 +165,7 @@ export const useCatalogStore = defineStore('catalog', () => {
       if (detail.value?.id === item.id && detail.value.kind === item.kind) detail.value = fresh;
     } catch (failure) {
       // The list summary stays visible; the failure is shown as an error for the list.
-      error.value = errorMessage(failure);
+      error.value = capture(failure);
     }
   }
 
@@ -214,6 +216,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     cursor,
     loading,
     error,
+    errorDetail,
     detail,
     available,
     hasMore,

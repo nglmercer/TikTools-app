@@ -1654,6 +1654,17 @@ export default {
       markFailed: 'Mark failed',
     },
   },
+  cloudFailure: {
+    unsupported: 'This Cloud instance does not offer that.',
+    offline: 'The PC is offline. Try again when it is connected.',
+    unauthorized: 'Sign in to Cloud again.',
+    forbidden: 'You do not have access to this.',
+    misconfigured: 'The Cloud service is not set up for this yet.',
+    conflict: 'This changed elsewhere. Reload and try again.',
+    expired: 'This expired. Start it again.',
+    rateLimited: 'Too many requests. Wait a moment and retry.',
+    temporaryFailure: 'The Cloud service is temporarily unavailable. Retry in a moment.',
+  },
   catalogToolbar: {
     search: 'Search resources…',
     filters: 'Filters',

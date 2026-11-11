@@ -10,6 +10,7 @@ import { useIntegrationsStore } from '@/entities/cloud-integrations/model/integr
 import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
+import type { CloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { diagnosticLog, diagnosticView, type DiagnosticSource } from '@/shared/diagnostics/log.ts';
 
@@ -28,8 +29,8 @@ export function useDiagnostics(): void {
   const bundles = useBundlesStore();
   const packages = usePackagesStore();
   const secrets = (): string[] => [connection.cookie, ...connection.cookie.split(';').map((part) => part.slice(part.indexOf('=') + 1).trim())].filter(Boolean);
-  function error(source: DiagnosticSource, code: string, message: string | null | undefined): void {
-    if (message) diagnosticLog.record({ source, code, message, level: 'error' }, secrets());
+  function error(source: DiagnosticSource, code: string, message: string | null | undefined, detail?: CloudFailure | null): void {
+    if (message) diagnosticLog.record({ source, code: detail ? `${code}:${detail.code}` : code, message, level: 'error', requestId: detail?.requestId }, secrets());
   }
   watch(() => connection.error, (message) => error('live', 'live.error', message), { immediate: true, flush: 'sync' });
   watch(() => connection.status, (state, previous) => {
@@ -53,11 +54,11 @@ export function useDiagnostics(): void {
   watch(() => account.error, (message) => error('account', 'cloud.account', message), { immediate: true, flush: 'sync' });
   watch(() => sync.error, (message) => error('sync', 'cloud.sync', message), { immediate: true, flush: 'sync' });
   // Technical detail of the Cloud surfaces lives here; the panels keep a short, actionable message.
-  watch(() => catalog.error, (message) => error('catalog', 'catalog.error', message), { immediate: true, flush: 'sync' });
-  watch(() => teams.error, (message) => error('collaboration', 'teams.error', message), { immediate: true, flush: 'sync' });
+  watch(() => [catalog.error, catalog.errorDetail] as const, ([message, detail]) => error('catalog', 'catalog.error', message, detail), { immediate: true, flush: 'sync' });
+  watch(() => [teams.error, teams.errorDetail] as const, ([message, detail]) => error('collaboration', 'teams.error', message, detail), { immediate: true, flush: 'sync' });
   watch(() => teams.link.lastError, (message) => error('relay', 'relay.link', message), { immediate: true, flush: 'sync' });
-  watch(() => integrations.error, (message) => error('integrations', 'integrations.error', message), { immediate: true, flush: 'sync' });
-  watch(() => bundles.error, (message) => error('install', 'bundles.error', message), { immediate: true, flush: 'sync' });
+  watch(() => [integrations.error, integrations.errorDetail] as const, ([message, detail]) => error('integrations', 'integrations.error', message, detail), { immediate: true, flush: 'sync' });
+  watch(() => [bundles.error, bundles.errorDetail] as const, ([message, detail]) => error('install', 'bundles.error', message, detail), { immediate: true, flush: 'sync' });
   watch(() => packages.searchError, (message) => error('install', 'registry.search', message), { immediate: true, flush: 'sync' });
   watch(() => packages.updatesError, (message) => error('install', 'plugins.updates', message), { immediate: true, flush: 'sync' });
   watch(() => packages.registryError, (message) => error('install', 'registry.list', message), { immediate: true, flush: 'sync' });

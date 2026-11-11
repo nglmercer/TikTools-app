@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { errorMessage } from '@/shared/api/control-client.ts';
+import { useCloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import {
@@ -37,6 +38,7 @@ export const useIntegrationsStore = defineStore('cloud-integrations', () => {
   const loading = ref(false);
   const working = ref(false);
   const error = ref<string | null>(null);
+  const { detail: errorDetail, capture } = useCloudFailure();
   const issued = ref<IntegrationConnectResult | null>(null);
   const selectedId = ref<string | null>(null);
   const events = ref<IntegrationEventList | null>(null);
@@ -56,7 +58,7 @@ export const useIntegrationsStore = defineStore('cloud-integrations', () => {
       if (ticket === listGeneration) connections.value = next;
       if (ticket === listGeneration) error.value = null;
     } catch (failure) {
-      if (ticket === listGeneration) error.value = errorMessage(failure);
+      if (ticket === listGeneration) error.value = capture(failure);
     } finally {
       if (ticket === listGeneration) loading.value = false;
     }
@@ -71,7 +73,7 @@ export const useIntegrationsStore = defineStore('cloud-integrations', () => {
       await refresh();
       return true;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      error.value = capture(failure);
       return false;
     } finally {
       working.value = false;
@@ -112,7 +114,7 @@ export const useIntegrationsStore = defineStore('cloud-integrations', () => {
       await refresh();
       return true;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      error.value = capture(failure);
       return false;
     } finally {
       working.value = false;
@@ -130,6 +132,7 @@ export const useIntegrationsStore = defineStore('cloud-integrations', () => {
     loading,
     working,
     error,
+    errorDetail,
     issued,
     selectedId,
     events,

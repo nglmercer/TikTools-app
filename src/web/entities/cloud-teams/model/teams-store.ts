@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { errorMessage } from '@/shared/api/control-client.ts';
+import { useCloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import {
@@ -42,6 +42,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   const loading = ref(false);
   const working = ref(false);
   const error = ref<string | null>(null);
+  const { detail: errorDetail, capture } = useCloudFailure();
   let listGeneration = 0;
   let detailGeneration = 0;
 
@@ -56,7 +57,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
       await action();
       return true;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      error.value = capture(failure);
       return false;
     } finally {
       working.value = false;
@@ -76,7 +77,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
       link.value = await api.hostLink().catch(() => link.value);
       if (selectedId.value && !nextHosts.some((host) => host.id === selectedId.value)) closeTeam();
     } catch (failure) {
-      if (ticket === listGeneration) error.value = errorMessage(failure);
+      if (ticket === listGeneration) error.value = capture(failure);
     } finally {
       if (ticket === listGeneration) loading.value = false;
     }
@@ -259,6 +260,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     loading,
     working,
     error,
+    errorDetail,
     available,
     refresh,
     select,

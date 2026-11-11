@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { failureText } from '@/shared/api/cloud-failure.ts';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { PRESET_ROLES, type TeamGrant, type TeamRole } from '@/entities/cloud-teams/api/teams-api.ts';
@@ -113,7 +114,7 @@ onBeforeUnmount(() => {
     <BaseAlert
       v-if="teams.error"
       tone="error"
-      :title="teams.error"
+      :title="failureText(t, teams.errorDetail, teams.error)"
       compact
     />
 

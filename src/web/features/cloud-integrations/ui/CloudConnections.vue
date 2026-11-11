@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { failureText } from '@/shared/api/cloud-failure.ts';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
@@ -136,7 +137,7 @@ onBeforeUnmount(() => {
     <BaseAlert
       v-if="integrations.error"
       tone="error"
-      :title="integrations.error"
+      :title="failureText(t, integrations.errorDetail, integrations.error)"
       compact
     />
 

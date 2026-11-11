@@ -577,10 +577,11 @@ pub(crate) async fn credentials(auth: &CloudAuth) -> Result<(String, NativeToken
 }
 
 pub(crate) fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
-    let code = serde_json::from_slice::<Value>(body)
-        .ok()
+    let envelope = serde_json::from_slice::<Value>(body).ok();
+    let code = envelope
+        .as_ref()
         .and_then(|value| value.get("code").and_then(Value::as_str).map(str::to_owned));
-    match code.as_deref() {
+    let mut error = match code.as_deref() {
         Some("notFound") => OperationError::not_found("team item not found"),
         Some("conflict") => OperationError::conflict("the item changed; reload and try again"),
         Some("expired") => {
@@ -601,7 +602,40 @@ pub(crate) fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
             409 => OperationError::conflict("the item changed; reload and try again"),
             _ => OperationError::unavailable("team management is unavailable"),
         },
+    };
+    error.data = envelope.as_ref().and_then(cloud_failure_data);
+    error
+}
+
+/// The parts of the Cloud error envelope the UI may use, each validated and bounded.
+/// Nothing else from the body is kept: a reply may carry internal detail.
+pub(crate) fn cloud_failure_data(envelope: &Value) -> Option<Value> {
+    let token = |value: Option<&Value>, max: usize, extra: &[u8]| -> Option<String> {
+        let text = value?.as_str()?;
+        (!text.is_empty()
+            && text.len() <= max
+            && text
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || extra.contains(&byte)))
+        .then(|| text.to_owned())
+    };
+    let code = token(envelope.get("code"), 32, b"")?;
+    let mut cloud = serde_json::Map::new();
+    cloud.insert("code".into(), Value::String(code));
+    if let Some(request_id) = token(envelope.get("requestId"), 80, b"-_.:") {
+        cloud.insert("requestId".into(), Value::String(request_id));
     }
+    if let Some(retryable) = envelope.get("retryable").and_then(Value::as_bool) {
+        cloud.insert("retryable".into(), Value::Bool(retryable));
+    }
+    if let Some(after) = envelope
+        .get("retryAfterMs")
+        .and_then(Value::as_u64)
+        .filter(|after| *after <= 3_600_000)
+    {
+        cloud.insert("retryAfterMs".into(), Value::from(after));
+    }
+    Some(json!({ "cloud": cloud }))
 }
 
 pub(crate) async fn send(

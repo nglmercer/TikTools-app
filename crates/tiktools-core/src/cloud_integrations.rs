@@ -133,10 +133,11 @@ async fn credentials(auth: &CloudAuth) -> Result<(String, NativeToken), Operatio
 
 /// Maps a Cloud error envelope to a user-safe message. Raw bodies are never surfaced.
 fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
-    let code = serde_json::from_slice::<Value>(body)
-        .ok()
+    let envelope = serde_json::from_slice::<Value>(body).ok();
+    let code = envelope
+        .as_ref()
         .and_then(|value| value.get("code").and_then(Value::as_str).map(str::to_owned));
-    match code.as_deref() {
+    let mut error = match code.as_deref() {
         Some("misconfigured") => {
             OperationError::unavailable("integrations are not configured on this Cloud instance")
         }
@@ -158,7 +159,11 @@ fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
             404 => OperationError::not_found("integration connection not found"),
             _ => OperationError::unavailable("cloud integrations are unavailable"),
         },
-    }
+    };
+    error.data = envelope
+        .as_ref()
+        .and_then(crate::cloud_teams::cloud_failure_data);
+    error
 }
 
 async fn send(
@@ -318,6 +323,34 @@ mod tests {
         assert_eq!(error.code, "unavailable");
         assert!(!error.message.contains("db password"));
         assert_eq!(map_failure(StatusCode::NOT_FOUND, b"").code, "not_found");
+    }
+
+    #[test]
+    fn failures_keep_only_the_validated_parts_of_the_envelope() {
+        let error = map_failure(
+            StatusCode::SERVICE_UNAVAILABLE,
+            br#"{"code":"offline","requestId":"req-7f.2:a","retryable":true,"retryAfterMs":1500,"internal":"db password","stack":"at x"}"#,
+        );
+        assert_eq!(
+            error.data,
+            Some(
+                json!({"cloud": {"code": "offline", "requestId": "req-7f.2:a", "retryable": true, "retryAfterMs": 1500}})
+            )
+        );
+        assert!(!error.data.unwrap().to_string().contains("db password"));
+        let forged = map_failure(
+            StatusCode::BAD_GATEWAY,
+            br#"{"code":"temporaryFailure","requestId":"has spaces <script>","retryable":"yes","retryAfterMs":99999999999}"#,
+        );
+        assert_eq!(
+            forged.data,
+            Some(json!({"cloud": {"code": "temporaryFailure"}}))
+        );
+        assert_eq!(map_failure(StatusCode::BAD_GATEWAY, b"<html>").data, None);
+        assert_eq!(
+            map_failure(StatusCode::BAD_GATEWAY, br#"{"code":"not a code!"}"#).data,
+            None
+        );
     }
 
     #[test]

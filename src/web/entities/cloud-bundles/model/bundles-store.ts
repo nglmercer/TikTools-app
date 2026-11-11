@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import { errorMessage } from '@/shared/api/control-client.ts';
+import { useCloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
@@ -42,6 +43,7 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
   const packageId = ref<string | null>(null);
   const working = ref(false);
   const error = ref<string | null>(null);
+  const { detail: errorDetail, capture } = useCloudFailure();
   const journal = ref<ApplyJournal | null>(null);
   const applying = ref(false);
   const applyError = ref<string | null>(null);
@@ -62,7 +64,7 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
       asset.value = await uploadAsset(client, new Uint8Array(await file.arrayBuffer()));
       return true;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      error.value = capture(failure);
       return false;
     } finally {
       working.value = false;
@@ -81,7 +83,7 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
       if (ticket === generation) preflight.value = report;
       return true;
     } catch (failure) {
-      if (ticket === generation) error.value = errorMessage(failure);
+      if (ticket === generation) error.value = capture(failure);
       return false;
     } finally {
       if (ticket === generation) working.value = false;
@@ -249,6 +251,7 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
     packageId,
     working,
     error,
+    errorDetail,
     available,
     journal,
     applying,

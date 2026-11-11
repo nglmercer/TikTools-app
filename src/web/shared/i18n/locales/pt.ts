@@ -1656,6 +1656,17 @@ export default {
       markFailed: 'Marcar como falha',
     },
   },
+  cloudFailure: {
+    unsupported: 'Esta instância do Cloud não oferece isso.',
+    offline: 'O PC está offline. Tente quando estiver conectado.',
+    unauthorized: 'Entre novamente no Cloud.',
+    forbidden: 'Você não tem acesso a isto.',
+    misconfigured: 'O serviço Cloud ainda não está configurado para isso.',
+    conflict: 'Isto mudou em outro lugar. Recarregue e tente de novo.',
+    expired: 'Isto expirou. Comece de novo.',
+    rateLimited: 'Muitas solicitações. Aguarde um momento e tente novamente.',
+    temporaryFailure: 'O serviço Cloud está temporariamente indisponível. Tente novamente em instantes.',
+  },
   catalogToolbar: {
     search: 'Pesquisar recursos…',
     filters: 'Filtros',

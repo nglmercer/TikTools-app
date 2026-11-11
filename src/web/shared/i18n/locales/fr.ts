@@ -1656,6 +1656,17 @@ export default {
       markFailed: 'Marquer comme échouée',
     },
   },
+  cloudFailure: {
+    unsupported: 'Cette instance Cloud ne propose pas cela.',
+    offline: 'Le PC est hors ligne. Réessayez quand il sera connecté.',
+    unauthorized: 'Reconnectez-vous à Cloud.',
+    forbidden: "Vous n'avez pas accès à ceci.",
+    misconfigured: "Le service Cloud n'est pas encore configuré pour cela.",
+    conflict: 'Cela a changé ailleurs. Rechargez et réessayez.',
+    expired: 'Cela a expiré. Recommencez.',
+    rateLimited: 'Trop de requêtes. Patientez un instant puis réessayez.',
+    temporaryFailure: 'Le service Cloud est momentanément indisponible. Réessayez dans un instant.',
+  },
   catalogToolbar: {
     search: 'Rechercher des ressources…',
     filters: 'Filtres',

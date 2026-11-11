@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { failureText } from '@/shared/api/cloud-failure.ts';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
@@ -84,7 +85,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
     <BaseAlert
       v-if="catalog.error"
       tone="error"
-      :title="catalog.error"
+      :title="failureText(t, catalog.errorDetail, catalog.error)"
       compact
     />
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { failureText } from '@/shared/api/cloud-failure.ts';
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
@@ -54,7 +55,7 @@ async function check(): Promise<void> {
     <BaseAlert
       v-if="bundles.error"
       tone="error"
-      :title="bundles.error === 'size' ? t('cloudBundles.tooLarge') : bundles.error"
+      :title="bundles.error === 'size' ? t('cloudBundles.tooLarge') : failureText(t, bundles.errorDetail, bundles.error)"
       compact
     />
 

@@ -45,4 +45,14 @@ describe('useDiagnostics', () => {
     await nextTick();
     expect(diagnosticLog.entries.value.some((entry) => entry.message.includes('account a'))).toBe(false);
   });
+
+  it('keeps the request id and Cloud code of a failure so support can correlate it', async () => {
+    const stores = await mountDiagnostics();
+    const teams = stores.use(() => useTeamsStore());
+    teams.errorDetail = { code: 'offline', requestId: 'req-42', retryable: true };
+    teams.error = 'the host is offline';
+    await nextTick();
+    const entry = diagnosticLog.entries.value.find((candidate) => candidate.source === 'collaboration');
+    expect(entry).toMatchObject({ code: 'teams.error:offline', requestId: 'req-42' });
+  });
 });
