@@ -59,6 +59,27 @@ test('discovery completes before opening the sign-in dialog on a first connectio
   expect(document.querySelector('#provision-password')).not.toBeNull();
 });
 
+test('the sectioned layout keeps connection fields and gameplay defaults side by side', () => {
+  const wrapper = mountWithPlugins(PluginConnectionEditor, { props: {
+    pluginId: 'peak.game', pluginName: 'PEAK', actionOptions: {}, layout: 'sections',
+    settings: {
+      schema: { type: 'object', properties: {
+        serverUrl: { type: 'string', format: 'uri', title: 'Server URL', default: 'http://127.0.0.1:17454' },
+        apiToken: { type: 'string', title: 'API token', secret: true },
+        quantity: { type: 'integer', title: 'Default quantity', default: 1, minimum: 1, maximum: 5 },
+        playerId: { type: 'string', title: 'Default player ID', default: '' },
+      } },
+      values: { serverUrl: 'http://127.0.0.1:17454', apiToken: '••••••••', quantity: 1, playerId: '' },
+    },
+    connection: { ok: false, latencyMs: 0, at: 1 },
+  } });
+  const sections = wrapper.findAll('section.base-section');
+  expect(sections.map(section => section.get('.base-section__title').text())).toEqual(['Connection', 'Defaults']);
+  expect(sections[0]!.find('input[type="password"]').exists()).toBe(true);
+  expect(sections[0]!.find('input[role="spinbutton"]').exists()).toBe(false);
+  expect(sections[1]!.find('input[role="spinbutton"]').exists()).toBe(true);
+});
+
 test('an unreachable server keeps recovery guidance and moves technical details to logs', async () => {
   const wrapper = mountEditor(false, false);
   await wrapper.setProps({ connection: { ok: false, reachable: false, error: 'raw network failure', latencyMs: 5, at: 2 } });

@@ -284,6 +284,7 @@ function connect(): void {
     <DiagnosticsPanel v-if="diagnosticsOpen" />
     <AppStatusBar
       :status="status"
+      :hide-connection="routeTab === 'connect'"
       :creator="activeCreator"
       :viewers="liveViewers"
       :reconnect-attempt="reconnectAttempt"

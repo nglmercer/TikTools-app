@@ -97,6 +97,10 @@ function onKeydown(event: KeyboardEvent): void {
     class="base-search-select"
     :class="{ 'base-search-select--invalid': invalid, 'base-search-select--disabled': disabled }"
   >
+    <span
+      v-if="$slots.prefix"
+      class="base-search-select__prefix"
+    ><slot name="prefix" /></span>
     <img
       v-if="selected?.iconUrl && query === null"
       class="base-search-select__icon"
@@ -249,6 +253,14 @@ function onKeydown(event: KeyboardEvent): void {
   height: 18px;
   margin-right: var(--space-3);
   object-fit: contain;
+}
+
+.base-search-select__prefix {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-right: var(--space-2);
+  color: var(--color-text-muted);
 }
 
 .base-search-select__listbox {

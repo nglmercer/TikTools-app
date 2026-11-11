@@ -197,7 +197,15 @@ const INIT_SCRIPT = `
   };
 
   const handlers = {
-    'system.info': () => ({ name: 'tiktools', features: { persistence: true } }),
+    // The fake host serves automation.snapshot from memory, so it reports
+    // the same non-persistent feature set a memory-only host would.
+    'system.info': () => ({ name: 'tiktools', features: { persistence: false } }),
+    'rpc.discover': () => ({ methods: [] }),
+    // The fake host is memory-backed and has no Owner library; answer the
+    // optional read with a capability error instead of leaving it unknown.
+    'automation.library.snapshot': () => {
+      throw { code: 'capability_unavailable', message: 'The fake host has no Owner library.' };
+    },
     'collaboration.status': () => state.collaboration.status,
     'collaboration.configure': (params) => {
       const c = state.collaboration;

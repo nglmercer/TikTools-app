@@ -77,7 +77,8 @@ describe('ConnectionsPage', () => {
   it('locks the form and offers disconnect while live', async () => {
     const { wrapper, calls } = await mountPage('connected');
     expect(wrapper.get('#live-handle').attributes('disabled')).toBeDefined();
-    expect(wrapper.text()).toContain('Receiving events from @luna.');
+    // The creator lives in the (locked) field and the status in the panel header: no sentence repeats them.
+    expect(wrapper.text()).not.toContain('Receiving events from');
     await buttonByText(wrapper, 'Disconnect').trigger('click');
     await flushPromises();
     expect(calls.some((call) => call.method === 'live.disconnect')).toBe(true);

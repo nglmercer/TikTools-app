@@ -7,8 +7,6 @@ import ConnectionIndicator from '@/entities/connection/ui/ConnectionIndicator.vu
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
-import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
-import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
 import IconDice from '@/shared/ui/icon/icons/IconDice.vue';
 import IconHistory from '@/shared/ui/icon/icons/IconHistory.vue';
 import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
@@ -89,82 +87,64 @@ function onRecent(action: MenuAction): void {
       class="live-connect"
       @submit.prevent="submit"
     >
-      <p
-        v-if="!handle.trim() && !live"
-        role="status"
-      >
-        {{ t('connections.live.setupHint') }}
-      </p>
-      <BaseFormGrid>
-        <BaseFormRow
-          for="live-handle"
-          :label="t('connections.live.creator')"
-          :hint="live ? t('connections.live.lockedHint') : t('connections.live.handleHint')"
-        >
-          <span class="live-connect__handle">
-            <BaseTextField
-              id="live-handle"
-              v-model="handle"
-              class="live-connect__field"
-              :placeholder="t('connections.live.handlePlaceholder')"
-              :disabled="locked"
-              autocomplete="off"
-              spellcheck="false"
-            >
-              <template #prefix>
-                @
-              </template>
-            </BaseTextField>
-            <span ref="recentsButton">
-              <BaseIconButton
-                :label="t('connections.live.recents')"
-                variant="default"
-                :disabled="locked || !recents.length"
-                @click="recentsOpen = !recentsOpen"
-              >
-                <IconHistory />
-              </BaseIconButton>
-            </span>
-            <BaseIconButton
-              :label="t('connections.live.pickRandom')"
-              variant="default"
-              :disabled="locked"
-              @click="emit('pick-random')"
-            >
-              <IconDice />
-            </BaseIconButton>
-          </span>
-        </BaseFormRow>
-        <span />
-        <BaseSwitch
-          v-model="useCookie"
+      <span class="live-connect__handle">
+        <BaseTextField
+          id="live-handle"
+          v-model="handle"
+          class="live-connect__field"
+          :placeholder="t('connections.live.handlePlaceholder')"
+          :aria-label="t('connections.live.creator')"
+          :title="live ? t('connections.live.lockedHint') : t('connections.live.handleHint')"
           :disabled="locked"
+          autocomplete="off"
+          spellcheck="false"
         >
-          {{ t('connections.live.useCookie') }}
-        </BaseSwitch>
-        <span />
-        <BaseSwitch
-          v-model="autoConnect"
-          :disabled="monitorBusy || (!monitorEnabled && (live || busy))"
+          <template #prefix>
+            @
+          </template>
+        </BaseTextField>
+        <span ref="recentsButton">
+          <BaseIconButton
+            :label="t('connections.live.recents')"
+            variant="default"
+            :disabled="locked || !recents.length"
+            @click="recentsOpen = !recentsOpen"
+          >
+            <IconHistory />
+          </BaseIconButton>
+        </span>
+        <BaseIconButton
+          :label="t('connections.live.pickRandom')"
+          variant="default"
+          :disabled="locked"
+          @click="emit('pick-random')"
         >
-          {{ t('connections.monitor.start') }}
-        </BaseSwitch>
-        <BaseFormRow
-          v-if="useCookie"
-          for="live-cookie"
-          :label="t('connections.live.cookie')"
-          :hint="t('connections.live.cookieHint')"
-        >
-          <BaseTextField
-            id="live-cookie"
-            v-model="cookie"
-            type="password"
-            :placeholder="t('connections.live.cookiePlaceholder')"
-            :disabled="locked"
-            autocomplete="off"
-          />
-        </BaseFormRow>
-      </BaseFormGrid>
+          <IconDice />
+        </BaseIconButton>
+      </span>
+      <BaseSwitch
+        v-model="useCookie"
+        :disabled="locked"
+      >
+        {{ t('connections.live.useCookie') }}
+      </BaseSwitch>
+      <BaseTextField
+        v-if="useCookie"
+        id="live-cookie"
+        v-model="cookie"
+        type="password"
+        :placeholder="t('connections.live.cookiePlaceholder')"
+        :aria-label="t('connections.live.cookie')"
+        :title="t('connections.live.cookieHint')"
+        :disabled="locked"
+        autocomplete="off"
+      />
+      <BaseSwitch
+        v-model="autoConnect"
+        :disabled="monitorBusy || (!monitorEnabled && (live || busy))"
+      >
+        {{ t('connections.monitor.start') }}
+      </BaseSwitch>
       <p
         v-if="monitorEnabled"
         role="status"
@@ -182,12 +162,6 @@ function onRecent(action: MenuAction): void {
         role="alert"
       >
         {{ t('connection.handleRequired') }}
-      </p>
-      <p
-        v-if="live && creator"
-        class="live-connect__session"
-      >
-        {{ t('connections.live.connectedTo', { creator: `@${creator.replace(/^@/, '')}` }) }}
       </p>
     </form>
     <BaseMenu
@@ -266,11 +240,6 @@ function onRecent(action: MenuAction): void {
   border: var(--border-width) solid var(--color-danger);
   border-radius: var(--radius-sm);
   color: var(--color-danger-hover);
-}
-
-.live-connect__session {
-  margin: 0;
-  color: var(--color-text-muted);
 }
 
 .live-connect__spacer {

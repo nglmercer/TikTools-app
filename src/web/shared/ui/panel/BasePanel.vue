@@ -18,12 +18,19 @@ const titleId = useId();
     :aria-labelledby="titleId"
   >
     <header class="base-panel__header">
+      <slot name="leading" />
       <h2
         :id="titleId"
         class="base-panel__title"
       >
         {{ title }}
       </h2>
+      <span
+        v-if="$slots.status"
+        class="base-panel__status"
+      >
+        <slot name="status" />
+      </span>
       <span
         v-if="subtitle"
         class="base-panel__subtitle"
@@ -86,6 +93,15 @@ const titleId = useId();
   font-size: var(--font-size-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.base-panel__status {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
 }
 
 .base-panel__actions {

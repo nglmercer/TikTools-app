@@ -41,22 +41,12 @@ test('server connection success shows latency and stays editable', async ({ page
   await expect(server).toBeVisible();
   await server.click();
 
-  // The card auto-probes on first expand; the summary collapses to the
-  // compact view with an explicit re-test button. Latency surfaces on the
-  // server head's accessible name; the compact card shows the target URL.
-  await expect(page.getByRole('button', { name: /Connected in 12 ms/ })).toBeVisible();
-  await expect(
-    page.getByText('Connected to http://127.0.0.1:17842').first(),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Test again' }).click();
-  await expect(
-    page.getByText('Connected to http://127.0.0.1:17842').first(),
-  ).toBeVisible();
-
-  // Settings remain editable after a successful probe.
-  await page.getByRole('button', { name: 'Edit settings' }).click();
-  const urlField = page.locator('input').first();
+  // The detail opens inside the server panel: the header carries the probe
+  // status while the body keeps the connection fields editable.
+  await expect(page.getByText('Connected in 12 ms')).toBeVisible();
+  const urlField = page.locator('.plugin-servers__detail input').first();
   await expect(urlField).toBeEnabled();
+  await expect(urlField).toHaveValue('http://127.0.0.1:17842');
 
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
@@ -74,15 +64,15 @@ test('server connection failure shows the error without an app-wide crash', asyn
   await expect(server).toBeVisible();
   await server.click();
 
-  // Explicit probe; the inline card keeps the form visible and reports the
-  // host error on the server head (accessible name) plus a status line.
+  // Explicit probe; the inline form stays visible and the panel header
+  // reports the failure while the body keeps the host error.
   // SonicBoom cards label the probe as a connect action.
-  await page.getByRole('button', { name: 'Connect SonicBoom' }).click();
-  await expect(page.getByRole('button', { name: /connection refused/ })).toBeVisible();
+  await page.getByRole('button', { name: /Connect SonicBoom/ }).click();
+  await expect(page.getByText('Connection failed')).toBeVisible();
   await expect(page.getByText('connection refused', { exact: false }).first()).toBeVisible();
 
   // Settings remain editable after a failed probe.
-  const urlField = page.locator('input').first();
+  const urlField = page.locator('.plugin-servers__detail input').first();
   await expect(urlField).toBeEnabled();
   await expect(page.getByRole('link', { name: 'Connections' })).toHaveAttribute(
     'aria-current',
@@ -113,15 +103,14 @@ test('REPO imports a token through the shared card without showing the secret', 
   await waitForFrontend(page);
   await openConnections(page);
   await page.getByRole('button', { name: /R.E.P.O. Game/ }).click();
-  const importButton = page.getByRole('button', { name: 'Import token from configuration…' });
+  const importButton = page.getByRole('button', { name: 'Import', exact: true });
   await expect(importButton).toBeVisible();
   await expect(page.getByRole('button', { name: 'Get API token…' })).toHaveCount(0);
   await importButton.click();
   await expect(page.getByText('API token imported and saved.')).toBeVisible();
   await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
-  await expect(page.getByText('Connected to http://127.0.0.1:17453').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Edit settings' }).click();
-  await expect(page.locator('input[type="password"]')).toHaveValue('••••••••');
+  await expect(page.getByText('Connected in 1 ms')).toBeVisible();
+  await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
@@ -155,7 +144,7 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
   await waitForFrontend(page);
   await openConnections(page);
   await page.getByRole('button', { name: /R.E.P.O. Game/ }).click();
-  await page.getByRole('button', { name: 'Connect automatically', exact: true }).click();
+  await page.getByRole('button', { name: 'Automatic', exact: true }).click();
   await expect(page.getByText('Steam — Local installation')).toBeVisible();
   await expect(page.getByText('Mod profile: Stream')).toBeVisible();
   await expect(page.getByText('API token imported and saved.')).toHaveCount(0);
@@ -163,7 +152,7 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
   await expect(page.getByText('API token imported and saved.')).toBeVisible();
   await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
   await expect(page.getByText('API connected · gameplay not ready', { exact: true }).first()).toBeVisible();
-  await expect(page.locator('input[type="password"]')).toHaveValue('••••••••');
+  await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
   await expect(page.locator('.connection-editor input').first()).toHaveValue('http://127.0.0.1:18053');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
@@ -176,12 +165,12 @@ test('REPO setup offers a folder picker when automatic discovery finds nothing',
   await waitForFrontend(page);
   await openConnections(page);
   await page.getByRole('button', { name: /R.E.P.O. Game/ }).click();
-  await page.getByRole('button', { name: 'Connect automatically', exact: true }).click();
+  await page.getByRole('button', { name: 'Automatic', exact: true }).click();
   await expect(page.getByText('No configuration found. Select the game folder.')).toBeVisible();
-  await page.getByRole('button', { name: 'Select game folder…' }).click();
+  await page.getByRole('button', { name: 'Folder', exact: true }).click();
   await expect(page.getByText('API token imported and saved.')).toBeVisible();
   await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
-  await expect(page.getByText('Connected to http://127.0.0.1:17453').first()).toBeVisible();
+  await expect(page.getByText('Connected in 1 ms')).toBeVisible();
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });

@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
 import IconChevronUp from '@/shared/ui/icon/icons/IconChevronUp.vue';
+import IconMinus from '@/shared/ui/icon/icons/IconMinus.vue';
+import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import { useSplitAttrs } from '@/shared/lib/use-split-attrs.ts';
 import type { ControlSize } from '../types.ts';
 import {
@@ -24,10 +26,12 @@ const props = withDefaults(
     precision?: number;
     suffix?: string;
     size?: ControlSize;
+    /** Vertical arrows inside the field (default) or flat −/+ buttons at the trailing edge. */
+    orientation?: 'vertical' | 'horizontal';
     disabled?: boolean;
     readonly?: boolean;
   }>(),
-  { min: undefined, max: undefined, step: 1, precision: undefined, suffix: undefined, size: 'md' },
+  { min: undefined, max: undefined, step: 1, precision: undefined, suffix: undefined, size: 'md', orientation: 'vertical' },
 );
 
 const model = defineModel<number>({ default: 0 });
@@ -126,8 +130,12 @@ defineExpose({ focus: () => input.value?.focus() });
   <span
     v-bind="rootAttrs"
     class="base-spin-box"
-    :class="[`base-spin-box--${size}`, { 'base-spin-box--disabled': disabled }]"
+    :class="[`base-spin-box--${size}`, { 'base-spin-box--disabled': disabled, 'base-spin-box--horizontal': orientation === 'horizontal' }]"
   >
+    <span
+      v-if="$slots.prefix"
+      class="base-spin-box__prefix"
+    ><slot name="prefix" /></span>
     <input
       ref="input"
       v-bind="controlAttrs"
@@ -151,7 +159,41 @@ defineExpose({ focus: () => input.value?.focus() });
       v-if="suffix"
       class="base-spin-box__suffix"
     >{{ suffix }}</span>
-    <span class="base-spin-box__arrows">
+    <span
+      v-if="orientation === 'horizontal'"
+      class="base-spin-box__steppers"
+    >
+      <button
+        class="base-spin-box__step"
+        type="button"
+        tabindex="-1"
+        :aria-label="t('common.decrease')"
+        :disabled="!editable || atMin"
+        @pointerdown.prevent="startRepeat(-1)"
+        @pointerup="stopRepeat"
+        @pointerleave="stopRepeat"
+        @pointercancel="stopRepeat"
+      >
+        <IconMinus :size="12" />
+      </button>
+      <button
+        class="base-spin-box__step"
+        type="button"
+        tabindex="-1"
+        :aria-label="t('common.increase')"
+        :disabled="!editable || atMax"
+        @pointerdown.prevent="startRepeat(1)"
+        @pointerup="stopRepeat"
+        @pointerleave="stopRepeat"
+        @pointercancel="stopRepeat"
+      >
+        <IconPlus :size="12" />
+      </button>
+    </span>
+    <span
+      v-else
+      class="base-spin-box__arrows"
+    >
       <button
         class="base-spin-box__arrow"
         type="button"
@@ -233,6 +275,18 @@ defineExpose({ focus: () => input.value?.focus() });
   box-shadow: none;
 }
 
+.base-spin-box__prefix {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding-left: var(--control-padding-x);
+  color: var(--color-text-muted);
+}
+
+.base-spin-box__prefix + .base-spin-box__input {
+  padding-left: var(--space-2);
+}
+
 .base-spin-box__input:disabled {
   color: inherit;
   cursor: default;
@@ -251,6 +305,51 @@ defineExpose({ focus: () => input.value?.focus() });
   flex-direction: column;
   width: 18px;
   border-left: var(--border-width) solid var(--color-border);
+}
+
+.base-spin-box--horizontal .base-spin-box__input {
+  text-align: left;
+}
+
+.base-spin-box__steppers {
+  display: flex;
+  flex: none;
+  align-self: stretch;
+  margin-left: auto;
+}
+
+.base-spin-box__step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--control-height-md) - var(--border-width) * 2);
+  padding: 0;
+  border: 0;
+  border-left: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transform: none;
+}
+
+.base-spin-box--sm .base-spin-box__step {
+  width: calc(var(--control-height-sm) - var(--border-width) * 2);
+}
+
+.base-spin-box__step:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.base-spin-box__step:active {
+  background: var(--color-bg-control-active);
+}
+
+.base-spin-box__step:disabled {
+  background: transparent;
+  color: var(--color-text-disabled);
+  cursor: default;
 }
 
 .base-spin-box__arrow {

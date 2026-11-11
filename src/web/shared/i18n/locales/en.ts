@@ -374,6 +374,8 @@ export default {
       connectedIn: 'Connected in {ms} ms',
       apiNotReady: 'API connected · gameplay not ready',
       failed: 'Connection failed',
+      back: 'Back to server connections',
+      test: 'Test',
     },
   },
   feed: {
@@ -1319,6 +1321,8 @@ export default {
       connected: "Connected",
       authorize: "Sign in to connect",
       advanced: "Advanced settings",
+      sections: { connection: 'Connection', defaults: 'Defaults' },
+      actions: { auto: 'Automatic', folder: 'Folder', import: 'Import' },
       noTokenNeeded: "No token needed",
       model: {"idle": "Preparing model", "downloading": "Downloading model", "loading": "Loading model", "ready": "Model ready", "failed": "Connected · Model could not load"},
       autoConnect: 'Connect automatically',

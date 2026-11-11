@@ -7,7 +7,6 @@ import { useDiscoveryStore } from '@/entities/live-room/model/discovery-store.ts
 import { formatCount } from '@/shared/lib/intl.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
-import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconDice from '@/shared/ui/icon/icons/IconDice.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
@@ -58,7 +57,6 @@ const retryable = computed(() => status.value === 'error' || status.value === 'r
   <BasePanel
     class="live-explorer"
     :title="t('connections.explore.title')"
-    :subtitle="open ? undefined : t('connections.explore.lead')"
     flush
   >
     <template #actions>
@@ -93,19 +91,29 @@ const retryable = computed(() => status.value === 'error' || status.value === 'r
         </BaseIconButton>
       </template>
       <BaseButton
+        v-if="open"
         size="sm"
-        :pressed="open"
-        @click="store.setOpen(!open)"
+        pressed
+        @click="store.setOpen(false)"
       >
-        {{ open ? t('connections.explore.hide') : t('connections.explore.open') }}
+        {{ t('connections.explore.hide') }}
       </BaseButton>
     </template>
 
-    <BaseEmptyState
+    <div
       v-if="!open"
-      :title="t('connections.explore.closedTitle')"
-      :description="t('connections.explore.closedHint')"
-    />
+      class="live-explorer__closed"
+    >
+      <BaseButton
+        :title="t('connections.explore.closedHint')"
+        @click="store.setOpen(true)"
+      >
+        <template #icon>
+          <IconSearch />
+        </template>
+        {{ t('connections.explore.open') }}
+      </BaseButton>
+    </div>
     <template v-else>
       <div
         v-if="randomCandidate"
@@ -224,6 +232,14 @@ const retryable = computed(() => status.value === 'error' || status.value === 'r
   margin: 0;
   padding: var(--space-3) var(--space-4);
   color: var(--color-text-muted);
+}
+
+.live-explorer__closed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 160px;
 }
 
 .live-explorer__table {

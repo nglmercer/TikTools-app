@@ -133,7 +133,7 @@ test('plugin connection error', async ({ page }) => {
   await page.getByRole('link', { name: 'Connections' }).click();
   await page.getByRole('button', { name: /SonicBoom Server/ }).click();
   await page.getByRole('button', { name: 'Connect SonicBoom' }).click();
-  await expect(page.getByRole('button', { name: /connection refused/ })).toBeVisible();
+  await expect(page.getByText('Connection failed')).toBeVisible();
   await expect(page.getByText('connection refused', { exact: false }).first()).toBeVisible();
   await expect(page).toHaveScreenshot('plugin-connection-error.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
@@ -147,14 +147,9 @@ test('plugin connection success', async ({ page }) => {
   await freezeClock(page);
   await page.getByRole('link', { name: 'Connections' }).click();
   await page.getByRole('button', { name: /SonicBoom Server/ }).click();
-  await expect(page.getByRole('button', { name: /Connected in 12 ms/ })).toBeVisible();
-  await expect(
-    page.getByText('Connected to http://127.0.0.1:17842').first(),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Test again' }).click();
-  await expect(
-    page.getByText('Connected to http://127.0.0.1:17842').first(),
-  ).toBeVisible();
+  await expect(page.getByText('Connected in 12 ms')).toBeVisible();
+  const urlField = page.locator('.plugin-servers__detail input').first();
+  await expect(urlField).toHaveValue('http://127.0.0.1:17842');
   await expect(page).toHaveScreenshot('plugin-connection-success.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

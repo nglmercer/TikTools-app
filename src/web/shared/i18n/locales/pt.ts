@@ -376,6 +376,8 @@ export default {
       connectedIn: 'Conectado em {ms} ms',
       apiNotReady: 'API conectada · jogabilidade não pronta',
       failed: 'Falha na conexão',
+      back: 'Voltar às conexões de servidor',
+      test: 'Testar',
     },
   },
   feed: {
@@ -1321,6 +1323,8 @@ export default {
       connected: "Conectado",
       authorize: "Entrar para conectar",
       advanced: "Configurações avançadas",
+      sections: { connection: 'Conexão', defaults: 'Padrões' },
+      actions: { auto: 'Automático', folder: 'Pasta', import: 'Importar' },
       noTokenNeeded: "Nenhum token necessário",
       model: {"idle": "Preparando o modelo", "downloading": "Baixando o modelo", "loading": "Carregando o modelo", "ready": "Modelo pronto", "failed": "Conectado · o modelo não pôde ser carregado"},
       autoConnect: 'Conectar automaticamente',

@@ -143,6 +143,10 @@ defineExpose({ focus: () => trigger.value?.focus() });
       @keydown="onKeydown"
     >
       <span
+        v-if="$slots.prefix"
+        class="base-combo-box__prefix"
+      ><slot name="prefix" /></span>
+      <span
         class="base-combo-box__value"
         :class="{ 'base-combo-box__value--placeholder': !selectedLabel }"
       >{{ selectedLabel ?? placeholder }}</span>
@@ -241,6 +245,18 @@ defineExpose({ focus: () => trigger.value?.focus() });
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.base-combo-box__prefix {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding-left: var(--control-padding-x);
+  color: var(--color-text-muted);
+}
+
+.base-combo-box__prefix + .base-combo-box__value {
+  padding-left: var(--space-2);
 }
 
 .base-combo-box__value--placeholder {

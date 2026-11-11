@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue';
+import { computed, ref, useId, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { JsonObject, JsonValue } from '../../../../automation/types.ts';
 import type { OpenMediaPicker } from '../../../../shared/messages.ts';
@@ -19,8 +19,11 @@ const props = withDefaults(
     openMediaPicker?: OpenMediaPicker;
     disabled?: boolean;
     switches?: boolean;
+    /** Dense layout: no visible labels, one control per row, optional leading icons. */
+    compact?: boolean;
+    fieldIcons?: Readonly<Record<string, Component>>;
   }>(),
-  { uiHints: undefined, fieldOptions: () => ({}), fieldErrors: () => ({}), suggestionsFor: undefined, openMediaPicker: undefined },
+  { uiHints: undefined, fieldOptions: () => ({}), fieldErrors: () => ({}), suggestionsFor: undefined, openMediaPicker: undefined, fieldIcons: () => ({}) },
 );
 
 const model = defineModel<JsonObject>({ required: true });
@@ -41,6 +44,7 @@ function update(field: SchemaFieldDescriptor, value: JsonValue): void {
 <template>
   <div
     class="base-schema-form"
+    :class="{ 'base-schema-form--compact': compact }"
     data-schema-form
   >
     <SchemaFieldRows
@@ -53,6 +57,8 @@ function update(field: SchemaFieldDescriptor, value: JsonValue): void {
       :open-media-picker="openMediaPicker"
       :disabled="disabled"
       :switches="switches"
+      :compact="compact"
+      :field-icons="fieldIcons"
       @update="update"
     />
     <BaseDisclosure
@@ -70,6 +76,8 @@ function update(field: SchemaFieldDescriptor, value: JsonValue): void {
         :open-media-picker="openMediaPicker"
         :disabled="disabled"
         :switches="switches"
+        :compact="compact"
+        :field-icons="fieldIcons"
         @update="update"
       />
     </BaseDisclosure>
@@ -81,5 +89,9 @@ function update(field: SchemaFieldDescriptor, value: JsonValue): void {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.base-schema-form--compact {
+  gap: var(--space-3);
 }
 </style>

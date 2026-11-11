@@ -66,4 +66,14 @@ describe('BaseSpinBox', () => {
     await wrapper.findAll('button')[1]!.trigger('pointerup');
     expect(wrapper.props('modelValue')).toBe(299);
   });
+
+  it('renders flat −/+ steppers when horizontal', async () => {
+    const wrapper = mountSpinBox({ orientation: 'horizontal', modelValue: 5, min: 1, max: 10 });
+    expect(wrapper.classes()).toContain('base-spin-box--horizontal');
+    const buttons = wrapper.findAll('button');
+    expect(buttons.map((button) => button.attributes('aria-label'))).toEqual(['Decrease', 'Increase']);
+    await buttons[1]!.trigger('pointerdown');
+    await buttons[1]!.trigger('pointerup');
+    expect(wrapper.props('modelValue')).toBe(6);
+  });
 });

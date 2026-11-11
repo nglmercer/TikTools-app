@@ -376,6 +376,8 @@ export default {
       connectedIn: 'Connecté en {ms} ms',
       apiNotReady: 'API connectée · jeu non prêt',
       failed: 'Échec de la connexion',
+      back: 'Retour aux connexions serveur',
+      test: 'Tester',
     },
   },
   feed: {
@@ -1321,6 +1323,8 @@ export default {
       connected: "Connecté",
       authorize: "Se connecter pour se connecter",
       advanced: "Paramètres avancés",
+      sections: { connection: 'Connexion', defaults: 'Par défaut' },
+      actions: { auto: 'Automatique', folder: 'Dossier', import: 'Importer' },
       noTokenNeeded: "Aucun jeton nécessaire",
       model: {"idle": "Préparation du modèle", "downloading": "Téléchargement du modèle", "loading": "Chargement du modèle", "ready": "Modèle prêt", "failed": "Connecté · le modèle n’a pas pu être chargé"},
       autoConnect: 'Connecter automatiquement',

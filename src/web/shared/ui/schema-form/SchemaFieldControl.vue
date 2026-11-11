@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, ref, useTemplateRef } from 'vue';
+import { computed, markRaw, ref, useTemplateRef, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { JsonValue } from '../../../../automation/types.ts';
 import type { MediaSelection, OpenMediaPicker } from '../../../../shared/messages.ts';
@@ -43,6 +43,10 @@ const props = defineProps<{
   switches?: boolean;
   suggestions?: readonly SchemaSuggestion[];
   openMediaPicker?: OpenMediaPicker;
+  /** Dense layout: hint text is hidden and numbers use a −/+ stepper. */
+  compact?: boolean;
+  /** Optional leading icon rendered inside the control. */
+  icon?: Component;
 }>();
 
 const emit = defineEmits<{ update: [value: JsonValue] }>();
@@ -122,7 +126,17 @@ function pickMedia(): void {
     :invalid="invalid"
     :disabled="disabled"
     @update:model-value="emit('update', $event)"
-  />
+  >
+    <template
+      v-if="icon"
+      #prefix
+    >
+      <component
+        :is="icon"
+        :size="14"
+      />
+    </template>
+  </BaseSearchSelect>
 
   <BaseComboBox
     v-else-if="field.kind === 'select'"
@@ -132,7 +146,17 @@ function pickMedia(): void {
     :placeholder="field.placeholder"
     :disabled="disabled"
     @update:model-value="emit('update', $event ?? '')"
-  />
+  >
+    <template
+      v-if="icon"
+      #prefix
+    >
+      <component
+        :is="icon"
+        :size="14"
+      />
+    </template>
+  </BaseComboBox>
 
   <BaseKeyValueEditor
     v-else-if="field.kind === 'keyvalue'"
@@ -168,7 +192,17 @@ function pickMedia(): void {
     :invalid="invalid"
     :disabled="disabled"
     @update:model-value="emit('update', $event)"
-  />
+  >
+    <template
+      v-if="icon"
+      #prefix
+    >
+      <component
+        :is="icon"
+        :size="14"
+      />
+    </template>
+  </BaseTextField>
 
   <span
     v-else-if="field.kind === 'range'"
@@ -193,9 +227,20 @@ function pickMedia(): void {
     :min="field.kind === 'rating' ? 0 : field.min"
     :max="field.kind === 'rating' ? (field.max ?? 5) : field.max"
     :step="field.step ?? 1"
+    :orientation="compact ? 'horizontal' : undefined"
     :disabled="disabled"
     @update:model-value="emit('update', $event)"
-  />
+  >
+    <template
+      v-if="icon"
+      #prefix
+    >
+      <component
+        :is="icon"
+        :size="14"
+      />
+    </template>
+  </BaseSpinBox>
 
   <span
     v-else-if="field.kind === 'multiselect'"
@@ -283,7 +328,17 @@ function pickMedia(): void {
       :invalid="invalid"
       :disabled="disabled"
       @update:model-value="emit('update', $event)"
-    />
+    >
+      <template
+        v-if="icon"
+        #prefix
+      >
+        <component
+          :is="icon"
+          :size="14"
+        />
+      </template>
+    </BaseTextField>
     <span
       v-if="showVariables"
       ref="variablesAnchor"

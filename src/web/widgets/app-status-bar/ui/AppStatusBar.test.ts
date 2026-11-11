@@ -39,4 +39,11 @@ describe('AppStatusBar', () => {
     await wrapper.get('button').trigger('click');
     expect(wrapper.emitted('reconnect')).toHaveLength(1);
   });
+
+  it('does not repeat the connection on the page that already shows it', () => {
+    const wrapper = mountStatusBar({ status: 'connected', creator: '@luna', viewers: 3, hideConnection: true });
+    expect(wrapper.find('[role="status"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('@luna');
+    expect(wrapper.findAll('button')).toHaveLength(0);
+  });
 });

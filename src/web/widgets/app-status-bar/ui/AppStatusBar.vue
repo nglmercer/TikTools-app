@@ -8,6 +8,8 @@ defineProps<{
   status: ConnectionStatus;
   creator: string;
   viewers: number;
+  /** The page already shows the connection status and its controls (Connections), so the bar does not repeat them. */
+  hideConnection?: boolean;
   reconnectAttempt?: number | null;
   reconnectDelayMs?: number | null;
   maxReconnectAttempts?: number;
@@ -25,22 +27,24 @@ const { t, n } = useI18n();
 <template>
   <footer class="app-status-bar">
     <ConnectionIndicator
+      v-if="!hideConnection"
       :status="status"
       :reconnect-attempt="reconnectAttempt"
       :reconnect-delay-ms="reconnectDelayMs"
       :max-reconnect-attempts="maxReconnectAttempts"
     />
     <span
-      v-if="creator"
+      v-if="creator && !hideConnection"
       class="app-status-bar__segment"
     >@{{ creator.replace(/^@/, '') }}</span>
     <span
-      v-if="status === 'connected'"
+      v-if="status === 'connected' && !hideConnection"
       class="app-status-bar__segment"
     >{{ t('connection.viewers', { count: n(viewers) }) }}</span>
     <span class="app-status-bar__spacer" />
     <slot />
     <ConnectionControls
+      v-if="!hideConnection"
       :status="status"
       @connect="emit('connect')"
       @disconnect="emit('disconnect')"

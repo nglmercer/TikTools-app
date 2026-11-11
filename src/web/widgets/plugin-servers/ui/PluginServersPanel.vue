@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
-import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
-import { computed, type ComputedRef } from 'vue';
+import { computed, type ComputedRef, ref, useTemplateRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import type { PluginConnectionState } from '../../../../automation/plugins/declarative.ts';
@@ -9,14 +7,19 @@ import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-co
 import PluginConnectionEditor from '@/features/configure-plugin-connection/ui/PluginConnectionEditor.vue';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
-import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
+import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconServer from '@/shared/ui/icon/icons/IconServer.vue';
+import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
+import DiagnosticStatusAction from '@/shared/diagnostics/DiagnosticStatusAction.vue';
 import { serverEntries, type ServerEntry } from '../model/server-entries.ts';
 
-const expanded = defineModel<Record<string, boolean>>('expanded', { default: () => ({}) });
+/** Id of the server whose settings are open, or null for the list. Navigation happens inside this panel. */
+const selected = defineModel<string | null>('selected', { default: null });
 
 const { t } = useI18n();
 const router = useRouter();
@@ -25,7 +28,22 @@ const plugins = usePluginControls();
 const servers: ComputedRef<ServerEntry[]> = computed(() =>
   serverEntries(plugins.behavior.value.plugins, plugins.connections.value, (plugin) => localizedText(plugin.descriptor.name)),
 );
+// A server that was disabled or removed while open falls back to the list.
+const current = computed(() => servers.value.find((server) => server.id === selected.value));
+const editor = useTemplateRef<{ flush?: () => void }>('editor');
+const testing = ref(false);
+watch([() => current.value?.connection?.at, selected], () => {
+  testing.value = false;
+});
 
+function testCurrent(): void {
+  const server = current.value;
+  if (!server) return;
+  testing.value = true;
+  // Save pending edits first: the probe reads the stored connection settings.
+  editor.value?.flush?.();
+  plugins.testConnection(server.id);
+}
 
 function statusText(connection: PluginConnectionState | undefined): string {
   if (!connection) return t('connections.servers.notConfigured');
@@ -33,20 +51,90 @@ function statusText(connection: PluginConnectionState | undefined): string {
   if (connection.reachable && connection.gameplayReady === false) return t('connections.servers.apiNotReady');
   return t('connections.servers.failed');
 }
-
-function toggle(id: string): void {
-  expanded.value = { ...expanded.value, [id]: !expanded.value[id] };
-}
 </script>
 
 <template>
   <BasePanel
-    :title="t('connections.servers.title')"
-    :subtitle="t('connections.servers.lead')"
+    :title="current ? current.name : t('connections.servers.title')"
+    :subtitle="current ? undefined : t('connections.servers.lead')"
     flush
   >
+    <template
+      v-if="current"
+      #leading
+    >
+      <BaseIconButton
+        :label="t('connections.servers.back')"
+        size="sm"
+        @click="selected = null"
+      >
+        <IconChevronLeft />
+      </BaseIconButton>
+    </template>
+
+    <template
+      v-if="current"
+      #status
+    >
+      <DiagnosticStatusAction
+        v-if="current.connection && !current.connection.ok"
+        :label="statusText(current.connection)"
+        source="plugins"
+        :entity-id="current.id"
+      />
+      <BaseStatus
+        v-else
+        :label="statusText(current.connection)"
+        :tone="current.connection?.ok ? 'success' : 'neutral'"
+      />
+    </template>
+
+    <template
+      v-if="current && !current.plugin.descriptor.guidedConnection"
+      #actions
+    >
+      <BaseButton
+        variant="primary"
+        :disabled="testing"
+        @click="testCurrent"
+      >
+        <template #icon>
+          <IconZap />
+        </template>
+        {{ testing ? t('plugins.connection.testing') : t('connections.servers.test') }}
+      </BaseButton>
+    </template>
+
+    <div
+      v-if="current"
+      :id="`server-${current.id}`"
+      class="plugin-servers__detail"
+    >
+      <PluginConnectionEditor
+        ref="editor"
+        :key="current.id"
+        layout="sections"
+        :plugin-id="current.id"
+        :plugin-name="current.name"
+        :settings="plugins.settings.value[current.id]"
+        :connection="current.connection"
+        :action-options="plugins.actionOptions.value"
+        :open-media-picker="plugins.openMediaPicker"
+        :supports-token-import="current.plugin.descriptor.supportsTokenImport"
+        :supports-token-discovery="current.plugin.descriptor.supportsTokenDiscovery"
+        :supports-provisioning="current.plugin.descriptor.supportsTokenProvisioning"
+        :guided="current.plugin.descriptor.guidedConnection"
+        :provision-state="plugins.provision.value[current.id]"
+        @load-settings="plugins.loadSettings"
+        @load-options="plugins.loadOptions"
+        @save="plugins.saveSettings"
+        @test="plugins.testConnection"
+        @import-token="plugins.importToken"
+        @provision="plugins.provisionToken"
+      />
+    </div>
     <BaseEmptyState
-      v-if="!servers.length"
+      v-else-if="!servers.length"
       :title="t('connections.servers.emptyTitle')"
       :description="t('connections.servers.emptyHint')"
     >
@@ -69,19 +157,14 @@ function toggle(id: string): void {
         :key="server.id"
         class="plugin-servers__item"
       >
-        <div class="plugin-servers__head">
-          <button
-            class="plugin-servers__toggle"
-            type="button"
-            :aria-expanded="expanded[server.id] ?? false"
-            :aria-controls="`server-${server.id}`"
-            @click="toggle(server.id)"
-          >
-            <IconChevronDown v-if="expanded[server.id]" />
-            <IconChevronRight v-else />
-            <IconServer />
-            <span class="plugin-servers__name">{{ server.name }}</span>
-          </button>
+        <button
+          class="plugin-servers__open"
+          type="button"
+          @click="selected = server.id"
+        >
+          <span class="plugin-servers__name">{{ server.name }}</span>
+        </button>
+        <span class="plugin-servers__status">
           <DiagnosticStatusAction
             v-if="server.connection && !server.connection.ok"
             :label="statusText(server.connection)"
@@ -93,84 +176,85 @@ function toggle(id: string): void {
             :label="statusText(server.connection)"
             :tone="server.connection?.ok ? 'success' : 'neutral'"
           />
-        </div>
-        <div
-          v-show="expanded[server.id]"
-          :id="`server-${server.id}`"
-          class="plugin-servers__body"
-        >
-          <PluginConnectionEditor
-            :plugin-id="server.id"
-            :plugin-name="server.name"
-            :settings="plugins.settings.value[server.id]"
-            :connection="server.connection"
-            :action-options="plugins.actionOptions.value"
-            :open-media-picker="plugins.openMediaPicker"
-            :supports-token-import="server.plugin.descriptor.supportsTokenImport"
-            :supports-token-discovery="server.plugin.descriptor.supportsTokenDiscovery"
-            :supports-provisioning="server.plugin.descriptor.supportsTokenProvisioning"
-            :guided="server.plugin.descriptor.guidedConnection"
-            :provision-state="plugins.provision.value[server.id]"
-            @load-settings="plugins.loadSettings"
-            @load-options="plugins.loadOptions"
-            @save="plugins.saveSettings"
-            @test="plugins.testConnection"
-            @import-token="plugins.importToken"
-            @provision="plugins.provisionToken"
-          />
-        </div>
+        </span>
+        <IconChevronRight
+          class="plugin-servers__chevron"
+          aria-hidden="true"
+        />
       </li>
     </ul>
   </BasePanel>
 </template>
 
 <style scoped>
-.plugin-servers__toggle { display: flex; align-items: center; gap: var(--space-4); flex: 1; min-width: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; min-height: var(--control-height-lg); cursor: pointer; }
-.plugin-servers__toggle:focus-visible { outline: var(--border-width) solid var(--color-border-focus); }
 .plugin-servers {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.plugin-servers__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-4);
+}
+
 .plugin-servers__item + .plugin-servers__item {
   border-top: var(--border-width) solid var(--color-border-subtle);
 }
 
-.plugin-servers__head {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-4);
-  width: 100%;
-  min-height: var(--control-height-lg);
-  flex-wrap: wrap;
-  box-sizing: border-box;
-  padding: 0 var(--space-4);
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--color-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-regular);
-  text-align: left;
-  outline: none;
-  transform: none;
+.plugin-servers__item:nth-child(even) {
+  background: var(--color-bg-panel-header);
 }
 
-.plugin-servers__item:nth-child(even) { background: var(--color-bg-panel-header); }
-
-.plugin-servers__head:hover {
+.plugin-servers__item:hover {
   background: var(--color-bg-hover);
 }
 
-.plugin-servers__name { flex: 1; overflow-wrap: anywhere; }
-
-.plugin-servers__body {
-  padding: var(--space-4);
-  border-top: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-app);
+/* The open button stretches over the whole row; the status stays clickable above it. */
+.plugin-servers__open {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-height-lg);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-@media (width < 700px) { .plugin-servers__head { align-items: flex-start; flex-direction: column; padding: var(--space-3) var(--space-4); gap: var(--space-1); } .plugin-servers__toggle { width: 100%; } }
+
+.plugin-servers__open::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
+.plugin-servers__open:focus-visible {
+  outline: var(--border-width) solid var(--color-border-focus);
+  outline-offset: calc(var(--border-width) * -1);
+}
+
+.plugin-servers__name {
+  overflow-wrap: anywhere;
+}
+
+.plugin-servers__status {
+  position: relative;
+  z-index: 1;
+  flex: none;
+}
+
+.plugin-servers__chevron {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.plugin-servers__detail {
+  padding: var(--space-4);
+}
 </style>

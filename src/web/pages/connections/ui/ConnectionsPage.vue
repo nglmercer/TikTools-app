@@ -12,7 +12,8 @@ const connection = useConnectionStore();
 const discovery = useDiscoveryStore();
 const saved = loadViewState().connections;
 const useCookie = ref(saved?.showCookie ?? Boolean(connection.cookie));
-const expandedServers = ref<Record<string, boolean>>(saved?.openServers ?? {});
+// Only one server is open at a time; the view state keeps the existing `openServers` shape.
+const selectedServer = ref<string | null>(Object.entries(saved?.openServers ?? {}).find(([, open]) => open)?.[0] ?? null);
 const autoConnectOption = ref(false);
 const autoConnect = computed({
   get: () => Boolean(connection.monitorStatus?.enabled) || autoConnectOption.value,
@@ -52,9 +53,12 @@ function selectRecent(username: string): void {
 }
 
 const persist = debounce(() => {
-  saveViewState('connections', { showCookie: useCookie.value, openServers: expandedServers.value });
+  saveViewState('connections', {
+    showCookie: useCookie.value,
+    openServers: selectedServer.value ? { [selectedServer.value]: true } : {},
+  });
 });
-watch([useCookie, expandedServers], persist, { deep: true });
+watch([useCookie, selectedServer], persist);
 </script>
 
 <template>
@@ -91,7 +95,7 @@ watch([useCookie, expandedServers], persist, { deep: true });
       />
     </div>
     <PluginServersPanel
-      v-model:expanded="expandedServers"
+      v-model:selected="selectedServer"
       class="connections-page__servers"
     />
   </div>
@@ -117,13 +121,14 @@ watch([useCookie, expandedServers], persist, { deep: true });
   min-height: 360px;
 }
 
+/* The lower panel is where navigation happens (list -> server settings), so it takes the remaining height. */
 .connections-page__servers {
-  flex: none;
+  flex: 1 0 auto;
+  min-height: 260px;
 }
 
 .connections-page :deep(.connections-page__live > .base-panel__body),
-.connections-page :deep(.connections-page__explorer > .base-panel__body),
-.connections-page :deep(.connections-page__servers > .base-panel__body) {
+.connections-page :deep(.connections-page__explorer > .base-panel__body) {
   overflow: visible;
 }
 

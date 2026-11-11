@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { JsonObject, JsonValue } from '../../../../automation/types.ts';
 import type { OpenMediaPicker } from '../../../../shared/messages.ts';
+import type { Component } from 'vue';
 import type { SchemaFieldDescriptor } from './lib/schema-fields.ts';
 import type { SchemaSuggestion } from './lib/schema-suggestion.ts';
 import SchemaFieldControl from './SchemaFieldControl.vue';
@@ -14,6 +15,8 @@ defineProps<{
   openMediaPicker?: OpenMediaPicker;
   disabled?: boolean;
   switches?: boolean;
+  compact?: boolean;
+  fieldIcons?: Readonly<Record<string, Component>>;
 }>();
 
 const emit = defineEmits<{ update: [field: SchemaFieldDescriptor, value: JsonValue] }>();
@@ -24,18 +27,29 @@ function controlId(formId: string, field: SchemaFieldDescriptor): string {
 </script>
 
 <template>
-  <div class="schema-field-rows">
+  <div
+    class="schema-field-rows"
+    :class="{ 'schema-field-rows--compact': compact }"
+  >
     <template
       v-for="field in fields"
       :key="field.key"
     >
       <label
-        v-if="field.kind !== 'boolean'"
+        v-if="!compact && field.kind !== 'boolean'"
         class="schema-field-rows__label"
         :for="controlId(formId, field)"
       >{{ field.label }}</label>
-      <span v-else />
-      <div class="schema-field-rows__control">
+      <span v-else-if="!compact" />
+      <div
+        class="schema-field-rows__control"
+        :class="{ 'schema-field-rows__control--compact': compact }"
+      >
+        <label
+          v-if="compact && field.kind !== 'boolean'"
+          class="schema-field-rows__sr"
+          :for="controlId(formId, field)"
+        >{{ field.label }}</label>
         <SchemaFieldControl
           :field="field"
           :value="values[field.key]"
@@ -43,6 +57,8 @@ function controlId(formId: string, field: SchemaFieldDescriptor): string {
           :invalid="Boolean(fieldErrors[field.key])"
           :disabled="disabled"
           :switches="switches"
+          :compact="compact"
+          :icon="compact ? fieldIcons?.[field.key] : undefined"
           :suggestions="suggestionsFor?.(field.key)"
           :open-media-picker="openMediaPicker"
           @update="(value) => emit('update', field, value)"
@@ -55,7 +71,7 @@ function controlId(formId: string, field: SchemaFieldDescriptor): string {
           {{ fieldErrors[field.key] }}
         </p>
         <p
-          v-else-if="field.hint"
+          v-else-if="field.hint && !compact"
           class="schema-field-rows__hint"
         >
           {{ field.hint }}
@@ -71,6 +87,28 @@ function controlId(formId: string, field: SchemaFieldDescriptor): string {
   grid-template-columns: minmax(120px, max-content) minmax(0, 1fr);
   gap: var(--space-4) var(--space-5);
   align-items: start;
+}
+
+.schema-field-rows--compact {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.schema-field-rows--compact .schema-field-rows__control {
+  gap: var(--space-1);
+}
+
+/* Keep the field name for assistive technology without repeating it visually. */
+.schema-field-rows__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .schema-field-rows__label {
