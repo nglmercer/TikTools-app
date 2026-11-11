@@ -49,6 +49,22 @@
   --color-meter-mid: #d4b43c;
   --color-meter-high: #d24a3c;
 
+  /* JSON viewer and diff. Contrast (WCAG): every syntax colour is at least 5.0:1 on --color-json-bg and
+     4.5:1 on the line backgrounds; changed words switch to --color-text (5.8:1 on --color-diff-added-word,
+     8.0:1 on --color-diff-removed-word). */
+  --color-json-bg: #1b1d23;
+  --color-json-key: #8ab4f8;
+  --color-json-string: #9fd9a4;
+  --color-json-number: #f2b374;
+  --color-json-boolean: #d7a2f2;
+  --color-json-null: #f28fb0;
+  --color-json-punct: #a3a7b3;
+  --color-json-gutter: #a3a7b3;
+  --color-diff-added-bg: #1d3a29;
+  --color-diff-removed-bg: #46242a;
+  --color-diff-added-word: #2a6a45;
+  --color-diff-removed-word: #7d2f39;
+
   --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-family-mono: 'Cascadia Mono', Consolas, 'Courier New', monospace;
   --font-size-xs: 11px;
@@ -91,6 +107,22 @@
   --z-popover: 800;
   --z-tooltip: 1200;
   --z-dialog: 1600;
+}
+
+/* Light variant of the JSON viewer palette (the app itself ships dark only; these assume a light panel). */
+:root[data-theme='light'] {
+  --color-json-bg: #ffffff;
+  --color-json-key: #0b5cad;
+  --color-json-string: #16703a;
+  --color-json-number: #9a4700;
+  --color-json-boolean: #7b3fa8;
+  --color-json-null: #b3265c;
+  --color-json-punct: #586073;
+  --color-json-gutter: #586073;
+  --color-diff-added-bg: #e3f4e8;
+  --color-diff-removed-bg: #fbe6e8;
+  --color-diff-added-word: #b4e3c3;
+  --color-diff-removed-word: #f4b6bd;
 }
 
 /* Layout is content-driven (600px forms, 900px workspaces). Input density is

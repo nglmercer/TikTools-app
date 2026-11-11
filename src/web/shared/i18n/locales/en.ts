@@ -8,8 +8,10 @@ import automationProposal from './automation-proposal.en.ts';
 import automationApproval from './automation-approval.en.ts';
 import definitionRecovery from './definition-recovery.en.ts';
 import controller from './controller.en.ts';
+import jsonView from './json-view.en.ts';
 export default {
   controller,
+  jsonView,
   settingsLayout,
   formsDesign,
   designKit,

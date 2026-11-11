@@ -8,10 +8,12 @@ import automationProposal from './automation-proposal.pt.ts';
 import automationApproval from './automation-approval.pt.ts';
 import definitionRecovery from './definition-recovery.pt.ts';
 import controller from './controller.pt.ts';
+import jsonView from './json-view.pt.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
   controller,
+  jsonView,
   settingsLayout,
   formsDesign,
   designKit,

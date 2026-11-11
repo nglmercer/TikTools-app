@@ -7,6 +7,7 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
+import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import EffectGrantEditor from './EffectGrantEditor.vue';
 
 defineProps<{ disabled?: boolean }>();
@@ -317,7 +318,10 @@ function applyJson(): void {
       </p>
     </SettingsDisclosure>
     <SettingsDisclosure :title="t('collaboration.grantSummary')">
-      <pre>{{ JSON.stringify(model, null, 2) }}</pre>
+      <BaseJsonView
+        :value="model"
+        max-height="300px"
+      />
     </SettingsDisclosure>
   </div>
 </template>
@@ -331,5 +335,5 @@ function applyJson(): void {
 .grant-editor__switches { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3) var(--space-4); }
 .grant-editor label { display: grid; gap: var(--space-2); }
 .grant-editor select, .grant-editor input { padding: var(--space-3); color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); }
-pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; } summary { cursor: pointer; }
+summary { cursor: pointer; }
 </style>

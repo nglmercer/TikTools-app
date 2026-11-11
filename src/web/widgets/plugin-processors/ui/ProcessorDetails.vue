@@ -11,6 +11,7 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
+import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSection from '@/shared/ui/section/BaseSection.vue';
 import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
@@ -139,7 +140,10 @@ function runTest(entry: ProcessorStatusEntry): void {
         <p v-if="currentTest.error">
           {{ currentTest.error }}
         </p>
-        <pre class="processor-details__result">{{ JSON.stringify(currentTest.result, null, 2) }}</pre>
+        <BaseJsonView
+          :value="currentTest.result"
+          max-height="280px"
+        />
       </section>
     </div>
   </BasePanel>
@@ -206,17 +210,5 @@ function runTest(entry: ProcessorStatusEntry): void {
   margin: 0 0 var(--space-2);
   color: var(--color-danger-hover);
   overflow-wrap: anywhere;
-}
-
-.processor-details__result {
-  max-height: 280px;
-  margin: 0;
-  padding: var(--space-3);
-  overflow: auto;
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-field);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
-  white-space: pre-wrap;
 }
 </style>

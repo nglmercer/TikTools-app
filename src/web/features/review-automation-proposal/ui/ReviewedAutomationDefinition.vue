@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import type { ReviewedDefinition } from '../model/contracts.ts';
 
 defineProps<{ title: string; definition: ReviewedDefinition; revision: string }>();
@@ -24,10 +25,11 @@ const { t } = useI18n();
     >
       {{ t('automationProposal.missingAuthority') }}
     </p>
-    <pre
+    <BaseJsonView
       v-if="definition.record"
-      tabindex="0"
-    >{{ JSON.stringify(definition.record, null, 2) }}</pre>
+      :value="definition.record"
+      max-height="34vh"
+    />
     <p v-else>
       {{ t('automationProposal.absent') }}
     </p>
@@ -38,15 +40,4 @@ const { t } = useI18n();
 .reviewed-definition { min-width: 0; overflow-wrap: anywhere; }
 .reviewed-definition h3 { margin: 0 0 var(--space-2); font-size: var(--font-size-md); }
 .reviewed-definition p { margin: var(--space-2) 0; }
-.reviewed-definition pre {
-  max-height: 34vh;
-  margin: var(--space-3) 0;
-  padding: var(--space-3);
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-}
 </style>

@@ -17,6 +17,7 @@ import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
+import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import GrantEditor from './GrantEditor.vue';
 import InvitationQr from './InvitationQr.vue';
 
@@ -478,7 +479,10 @@ const stateTone = (value: string): StatusTone => {
               {{ t('collaboration.requestId') }}: <code>{{ request.requestId }}</code> · {{ t('collaboration.expires', { when: date(request.expiresAt) }) }}
             </p>
             <SettingsDisclosure :title="t('collaboration.grantSummary')">
-              <pre>{{ JSON.stringify(request.grant, null, 2) }}</pre>
+              <BaseJsonView
+                :value="request.grant"
+                max-height="300px"
+              />
             </SettingsDisclosure>
             <div
               v-if="request.state === 'pending' && request.expiresAt > owner.now.value"
@@ -521,7 +525,10 @@ const stateTone = (value: string): StatusTone => {
               {{ t('collaboration.principalId') }}: <code>{{ person.principalId }}</code> · {{ t('collaboration.revision') }} {{ person.grantRevision }}
             </p>
             <SettingsDisclosure :title="t('collaboration.grantSummary')">
-              <pre>{{ JSON.stringify(person.grant, null, 2) }}</pre>
+              <BaseJsonView
+                :value="person.grant"
+                max-height="300px"
+              />
             </SettingsDisclosure>
             <div
               v-if="!person.revoked"
@@ -608,7 +615,10 @@ const stateTone = (value: string): StatusTone => {
               {{ t('collaboration.expires', { when: date(invitation.expiresAt) }) }}
             </p>
             <SettingsDisclosure :title="t('collaboration.grantSummary')">
-              <pre>{{ JSON.stringify(invitation.grant, null, 2) }}</pre>
+              <BaseJsonView
+                :value="invitation.grant"
+                max-height="300px"
+              />
             </SettingsDisclosure>
             <div
               v-if="invitation.state === 'created'"
@@ -641,7 +651,10 @@ const stateTone = (value: string): StatusTone => {
               v-if="entry.details"
               :title="t('collaboration.details')"
             >
-              <pre>{{ JSON.stringify(entry.details, null, 2) }}</pre>
+              <BaseJsonView
+                :value="entry.details"
+                max-height="300px"
+              />
             </SettingsDisclosure>
           </article>
         </div>
@@ -761,7 +774,11 @@ const stateTone = (value: string): StatusTone => {
       <p v-if="confirmation?.request">
         {{ confirmation.request.clientLabel }} · {{ confirmation.request.clientKind }}
       </p>
-      <pre v-if="confirmation?.grant">{{ JSON.stringify(confirmation.grant, null, 2) }}</pre>
+      <BaseJsonView
+        v-if="confirmation?.grant"
+        :value="confirmation.grant"
+        max-height="300px"
+      />
     </BaseConfirmDialog>
   </div>
 </template>
@@ -785,7 +802,7 @@ const stateTone = (value: string): StatusTone => {
 .collaboration-editor__meta, .collaboration-editor__muted { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
 .collaboration-editor__share { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--color-border-focus); border-radius: var(--radius-md); }
 .collaboration-editor__fingerprint { display: block; user-select: all; }
-code { overflow-wrap: anywhere; } pre { max-height: 300px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+code { overflow-wrap: anywhere; }
 input[type=number] { width: 100%; padding: var(--space-3); background: var(--color-bg-field); color: var(--color-text); border: 1px solid var(--color-border); }
 .collaboration-editor__technical { order: 1; color: var(--color-text-muted); }
 .collaboration-editor__technical code { overflow-wrap: anywhere; }

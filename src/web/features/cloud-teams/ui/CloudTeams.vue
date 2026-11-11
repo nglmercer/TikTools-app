@@ -8,6 +8,7 @@ import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
+import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
 const { t, te } = useI18n();
@@ -184,10 +185,11 @@ onBeforeUnmount(() => {
           · {{ teams.lastCommand.code }}
         </template>
       </p>
-      <pre
+      <BaseJsonView
         v-if="teams.lastCommand?.result"
-        class="cloud-teams__code"
-      >{{ JSON.stringify(teams.lastCommand.result, null, 2) }}</pre>
+        :value="teams.lastCommand.result"
+        max-height="300px"
+      />
     </form>
 
     <div class="cloud-teams__block">

@@ -9,6 +9,7 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import DialogRefreshBar from '@/shared/ui/dialog/DialogRefreshBar.vue';
+import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import { useApprovalReview } from '../model/approval-review.ts';
 
 const props = defineProps<{ target: ProposalTarget | null; hostVersions: ReadonlyMap<string, string>; hideTriggers?: boolean }>();
@@ -282,7 +283,10 @@ defineExpose({ openReview, openHistory, busy, hasPending });
           <summary>{{ subject.principalId }} · {{ subject.sessionId }}</summary>
           <p>{{ t('automationApproval.grantRevision', { revision: subject.grantRevision }) }}</p>
           <p>{{ t('automationApproval.configurationRevision', { revision: subject.configurationRevision }) }}</p>
-          <pre tabindex="0">{{ JSON.stringify(subject.grant, null, 2) }}</pre>
+          <BaseJsonView
+            :value="subject.grant"
+            max-height="28vh"
+          />
         </details>
       </section>
 
@@ -480,7 +484,6 @@ defineExpose({ openReview, openHistory, busy, hasPending });
 .approval-section { margin-top: var(--space-5); padding-top: var(--space-3); border-top: var(--border-width) solid var(--color-border); }
 .approval-card summary { cursor: pointer; overflow-wrap: anywhere; }
 .approval-card h4, .approval-card h5 { margin-block: var(--space-2); }
-.approval-card pre { max-height: 28vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 .approval-card ul { padding-inline-start: var(--space-5); }
 .approval-history { padding-inline-start: var(--space-5); }
 .approval-history li { padding-block: var(--space-3); overflow-wrap: anywhere; }

@@ -9,6 +9,8 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import DialogRefreshBar from '@/shared/ui/dialog/DialogRefreshBar.vue';
+import BaseJsonDiff from '@/shared/ui/json/BaseJsonDiff.vue';
+import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
 const props = defineProps<{ selectionKey: string; hideTriggers?: boolean }>();
@@ -99,7 +101,21 @@ defineExpose({ openHistory, busy, hasPending });
             @update:model-value="journal.renameRecord(row.kind, row.after!.id, $event)"
           />
           <strong v-else>{{ row.name }}</strong> · {{ t(`definitionRecovery.${row.kind}`) }} · {{ t(row.after === null ? 'libraryRecovery.remove' : row.before === null ? 'libraryRecovery.add' : 'libraryRecovery.change') }}
-          <details><summary>{{ t('libraryRecovery.source') }}</summary><pre>{{ JSON.stringify({ before: row.before, after: row.after }, null, 2) }}</pre></details>
+          <details>
+            <summary>{{ t('libraryRecovery.source') }}</summary>
+            <BaseJsonDiff
+              v-if="row.before && row.after"
+              :before="row.before"
+              :after="row.after"
+              :context="2"
+              max-height="280px"
+            />
+            <BaseJsonView
+              v-else
+              :value="row.after ?? row.before"
+              max-height="280px"
+            />
+          </details>
         </li>
       </ol>
       <ol class="library-changes__rows">
@@ -108,7 +124,21 @@ defineExpose({ openHistory, busy, hasPending });
           :key="index"
         >
           <strong>{{ (entry.after ?? entry.before)?.id }}</strong>
-          <details><summary>{{ t('libraryRecovery.source') }}</summary><pre>{{ JSON.stringify(entry, null, 2) }}</pre></details>
+          <details>
+            <summary>{{ t('libraryRecovery.source') }}</summary>
+            <BaseJsonDiff
+              v-if="entry.before && entry.after"
+              :before="entry.before"
+              :after="entry.after"
+              :context="2"
+              max-height="280px"
+            />
+            <BaseJsonView
+              v-else
+              :value="entry.after ?? entry.before"
+              max-height="280px"
+            />
+          </details>
         </li>
       </ol>
       <p
@@ -142,7 +172,13 @@ defineExpose({ openHistory, busy, hasPending });
             v-for="pack in journal.comparison.value.catalog.packs"
             :key="pack.id"
           >
-            <strong>{{ pack.name }}</strong> · {{ pack.eventIds.length }} / {{ pack.actionIds.length }}<details><summary>{{ t('libraryRecovery.source') }}</summary><pre>{{ JSON.stringify(pack, null, 2) }}</pre></details>
+            <strong>{{ pack.name }}</strong> · {{ pack.eventIds.length }} / {{ pack.actionIds.length }}<details>
+              <summary>{{ t('libraryRecovery.source') }}</summary>
+              <BaseJsonView
+                :value="pack"
+                max-height="280px"
+              />
+            </details>
           </li>
         </ul>
         <ul>
@@ -150,7 +186,13 @@ defineExpose({ openHistory, busy, hasPending });
             v-for="template in journal.comparison.value.catalog.templates"
             :key="template.id"
           >
-            <strong>{{ typeof template.title === 'string' ? template.title : template.title.default }}</strong><details><summary>{{ t('libraryRecovery.source') }}</summary><pre>{{ JSON.stringify(template, null, 2) }}</pre></details>
+            <strong>{{ typeof template.title === 'string' ? template.title : template.title.default }}</strong><details>
+              <summary>{{ t('libraryRecovery.source') }}</summary>
+              <BaseJsonView
+                :value="template"
+                max-height="280px"
+              />
+            </details>
           </li>
         </ul>
         <ul>
@@ -158,7 +200,11 @@ defineExpose({ openHistory, busy, hasPending });
             v-for="(row, index) in current"
             :key="index"
           >
-            <strong>{{ row.name }}</strong><pre>{{ JSON.stringify(row.before, null, 2) }}</pre>
+            <strong>{{ row.name }}</strong>
+            <BaseJsonView
+              :value="row.before"
+              max-height="280px"
+            />
           </li>
         </ul>
         <BaseButton
@@ -281,6 +327,5 @@ defineExpose({ openHistory, busy, hasPending });
 .library-changes :deep(.base-dialog__body) { display: grid; gap: 12px; min-width: 0; }
 .library-changes__lead { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .library-changes p, .library-changes li { overflow-wrap: anywhere; }
-.library-changes pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; }
 .library-changes__rows { display: grid; gap: 12px; padding-inline-start: 22px; }
 </style>
