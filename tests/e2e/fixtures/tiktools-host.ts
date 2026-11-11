@@ -21,6 +21,10 @@ export interface E2EHostState {
     invitations: Invitation[]; issued: InvitationSecret; requests: PairingRequest[];
     principals: Principal[]; sessions: Session[]; audit: AuditEntry[];
   };
+  /** Methods announced through `rpc.discover`; none by default, so optional Cloud areas stay hidden. */
+  announcedMethods?: string[];
+  /** Runtime globals served by `globals.list` and written by `globals.set`. */
+  globals?: Record<string, string>;
   /** Behavior snapshot served for `automation.snapshot`. */
   automationSnapshot: Record<string, unknown>;
   automationVersions?: Record<string, string>;
@@ -200,7 +204,7 @@ const INIT_SCRIPT = `
     // The fake host serves automation.snapshot from memory, so it reports
     // the same non-persistent feature set a memory-only host would.
     'system.info': () => ({ name: 'tiktools', features: { persistence: false } }),
-    'rpc.discover': () => ({ methods: [] }),
+    'rpc.discover': () => ({ methods: (state.announcedMethods ?? []).map((name) => ({ name })) }),
     // The fake host is memory-backed and has no Owner library; answer the
     // optional read with a capability error instead of leaving it unknown.
     'automation.library.snapshot': () => {
@@ -286,7 +290,11 @@ const INIT_SCRIPT = `
     'creators.get': () => ({ creator: state.creator }),
     'creators.recent': () => ({ creators: state.recentCreators }),
     'gifts.list': () => ({ gifts: state.gifts }),
-    'globals.list': () => ({ globals: {} }),
+    'globals.list': () => ({ globals: { ...(state.globals ?? {}) } }),
+    'globals.set': (params) => {
+      (state.globals ||= {})[params.key] = params.value;
+      return { ok: true };
+    },
     'processors.status': () => ({ processors: state.processors }),
     'widgets.status': () => ({ state: 'missing', port: 17452, error: null }),
     'app.state.get': () => ({ state: { ...state.appState } }),

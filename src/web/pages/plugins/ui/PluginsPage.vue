@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
+import { routeLocationKey, routerKey } from 'vue-router';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
 import InstallPluginDialog from '@/features/install-plugin/ui/InstallPluginDialog.vue';
 import type { PluginCatalogTab, PluginsPanelTab } from '@/entities/plugin/lib/plugin-catalog.ts';
@@ -13,6 +14,7 @@ import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
 import PluginJobsPanel from '@/widgets/plugin-jobs/ui/PluginJobsPanel.vue';
+import PluginPreferences from '@/widgets/plugin-preferences/ui/PluginPreferences.vue';
 import ProcessorDetails from '@/widgets/plugin-processors/ui/ProcessorDetails.vue';
 import ProcessorsPanel from '@/widgets/plugin-processors/ui/ProcessorsPanel.vue';
 import RemotePluginDetails from '@/widgets/plugin-remote-details/ui/RemotePluginDetails.vue';
@@ -39,6 +41,10 @@ const selected = ref<string | null>(saved?.selected ?? null);
 const detailsTab = ref<PluginDetailsTab>(saved?.details ?? 'general');
 /** Key of the open processor; like the open plugin, it replaces the list inside the same panel. */
 const processorSelected = ref<string | null>(null);
+/** Plugin-wide preferences replace the catalog like a detail does; `?view=preferences` opens them directly. */
+const route = inject(routeLocationKey, null);
+const router = inject(routerKey, null);
+const preferencesOpen = ref(route?.query.view === 'preferences');
 
 function openPlugin(id: string): void {
   selected.value = id;
@@ -97,6 +103,11 @@ const selectedPlugin = computed(
 const selectedRemote = computed(() => parseRemoteSelection(selected.value));
 /** The open plugin replaces the catalog in the panel; closing it is the back arrow. */
 const detailsOpen = computed(() => activeView.value === 'plugins' && Boolean(selectedPlugin.value || selectedRemote.value));
+
+function closePreferences(): void {
+  preferencesOpen.value = false;
+  if (route?.query.view) void router?.replace({ query: {} });
+}
 
 function closeDetails(): void {
   selected.value = null;
@@ -169,8 +180,12 @@ watch(activeView, () => { processorSelected.value = null; });
     <PluginJobsPanel />
 
     <!-- One navigation area: the catalog or processors, or the open item with a way back. -->
+    <PluginPreferences
+      v-if="preferencesOpen"
+      @back="closePreferences"
+    />
     <PluginDetails
-      v-if="detailsOpen && selectedPlugin"
+      v-else-if="detailsOpen && selectedPlugin"
       :key="selectedPlugin.descriptor.id"
       v-model:tab="detailsTab"
       v-model:request="detailsRequest"
@@ -214,6 +229,7 @@ watch(activeView, () => { processorSelected.value = null; });
       @update="(id, version) => packages.updatePlugin(id, version)"
       @update-all="packages.updateAll()"
       @refresh-processors="processorsStore.refresh()"
+      @preferences="preferencesOpen = true"
       @open="openPlugin"
       @command="runCommand"
     >

@@ -3,6 +3,7 @@ import { computed, markRaw, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isConnectionBusy } from '@/entities/connection/lib/connection-status.ts';
 import { supportedLocales, type Locale } from '@/shared/i18n/i18n.ts';
+import { localeLabel } from '@/shared/i18n/locale-label.ts';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconMenu from '@/shared/ui/icon/icons/IconMenu.vue';
@@ -60,7 +61,7 @@ const menus = computed<MenuBarMenu[]>(() => [
         icon: markRaw(IconGlobe),
         children: supportedLocales.map((locale) => ({
           id: `locale:${locale}`,
-          label: t(`menu.languages.${locale}`),
+          label: localeLabel(locale),
           checked: locale === props.locale,
         })),
       },

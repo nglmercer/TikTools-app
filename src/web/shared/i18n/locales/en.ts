@@ -102,6 +102,7 @@ export default {
     language: {
       group: 'Language',
       label: 'Interface language',
+      search: 'Search languages…',
     },
   },
   appUpdater: {
@@ -190,6 +191,7 @@ export default {
     remove: 'Remove global',
     save: 'Save globals',
     saving: 'Saving…',
+    discard: 'Discard changes',
     errors: {
       emptyKey: 'A value needs a key.',
       invalidKey: 'Keys start with a letter or _, then letters, digits, ., _, - (max 64).',
@@ -331,6 +333,7 @@ export default {
     },
   },
   connections: {
+    tabs: { servers: 'Servers', webhooks: 'Webhooks' },
     monitor: {
       start: 'Monitor and auto-connect', stop: 'Stop monitoring', status: 'LIVE monitor: {phase}',
       phases: { stopped: 'Stopped', waiting: 'Waiting for LIVE', checking: 'Checking creator', connecting: 'Connecting', live: 'Connected; monitoring remains active', error: 'Retrying after an error' },
@@ -517,6 +520,8 @@ export default {
     library: {
       events: 'Events',
       actions: 'Actions',
+      variables: 'Variables',
+      cloud: 'Cloud',
       searchEvents: 'Search events…',
       searchActions: 'Search actions…',
       newEvent: 'New event',
@@ -832,6 +837,7 @@ export default {
     },
   },
   overlays: {
+    cloud: 'Cloud',
     portablePackages: 'Portable packages',
     widgets: 'Widgets',
     kinds: {
@@ -1258,6 +1264,7 @@ export default {
       package: 'Install .plugin…',
     },
     catalog: {
+      preferences: 'Preferences',
       installed: 'Installed',
       browse: 'Explore',
       updates: 'Updates',

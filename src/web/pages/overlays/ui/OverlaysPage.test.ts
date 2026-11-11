@@ -1,7 +1,8 @@
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
-import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
+import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import OverlaysPage from './OverlaysPage.vue';
 
@@ -11,14 +12,17 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-async function mountPage() {
+async function mountPage(announce: string[] = []) {
   const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
     if (method === 'widgets.status') return { state: 'ready', port: 19999, error: null };
     if (method === 'app.state.get') return { state: { 'widgets.design.follow': '{"radius":24}' } };
     if (method === 'widgets.copyObsUrl') return { ok: true };
     return { ok: true };
   });
-  const wrapper = mountWithPlugins(OverlaysPage, { attachTo: document.body, global: { plugins: storePlugins(client) } });
+  const stores = createStoreHarness(client);
+  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh('test-host');
+  const wrapper = mountWithPlugins(OverlaysPage, { attachTo: document.body, global: { plugins: stores.plugins } });
   await flushPromises();
   return { wrapper, calls };
 }
@@ -53,6 +57,34 @@ describe('OverlaysPage', () => {
     expect(wrapper.find('.overlays-page__portable').exists()).toBe(false);
     expect(wrapper.get('.overlays-page__workspace').isVisible()).toBe(true);
     expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toBe(source);
+  });
+
+  it('offers the Cloud area only when the host announces overlays or packages', async () => {
+    const { wrapper } = await mountPage();
+    expect(wrapper.find('button[aria-label="Cloud"]').exists()).toBe(false);
+    const packages = await mountPage(['bundles.packages.preflight']);
+    expect(packages.wrapper.find('button[aria-label="Cloud"]').exists()).toBe(true);
+  });
+
+  it('opens Cloud overlays and packages in the page and returns to the design', async () => {
+    const { wrapper } = await mountPage(['bundles.overlays.create', 'bundles.packages.preflight']);
+    const source = (wrapper.get('#overlay-source-url').element as HTMLInputElement).value;
+    await wrapper.get('button[aria-label="Cloud"]').trigger('click');
+    expect(wrapper.get('.overlay-cloud .base-panel__title').text()).toBe('Cloud');
+    expect(wrapper.find('.cloud-overlays').exists()).toBe(true);
+    expect(wrapper.find('.cloud-bundles').exists()).toBe(true);
+    expect(wrapper.get('.overlays-page__workspace').isVisible()).toBe(false);
+    await wrapper.get('.overlay-cloud button[aria-label="Back"]').trigger('click');
+    expect(wrapper.find('.overlay-cloud').exists()).toBe(false);
+    expect(wrapper.get('.overlays-page__workspace').isVisible()).toBe(true);
+    expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toBe(source);
+  });
+
+  it('shows only the Cloud feature the host announced', async () => {
+    const { wrapper } = await mountPage(['bundles.packages.preflight']);
+    await wrapper.get('button[aria-label="Cloud"]').trigger('click');
+    expect(wrapper.find('.cloud-overlays').exists()).toBe(false);
+    expect(wrapper.find('.cloud-bundles').exists()).toBe(true);
   });
 
   it('copies the source url through the host', async () => {

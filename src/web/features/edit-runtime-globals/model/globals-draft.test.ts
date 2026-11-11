@@ -54,4 +54,13 @@ describe('useGlobalsDraft', () => {
     expect(draft.blocked.value).toBe(false);
     expect(draft.dirty.value).toBe(true);
   });
+
+  it('discards unsaved edits back to the stored values', () => {
+    const draft = useGlobalsDraft(ref({ a: '1' }));
+    draft.update(draft.rows.value[0]!.id, { value: 'changed' });
+    draft.add();
+    draft.discard();
+    expect(draft.rows.value.map((row) => [row.key, row.value])).toEqual([['a', '1']]);
+    expect(draft.dirty.value).toBe(false);
+  });
 });

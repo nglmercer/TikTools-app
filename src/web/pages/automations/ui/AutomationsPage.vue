@@ -9,6 +9,9 @@ import AutomationEditorReview from '@/features/edit-automation-record/ui/Automat
 import AutomationEditNotice from '@/features/edit-automation-record/ui/AutomationEditNotice.vue';
 import AutomationProposalReview from '@/features/review-automation-proposal/ui/AutomationProposalReview.vue';
 import AutomationApprovalReview from '@/features/review-automation-approval/ui/AutomationApprovalReview.vue';
+import CloudLibrary from '@/features/cloud-library/ui/CloudLibrary.vue';
+import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import OwnerLibraryChanges from '@/features/recover-owner-library/ui/OwnerLibraryChanges.vue';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
@@ -50,7 +53,7 @@ import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import type { MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
-import { isLibraryTab, type LibraryTab } from '@/widgets/automation-library/model/library-tab.ts';
+import { isLibraryTab, type LibraryArea, type LibraryExtraArea, type LibraryTab } from '@/widgets/automation-library/model/library-tab.ts';
 import AutomationHistoryMenu from '@/widgets/automation-history-menu/ui/AutomationHistoryMenu.vue';
 import AutomationLibrary from '@/widgets/automation-library/ui/AutomationLibrary.vue';
 import AutomationRunsPanel from '@/widgets/automation-runs/ui/AutomationRunsPanel.vue';
@@ -87,7 +90,16 @@ const { leaderboard } = storeToRefs(usePointsStore());
 const saved = loadViewState().behavior;
 
 const tab = ref<LibraryTab>(isLibraryTab(saved?.tab) ? saved.tab : 'events');
-const selected = ref<string | null>(saved?.selected ?? null);
+// Other pages (and the old Settings link) open the variables with `?view=variables`; no record opens behind them.
+const requestedView = inject(routeLocationKey, null)?.query.view;
+const area = ref<LibraryArea>(requestedView === 'variables' ? 'variables' : tab.value);
+const selected = ref<string | null>(requestedView === 'variables' ? null : saved?.selected ?? null);
+// Cloud documents appear only when the host announces its Cloud library and no unified catalog replaces it.
+const capabilities = useCapabilityStore();
+const areas = computed<LibraryExtraArea[]>(() => [
+  'variables',
+  ...(capabilities.supports('catalog.items') !== true ? ['cloud' as const] : []),
+]);
 const eventQuery = ref(saved?.eventQuery ?? '');
 const actionQuery = ref(saved?.actionQuery ?? '');
 const eventSort = ref<RecordSort>(isRecordSort(saved?.eventSort) ? saved.eventSort : 'name');
@@ -234,11 +246,12 @@ const librarySelected = computed<string | null>({
     selected.value = next;
   }); },
 });
-const libraryTab = computed<LibraryTab>({
-  get: () => tab.value,
+const libraryTab = computed<LibraryArea>({
+  get: () => area.value,
   set: (next) => guard(() => {
     resetEditor();
-    tab.value = next;
+    if (isLibraryTab(next)) tab.value = next;
+    area.value = next;
     selected.value = null;
   }),
 });
@@ -275,6 +288,7 @@ function onSheetKeydown(event: KeyboardEvent): void {
 function newEvent(trigger?: string): void {
   guard(() => {
     tab.value = 'events';
+    area.value = 'events';
     const record = createEvent(t('automations.editor.newEventName'));
     if (trigger) record.trigger = trigger;
     selected.value = record.id;
@@ -296,6 +310,7 @@ function openRequestedTrigger(): void {
 function newAction(type: ActionTypeDefinition): void {
   guard(() => {
     tab.value = 'actions';
+    area.value = 'actions';
     const record = createActionFromType(type, localizedText);
     selected.value = record.id;
     editor.open('action', record, automation.persistent.value === false ? null : '0', true, automation.sourceHost.value);
@@ -547,10 +562,20 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
           :available-types="availableTypes"
           :event-types="eventTypes"
           :runs="automation.runs.value"
+          :areas="areas"
           @new-event="newEvent"
           @new-action="pickerOpen = true"
           @set-enabled="setEnabled"
-        />
+        >
+          <template #variables>
+            <RuntimeGlobalsEditor />
+          </template>
+          <template #cloud>
+            <div class="automations-page__cloud">
+              <CloudLibrary />
+            </div>
+          </template>
+        </AutomationLibrary>
         <div
           v-if="editing"
           class="automations-page__sheet"
@@ -839,6 +864,8 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
   flex: 1;
   min-height: 0;
 }
+
+.automations-page__cloud { padding: var(--space-4) var(--space-3); }
 
 .automations-page__runs {
   flex: none;

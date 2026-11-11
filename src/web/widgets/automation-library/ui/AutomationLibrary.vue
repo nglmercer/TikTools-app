@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, ref, shallowRef, type Component } from 'vue';
+import { computed, markRaw, ref, shallowRef, watch, type Component } from 'vue';
 import type { ActionTypeDefinition, BehaviorRun, LiveAction, LiveEvent, PluginEventType } from '../../../../automation/behavior/types.ts';
 import {
   actionNames,
@@ -22,20 +22,24 @@ import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
 import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
 import IconFilter from '@/shared/ui/icon/icons/IconFilter.vue';
+import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
+import IconHash from '@/shared/ui/icon/icons/IconHash.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
+import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import IconStop from '@/shared/ui/icon/icons/IconStop.vue';
 import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
 import IconVolume from '@/shared/ui/icon/icons/IconVolume.vue';
+import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
 import type { TableColumn } from '@/shared/ui/table/table-types.ts';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
-import type { LibraryTab } from '../model/library-tab.ts';
+import type { LibraryArea, LibraryExtraArea, LibraryTab } from '../model/library-tab.ts';
 
 const props = defineProps<{
   events: readonly LiveEvent[];
@@ -44,6 +48,8 @@ const props = defineProps<{
   availableTypes: ReadonlySet<string>;
   eventTypes: readonly PluginEventType[];
   runs: readonly BehaviorRun[];
+  /** Extra areas shown after Events and Actions (their content comes through the slot of the same name). */
+  areas?: readonly LibraryExtraArea[];
 }>();
 
 const emit = defineEmits<{
@@ -64,7 +70,7 @@ function checkboxKey(kind: LibraryTab, id: string): number {
   return lastToggle.value?.kind === kind && lastToggle.value.id === id ? lastToggle.value.generation : 0;
 }
 
-const tab = defineModel<LibraryTab>('tab', { required: true });
+const tab = defineModel<LibraryArea>('tab', { required: true });
 const selected = defineModel<string | null>('selected', { default: null });
 const eventQuery = defineModel<string>('eventQuery', { default: '' });
 const actionQuery = defineModel<string>('actionQuery', { default: '' });
@@ -74,9 +80,18 @@ const actionSort = defineModel<RecordSort>('actionSort', { default: 'name' });
 const { t, locale, triggerName } = useAutomationText();
 
 const tabs = computed(() => [
-  { value: 'events' as const, label: `${t('automations.library.events')} (${props.events.length})` },
-  { value: 'actions' as const, label: `${t('automations.library.actions')} (${props.actions.length})` },
+  { value: 'events' as const, label: `${t('automations.library.events')} (${props.events.length})`, icon: IconZap },
+  { value: 'actions' as const, label: `${t('automations.library.actions')} (${props.actions.length})`, icon: IconPlay },
+  ...(props.areas ?? []).map((area) => ({
+    value: area,
+    label: t(`automations.library.${area}`),
+    icon: area === 'variables' ? IconHash : IconGlobe,
+  })),
 ]);
+// An extra area is built the first time it opens and then kept, so an unsaved draft survives switching tabs.
+const visited = ref<ReadonlySet<LibraryArea>>(new Set([tab.value]));
+watch(tab, (next) => { if (!visited.value.has(next)) visited.value = new Set([...visited.value, next]); });
+const records = computed(() => tab.value === 'events' || tab.value === 'actions');
 /** Sorting lives behind one icon to keep the toolbar minimal. */
 const sortMenuOpen = ref(false);
 const sortMenuAnchor = shallowRef<HTMLElement | null>(null);
@@ -191,7 +206,10 @@ const sort = computed({
       class="automation-library__tabs"
       :tabs="tabs"
     >
-      <div class="automation-library__pane">
+      <div
+        v-if="records"
+        class="automation-library__pane"
+      >
         <div class="automation-library__toolbar">
           <BaseTextField
             v-model="query"
@@ -330,6 +348,20 @@ const sort = computed({
           </template>
         </BaseTable>
       </div>
+      <div
+        v-if="areas?.includes('variables') && visited.has('variables')"
+        v-show="tab === 'variables'"
+        class="automation-library__pane automation-library__area"
+      >
+        <slot name="variables" />
+      </div>
+      <div
+        v-if="areas?.includes('cloud') && visited.has('cloud')"
+        v-show="tab === 'cloud'"
+        class="automation-library__pane automation-library__area"
+      >
+        <slot name="cloud" />
+      </div>
     </BaseTabs>
   </section>
 </template>
@@ -399,6 +431,10 @@ const sort = computed({
   border-radius: 50%;
   background: var(--color-accent-hover);
   content: '';
+}
+
+.automation-library__area {
+  overflow-y: auto;
 }
 
 .automation-library__table {

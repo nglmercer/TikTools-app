@@ -8,7 +8,6 @@ import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
-import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseSpinBox from '@/shared/ui/spin-box/BaseSpinBox.vue';
 
 const { t } = useI18n();
@@ -38,52 +37,50 @@ onMounted(() => void packages.loadRegistries());
       :title="packages.registryError"
       compact
     />
-    <BaseGroupBox :title="t('packages.sources.updates')">
-      <BaseFormGrid>
-        <BaseFormRow
-          for="plugin-sources-channel"
-          :label="t('packages.policy.channel')"
-        >
-          <BaseComboBox
-            id="plugin-sources-channel"
-            v-model="channel"
-            :options="channelOptions"
-            :disabled="!packages.defaults"
-          />
-        </BaseFormRow>
-        <BaseFormRow
-          for="plugin-sources-auto"
-          :label="t('packages.policy.autoUpdate')"
-          :hint="t('packages.policy.autoHint')"
-        >
-          <BaseComboBox
-            id="plugin-sources-auto"
-            v-model="autoUpdate"
-            :options="autoOptions"
-            :disabled="!packages.defaults"
-          />
-        </BaseFormRow>
-        <BaseFormRow
-          for="plugin-sources-interval"
-          :label="t('packages.sources.interval')"
-        >
-          <BaseSpinBox
-            id="plugin-sources-interval"
-            v-model="interval"
-            :min="1"
-            :max="168"
-            :suffix="t('packages.sources.hours')"
-            :disabled="!packages.defaults"
-          />
-        </BaseFormRow>
-      </BaseFormGrid>
-      <BaseSwitch
-        v-model="allowSideload"
-        :disabled="!packages.defaults"
+    <BaseFormGrid>
+      <BaseFormRow
+        for="plugin-sources-channel"
+        :label="t('packages.policy.channel')"
       >
-        {{ t('packages.sources.allowSideload') }}
-      </BaseSwitch>
-    </BaseGroupBox>
+        <BaseComboBox
+          id="plugin-sources-channel"
+          v-model="channel"
+          :options="channelOptions"
+          :disabled="!packages.defaults"
+        />
+      </BaseFormRow>
+      <BaseFormRow
+        for="plugin-sources-auto"
+        :label="t('packages.policy.autoUpdate')"
+        :hint="t('packages.policy.autoHint')"
+      >
+        <BaseComboBox
+          id="plugin-sources-auto"
+          v-model="autoUpdate"
+          :options="autoOptions"
+          :disabled="!packages.defaults"
+        />
+      </BaseFormRow>
+      <BaseFormRow
+        for="plugin-sources-interval"
+        :label="t('packages.sources.interval')"
+      >
+        <BaseSpinBox
+          id="plugin-sources-interval"
+          v-model="interval"
+          :min="1"
+          :max="168"
+          :suffix="t('packages.sources.hours')"
+          :disabled="!packages.defaults"
+        />
+      </BaseFormRow>
+    </BaseFormGrid>
+    <BaseSwitch
+      v-model="allowSideload"
+      :disabled="!packages.defaults"
+    >
+      {{ t('packages.sources.allowSideload') }}
+    </BaseSwitch>
   </div>
 </template>
 

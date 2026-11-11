@@ -2,7 +2,9 @@ import { nativeDefinitionHost } from '@/entities/automation/testing/native-defin
 import { enableAutoUnmount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import type { ActionTypeDefinition, BehaviorSnapshot, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { definitionJournal } from '@/entities/automation/model/definition-journal.ts';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
@@ -61,7 +63,14 @@ const runs = [
   { id: 'r1', at: Date.now(), status: 'ok', actionId: 'a1', actionName: 'Log gift', eventName: 'Big gifts', summary: 'logged', durationMs: 3, test: false, logs: [] },
 ];
 
-async function mountPage(intercept?: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown, waitForInitial = true) {
+interface MountExtras {
+  /** Methods the host announces through `rpc.discover`. */
+  announce?: string[];
+  /** Route query the page is opened with, as a link from elsewhere would. */
+  query?: string;
+}
+
+async function mountPage(intercept?: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown, waitForInitial = true, extras: MountExtras = {}) {
   const snapshot: BehaviorSnapshot = { actions: [logAction], events: [giftEvent, chatEvent], plugins: [], actionTypes, translations: {} };
   const versions = new Map([['action:a1', '1'], ['event:e1', '1'], ['event:e2', '1']]);
   const requests: Array<{ method: string; meta?: RequestMetadata }> = [];
@@ -69,6 +78,7 @@ async function mountPage(intercept?: (method: string, params: RpcParams | undefi
     requests.push({ method, meta: options?.meta });
     const overridden = intercept?.(method, params, options);
     if (overridden !== undefined) return overridden;
+    if (method === 'rpc.discover') return { methods: (extras.announce ?? []).map((name) => ({ name })) };
     if (method === 'system.info') return { features: { persistence: true } };
     if (method === 'automation.snapshot') {
       options?.onMetadata?.({ resourceVersions: [
@@ -111,7 +121,10 @@ async function mountPage(intercept?: (method: string, params: RpcParams | undefi
   const initializing = automation.refresh();
   if (waitForInitial) await initializing;
   stores.use(() => useLiveFeedStore()).giftCatalog = [{ id: '1', name: 'Rose', diamondCount: 1 }];
-  const wrapper = mountWithPlugins(AutomationsPage, { attachTo: document.body, global: { plugins: stores.plugins } });
+  if (extras.announce?.length) await stores.use(() => useCapabilityStore()).refresh('test-host');
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/automations', component: { render: () => null } }] });
+  await router.push(`/automations${extras.query ?? ''}`);
+  const wrapper = mountWithPlugins(AutomationsPage, { attachTo: document.body, global: { plugins: [router, ...stores.plugins] } });
   await flushPromises();
   calls.length = 0;
   return { wrapper, calls, requests, snapshot, versions, automation, client, initializing };
@@ -181,6 +194,51 @@ describe('AutomationsPage', () => {
     expect(library.draft.value?.mutation).toMatchObject({ operation: 'create-profile', name: 'Ready profile' });
     library.dismiss(); await flushPromises();
     f.automation.dispose();
+  });
+
+  it('keeps the runtime variables as their own tab next to events and actions', async () => {
+    const { wrapper, calls } = await mountPage((method) => (method === 'globals.list' ? { globals: { commandPort: '46665' } } : undefined));
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables', 'Cloud']);
+    expect(wrapper.find('.globals-editor').exists()).toBe(false);
+    expect(calls.some((call) => call.method === 'globals.list')).toBe(false);
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Variables')!.trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('.globals-editor input').map((input) => (input.element as HTMLInputElement).value)).toEqual(['commandPort', '46665']);
+    expect(wrapper.find('.automation-library__table').exists()).toBe(false);
+    expect(wrapper.get('.automations-page__runs').isVisible()).toBe(true);
+  });
+
+  it('keeps an unsaved variable draft while switching tabs and saves it through the same contract', async () => {
+    const { wrapper, calls } = await mountPage((method) => (method === 'globals.list' ? { globals: { commandPort: '46665' } } : method === 'globals.set' ? { ok: true } : undefined));
+    const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text().startsWith(name))!;
+    await tab('Variables').trigger('click');
+    await flushPromises();
+    await wrapper.findAll('.globals-editor input')[1]!.setValue('25575');
+    await tab('Actions').trigger('click');
+    await tab('Variables').trigger('click');
+    expect((wrapper.findAll('.globals-editor input')[1]!.element as HTMLInputElement).value).toBe('25575');
+    await buttonByLabel(wrapper, 'Save globals').trigger('click');
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'globals.set')?.params).toEqual({ key: 'commandPort', value: '25575' });
+  });
+
+  it('opens on the variables from the old Settings link', async () => {
+    const { wrapper } = await mountPage((method) => (method === 'globals.list' ? { globals: { a: '1' } } : undefined), true, { query: '?view=variables' });
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Variables');
+    expect(wrapper.find('.globals-editor').exists()).toBe(true);
+  });
+
+  it('shows Cloud documents as a library tab unless a unified catalog replaces them', async () => {
+    const { wrapper } = await mountPage();
+    const cloud = wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Cloud')!;
+    expect(cloud).toBeDefined();
+    expect(wrapper.text()).not.toContain('Cloud library');
+    await cloud.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('Cloud library');
+    expect(wrapper.find('.automation-library__table').exists()).toBe(false);
+    const unified = await mountPage(undefined, true, { announce: ['catalog.items'] });
+    expect(unified.wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables']);
   });
 
   it('lists events and opens the editor', async () => {

@@ -7,7 +7,9 @@ import { isValidLabel, useIntegrationsStore } from '@/entities/cloud-integration
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
+import IconInfo from '@/shared/ui/icon/icons/IconInfo.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
+import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 
 const { t } = useI18n();
 const integrations = useIntegrationsStore();
@@ -73,13 +75,6 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="cloud-connections">
-    <h3 class="cloud-connections__title">
-      {{ t('cloudConnections.title') }}
-    </h3>
-    <p class="cloud-connections__hint">
-      {{ t('cloudConnections.hint') }}
-    </p>
-
     <form
       class="cloud-connections__create"
       @submit.prevent="create"
@@ -99,6 +94,15 @@ onBeforeUnmount(() => {
       >
         {{ t('cloudConnections.create') }}
       </BaseButton>
+      <!-- The area around this list already names it; the explanation lives behind an icon. -->
+      <span
+        v-tooltip="t('cloudConnections.hint')"
+        class="cloud-connections__info"
+        role="img"
+        :aria-label="t('cloudConnections.hint')"
+      >
+        <IconInfo />
+      </span>
     </form>
     <p
       v-if="label.length > 0 && !labelValid"
@@ -245,8 +249,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .cloud-connections { display:grid; gap:var(--space-3); min-width:0; }
-.cloud-connections__title { margin:0; }
-.cloud-connections__hint, .cloud-connections__note { margin:0; color:var(--color-text-muted); }
+.cloud-connections__info { display:inline-flex; align-items:center; align-self:center; color:var(--color-text-muted); }
+.cloud-connections__note { margin:0; color:var(--color-text-muted); }
 .cloud-connections__create { display:flex; flex-wrap:wrap; gap:var(--space-2); }
 .cloud-connections__label { flex:1 1 220px; min-width:0; }
 .cloud-connections__code { display:block; overflow-wrap:anywhere; padding:var(--space-2); border-radius:var(--radius-sm); background:var(--color-surface-raised); }

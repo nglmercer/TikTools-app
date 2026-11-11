@@ -8,7 +8,9 @@ import CloudOverlayPreview from '@/entities/overlay/ui/CloudOverlayPreview.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import IconInfo from '@/shared/ui/icon/icons/IconInfo.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
+import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 
 const { t, te } = useI18n();
 const overlay = useCloudOverlayStore();
@@ -72,10 +74,16 @@ function setKind(value: string): void {
   <section class="cloud-overlays">
     <h3 class="cloud-overlays__title">
       {{ t('cloudOverlays.title') }}
+      <!-- The explanation stays one hover away instead of a paragraph under the heading. -->
+      <span
+        v-tooltip="t('cloudOverlays.hint')"
+        class="cloud-overlays__info"
+        role="img"
+        :aria-label="t('cloudOverlays.hint')"
+      >
+        <IconInfo :size="14" />
+      </span>
     </h3>
-    <p class="cloud-overlays__hint">
-      {{ t('cloudOverlays.hint') }}
-    </p>
 
     <form
       class="cloud-overlays__row"
@@ -279,7 +287,8 @@ function setKind(value: string): void {
 <style scoped>
 .cloud-overlays { display:grid; gap:var(--space-3); min-width:0; }
 .cloud-overlays__title { margin:0; }
-.cloud-overlays__hint, .cloud-overlays__note { margin:0; color:var(--color-text-muted); }
+.cloud-overlays__info { display:inline-flex; margin-left:var(--space-2); vertical-align:middle; color:var(--color-text-muted); font-weight:normal; }
+.cloud-overlays__note { margin:0; color:var(--color-text-muted); }
 .cloud-overlays__row { display:flex; flex-wrap:wrap; gap:var(--space-2); align-items:center; min-width:0; }
 .cloud-overlays__grow { flex:1 1 180px; min-width:0; }
 .cloud-overlays__block { display:grid; gap:var(--space-2); padding:var(--space-2); border:1px solid var(--color-border); border-radius:var(--radius-md); min-width:0; }

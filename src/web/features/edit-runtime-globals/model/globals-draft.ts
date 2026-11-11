@@ -70,5 +70,11 @@ export function useGlobalsDraft(source: Readonly<Ref<Record<string, string>>>) {
     dirty.value = false;
   }
 
-  return { rows, dirty, errors, blocked, add, update, remove, markSaved };
+  /** Drops every unsaved edit and shows the stored values again. */
+  function discard(): void {
+    rows.value = rowsFromGlobals(source.value);
+    dirty.value = false;
+  }
+
+  return { rows, dirty, errors, blocked, add, update, remove, markSaved, discard };
 }

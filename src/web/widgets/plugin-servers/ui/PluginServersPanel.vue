@@ -4,6 +4,8 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import type { PluginConnectionState } from '../../../../automation/plugins/declarative.ts';
 import { connectionStatusText } from '@/entities/plugin/lib/connection-status.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
+import CloudConnections from '@/features/cloud-integrations/ui/CloudConnections.vue';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
 import PluginConnectionEditor from '@/features/configure-plugin-connection/ui/PluginConnectionEditor.vue';
 import { localizedText } from '@/shared/i18n/i18n.ts';
@@ -12,6 +14,7 @@ import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
+import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconServer from '@/shared/ui/icon/icons/IconServer.vue';
 import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
@@ -21,10 +24,16 @@ import { serverEntries, type ServerEntry } from '../model/server-entries.ts';
 
 /** Id of the server whose settings are open, or null for the list. Navigation happens inside this panel. */
 const selected = defineModel<string | null>('selected', { default: null });
+/** The panel's two areas: the plugin servers, and (when the host announces them) the Cloud webhooks. */
+const area = defineModel<'servers' | 'webhooks'>('area', { default: 'servers' });
 
 const { t } = useI18n();
 const router = useRouter();
 const plugins = usePluginControls();
+const capabilities = useCapabilityStore();
+// Webhooks appear only when the host announces them; an unknown answer keeps them hidden.
+const webhooksAvailable = computed(() => capabilities.supports('integrations.connections') === true);
+const showWebhooks = computed(() => area.value === 'webhooks' && webhooksAvailable.value);
 
 const servers: ComputedRef<ServerEntry[]> = computed(() =>
   serverEntries(plugins.behavior.value.plugins, plugins.connections.value, (plugin) => localizedText(plugin.descriptor.name)),
@@ -53,9 +62,9 @@ function statusText(connection: PluginConnectionState | undefined): string {
 
 <template>
   <BasePanel
-    :title="current ? current.name : t('connections.servers.title')"
-    :subtitle="current ? undefined : t('connections.servers.lead')"
-    flush
+    :title="current ? current.name : showWebhooks ? t('connections.tabs.webhooks') : t('connections.servers.title')"
+    :subtitle="current || showWebhooks ? undefined : t('connections.servers.lead')"
+    :flush="!showWebhooks"
   >
     <template
       v-if="current"
@@ -88,7 +97,28 @@ function statusText(connection: PluginConnectionState | undefined): string {
     </template>
 
     <template
-      v-if="current && !current.plugin.descriptor.guidedConnection"
+      v-if="!current && webhooksAvailable"
+      #actions
+    >
+      <BaseIconButton
+        :label="t('connections.tabs.servers')"
+        size="sm"
+        :pressed="!showWebhooks"
+        @click="area = 'servers'"
+      >
+        <IconServer />
+      </BaseIconButton>
+      <BaseIconButton
+        :label="t('connections.tabs.webhooks')"
+        size="sm"
+        :pressed="showWebhooks"
+        @click="area = 'webhooks'"
+      >
+        <IconGlobe />
+      </BaseIconButton>
+    </template>
+    <template
+      v-else-if="current && !current.plugin.descriptor.guidedConnection"
       #actions
     >
       <BaseButton
@@ -103,8 +133,9 @@ function statusText(connection: PluginConnectionState | undefined): string {
       </BaseButton>
     </template>
 
+    <CloudConnections v-if="showWebhooks && !current" />
     <div
-      v-if="current"
+      v-else-if="current"
       :id="`server-${current.id}`"
       class="plugin-servers__detail"
     >

@@ -3,11 +3,14 @@ import { storeToRefs } from 'pinia';
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useGlobalsStore } from '@/entities/runtime-global/model/globals-store.ts';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
+import IconInfo from '@/shared/ui/icon/icons/IconInfo.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
+import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
+import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 import { globalsFromRows, useGlobalsDraft } from '../model/globals-draft.ts';
 
 const { t } = useI18n();
@@ -36,6 +39,48 @@ onMounted(() => {
 
 <template>
   <div class="globals-editor">
+    <!-- The tab already names the area: the bar holds the explanation (as a tooltip) and the icon actions. -->
+    <header class="globals-editor__bar">
+      <span
+        v-tooltip="t('globals.hint', { token: '{{ globals.key }}' })"
+        class="globals-editor__info"
+        role="img"
+        :aria-label="t('globals.hint', { token: '{{ globals.key }}' })"
+      >
+        <IconInfo :size="16" />
+      </span>
+      <span class="globals-editor__spacer" />
+      <BaseIconButton
+        :label="t('globals.add')"
+        variant="default"
+        @click="draft.add()"
+      >
+        <IconPlus />
+      </BaseIconButton>
+      <BaseIconButton
+        :label="t('globals.discard')"
+        variant="default"
+        :disabled="!dirty || saving"
+        @click="draft.discard()"
+      >
+        <IconUndo />
+      </BaseIconButton>
+      <BaseIconButton
+        :label="saving ? t('globals.saving') : t('globals.save')"
+        variant="primary"
+        :disabled="blocked || saving || loading || !dirty"
+        @click="save"
+      >
+        <IconCheck />
+      </BaseIconButton>
+    </header>
+    <p
+      v-if="error"
+      class="globals-editor__failure"
+      role="alert"
+    >
+      {{ error }}
+    </p>
     <div
       class="globals-editor__table"
       role="table"
@@ -84,6 +129,7 @@ onMounted(() => {
         </span>
         <span role="cell">
           <BaseIconButton
+            variant="danger"
             :label="t('globals.remove')"
             @click="draft.remove(row.id)"
           >
@@ -99,40 +145,34 @@ onMounted(() => {
         </p>
       </div>
     </div>
-    <p
-      v-if="error"
-      class="globals-editor__failure"
-      role="alert"
-    >
-      {{ error }}
-    </p>
-    <div class="globals-editor__actions">
-      <BaseButton @click="draft.add()">
-        <template #icon>
-          <IconPlus />
-        </template>
-        {{ t('globals.add') }}
-      </BaseButton>
-      <span class="globals-editor__spacer" />
-      <BaseButton
-        variant="primary"
-        :disabled="blocked || saving || loading || !dirty"
-        @click="save"
-      >
-        {{ saving ? t('globals.saving') : t('globals.save') }}
-      </BaseButton>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .globals-editor {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-4);
+  min-height: 0;
+  padding: var(--space-4) var(--space-3);
+  overflow-y: auto;
+}
+
+.globals-editor__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.globals-editor__info {
+  display: inline-flex;
+  color: var(--color-text-muted);
 }
 
 .globals-editor__table {
+  flex: none;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-field);
@@ -183,11 +223,6 @@ onMounted(() => {
   border: var(--border-width) solid var(--color-danger);
   border-radius: var(--radius-sm);
   color: var(--color-danger-hover);
-}
-
-.globals-editor__actions {
-  display: flex;
-  gap: var(--space-3);
 }
 
 .globals-editor__spacer {

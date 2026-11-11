@@ -1,6 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router';
 import { loadViewState } from '@/shared/lib/view-state.ts';
 import type { AppTab } from '@/types.ts';
+import { legacySettingsRedirect } from './legacy-settings.ts';
 import { pluginPageRouteName, tabLocation } from './tab-routes.ts';
 
 const developmentRoutes: RouteRecordRaw[] = import.meta.env.DEV
@@ -51,6 +52,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'settings',
         name: 'settings',
         meta: { tab: 'settings' },
+        beforeEnter: (to) => legacySettingsRedirect(to.query),
         component: () => import('@/pages/settings/ui/SettingsPage.vue'),
       },
     ],

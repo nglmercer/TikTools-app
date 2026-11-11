@@ -1,6 +1,7 @@
 import { enableAutoUnmount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import type { ActionTypeDefinition, BehaviorSnapshot, LiveAction, PluginStatus } from '../../../../automation/behavior/types.ts';
 import type { ProcessorStatusEntry } from '../../../../shared/messages.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
@@ -102,6 +103,8 @@ async function mountPage(
   /** Methods the host announces through `rpc.discover`, as a host with the unified catalog does. */
   announce: string[] = [],
   updates: unknown[] = [],
+  /** Route query the page is opened with, as a link from elsewhere would. */
+  query = '',
 ) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
@@ -148,9 +151,11 @@ async function mountPage(
   automation.behavior = { plugins, actions, actionTypes, events: [], translations: {} };
   const pluginsStore = stores.use(() => usePluginsStore());
   if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh('test-host');
-  const wrapper = mountWithPlugins(PluginsPage, { attachTo: document.body, global: { plugins: stores.plugins } });
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/plugins', component: { render: () => null } }] });
+  await router.push(`/plugins${query}`);
+  const wrapper = mountWithPlugins(PluginsPage, { attachTo: document.body, global: { plugins: [router, ...stores.plugins] } });
   await flushPromises();
-  return { wrapper, calls, pluginsStore };
+  return { wrapper, calls, pluginsStore, router };
 }
 
 type Wrapper = VueWrapper;
@@ -201,6 +206,28 @@ function menuItem(label: string): HTMLElement {
 }
 
 describe('PluginsPage', () => {
+  it('opens the plugin preferences inside the same panel from a gear and goes back', async () => {
+    const { wrapper } = await mountPage();
+    expect(wrapper.find('.plugin-preferences').exists()).toBe(false);
+    await buttonByLabel(wrapper, 'Preferences').trigger('click');
+    expect(wrapper.find('.plugin-catalog').exists()).toBe(false);
+    expect(wrapper.get('.plugin-preferences .base-panel__title').text()).toBe('Preferences');
+    expect(wrapper.get('.plugin-preferences').text()).toContain('Allow local package installation');
+    expect(wrapper.find('#plugin-sources-channel').exists()).toBe(true);
+    await buttonByLabel(wrapper, 'Back').trigger('click');
+    expect(wrapper.find('.plugin-preferences').exists()).toBe(false);
+    expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
+  });
+
+  it('opens the preferences straight from the legacy Settings link', async () => {
+    const { wrapper, router } = await mountPage(undefined, undefined, undefined, [], [], '?view=preferences');
+    expect(wrapper.find('.plugin-preferences').exists()).toBe(true);
+    await buttonByLabel(wrapper, 'Back').trigger('click');
+    await flushPromises();
+    expect(router.currentRoute.value.query).toEqual({});
+    expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
+  });
+
   it('opens plugin details in the same panel and returns to the list, on narrow screens too', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
     try {

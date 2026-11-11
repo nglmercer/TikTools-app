@@ -8,6 +8,7 @@ import type { WidgetKind } from '../../../../widgets/sdk/templates.ts';
 import { cloneDesign } from '@/entities/overlay/lib/editor-history.ts';
 import { gatewayTone, isOverlayKind, overlayKinds } from '@/entities/overlay/lib/overlay-host.ts';
 import { useOverlaysStore } from '@/entities/overlay/model/overlays-store.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { useDesignEditor } from '@/features/edit-overlay-design/model/use-design-editor.ts';
 import DesignInspector from '@/features/edit-overlay-design/ui/DesignInspector.vue';
 import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
@@ -15,14 +16,23 @@ import { errorMessage } from '@/shared/api/control-client.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
+import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import BaseList from '@/shared/ui/list/BaseList.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import OverlayCloudPanel from '@/widgets/overlay-cloud/ui/OverlayCloudPanel.vue';
 import OverlayPreviewPanel from '@/widgets/overlay-preview/ui/OverlayPreviewPanel.vue';
 
 const { t, locale } = useI18n();
 const portableOpen = ref(false);
+const cloudOpen = ref(false);
+const capabilities = useCapabilityStore();
+// Cloud overlays and image packages appear only when the host announces them.
+const cloudAvailable = computed(
+  () => capabilities.supports('bundles.overlays.create') === true || capabilities.supports('bundles.packages.preflight') === true,
+);
+const showWorkspace = computed(() => !portableOpen.value && !(cloudOpen.value && cloudAvailable.value));
 const store = useOverlaysStore();
 const { status, statusError, refreshing, designs, designsError } = storeToRefs(store);
 
@@ -122,10 +132,19 @@ onBeforeUnmount(() => store.dispose());
       <BaseButton
         class="overlays-page__portable-toggle"
         :aria-pressed="portableOpen"
-        @click="portableOpen = !portableOpen"
+        @click="portableOpen = !portableOpen; cloudOpen = false"
       >
         {{ t('overlays.portablePackages') }}
       </BaseButton>
+      <BaseIconButton
+        v-if="cloudAvailable"
+        :label="t('overlays.cloud')"
+        variant="default"
+        :pressed="cloudOpen"
+        @click="cloudOpen = !cloudOpen; portableOpen = false"
+      >
+        <IconGlobe />
+      </BaseIconButton>
       <span
         class="overlays-page__gateway"
         :class="`overlays-page__gateway--${tone}`"
@@ -171,8 +190,13 @@ onBeforeUnmount(() => store.dispose());
       class="overlays-page__portable"
       :locale="locale"
     />
+    <OverlayCloudPanel
+      v-else-if="cloudOpen && cloudAvailable"
+      class="overlays-page__cloud"
+      @back="cloudOpen = false"
+    />
     <div
-      v-show="!portableOpen"
+      v-show="showWorkspace"
       class="overlays-page__workspace"
     >
       <BasePanel

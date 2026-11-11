@@ -14,6 +14,7 @@ import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconCompass from '@/shared/ui/icon/icons/IconCompass.vue';
 import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
+import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
@@ -56,6 +57,7 @@ const emit = defineEmits<{
   update: [id: string, version?: string];
   'update-all': [];
   'refresh-processors': [];
+  preferences: [];
   open: [key: string];
   command: [id: string, command: PluginCommand];
 }>();
@@ -242,6 +244,14 @@ function submitSpec(): void {
               @click="emit('refresh-processors')"
             >
               <IconRefresh />
+            </BaseIconButton>
+            <BaseIconButton
+              :label="t('plugins.catalog.preferences')"
+              variant="default"
+              size="sm"
+              @click="emit('preferences')"
+            >
+              <IconGear />
             </BaseIconButton>
             <BaseIconButton
               :label="t('plugins.install.package')"

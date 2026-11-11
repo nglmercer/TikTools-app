@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
-import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
+import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { ConnectionStatus, LiveChannel } from '@/types.ts';
 import ConnectionsPage from './ConnectionsPage.vue';
@@ -19,14 +20,18 @@ const rooms: LiveChannel[] = [
   { uniqueId: 'mango', roomId: '2', nickname: 'Mango', title: '', viewers: 0 },
 ];
 
-async function mountPage(status: ConnectionStatus = 'idle') {
+async function mountPage(status: ConnectionStatus = 'idle', announce: string[] = []) {
   const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
+    if (method === 'integrations.connections') return { items: [] };
     if (method === 'live.channels') return { rooms, fetchedAt: Date.now(), source: 'test' };
     if (method === 'live.connect' || method === 'live.pick') return { connected: true, uniqueId: 'luna', roomId: '1', connectionId: 'c', native: true };
     return {};
   });
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:any(.*)*', component: { render: () => null } }] });
-  const wrapper = mountWithPlugins(ConnectionsPage, { attachTo: document.body, global: { plugins: [router, ...storePlugins(client)] } });
+  const stores = createStoreHarness(client);
+  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh('test-host');
+  const wrapper = mountWithPlugins(ConnectionsPage, { attachTo: document.body, global: { plugins: [router, ...stores.plugins] } });
   const connection = useConnectionStore();
   connection.status = status;
   connection.recents = ['luna', 'mango'];
@@ -116,5 +121,22 @@ describe('ConnectionsPage', () => {
     const { wrapper } = await mountPage();
     expect(wrapper.text()).toContain('No server connections yet');
     expect(buttonByText(wrapper, 'Open plugins').exists()).toBe(true);
+  });
+
+  it('keeps Cloud webhooks inside the bottom panel and out of the page otherwise', async () => {
+    const { wrapper } = await mountPage();
+    expect(wrapper.find('button[aria-label="Webhooks"]').exists()).toBe(false);
+    expect(wrapper.find('.cloud-connections').exists()).toBe(false);
+
+    const announced = await mountPage('idle', ['integrations.connections']);
+    const panels = announced.wrapper.findAll('.base-panel').length;
+    await announced.wrapper.get('button[aria-label="Webhooks"]').trigger('click');
+    await flushPromises();
+    const servers = announced.wrapper.get('.connections-page__servers');
+    expect(servers.find('.cloud-connections').exists()).toBe(true);
+    expect(servers.get('.base-panel__title').text()).toBe('Webhooks');
+    // The same panel switched area: no third panel was stacked.
+    expect(announced.wrapper.findAll('.base-panel')).toHaveLength(panels);
+    expect(announced.calls.some((call) => call.method === 'integrations.connections')).toBe(true);
   });
 });

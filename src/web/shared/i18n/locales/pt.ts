@@ -104,6 +104,7 @@ export default {
     language: {
       group: 'Idioma',
       label: 'Idioma da interface',
+      search: 'Buscar idiomas…',
     },
   },
   appUpdater: {
@@ -192,6 +193,7 @@ export default {
     remove: 'Remover variável global',
     save: 'Salvar variáveis globais',
     saving: 'Salvando…',
+    discard: 'Descartar alterações',
     errors: {
       emptyKey: 'Um valor precisa de uma chave.',
       invalidKey: 'As chaves começam com uma letra ou _, seguidas de letras, dígitos, ., _, - (máx. 64).',
@@ -333,6 +335,7 @@ export default {
     },
   },
   connections: {
+    tabs: { servers: 'Servidores', webhooks: 'Webhooks' },
     monitor: {
       start: 'Monitorar e conectar automaticamente', stop: 'Parar monitoramento', status: 'Monitor da LIVE: {phase}',
       phases: { stopped: 'Parado', waiting: 'Aguardando a LIVE', checking: 'Verificando o criador', connecting: 'Conectando', live: 'Conectado; o monitoramento continua ativo', error: 'Tentando novamente após um erro' },
@@ -519,6 +522,8 @@ export default {
     library: {
       events: 'Eventos',
       actions: 'Ações',
+      variables: 'Variáveis',
+      cloud: 'Cloud',
       searchEvents: 'Pesquisar eventos…',
       searchActions: 'Pesquisar ações…',
       newEvent: 'Novo evento',
@@ -834,6 +839,7 @@ export default {
     },
   },
   overlays: {
+    cloud: 'Cloud',
     portablePackages: 'Pacotes portáteis',
     widgets: 'Widgets',
     kinds: {
@@ -1260,6 +1266,7 @@ export default {
       package: 'Instalar .plugin…',
     },
     catalog: {
+      preferences: 'Preferências',
       installed: 'Instalados',
       browse: 'Explorar',
       updates: 'Atualizações',
