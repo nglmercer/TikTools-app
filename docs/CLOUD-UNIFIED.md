@@ -18,13 +18,20 @@ unknown as absent. Older hosts keep the legacy Cloud views.
 
 | Surface | Methods | Where |
 | --- | --- | --- |
-| Catalog | `catalog.items`, `catalog.item`, `catalog.mine` | Plugins page, Cloud view |
+| Catalog | `catalog.items`, `catalog.item`, `catalog.mine` | Plugins page (its entry point) |
 | Connections | `integrations.connections`, `integrations.connect`, `integrations.events`, `integrations.disconnect` | Settings, account section |
 | Teams | `teams.hosts.*`, `teams.devices.*`, `teams.invitations.*`, `teams.requests.*`, `teams.grants.*`, `teams.sessions.*`, `teams.host.status`, `teams.host.start`, `teams.host.stop` | Settings, account section |
 | Images and packages | `bundles.assets.upload`, `bundles.packages.preflight`, `bundles.packages.read`, `bundles.overlays.*`, `bundles.packages.create` | Settings, account section |
 
 ## Catalog
 
+- **One entry point.** On a host that announces `catalog.items` the plugins page opens on
+  the catalog: a search box, **Filters** and **⋯**, with no view selector and no standing
+  paragraph. **⋯** holds *Manage installed plugins*, *Manage processors* and *Install from
+  file…*; those workspaces show a *‹ Catalog* link back. An installed plugin offers
+  *Open or configure* in its detail panel. The saved view `cloud` is the catalog, and the
+  old saved default (`plugins` with nothing open) no longer overrides it. Hosts that do not
+  announce `catalog.items` keep the previous three views.
 - **All** pages through the public catalog. Replies are applied only for the
   newest query; a slow older reply is dropped.
 - **Installed** resolves each installed plugin with one bounded `catalog.item`
@@ -102,21 +109,56 @@ view says when older events were not shown.
   remains. The preview is drawn by the editor; the live stream does not render
   overlays yet.
 
+## Errors and diagnostics
+
+- The Cloud answers errors with `{code, requestId, messageKey, retryable, retryAfterMs}`. The
+  host keeps only `code`, `requestId`, `retryable` and `retryAfterMs`, each validated and
+  bounded, in the error `data` (`data.cloud`); everything else in the body is dropped. The
+  teams, bundles, integrations and catalog stores expose it as `errorDetail`.
+- Panels show a short localized message for the known codes (`unsupported`, `offline`,
+  `unauthorized`, `forbidden`, `misconfigured`, `conflict`, `expired`, `rateLimited`,
+  `temporaryFailure`) and the host's message for anything else. A retryable code does not
+  make a mutation safe to repeat.
+- Diagnostics has the sources catalog, install and registry, collaboration, relay and
+  integrations. Each entry can carry the request id (redacted before it is stored, searched
+  and exported). The history belongs to one account: leaving an account for another one, or
+  for none, drops it.
+- The catalog service errors are not yet mapped to the envelope: the catalog reports its
+  host message.
+
 ## Retirement and compatibility
 
 - The Settings "Biblioteca Cloud" panel is shown only on hosts that do not
   announce `catalog.items`. Its services remain in use by the catalog.
 - The legacy Cloud plugin view stays for hosts without the unified catalog.
   Removing it needs a migration note and is not done.
-- Saved view state for the plugins page keeps its names; no preference needed a
-  rewrite.
+- Saved view state for the plugins page keeps its names and adds `catalog`; `cloud` is read
+  as `catalog`.
+- The direct collaboration transport is unchanged. Its listen address, public HTTPS address,
+  TLS files, reverse-proxy switch and allowed origins moved into a closed *Direct connection
+  (advanced)* section of the overview.
 
 ## Not implemented
 
-- Overlay art. The owner-only asset endpoint cannot be read by a browser source,
-  so art elements render as empty boxes. Avatars show the viewer's initial.
-- `points.total` in overlays: no live source is wired to the overlay yet.
-- TODO (OBS): verify the `cloud-overlay` widget in OBS Browser Source. Today it is checked in headless Chromium only.
+- **Moderation and draft operations by relay.** `workflow.disable`, `workflow.delete`,
+  `points.adjust`, `automation.toggle`, `automation.delete`, `competition.control` and
+  `automation.draft.submit` are answered as unsupported. The host command engine keys its
+  journal and receipts to local collaboration principals and sessions, and `Authorization`
+  can only be created by that service, so a Cloud grant needs a stable mapping to a local
+  principal (with its own persistence and tests) before these can run. Until then the
+  Moderator and Automation editor roles only add what the Observer role can already read.
+- **Integrations beyond the signed webhook.** The backend publishes one provider. OBS, RCON
+  and audio would run on the PC under relay authorization; they are out of scope here.
+- **Cloud overlays in a browser source.** Overlay art, the live `points.total` source,
+  applying an overlay from a package, and checking the `cloud-overlay` widget in OBS Browser
+  Source (today it is checked in headless Chromium only) are all part of the OBS work and
+  are not done.
+- **Catalog errors in the envelope.** The catalog host methods do not map the Cloud error
+  envelope yet, so they show the host message.
+- **Per-host diagnostics scope.** History is scoped to the account; a host or connection
+  switch does not drop it.
+- **The Cloud Library fallback.** Settings still shows *Cloud Library* on hosts that do not
+  announce `catalog.items`. Removing it needs a migration note.
 - End-to-end verification of the app's bearer-token path against a running
   backend. The backend's own suite passes; the app's bearer path depends on a
   browser handoff that cannot be scripted here.
