@@ -8,13 +8,11 @@ import {
   registryEntryFor,
   registryEventTypes,
   registryHasPath,
-  sampleDataForType,
   sampleEventForType,
   setPluginEventTypes,
 } from './event-registry.ts';
 import { fieldsForTrigger } from './behavior/fields.ts';
-import { matchesFilter } from './behavior/filters.ts';
-import { sampleEventFor } from './behavior/samples.ts';
+import { matchesFilter } from './behavior/testing/filter-matcher.ts';
 import type { AutomationEventType, JsonValue } from './types.ts';
 import { BUILTIN_EVENT_TYPES } from './contracts/events.ts';
 import { normalizeEvent } from './behavior/schema.ts';
@@ -55,7 +53,7 @@ describe('event registry', () => {
 
   test('every condition-editor field resolves against the trigger sample', () => {
     for (const trigger of ALL_TYPES) {
-      const sample = sampleEventFor(trigger);
+      const sample = sampleEventForType(trigger);
       for (const field of fieldsForTrigger(trigger)) {
         expect(registryHasPath(trigger, field.path), `${trigger} ${field.path}`).toBe(true);
         expect(readPath(sample, field.path), `${trigger} ${field.path}`).not.toBeUndefined();
@@ -64,7 +62,7 @@ describe('event registry', () => {
   });
 
   test('gift sample keeps the values condition tests rely on', () => {
-    const sample = sampleEventFor('tiktok.gift');
+    const sample = sampleEventForType('tiktok.gift');
     expect(matchesFilter({ path: 'event.data.giftName', operator: 'eq', value: 'Rose' }, sample)).toBe(true);
     expect(matchesFilter({ path: 'event.data.diamondCount', operator: 'gte', value: '1' }, sample)).toBe(true);
   });
@@ -78,8 +76,8 @@ describe('event registry', () => {
   });
 
   test('data payloads are keyed by field name, not hardcoded lists', () => {
-    expect(Object.keys(sampleDataForType('tiktok.gift'))).toContain('giftName');
-    expect(Object.keys(sampleDataForType('tiktok.chat'))).toContain('comment');
+    expect(Object.keys(sampleEventForType('tiktok.gift').data as object)).toContain('giftName');
+    expect(Object.keys(sampleEventForType('tiktok.chat').data as object)).toContain('comment');
     expect(allRegistryFields().some((field) => field.path === 'event.user.uniqueId')).toBe(true);
   });
 
@@ -185,7 +183,7 @@ describe('event registry', () => {
   });
 
   test('intel filters match enriched events and miss raw ones', () => {
-    const enriched = sampleEventFor('tiktok.chat');
+    const enriched = sampleEventForType('tiktok.chat');
     expect(matchesFilter({ path: 'event.intel.comment.composition.emojiOnly', operator: 'is-false', value: '' }, enriched)).toBe(true);
     expect(matchesFilter({ path: 'event.intel.comment.spam.score', operator: 'lt', value: '0.70' }, enriched)).toBe(true);
     expect(matchesFilter({ path: 'event.intel.comment.language.top', operator: 'eq', value: 'en' }, enriched)).toBe(true);
@@ -235,7 +233,7 @@ describe('plugin event-type overlay', () => {
       setPluginEventTypes([HOTKEY]);
       expect(registryEventTypes()).toContain('hotkey.pressed');
       expect(pluginEventTypes().map((entry) => entry.type)).toEqual(['hotkey.pressed']);
-      expect(sampleDataForType('hotkey.pressed')).toMatchObject({ key: 'k', modifiers: 'ctrl' });
+      expect(sampleEventForType('hotkey.pressed').data).toMatchObject({ key: 'k', modifiers: 'ctrl' });
       const keyFields = fieldsForTrigger('hotkey.pressed');
       expect(keyFields.map((field) => field.path)).toEqual(['event.data.key', 'event.data.modifiers']);
       expect(keyFields[0]?.options?.map((option) => option.value)).toEqual(['k', 'space']);

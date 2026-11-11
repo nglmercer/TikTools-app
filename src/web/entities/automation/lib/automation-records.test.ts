@@ -6,6 +6,7 @@ import {
   createActionFromType,
   createEvent,
   describeAction,
+  isBuiltinTrigger,
   lastRunByAction,
   matchesQuery,
   moveId,
@@ -85,6 +86,13 @@ describe('automation records', () => {
     expect(triggerLabel('hotkey.pressed', declared as never, builtin, localize)).toBe('Hotkey');
     expect(triggerLabel('custom.thing', [], builtin, localize)).toBe('custom.thing');
     expect(triggerOptions(declared as never, builtin, localize).at(-1)).toEqual({ value: 'hotkey.pressed', label: 'Hotkey', plugin: 'hotkeys' });
+  });
+
+  it('recognizes host-owned triggers only', () => {
+    expect(isBuiltinTrigger('tiktok.gift')).toBe(true);
+    expect(isBuiltinTrigger('plugin.emit')).toBe(true);
+    expect(isBuiltinTrigger('hotkey.pressed')).toBe(false);
+    expect(isBuiltinTrigger('')).toBe(false);
   });
 
   it('resolves, toggles and reorders linked actions', () => {

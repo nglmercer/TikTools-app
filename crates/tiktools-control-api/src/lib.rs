@@ -11,6 +11,7 @@
 //! Windows named pipe), WebView bridge, tests, AI agents.
 
 pub mod client;
+pub(crate) mod command_metadata;
 pub mod context;
 pub mod error;
 pub mod metadata;

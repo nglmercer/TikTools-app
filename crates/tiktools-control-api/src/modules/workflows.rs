@@ -3,13 +3,14 @@ use std::sync::Arc;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tiktools_core::{
-    collaboration::{CommandRequest, Versioned},
-    control::{CommandCaller, WorkflowMutation},
-    AppCore,
-};
+use tiktools_core::{collaboration::Versioned, control::WorkflowMutation, AppCore};
 
-use crate::{error::ApiError, modules::Empty, router::ControlRouter};
+use crate::{
+    command_metadata::{versioned_command, CommandDispatch},
+    error::ApiError,
+    modules::Empty,
+    router::ControlRouter,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -185,44 +186,31 @@ async fn mutate(
     operation: WorkflowMutation,
 ) -> Result<Versioned<Value>, ApiError> {
     crate::modules::blocking_task("workflows.mutate", move || {
-        let metadata = metadata.unwrap_or_default();
-        if let Some(command_id) = metadata.command_id {
-            let request = CommandRequest {
-                command_id,
-                host_instance_id: metadata
-                    .host_instance_id
-                    .ok_or_else(|| ApiError::invalid_params("hostInstanceId is required"))?,
-                expected_revision: metadata
-                    .expected_revision
-                    .ok_or_else(|| ApiError::invalid_params("expectedRevision is required"))?,
-            };
-            let caller = match context {
-                crate::RequestContext::LocalOwner => CommandCaller::LocalOwner,
-                crate::RequestContext::Remote(session) => {
-                    CommandCaller::Remote(session.authorization()?)
-                }
-            };
-            return core
-                .workflow_command(caller, request, operation)
-                .map_err(ApiError::from);
-        }
-        if matches!(context, crate::RequestContext::Remote(_)) {
-            return Err(ApiError::new(
+        match versioned_command(context, metadata, || {
+            ApiError::new(
                 "forbidden",
                 "remote mutations require durable command metadata",
-            ));
-        }
-        let expected = metadata.expected_revision.as_deref();
-        match operation {
-            WorkflowMutation::Save(graph) => core.workflow_save_versioned(graph, expected),
-            WorkflowMutation::Delete(id) => core
-                .workflow_delete_versioned(&id, expected)
-                .map(|result| result.map(|deleted| serde_json::json!({"id":id,"deleted":deleted}))),
-            WorkflowMutation::SetEnabled { id, enabled } => {
-                core.workflow_set_enabled_versioned(&id, enabled, expected)
+            )
+        })? {
+            CommandDispatch::Durable { caller, request } => core
+                .workflow_command(caller, request, operation)
+                .map_err(ApiError::from),
+            CommandDispatch::Local { expected_revision } => {
+                let expected = expected_revision.as_deref();
+                match operation {
+                    WorkflowMutation::Save(graph) => core.workflow_save_versioned(graph, expected),
+                    WorkflowMutation::Delete(id) => {
+                        core.workflow_delete_versioned(&id, expected).map(|result| {
+                            result.map(|deleted| serde_json::json!({"id":id,"deleted":deleted}))
+                        })
+                    }
+                    WorkflowMutation::SetEnabled { id, enabled } => {
+                        core.workflow_set_enabled_versioned(&id, enabled, expected)
+                    }
+                }
+                .map_err(ApiError::from)
             }
         }
-        .map_err(ApiError::from)
     })
     .await?
 }

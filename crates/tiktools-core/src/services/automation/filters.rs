@@ -110,3 +110,79 @@ pub(crate) fn number_u64(value: &Value) -> Option<u64> {
         })
         .or_else(|| value.as_str()?.parse().ok())
 }
+
+#[cfg(test)]
+mod corpus_tests {
+    use super::*;
+
+    /// Shared with the TypeScript test-support matcher
+    /// (`src/automation/behavior/filter-corpus.test.ts`). This matcher is the
+    /// contract: the corpus expectations are derived from it, and a case that
+    /// changes here must change there in the same commit.
+    const CORPUS: &str =
+        include_str!("../../../../../tests/fixtures/automation-filters/filter-corpus.json");
+
+    fn corpus() -> Value {
+        serde_json::from_str(CORPUS).expect("filter corpus is valid JSON")
+    }
+
+    fn event_for<'a>(corpus: &'a Value, case: &'a Value) -> &'a Value {
+        match &case["event"] {
+            Value::String(name) => corpus["events"]
+                .get(name)
+                .unwrap_or_else(|| panic!("unknown corpus event {name}")),
+            inline => inline,
+        }
+    }
+
+    fn cases<'a>(corpus: &'a Value, key: &str) -> &'a Vec<Value> {
+        let cases = corpus[key].as_array().expect("corpus section is an array");
+        assert!(!cases.is_empty(), "corpus section {key} is empty");
+        cases
+    }
+
+    #[test]
+    fn filter_cases_match_the_shared_corpus() {
+        let corpus = corpus();
+        for case in cases(&corpus, "filterCases") {
+            let event = event_for(&corpus, case);
+            assert_eq!(
+                matches_filter(&case["filter"], event),
+                case["matches"].as_bool().expect("matches is a bool"),
+                "filter case: {}",
+                case["label"]
+            );
+        }
+    }
+
+    #[test]
+    fn record_cases_combine_filters_with_and_in_the_shared_corpus() {
+        let corpus = corpus();
+        for case in cases(&corpus, "recordCases") {
+            let record = match case.get("filters") {
+                Some(filters) => serde_json::json!({ "filters": filters }),
+                None => serde_json::json!({}),
+            };
+            assert_eq!(
+                event_record_matches(&record, event_for(&corpus, case)),
+                case["matches"].as_bool().expect("matches is a bool"),
+                "record case: {}",
+                case["label"]
+            );
+        }
+    }
+
+    #[test]
+    fn production_cases_match_the_shared_corpus() {
+        let corpus = corpus();
+        for case in cases(&corpus, "productionCases") {
+            let record = serde_json::json!({ "filters": case["filters"] });
+            assert_eq!(
+                event_record_matches(&record, event_for(&corpus, case)),
+                case["matches"].as_bool().expect("matches is a bool"),
+                "production case: {}",
+                case["label"]
+            );
+        }
+    }
+}

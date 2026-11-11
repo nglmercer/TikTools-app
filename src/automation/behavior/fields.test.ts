@@ -7,12 +7,12 @@ import {
 } from '../autocomplete-registry.ts';
 import type { PluginAutocompleteContribution } from './types.ts';
 import { fieldsForTrigger, findField, operatorsFor, operatorsForPath } from './fields.ts';
-import { matchesFilter } from './filters.ts';
-import { sampleEventFor } from './samples.ts';
+import { matchesFilter } from './testing/filter-matcher.ts';
+import { sampleEventForType } from '../event-registry.ts';
 
 describe('condition fields', () => {
   test('every field a trigger offers resolves against that trigger sample event', () => {
-    const sample = sampleEventFor('tiktok.gift');
+    const sample = sampleEventForType('tiktok.gift');
     const paths = fieldsForTrigger('tiktok.gift').map((field) => field.path);
 
     expect(paths).toContain('event.data.giftName');

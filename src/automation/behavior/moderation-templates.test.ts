@@ -7,7 +7,7 @@ import {
   conditionTemplatesFor,
   type ConditionTemplate,
 } from './condition-templates.ts';
-import { matchesFilter } from './filters.ts';
+import { matchesFilter } from './testing/filter-matcher.ts';
 import { moderationConditionTemplates, registerModerationTemplates } from './moderation-templates.ts';
 
 afterEach(() => {

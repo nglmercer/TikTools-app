@@ -7,12 +7,17 @@ pub use tiktools_core::control::{
     AutomationEnablementMiss, AutomationSetEnablementResult, ScriptAnalysisResult,
 };
 use tiktools_core::{
-    collaboration::{CommandRequest, Versioned},
-    control::{AutomationKind, AutomationMutation, CommandCaller},
+    collaboration::Versioned,
+    control::{AutomationKind, AutomationMutation},
     AppCore,
 };
 
-use crate::{error::ApiError, modules::Empty, router::ControlRouter};
+use crate::{
+    command_metadata::{versioned_command, CommandDispatch},
+    error::ApiError,
+    modules::Empty,
+    router::ControlRouter,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -676,58 +681,36 @@ async fn mutate(
     operation: AutomationMutation,
 ) -> Result<Versioned<Value>, ApiError> {
     crate::modules::blocking_task("automation.mutate", move || {
-        let metadata = metadata.unwrap_or_default();
-        if let Some(command_id) = metadata.command_id {
-            let request = CommandRequest {
-                command_id,
-                host_instance_id: metadata
-                    .host_instance_id
-                    .ok_or_else(|| ApiError::invalid_params("hostInstanceId is required"))?,
-                expected_revision: metadata
-                    .expected_revision
-                    .ok_or_else(|| ApiError::invalid_params("expectedRevision is required"))?,
-            };
-            let caller = match context {
-                crate::RequestContext::LocalOwner => CommandCaller::LocalOwner,
-                crate::RequestContext::Remote(session) => {
-                    CommandCaller::Remote(session.authorization()?)
-                }
-            };
-            return core
+        match versioned_command(context, metadata, crate::context::forbidden)? {
+            CommandDispatch::Durable { caller, request } => core
                 .automation_command(caller, request, operation)
                 .map_err(ApiError::from)
-                .map_err(|e| e.scoped_not_found("automation_not_found"));
-        }
-        if matches!(context, crate::RequestContext::Remote(_)) {
-            return Err(crate::context::forbidden());
-        }
-        if metadata.host_instance_id.is_some() {
-            return Err(ApiError::invalid_params(
-                "commandId is required with hostInstanceId",
-            ));
-        }
-        let expected = metadata.expected_revision.as_deref();
-        match operation {
-            AutomationMutation::Adopt { .. } => {
-                return Err(ApiError::invalid_params(
-                    "adoption requires durable command metadata",
-                ))
-            }
-            AutomationMutation::Create { kind, record } => {
-                core.automation_create_versioned(kind, record, expected)
-            }
-            AutomationMutation::Update { kind, id, record } => {
-                core.automation_update_versioned(kind, &id, record, expected)
-            }
-            AutomationMutation::Delete { kind, id } => core
-                .automation_delete_versioned(kind, &id, expected)
-                .map(|v| v.map(|deleted| serde_json::json!({"id":id,"deleted":deleted}))),
-            AutomationMutation::SetEnabled { kind, id, enabled } => {
-                core.automation_set_enabled_versioned(kind, &id, enabled, expected)
+                .map_err(|e| e.scoped_not_found("automation_not_found")),
+            CommandDispatch::Local { expected_revision } => {
+                let expected = expected_revision.as_deref();
+                match operation {
+                    AutomationMutation::Adopt { .. } => {
+                        return Err(ApiError::invalid_params(
+                            "adoption requires durable command metadata",
+                        ))
+                    }
+                    AutomationMutation::Create { kind, record } => {
+                        core.automation_create_versioned(kind, record, expected)
+                    }
+                    AutomationMutation::Update { kind, id, record } => {
+                        core.automation_update_versioned(kind, &id, record, expected)
+                    }
+                    AutomationMutation::Delete { kind, id } => core
+                        .automation_delete_versioned(kind, &id, expected)
+                        .map(|v| v.map(|deleted| serde_json::json!({"id":id,"deleted":deleted}))),
+                    AutomationMutation::SetEnabled { kind, id, enabled } => {
+                        core.automation_set_enabled_versioned(kind, &id, enabled, expected)
+                    }
+                }
+                .map_err(ApiError::from)
+                .map_err(|e| e.scoped_not_found("automation_not_found"))
             }
         }
-        .map_err(ApiError::from)
-        .map_err(|e| e.scoped_not_found("automation_not_found"))
     })
     .await?
 }

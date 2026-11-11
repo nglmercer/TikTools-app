@@ -4,16 +4,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tiktools_core::AppCore;
-use tiktools_core::{
-    collaboration::{AdditiveCommandRequest, Versioned},
-    control::{CommandCaller, PointsAdjustment},
-};
+use tiktools_core::{collaboration::Versioned, control::PointsAdjustment};
 pub use tiktools_core::{
     ipc::messages::{PartialPointsConfig, PointsConfig},
     services::PointAward,
 };
 
 use crate::{
+    command_metadata::{additive_command, CommandDispatch},
     error::ApiError,
     modules::{Empty, OkResult},
     router::ControlRouter,
@@ -185,40 +183,27 @@ pub fn register(router: &mut ControlRouter) {
         "Manual points adjustment (creates the viewer record if missing)",
         true,
         |core: Arc<AppCore>, context, params: PointsAdjustParams, metadata| async move {
-            let metadata = metadata.unwrap_or_default();
-            if let Some(command_id) = metadata.command_id {
-                let request = AdditiveCommandRequest {
-                    command_id,
-                    host_instance_id: metadata
-                        .host_instance_id
-                        .ok_or_else(|| ApiError::invalid_params("hostInstanceId is required"))?,
-                };
-                let caller = match context {
-                    crate::RequestContext::LocalOwner => CommandCaller::LocalOwner,
-                    crate::RequestContext::Remote(session) => {
-                        CommandCaller::Remote(session.authorization()?)
-                    }
-                };
-                let result = crate::modules::blocking_task("points.adjust", move || {
-                    core.points_command(
-                        caller,
-                        request,
-                        PointsAdjustment {
-                            expected_currency: params.expected_currency,
-                            unique_id: params.unique_id,
-                            delta: params.delta,
-                        },
-                    )
-                })
-                .await??;
-                let award = serde_json::from_value::<PointAward>(result.value.clone())
-                    .map_err(|_| ApiError::internal("invalid points command result"))?;
-                return Ok(result.map(|_| award));
-            }
-            if matches!(context, crate::RequestContext::Remote(_)) {
-                return Err(ApiError::invalid_params(
-                    "points.adjust requires commandId and hostInstanceId",
-                ));
+            match additive_command(context, metadata, || {
+                ApiError::invalid_params("points.adjust requires commandId and hostInstanceId")
+            })? {
+                CommandDispatch::Durable { caller, request } => {
+                    let result = crate::modules::blocking_task("points.adjust", move || {
+                        core.points_command(
+                            caller,
+                            request,
+                            PointsAdjustment {
+                                expected_currency: params.expected_currency,
+                                unique_id: params.unique_id,
+                                delta: params.delta,
+                            },
+                        )
+                    })
+                    .await??;
+                    let award = serde_json::from_value::<PointAward>(result.value.clone())
+                        .map_err(|_| ApiError::internal("invalid points command result"))?;
+                    return Ok(result.map(|_| award));
+                }
+                CommandDispatch::Local { .. } => {}
             }
             if params.expected_currency.is_some() {
                 return Err(ApiError::invalid_params(

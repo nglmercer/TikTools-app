@@ -194,13 +194,6 @@ export function sampleEventForType(eventType: string): AutomationEvent {
   return clone;
 }
 
-/** The `data` payload of the sample event, for script/language services. */
-export function sampleDataForType(eventType: string): JsonObject {
-  const event = sampleEventForType(eventType);
-  const data = event.data;
-  return (data !== null && typeof data === 'object' && !Array.isArray(data) ? data : {}) as JsonObject;
-}
-
 /**
  * True when the registry documents a path for a trigger (drift guard).
  * Reads the raw contract: availability gating must never make a documented

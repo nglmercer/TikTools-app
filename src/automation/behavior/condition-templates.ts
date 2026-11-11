@@ -18,11 +18,11 @@ import type { EventFilter, FilterOperator, Localized } from './types.ts';
  *   the filters from the answers. Params keep templates reusable instead of
  *   hardcoding one author's magic numbers.
  *
- * Engine contract (do not break it): filter values are literal strings on
- * both matchers (`matchesFilter` here and the host's `filters.rs`) — a
- * `{{path}}` value would compare literally and never match. Template rows
- * therefore store plain dotted paths and literal values; cross-field
- * references need a matcher change on both sides first. Applying a template
+ * Engine contract (do not break it): the host matcher (`filters.rs`) treats
+ * filter values as literal strings, so a `{{path}}` value would compare
+ * literally and never match; the shared filter corpus pins this. Template
+ * rows therefore store plain dotted paths and literal values; cross-field
+ * references need a host matcher change first. Applying a template
  * replaces the section's rows; every row stays editable inline afterwards.
  *
  * UI-agnostic on purpose: `src/automation` never imports from `src/web`.

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { AutomationEvent } from '../types.ts';
-import { matchesFilter } from './filters.ts';
+import { matchesFilter } from './testing/filter-matcher.ts';
 import { applyConditionTemplate } from './condition-templates.ts';
 import { liveGoalTemplates } from './live-goal-templates.ts';
 import { normalizeEvent } from './schema.ts';

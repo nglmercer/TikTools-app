@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { liveGoalTemplates } from './live-goal-templates.ts';
 import { applyConditionTemplate } from './condition-templates.ts';
-import { matchesFilter } from './filters.ts';
+import { matchesFilter } from './testing/filter-matcher.ts';
 import type { AutomationEvent } from '../types.ts';
 test('like goal crosses 15 once even when a packet skips the exact target', () => {
   for (const template of liveGoalTemplates()) {
