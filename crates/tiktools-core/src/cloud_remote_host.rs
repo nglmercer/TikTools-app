@@ -3,7 +3,10 @@
 //! The PC dials out over WSS, so controllers never reach it directly. It confirms
 //! every grant the owner approved, admits a command only when the grant is active
 //! and the operation is allowed for its role, and executes only the read
-//! operations implemented here. Every other operation is answered as unsupported.
+//! operations implemented here, as bounded summaries. Every other operation is
+//! answered as unsupported: the moderation and draft operations would have to run
+//! under a local collaboration principal and journal, which a Cloud grant is not
+//! yet mapped to (see docs/CLOUD-UNIFIED.md).
 
 use std::{
     sync::{Arc, Mutex, Weak},
@@ -49,7 +52,22 @@ const MODERATION_OPERATIONS: &[&str] = &[
 ];
 
 /// The only operations this host executes. Everything else is answered unsupported.
-const EXECUTABLE: &[&str] = &["live.status"];
+const EXECUTABLE: &[&str] = &[
+    "live.status",
+    "workflow.list",
+    "automation.list",
+    "competition.list",
+    "points.read",
+];
+
+/// Items returned by one list operation, and the longest text kept from any field.
+const LIST_CAP: usize = 50;
+const TEXT_CAP: usize = 200;
+/// The only fields a summary copies. Definitions can embed URLs, headers or
+/// credentials; none of that leaves the PC.
+const SUMMARY_FIELDS: &[&str] = &[
+    "id", "name", "title", "enabled", "kind", "trigger", "status",
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -360,18 +378,22 @@ async fn handle_command(
         Ok(()) if !EXECUTABLE.contains(&operation.as_str()) => {
             send_result(socket, &command_id, "failed", Some("unsupported"), None).await
         }
-        Ok(()) => match execute(core, &operation).await {
-            Ok(result)
-                if serde_json::to_vec(&result)
-                    .map(|b| b.len())
-                    .unwrap_or(usize::MAX)
-                    <= MAX_RESULT_BYTES =>
-            {
-                send_result(socket, &command_id, "completed", None, Some(result)).await
+        Ok(()) => {
+            match execute(core, &operation, frame.get("args").unwrap_or(&Value::Null)).await {
+                Ok(result)
+                    if serde_json::to_vec(&result)
+                        .map(|b| b.len())
+                        .unwrap_or(usize::MAX)
+                        <= MAX_RESULT_BYTES =>
+                {
+                    send_result(socket, &command_id, "completed", None, Some(result)).await
+                }
+                Ok(_) => {
+                    send_result(socket, &command_id, "failed", Some("resultTooLarge"), None).await
+                }
+                Err(code) => send_result(socket, &command_id, "failed", Some(code), None).await,
             }
-            Ok(_) => send_result(socket, &command_id, "failed", Some("resultTooLarge"), None).await,
-            Err(code) => send_result(socket, &command_id, "failed", Some(code), None).await,
-        },
+        }
     }
 }
 
@@ -426,12 +448,87 @@ pub fn allowed(role: &str, policy: &Value, operation: &str) -> bool {
     }
 }
 
-async fn execute(core: &Weak<AppCore>, operation: &str) -> Result<Value, &'static str> {
+async fn execute(
+    core: &Weak<AppCore>,
+    operation: &str,
+    args: &Value,
+) -> Result<Value, &'static str> {
     let core = core.upgrade().ok_or("unavailable")?;
     match operation {
         "live.status" => serde_json::to_value(core.live_status()).map_err(|_| "internal"),
+        "workflow.list" => {
+            let items = core.workflow_list().map_err(|_| "unavailable")?;
+            Ok(summarize(&items))
+        }
+        "automation.list" => {
+            use crate::control::AutomationKind;
+            let kinds = match args.get("kind").and_then(Value::as_str) {
+                None => vec![AutomationKind::Event, AutomationKind::Action],
+                Some("event") => vec![AutomationKind::Event],
+                Some("action") => vec![AutomationKind::Action],
+                Some(_) => return Err("invalidArguments"),
+            };
+            let items: Vec<Value> = kinds
+                .into_iter()
+                .flat_map(|kind| core.automation_list(kind))
+                .collect();
+            Ok(summarize(&items))
+        }
+        "competition.list" => {
+            let definitions = core.competition_list().map_err(|_| "unavailable")?;
+            let items: Vec<Value> = definitions
+                .iter()
+                .filter_map(|definition| serde_json::to_value(definition).ok())
+                .collect();
+            Ok(summarize(&items))
+        }
+        "points.read" => {
+            if let Some(viewer) = args.get("uniqueId") {
+                let viewer = viewer.as_str().ok_or("invalidArguments")?;
+                return core.points_viewer(viewer).map_err(|error| {
+                    if error.code == "not_found" {
+                        "notFound"
+                    } else {
+                        "invalidArguments"
+                    }
+                });
+            }
+            let limit = match args.get("limit") {
+                None => LIST_CAP as i64,
+                Some(value) => value
+                    .as_i64()
+                    .filter(|limit| (1..=LIST_CAP as i64).contains(limit))
+                    .ok_or("invalidArguments")?,
+            };
+            Ok(json!({"items": core.points_leaderboard(Some(limit)), "limit": limit}))
+        }
         _ => Err("unsupported"),
     }
+}
+
+/// Reduces records to the allowed scalar fields, bounded in count and text length.
+fn summarize(items: &[Value]) -> Value {
+    let rows: Vec<Value> = items
+        .iter()
+        .take(LIST_CAP)
+        .map(|item| {
+            let mut row = serde_json::Map::new();
+            for key in SUMMARY_FIELDS {
+                match item.get(*key) {
+                    Some(Value::String(text)) => {
+                        let text: String = text.chars().take(TEXT_CAP).collect();
+                        row.insert((*key).to_owned(), Value::String(text));
+                    }
+                    Some(value @ (Value::Bool(_) | Value::Number(_))) => {
+                        row.insert((*key).to_owned(), value.clone());
+                    }
+                    _ => {}
+                }
+            }
+            Value::Object(row)
+        })
+        .collect();
+    json!({"items": rows, "total": items.len(), "truncated": items.len() > LIST_CAP})
 }
 
 async fn send_result(
@@ -503,6 +600,45 @@ mod tests {
         ));
         assert!(!allowed("custom", &json!({}), "live.status"));
         assert!(!allowed("admin", &json!({}), "live.status"));
+    }
+
+    #[test]
+    fn summaries_keep_only_allowed_scalars_and_bound_size() {
+        let secret = "https://example.test/hook?token=SECRET";
+        let items: Vec<Value> = (0..60)
+            .map(|index| {
+                json!({
+                    "id": format!("w-{index}"),
+                    "name": "x".repeat(500),
+                    "enabled": true,
+                    "graph": {"nodes": [{"url": secret}]},
+                    "headers": {"authorization": "Bearer SECRET"},
+                    "trigger": {"nested": "object is dropped"},
+                })
+            })
+            .collect();
+        let summary = summarize(&items);
+        assert_eq!(summary["items"].as_array().unwrap().len(), LIST_CAP);
+        assert_eq!(summary["total"], 60);
+        assert_eq!(summary["truncated"], true);
+        let first = &summary["items"][0];
+        assert_eq!(first["name"].as_str().unwrap().chars().count(), TEXT_CAP);
+        assert_eq!(first["enabled"], true);
+        assert!(first.get("graph").is_none() && first.get("trigger").is_none());
+        assert!(!summary.to_string().contains("SECRET"));
+    }
+
+    #[test]
+    fn only_read_operations_are_executable() {
+        for operation in EXECUTABLE {
+            assert!(
+                allowed("observer", &json!({}), operation),
+                "{operation} must be a read operation"
+            );
+        }
+        for operation in MODERATION_OPERATIONS {
+            assert!(!EXECUTABLE.contains(operation), "{operation}");
+        }
     }
 
     #[test]

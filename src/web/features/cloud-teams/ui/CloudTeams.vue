@@ -20,6 +20,7 @@ const askTeam = ref('');
 const hostDeviceLabel = ref('');
 const inviteRole = ref<TeamRole>('observer');
 const inviteTtl = ref<number>(900);
+const askOperation = ref('live.status');
 const copied = ref(false);
 const confirmRevoke = ref<string | null>(null);
 
@@ -30,9 +31,14 @@ const ttlOptions = computed(() => [
   { value: 300, label: t('cloudTeams.ttl.minutes', { count: 5 }) },
   { value: 900, label: t('cloudTeams.ttl.minutes', { count: 15 }) },
 ]);
+/** Read-only operations a host answers today; the host still checks the grant at execution. */
+const askOperations = ['live.status', 'workflow.list', 'automation.list', 'competition.list', 'points.read'] as const;
+const askOptions = computed(() =>
+  askOperations.map((operation) => ({ value: operation, label: t(`cloudTeams.operations.${operation}`) })),
+);
 async function askLiveStatus(): Promise<void> {
   const hostId = askTeam.value.trim();
-  if (hostId) await teams.runCommand(hostId, 'live.status');
+  if (hostId) await teams.runCommand(hostId, askOperation.value);
 }
 
 async function joinWithToken(): Promise<void> {
@@ -156,11 +162,16 @@ onBeforeUnmount(() => {
           :placeholder="t('cloudTeams.askTeam')"
           :aria-label="t('cloudTeams.askTeam')"
         />
+        <BaseComboBox
+          v-model="askOperation"
+          :options="askOptions"
+          :aria-label="t('cloudTeams.operation')"
+        />
         <BaseButton
           type="submit"
           :disabled="askTeam.trim().length === 0 || teams.working"
         >
-          {{ t('cloudTeams.readLiveStatus') }}
+          {{ t('cloudTeams.send') }}
         </BaseButton>
       </div>
       <p

@@ -63,8 +63,17 @@ view says when older events were not shown.
   change closes the grant's sessions. Revoking a grant or a session asks for no
   second step but is idempotent on the server.
 - **Serving** starts this PC's outbound link for a team. The PC dials the relay
-  and confirms its approved grants. It executes only `live.status`; every other
-  operation is answered as unsupported. The link reconnects with backoff.
+  and confirms its approved grants. It executes the read operations `live.status`,
+  `workflow.list`, `automation.list`, `competition.list` and `points.read`, and
+  re-checks the grant when it runs. List operations return bounded summaries (id,
+  name, enabled, trigger, status; at most 50 items and 200 characters per field),
+  never the definition itself, so URLs, headers and credentials stay on the PC.
+  The moderation operations (`workflow.disable`, `workflow.delete`, `points.adjust`,
+  `automation.toggle`, `automation.delete`, `competition.control`) and
+  `automation.draft.submit` are answered as unsupported. Running them needs a stable
+  mapping from a Cloud grant to a local collaboration principal, session and journal
+  (the host command engine keys its receipts to local principals), which is not built
+  yet. The link reconnects with backoff.
 
 ## Images and packages
 
