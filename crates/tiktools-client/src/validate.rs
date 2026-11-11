@@ -521,9 +521,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "sync.v2.migrate"
         | "sync.v2.rebuild"
         | "sync.v2.changes.list"
-        | "sync.v2.conflict.list" => {
-            validate::<Empty>(params)
-        }
+        | "sync.v2.conflict.list" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.v2.conflict.review" => {
             validate::<tiktools_control_api::modules::sync::SyncV2ConflictReviewParams>(params)

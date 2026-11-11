@@ -669,7 +669,11 @@ async fn v2_product_entries_lists_staged_edits_without_network_or_mutation() {
     sync.confirm_v2_resume(&consent).unwrap();
     let requests_before = {
         let inner = mock.inner.lock().unwrap();
-        (inner.pull_requests, inner.v2_put_requests, inner.v2_record_get_requests)
+        (
+            inner.pull_requests,
+            inner.v2_put_requests,
+            inner.v2_record_get_requests,
+        )
     };
     let generation_before = workspace.snapshot().unwrap().generation;
     let empty = sync.v2_product_entries(&session).unwrap();
@@ -696,7 +700,11 @@ async fn v2_product_entries_lists_staged_edits_without_network_or_mutation() {
     assert_eq!(workspace.snapshot().unwrap().generation, staged_generation);
     let requests_after = {
         let inner = mock.inner.lock().unwrap();
-        (inner.pull_requests, inner.v2_put_requests, inner.v2_record_get_requests)
+        (
+            inner.pull_requests,
+            inner.v2_put_requests,
+            inner.v2_record_get_requests,
+        )
     };
     assert_eq!(requests_after, requests_before);
     mock.stop();
