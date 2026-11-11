@@ -97,6 +97,33 @@ pub struct CloudCatalogVersionsPage {
     pub next_cursor: Option<String>,
 }
 
+/// Unified catalog query (v3). `kind` is restricted to the three served kinds.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogItemsQuery {
+    #[serde(default)]
+    pub query: String,
+    pub kind: Option<String>,
+    pub target: Option<String>,
+    pub cursor: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudCatalogItemPage {
+    pub items: Vec<Value>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudCatalogItemQuery {
+    pub kind: String,
+    pub id: String,
+    pub target: Option<String>,
+}
+
 fn convert_catalog<T: serde::de::DeserializeOwned>(
     value: impl Serialize,
 ) -> Result<T, OperationError> {
@@ -127,6 +154,50 @@ fn configured_catalog() -> Result<cloud_client::CloudCatalog, OperationError> {
         .ok_or_else(|| OperationError::unavailable("cloud is not configured"))?;
     cloud_client::CloudCatalog::new(&origin)
         .map_err(|_| OperationError::unavailable("cloud catalog is not configured"))
+}
+
+/// v3 items carry release sizes that may exceed JavaScript's safe integer range.
+/// Convert every size to an exact string so the webview never rounds it.
+fn project_items_v3(mut value: Value) -> Result<CloudCatalogItemPage, OperationError> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| OperationError::internal("invalid catalog response"))?;
+    let mut items = object
+        .remove("items")
+        .and_then(|v| match v {
+            Value::Array(items) => Some(items),
+            _ => None,
+        })
+        .ok_or_else(|| OperationError::internal("invalid catalog items"))?;
+    for item in &mut items {
+        if let Some(size) = item.pointer("/releaseRef/size").and_then(Value::as_i64) {
+            item["releaseRef"]["size"] = Value::String(size.to_string());
+        }
+    }
+    let next_cursor = match object.remove("nextCursor") {
+        Some(Value::Null) | None => None,
+        Some(Value::String(v)) => Some(v),
+        _ => return Err(OperationError::internal("invalid catalog cursor")),
+    };
+    let result = CloudCatalogItemPage { items, next_cursor };
+    let bytes = serde_json::to_vec(&result)
+        .map_err(|_| OperationError::internal("invalid catalog response"))?;
+    if bytes.len() > MAX_CATALOG_RESULT_BYTES {
+        return Err(OperationError::unavailable(
+            "catalog page exceeds the transport limit; narrow the search or target filter",
+        ));
+    }
+    Ok(result)
+}
+
+fn items_v3_error(error: cloud_client::SyncError) -> OperationError {
+    match error {
+        cloud_client::SyncError::Configuration => {
+            OperationError::invalid("invalid cloud catalog query or cursor")
+        }
+        cloud_client::SyncError::Http(404) => OperationError::not_found("catalog item not found"),
+        _ => OperationError::unavailable("cloud catalog is unavailable"),
+    }
 }
 
 fn parse_generation(value: Option<&str>) -> Result<Option<i64>, OperationError> {
@@ -268,6 +339,33 @@ impl AppCore {
             .map_err(catalog_error)?;
         convert_catalog(page)
     }
+    /// Unified catalog page. Presentation only; install still needs the signed release.
+    pub async fn cloud_catalog_items(
+        &self,
+        query: CloudCatalogItemsQuery,
+    ) -> Result<CloudCatalogItemPage, OperationError> {
+        let limit = query.limit.unwrap_or(25);
+        let page = configured_catalog()?
+            .items_v3(
+                &query.query,
+                query.kind.as_deref(),
+                query.target.as_deref(),
+                query.cursor.as_deref(),
+                limit,
+            )
+            .await
+            .map_err(items_v3_error)?;
+        project_items_v3(page)
+    }
+    pub async fn cloud_catalog_item(
+        &self,
+        query: CloudCatalogItemQuery,
+    ) -> Result<Value, OperationError> {
+        configured_catalog()?
+            .item_v3(&query.kind, &query.id, query.target.as_deref())
+            .await
+            .map_err(items_v3_error)
+    }
     /// Read-only discovery, not proof that a package can be installed.
     pub async fn cloud_catalog_plugins(
         &self,
@@ -314,6 +412,20 @@ mod tests {
         for invalid in ["", "0", "01", "-1", "1.0", "9223372036854775808"] {
             assert!(parse_generation(Some(invalid)).is_err());
         }
+    }
+
+    #[test]
+    fn unified_items_keep_release_sizes_exact_and_reject_bad_cursors() {
+        let page = project_items_v3(json!({
+            "items": [{"identity": {"kind": "plugin", "id": "acme.gift"},
+                       "releaseRef": {"type": "pluginRelease", "size": 9007199254740995_i64}}],
+            "nextCursor": "eyJrIjoxfQ"
+        }))
+        .unwrap();
+        assert_eq!(page.items[0]["releaseRef"]["size"], "9007199254740995");
+        assert_eq!(page.next_cursor.as_deref(), Some("eyJrIjoxfQ"));
+        assert!(project_items_v3(json!({"items": [], "nextCursor": 3})).is_err());
+        assert!(project_items_v3(json!({"nextCursor": null})).is_err());
     }
 
     #[test]

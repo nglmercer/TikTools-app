@@ -1,7 +1,9 @@
 import { shallowRef, ref } from 'vue';
 
 export type DiagnosticLevel = 'info' | 'warning' | 'error';
-export type DiagnosticSource = 'live' | 'monitor' | 'discovery' | 'plugins' | 'account' | 'sync' | 'updates' | 'transport';
+export type DiagnosticSource =
+  | 'live' | 'monitor' | 'discovery' | 'plugins' | 'account' | 'sync' | 'updates' | 'transport'
+  | 'catalog' | 'install' | 'collaboration' | 'relay' | 'integrations';
 export interface DiagnosticInput {
   source: DiagnosticSource;
   level: DiagnosticLevel;
@@ -9,11 +11,14 @@ export interface DiagnosticInput {
   message: string;
   entityId?: string;
   details?: string;
+  /** Correlation id of the request that failed, when the source has one. */
+  requestId?: string;
 }
 export interface DiagnosticEntry extends DiagnosticInput {
   id: string;
   entityId: string;
   details: string;
+  requestId: string;
   firstSeenAt: number;
   lastSeenAt: number;
   repeatCount: number;
@@ -59,11 +64,12 @@ export function createDiagnosticLog(options: { capacity?: number; maxBytes?: num
       source: input.source, level: input.level,
       code: redactDiagnostic(input.code, secrets).slice(0, 100),
       entityId: redactDiagnostic(input.entityId ?? '', secrets).slice(0, 160),
+      requestId: redactDiagnostic(input.requestId ?? '', secrets).slice(0, 80),
       message: redactDiagnostic(input.message, secrets), details: redactDiagnostic(input.details ?? '', secrets),
     };
     const previous = entries.value.findLast((e) => e.source === safe.source && e.entityId === safe.entityId);
     const duplicate = previous && at - previous.lastSeenAt <= 5000 &&
-      previous.code === safe.code && previous.level === safe.level && previous.message === safe.message && previous.details === safe.details;
+      previous.code === safe.code && previous.requestId === safe.requestId && previous.level === safe.level && previous.message === safe.message && previous.details === safe.details;
     const entry: DiagnosticEntry = duplicate
       ? { ...previous, lastSeenAt: at, repeatCount: previous.repeatCount + 1 }
       : { ...safe, id: `diagnostic-${++sequence}`, firstSeenAt: at, lastSeenAt: at, repeatCount: 1 };
@@ -86,7 +92,19 @@ export function createDiagnosticLog(options: { capacity?: number; maxBytes?: num
   }
   function clear(): void { entries.value = []; sizes.clear(); bytes = 0; dropped.value = 0; unread.value = 0; }
   function markRead(): void { unread.value = 0; }
-  return { entries, dropped, unread, record, latest, clear, markRead };
+  let context = '';
+  /**
+   * Scopes the history to one account. Entries recorded before any account is known are kept,
+   * but leaving an account for another one, or for none, drops what it produced so the next
+   * context never sees it. Returns true when the history was dropped.
+   */
+  function setContext(next: string): boolean {
+    const leaving = context !== '' && next !== context;
+    context = next;
+    if (leaving) clear();
+    return leaving;
+  }
+  return { entries, dropped, unread, record, latest, clear, markRead, setContext };
 }
 
 // One UI session. No localStorage, disk writes, raw console interception or credentials.
@@ -96,6 +114,6 @@ export const diagnosticView = {
 };
 export function formatDiagnostics(entries: readonly DiagnosticEntry[]): string {
   return ['TikTools diagnostics — current UI session — sensitive fields redacted', ...entries.map((e) =>
-    `${new Date(e.firstSeenAt).toISOString()} [${e.level}] ${e.source}${e.entityId ? `/${e.entityId}` : ''} ${e.code}\n${e.message}${e.details ? `\n${e.details}` : ''}\nRepeated: ${e.repeatCount}; last: ${new Date(e.lastSeenAt).toISOString()}`,
+    `${new Date(e.firstSeenAt).toISOString()} [${e.level}] ${e.source}${e.entityId ? `/${e.entityId}` : ''} ${e.code}${e.requestId ? ` request=${e.requestId}` : ''}\n${e.message}${e.details ? `\n${e.details}` : ''}\nRepeated: ${e.repeatCount}; last: ${new Date(e.lastSeenAt).toISOString()}`,
   )].join('\n\n');
 }

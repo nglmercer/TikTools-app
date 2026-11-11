@@ -2,7 +2,7 @@ import { $ } from 'bun';
 import { cp, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export const GATEWAY_WIDGET_KINDS = ['follow', 'gift', 'chat', 'share', 'subscribe', 'likes', 'ranking'] as const;
+export const GATEWAY_WIDGET_KINDS = ['follow', 'gift', 'chat', 'share', 'subscribe', 'likes', 'ranking', 'cloud-overlay'] as const;
 export type GatewayWidgetKind = (typeof GATEWAY_WIDGET_KINDS)[number];
 
 /** Plugin id of the Event Gateway, which serves the TikTools OBS widgets. */

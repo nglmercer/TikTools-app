@@ -10,6 +10,7 @@ export default {
   host: 'Host identity', instance: 'Current host instance', checked: 'Last checked: {when}', connected: '{count} open connections', active: '{count} valid device sessions', pending: '{count} waiting for approval',
   running: 'Remote listener is running', stopped: 'Remote listener is stopped', applying: 'Applying configuration…', fingerprint: 'Active TLS certificate SHA-256', proxyFingerprint: 'TLS is handled by your proxy. Verify its public certificate separately.',
   configuration: 'Remote access', enabled: 'Allow remote controllers', bind: 'Listen address and port', origin: 'Public HTTPS address', certificate: 'Certificate chain file', privateKey: 'Private key file', tlsProxy: 'TLS is terminated by a separate reverse proxy', proxyHint: 'The proxy must use HTTPS publicly; its backend must listen only on loopback.', origins: 'Additional browser origins (one per line)', advanced: 'Connection limits',
+  directTransport: 'Direct connection (advanced)',
   pathsHint: 'Use absolute paths on this host. The private key file must be accessible only to its owner.',
   save: 'Apply configuration', reset: 'Use latest configuration', changed: 'Configuration changed elsewhere. Your edits were kept; reload the latest version before applying.',
   disable: 'Disable remote access', disableTitle: 'Disable collaboration?', disableMessage: 'All remote sessions and pending invitations will be revoked. The local LIVE will continue. Controllers will need a new invitation.',

@@ -5,6 +5,7 @@ import type { ActionTypeDefinition, BehaviorSnapshot, LiveAction, PluginStatus }
 import type { ProcessorStatusEntry } from '../../../../shared/messages.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginsPage from './PluginsPage.vue';
@@ -98,8 +99,12 @@ async function mountPage(
   plugins: PluginStatus[] = [plugin('deck'), plugin('tts', { installed: false, enabled: false })],
   registries: unknown[] | undefined = undefined,
   liveStatuses: Record<string, string> = { '1.2.0': 'approved' },
+  /** Methods the host announces through `rpc.discover`, as a host with the unified catalog does. */
+  announce: string[] = [],
 ) {
   const { client, calls } = createFakeControlClient((method) => {
+    if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
+    if (method === 'catalog.items') return { items: [], nextCursor: null };
     if (method === 'registry.list' && registries) return { registries };
     if (method === 'processors.status') return { processors: [processor] };
     if (method === 'processors.test') {
@@ -138,6 +143,7 @@ async function mountPage(
   const automation = stores.use(() => useAutomationStore()) as unknown as { behavior: BehaviorSnapshot };
   automation.behavior = { plugins, actions, actionTypes, events: [], translations: {} };
   const pluginsStore = stores.use(() => usePluginsStore());
+  if (announce.length > 0) await stores.use(() => useCapabilityStore()).refresh('test-host');
   const wrapper = mountWithPlugins(PluginsPage, { attachTo: document.body, global: { plugins: stores.plugins } });
   await flushPromises();
   return { wrapper, calls, pluginsStore };
@@ -368,6 +374,54 @@ describe('PluginsPage', () => {
     await flushPromises();
     expect(calls.find((call) => call.method === 'processors.test')?.params).toMatchObject({ pluginId: 'deck', processorId: 'enrich' });
     expect(wrapper.text()).toContain('Succeeded in 3 ms');
+  });
+
+  describe('on a host that announces the unified catalog', () => {
+    const unified = (plugins?: PluginStatus[]) => mountPage(plugins, undefined, undefined, ['catalog.items']);
+    const savedView = () => JSON.parse(localStorage.getItem('tiktok-live-view-state') ?? '{}').plugins?.view;
+
+    it('opens on the catalog with no view selector and no standing paragraph', async () => {
+      const { wrapper } = await unified();
+      expect(wrapper.find('.catalog-toolbar').exists()).toBe(true);
+      expect(wrapper.find('[role="radiogroup"], .segmented').exists()).toBe(false);
+      expect(wrapper.text()).not.toContain('Plugins bring an external dependency');
+      expect(wrapper.find('.plugins-page__toolbar').exists()).toBe(false);
+    });
+
+    it('reaches processors and installed plugins from the menu and returns to the catalog', async () => {
+      const { wrapper } = await unified();
+      await buttonByText(wrapper, 'Manage processors').trigger('click');
+      await flushPromises();
+      expect(wrapper.find('.processors').exists()).toBe(true);
+      expect(wrapper.find('.catalog-toolbar').exists()).toBe(false);
+      await buttonByText(wrapper, '‹ Catalog').trigger('click');
+      expect(wrapper.find('.catalog-toolbar').exists()).toBe(true);
+      await buttonByText(wrapper, 'Manage installed plugins').trigger('click');
+      await flushPromises();
+      expect(wrapper.text()).toContain('DECK');
+      expect(wrapper.find('.catalog-toolbar').exists()).toBe(false);
+    });
+
+    it('moves the saved Cloud view to the catalog and ignores a stale default', async () => {
+      localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view: 'cloud' } }));
+      expect((await unified()).wrapper.find('.catalog-toolbar').exists()).toBe(true);
+      localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view: 'plugins' } }));
+      expect((await unified()).wrapper.find('.catalog-toolbar').exists()).toBe(true);
+    });
+
+    it('keeps the plugin workspace when a plugin was open', async () => {
+      localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view: 'plugins', selected: 'deck' } }));
+      const { wrapper } = await unified();
+      expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
+    });
+
+    it('does not write the implicit view as a choice', async () => {
+      const { wrapper } = await unified();
+      expect(savedView()).toBeUndefined();
+      await buttonByText(wrapper, 'Manage processors').trigger('click');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(savedView()).toBe('processors');
+    });
   });
 
   it('restores the selected plugin from the view state', async () => {

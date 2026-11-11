@@ -27,6 +27,13 @@ use tiktools_control_api::modules::automation_library::{
     OwnerLibraryEmpty, OwnerLibraryReviewUnknown, OwnerLibrarySubmit,
 };
 #[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::bundles::LibraryItemsQuery;
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::bundles::{
+    AssetUploadParams, OverlayCreateParams, OverlayIdParams, OverlayReviseParams,
+    PackageCreateParams, PackageIdParams,
+};
+#[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::cloud::CloudLoginOperationParams;
 use tiktools_control_api::modules::competitions::{
     CompetitionActionId, CompetitionId, CompetitionResultsRequest, CompetitionSummaryParams,
@@ -37,6 +44,8 @@ use tiktools_control_api::modules::gifts::GiftDebugParams;
 use tiktools_control_api::modules::globals::{
     GlobalsDeleteParams, GlobalsGetParams, GlobalsSetParams,
 };
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::integrations::{IntegrationConnectParams, IntegrationIdParams};
 use tiktools_control_api::modules::live::{
     LiveChannelsParams, LiveConnectParams, LiveMonitorStartParams, LivePickParams,
 };
@@ -63,8 +72,9 @@ use tiktools_control_api::modules::rankings::{
     Definition, ExternalContribution, RankingId, RankingUpdate,
 };
 use tiktools_control_api::modules::registry::{
-    CloudCatalogQuery, CloudCatalogSummariesQuery, CloudCatalogVersionsQuery, RegistryDefaults,
-    RegistryPackageParams, RegistryRefreshParams, SearchQuery,
+    CloudCatalogItemQuery, CloudCatalogItemsQuery, CloudCatalogQuery, CloudCatalogSummariesQuery,
+    CloudCatalogVersionsQuery, RegistryDefaults, RegistryPackageParams, RegistryRefreshParams,
+    SearchQuery,
 };
 use tiktools_control_api::modules::rpc::SchemaParams;
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
@@ -74,8 +84,14 @@ use tiktools_control_api::modules::sync::{
     SyncUncertainReviewParams,
 };
 use tiktools_control_api::modules::system::SaveFileParams;
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::teams::{
+    CommandRunParams, TeamCreateParams, TeamDecisionParams, TeamDeviceParams, TeamEnrollParams,
+    TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHostParams, TeamInvitationCreateParams,
+    TeamInvitationParams, TeamRedeemParams, TeamSessionParams, TeamUpdateParams,
+};
 use tiktools_control_api::modules::updates::{CheckParams as UpdateCheckParams, NoUpdateParams};
-use tiktools_control_api::modules::widgets::WidgetsCopyParams;
+use tiktools_control_api::modules::widgets::{WidgetsCopyCloudOverlayParams, WidgetsCopyParams};
 use tiktools_control_api::modules::workflows::{WorkflowIdParams, WorkflowSaveParams};
 use tiktools_control_api::modules::Empty;
 
@@ -438,6 +454,9 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "widgets.copyObsUrl" => WidgetsCopyParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
+        "widgets.copyCloudOverlayUrl" => WidgetsCopyCloudOverlayParams::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
         "workflows.list" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "workflows.get" => WorkflowIdParams::deserialize(params)
             .map(|_| ())
@@ -472,6 +491,8 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "registry.search" => validate::<SearchQuery>(params),
         "registry.cloudCatalog" => validate::<CloudCatalogQuery>(params),
         "registry.cloudCatalogSummaries" => validate::<CloudCatalogSummariesQuery>(params),
+        "catalog.items" => validate::<CloudCatalogItemsQuery>(params),
+        "catalog.item" => validate::<CloudCatalogItemQuery>(params),
         "registry.cloudCatalogVersions" => validate::<CloudCatalogVersionsQuery>(params),
         "registry.package" => validate::<RegistryPackageParams>(params),
         "registry.defaults.set" => validate::<RegistryDefaults>(params),
@@ -525,6 +546,74 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "cloudLibrary.read" => validate::<CloudLibraryRead>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.uncertain.resolve" => validate::<SyncUncertainResolveParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "catalog.mine" => validate::<LibraryItemsQuery>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.assets.upload" => validate::<AssetUploadParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.create" => validate::<OverlayCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.read" => validate::<OverlayIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.revise" => validate::<OverlayReviseParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.packages.create" => validate::<PackageCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.packages.read" => validate::<PackageIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.packages.preflight" => validate::<PackageIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.redeem" => validate::<TeamRedeemParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.commands.run" => validate::<CommandRunParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.host.status" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.host.start" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.host.stop" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.hosts.list" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.hosts.create" => validate::<TeamCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.hosts.get" => validate::<TeamHostParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.hosts.update" => validate::<TeamUpdateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.devices.list" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.devices.enroll" => validate::<TeamEnrollParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.devices.revoke" => validate::<TeamDeviceParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.list" => validate::<TeamHostParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.create" => validate::<TeamInvitationCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.revoke" => validate::<TeamInvitationParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.requests.list" => validate::<TeamHostParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.requests.decide" => validate::<TeamDecisionParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.grants.list" => validate::<TeamHostParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.grants.update" => validate::<TeamGrantUpdateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.grants.revoke" => validate::<TeamGrantRevokeParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.sessions.list" => validate::<TeamHostParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.sessions.revoke" => validate::<TeamSessionParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "integrations.connections" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "integrations.connect" => validate::<IntegrationConnectParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "integrations.events" | "integrations.disconnect" => {
+            validate::<IntegrationIdParams>(params)
+        }
         #[cfg(feature = "cloud-auth")]
         "publisher.list" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]

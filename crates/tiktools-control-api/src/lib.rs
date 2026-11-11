@@ -102,6 +102,12 @@ impl ControlApi {
         modules::cloud::register(router);
         #[cfg(feature = "cloud-auth")]
         modules::sync::register(router);
+        #[cfg(all(feature = "cloud-auth", feature = "http"))]
+        modules::integrations::register(router);
+        #[cfg(all(feature = "cloud-auth", feature = "http"))]
+        modules::teams::register(router);
+        #[cfg(all(feature = "cloud-auth", feature = "http"))]
+        modules::bundles::register(router);
         #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
         modules::publisher::register(router);
         modules::settings::register(router);

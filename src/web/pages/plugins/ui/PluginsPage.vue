@@ -18,6 +18,8 @@ import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import MasterDetailLayout from '@/shared/ui/layout/MasterDetailLayout.vue';
 import CollectionToolbar from '@/shared/ui/collection-toolbar/CollectionToolbar.vue';
 import CloudPluginCatalog from '@/widgets/cloud-plugin-catalog/ui/CloudPluginCatalog.vue';
+import UnifiedCatalog from '@/widgets/unified-catalog/ui/UnifiedCatalog.vue';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
@@ -25,14 +27,25 @@ import PluginJobsPanel from '@/widgets/plugin-jobs/ui/PluginJobsPanel.vue';
 import ProcessorsPanel from '@/widgets/plugin-processors/ui/ProcessorsPanel.vue';
 import RemotePluginDetails from '@/widgets/plugin-remote-details/ui/RemotePluginDetails.vue';
 
-type PluginsView = 'plugins' | 'processors' | 'cloud';
+type PluginsView = 'plugins' | 'processors' | 'catalog';
 
 const { t } = useI18n();
 const plugins = usePluginControls();
 const packages = usePackagesStore();
 const saved = loadViewState().plugins;
 
-const view = ref<PluginsView>(saved?.view ?? 'plugins');
+/**
+ * `null` means no explicit choice: the catalog on hosts that announce it, the installed
+ * plugins otherwise. The old `cloud` view is the catalog. Before the catalog was the entry
+ * point, `plugins` was the saved default, so it only counts as a choice with a plugin open.
+ */
+function restoreView(state: typeof saved): PluginsView | null {
+  if (!state?.view) return null;
+  if (state.view === 'cloud') return 'catalog';
+  if (state.view === 'plugins' && !state.selected) return null;
+  return state.view;
+}
+const view = ref<PluginsView | null>(restoreView(saved));
 const catalog = ref<PluginCatalogTab>(saved?.catalog ?? 'installed');
 const query = ref(saved?.query ?? '');
 const processorQuery = ref('');
@@ -81,6 +94,21 @@ function runCommand(id: string, command: PluginCommand): void {
 }
 
 const behavior = computed(() => plugins.behavior.value);
+const installedIds = computed(() => new Set(behavior.value.plugins.map((plugin) => plugin.descriptor.id)));
+// The unified catalog needs the host to announce catalog.items; otherwise the legacy Cloud view stays.
+const capabilities = useCapabilityStore();
+const unifiedCatalog = computed(() => capabilities.supports('catalog.items') === true);
+const activeView = computed<PluginsView>(() => view.value ?? (unifiedCatalog.value ? 'catalog' : 'plugins'));
+const viewModel = computed({
+  get: () => activeView.value,
+  set: (next: PluginsView) => { view.value = next; },
+});
+/** A plugin chosen in the catalog opens in the installed-plugins workspace. */
+function openInstalled(id: string): void {
+  view.value = 'plugins';
+  catalog.value = 'installed';
+  openPlugin(id);
+}
 const selectedPlugin = computed(
   () => behavior.value.plugins.find((plugin) => plugin.descriptor.id === selected.value) ?? null,
 );
@@ -110,7 +138,7 @@ watch(catalog, openCatalogTab);
 const views = computed(() => [
   { value: 'plugins' as const, label: t('plugins.views.plugins') },
   { value: 'processors' as const, label: t('plugins.views.processors') },
-  { value: 'cloud' as const, label: t('plugins.views.cloud') },
+  { value: 'catalog' as const, label: t('plugins.views.cloud') },
 ]);
 
 watch(selected, (next, previous) => {
@@ -128,7 +156,7 @@ watch(
 
 const persist = debounce(() => {
   saveViewState('plugins', {
-    view: view.value,
+    view: view.value ?? undefined,
     catalog: catalog.value,
     query: query.value,
     selected: selected.value ?? undefined,
@@ -140,16 +168,34 @@ watch([view, catalog, query, selected, detailsTab], persist);
 
 <template>
   <div class="plugins-page">
+    <h2
+      v-if="unifiedCatalog && activeView === 'catalog'"
+      class="plugins-page__sr-only"
+    >
+      {{ t('plugins.views.back') }}
+    </h2>
     <CollectionToolbar
+      v-else
       class="plugins-page__toolbar"
       :label="t('plugins.title')"
     >
-      <BaseSegmented
-        v-model="view"
-        :options="views"
-        :aria-label="t('plugins.title')"
-      />
-      <span class="plugins-page__lead">{{ t('plugins.lead') }}</span>
+      <template v-if="unifiedCatalog">
+        <BaseButton
+          variant="ghost"
+          @click="view = 'catalog'"
+        >
+          ‹ {{ t('plugins.views.back') }}
+        </BaseButton>
+        <span class="plugins-page__lead">{{ activeView === 'processors' ? t('plugins.views.processors') : t('plugins.views.plugins') }}</span>
+      </template>
+      <template v-else>
+        <BaseSegmented
+          v-model="viewModel"
+          :options="views"
+          :aria-label="t('plugins.title')"
+        />
+        <span class="plugins-page__lead">{{ t('plugins.lead') }}</span>
+      </template>
       <BaseButton
         variant="primary"
         :disabled="packages.review.open"
@@ -177,7 +223,7 @@ watch([view, catalog, query, selected, detailsTab], persist);
     <PluginJobsPanel />
 
     <MasterDetailLayout
-      v-if="view === 'plugins'"
+      v-if="activeView === 'plugins'"
       v-model:size="catalogWidth"
       class="plugins-page__workspace"
       :narrow="isNarrow"
@@ -240,9 +286,17 @@ watch([view, catalog, query, selected, detailsTab], persist);
       </template>
     </MasterDetailLayout>
     <ProcessorsPanel
-      v-else-if="view === 'processors'"
+      v-else-if="activeView === 'processors'"
       v-model:query="processorQuery"
       :plugins="behavior.plugins"
+    />
+    <UnifiedCatalog
+      v-else-if="unifiedCatalog"
+      :installed-ids="installedIds"
+      @manage-processors="view = 'processors'"
+      @manage-installed="view = 'plugins'"
+      @install-package="plugins.installPackage()"
+      @open-plugin="openInstalled"
     />
     <CloudPluginCatalog v-else />
     <InstallPluginDialog />
@@ -265,6 +319,15 @@ watch([view, catalog, query, selected, detailsTab], persist);
   flex: none;
   align-items: center;
   gap: var(--space-5);
+}
+
+.plugins-page__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .plugins-page__lead {

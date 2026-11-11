@@ -1,0 +1,6 @@
+html, body { margin: 0; background: transparent; overflow: hidden; }
+body { font-family: system-ui, sans-serif; color: #fff; }
+.cloud-overlay { position: relative; width: 100vw; height: 100vh; max-width: 100vw; overflow: hidden; }
+.cloud-overlay__box { position: absolute; display: flex; align-items: center; justify-content: center; overflow: hidden; overflow-wrap: anywhere; text-shadow: 0 1px 3px rgb(0 0 0 / 80%); }
+.cloud-overlay__box--avatar { border-radius: 50%; background: rgb(255 255 255 / 15%); font-weight: 700; }
+.cloud-overlay__box--art { background: transparent; }

@@ -6,6 +6,8 @@ pub mod automation_approval;
 pub mod automation_definition;
 pub mod automation_effects;
 pub mod automation_library;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod bundles;
 #[cfg(feature = "cloud-auth")]
 pub mod cloud;
 pub mod collaboration;
@@ -13,6 +15,8 @@ pub mod competitions;
 pub mod creators;
 pub mod gifts;
 pub mod globals;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod integrations;
 pub mod live;
 pub mod media;
 #[cfg(feature = "plugin-install")]
@@ -30,6 +34,8 @@ pub mod settings;
 #[cfg(feature = "cloud-auth")]
 pub mod sync;
 pub mod system;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod teams;
 pub mod ui;
 pub mod updates;
 pub mod widgets;

@@ -66,8 +66,14 @@ pub(crate) use commands::CoordinationWorker;
 pub use commands::{CommandCaller, WorkflowMutation};
 #[cfg(test)]
 pub(crate) use competitions::bound_ranking_presentation;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+mod cloud_bundles;
 #[cfg(feature = "plugin-install")]
 mod cloud_catalog;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+mod cloud_integrations;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+mod cloud_teams;
 mod globals;
 mod helpers;
 mod live;
@@ -105,7 +111,8 @@ pub use automation::{
 pub use cloud_account::CloudLoginUrl;
 #[cfg(feature = "plugin-install")]
 pub use cloud_catalog::{
-    CloudCatalogAdvisory, CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
+    CloudCatalogAdvisory, CloudCatalogItemPage, CloudCatalogItemQuery, CloudCatalogItemsQuery,
+    CloudCatalogPage, CloudCatalogPaginationCapabilities, CloudCatalogQuery,
     CloudCatalogSummariesPage, CloudCatalogSummariesQuery, CloudCatalogSummary,
     CloudCatalogVersion, CloudCatalogVersionsPage, CloudCatalogVersionsQuery,
 };

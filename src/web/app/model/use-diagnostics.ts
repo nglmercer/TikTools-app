@@ -4,7 +4,13 @@ import { useDiscoveryStore } from '@/entities/live-room/model/discovery-store.ts
 import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { useSyncStore } from '@/entities/cloud-sync/model/sync-store.ts';
+import { useCatalogStore } from '@/entities/catalog/model/catalog-store.ts';
+import { useTeamsStore } from '@/entities/cloud-teams/model/teams-store.ts';
+import { useIntegrationsStore } from '@/entities/cloud-integrations/model/integrations-store.ts';
+import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
+import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
+import type { CloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { diagnosticLog, diagnosticView, type DiagnosticSource } from '@/shared/diagnostics/log.ts';
 
@@ -17,9 +23,14 @@ export function useDiagnostics(): void {
   const account = useAccountStore();
   const sync = useSyncStore();
   const updater = useAppUpdaterStore();
+  const catalog = useCatalogStore();
+  const teams = useTeamsStore();
+  const integrations = useIntegrationsStore();
+  const bundles = useBundlesStore();
+  const packages = usePackagesStore();
   const secrets = (): string[] => [connection.cookie, ...connection.cookie.split(';').map((part) => part.slice(part.indexOf('=') + 1).trim())].filter(Boolean);
-  function error(source: DiagnosticSource, code: string, message: string | null | undefined): void {
-    if (message) diagnosticLog.record({ source, code, message, level: 'error' }, secrets());
+  function error(source: DiagnosticSource, code: string, message: string | null | undefined, detail?: CloudFailure | null): void {
+    if (message) diagnosticLog.record({ source, code: detail ? `${code}:${detail.code}` : code, message, level: 'error', requestId: detail?.requestId }, secrets());
   }
   watch(() => connection.error, (message) => error('live', 'live.error', message), { immediate: true, flush: 'sync' });
   watch(() => connection.status, (state, previous) => {
@@ -42,6 +53,17 @@ export function useDiagnostics(): void {
   }, { immediate: true, flush: 'sync' });
   watch(() => account.error, (message) => error('account', 'cloud.account', message), { immediate: true, flush: 'sync' });
   watch(() => sync.error, (message) => error('sync', 'cloud.sync', message), { immediate: true, flush: 'sync' });
+  // Technical detail of the Cloud surfaces lives here; the panels keep a short, actionable message.
+  watch(() => [catalog.error, catalog.errorDetail] as const, ([message, detail]) => error('catalog', 'catalog.error', message, detail), { immediate: true, flush: 'sync' });
+  watch(() => [teams.error, teams.errorDetail] as const, ([message, detail]) => error('collaboration', 'teams.error', message, detail), { immediate: true, flush: 'sync' });
+  watch(() => teams.link.lastError, (message) => error('relay', 'relay.link', message), { immediate: true, flush: 'sync' });
+  watch(() => [integrations.error, integrations.errorDetail] as const, ([message, detail]) => error('integrations', 'integrations.error', message, detail), { immediate: true, flush: 'sync' });
+  watch(() => [bundles.error, bundles.errorDetail] as const, ([message, detail]) => error('install', 'bundles.error', message, detail), { immediate: true, flush: 'sync' });
+  watch(() => packages.searchError, (message) => error('install', 'registry.search', message), { immediate: true, flush: 'sync' });
+  watch(() => packages.updatesError, (message) => error('install', 'plugins.updates', message), { immediate: true, flush: 'sync' });
+  watch(() => packages.registryError, (message) => error('install', 'registry.list', message), { immediate: true, flush: 'sync' });
+  // Switching or leaving an account drops its history so the next one never sees it.
+  watch(() => account.status?.accountId ?? '', (accountId) => { diagnosticLog.setContext(accountId); }, { immediate: true, flush: 'sync' });
   watch(() => updater.error || updater.status?.error?.message, (message) => {
     if (!message) return;
     diagnosticLog.record({ source: 'updates', code: 'updates.status', message,

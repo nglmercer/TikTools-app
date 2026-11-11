@@ -58,7 +58,7 @@ export interface WidgetsViewState {
 }
 
 export interface PluginsViewState {
-  view?: 'plugins' | 'processors' | 'cloud';
+  view?: 'plugins' | 'processors' | 'cloud' | 'catalog';
   catalog?: 'installed' | 'browse' | 'updates';
   query?: string;
   selected?: string;
@@ -209,7 +209,7 @@ function cleanWidgets(value: unknown): WidgetsViewState | undefined {
 function cleanPlugins(value: unknown): PluginsViewState | undefined {
   if (!isRecord(value)) return undefined;
   const cleaned = pickDefined({
-    view: oneOf(value['view'], ['plugins', 'processors', 'cloud']),
+    view: oneOf(value['view'], ['plugins', 'processors', 'cloud', 'catalog']),
     catalog: value['catalog'] === 'available' ? 'browse' : oneOf(value['catalog'], ['installed', 'browse', 'updates']),
     query: cleanString(value['query']),
     selected: cleanString(value['selected']),
