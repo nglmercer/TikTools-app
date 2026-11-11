@@ -5,10 +5,17 @@ import { usePackagesStore } from '@/entities/plugin-package/model/packages-store
 import { formatDate } from '@/shared/lib/intl.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import DialogRefreshBar from '@/shared/ui/dialog/DialogRefreshBar.vue';
+import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
+import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
 import BaseMarkdown from '@/shared/ui/markdown/BaseMarkdown.vue';
+import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import BaseSection from '@/shared/ui/section/BaseSection.vue';
+import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 
 const props = defineProps<{ registry: string; pluginId: string }>();
+const emit = defineEmits<{ back: [] }>();
 
 const { t, locale } = useI18n();
 const packages = usePackagesStore();
@@ -38,39 +45,49 @@ watch(key, load);
 </script>
 
 <template>
-  <section
+  <BasePanel
     class="remote-details"
-    :aria-label="document?.name ?? pluginId"
+    :title="document?.name ?? pluginId"
+    flush
   >
-    <header class="remote-details__header">
-      <IconPuzzle
-        class="remote-details__icon"
-        :size="28"
-      />
-      <div class="remote-details__heading">
-        <h2 class="remote-details__name">
-          {{ document?.name ?? pluginId }}
-        </h2>
-        <span class="remote-details__meta">
-          {{ document?.publisher ?? t('packages.review.unknown') }} · {{ registry }}
-        </span>
-      </div>
+    <template #leading>
+      <BaseIconButton
+        :label="t('common.back')"
+        size="sm"
+        @click="emit('back')"
+      >
+        <IconChevronLeft />
+      </BaseIconButton>
+    </template>
+    <template
+      v-if="latest"
+      #status
+    >
+      <span
+        v-tooltip="t('packages.remote.latest')"
+        class="remote-details__chip remote-details__mono"
+      >{{ latest }}</span>
+    </template>
+    <template #actions>
       <BaseButton
         variant="primary"
         :disabled="!latest || view?.liveStatuses?.[latest] !== 'approved'"
         @click="install(latest)"
       >
+        <template #icon>
+          <IconDownload />
+        </template>
         {{ t('packages.remote.install') }}
       </BaseButton>
-    </header>
+    </template>
 
     <div class="remote-details__pane">
-      <BaseButton
-        size="sm"
-        @click="load"
+      <DialogRefreshBar
+        :label="t('packages.liveStatus.refresh')"
+        @refresh="load"
       >
-        {{ t('packages.liveStatus.refresh') }}
-      </BaseButton>
+        {{ document?.publisher ?? t('packages.review.unknown') }} · {{ registry }}
+      </DialogRefreshBar>
       <BaseAlert
         v-if="error"
         :title="t('packages.remote.loadFailed')"
@@ -87,18 +104,14 @@ watch(key, load);
         {{ t('packages.review.loading') }}
       </p>
       <template v-else>
-        <p class="remote-details__muted">
-          {{ t('packages.liveStatus.hint') }}
-        </p>
         <BaseMarkdown
           v-if="document.description"
           :source="document.description"
         />
-        <dl class="remote-details__facts">
-          <dt>{{ t('packages.remote.latest') }}</dt>
-          <dd class="remote-details__mono">
-            {{ latest ?? t('plugins.details.none') }}
-          </dd>
+        <dl
+          v-if="document.license || document.categories?.length || document.homepage || document.repository"
+          class="remote-details__facts"
+        >
           <dt v-if="document.license">
             {{ t('packages.review.license') }}
           </dt>
@@ -136,98 +149,57 @@ watch(key, load);
             >{{ document.repository }}</a>
           </dd>
         </dl>
-        <h3 class="remote-details__heading-sm">
-          {{ t('packages.remote.releases') }}
-        </h3>
-        <ul class="remote-details__releases">
-          <li
-            v-for="release in releases"
-            :key="release.version"
-            class="remote-details__release"
-          >
-            <span class="remote-details__mono">{{ release.version }}</span>
-            <span class="remote-details__muted">{{ release.channel }} · {{ formatDate(release.publishedAt * 1000, locale) }}</span>
-            <span class="remote-details__flag">{{ t(`packages.liveStatus.${view?.liveStatuses?.[release.version] ?? 'unknown'}`) }}</span>
-            <span
-              v-if="release.yanked"
-              class="remote-details__flag"
-            >{{ t('packages.remote.yanked') }}</span>
-            <span
-              v-if="release.advisory"
-              class="remote-details__flag"
-            >{{ t(`packages.advisory.${release.advisory.severity}`) }}</span>
-            <BaseButton
-              size="sm"
-              :disabled="release.yanked || view?.liveStatuses?.[release.version] !== 'approved'"
-              @click="install(release.version)"
+        <BaseSection :title="t('packages.remote.releases')">
+          <ul class="remote-details__releases">
+            <li
+              v-for="release in releases"
+              :key="release.version"
+              class="remote-details__release"
             >
-              {{ t('packages.remote.installVersion') }}
-            </BaseButton>
-          </li>
-        </ul>
+              <span class="remote-details__mono">{{ release.version }}</span>
+              <span class="remote-details__muted">{{ release.channel }} · {{ formatDate(release.publishedAt * 1000, locale) }}</span>
+              <span class="remote-details__flag">{{ t(`packages.liveStatus.${view?.liveStatuses?.[release.version] ?? 'unknown'}`) }}</span>
+              <span
+                v-if="release.yanked"
+                class="remote-details__flag"
+              >{{ t('packages.remote.yanked') }}</span>
+              <span
+                v-if="release.advisory"
+                class="remote-details__flag"
+              >{{ t(`packages.advisory.${release.advisory.severity}`) }}</span>
+              <BaseIconButton
+                :label="t('plugins.catalog.installPlugin', { name: release.version })"
+                variant="default"
+                size="sm"
+                :disabled="release.yanked || view?.liveStatuses?.[release.version] !== 'approved'"
+                @click="install(release.version)"
+              >
+                <IconDownload />
+              </BaseIconButton>
+            </li>
+          </ul>
+        </BaseSection>
       </template>
     </div>
-  </section>
+  </BasePanel>
 </template>
 
 <style scoped>
 .remote-details {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  border: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-panel);
-}
-
-.remote-details__header {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-panel-header);
-}
-
-.remote-details__icon {
-  flex: none;
-  color: var(--color-accent);
-}
-
-.remote-details__heading {
-  display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.remote-details__name {
-  margin: 0;
-  overflow: hidden;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.remote-details__meta,
-.remote-details__muted {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
 }
 
 .remote-details__pane {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  gap: var(--space-5);
-  min-height: 0;
-  padding: var(--space-5);
-  overflow: auto;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.remote-details__muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .remote-details__facts {
@@ -260,12 +232,6 @@ watch(key, load);
 .remote-details__mono {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
-}
-
-.remote-details__heading-sm {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
 }
 
 .remote-details__releases {

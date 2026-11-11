@@ -3,20 +3,16 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
 import InstallPluginDialog from '@/features/install-plugin/ui/InstallPluginDialog.vue';
-import type { PluginCatalogTab } from '@/entities/plugin/lib/plugin-catalog.ts';
+import type { PluginCatalogTab, PluginsPanelTab } from '@/entities/plugin/lib/plugin-catalog.ts';
 import type { PluginCommand } from '@/entities/plugin/lib/plugin-menu.ts';
 import { parseRemoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
-import { useMediaQuery } from '@/shared/lib/media-query.ts';
+import { useProcessorsStore } from '@/entities/processor/model/processors-store.ts';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
-import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
-import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
-import MasterDetailLayout from '@/shared/ui/layout/MasterDetailLayout.vue';
-import CollectionToolbar from '@/shared/ui/collection-toolbar/CollectionToolbar.vue';
 import CloudPluginCatalog from '@/widgets/cloud-plugin-catalog/ui/CloudPluginCatalog.vue';
 import UnifiedCatalog from '@/widgets/unified-catalog/ui/UnifiedCatalog.vue';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
@@ -24,6 +20,7 @@ import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
 import PluginJobsPanel from '@/widgets/plugin-jobs/ui/PluginJobsPanel.vue';
+import ProcessorDetails from '@/widgets/plugin-processors/ui/ProcessorDetails.vue';
 import ProcessorsPanel from '@/widgets/plugin-processors/ui/ProcessorsPanel.vue';
 import RemotePluginDetails from '@/widgets/plugin-remote-details/ui/RemotePluginDetails.vue';
 
@@ -32,6 +29,7 @@ type PluginsView = 'plugins' | 'processors' | 'catalog';
 const { t } = useI18n();
 const plugins = usePluginControls();
 const packages = usePackagesStore();
+const processorsStore = useProcessorsStore();
 const saved = loadViewState().plugins;
 
 /**
@@ -51,13 +49,11 @@ const query = ref(saved?.query ?? '');
 const processorQuery = ref('');
 const selected = ref<string | null>(saved?.selected ?? null);
 const detailsTab = ref<PluginDetailsTab>(saved?.details ?? 'general');
-const catalogWidth = ref(300);
-const isNarrow = useMediaQuery('(width < 900px)');
-const mobileDetailsOpen = ref(false);
+/** Key of the open processor; like the open plugin, it replaces the list inside the same panel. */
+const processorSelected = ref<string | null>(null);
 
 function openPlugin(id: string): void {
   selected.value = id;
-  mobileDetailsOpen.value = true;
 }
 
 /** Handed to the details panel, which owns the uninstall dialog and test result. */
@@ -99,9 +95,17 @@ const installedIds = computed(() => new Set(behavior.value.plugins.map((plugin) 
 const capabilities = useCapabilityStore();
 const unifiedCatalog = computed(() => capabilities.supports('catalog.items') === true);
 const activeView = computed<PluginsView>(() => view.value ?? (unifiedCatalog.value ? 'catalog' : 'plugins'));
-const viewModel = computed({
-  get: () => activeView.value,
-  set: (next: PluginsView) => { view.value = next; },
+/** The panel's tabs: processors are a view of their own, the others are the catalog tabs of the plugins view. */
+const panelTab = computed<PluginsPanelTab>({
+  get: () => (activeView.value === 'processors' ? 'processors' : catalog.value),
+  set: (next) => {
+    if (next === 'processors') {
+      view.value = 'processors';
+      return;
+    }
+    view.value = 'plugins';
+    catalog.value = next;
+  },
 });
 /** A plugin chosen in the catalog opens in the installed-plugins workspace. */
 function openInstalled(id: string): void {
@@ -113,6 +117,13 @@ const selectedPlugin = computed(
   () => behavior.value.plugins.find((plugin) => plugin.descriptor.id === selected.value) ?? null,
 );
 const selectedRemote = computed(() => parseRemoteSelection(selected.value));
+/** The open plugin replaces the catalog in the panel; closing it is the back arrow. */
+const detailsOpen = computed(() => activeView.value === 'plugins' && Boolean(selectedPlugin.value || selectedRemote.value));
+
+function closeDetails(): void {
+  selected.value = null;
+  detailsRequest.value = null;
+}
 const updateEntries = computed(() => packages.updates?.updates ?? []);
 const remoteEntries = computed(() => packages.searchResults?.entries ?? []);
 /** Unknown until the registry list loads; only `false` shows the unavailable state. */
@@ -135,14 +146,9 @@ onMounted(() => {
 });
 
 watch(catalog, openCatalogTab);
-const views = computed(() => [
-  { value: 'plugins' as const, label: t('plugins.views.plugins') },
-  { value: 'processors' as const, label: t('plugins.views.processors') },
-  { value: 'catalog' as const, label: t('plugins.views.cloud') },
-]);
 
 watch(selected, (next, previous) => {
-  if (previous !== null && next !== previous) detailsTab.value = 'general';
+  if (next !== null && next !== previous) detailsTab.value = 'general';
 });
 
 watch(
@@ -164,50 +170,12 @@ const persist = debounce(() => {
   });
 });
 watch([view, catalog, query, selected, detailsTab], persist);
+// The list the processor was opened from may no longer hold it.
+watch(activeView, () => { processorSelected.value = null; });
 </script>
 
 <template>
   <div class="plugins-page">
-    <h2
-      v-if="unifiedCatalog && activeView === 'catalog'"
-      class="plugins-page__sr-only"
-    >
-      {{ t('plugins.views.back') }}
-    </h2>
-    <CollectionToolbar
-      v-else
-      class="plugins-page__toolbar"
-      :label="t('plugins.title')"
-    >
-      <template v-if="unifiedCatalog">
-        <BaseButton
-          variant="ghost"
-          @click="view = 'catalog'"
-        >
-          ‹ {{ t('plugins.views.back') }}
-        </BaseButton>
-        <span class="plugins-page__lead">{{ activeView === 'processors' ? t('plugins.views.processors') : t('plugins.views.plugins') }}</span>
-      </template>
-      <template v-else>
-        <BaseSegmented
-          v-model="viewModel"
-          :options="views"
-          :aria-label="t('plugins.title')"
-        />
-        <span class="plugins-page__lead">{{ t('plugins.lead') }}</span>
-      </template>
-      <BaseButton
-        variant="primary"
-        :disabled="packages.review.open"
-        @click="plugins.installPackage()"
-      >
-        <template #icon>
-          <IconPlus />
-        </template>
-        {{ t('plugins.install.package') }}
-      </BaseButton>
-    </CollectionToolbar>
-
     <p
       v-if="plugins.behaviorError.value"
       class="plugins-page__banner plugins-page__banner--error"
@@ -222,83 +190,104 @@ watch([view, catalog, query, selected, detailsTab], persist);
     />
     <PluginJobsPanel />
 
-    <MasterDetailLayout
-      v-if="activeView === 'plugins'"
-      v-model:size="catalogWidth"
-      class="plugins-page__workspace"
-      :narrow="isNarrow"
-      :detail-open="mobileDetailsOpen && Boolean(selectedPlugin || selectedRemote)"
-      :back-label="t('common.back')"
-      :min="240"
-      :max="520"
-      @back="mobileDetailsOpen = false"
-    >
-      <template #master>
-        <PluginCatalog
-          v-model:tab="catalog"
-          v-model:query="query"
-          v-model:remote-query="packages.searchQuery"
-          v-model:selected="selected"
-          :plugins="behavior.plugins"
-          :action-types="behavior.actionTypes"
-          :remote="remoteEntries"
-          :updates="updateEntries"
-          :searching="packages.searching"
-          :search-error="packages.searchError"
-          :checking-updates="packages.checkingUpdates"
-          :marketplace-available="marketplaceAvailable"
+    <!-- One navigation area: the catalog or processors, or the open item with a way back. -->
+    <template v-if="activeView === 'catalog'">
+      <template v-if="unifiedCatalog">
+        <h2 class="plugins-page__sr-only">
+          {{ t('plugins.views.back') }}
+        </h2>
+        <UnifiedCatalog
+          :installed-ids="installedIds"
+          @manage-processors="view = 'processors'"
+          @manage-installed="view = 'plugins'"
           @install-package="plugins.installPackage()"
-          @install-spec="plugins.installSpec"
-          @search="search"
-          @check-updates="packages.checkUpdates()"
-          @update="(id, version) => packages.updatePlugin(id, version)"
-          @update-all="packages.updateAll()"
-          @open="openPlugin"
-          @command="runCommand"
+          @open-plugin="openInstalled"
         />
       </template>
-      <template #detail>
-        <PluginDetails
-          v-if="selectedPlugin"
-          :key="selectedPlugin.descriptor.id"
-          v-model:tab="detailsTab"
-          v-model:request="detailsRequest"
-          :plugin="selectedPlugin"
-          :actions="behavior.actions"
-          :action-types="behavior.actionTypes"
-        />
-        <RemotePluginDetails
-          v-else-if="selectedRemote"
-          :key="selected ?? ''"
-          :registry="selectedRemote.registry"
-          :plugin-id="selectedRemote.id"
-        />
-        <div
-          v-else
-          class="plugins-page__placeholder"
-        >
-          <BaseEmptyState :title="t('plugins.details.empty')">
-            <template #icon>
-              <IconPuzzle :size="28" />
-            </template>
-          </BaseEmptyState>
+      <template v-else>
+        <div class="plugins-page__bar">
+          <BaseIconButton
+            :label="t('plugins.views.plugins')"
+            variant="default"
+            size="sm"
+            @click="view = 'plugins'"
+          >
+            <IconChevronLeft />
+          </BaseIconButton>
+          <BaseIconButton
+            class="plugins-page__install"
+            :label="t('plugins.install.package')"
+            variant="primary"
+            size="sm"
+            :disabled="packages.review.open"
+            @click="plugins.installPackage()"
+          >
+            <IconPlus />
+          </BaseIconButton>
         </div>
+        <CloudPluginCatalog />
       </template>
-    </MasterDetailLayout>
-    <ProcessorsPanel
-      v-else-if="activeView === 'processors'"
-      v-model:query="processorQuery"
-      :plugins="behavior.plugins"
-    />
-    <UnifiedCatalog
-      v-else-if="unifiedCatalog"
-      :installed-ids="installedIds"
-      @manage-processors="view = 'processors'"
-      @manage-installed="view = 'plugins'"
-      @install-package="plugins.installPackage()"
-      @open-plugin="openInstalled"
-    />
-    <CloudPluginCatalog v-else />
+    </template>
+    <template v-else>
+      <PluginDetails
+        v-if="detailsOpen && selectedPlugin"
+        :key="selectedPlugin.descriptor.id"
+        v-model:tab="detailsTab"
+        v-model:request="detailsRequest"
+        :plugin="selectedPlugin"
+        :actions="behavior.actions"
+        :action-types="behavior.actionTypes"
+        @back="closeDetails"
+      />
+      <RemotePluginDetails
+        v-else-if="detailsOpen && selectedRemote"
+        :key="selected ?? ''"
+        :registry="selectedRemote.registry"
+        :plugin-id="selectedRemote.id"
+        @back="closeDetails"
+      />
+      <ProcessorDetails
+        v-else-if="activeView === 'processors' && processorSelected"
+        :selected="processorSelected"
+        :plugins="behavior.plugins"
+        @back="processorSelected = null"
+      />
+      <PluginCatalog
+        v-else
+        v-model:tab="panelTab"
+        v-model:query="query"
+        v-model:remote-query="packages.searchQuery"
+        v-model:processor-query="processorQuery"
+        :plugins="behavior.plugins"
+        :action-types="behavior.actionTypes"
+        :remote="remoteEntries"
+        :updates="updateEntries"
+        :searching="packages.searching"
+        :search-error="packages.searchError"
+        :checking-updates="packages.checkingUpdates"
+        :marketplace-available="marketplaceAvailable"
+        :install-disabled="packages.review.open"
+        :catalog-label="unifiedCatalog ? t('plugins.views.back') : t('plugins.views.cloud')"
+        @install-package="plugins.installPackage()"
+        @install-spec="plugins.installSpec"
+        @search="search"
+        @check-updates="packages.checkUpdates()"
+        @update="(id, version) => packages.updatePlugin(id, version)"
+        @update-all="packages.updateAll()"
+        @refresh-processors="processorsStore.refresh()"
+        @open-catalog="view = 'catalog'"
+        @open="openPlugin"
+        @command="runCommand"
+      >
+        <template #processors>
+          <ProcessorsPanel
+            :plugins="behavior.plugins"
+            :query="processorQuery"
+            @open="processorSelected = $event"
+          />
+        </template>
+      </PluginCatalog>
+    </template>
     <InstallPluginDialog />
   </div>
 </template>
@@ -314,13 +303,6 @@ watch([view, catalog, query, selected, detailsTab], persist);
   padding: var(--space-4);
 }
 
-.plugins-page__toolbar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-5);
-}
-
 .plugins-page__sr-only {
   position: absolute;
   width: 1px;
@@ -330,14 +312,15 @@ watch([view, catalog, query, selected, detailsTab], persist);
   white-space: nowrap;
 }
 
-.plugins-page__lead {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.plugins-page__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.plugins-page__install {
+  margin-left: auto;
 }
 
 .plugins-page__banner {
@@ -356,33 +339,9 @@ watch([view, catalog, query, selected, detailsTab], persist);
   color: var(--color-danger-hover);
 }
 
-.plugins-page__workspace {
-  flex: 1;
-}
-
-.plugins-page__placeholder {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  border: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-panel);
-}
-
 @media (width < 900px) {
   .plugins-page {
     padding: var(--space-3);
   }
-
-  .plugins-page__toolbar {
-    flex-wrap: wrap;
-    row-gap: var(--space-2);
-  }
-
-  .plugins-page__lead {
-    display: none;
-  }
-
-  .plugins-page__workspace { min-height: 360px; }
 }
 </style>

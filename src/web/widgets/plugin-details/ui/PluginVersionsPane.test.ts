@@ -31,10 +31,10 @@ it('reviews a previous Cloud version from the configured instance before install
   await activateLocale('en');
   const { wrapper, calls, store } = setup('registry');
   await flushPromises();
-  const button = wrapper.findAll('button').find((item) => item.text() === 'Review Cloud version');
-  expect(button).toBeDefined();
-  expect(wrapper.text()).toContain('require a new review');
-  await button!.trigger('click');
+  const button = wrapper.find('button[aria-label="Review Cloud version 1.0.0"]');
+  expect(button.exists()).toBe(true);
+  expect(button.attributes('aria-description')).toContain('require a new review');
+  await button.trigger('click');
   await flushPromises();
   expect(calls.filter((call) => call.method === 'plugins.packages.inspect')).toEqual([
     { method:'plugins.packages.inspect', params:{ spec:{ kind:'registry', id:'acme.plugin', version:'1.0.0' } } },
@@ -51,8 +51,8 @@ it('keeps verified local restoration available for local packages', async () => 
   await activateLocale('en');
   const { wrapper, calls } = setup('file');
   await flushPromises();
-  expect(wrapper.text()).not.toContain('Review Cloud version');
-  await wrapper.findAll('button').find((item) => item.text() === 'Restore')!.trigger('click');
+  expect(wrapper.find('button[aria-label^="Review Cloud version"]').exists()).toBe(false);
+  await wrapper.get('button[aria-label="Restore 1.0.0"]').trigger('click');
   await flushPromises();
   expect(calls.find((call) => call.method === 'plugins.packages.rollback')).toEqual({
     method:'plugins.packages.rollback', params:{ pluginId:'acme.plugin', version:'1.0.0' },

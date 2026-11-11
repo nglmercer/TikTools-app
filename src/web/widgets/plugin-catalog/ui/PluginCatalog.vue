@@ -1,24 +1,34 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ActionTypeDefinition, PluginStatus } from '../../../../automation/behavior/types.ts';
-import { catalogPlugins, pluginState, type PluginCatalogTab } from '@/entities/plugin/lib/plugin-catalog.ts';
+import { catalogPlugins, type PluginsPanelTab } from '@/entities/plugin/lib/plugin-catalog.ts';
 import { isPluginCommand, pluginMenu, type PluginCommand } from '@/entities/plugin/lib/plugin-menu.ts';
-import PluginStateBadge from '@/entities/plugin/ui/PluginStateBadge.vue';
 import type { SearchEntry, UpdateInfo } from '@/entities/plugin-package/api/package-types.ts';
 import { remoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
-import CollectionToolbar from '@/shared/ui/collection-toolbar/CollectionToolbar.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
+import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
+import IconCompass from '@/shared/ui/icon/icons/IconCompass.vue';
+import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
+import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
+import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
+import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
+import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
-import BaseList from '@/shared/ui/list/BaseList.vue';
+import IconUpload from '@/shared/ui/icon/icons/IconUpload.vue';
+import IconWarning from '@/shared/ui/icon/icons/IconWarning.vue';
+import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
 import BaseContextMenu from '@/shared/ui/menu/BaseContextMenu.vue';
 import type { MenuAction } from '@/shared/ui/menu/menu-types.ts';
-import BasePanel from '@/shared/ui/panel/BasePanel.vue';
-import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
+import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
+import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 
 type CatalogRow =
   | { key: string; kind: 'local'; plugin: PluginStatus }
@@ -35,6 +45,10 @@ const props = defineProps<{
   checkingUpdates?: boolean;
   /** False when no enabled registry exists (official one unpublished). */
   marketplaceAvailable?: boolean;
+  /** The package review is open: a second .plugin cannot be chosen yet. */
+  installDisabled?: boolean;
+  /** Label of the button that leaves for the Cloud catalog; omitted when the host has none to offer. */
+  catalogLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -44,41 +58,55 @@ const emit = defineEmits<{
   'check-updates': [];
   update: [id: string, version?: string];
   'update-all': [];
-  open: [id: string];
+  'refresh-processors': [];
+  'open-catalog': [];
+  open: [key: string];
   command: [id: string, command: PluginCommand];
 }>();
 
-const tab = defineModel<PluginCatalogTab>('tab', { required: true });
+const tab = defineModel<PluginsPanelTab>('tab', { required: true });
 const query = defineModel<string>('query', { default: '' });
 const remoteQuery = defineModel<string>('remoteQuery', { default: '' });
-const selected = defineModel<string | null>('selected', { default: null });
+const processorQuery = defineModel<string>('processorQuery', { default: '' });
 
 const { t } = useI18n();
+const titleId = useId();
 const specInput = ref('');
+/** Key of the row a context menu was opened on; never the open plugin, which has its own panel. */
+const menuKey = ref<string | null>(null);
 
 const installedCount = computed(() => props.plugins.filter((plugin) => plugin.installed).length);
 const pendingUpdates = computed(() => props.updates.filter((entry) => entry.latest && entry.latestStatus === 'approved' && !entry.pinned));
 const tabs = computed(() => [
-  { value: 'browse' as const, label: t('plugins.catalog.browse') },
-  { value: 'installed' as const, label: `${t('plugins.catalog.installed')} (${installedCount.value})` },
+  { value: 'browse' as const, label: t('plugins.catalog.browse'), icon: IconCompass },
+  { value: 'installed' as const, label: t('plugins.catalog.installed'), icon: IconPuzzle, badge: installedCount.value },
   {
     value: 'updates' as const,
-    label: pendingUpdates.value.length
-      ? `${t('plugins.catalog.updates')} (${pendingUpdates.value.length})`
-      : t('plugins.catalog.updates'),
+    label: t('plugins.catalog.updates'),
+    icon: IconUpload,
+    badge: pendingUpdates.value.length || undefined,
   },
+  { value: 'processors' as const, label: t('plugins.views.processors'), icon: IconFlow },
 ]);
+
+function updateName(update: UpdateInfo): string {
+  const plugin = props.plugins.find((entry) => entry.descriptor.id === update.id);
+  return plugin ? localizedText(plugin.descriptor.name) : update.id;
+}
 
 const rows = computed<CatalogRow[]>(() => {
   if (tab.value === 'updates') {
-    return props.updates.map((update) => ({
-      key: update.id,
-      kind: 'update' as const,
-      update,
-      plugin: props.plugins.find((plugin) => plugin.descriptor.id === update.id),
-    }));
+    const words = query.value.trim().toLowerCase();
+    return props.updates
+      .filter((update) => !words || `${update.id} ${updateName(update)}`.toLowerCase().includes(words))
+      .map((update) => ({
+        key: update.id,
+        kind: 'update' as const,
+        update,
+        plugin: props.plugins.find((plugin) => plugin.descriptor.id === update.id),
+      }));
   }
-  const local = catalogPlugins(props.plugins, tab.value, props.actionTypes, query.value, localizedText).map(
+  const local = catalogPlugins(props.plugins, tab.value === 'installed' ? 'installed' : 'browse', props.actionTypes, query.value, localizedText).map(
     (plugin) => ({ key: plugin.descriptor.id, kind: 'local' as const, plugin }),
   );
   if (tab.value === 'installed') return local;
@@ -91,10 +119,15 @@ const rows = computed<CatalogRow[]>(() => {
 
 /** Right-click (or Menu / Shift+F10) on an installed or bundled plugin row. */
 const menuPlugin = computed(() => {
-  const row = rows.value.find((entry) => entry.key === selected.value);
+  const row = rows.value.find((entry) => entry.key === menuKey.value);
   return row?.kind === 'local' ? row.plugin : null;
 });
 const menuItems = computed(() => (menuPlugin.value ? pluginMenu(menuPlugin.value, props.actionTypes, t) : []));
+
+function onMenuOpen(event: MouseEvent | KeyboardEvent): void {
+  const row = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-plugin-key]');
+  menuKey.value = row?.dataset['pluginKey'] ?? null;
+}
 
 function onMenu(action: MenuAction): void {
   const plugin = menuPlugin.value;
@@ -102,11 +135,41 @@ function onMenu(action: MenuAction): void {
 }
 
 const filtering = computed(() => query.value.trim().length > 0);
+const searchable = computed(() => !(tab.value === 'browse' && props.marketplaceAvailable === false));
+const searchValue = computed({
+  get: () => (tab.value === 'browse' ? remoteQuery.value : tab.value === 'processors' ? processorQuery.value : query.value),
+  set: (value: string) => {
+    if (tab.value === 'browse') remoteQuery.value = value;
+    else if (tab.value === 'processors') processorQuery.value = value;
+    else query.value = value;
+  },
+});
+const searchLabel = computed(() =>
+  tab.value === 'browse'
+    ? t('plugins.catalog.searchRegistry')
+    : tab.value === 'processors'
+      ? t('plugins.processors.search')
+      : t('plugins.catalog.search'),
+);
 
 function rowName(row: CatalogRow): string {
   if (row.kind === 'local') return localizedText(row.plugin.descriptor.name);
   if (row.kind === 'remote') return row.entry.name;
-  return row.plugin ? localizedText(row.plugin.descriptor.name) : row.update.id;
+  return updateName(row.update);
+}
+
+function sourceLabel(plugin: PluginStatus): string {
+  return t(`plugins.details.sources.${plugin.descriptor.source ?? 'builtin'}`);
+}
+
+function rowSub(row: CatalogRow): string {
+  if (row.kind === 'remote') return row.entry.publisher ?? row.entry.registry;
+  if (row.kind === 'update') return row.update.registry;
+  return tab.value === 'installed' ? `${sourceLabel(row.plugin)} · ${row.plugin.descriptor.version}` : sourceLabel(row.plugin);
+}
+
+function submitSearch(): void {
+  if (tab.value === 'browse') emit('search');
 }
 
 function submitSpec(): void {
@@ -118,328 +181,522 @@ function submitSpec(): void {
 </script>
 
 <template>
-  <BasePanel
+  <section
     class="plugin-catalog"
-    :title="t('plugins.title')"
-    flush
+    :aria-labelledby="titleId"
   >
-    <div class="plugin-catalog__body">
-      <CollectionToolbar
-        class="plugin-catalog__filters"
-        :label="t('plugins.catalog.search')"
-      >
-        <BaseSegmented
-          v-model="tab"
-          class="plugin-catalog__tabs"
-          :options="tabs"
-          size="sm"
-        />
-        <BaseTextField
-          v-if="tab === 'installed'"
-          v-model="query"
-          type="search"
-          size="sm"
-          :placeholder="t('plugins.catalog.search')"
-          :aria-label="t('plugins.catalog.search')"
-        >
-          <template #prefix>
-            <IconSearch />
-          </template>
-        </BaseTextField>
-        <template v-else-if="tab === 'browse'">
-          <p
-            v-if="marketplaceAvailable === false"
-            class="plugin-catalog__notice"
-            role="status"
-          >
-            {{ t('plugins.catalog.marketplaceUnavailable') }}
-          </p>
+    <h2
+      :id="titleId"
+      class="plugin-catalog__title"
+    >
+      {{ t('plugins.title') }}
+    </h2>
+    <BaseTabs
+      v-model="tab"
+      class="plugin-catalog__tabs"
+      :tabs="tabs"
+    >
+      <template #bar>
+        <div class="plugin-catalog__bar">
           <form
-            v-else
-            class="plugin-catalog__row"
-            @submit.prevent="emit('search')"
+            v-if="searchable"
+            class="plugin-catalog__search"
+            role="search"
+            @submit.prevent="submitSearch"
           >
             <BaseTextField
-              v-model="remoteQuery"
+              v-model="searchValue"
               type="search"
               size="sm"
-              :placeholder="t('plugins.catalog.searchRegistry')"
-              :aria-label="t('plugins.catalog.searchRegistry')"
+              :placeholder="searchLabel"
+              :aria-label="searchLabel"
             >
               <template #prefix>
                 <IconSearch />
               </template>
             </BaseTextField>
-            <BaseButton
-              size="sm"
-              type="submit"
-              :disabled="searching"
-            >
-              {{ t('plugins.catalog.searchButton') }}
-            </BaseButton>
           </form>
-          <form
-            class="plugin-catalog__row"
-            @submit.prevent="submitSpec"
-          >
-            <BaseTextField
-              v-model="specInput"
+          <span class="plugin-catalog__tools">
+            <template v-if="tab === 'updates'">
+              <BaseIconButton
+                :label="checkingUpdates ? t('plugins.catalog.checking') : t('plugins.catalog.checkUpdates')"
+                :hint="t('packages.liveStatus.hint')"
+                variant="default"
+                size="sm"
+                :disabled="checkingUpdates"
+                @click="emit('check-updates')"
+              >
+                <IconRefresh />
+              </BaseIconButton>
+              <BaseIconButton
+                :label="t('plugins.catalog.updateAll')"
+                variant="default"
+                size="sm"
+                :disabled="checkingUpdates || !pendingUpdates.length"
+                @click="emit('update-all')"
+              >
+                <IconUpload />
+              </BaseIconButton>
+            </template>
+            <BaseIconButton
+              v-else-if="tab === 'processors'"
+              :label="t('plugins.processors.refresh')"
+              variant="default"
               size="sm"
-              :placeholder="t('plugins.catalog.installSpec')"
-              :aria-label="t('plugins.catalog.installSpec')"
-            />
-            <BaseButton
-              size="sm"
-              type="submit"
-              :disabled="!specInput.trim()"
+              @click="emit('refresh-processors')"
             >
-              {{ t('plugins.catalog.review') }}
-            </BaseButton>
-          </form>
-          <p
-            v-if="searchError"
-            class="plugin-catalog__error"
-            role="alert"
-          >
-            {{ searchError }}
-          </p>
-        </template>
-        <div
-          v-else
-          class="plugin-catalog__row"
-        >
-          <BaseButton
-            size="sm"
-            :disabled="checkingUpdates"
-            @click="emit('check-updates')"
-          >
-            {{ checkingUpdates ? t('plugins.catalog.checking') : t('plugins.catalog.checkUpdates') }}
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="primary"
-            :disabled="checkingUpdates || !pendingUpdates.length"
-            @click="emit('update-all')"
-          >
-            {{ t('plugins.catalog.updateAll') }}
-          </BaseButton>
+              <IconRefresh />
+            </BaseIconButton>
+            <BaseIconButton
+              v-if="catalogLabel"
+              :label="catalogLabel"
+              variant="default"
+              size="sm"
+              @click="emit('open-catalog')"
+            >
+              <IconGlobe />
+            </BaseIconButton>
+            <BaseIconButton
+              :label="t('plugins.install.package')"
+              variant="primary"
+              size="sm"
+              :disabled="installDisabled"
+              @click="emit('install-package')"
+            >
+              <IconPlus />
+            </BaseIconButton>
+          </span>
         </div>
-      </CollectionToolbar>
-      <p
-        v-if="tab === 'updates'"
-        class="plugin-catalog__notice"
-      >
-        {{ t('packages.liveStatus.hint') }}
-      </p>
-      <!-- No `disabled` binding: it would be read before the right-clicked
-           row is selected. Rows without commands get an empty (hidden) menu. -->
-      <BaseContextMenu
-        :items="menuItems"
-        @select="onMenu"
-      >
-        <BaseList
-          v-model:selected="selected"
-          class="plugin-catalog__list"
-          :items="rows"
-          :item-key="(row) => row.key"
-          :aria-label="t('plugins.title')"
-          @activate="emit('open', $event.key)"
+      </template>
+
+      <div class="plugin-catalog__body">
+        <form
+          v-if="tab === 'browse'"
+          class="plugin-catalog__spec"
+          @submit.prevent="submitSpec"
         >
-          <template #default="{ item }">
-            <span
-              class="plugin-catalog__item"
-              :class="{ 'plugin-catalog__item--off': item.kind === 'local' && item.plugin.installed && !item.plugin.enabled }"
-              @pointerdown="emit('open', item.key)"
+          <BaseTextField
+            v-model="specInput"
+            size="sm"
+            :placeholder="t('plugins.catalog.installSpec')"
+            :aria-label="t('plugins.catalog.installSpec')"
+          />
+          <BaseIconButton
+            :label="t('plugins.catalog.review')"
+            variant="default"
+            size="sm"
+            :disabled="!specInput.trim()"
+            @click="submitSpec"
+          >
+            <IconDownload />
+          </BaseIconButton>
+        </form>
+        <p
+          v-if="tab === 'browse' && marketplaceAvailable === false"
+          class="plugin-catalog__notice"
+          role="status"
+        >
+          {{ t('plugins.catalog.marketplaceUnavailable') }}
+        </p>
+        <p
+          v-if="tab === 'browse' && searchError"
+          class="plugin-catalog__error"
+          role="alert"
+        >
+          {{ searchError }}
+        </p>
+
+        <slot
+          v-if="tab === 'processors'"
+          name="processors"
+        />
+        <!-- No `disabled` binding: it would be read before the right-clicked row is
+             known. Rows without commands get an empty (hidden) menu. -->
+        <BaseContextMenu
+          v-else
+          :items="menuItems"
+          @open="onMenuOpen"
+          @select="onMenu"
+        >
+          <ul
+            v-if="rows.length"
+            class="plugin-catalog__list"
+            :aria-label="t('plugins.title')"
+          >
+            <li
+              v-for="row in rows"
+              :key="row.key"
+              class="plugin-catalog__row"
+              :class="{ 'plugin-catalog__row--off': row.kind === 'local' && row.plugin.installed && !row.plugin.enabled }"
+              :data-plugin-key="row.key"
             >
-              <IconPuzzle class="plugin-catalog__icon" />
-              <span class="plugin-catalog__name">{{ rowName(item) }}</span>
-              <PluginStateBadge
-                v-if="item.kind === 'local' && (item.plugin.installed || !item.plugin.available)"
-                :state="pluginState(item.plugin)"
+              <BaseSwitch
+                v-if="row.kind === 'local' && row.plugin.installed"
+                class="plugin-catalog__control"
+                :model-value="row.plugin.enabled"
+                :aria-label="t('plugins.catalog.enable', { name: rowName(row) })"
+                @update:model-value="emit('command', row.plugin.descriptor.id, 'toggle-enabled')"
               />
-              <span
-                v-else-if="item.kind === 'local'"
-                class="plugin-catalog__tag"
-              >{{ t('plugins.catalog.bundled') }}</span>
-              <span
-                v-else-if="item.kind === 'remote'"
-                class="plugin-catalog__tag"
-              >{{ item.entry.latest }}</span>
+              <button
+                class="plugin-catalog__open"
+                type="button"
+                @click="emit('open', row.key)"
+              >
+                <span class="plugin-catalog__name">{{ rowName(row) }}</span>
+                <span class="plugin-catalog__sub">{{ rowSub(row) }}</span>
+              </button>
+
+              <template v-if="row.kind === 'local'">
+                <span
+                  v-if="tab === 'installed' && !row.plugin.available"
+                  v-tooltip="row.plugin.unavailableReason ?? t('plugins.state.unavailable')"
+                  class="plugin-catalog__chip plugin-catalog__chip--warning plugin-catalog__control"
+                >
+                  <IconWarning />
+                  {{ t('plugins.catalog.unavailable') }}
+                </span>
+                <template v-if="tab === 'installed'">
+                  <span
+                    v-tooltip="t('plugins.details.actions')"
+                    class="plugin-catalog__meta plugin-catalog__control"
+                    role="img"
+                    :aria-label="`${t('plugins.details.actions')}: ${row.plugin.descriptor.actionTypeIds.length}`"
+                  >
+                    <IconPlay :size="14" />{{ row.plugin.descriptor.actionTypeIds.length }}
+                  </span>
+                  <span
+                    v-tooltip="t('plugins.details.events')"
+                    class="plugin-catalog__meta plugin-catalog__control"
+                    role="img"
+                    :aria-label="`${t('plugins.details.events')}: ${row.plugin.descriptor.eventTypeIds.length}`"
+                  >
+                    <IconZap :size="14" />{{ row.plugin.descriptor.eventTypeIds.length }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="plugin-catalog__meta plugin-catalog__mono">{{ row.plugin.descriptor.version }}</span>
+                  <BaseIconButton
+                    class="plugin-catalog__control"
+                    :label="t('plugins.catalog.installPlugin', { name: rowName(row) })"
+                    variant="default"
+                    size="sm"
+                    :disabled="!row.plugin.available"
+                    @click="emit('command', row.plugin.descriptor.id, 'install')"
+                  >
+                    <IconDownload />
+                  </BaseIconButton>
+                </template>
+              </template>
+
+              <template v-else-if="row.kind === 'remote'">
+                <span class="plugin-catalog__meta plugin-catalog__mono">{{ row.entry.latest }}</span>
+                <BaseIconButton
+                  class="plugin-catalog__control"
+                  :label="t('plugins.catalog.installPlugin', { name: rowName(row) })"
+                  :hint="t('packages.remote.install')"
+                  variant="default"
+                  size="sm"
+                  @click="emit('open', row.key)"
+                >
+                  <IconDownload />
+                </BaseIconButton>
+              </template>
+
               <template v-else>
                 <span
-                  class="plugin-catalog__tag"
-                  :class="{ 'plugin-catalog__tag--warning': item.update.currentStatus !== 'approved' }"
+                  v-if="row.update.currentStatus !== 'approved'"
+                  class="plugin-catalog__chip plugin-catalog__chip--warning plugin-catalog__control"
                 >
-                  {{ t(`packages.liveStatus.${item.update.currentStatus ?? 'unknown'}`) }}
+                  {{ t(`packages.liveStatus.${row.update.currentStatus ?? 'unknown'}`) }}
                 </span>
                 <span
-                  v-if="item.update.advisory"
-                  class="plugin-catalog__tag plugin-catalog__tag--warning"
-                >{{ t(`packages.advisory.${item.update.advisory.severity}`) }}</span>
-                <BaseButton
-                  v-if="item.update.latest"
+                  v-if="row.update.advisory"
+                  class="plugin-catalog__chip plugin-catalog__chip--warning plugin-catalog__control"
+                >{{ t(`packages.advisory.${row.update.advisory.severity}`) }}</span>
+                <span
+                  v-if="row.update.latest && row.update.latestStatus !== 'approved'"
+                  class="plugin-catalog__chip plugin-catalog__chip--warning plugin-catalog__control"
+                >
+                  {{ t(`packages.liveStatus.${row.update.latestStatus ?? 'unknown'}`) }}
+                </span>
+                <span class="plugin-catalog__meta plugin-catalog__mono">
+                  {{ row.update.latest ? `${row.update.current} → ${row.update.latest}` : row.update.current }}
+                </span>
+                <BaseIconButton
+                  v-if="row.update.latest"
+                  class="plugin-catalog__control"
+                  :label="t('plugins.catalog.update', { name: rowName(row) })"
+                  variant="default"
                   size="sm"
-                  :disabled="checkingUpdates || item.update.latestStatus !== 'approved'"
-                  @click.stop="emit('update', item.update.id, item.update.latest)"
+                  :disabled="checkingUpdates || row.update.latestStatus !== 'approved'"
+                  @click="emit('update', row.update.id, row.update.latest)"
                 >
-                  {{ item.update.current }} → {{ item.update.latest }}
-                </BaseButton>
-                <span
-                  v-if="item.update.latest && item.update.latestStatus !== 'approved'"
-                  class="plugin-catalog__tag plugin-catalog__tag--warning"
-                >
-                  {{ t(`packages.liveStatus.${item.update.latestStatus ?? 'unknown'}`) }}
-                </span>
+                  <IconUpload />
+                </BaseIconButton>
               </template>
-            </span>
-          </template>
-          <template #empty>
-            <BaseEmptyState
-              v-if="tab === 'installed' && filtering"
-              :title="t('plugins.catalog.noMatches', { query: query.trim() })"
-            />
-            <BaseEmptyState
-              v-else-if="tab === 'installed'"
-              :title="t('plugins.catalog.emptyInstalled')"
-              :description="t('plugins.catalog.emptyInstalledHint')"
+
+              <IconChevronRight class="plugin-catalog__chevron" />
+            </li>
+          </ul>
+          <BaseEmptyState
+            v-else-if="tab === 'installed' && filtering"
+            :title="t('plugins.catalog.noMatches', { query: query.trim() })"
+          />
+          <BaseEmptyState
+            v-else-if="tab === 'installed'"
+            :title="t('plugins.catalog.emptyInstalled')"
+            :description="t('plugins.catalog.emptyInstalledHint')"
+          >
+            <template #icon>
+              <IconPuzzle :size="28" />
+            </template>
+            <BaseButton
+              size="sm"
+              @click="tab = 'browse'"
             >
-              <template #icon>
-                <IconPuzzle :size="28" />
-              </template>
-              <BaseButton
-                size="sm"
-                @click="tab = 'browse'"
-              >
-                {{ t('plugins.catalog.browseAvailable') }}
-              </BaseButton>
-            </BaseEmptyState>
-            <BaseEmptyState
-              v-else-if="tab === 'browse' && marketplaceAvailable === false"
-              :title="t('plugins.catalog.marketplaceUnavailable')"
-              :description="t('plugins.catalog.marketplaceUnavailableHint')"
+              {{ t('plugins.catalog.browseAvailable') }}
+            </BaseButton>
+          </BaseEmptyState>
+          <BaseEmptyState
+            v-else-if="tab === 'browse' && marketplaceAvailable === false"
+            :title="t('plugins.catalog.marketplaceUnavailable')"
+            :description="t('plugins.catalog.marketplaceUnavailableHint')"
+          >
+            <BaseButton
+              size="sm"
+              @click="emit('install-package')"
             >
-              <BaseButton
-                size="sm"
-                @click="emit('install-package')"
-              >
-                {{ t('plugins.install.package') }}
-              </BaseButton>
-            </BaseEmptyState>
-            <BaseEmptyState
-              v-else-if="tab === 'browse'"
-              :title="searching ? t('plugins.catalog.searching') : t('plugins.catalog.emptyBrowse')"
-              :description="t('plugins.catalog.emptyBrowseHint')"
+              {{ t('plugins.install.package') }}
+            </BaseButton>
+          </BaseEmptyState>
+          <BaseEmptyState
+            v-else-if="tab === 'browse'"
+            :title="searching ? t('plugins.catalog.searching') : t('plugins.catalog.emptyBrowse')"
+            :description="t('plugins.catalog.emptyBrowseHint')"
+          >
+            <BaseButton
+              size="sm"
+              @click="emit('install-package')"
             >
-              <BaseButton
-                size="sm"
-                @click="emit('install-package')"
-              >
-                {{ t('plugins.install.package') }}
-              </BaseButton>
-            </BaseEmptyState>
-            <BaseEmptyState
-              v-else
-              :title="t('plugins.catalog.emptyUpdates')"
-            />
-          </template>
-        </BaseList>
-      </BaseContextMenu>
-    </div>
-  </BasePanel>
+              {{ t('plugins.install.package') }}
+            </BaseButton>
+          </BaseEmptyState>
+          <BaseEmptyState
+            v-else
+            :title="filtering ? t('plugins.catalog.noMatches', { query: query.trim() }) : t('plugins.catalog.emptyUpdates')"
+          />
+        </BaseContextMenu>
+      </div>
+    </BaseTabs>
+  </section>
 </template>
 
 <style scoped>
-.plugin-catalog__notice {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+.plugin-catalog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-bg-panel);
+  color: var(--color-text);
 }
 
-.plugin-catalog {
-  height: 100%;
+.plugin-catalog__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.plugin-catalog__tabs {
+  flex: 1;
+}
+
+.plugin-catalog__tabs :deep(.base-tabs__bar) {
+  padding: var(--space-2) var(--space-3) 0;
+  background: var(--color-bg-panel-header);
+}
+
+/* Search and the icon tools share the tab row; on narrow screens they wrap below it. */
+.plugin-catalog__bar {
+  display: flex;
+  min-height: var(--control-height-md);
+  flex: 1 1 240px;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-bottom: var(--space-2);
+}
+
+.plugin-catalog__search {
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+  margin: 0;
+}
+
+.plugin-catalog__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 
 .plugin-catalog__body {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  overflow: auto;
 }
 
-.plugin-catalog__filters {
+.plugin-catalog__spec {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
   padding: var(--space-3);
   border-bottom: var(--border-width) solid var(--color-border-subtle);
 }
 
-.plugin-catalog__filters :deep(.collection-toolbar__filters) { flex-direction:column; align-items:stretch; width:100%; }
-
-.plugin-catalog__tabs {
-  align-self: stretch;
-}
-
-.plugin-catalog__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-}
-
-.plugin-catalog__row > :first-child {
+.plugin-catalog__spec > :first-child {
   flex: 1;
   min-width: 0;
 }
 
-.plugin-catalog__error {
+.plugin-catalog__error,
+.plugin-catalog__notice {
   margin: 0;
+  padding: var(--space-3) var(--space-4);
   color: var(--color-danger-hover);
   font-size: var(--font-size-sm);
 }
 
-.plugin-catalog__list {
-  flex: 1;
-  min-height: 0;
-  border: 0;
-  border-radius: 0;
+.plugin-catalog__notice {
+  color: var(--color-text-muted);
 }
 
-.plugin-catalog__item {
+.plugin-catalog__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plugin-catalog__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: calc(var(--control-height-lg) + var(--space-3));
+  padding: 0 var(--space-4);
+}
+
+.plugin-catalog__row + .plugin-catalog__row {
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.plugin-catalog__row:hover {
+  background: var(--color-bg-hover);
+}
+
+/* The open button stretches over the whole row; switches, chips and buttons stay clickable above it. */
+.plugin-catalog__open {
   display: flex;
   flex: 1;
-  align-items: center;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-1);
   min-width: 0;
-}
-
-.plugin-catalog__list :deep([aria-selected='true'] .plugin-state) {
+  padding: var(--space-3) 0;
+  border: 0;
+  background: transparent;
   color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.plugin-catalog__item--off .plugin-catalog__name {
-  opacity: 0.6;
+.plugin-catalog__open::after {
+  position: absolute;
+  inset: 0;
+  content: '';
 }
 
-.plugin-catalog__icon {
-  flex: none;
-  opacity: 0.75;
+.plugin-catalog__open:focus-visible {
+  outline: var(--border-width) solid var(--color-border-focus);
+  outline-offset: calc(var(--border-width) * -1);
+}
+
+.plugin-catalog__control {
+  position: relative;
+  z-index: 1;
 }
 
 .plugin-catalog__name {
-  flex: 1;
   overflow: hidden;
+  font-weight: var(--font-weight-semibold);
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.plugin-catalog__tag {
+.plugin-catalog__row--off .plugin-catalog__name {
+  opacity: 0.6;
+}
+
+.plugin-catalog__sub {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-catalog__meta {
+  display: inline-flex;
   flex: none;
-  color: var(--color-text-subtle);
-  font-family: var(--font-family-mono);
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-.plugin-catalog__tag--warning {
+.plugin-catalog__mono {
+  font-family: var(--font-family-mono);
+}
+
+.plugin-catalog__chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.plugin-catalog__chip--warning {
+  border: var(--border-width) solid var(--color-warning);
   color: var(--color-warning);
-  font-family: inherit;
+}
+
+.plugin-catalog__chevron {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+@media (width < 600px) {
+  .plugin-catalog__bar {
+    flex-basis: 100%;
+  }
+
+  .plugin-catalog__search {
+    max-width: none;
+  }
 }
 </style>

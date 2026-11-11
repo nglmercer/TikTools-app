@@ -3,6 +3,7 @@ import { computed, type ComputedRef, ref, useTemplateRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import type { PluginConnectionState } from '../../../../automation/plugins/declarative.ts';
+import { connectionStatusText } from '@/entities/plugin/lib/connection-status.ts';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
 import PluginConnectionEditor from '@/features/configure-plugin-connection/ui/PluginConnectionEditor.vue';
 import { localizedText } from '@/shared/i18n/i18n.ts';
@@ -46,10 +47,7 @@ function testCurrent(): void {
 }
 
 function statusText(connection: PluginConnectionState | undefined): string {
-  if (!connection) return t('connections.servers.notConfigured');
-  if (connection.ok) return t('connections.servers.connectedIn', { ms: connection.latencyMs });
-  if (connection.reachable && connection.gameplayReady === false) return t('connections.servers.apiNotReady');
-  return t('connections.servers.failed');
+  return connectionStatusText(connection, t);
 }
 </script>
 

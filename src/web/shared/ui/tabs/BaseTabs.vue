@@ -1,10 +1,10 @@
 <script setup lang="ts" generic="T extends string | number">
 import { computed, nextTick, ref, useId } from 'vue';
 import { firstEnabledIndex, lastEnabledIndex, stepEnabledIndex } from '@/shared/lib/list-navigation.ts';
-import type { SelectOption } from '../types.ts';
+import type { TabOption } from './tab-types.ts';
 
 const props = defineProps<{
-  tabs: readonly SelectOption<T>[];
+  tabs: readonly TabOption<T>[];
 }>();
 
 const model = defineModel<T>({ required: true });
@@ -40,26 +40,41 @@ function onKeydown(event: KeyboardEvent): void {
 <template>
   <div class="base-tabs">
     <div
-      class="base-tabs__list"
-      role="tablist"
-      @keydown="onKeydown"
+      class="base-tabs__bar"
+      :class="{ 'base-tabs__bar--solo': !$slots.bar }"
     >
-      <button
-        v-for="(tab, index) in tabs"
-        :id="tabId(index)"
-        :key="String(tab.value)"
-        :ref="(element) => (tabElements[index] = element as HTMLElement)"
-        class="base-tabs__tab"
-        type="button"
-        role="tab"
-        :aria-selected="index === selectedIndex"
-        :aria-controls="panelId"
-        :tabindex="index === selectedIndex ? 0 : -1"
-        :disabled="tab.disabled"
-        @click="select(index)"
+      <div
+        class="base-tabs__list"
+        role="tablist"
+        @keydown="onKeydown"
       >
-        {{ tab.label }}
-      </button>
+        <button
+          v-for="(tab, index) in tabs"
+          :id="tabId(index)"
+          :key="String(tab.value)"
+          :ref="(element) => (tabElements[index] = element as HTMLElement)"
+          class="base-tabs__tab"
+          type="button"
+          role="tab"
+          :aria-selected="index === selectedIndex"
+          :aria-controls="panelId"
+          :tabindex="index === selectedIndex ? 0 : -1"
+          :disabled="tab.disabled"
+          @click="select(index)"
+        >
+          <component
+            :is="tab.icon"
+            v-if="tab.icon"
+            class="base-tabs__icon"
+          />
+          {{ tab.label }}
+          <span
+            v-if="tab.badge !== undefined"
+            class="base-tabs__badge"
+          >{{ tab.badge }}</span>
+        </button>
+      </div>
+      <slot name="bar" />
     </div>
     <div
       :id="panelId"
@@ -80,15 +95,30 @@ function onKeydown(event: KeyboardEvent): void {
   min-height: 0;
 }
 
-.base-tabs__list {
+.base-tabs__bar {
   display: flex;
   flex: none;
-  gap: var(--space-1);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-3);
   border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.base-tabs__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.base-tabs__bar--solo > .base-tabs__list {
+  flex: 1;
 }
 
 .base-tabs__tab {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
   height: var(--control-height-md);
   padding: 0 var(--space-5);
   border: var(--border-width) solid transparent;
@@ -127,6 +157,11 @@ function onKeydown(event: KeyboardEvent): void {
 
 .base-tabs__tab:focus-visible {
   box-shadow: var(--focus-ring);
+}
+
+.base-tabs__badge {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .base-tabs__tab:disabled {

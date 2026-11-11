@@ -101,6 +101,7 @@ async function mountPage(
   liveStatuses: Record<string, string> = { '1.2.0': 'approved' },
   /** Methods the host announces through `rpc.discover`, as a host with the unified catalog does. */
   announce: string[] = [],
+  updates: unknown[] = [],
 ) {
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
@@ -114,7 +115,10 @@ async function mountPage(
     if (method === 'plugins.packages.receipts') return { receipts: [] };
     if (method === 'plugins.jobs.list') return { jobs: [] };
     if (method === 'plugins.packages.versions') return { id: 'deck', installed: '1.2.0', retained: [], available: [] };
-    if (method === 'plugins.updates.list') return { updates: [], checkedAt: 0 };
+    if (method === 'plugins.updates.list') return { updates, checkedAt: 0 };
+    if (method === 'plugins.packages.update') {
+      return { job: { id: 'job-2', kind: 'update', stage: 'queued', status: 'queued', createdAt: 1, updatedAt: 1 } };
+    }
     if (method === 'registry.search') return { entries: [remoteEntry], total: 1, page: 1, pages: 1 };
     if (method === 'registry.cloudCatalogPaginationCapabilities') return {
       schemaVersion: 1, summaryPath: '/api/v2/catalog/plugin-summaries',
@@ -155,15 +159,37 @@ function buttonByText(wrapper: Wrapper, text: string) {
   return wrapper.findAll('button').find((button) => button.text() === text)!;
 }
 
+/** Icon buttons have no text: they are found by the accessible name they carry. */
+function buttonByLabel(wrapper: Wrapper, label: string) {
+  return wrapper.find<HTMLButtonElement>(`button[aria-label="${label}"]`);
+}
+
+function tabNames(wrapper: Wrapper, name = 'tab') {
+  return wrapper.findAll(`[role="${name}"]`).map((item) => item.text());
+}
+
+async function openTab(wrapper: Wrapper, label: string) {
+  await wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith(label))!.trigger('click');
+  await flushPromises();
+}
+
+function row(wrapper: Wrapper, name: string) {
+  return wrapper.findAll('.plugin-catalog__row').find((item) => item.text().includes(name))!;
+}
+
 async function selectPlugin(wrapper: Wrapper, name: string) {
-  const option = wrapper.findAll('[role="option"]').find((item) => item.text().includes(name))!;
-  await option.trigger('pointerdown');
+  await row(wrapper, name).get('.plugin-catalog__open').trigger('click');
+  await flushPromises();
 }
 
 async function openItemMenu(wrapper: Wrapper, name: string) {
-  const option = wrapper.findAll('[role="option"]').find((item) => item.text().includes(name))!;
-  await option.trigger('contextmenu');
+  await row(wrapper, name).trigger('contextmenu');
   await nextTick();
+}
+
+/** The name of the open plugin: the title of the panel that replaced the list. */
+function detailsTitle(wrapper: Wrapper): string {
+  return wrapper.get('.base-panel__title').text();
 }
 
 function menuItems(): HTMLElement[] {
@@ -177,65 +203,147 @@ function menuItem(label: string): HTMLElement {
 describe('PluginsPage', () => {
   it('opens Cloud catalog discovery without an installation request', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Cloud catalog').trigger('click');
+    await buttonByLabel(wrapper, 'Cloud catalog').trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('cloud.test');
     expect(calls.find((call) => call.method === 'registry.cloudCatalogSummaries')?.params).toEqual({ query: '' });
     expect(calls.some((call) => call.method === 'plugins.packages.install')).toBe(false);
   });
 
-  it('opens plugin details and returns to the catalog on narrow screens', async () => {
+  it('opens plugin details in the same panel and returns to the list, on narrow screens too', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} }));
     try {
       const { wrapper } = await mountPage();
-      await wrapper.get('.plugin-catalog__item').trigger('pointerdown');
-      expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
-      expect(wrapper.get('.master-detail__master').attributes('hidden')).toBeDefined();
-      await wrapper.get('.master-detail__back button').trigger('click');
-      expect(wrapper.get('.master-detail__detail').attributes('hidden')).toBeDefined();
+      await selectPlugin(wrapper, 'DECK');
+      expect(detailsTitle(wrapper)).toBe('DECK');
+      expect(wrapper.find('.plugin-catalog').exists()).toBe(false);
+      await buttonByLabel(wrapper, 'Back').trigger('click');
       expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
-      await wrapper.get('.plugin-catalog__item').trigger('pointerdown');
-      expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
+      expect(wrapper.find('.plugin-details').exists()).toBe(false);
+      await selectPlugin(wrapper, 'DECK');
+      expect(detailsTitle(wrapper)).toBe('DECK');
     } finally {
       vi.unstubAllGlobals();
     }
   });
+
+  it('shows one navigation area with icon tabs, a search field and icon tools', async () => {
+    const { wrapper } = await mountPage();
+    expect(tabNames(wrapper)).toEqual(['Explore', 'Installed 1', 'Updates', 'Processors']);
+    expect(wrapper.find('.plugins-page__toolbar').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Plugins bring an external dependency');
+    expect(wrapper.get('h2').text()).toBe('Plugins');
+    expect(wrapper.get('input[type="search"]').attributes('aria-label')).toBe('Search plugins…');
+    expect(buttonByLabel(wrapper, 'Install .plugin…').exists()).toBe(true);
+    expect(buttonByLabel(wrapper, 'Check for updates').exists()).toBe(false);
+    // No master/detail, so no placeholder waiting for a selection either.
+    expect(wrapper.text()).not.toContain('Select a plugin to see its details.');
+    expect(wrapper.find('.master-detail').exists()).toBe(false);
+  });
+
+  it('lists installed plugins with a switch and counters, and flags only the ones that cannot load', async () => {
+    const broken = plugin('hotkeys', { available: false, unavailableReason: 'No input access' }, { eventTypeIds: ['hotkey.pressed'], actionTypeIds: [] });
+    const { wrapper, calls } = await mountPage([plugin('deck'), broken]);
+    const rows = wrapper.findAll('.plugin-catalog__row');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.text()).toContain('Plugin package · 1.2.0');
+    expect(rows[0]!.get('[role="img"][aria-label="Actions: 1"]').text()).toBe('1');
+    expect(rows[1]!.get('[role="img"][aria-label="Events: 1"]').text()).toBe('1');
+    expect(rows[0]!.text()).not.toContain('Unavailable');
+    expect(rows[1]!.text()).toContain('Unavailable');
+    // One status per fact: the switch says enabled, so no "Active" text beside it.
+    expect(wrapper.text()).not.toContain('Active');
+    await rows[0]!.get('input[role="switch"]').setValue(false);
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'plugins.disable')?.params).toEqual({ pluginId: 'deck' });
+    expect(rows[1]!.find('input[role="switch"][aria-label="Enable HOTKEYS"]').exists()).toBe(true);
+  });
+
   it('lists installed plugins apart from bundled and registry plugins', async () => {
     const { wrapper, calls } = await mountPage();
-    expect(wrapper.findAll('[role="option"]').map((item) => item.text())).toEqual([expect.stringContaining('DECK')]);
-    await buttonByText(wrapper, 'Explore').trigger('click');
-    await flushPromises();
+    expect(wrapper.findAll('.plugin-catalog__row').map((item) => item.text())).toEqual([expect.stringContaining('DECK')]);
+    await openTab(wrapper, 'Explore');
     expect(calls.map((call) => call.method)).toContain('registry.search');
-    expect(wrapper.findAll('[role="option"]').map((item) => item.text())).toEqual([
-      expect.stringContaining('TTS'),
-      expect.stringContaining('Acme TTS'),
-    ]);
+    const rows = wrapper.findAll('.plugin-catalog__row');
+    expect(rows.map((item) => item.text())).toEqual([expect.stringContaining('TTS'), expect.stringContaining('Acme TTS')]);
+    expect(rows[0]!.find('input[role="switch"]').exists()).toBe(false);
+    expect(buttonByLabel(wrapper, 'Install Acme TTS').exists()).toBe(true);
+  });
+
+  it('lists the updates with the versions and updates one with its icon button', async () => {
+    const update = { id: 'deck', registry: 'official', current: '1.2.0', latest: '1.3.0', channel: 'stable', pinned: false, permissionDiff: {}, autoApplicable: false, currentStatus: 'approved', latestStatus: 'approved' };
+    const { wrapper, calls } = await mountPage(undefined, undefined, undefined, [], [update]);
+    expect(tabNames(wrapper)).toContain('Updates 1');
+    await openTab(wrapper, 'Updates');
+    expect(wrapper.get('.plugin-catalog__row').text()).toContain('1.2.0 → 1.3.0');
+    expect(buttonByLabel(wrapper, 'Check for updates').exists()).toBe(true);
+    expect(buttonByLabel(wrapper, 'Update all').attributes('disabled')).toBeUndefined();
+    await buttonByLabel(wrapper, 'Update DECK').trigger('click');
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'plugins.packages.update')?.params).toEqual({ pluginId: 'deck', version: '1.3.0' });
   });
 
   it('filters the catalog by search', async () => {
     const { wrapper } = await mountPage([plugin('deck'), plugin('vts')]);
     await wrapper.get('input[type="search"]').setValue('scenes');
-    expect(wrapper.findAll('[role="option"]')).toHaveLength(1);
+    expect(wrapper.findAll('.plugin-catalog__row')).toHaveLength(1);
     await wrapper.get('input[type="search"]').setValue('nothing');
     expect(wrapper.text()).toContain('No plugins match “nothing”.');
   });
 
   it('shows details and toggles the plugin', async () => {
     const { wrapper, calls } = await mountPage();
-    expect(wrapper.text()).toContain('Select a plugin to see its details.');
     await selectPlugin(wrapper, 'DECK');
-    expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
+    expect(detailsTitle(wrapper)).toBe('DECK');
+    expect(wrapper.get('.plugin-details .base-panel__status').text()).toBe('1.2.0');
     expect(wrapper.find('.base-markdown strong').text()).toBe('deck');
     expect(wrapper.text()).toContain('Switch scene');
-    await wrapper.get('.plugin-details__controls input[type="checkbox"]').setValue(false);
+    // The version is in the header, not repeated among the facts.
+    expect(wrapper.text().match(/1\.2\.0/g)).toHaveLength(1);
+    await wrapper.get('.plugin-details input[role="switch"]').setValue(false);
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.disable')?.params).toEqual({ pluginId: 'deck' });
+  });
+
+  it('offers only the detail tabs the plugin has use for, each with its icon', async () => {
+    const server = plugin('srv', {}, { hasSettings: true, hasConnectionProbe: true });
+    const builtin = plugin('core', {}, { source: 'builtin' });
+    const { wrapper } = await mountPage([server, builtin]);
+    await selectPlugin(wrapper, 'SRV');
+    expect(tabNames(wrapper)).toEqual(['General', 'Settings', 'Connection', 'Versions']);
+    expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(4);
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Connection')!.trigger('click');
+    // The same editor the Connections page uses, with its own status and test button.
+    expect(wrapper.find('.connection-editor--sections').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Not configured');
+    await buttonByLabel(wrapper, 'Back').trigger('click');
+    await selectPlugin(wrapper, 'CORE');
+    expect(tabNames(wrapper)).toEqual(['General']);
+  });
+
+  it('lays the general tab out as origin and permissions beside what the plugin adds', async () => {
+    const { wrapper } = await mountPage();
+    await selectPlugin(wrapper, 'DECK');
+    const columns = wrapper.findAll('.plugin-details__column');
+    expect(columns).toHaveLength(2);
+    expect(columns[0]!.text()).toContain('Plugin package');
+    expect(columns[0]!.text()).toContain('Local server');
+    expect(columns[0]!.text()).toContain('network');
+    expect(columns[1]!.text()).toContain('Switch scene');
+  });
+
+  it('explains in the open plugin why it cannot load, once', async () => {
+    const broken = plugin('hotkeys', { available: false, unavailableReason: 'No input access' });
+    const { wrapper } = await mountPage([broken]);
+    await selectPlugin(wrapper, 'HOTKEYS');
+    expect(wrapper.get('[role="alert"]').text()).toBe('This plugin cannot load on this machine: No input access');
+    expect(wrapper.text().match(/No input access/g)).toHaveLength(1);
   });
 
   it('confirms uninstall with the action usage', async () => {
     const { wrapper, calls } = await mountPage();
     await selectPlugin(wrapper, 'DECK');
-    await buttonByText(wrapper, 'Uninstall…').trigger('click');
+    await buttonByLabel(wrapper, 'Uninstall…').trigger('click');
     await nextTick();
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
     const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Uninstall')!;
@@ -257,7 +365,7 @@ describe('PluginsPage', () => {
     await openItemMenu(wrapper, 'DECK');
     menuItem('Uninstall…').click();
     await flushPromises();
-    expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
+    expect(detailsTitle(wrapper)).toBe('DECK');
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
     Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Uninstall')!.click();
     await flushPromises();
@@ -266,11 +374,10 @@ describe('PluginsPage', () => {
 
   it('opens a details tab from the context menu', async () => {
     const { wrapper } = await mountPage([plugin('deck'), plugin('vts')]);
-    await selectPlugin(wrapper, 'DECK');
     await openItemMenu(wrapper, 'VTS');
     menuItem('Versions').click();
     await flushPromises();
-    expect(wrapper.get('.plugin-details__name').text()).toBe('VTS');
+    expect(detailsTitle(wrapper)).toBe('VTS');
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Versions');
   });
 
@@ -278,11 +385,12 @@ describe('PluginsPage', () => {
     const dev = plugin('devkit', { available: false, enabled: false }, { source: 'development' });
     const { wrapper, calls } = await mountPage([dev]);
     await selectPlugin(wrapper, 'DEVKIT');
-    expect(buttonByText(wrapper, 'Uninstall…')).toBeUndefined();
-    await buttonByText(wrapper, 'Remove from installed').trigger('click');
+    expect(buttonByLabel(wrapper, 'Uninstall…').exists()).toBe(false);
+    await buttonByLabel(wrapper, 'Remove from installed').trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.install.set')?.params).toEqual({ pluginId: 'devkit', installed: false });
 
+    await buttonByLabel(wrapper, 'Back').trigger('click');
     await openItemMenu(wrapper, 'DEVKIT');
     expect(menuItems().map((item) => item.textContent?.trim())).toContain('Remove from installed');
     expect(menuItems().map((item) => item.textContent?.trim())).not.toContain('Uninstall…');
@@ -290,8 +398,7 @@ describe('PluginsPage', () => {
 
   it('activates a bundled plugin', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Explore').trigger('click');
-    await flushPromises();
+    await openTab(wrapper, 'Explore');
     await selectPlugin(wrapper, 'TTS');
     await buttonByText(wrapper, 'Activate').trigger('click');
     await flushPromises();
@@ -300,7 +407,7 @@ describe('PluginsPage', () => {
 
   it('reviews a package file and requires sideload consent before installing', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Install .plugin…').trigger('click');
+    await buttonByLabel(wrapper, 'Install .plugin…').trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.packages.inspect')?.params).toEqual({
       spec: { kind: 'file', path: 'C:/x.plugin' },
@@ -320,8 +427,7 @@ describe('PluginsPage', () => {
 
   it('reviews registry plugins from the browse tab', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Explore').trigger('click');
-    await flushPromises();
+    await openTab(wrapper, 'Explore');
     await selectPlugin(wrapper, 'Acme TTS');
     await flushPromises();
     expect(calls.find((call) => call.method === 'registry.package')?.params).toEqual({ id: 'acme.tts', registry: 'official' });
@@ -339,8 +445,7 @@ describe('PluginsPage', () => {
       [{ '1.2.0': 'key-revoked' }, 'Signing key revoked'],
     ] as const) {
       const { wrapper, calls } = await mountPage(undefined, undefined, liveStatuses);
-      await buttonByText(wrapper, 'Explore').trigger('click');
-      await flushPromises();
+      await openTab(wrapper, 'Explore');
       await selectPlugin(wrapper, 'Acme TTS');
       await flushPromises();
       expect(wrapper.text()).toContain(expected);
@@ -353,8 +458,7 @@ describe('PluginsPage', () => {
 
   it('explains that the marketplace is unpublished when no registry is available', async () => {
     const { wrapper, calls } = await mountPage(undefined, []);
-    await buttonByText(wrapper, 'Explore').trigger('click');
-    await flushPromises();
+    await openTab(wrapper, 'Explore');
     expect(wrapper.text()).toContain("The official marketplace isn't published yet.");
     expect(wrapper.find('input[type="search"]').exists()).toBe(false);
     expect(calls.map((call) => call.method)).toContain('registry.list');
@@ -362,18 +466,26 @@ describe('PluginsPage', () => {
 
   it('shows processor metrics and runs a test', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Processors').trigger('click');
-    await flushPromises();
+    await openTab(wrapper, 'Processors');
     expect(calls.map((call) => call.method)).toContain('processors.status');
-    const row = wrapper.get('.processors tbody tr');
-    expect(row.text()).toContain('enrich');
-    expect(row.text()).toContain('Ready');
-    await row.trigger('pointerdown');
+    const entry = wrapper.get('.processors__row');
+    expect(entry.text()).toContain('enrich');
+    expect(entry.text()).toContain('DECK');
+    // A healthy processor needs no status in the list; its detail has one.
+    expect(entry.text()).not.toContain('Ready');
+    await entry.get('.processors__open').trigger('click');
+    // The detail replaces the list and the tabs, with a way back.
+    expect(wrapper.find('.processors').exists()).toBe(false);
+    expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+    expect(detailsTitle(wrapper)).toBe('enrich');
+    expect(wrapper.get('.base-panel__status').text()).toContain('Ready');
     expect(wrapper.text()).toContain('boom');
     await buttonByText(wrapper, 'Test with sample event').trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'processors.test')?.params).toMatchObject({ pluginId: 'deck', processorId: 'enrich' });
     expect(wrapper.text()).toContain('Succeeded in 3 ms');
+    await buttonByLabel(wrapper, 'Back').trigger('click');
+    expect(wrapper.find('.processors__row').exists()).toBe(true);
   });
 
   describe('on a host that announces the unified catalog', () => {
@@ -385,7 +497,6 @@ describe('PluginsPage', () => {
       expect(wrapper.find('.catalog-toolbar').exists()).toBe(true);
       expect(wrapper.find('[role="radiogroup"], .segmented').exists()).toBe(false);
       expect(wrapper.text()).not.toContain('Plugins bring an external dependency');
-      expect(wrapper.find('.plugins-page__toolbar').exists()).toBe(false);
     });
 
     it('reaches processors and installed plugins from the menu and returns to the catalog', async () => {
@@ -393,8 +504,9 @@ describe('PluginsPage', () => {
       await buttonByText(wrapper, 'Manage processors').trigger('click');
       await flushPromises();
       expect(wrapper.find('.processors').exists()).toBe(true);
+      expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Processors');
       expect(wrapper.find('.catalog-toolbar').exists()).toBe(false);
-      await buttonByText(wrapper, '‹ Catalog').trigger('click');
+      await buttonByLabel(wrapper, 'Catalog').trigger('click');
       expect(wrapper.find('.catalog-toolbar').exists()).toBe(true);
       await buttonByText(wrapper, 'Manage installed plugins').trigger('click');
       await flushPromises();
@@ -412,7 +524,7 @@ describe('PluginsPage', () => {
     it('keeps the plugin workspace when a plugin was open', async () => {
       localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view: 'plugins', selected: 'deck' } }));
       const { wrapper } = await unified();
-      expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
+      expect(detailsTitle(wrapper)).toBe('DECK');
     });
 
     it('does not write the implicit view as a choice', async () => {
@@ -427,6 +539,6 @@ describe('PluginsPage', () => {
   it('restores the selected plugin from the view state', async () => {
     localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { selected: 'deck', view: 'plugins' } }));
     const { wrapper } = await mountPage();
-    expect(wrapper.get('.plugin-details__name').text()).toBe('DECK');
+    expect(detailsTitle(wrapper)).toBe('DECK');
   });
 });

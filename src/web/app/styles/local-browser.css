@@ -73,27 +73,8 @@ html[data-tiktools-transport='local-web'] .app-layout {
     padding: 8px;
   }
 
-  html[data-tiktools-transport='local-web'] .plugins-page__toolbar {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  html[data-tiktools-transport='local-web'] .plugins-page__lead {
-    display: none;
-  }
-
-  html[data-tiktools-transport='local-web'] .plugin-details__header {
-    flex-wrap: wrap;
-    padding: 8px;
-  }
-
   html[data-tiktools-transport='local-web'] .plugin-details__pane {
     padding: 12px;
-  }
-
-  html[data-tiktools-transport='local-web'] .plugin-details__facts {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
   }
 
   html[data-tiktools-transport='local-web'] .feed-page__stream {

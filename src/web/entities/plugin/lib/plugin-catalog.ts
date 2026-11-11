@@ -4,6 +4,9 @@ export const MAX_PLUGIN_TAGS = 4;
 
 export type PluginCatalogTab = 'installed' | 'browse' | 'updates';
 
+/** The plugins panel's tabs: the three catalog tabs plus the event processors. */
+export type PluginsPanelTab = PluginCatalogTab | 'processors';
+
 type Localize = (value: unknown) => string;
 
 export function pluginTags(descriptor: PluginDescriptor, actionTypes: readonly ActionTypeDefinition[]): string[] {
@@ -59,12 +62,4 @@ export function pluginActionUsage(
     const type = actionTypes.find((entry) => entry.id === action.typeId);
     return type?.source.kind === 'plugin' && type.source.pluginId === pluginId;
   }).length;
-}
-
-export type PluginState = 'available' | 'active' | 'disabled' | 'unavailable';
-
-export function pluginState(plugin: PluginStatus): PluginState {
-  if (!plugin.available) return 'unavailable';
-  if (!plugin.installed) return 'available';
-  return plugin.enabled ? 'active' : 'disabled';
 }

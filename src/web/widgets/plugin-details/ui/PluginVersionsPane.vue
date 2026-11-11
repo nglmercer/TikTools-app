@@ -6,11 +6,17 @@ import { originDetail, originLabelKey } from '@/entities/plugin-package/lib/pack
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { formatDate } from '@/shared/lib/intl.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
+import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
+import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
+import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
+import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
+import BaseSection from '@/shared/ui/section/BaseSection.vue';
 
 const props = defineProps<{ pluginId: string }>();
 
@@ -103,13 +109,10 @@ watch(() => props.pluginId, load);
       {{ t('packages.versions.unmanaged') }}
     </p>
 
-    <section
+    <BaseSection
       v-if="receipt && fromRegistry"
-      class="versions-pane__section"
+      :title="t('packages.policy.title')"
     >
-      <h3 class="versions-pane__heading">
-        {{ t('packages.policy.title') }}
-      </h3>
       <BaseFormGrid>
         <BaseFormRow
           for="plugin-policy-channel"
@@ -136,21 +139,12 @@ watch(() => props.pluginId, load);
       <BaseCheckbox v-model="pinned">
         {{ t('packages.policy.pinned') }}
       </BaseCheckbox>
-    </section>
+    </BaseSection>
 
-    <section
+    <BaseSection
       v-if="versions?.retained.length"
-      class="versions-pane__section"
+      :title="t('packages.versions.retained')"
     >
-      <h3 class="versions-pane__heading">
-        {{ t('packages.versions.retained') }}
-      </h3>
-      <p
-        v-if="fromRegistry"
-        class="versions-pane__muted"
-      >
-        {{ t('packages.versions.cloudRestoreHint') }}
-      </p>
       <ul class="versions-pane__list">
         <li
           v-for="entry in versions.retained"
@@ -158,41 +152,44 @@ watch(() => props.pluginId, load);
         >
           <span class="versions-pane__mono">{{ entry.version }}</span>
           <span class="versions-pane__muted">{{ formatDate(entry.retainedAt * 1000, locale) }}</span>
-          <BaseButton
+          <BaseIconButton
+            :label="t(fromRegistry ? 'packages.versions.restoreLocalVersion' : 'packages.versions.restoreVersion', { version: entry.version })"
+            variant="default"
             size="sm"
             :disabled="busy"
             @click="packages.rollback(pluginId, entry.version)"
           >
-            {{ t(fromRegistry ? 'packages.versions.restoreLocal' : 'packages.versions.rollback') }}
-          </BaseButton>
-          <BaseButton
+            <IconUndo />
+          </BaseIconButton>
+          <BaseIconButton
             v-if="fromRegistry"
+            :label="t('packages.versions.reviewCloudVersion', { version: entry.version })"
+            :hint="t('packages.versions.cloudRestoreHint')"
+            variant="default"
             size="sm"
             :disabled="busy"
             @click="reviewCloudVersion(entry.version)"
           >
-            {{ t('packages.versions.reviewCloud') }}
-          </BaseButton>
+            <IconGlobe />
+          </BaseIconButton>
         </li>
       </ul>
-    </section>
+    </BaseSection>
 
-    <section
+    <BaseSection
       v-if="versions?.available.length"
-      class="versions-pane__section"
+      :title="t('packages.versions.available', { registry: versions.registry ?? '' })"
     >
-      <h3 class="versions-pane__heading">
-        {{ t('packages.versions.available', { registry: versions.registry ?? '' }) }}
-      </h3>
-      <p class="versions-pane__muted">
-        {{ t('packages.liveStatus.hint') }}
-      </p>
-      <BaseButton
-        size="sm"
-        @click="load"
-      >
-        {{ t('packages.liveStatus.refresh') }}
-      </BaseButton>
+      <template #actions>
+        <BaseIconButton
+          :label="t('packages.liveStatus.refresh')"
+          :hint="t('packages.liveStatus.hint')"
+          size="sm"
+          @click="load"
+        >
+          <IconRefresh />
+        </BaseIconButton>
+      </template>
       <ul class="versions-pane__list">
         <li
           v-for="release in versions.available"
@@ -205,16 +202,24 @@ watch(() => props.pluginId, load);
             <template v-if="release.yanked"> · {{ t('packages.remote.yanked') }}</template>
             · {{ t(`packages.liveStatus.${release.liveStatus ?? 'unknown'}`) }}
           </span>
-          <BaseButton
+          <IconCheck
+            v-if="release.version === receipt?.version"
+            class="versions-pane__current"
+            :label="t('packages.versions.current')"
+          />
+          <BaseIconButton
+            v-else
+            :label="t('plugins.catalog.installPlugin', { name: release.version })"
+            variant="default"
             size="sm"
-            :disabled="busy || !release.compatible || release.liveStatus !== 'approved' || release.yanked || release.version === receipt?.version"
+            :disabled="busy || !release.compatible || release.liveStatus !== 'approved' || release.yanked"
             @click="installVersion(release.version)"
           >
-            {{ release.version === receipt?.version ? t('packages.versions.current') : t('packages.remote.installVersion') }}
-          </BaseButton>
+            <IconDownload />
+          </BaseIconButton>
         </li>
       </ul>
-    </section>
+    </BaseSection>
     <p
       v-else-if="versions?.registryError && fromRegistry"
       class="versions-pane__muted"
@@ -228,7 +233,7 @@ watch(() => props.pluginId, load);
 .versions-pane {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
 
 .versions-pane__facts {
@@ -250,18 +255,6 @@ watch(() => props.pluginId, load);
   overflow-wrap: anywhere;
 }
 
-.versions-pane__section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.versions-pane__heading {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-}
-
 .versions-pane__list {
   display: flex;
   flex-direction: column;
@@ -274,11 +267,15 @@ watch(() => props.pluginId, load);
 .versions-pane__list li {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .versions-pane__list li > .versions-pane__muted {
   flex: 1;
+}
+
+.versions-pane__current {
+  color: var(--color-success);
 }
 
 .versions-pane__mono {

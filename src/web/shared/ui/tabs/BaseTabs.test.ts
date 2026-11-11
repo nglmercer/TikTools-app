@@ -1,5 +1,6 @@
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
+import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BaseTabs from './BaseTabs.vue';
 
 enableAutoUnmount(afterEach);
@@ -43,5 +44,23 @@ describe('BaseTabs', () => {
     expect(wrapper.props('modelValue')).toBe('audio');
     await list.trigger('keydown', { key: 'Home' });
     expect(wrapper.props('modelValue')).toBe('general');
+  });
+
+  it('shows an icon and a badge on a tab and a bar slot beside the tab list', () => {
+    const wrapper = mount(BaseTabs<string>, {
+      props: {
+        tabs: [{ value: 'a', label: 'Alpha', icon: IconPuzzle, badge: 3 }, { value: 'b', label: 'Beta' }],
+        modelValue: 'a',
+      },
+      slots: { bar: '<input aria-label="Search">' },
+    });
+    const [alpha, beta] = wrapper.findAll('[role="tab"]');
+    expect(alpha!.find('svg').exists()).toBe(true);
+    expect(alpha!.text()).toBe('Alpha 3');
+    expect(beta!.find('svg').exists()).toBe(false);
+    expect(beta!.text()).toBe('Beta');
+    // The slot sits beside the tab list, never inside it.
+    expect(wrapper.get('[role="tablist"]').find('input').exists()).toBe(false);
+    expect(wrapper.find('.base-tabs__bar input').exists()).toBe(true);
   });
 });

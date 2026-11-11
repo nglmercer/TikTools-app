@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ActionTypeDefinition, LiveAction, PluginStatus } from '../../../../automation/behavior/types.ts';
-import { catalogPlugins, matchesPluginQuery, pluginActionUsage, pluginState, pluginTags } from './plugin-catalog.ts';
+import { catalogPlugins, matchesPluginQuery, pluginActionUsage, pluginTags } from './plugin-catalog.ts';
 
 const text = (value: string) => ({ default: value, i18key: '' });
 const localize = (value: unknown) => (value as { default: string }).default;
@@ -55,12 +55,5 @@ describe('plugin catalog', () => {
     const actions = [{ typeId: 'deck.run' }, { typeId: 'deck.stop' }, { typeId: 'say' }, { typeId: 'missing' }] as LiveAction[];
     expect(pluginActionUsage('deck', actions, actionTypes)).toBe(2);
     expect(pluginActionUsage('tts', actions, actionTypes)).toBe(0);
-  });
-
-  it('derives a single display state', () => {
-    expect(pluginState(plugin('a', { available: false }))).toBe('unavailable');
-    expect(pluginState(plugin('a', { installed: false }))).toBe('available');
-    expect(pluginState(plugin('a'))).toBe('active');
-    expect(pluginState(plugin('a', { enabled: false }))).toBe('disabled');
   });
 });

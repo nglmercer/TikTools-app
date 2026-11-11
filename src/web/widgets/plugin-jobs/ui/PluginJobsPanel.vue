@@ -5,7 +5,10 @@ import type { JobSnapshot } from '@/entities/plugin-package/api/package-types.ts
 import { installErrorKey } from '@/entities/plugin-package/lib/install-error.ts';
 import { isActiveJob, jobPercent } from '@/entities/plugin-package/lib/package-format.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import IconClose from '@/shared/ui/icon/icons/IconClose.vue';
+import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
+import IconStop from '@/shared/ui/icon/icons/IconStop.vue';
 
 const RECENT_MS = 2 * 60 * 1000;
 
@@ -30,6 +33,7 @@ function label(job: JobSnapshot): string {
   });
 }
 
+/** What the strip says after the name: the percentage while running, then the outcome. */
 function status(job: JobSnapshot): string {
   if (job.error) {
     const key = installErrorKey(job.error.code);
@@ -37,8 +41,7 @@ function status(job: JobSnapshot): string {
   }
   if (job.status === 'succeeded') return t('packages.jobs.done');
   const percent = jobPercent(job);
-  const stage = t(`packages.jobs.stage.${job.stage}`);
-  return percent === null ? stage : `${stage} · ${percent}%`;
+  return percent === null ? '' : `${percent}%`;
 }
 
 function dismiss(id: string): void {
@@ -59,29 +62,35 @@ function dismiss(id: string): void {
       :class="`plugin-jobs__item--${job.status}`"
       :role="job.error ? 'alert' : 'status'"
     >
+      <IconDownload class="plugin-jobs__icon" />
       <span class="plugin-jobs__label">{{ label(job) }}</span>
-      <span class="plugin-jobs__status">{{ status(job) }}</span>
       <progress
         v-if="isActiveJob(job)"
         class="plugin-jobs__bar"
         :value="jobPercent(job) ?? undefined"
         max="100"
+        :aria-label="t(`packages.jobs.stage.${job.stage}`)"
       />
-      <BaseButton
+      <span
+        v-if="status(job)"
+        class="plugin-jobs__status"
+      >{{ status(job) }}</span>
+      <BaseIconButton
         v-if="isActiveJob(job)"
+        :label="t('common.cancel')"
         size="sm"
         @click="packages.cancelJob(job.id)"
       >
-        {{ t('common.cancel') }}
-      </BaseButton>
-      <BaseButton
+        <IconStop />
+      </BaseIconButton>
+      <BaseIconButton
         v-else
+        :label="t('common.close')"
         size="sm"
-        variant="ghost"
         @click="dismiss(job.id)"
       >
-        {{ t('common.close') }}
-      </BaseButton>
+        <IconClose />
+      </BaseIconButton>
     </li>
   </ul>
 </template>
@@ -101,9 +110,10 @@ function dismiss(id: string): void {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  padding: var(--space-2) var(--space-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-2) 0 var(--space-4);
+  border: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-bg-panel);
 }
 
 .plugin-jobs__item--succeeded {
@@ -114,8 +124,12 @@ function dismiss(id: string): void {
   border-color: var(--color-danger);
 }
 
+.plugin-jobs__icon {
+  color: var(--color-accent);
+}
+
 .plugin-jobs__label {
-  flex: 1;
+  flex: none;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -123,12 +137,27 @@ function dismiss(id: string): void {
 }
 
 .plugin-jobs__status {
+  flex: none;
   color: var(--color-text-muted);
+  font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
 }
 
+.plugin-jobs__item--failed .plugin-jobs__status {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  overflow-wrap: anywhere;
+}
+
 .plugin-jobs__bar {
-  width: 120px;
+  flex: 1;
+  min-width: 60px;
   height: 6px;
+}
+
+/* Without a bar the name takes the width, so the outcome and the button stay at the end. */
+.plugin-jobs__item:not(:has(.plugin-jobs__bar)) .plugin-jobs__label {
+  flex: 1;
 }
 </style>

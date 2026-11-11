@@ -37,7 +37,7 @@ for (const locale of ['en', 'es'] as const) {
     await page.getByRole('link', { name: locale === 'es' ? 'Ajustes' : 'Settings', exact: true }).waitFor({ state: 'attached' });
     cookies = await page.context().cookies();
     await page.goto(`${ownerUrl!}/#/plugins`);
-    await page.getByRole('radio', { name: words.plugins.views.cloud, exact: true }).click();
+    await page.getByRole('button', { name: words.plugins.views.cloud, exact: true }).click();
     const catalog = page.locator('.cloud-catalog');
     await expect(catalog).toBeVisible();
     await expect(catalog).toContainText('catalog.p00');
