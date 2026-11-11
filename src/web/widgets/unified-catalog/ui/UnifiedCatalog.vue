@@ -19,7 +19,12 @@ const props = defineProps<{
   /** Host target used for compatibility filtering. */
   target?: string;
 }>();
-const emit = defineEmits<{ manageProcessors: [] }>();
+const emit = defineEmits<{
+  manageProcessors: [];
+  manageInstalled: [];
+  installPackage: [];
+  openPlugin: [id: string];
+}>();
 
 const { t } = useI18n();
 const catalog = useCatalogStore();
@@ -50,8 +55,10 @@ function onFilters(next: CatalogFilters): void {
   }
 }
 
-function onAction(id: 'manageProcessors'): void {
+function onAction(id: 'manageProcessors' | 'manageInstalled' | 'installPackage'): void {
   if (id === 'manageProcessors') emit('manageProcessors');
+  else if (id === 'manageInstalled') emit('manageInstalled');
+  else emit('installPackage');
 }
 
 watch(() => props.installedIds, (ids) => catalog.setInstalled(ids), { immediate: true });
@@ -175,6 +182,13 @@ onBeforeUnmount(() => clearTimeout(searchTimer));
         @click="catalog.install(catalog.detail)"
       >
         {{ t('unifiedCatalog.install') }}
+      </BaseButton>
+      <BaseButton
+        v-else-if="catalog.detail.kind === 'plugin' && installedIds.has(catalog.detail.id)"
+        variant="primary"
+        @click="emit('openPlugin', catalog.detail.id)"
+      >
+        {{ t('unifiedCatalog.configure') }}
       </BaseButton>
       <template v-else-if="(catalog.detail.kind === 'template' || catalog.detail.kind === 'profile') && catalog.detail.published">
         <BaseButton

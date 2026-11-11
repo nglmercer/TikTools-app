@@ -13,7 +13,7 @@ import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 const props = defineProps<{ modelValue: CatalogFilters; signedIn: boolean }>();
 const emit = defineEmits<{
   'update:modelValue': [value: CatalogFilters];
-  action: [id: 'manageProcessors'];
+  action: [id: 'manageProcessors' | 'manageInstalled' | 'installPackage'];
   signIn: [];
 }>();
 
@@ -163,9 +163,21 @@ onBeforeUnmount(() => {
       <div class="catalog-toolbar__panel">
         <button
           type="button"
+          @click="emit('action', 'manageInstalled')"
+        >
+          {{ t('catalogToolbar.manageInstalled') }}
+        </button>
+        <button
+          type="button"
           @click="emit('action', 'manageProcessors')"
         >
           {{ t('catalogToolbar.manageProcessors') }}
+        </button>
+        <button
+          type="button"
+          @click="emit('action', 'installPackage')"
+        >
+          {{ t('catalogToolbar.installPackage') }}
         </button>
       </div>
     </details>

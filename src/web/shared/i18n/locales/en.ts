@@ -1207,6 +1207,7 @@ export default {
       plugins: 'Plugins',
       processors: 'Processors',
       cloud: 'Cloud catalog',
+      back: 'Catalog',
     },
     cloud: {
       title: 'Cloud catalog',
@@ -1668,9 +1669,12 @@ export default {
     reset: 'Reset filters',
     more: 'More actions',
     manageProcessors: 'Manage processors',
+    manageInstalled: 'Manage installed plugins',
+    installPackage: 'Install from file…',
   },
   unifiedCatalog: {
     importProfile: 'Import profile',
+    configure: 'Open or configure',
     importTemplate: 'Import template',
     templateStaged: 'Template staged in your library. Review it there before using it. Automations stay off until you enable them.',
     signInToImport: 'Sign in to Cloud to import this template.',

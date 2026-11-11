@@ -1209,6 +1209,7 @@ export default {
       plugins: 'Plugins',
       processors: 'Procesadores',
       cloud: 'Catálogo Cloud',
+      back: 'Catálogo',
     },
     cloud: {
       title: 'Catálogo Cloud',
@@ -1670,9 +1671,12 @@ export default {
     reset: 'Restablecer filtros',
     more: 'Más acciones',
     manageProcessors: 'Gestionar procesadores',
+    manageInstalled: 'Gestionar plugins instalados',
+    installPackage: 'Instalar desde archivo…',
   },
   unifiedCatalog: {
     importProfile: 'Importar perfil',
+    configure: 'Abrir o configurar',
     importTemplate: 'Importar plantilla',
     templateStaged: 'Plantilla preparada en tu biblioteca. Revísala allí antes de usarla. Las automatizaciones siguen desactivadas hasta que las actives.',
     signInToImport: 'Inicia sesión en Cloud para importar esta plantilla.',
