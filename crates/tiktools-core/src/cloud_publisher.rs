@@ -8,16 +8,28 @@
 //! configured Cloud origin. Private signing keys live in files under the
 //! application data directory with owner-only permissions.
 
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
-use reqwest::{Client, StatusCode};
+use reqwest::{Method, StatusCode};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tiktools_plugin_package::{KeyId, Sha256Digest, SigningKey};
 
 use tiktools_cloud_auth::{CloudAuth, NativeToken};
 
-use crate::paths::AppPaths;
+use crate::{
+    cloud_http::{self, Limits, NoContent, Reply},
+    paths::AppPaths,
+};
+
+/// HTTP budget for every publisher call to the Cloud API: 60 s, 2 MiB of reply
+/// (namespaces, key records and release records are small JSON documents).
+const HTTP_LIMITS: Limits = Limits::new(Duration::from_secs(60), 2 * 1024 * 1024);
+/// The artifact PUT goes to object storage: 60 s. Its reply body is never read
+/// (only the status matters), so there is no byte limit to declare.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(60);
+/// Longest backend `error` text kept for the caller.
+const MAX_BACKEND_MESSAGE_CHARS: usize = 200;
 
 const STEP_UP_ENROLL_ACTION: &str = "publisher.key.enroll";
 const PROOF_DOMAIN: &str = "tiktools-cloud-publisher-key-v1";
@@ -241,18 +253,12 @@ struct BackendError {
 
 #[derive(Debug, Clone)]
 pub struct CloudPublisher {
-    http: Client,
     keys_dir: PathBuf,
 }
 
 impl CloudPublisher {
     pub(crate) fn new(paths: &AppPaths) -> Self {
         Self {
-            http: Client::builder()
-                .timeout(std::time::Duration::from_secs(60))
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
-                .expect("failed to initialize cloud HTTP client"),
             keys_dir: paths.data.join("publisher-keys"),
         }
     }
@@ -289,20 +295,7 @@ impl CloudPublisher {
         &self,
         auth: &CloudAuth,
     ) -> Result<(String, NativeToken), crate::control::OperationError> {
-        use crate::control::OperationError;
-        let origin = auth
-            .last_identity()
-            .map(|(origin, _)| origin)
-            .filter(|origin| !origin.is_empty())
-            .ok_or_else(|| {
-                OperationError::unavailable(
-                    "cloud publisher needs a signed-in Cloud account; sign in first",
-                )
-            })?;
-        let token = auth.native_token().await.ok_or_else(|| {
-            OperationError::unavailable("cloud publisher needs a signed-in account")
-        })?;
-        Ok((origin, token))
+        cloud_http::credentials(auth, "cloud publisher").await
     }
 
     async fn post_json<Req: Serialize, Res: for<'de> Deserialize<'de>>(
@@ -313,23 +306,12 @@ impl CloudPublisher {
         idempotency_key: Option<&str>,
         body: &Req,
     ) -> Result<Res, crate::control::OperationError> {
-        use crate::control::OperationError;
-        let url = format!("{origin}{path}");
-        let mut request = self
-            .http
-            .post(url)
-            .header(
-                reqwest::header::AUTHORIZATION,
-                format!("Bearer {}", token.expose()),
-            )
-            .json(body);
+        let mut request =
+            cloud_http::authorized(Method::POST, format!("{origin}{path}"), token)?.json(body);
         if let Some(key) = idempotency_key {
             request = request.header("idempotency-key", key);
         }
-        let response = request.send().await.map_err(|error| {
-            OperationError::unavailable(format!("cloud request failed: {error}"))
-        })?;
-        self.decode(response).await
+        decode_reply(cloud_http::execute(request, HTTP_LIMITS).await?)
     }
 
     async fn get_json<Res: for<'de> Deserialize<'de>>(
@@ -338,55 +320,8 @@ impl CloudPublisher {
         token: &NativeToken,
         path: &str,
     ) -> Result<Res, crate::control::OperationError> {
-        use crate::control::OperationError;
-        let url = format!("{origin}{path}");
-        let response = self
-            .http
-            .get(url)
-            .header(
-                reqwest::header::AUTHORIZATION,
-                format!("Bearer {}", token.expose()),
-            )
-            .send()
-            .await
-            .map_err(|error| {
-                OperationError::unavailable(format!("cloud request failed: {error}"))
-            })?;
-        self.decode(response).await
-    }
-
-    async fn decode<Res: for<'de> Deserialize<'de>>(
-        &self,
-        response: reqwest::Response,
-    ) -> Result<Res, crate::control::OperationError> {
-        use crate::control::OperationError;
-        let status = response.status();
-        if status.is_success() {
-            return response.json().await.map_err(|error| {
-                OperationError::internal(format!("cloud sent an unreadable reply: {error}"))
-            });
-        }
-        let message = response
-            .json::<BackendError>()
-            .await
-            .ok()
-            .and_then(|body| body.error)
-            .unwrap_or_else(|| format!("cloud rejected the request ({status})"));
-        Err(match status {
-            StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
-                OperationError::invalid(message)
-            }
-            StatusCode::UNAUTHORIZED => OperationError::unavailable(format!(
-                "{message}; the stored session may have expired, sign in again"
-            )),
-            StatusCode::FORBIDDEN => OperationError::forbidden(message),
-            StatusCode::NOT_FOUND => OperationError::not_found(message),
-            StatusCode::CONFLICT => OperationError::conflict(message),
-            StatusCode::TOO_MANY_REQUESTS => {
-                OperationError::unavailable(format!("cloud rate limit: {message}"))
-            }
-            _ => OperationError::internal(message),
-        })
+        let request = cloud_http::authorized(Method::GET, format!("{origin}{path}"), token)?;
+        decode_reply(cloud_http::execute(request, HTTP_LIMITS).await?)
     }
 
     /// DELETE with no response body. A 2xx status is success. A 409 means the
@@ -399,28 +334,17 @@ impl CloudPublisher {
         path: &str,
     ) -> Result<(), crate::control::OperationError> {
         use crate::control::OperationError;
-        let response = self
-            .http
-            .delete(format!("{origin}{path}"))
-            .header(
-                reqwest::header::AUTHORIZATION,
-                format!("Bearer {}", token.expose()),
-            )
-            .send()
-            .await
-            .map_err(|error| {
-                OperationError::unavailable(format!("cloud request failed: {error}"))
-            })?;
-        if response.status().is_success() {
+        let request = cloud_http::authorized(Method::DELETE, format!("{origin}{path}"), token)?;
+        let reply = cloud_http::execute(request, HTTP_LIMITS).await?;
+        if reply.status.is_success() {
             return Ok(());
         }
-        if response.status() == StatusCode::CONFLICT {
+        if reply.status == StatusCode::CONFLICT {
             return Err(OperationError::conflict(
                 "publisher still has other members, keys, uploads, releases, transfers or step-up records; nothing was deleted",
             ));
         }
-        // `decode` maps every non-success status to an error.
-        self.decode::<serde_json::Value>(response).await.map(|_| ())
+        Err(backend_failure(&reply))
     }
 
     /// Namespaces the signed-in account belongs to.
@@ -657,15 +581,18 @@ impl CloudPublisher {
             .await?;
         let upload_url = safe_upload_url(&created.url)
             .ok_or_else(|| OperationError::invalid("cloud returned an unsafe upload URL"))?;
-        let mut put = self.http.put(upload_url);
+        // The signed URL is a bearer capability: no Authorization header, and a
+        // transport error is reported without it.
+        let mut put = cloud_http::client()?.put(upload_url);
         for (name, value) in &created.headers {
             put = put.header(name.as_str(), value.as_str());
         }
+        // Only the status is used; the reply body is dropped unread.
         let put_status = put
             .body(bytes)
+            .timeout(UPLOAD_TIMEOUT)
             .send()
             .await
-            // reqwest errors can contain the signed URL, which is a bearer capability.
             .map_err(|_| OperationError::unavailable("artifact upload failed"))?
             .status();
         if !put_status.is_success() {
@@ -769,6 +696,55 @@ impl CloudPublisher {
             )
             .await?;
         Ok(result)
+    }
+}
+
+/// Typed JSON of a success reply, or the backend failure of any other status.
+fn decode_reply<Res: for<'de> Deserialize<'de>>(
+    reply: Reply,
+) -> Result<Res, crate::control::OperationError> {
+    use crate::control::OperationError;
+    if !reply.status.is_success() {
+        return Err(backend_failure(&reply));
+    }
+    if reply.status == StatusCode::NO_CONTENT {
+        // Every typed publisher reply is a document.
+        cloud_http::success_json(&reply, NoContent::Unexpected)?;
+    }
+    serde_json::from_slice(&reply.body)
+        .map_err(|_| OperationError::internal("cloud sent an unreadable reply"))
+}
+
+/// The backend's own `{"error": "..."}` text, trimmed to a short single line,
+/// or the status when there is none. The body was already size-bounded.
+fn backend_failure(reply: &Reply) -> crate::control::OperationError {
+    use crate::control::OperationError;
+    let status = reply.status;
+    let message = serde_json::from_slice::<BackendError>(&reply.body)
+        .ok()
+        .and_then(|body| body.error)
+        .map(|text| {
+            text.chars()
+                .filter(|character| !character.is_control())
+                .take(MAX_BACKEND_MESSAGE_CHARS)
+                .collect::<String>()
+        })
+        .filter(|text| !text.trim().is_empty())
+        .unwrap_or_else(|| format!("cloud rejected the request ({status})"));
+    match status {
+        StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
+            OperationError::invalid(message)
+        }
+        StatusCode::UNAUTHORIZED => OperationError::unavailable(format!(
+            "{message}; the stored session may have expired, sign in again"
+        )),
+        StatusCode::FORBIDDEN => OperationError::forbidden(message),
+        StatusCode::NOT_FOUND => OperationError::not_found(message),
+        StatusCode::CONFLICT => OperationError::conflict(message),
+        StatusCode::TOO_MANY_REQUESTS => {
+            OperationError::unavailable(format!("cloud rate limit: {message}"))
+        }
+        _ => OperationError::internal(message),
     }
 }
 
@@ -923,21 +899,12 @@ fn load_or_create_signing_key(
     }
 }
 
+/// Exclusive creation of a private key file. Windows has no verified ACL
+/// handling here, so key creation fails closed there.
 fn write_owner_only(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut options = std::fs::OpenOptions::new();
-        options
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .custom_flags(libc::O_NOFOLLOW);
-        let mut file = options.open(path)?;
-        use std::io::Write;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        Ok(())
+        crate::private_file::create_exclusive(path, bytes)
     }
     #[cfg(not(unix))]
     {
@@ -952,6 +919,47 @@ fn write_owner_only(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn backend_failures_keep_a_short_single_line_message_and_the_status_mapping() {
+        let reply = |status: StatusCode, body: &str| Reply {
+            status,
+            body: body.as_bytes().to_vec(),
+        };
+        let long = format!(r#"{{"error":"{}"}}"#, "x".repeat(5000));
+        let error = backend_failure(&reply(StatusCode::BAD_REQUEST, &long));
+        assert_eq!(error.code, "invalid_params");
+        assert_eq!(error.message.chars().count(), MAX_BACKEND_MESSAGE_CHARS);
+        let multiline = backend_failure(&reply(
+            StatusCode::NOT_FOUND,
+            r#"{"error":"gone\nsecond line\u0007"}"#,
+        ));
+        assert_eq!(multiline.code, "not_found");
+        assert_eq!(multiline.message, "gonesecond line");
+        // A large or malformed body falls back to the status, never to its text.
+        let fallback = backend_failure(&reply(StatusCode::BAD_GATEWAY, ""));
+        assert_eq!(
+            fallback.message,
+            "cloud rejected the request (502 Bad Gateway)"
+        );
+        assert_eq!(
+            backend_failure(&reply(StatusCode::CONFLICT, "<html>")).code,
+            "conflict"
+        );
+    }
+
+    #[test]
+    fn typed_replies_reject_an_empty_204_and_unreadable_bodies() {
+        let reply = |status: StatusCode, body: &str| Reply {
+            status,
+            body: body.as_bytes().to_vec(),
+        };
+        let ok: Result<serde_json::Value, _> = decode_reply(reply(StatusCode::OK, r#"{"a":1}"#));
+        assert_eq!(ok.unwrap(), serde_json::json!({"a": 1}));
+        assert!(decode_reply::<serde_json::Value>(reply(StatusCode::NO_CONTENT, "")).is_err());
+        assert!(decode_reply::<serde_json::Value>(reply(StatusCode::OK, "")).is_err());
+        assert!(decode_reply::<serde_json::Value>(reply(StatusCode::OK, "nope")).is_err());
+    }
 
     #[test]
     fn upload_url_requires_tls_or_loopback_and_has_no_embedded_credentials() {

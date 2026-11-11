@@ -2,19 +2,29 @@
 //! A package is never applied by the Cloud: the host reads its preflight and
 //! applies each item through the existing install and import flows.
 
+use std::time::Duration;
+
 use base64::{engine::general_purpose::STANDARD, Engine};
-use reqwest::{header::AUTHORIZATION, Method};
+use reqwest::{Method, StatusCode};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tiktools_cloud_auth::CloudAuth;
+use tiktools_cloud_auth::{CloudAuth, NativeToken};
 
 use crate::{
-    cloud_teams::{credentials, http, map_failure, send, valid_uuid},
+    cloud_http::{self, decode, FailureEnvelope, Limits, NoContent},
+    cloud_teams::valid_uuid,
     control::OperationError,
 };
-use reqwest::StatusCode;
 
+/// HTTP budget for overlay and package operations: 15 s, 4 MiB of reply.
+const DOCUMENT_LIMITS: Limits = Limits::new(Duration::from_secs(15), 4 * 1024 * 1024);
+/// HTTP budget for an owner library page: 15 s, 768 KiB of reply (the page also
+/// has to fit the RPC frame it is returned in).
+const LIBRARY_LIMITS: Limits = Limits::new(Duration::from_secs(15), 768 * 1024);
+/// HTTP budget for an asset upload: 15 s; the reply is a small metadata record.
+const ASSET_LIMITS: Limits = Limits::new(Duration::from_secs(15), 64 * 1024);
+/// Input limits (what the caller may send).
 const MAX_ASSET_BYTES: usize = 512 * 1024;
 const MAX_DOCUMENT_BYTES: usize = 128 * 1024;
 const MAX_TITLE_CHARS: usize = 120;
@@ -168,8 +178,6 @@ pub struct LibraryItemPage {
     pub next_cursor: Option<String>,
 }
 
-const MAX_LIBRARY_PAGE_BYTES: usize = 768 * 1024;
-
 /// Lists the signed-in owner's templates and profiles, in any status.
 pub async fn list_library_items(
     auth: &CloudAuth,
@@ -210,28 +218,14 @@ pub async fn list_library_items(
     if let Some(cursor) = &query.cursor {
         params.push(("cursor", cursor.clone()));
     }
-    let response = http()
-        .get(format!("{origin}/api/v3/library/items"))
-        .query(&params)
-        .header(AUTHORIZATION, format!("Bearer {}", token.expose()))
-        .send()
-        .await
-        .map_err(|_| OperationError::unavailable("cloud request failed"))?;
-    let status: StatusCode = response.status();
-    let body = response
-        .bytes()
-        .await
-        .map_err(|_| OperationError::unavailable("cloud reply could not be read"))?;
-    if !status.is_success() {
-        return Err(map_failure(status, &body));
-    }
-    if body.len() > MAX_LIBRARY_PAGE_BYTES {
-        return Err(OperationError::unavailable(
-            "library page exceeds the transport limit",
-        ));
-    }
-    let value: Value = serde_json::from_slice(&body)
-        .map_err(|_| OperationError::internal("cloud sent an unreadable reply"))?;
+    let request = cloud_http::authorized(
+        Method::GET,
+        format!("{origin}/api/v3/library/items"),
+        &token,
+    )?
+    .query(&params);
+    let value =
+        cloud_http::send_json(request, LIBRARY_LIMITS, NoContent::Unexpected, map_failure).await?;
     let items = value
         .get("items")
         .and_then(Value::as_array)
@@ -294,6 +288,36 @@ fn validate_item(item: &PackageItemParams) -> Result<(), OperationError> {
     Ok(())
 }
 
+async fn credentials(auth: &CloudAuth) -> Result<(String, NativeToken), OperationError> {
+    cloud_http::credentials(auth, "this").await
+}
+
+/// Cloud failure wording for overlays, packages, assets and the owner library.
+/// It names none of them in particular, so every operation here reads sensibly.
+fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
+    let envelope = FailureEnvelope::parse(body);
+    let error = match envelope.code() {
+        Some("notFound") => OperationError::not_found("the Cloud item was not found"),
+        Some("conflict") => OperationError::conflict("the item changed; reload and try again"),
+        Some("invalidRequest") => OperationError::invalid("the Cloud rejected the request"),
+        Some("unauthorized" | "forbidden") => {
+            OperationError::forbidden("sign in to Cloud again to continue")
+        }
+        Some("rateLimited") => OperationError::unavailable("too many requests; try again later"),
+        Some("misconfigured" | "unsupported") => {
+            OperationError::unavailable("this Cloud instance does not offer that feature")
+        }
+        _ => match status.as_u16() {
+            401 | 403 => OperationError::forbidden("sign in to Cloud again to continue"),
+            404 => OperationError::not_found("the Cloud item was not found"),
+            409 => OperationError::conflict("the item changed; reload and try again"),
+            _ => OperationError::unavailable("the Cloud is unavailable"),
+        },
+    };
+    envelope.attach(error)
+}
+
+/// One request, never retried. Every reply here is a document.
 async fn call(
     auth: &CloudAuth,
     method: Method,
@@ -301,12 +325,11 @@ async fn call(
     body: Option<Value>,
 ) -> Result<Value, OperationError> {
     let (origin, token) = credentials(auth).await?;
-    send(method, &origin, &token, &path, body).await
-}
-
-fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, OperationError> {
-    serde_json::from_value(value)
-        .map_err(|_| OperationError::internal("cloud sent an unexpected reply"))
+    let mut request = cloud_http::authorized(method, format!("{origin}{path}"), &token)?;
+    if let Some(body) = body {
+        request = request.json(&body);
+    }
+    cloud_http::send_json(request, DOCUMENT_LIMITS, NoContent::Unexpected, map_failure).await
 }
 
 // ---- Assets ------------------------------------------------------------------
@@ -328,24 +351,14 @@ pub async fn upload_asset(
         ));
     }
     let (origin, token) = credentials(auth).await?;
-    let response = crate::cloud_teams::http()
-        .post(format!("{origin}/api/v3/assets"))
-        .header(AUTHORIZATION, format!("Bearer {}", token.expose()))
-        .body(bytes)
-        .send()
-        .await
-        .map_err(|_| OperationError::unavailable("cloud request failed"))?;
-    let status = response.status();
-    let body = response
-        .bytes()
-        .await
-        .map_err(|_| OperationError::unavailable("cloud reply could not be read"))?;
-    if !status.is_success() {
+    let request = cloud_http::authorized(Method::POST, format!("{origin}/api/v3/assets"), &token)?
+        .body(bytes);
+    // Not retried: an upload whose outcome is unknown is reported, never resent.
+    let reply = cloud_http::execute(request, ASSET_LIMITS).await?;
+    if !reply.status.is_success() {
         return Err(OperationError::invalid("the Cloud refused this image"));
     }
-    let value: Value = serde_json::from_slice(&body)
-        .map_err(|_| OperationError::internal("cloud sent an unreadable reply"))?;
-    decode(value)
+    decode(cloud_http::success_json(&reply, NoContent::Unexpected)?)
 }
 
 // ---- Overlays ----------------------------------------------------------------
@@ -500,5 +513,37 @@ mod tests {
         assert!(bounded_document(&json!([1, 2])).is_err());
         let big = json!({"text": "x".repeat(MAX_DOCUMENT_BYTES)});
         assert!(bounded_document(&big).is_err());
+    }
+
+    #[test]
+    fn overlay_package_and_library_failures_never_mention_teams() {
+        for (status, body, code) in [
+            (
+                404,
+                &br#"{"code":"notFound","requestId":"r-1"}"#[..],
+                "not_found",
+            ),
+            (404, b"", "not_found"),
+            (409, br#"{"code":"conflict"}"#, "conflict"),
+            (403, br#"{"code":"forbidden"}"#, "forbidden"),
+            (503, br#"{"code":"misconfigured"}"#, "unavailable"),
+            (500, b"<html>", "unavailable"),
+        ] {
+            let error = map_failure(StatusCode::from_u16(status).unwrap(), body);
+            assert_eq!(error.code, code);
+            assert!(
+                !error.message.to_lowercase().contains("team"),
+                "{}",
+                error.message
+            );
+        }
+        let kept = map_failure(
+            StatusCode::NOT_FOUND,
+            br#"{"code":"notFound","requestId":"r-1","internal":"x"}"#,
+        );
+        assert_eq!(
+            kept.data,
+            Some(json!({"cloud": {"code": "notFound", "requestId": "r-1"}}))
+        );
     }
 }

@@ -5,15 +5,10 @@
 //! this PC, stored owner-only and never leaves it. Invitation tokens are returned
 //! once to the owner and are not stored by the host.
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    sync::OnceLock,
-    time::Duration,
-};
+use std::{fs, io, path::PathBuf, time::Duration};
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use reqwest::{header::AUTHORIZATION, Client, Method, StatusCode};
+use reqwest::{Method, StatusCode};
 use ring::{
     rand::SystemRandom,
     signature::{Ed25519KeyPair, KeyPair},
@@ -24,27 +19,22 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tiktools_cloud_auth::{CloudAuth, NativeToken};
 
-use crate::{control::OperationError, paths::AppPaths};
+use crate::{
+    cloud_http::{self, decode, FailureEnvelope, Limits, NoContent},
+    control::OperationError,
+    paths::AppPaths,
+    private_file::{self, ReplaceError},
+};
 
 const PROTOCOL_VERSION: i32 = 1;
 const PROOF_DOMAIN: &str = "tiktools.remote.v1";
-const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+/// HTTP budget for every teams operation: 15 s, 4 MiB of reply.
+const HTTP_LIMITS: Limits = Limits::new(Duration::from_secs(15), 4 * 1024 * 1024);
 const MAX_NAME_CHARS: usize = 80;
 const MAX_LABEL_CHARS: usize = 120;
 const KEY_FILE: &str = "remote-device-ed25519.pk8";
 const HOST_BINDING_FILE: &str = "remote-host-binding.json";
 const CONTROLLER_FILE: &str = "remote-controller.json";
-
-pub(crate) fn http() -> &'static Client {
-    static CLIENT: OnceLock<Client> = OnceLock::new();
-    CLIENT.get_or_init(|| {
-        Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(15))
-            .build()
-            .unwrap_or_else(|_| Client::new())
-    })
-}
 
 // ---- Views (nonsecret) -------------------------------------------------------
 
@@ -351,19 +341,41 @@ impl CloudTeams {
         }
     }
 
+    /// Loads the device key, creating it once if this PC has none. Creation is
+    /// exclusive: a racing creator that loses loads the winner's key, and an
+    /// existing key that cannot be parsed is an error, never replaced.
     fn device_key(&self) -> Result<Ed25519KeyPair, OperationError> {
-        let pkcs8 = match fs::read(&self.key_path) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                let generated = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
-                    .map_err(|_| OperationError::internal("could not create a device key"))?;
-                write_owner_only(&self.key_path, generated.as_ref())?;
-                generated.as_ref().to_vec()
-            }
+        match fs::read(&self.key_path) {
+            Ok(bytes) => return parse_device_key(&bytes),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(_) => return Err(OperationError::internal("device key is unreadable")),
-        };
-        Ed25519KeyPair::from_pkcs8(&pkcs8)
-            .map_err(|_| OperationError::internal("device key is invalid"))
+        }
+        let generated = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
+            .map_err(|_| OperationError::internal("could not create a device key"))?;
+        match private_file::create_exclusive(&self.key_path, generated.as_ref()) {
+            Ok(()) => parse_device_key(generated.as_ref()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => self.winning_key(),
+            Err(_) => Err(OperationError::internal("could not store the device key")),
+        }
+    }
+
+    /// Another creator published the key first. Its file may still be mid-write
+    /// for a moment, so a short, bounded re-read precedes an "invalid" verdict.
+    fn winning_key(&self) -> Result<Ed25519KeyPair, OperationError> {
+        let mut last = OperationError::internal("device key is invalid");
+        for attempt in 0..5 {
+            if attempt > 0 {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            match fs::read(&self.key_path) {
+                Ok(bytes) => match parse_device_key(&bytes) {
+                    Ok(key) => return Ok(key),
+                    Err(error) => last = error,
+                },
+                Err(_) => return Err(OperationError::internal("device key is unreadable")),
+            }
+        }
+        Err(last)
     }
 
     pub async fn enroll(
@@ -422,15 +434,20 @@ impl CloudTeams {
         )
         .await?;
         let device: TeamDevice = decode(device)?;
-        if params.kind == "host" {
+        // The enrollment is already complete in Cloud. A local failure must not
+        // be read as "not enrolled" and answered with a second enrollment.
+        let saved = if params.kind == "host" {
             let host = params.host_id.clone().unwrap_or_default();
-            self.save_host_binding(&host, &device.id)?;
+            self.save_host_binding(&host, &device.id)
         } else {
-            write_owner_only(
-                &self.controller_path,
-                json!({"deviceId": device.id}).to_string().as_bytes(),
-            )?;
-        }
+            self.save_controller_device(&device.id)
+        };
+        saved.map_err(|error| {
+            OperationError::internal(format!(
+                "this PC was enrolled in Cloud as device {} but its local record could not be saved ({}); do not enroll again, revoke that device first",
+                device.id, error.message
+            ))
+        })?;
         Ok(device)
     }
 
@@ -468,9 +485,26 @@ impl CloudTeams {
         Ok(device)
     }
 
+    /// Replaces the host binding record. The device key is a separate file and
+    /// is never touched, so saving another binding keeps this PC's identity.
     fn save_host_binding(&self, host: &str, device: &str) -> Result<(), OperationError> {
-        let body = json!({"hostId": host, "deviceId": device}).to_string();
-        write_owner_only(&self.binding_path, body.as_bytes())
+        valid_uuid(host)?;
+        valid_uuid(device)?;
+        save_record(
+            &self.binding_path,
+            &json!({"hostId": host, "deviceId": device}),
+            "host binding",
+        )
+    }
+
+    /// Replaces the controller record with the enrolled viewer device.
+    fn save_controller_device(&self, device: &str) -> Result<(), OperationError> {
+        valid_uuid(device)?;
+        save_record(
+            &self.controller_path,
+            &json!({"deviceId": device}),
+            "controller record",
+        )
     }
 
     /// Obtains a connection ticket for this device by proving possession of its key.
@@ -534,54 +568,37 @@ impl CloudTeams {
     }
 }
 
-fn write_owner_only(path: &Path, bytes: &[u8]) -> Result<(), OperationError> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|_| OperationError::internal("could not create the device key folder"))?;
-    }
-    #[cfg(unix)]
-    {
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
-        let mut file = fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(path)
-            .map_err(|_| OperationError::internal("could not store the device key"))?;
-        file.write_all(bytes)
-            .map_err(|_| OperationError::internal("could not store the device key"))
-    }
-    #[cfg(not(unix))]
-    {
-        fs::write(path, bytes)
-            .map_err(|_| OperationError::internal("could not store the device key"))
-    }
+fn parse_device_key(pkcs8: &[u8]) -> Result<Ed25519KeyPair, OperationError> {
+    Ed25519KeyPair::from_pkcs8(pkcs8).map_err(|_| OperationError::internal("device key is invalid"))
+}
+
+/// Serialises first, then atomically replaces the record: the previous file is
+/// untouched until the new one is complete on disk.
+fn save_record(path: &std::path::Path, record: &Value, what: &str) -> Result<(), OperationError> {
+    let bytes = serde_json::to_vec(record)
+        .map_err(|_| OperationError::internal(format!("could not encode the {what}")))?;
+    private_file::replace_atomic(path, &bytes).map_err(|ReplaceError { destination_may_have_changed, .. }| {
+        if destination_may_have_changed {
+            OperationError::internal(format!(
+                "the {what} was written but could not be confirmed on disk; read it again before retrying"
+            ))
+        } else {
+            OperationError::internal(format!("could not store the {what}"))
+        }
+    })
 }
 
 // ---- HTTP --------------------------------------------------------------------
 
 pub(crate) async fn credentials(auth: &CloudAuth) -> Result<(String, NativeToken), OperationError> {
-    let origin = auth
-        .last_identity()
-        .map(|(origin, _)| origin)
-        .filter(|origin| !origin.is_empty())
-        .ok_or_else(|| {
-            OperationError::unavailable("this needs a signed-in Cloud account; sign in first")
-        })?;
-    let token = auth
-        .native_token()
-        .await
-        .ok_or_else(|| OperationError::unavailable("this needs a signed-in Cloud account"))?;
-    Ok((origin, token))
+    cloud_http::credentials(auth, "this").await
 }
 
-pub(crate) fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
-    let envelope = serde_json::from_slice::<Value>(body).ok();
-    let code = envelope
-        .as_ref()
-        .and_then(|value| value.get("code").and_then(Value::as_str).map(str::to_owned));
-    let mut error = match code.as_deref() {
+/// Teams messages for a Cloud failure. Only used for the `/api/v3/remote/*`
+/// operations in this module.
+fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
+    let envelope = FailureEnvelope::parse(body);
+    let error = match envelope.code() {
         Some("notFound") => OperationError::not_found("team item not found"),
         Some("conflict") => OperationError::conflict("the item changed; reload and try again"),
         Some("expired") => {
@@ -603,41 +620,11 @@ pub(crate) fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
             _ => OperationError::unavailable("team management is unavailable"),
         },
     };
-    error.data = envelope.as_ref().and_then(cloud_failure_data);
-    error
+    envelope.attach(error)
 }
 
-/// The parts of the Cloud error envelope the UI may use, each validated and bounded.
-/// Nothing else from the body is kept: a reply may carry internal detail.
-pub(crate) fn cloud_failure_data(envelope: &Value) -> Option<Value> {
-    let token = |value: Option<&Value>, max: usize, extra: &[u8]| -> Option<String> {
-        let text = value?.as_str()?;
-        (!text.is_empty()
-            && text.len() <= max
-            && text
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || extra.contains(&byte)))
-        .then(|| text.to_owned())
-    };
-    let code = token(envelope.get("code"), 32, b"")?;
-    let mut cloud = serde_json::Map::new();
-    cloud.insert("code".into(), Value::String(code));
-    if let Some(request_id) = token(envelope.get("requestId"), 80, b"-_.:") {
-        cloud.insert("requestId".into(), Value::String(request_id));
-    }
-    if let Some(retryable) = envelope.get("retryable").and_then(Value::as_bool) {
-        cloud.insert("retryable".into(), Value::Bool(retryable));
-    }
-    if let Some(after) = envelope
-        .get("retryAfterMs")
-        .and_then(Value::as_u64)
-        .filter(|after| *after <= 3_600_000)
-    {
-        cloud.insert("retryAfterMs".into(), Value::from(after));
-    }
-    Some(json!({ "cloud": cloud }))
-}
-
+/// One request, never retried. `204` is a valid empty result for every teams
+/// operation (the revoke calls return nothing).
 pub(crate) async fn send(
     method: Method,
     origin: &str,
@@ -645,32 +632,11 @@ pub(crate) async fn send(
     path: &str,
     body: Option<Value>,
 ) -> Result<Value, OperationError> {
-    let mut request = http()
-        .request(method, format!("{origin}{path}"))
-        .header(AUTHORIZATION, format!("Bearer {}", token.expose()));
+    let mut request = cloud_http::authorized(method, format!("{origin}{path}"), token)?;
     if let Some(body) = body {
         request = request.json(&body);
     }
-    let response = request
-        .send()
-        .await
-        .map_err(|_| OperationError::unavailable("cloud request failed"))?;
-    let status = response.status();
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|_| OperationError::unavailable("cloud reply could not be read"))?;
-    if bytes.len() > MAX_RESPONSE_BYTES {
-        return Err(OperationError::unavailable("cloud reply is too large"));
-    }
-    if status == StatusCode::NO_CONTENT {
-        return Ok(Value::Null);
-    }
-    if !status.is_success() {
-        return Err(map_failure(status, &bytes));
-    }
-    serde_json::from_slice(&bytes)
-        .map_err(|_| OperationError::internal("cloud sent an unreadable reply"))
+    cloud_http::send_json(request, HTTP_LIMITS, NoContent::Null, map_failure).await
 }
 
 pub(crate) fn str_field(value: &Value, key: &str) -> Result<String, OperationError> {
@@ -679,11 +645,6 @@ pub(crate) fn str_field(value: &Value, key: &str) -> Result<String, OperationErr
         .and_then(Value::as_str)
         .map(str::to_owned)
         .ok_or_else(|| OperationError::internal("cloud sent an unexpected reply"))
-}
-
-fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, OperationError> {
-    serde_json::from_value(value)
-        .map_err(|_| OperationError::internal("cloud sent an unexpected reply"))
 }
 
 // ---- Operations --------------------------------------------------------------
@@ -1068,9 +1029,12 @@ mod tests {
         assert!(bounded_text("bad\u{0007}", MAX_NAME_CHARS, "name").is_err());
     }
 
-    #[test]
-    fn device_key_is_created_once_and_reused() {
-        let dir = std::env::temp_dir().join(format!("teams-key-{}", std::process::id()));
+    fn scratch_teams(name: &str) -> (CloudTeams, PathBuf) {
+        let dir = std::env::temp_dir().join(format!(
+            "teams-{name}-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
         let paths = AppPaths {
             root: dir.clone(),
             data: dir.join("data"),
@@ -1081,10 +1045,123 @@ mod tests {
             logs: dir.join("logs"),
             temp: dir.join("temp"),
         };
-        let teams = CloudTeams::new(&paths);
+        (CloudTeams::new(&paths), dir)
+    }
+
+    const HOST: &str = "3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c";
+    const DEVICE_A: &str = "11111111-2222-4333-8444-555555555555";
+    const DEVICE_B: &str = "66666666-7777-4888-9999-aaaaaaaaaaaa";
+
+    #[test]
+    fn device_key_is_created_once_and_reused() {
+        let (teams, dir) = scratch_teams("key");
         let first = teams.device_key().unwrap();
         let second = teams.device_key().unwrap();
         assert_eq!(first.public_key().as_ref(), second.public_key().as_ref());
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_losing_concurrent_creation_loads_the_winning_key() {
+        let (teams, dir) = scratch_teams("race");
+        let winner = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).unwrap();
+        // The loser decided to create, then found the winner's file in place.
+        private_file::create_exclusive(&teams.key_path, winner.as_ref()).unwrap();
+        let loser = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).unwrap();
+        let error = private_file::create_exclusive(&teams.key_path, loser.as_ref()).unwrap_err();
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        let loaded = teams.winning_key().unwrap();
+        let expected = Ed25519KeyPair::from_pkcs8(winner.as_ref()).unwrap();
+        assert_eq!(loaded.public_key().as_ref(), expected.public_key().as_ref());
+        assert_eq!(fs::read(&teams.key_path).unwrap(), winner.as_ref());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_invalid_key_is_an_explicit_error_and_is_never_replaced() {
+        let (teams, dir) = scratch_teams("invalid");
+        fs::create_dir_all(teams.key_path.parent().unwrap()).unwrap();
+        fs::write(&teams.key_path, b"not a pkcs8 key").unwrap();
+        let error = teams.device_key().err().unwrap();
+        assert_eq!(error.message, "device key is invalid");
+        assert_eq!(fs::read(&teams.key_path).unwrap(), b"not a pkcs8 key");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn saving_records_twice_works_and_keeps_the_device_identity() {
+        let (teams, dir) = scratch_teams("records");
+        let identity = teams.device_key().unwrap().public_key().as_ref().to_vec();
+        let key_bytes = fs::read(&teams.key_path).unwrap();
+
+        teams.save_host_binding(HOST, DEVICE_A).unwrap();
+        teams.save_host_binding(HOST, DEVICE_B).unwrap();
+        assert_eq!(
+            teams.host_binding().unwrap(),
+            Some((HOST.to_owned(), DEVICE_B.to_owned()))
+        );
+        teams.save_controller_device(DEVICE_A).unwrap();
+        teams.save_controller_device(DEVICE_B).unwrap();
+        assert_eq!(teams.controller_device().unwrap(), DEVICE_B);
+
+        assert_eq!(fs::read(&teams.key_path).unwrap(), key_bytes);
+        assert_eq!(
+            teams.device_key().unwrap().public_key().as_ref(),
+            identity.as_slice()
+        );
+        let leftovers = fs::read_dir(teams.key_path.parent().unwrap())
+            .unwrap()
+            .flatten()
+            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+            .count();
+        assert_eq!(leftovers, 0);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_invalid_record_is_rejected_before_the_previous_one_is_touched() {
+        let (teams, dir) = scratch_teams("validate");
+        teams.save_host_binding(HOST, DEVICE_A).unwrap();
+        assert!(teams.save_host_binding(HOST, "../device").is_err());
+        assert!(teams.save_controller_device("nope").is_err());
+        assert_eq!(
+            teams.host_binding().unwrap(),
+            Some((HOST.to_owned(), DEVICE_A.to_owned()))
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_failed_replacement_keeps_the_previous_record() {
+        let (teams, dir) = scratch_teams("blocked");
+        teams.save_host_binding(HOST, DEVICE_A).unwrap();
+        // Replace the binding file by a directory-shaped obstacle only after
+        // saving once: use a record path whose parent is a regular file.
+        let blocked = CloudTeams {
+            key_path: teams.key_path.clone(),
+            binding_path: teams.binding_path.join("child.json"),
+            controller_path: teams.controller_path.clone(),
+        };
+        assert!(blocked.save_host_binding(HOST, DEVICE_B).is_err());
+        assert_eq!(
+            teams.host_binding().unwrap(),
+            Some((HOST.to_owned(), DEVICE_A.to_owned()))
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn teams_failures_use_teams_wording_and_keep_only_allowed_diagnostics() {
+        let error = map_failure(
+            StatusCode::NOT_FOUND,
+            br#"{"code":"notFound","requestId":"r-1","internal":"db password"}"#,
+        );
+        assert_eq!(error.code, "not_found");
+        assert_eq!(error.message, "team item not found");
+        assert_eq!(
+            error.data,
+            Some(json!({"cloud": {"code": "notFound", "requestId": "r-1"}}))
+        );
+        assert_eq!(map_failure(StatusCode::CONFLICT, b"").code, "conflict");
     }
 }

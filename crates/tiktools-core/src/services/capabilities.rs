@@ -6,8 +6,7 @@
 
 use std::{
     collections::BTreeMap,
-    fs,
-    io::{self, Write},
+    fs, io,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -146,27 +145,8 @@ fn new_generation() -> io::Result<String> {
 /// generation write but before a settings write invalidates earlier approvals
 /// conservatively; it never revives the previous settings identity.
 fn atomic_settings_write(directory: &Path, name: &str, bytes: &[u8]) -> io::Result<()> {
-    let temporary = directory.join(format!(".{name}.{}.tmp", new_generation()?));
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let result = (|| {
-        let mut file = options.open(&temporary)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        fs::rename(&temporary, directory.join(name))?;
-        #[cfg(unix)]
-        fs::File::open(directory)?.sync_all()?;
-        Ok(())
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temporary);
-    }
-    result
+    crate::private_file::replace_atomic(&directory.join(name), bytes)
+        .map_err(|failure| failure.error)
 }
 
 impl CapabilityBroker {

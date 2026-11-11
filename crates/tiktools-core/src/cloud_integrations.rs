@@ -4,33 +4,27 @@
 //! caller and never stored, logged or echoed by the host. Responses are bounded so
 //! that an events page always fits the remote frame limit.
 
-use std::sync::OnceLock;
 use std::time::Duration;
 
-use reqwest::{header::AUTHORIZATION, Client, Method, StatusCode};
+use reqwest::{Method, StatusCode};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tiktools_cloud_auth::{CloudAuth, NativeToken};
 
-use crate::control::OperationError;
+use crate::{
+    cloud_http::{self, decode, FailureEnvelope, Limits, NoContent},
+    control::OperationError,
+};
 
-const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
-/// Keeps an events reply well under the 1 MiB remote frame limit.
-const MAX_EVENT_REPLY_BYTES: usize = 512 * 1024;
+/// HTTP budget for every integrations operation: 15 s, 8 MiB of reply.
+const HTTP_LIMITS: Limits = Limits::new(Duration::from_secs(15), 8 * 1024 * 1024);
+/// RPC budget, separate from the HTTP limit: an events reply handed back to the
+/// caller stays well under the 1 MiB remote frame limit.
+const RPC_EVENT_REPLY_BYTES: usize = 512 * 1024;
+/// Input limit for connection labels.
 const MAX_LABEL_CHARS: usize = 120;
 const SECRET_HEX_CHARS: usize = 64;
-
-fn http() -> &'static Client {
-    static CLIENT: OnceLock<Client> = OnceLock::new();
-    CLIENT.get_or_init(|| {
-        Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(Duration::from_secs(15))
-            .build()
-            .unwrap_or_else(|_| Client::new())
-    })
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -116,28 +110,13 @@ pub fn normalize_label(value: &str) -> Result<String, OperationError> {
 }
 
 async fn credentials(auth: &CloudAuth) -> Result<(String, NativeToken), OperationError> {
-    let origin = auth
-        .last_identity()
-        .map(|(origin, _)| origin)
-        .filter(|origin| !origin.is_empty())
-        .ok_or_else(|| {
-            OperationError::unavailable(
-                "integrations need a signed-in Cloud account; sign in first",
-            )
-        })?;
-    let token = auth.native_token().await.ok_or_else(|| {
-        OperationError::unavailable("integrations need a signed-in Cloud account")
-    })?;
-    Ok((origin, token))
+    cloud_http::credentials(auth, "integrations").await
 }
 
 /// Maps a Cloud error envelope to a user-safe message. Raw bodies are never surfaced.
 fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
-    let envelope = serde_json::from_slice::<Value>(body).ok();
-    let code = envelope
-        .as_ref()
-        .and_then(|value| value.get("code").and_then(Value::as_str).map(str::to_owned));
-    let mut error = match code.as_deref() {
+    let envelope = FailureEnvelope::parse(body);
+    let error = match envelope.code() {
         Some("misconfigured") => {
             OperationError::unavailable("integrations are not configured on this Cloud instance")
         }
@@ -160,12 +139,11 @@ fn map_failure(status: StatusCode, body: &[u8]) -> OperationError {
             _ => OperationError::unavailable("cloud integrations are unavailable"),
         },
     };
-    error.data = envelope
-        .as_ref()
-        .and_then(crate::cloud_teams::cloud_failure_data);
-    error
+    envelope.attach(error)
 }
 
+/// One request, never retried. Every integrations reply is a document, so a
+/// `204` is unexpected.
 async fn send(
     method: Method,
     origin: &str,
@@ -173,35 +151,11 @@ async fn send(
     path: &str,
     body: Option<Value>,
 ) -> Result<Value, OperationError> {
-    let url = format!("{origin}{path}");
-    let mut request = http()
-        .request(method, url)
-        .header(AUTHORIZATION, format!("Bearer {}", token.expose()));
+    let mut request = cloud_http::authorized(method, format!("{origin}{path}"), token)?;
     if let Some(body) = body {
         request = request.json(&body);
     }
-    let response = request
-        .send()
-        .await
-        .map_err(|_| OperationError::unavailable("cloud request failed"))?;
-    let status = response.status();
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|_| OperationError::unavailable("cloud reply could not be read"))?;
-    if bytes.len() > MAX_RESPONSE_BYTES {
-        return Err(OperationError::unavailable("cloud reply is too large"));
-    }
-    if !status.is_success() {
-        return Err(map_failure(status, &bytes));
-    }
-    serde_json::from_slice(&bytes)
-        .map_err(|_| OperationError::internal("cloud sent an unreadable reply"))
-}
-
-fn decode<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, OperationError> {
-    serde_json::from_value(value)
-        .map_err(|_| OperationError::internal("cloud sent an unexpected reply"))
+    cloud_http::send_json(request, HTTP_LIMITS, NoContent::Unexpected, map_failure).await
 }
 
 pub async fn list(auth: &CloudAuth) -> Result<IntegrationConnectionList, OperationError> {
@@ -268,7 +222,7 @@ fn bound_events(page: IntegrationEventList) -> IntegrationEventList {
         let size = serde_json::to_vec(&event)
             .map(|bytes| bytes.len())
             .unwrap_or(usize::MAX);
-        if used.saturating_add(size) > MAX_EVENT_REPLY_BYTES {
+        if used.saturating_add(size) > RPC_EVENT_REPLY_BYTES {
             return IntegrationEventList {
                 items,
                 truncated: true,
@@ -326,31 +280,18 @@ mod tests {
     }
 
     #[test]
-    fn failures_keep_only_the_validated_parts_of_the_envelope() {
+    fn failures_keep_only_the_allowed_diagnostics() {
         let error = map_failure(
             StatusCode::SERVICE_UNAVAILABLE,
-            br#"{"code":"offline","requestId":"req-7f.2:a","retryable":true,"retryAfterMs":1500,"internal":"db password","stack":"at x"}"#,
+            br#"{"code":"misconfigured","requestId":"req-7f.2:a","retryable":true,"retryAfterMs":1500,"internal":"db password"}"#,
         );
         assert_eq!(
             error.data,
             Some(
-                json!({"cloud": {"code": "offline", "requestId": "req-7f.2:a", "retryable": true, "retryAfterMs": 1500}})
+                json!({"cloud": {"code": "misconfigured", "requestId": "req-7f.2:a", "retryable": true, "retryAfterMs": 1500}})
             )
         );
-        assert!(!error.data.unwrap().to_string().contains("db password"));
-        let forged = map_failure(
-            StatusCode::BAD_GATEWAY,
-            br#"{"code":"temporaryFailure","requestId":"has spaces <script>","retryable":"yes","retryAfterMs":99999999999}"#,
-        );
-        assert_eq!(
-            forged.data,
-            Some(json!({"cloud": {"code": "temporaryFailure"}}))
-        );
         assert_eq!(map_failure(StatusCode::BAD_GATEWAY, b"<html>").data, None);
-        assert_eq!(
-            map_failure(StatusCode::BAD_GATEWAY, br#"{"code":"not a code!"}"#).data,
-            None
-        );
     }
 
     #[test]

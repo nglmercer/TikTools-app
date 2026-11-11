@@ -25,6 +25,8 @@ pub mod cloud_account;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_bundles;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
+mod cloud_http;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_integrations;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 pub mod cloud_publisher;
@@ -52,6 +54,7 @@ mod plugin_invoker;
 mod plugin_packages;
 mod plugin_processors;
 mod plugin_runtime;
+mod private_file;
 mod runtime_state;
 #[cfg(test)]
 mod tests;
