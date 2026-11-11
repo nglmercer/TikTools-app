@@ -21,7 +21,9 @@ import GrantEditor from './GrantEditor.vue';
 import InvitationQr from './InvitationQr.vue';
 
 const { t, te } = useI18n();
-const area = ref<'overview' | 'people' | 'network'>('overview');
+const area = ref<'overview' | 'people'>('overview');
+// Listen address, public URL, TLS and allowed origins belong to the direct connection, not to the normal flow.
+const directOpen = ref(false);
 const owner = createCollaborationOwner(useControlClient());
 const { status, pages, tab, loading, working, error, uncertain, connected, checkedAt, secret, canInvite, joinLink, next, previous } = owner;
 const draft = ref<Configuration | null>(null);
@@ -162,7 +164,7 @@ const stateTone = (value: string): StatusTone => {
         :aria-label="t('collaboration.title')"
       >
         <BaseButton
-          v-for="item in (['overview', 'people', 'network'] as const)"
+          v-for="item in (['overview', 'people'] as const)"
           :key="item"
           :pressed="area === item"
           @click="area = item"
@@ -263,8 +265,12 @@ const stateTone = (value: string): StatusTone => {
           <p>{{ t('collaboration.instance') }}: <code>{{ status.hostInstanceId }}</code></p>
         </SettingsDisclosure>
       </BaseGroupBox>
+      <SettingsDisclosure
+        v-show="area === 'overview'"
+        v-model:open="directOpen"
+        :title="t('collaboration.directTransport')"
+      >
       <BaseGroupBox
-        v-show="area === 'network'"
         :title="t('collaboration.configuration')"
       >
         <form
@@ -398,6 +404,7 @@ const stateTone = (value: string): StatusTone => {
           </div>
         </form>
       </BaseGroupBox>
+      </SettingsDisclosure>
       <BaseGroupBox
         v-show="area === 'people'"
         :title="t('settingsLayout.people')"

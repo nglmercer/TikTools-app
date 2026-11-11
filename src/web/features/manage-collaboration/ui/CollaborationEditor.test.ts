@@ -20,16 +20,18 @@ function mountPanel(handler: Parameters<typeof createFakeControlClient>[0]) {
   return { ...fake, wrapper, button: (text: string) => wrapper.findAll('button').find((node) => node.text() === text)! };
 }
 describe('owner collaboration panel', () => {
-  it('keeps network drafts while browsing other areas and does not write on navigation', async () => {
+  it('keeps the direct connection closed, keeps its draft while browsing and does not write on navigation', async () => {
     const status = collaborationStatus();
     const { wrapper, calls, button } = mountPanel(method => method === 'collaboration.status' ? copy(status) : emptyCollaborationPage(method));
     await flushPromises();
     expect(wrapper.get('#collaboration-bind').isVisible()).toBe(false);
-    await button('Network and security').trigger('click');
+    expect(button('Network and security')).toBeUndefined();
+    await button('Direct connection (advanced)').trigger('click');
+    expect(wrapper.get('#collaboration-bind').isVisible()).toBe(true);
     await wrapper.get('#collaboration-bind').setValue('127.0.0.1:8999');
-    await button('Status and access').trigger('click');
+    await button('Devices and requests').trigger('click');
     expect(wrapper.get('#collaboration-bind').isVisible()).toBe(false);
-    await button('Network and security').trigger('click');
+    await button('Status and access').trigger('click');
     expect(wrapper.get('#collaboration-bind').isVisible()).toBe(true);
     expect((wrapper.get('#collaboration-bind').element as HTMLInputElement).value).toBe('127.0.0.1:8999');
     expect(calls.some(call => call.method === 'collaboration.configure')).toBe(false);
