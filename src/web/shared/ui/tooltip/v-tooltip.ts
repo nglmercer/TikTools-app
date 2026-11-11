@@ -44,6 +44,9 @@ function show(target: HTMLElement): void {
   if (!state?.text || !target.isConnected) return;
   if (owner && owner !== target) hide(owner);
   const tooltip = tooltipElement();
+  // A modal dialog sits in the top layer, above anything appended to the body.
+  const host = target.closest('dialog[open]') ?? document.body;
+  if (tooltip.parentElement !== host) host.append(tooltip);
   tooltip.textContent = state.text;
   tooltip.hidden = false;
   const position = computeAnchoredPosition(

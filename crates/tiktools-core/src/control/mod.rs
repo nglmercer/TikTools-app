@@ -124,8 +124,8 @@ pub use cloud_library::{
 #[cfg(feature = "cloud-auth")]
 pub use cloud_sync::{
     SyncNowResult, SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncRecoveryValue,
-    V2ConflictChoice, V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, V2ConflictValue,
-    WorkspaceV2SyncResult,
+    V2ChangeEntry, V2ConflictChoice, V2ConflictOutcome, V2ConflictReview, V2ConflictTarget,
+    V2ConflictValue, V2PendingChange, WorkspaceV2SyncResult,
 };
 #[cfg(feature = "cloud-auth")]
 pub use cloud_workspace::{

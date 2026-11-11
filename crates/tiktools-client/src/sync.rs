@@ -7,7 +7,7 @@ use tiktools_control_api::modules::sync::{
 };
 use tiktools_control_api::modules::sync::{
     SyncV2ConflictResolveParams, SyncV2ConflictReviewParams, SyncV2StagePluginSettingsParams,
-    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, WorkspaceV2Migration,
+    V2ChangeEntry, V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, WorkspaceV2Migration,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
@@ -29,6 +29,7 @@ pub(crate) const METHODS: &[&str] = &[
     "sync.v2.rebuild",
     "sync.v2.stagePreferences",
     "sync.v2.stagePluginSettings",
+    "sync.v2.changes.list",
     "sync.v2.conflict.list",
     "sync.v2.conflict.review",
     "sync.v2.conflict.resolve",
@@ -135,6 +136,10 @@ impl TikToolsClient {
         params: SyncV2StagePluginSettingsParams,
     ) -> Result<(), ClientError> {
         self.call("sync.v2.stagePluginSettings", params).await
+    }
+
+    pub async fn sync_v2_changes_list(&self) -> Result<Vec<V2ChangeEntry>, ClientError> {
+        self.call("sync.v2.changes.list", Empty::default()).await
     }
 
     pub async fn sync_v2_conflict_list(&self) -> Result<Vec<V2ConflictTarget>, ClientError> {

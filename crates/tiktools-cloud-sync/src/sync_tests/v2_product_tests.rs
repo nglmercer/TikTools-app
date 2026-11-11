@@ -641,6 +641,67 @@ async fn stage_v2_product_edit_queues_preferences_once() {
     mock.stop();
 }
 
+#[tokio::test]
+async fn v2_product_entries_lists_staged_edits_without_network_or_mutation() {
+    let dir = TempDir::new("v2-product-entries");
+    let mock = MockSync::start("v2-entries-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "entries-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = marked_preview(&sync, &session);
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "v2-entries-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "v2-entries-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    lease
+        .finish(&preview, &mock.origin, "v2-entries-user")
+        .unwrap();
+    drop(lease);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    let requests_before = {
+        let inner = mock.inner.lock().unwrap();
+        (inner.pull_requests, inner.v2_put_requests, inner.v2_record_get_requests)
+    };
+    let generation_before = workspace.snapshot().unwrap().generation;
+    let empty = sync.v2_product_entries(&session).unwrap();
+    assert!(empty.iter().all(|entry| entry.pending.is_none()));
+    let target = WorkspaceKey::new("preferences", "desktop").unwrap();
+    let edit = WorkspaceEdit::Put(serde_json::json!({
+        "schemaVersion": 1,
+        "theme": "dark",
+        "locale": "es-PE"
+    }));
+    sync.stage_v2_product_edit(session.clone(), target.clone(), edit.clone())
+        .unwrap();
+    let staged_generation = workspace.snapshot().unwrap().generation;
+    assert!(staged_generation >= generation_before);
+    let entries = sync.v2_product_entries(&session).unwrap();
+    let entry = entries
+        .iter()
+        .find(|entry| entry.target == target)
+        .expect("staged entry is listed");
+    let pending = entry.pending.as_ref().expect("pending edit is listed");
+    assert_eq!(pending.status, WorkspacePendingStatus::Queued);
+    assert_eq!(pending.edit, edit);
+    // Reading is local-only and leaves the durable state untouched.
+    assert_eq!(workspace.snapshot().unwrap().generation, staged_generation);
+    let requests_after = {
+        let inner = mock.inner.lock().unwrap();
+        (inner.pull_requests, inner.v2_put_requests, inner.v2_record_get_requests)
+    };
+    assert_eq!(requests_after, requests_before);
+    mock.stop();
+}
+
 struct ResumeSource {
     selections: Vec<PluginSelection>,
     receipts: Vec<crate::V1CutoverReceipt>,

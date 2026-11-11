@@ -215,6 +215,7 @@ function submitSpec(): void {
             </BaseTextField>
           </form>
           <span class="plugin-catalog__tools">
+            <slot name="tools" />
             <template v-if="tab === 'updates'">
               <BaseIconButton
                 :label="checkingUpdates ? t('plugins.catalog.checking') : t('plugins.catalog.checkUpdates')"

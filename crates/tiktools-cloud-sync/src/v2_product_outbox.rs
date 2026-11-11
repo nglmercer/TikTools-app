@@ -360,6 +360,24 @@ impl SyncCoordinator {
         Ok(workspace.snapshot()?.state.conflict_keys())
     }
 
+    /// Local-only read of every durable workspace entry for the current
+    /// account: the cached Cloud record, any pending edit with its frozen base
+    /// and a newer local decision. Like the conflict listing it performs no
+    /// network I/O and takes no fence; callers revalidate the session around it.
+    pub fn v2_product_entries(
+        &self,
+        session: &Arc<cloud_client::Session>,
+    ) -> Result<Vec<cloud_client::WorkspaceEntry>, crate::WorkspaceCoordError> {
+        let origin = session.instance_origin();
+        let account = session.account_id().to_owned();
+        let root = self
+            .config_path
+            .parent()
+            .ok_or(crate::WorkspaceCoordError::Ineligible)?;
+        let workspace = WorkspaceCoordinator::open(root, origin, account)?;
+        Ok(workspace.snapshot()?.state.entries)
+    }
+
     /// Product-only conflict comparison. Runs one fenced review under a
     /// worker lease and returns a serializable snapshot; the caller stores
     /// only the snapshot and a random handle, never the live review.

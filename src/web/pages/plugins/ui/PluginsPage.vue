@@ -10,6 +10,8 @@ import { usePackagesStore } from '@/entities/plugin-package/model/packages-store
 import { useProcessorsStore } from '@/entities/processor/model/processors-store.ts';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
+import { usePluginSyncAdapter } from '@/features/manage-plugins/model/use-plugin-sync-adapter.ts';
+import SyncButton from '@/features/sync-changes/ui/SyncButton.vue';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
 import PluginDetails from '@/widgets/plugin-details/ui/PluginDetails.vue';
@@ -22,6 +24,7 @@ import RemotePluginDetails from '@/widgets/plugin-remote-details/ui/RemotePlugin
 type PluginsView = 'plugins' | 'processors';
 
 const plugins = usePluginControls();
+const syncAdapter = usePluginSyncAdapter();
 const packages = usePackagesStore();
 const processorsStore = useProcessorsStore();
 const saved = loadViewState().plugins;
@@ -233,6 +236,12 @@ watch(activeView, () => { processorSelected.value = null; });
       @open="openPlugin"
       @command="runCommand"
     >
+      <template #tools>
+        <SyncButton
+          :adapter="syncAdapter"
+          size="sm"
+        />
+      </template>
       <template #processors>
         <ProcessorsPanel
           :plugins="behavior.plugins"

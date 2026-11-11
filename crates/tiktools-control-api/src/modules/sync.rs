@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 pub use tiktools_core::control::{
     CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus, SyncNowResult,
-    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, V2ConflictChoice,
-    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, WorkspaceV2Discovery,
+    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, V2ChangeEntry, V2ConflictChoice,
+    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, V2PendingChange, WorkspaceV2Discovery,
     WorkspaceV2Migration, WorkspaceV2Preview, WorkspaceV2SyncResult,
 };
 use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
@@ -209,6 +209,12 @@ pub fn register(router: &mut ControlRouter) {
         "Lists v2 conflicts for the current account without contacting Cloud",
         false,
         |core: Arc<AppCore>, _| async move { core.sync_v2_conflict_list().await.map_err(map_error) },
+    );
+    router.register_typed::<Empty, Vec<V2ChangeEntry>, _, _>(
+        "sync.v2.changes.list",
+        "Reads the durable v2 workspace (cached Cloud values and pending edits) without contacting Cloud",
+        false,
+        |core: Arc<AppCore>, _| async move { core.sync_v2_changes_list().await.map_err(map_error) },
     );
     router.register_typed::<SyncV2ConflictReviewParams, V2ConflictReview, _, _>(
         "sync.v2.conflict.review",

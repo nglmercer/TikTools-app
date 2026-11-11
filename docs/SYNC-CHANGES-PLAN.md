@@ -1,8 +1,26 @@
 # Sync and the Changes panel (plan)
 
-Status: **planned**. Nothing below is implemented unless a line says so. It builds on
+Status: **phase 1 frontend implemented in part** (see "Implemented" below). Everything else is planned. It builds on
 [Desktop Cloud v2](CLOUD-V2-DESKTOP.md), which already provides the sync collections, the stored
 base version, conflict review (base, local, Cloud) and the background worker.
+
+## Implemented
+
+- `SyncPanel` (modal, Changes and History views), `SyncButton` (icon, count, disabled reason) and the
+  `SyncAdapter` contract in `src/web/entities/cloud-sync/api/sync-adapter.ts`. The panel renders only the
+  controls an adapter declares in `capabilities`.
+- Read-only RPC `sync.v2.changes.list`: a local read of the v2 workspace (cached Cloud value, pending edit
+  with its frozen base). No network, no fences, no writes.
+- Plugins adapter (selections and staged settings): whole-pass sync (`sync.v2.now`) and keep-local or
+  take-Cloud for conflicts. No selective send, fetch-only, field merge, force, reset or history.
+- Automations adapter (Events and Actions tabs): **compares with the last-known snapshot kept in this
+  browser, not with Cloud**, because rule profiles and templates are not staged into the v2 workspace
+  (only plugin selections, plugin settings and preferences are). It offers reset only. The snapshot is
+  taken the first time a section is seen and is never advanced until a transport exists.
+
+What the plan's table claimed for automations (push, fetch, merge, force, history) needs backend work first:
+native adapters for the `profiles` and `rule-templates` records, staging from the Owner library operations,
+reviewed application of fetched profiles, per-record push and fetch, and the snapshots table of phase 2.
 
 ## Goal
 
@@ -54,10 +72,10 @@ Cloud has a public overlay gallery.
   decision first: a new `variables` collection in `cloud-contracts` and RemakeBackend, or a section
   of the preferences record. Open points: typed values (text, number, boolean, list, secret);
   **secrets must never sync in clear text** (exclude them or store only a reference); conflict
-  behaviour per type. Until then the Variables tab shows the button only if the adapter exists
-  (nothing is shown as synced that is not).
-- [ ] Three-way conflict view in the panel built on two `diffJson` calls (base to local, base to
-  Cloud), with per-field choice and "all local / all Cloud".
+  behaviour per type. Until then the Variables tab shows no sync button (nothing is shown as synced that is not); the
+  adapter would be registered next to the others in `AutomationsPage.vue`.
+- [x] Three-way conflict view in the panel (per-field Base/Local/Cloud choice, all local / all Cloud, apply
+  merge). Only adapters that declare `merge` show it; no current adapter can stage a merged value.
 - [ ] Per-record history and restore (phase 2).
 - [ ] Branch provenance and a public-template fork action (phase 2).
 - [ ] Overlay revisions adapter (phase 3).

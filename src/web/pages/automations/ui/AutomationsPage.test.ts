@@ -257,6 +257,26 @@ describe('AutomationsPage', () => {
     expect(wrapper.findAll('.automation-library tbody tr')).toHaveLength(2);
   });
 
+  it('offers the sync panel for the events and for the actions, but not on the variables', async () => {
+    const { wrapper } = await mountPage();
+    const tab = (name: string) => wrapper.findAll('[role="tab"]').find((item) => item.text().startsWith(name))!;
+    const button = () => wrapper.find('button[aria-label^="Sync changes"]');
+    expect(button().exists()).toBe(true);
+    await button().trigger('click');
+    await flushPromises();
+    expect(wrapper.get('dialog h2').text()).toBe('Changes · Events');
+    await wrapper.get('dialog button[aria-label="Close"]').trigger('click');
+    await tab('Actions').trigger('click');
+    await flushPromises();
+    await button().trigger('click');
+    await flushPromises();
+    expect(wrapper.get('dialog h2').text()).toBe('Changes · Actions');
+    await wrapper.get('dialog button[aria-label="Close"]').trigger('click');
+    await tab('Variables').trigger('click');
+    await flushPromises();
+    expect(button().exists()).toBe(false);
+  });
+
   it('sorts the library from the filter menu', async () => {
     const { wrapper } = await mountPage();
     const filter = wrapper.get('.automation-library__sort');

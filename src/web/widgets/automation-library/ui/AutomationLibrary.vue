@@ -222,6 +222,10 @@ const sort = computed({
               <IconSearch />
             </template>
           </BaseTextField>
+          <slot
+            name="sync"
+            :kind="tab"
+          />
           <BaseIconButton
             class="automation-library__sort"
             :class="{ 'automation-library__sort--active': sort !== 'name' }"

@@ -259,6 +259,13 @@ describe('PluginsPage', () => {
     expect(wrapper.find('.master-detail').exists()).toBe(false);
   });
 
+  it('has a sync button in the tools that explains why it is disabled while signed out', async () => {
+    const { wrapper } = await mountPage();
+    const sync = wrapper.get('button[aria-label^="Sync changes"]');
+    expect(sync.attributes('disabled')).toBeDefined();
+    expect(sync.attributes('aria-description')).toBe('Sign in to Cloud to sync (Settings, Account & Cloud).');
+  });
+
   it('lists installed plugins with a switch and counters, and flags only the ones that cannot load', async () => {
     const broken = plugin('hotkeys', { available: false, unavailableReason: 'No input access' }, { eventTypeIds: ['hotkey.pressed'], actionTypeIds: [] });
     const { wrapper, calls } = await mountPage([plugin('deck'), broken]);

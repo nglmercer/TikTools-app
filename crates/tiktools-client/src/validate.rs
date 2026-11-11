@@ -518,7 +518,10 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         #[cfg(feature = "cloud-auth")]
         "sync.resolve" => validate::<SyncResolveParams>(params),
         #[cfg(feature = "cloud-auth")]
-        "sync.v2.migrate" | "sync.v2.rebuild" | "sync.v2.conflict.list" => {
+        "sync.v2.migrate"
+        | "sync.v2.rebuild"
+        | "sync.v2.changes.list"
+        | "sync.v2.conflict.list" => {
             validate::<Empty>(params)
         }
         #[cfg(feature = "cloud-auth")]

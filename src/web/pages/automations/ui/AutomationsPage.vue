@@ -4,6 +4,8 @@ import { computed, inject, markRaw, onBeforeUnmount, onMounted, ref, shallowRef,
 import { routeLocationKey, routerKey } from 'vue-router';
 import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
+import { useAutomationSyncAdapters } from '@/features/manage-automations/model/use-automation-sync-adapter.ts';
+import SyncButton from '@/features/sync-changes/ui/SyncButton.vue';
 import { useAutomationEditor } from '@/features/edit-automation-record/model/automation-editor.ts';
 import AutomationEditorReview from '@/features/edit-automation-record/ui/AutomationEditorReview.vue';
 import AutomationEditNotice from '@/features/edit-automation-record/ui/AutomationEditNotice.vue';
@@ -64,6 +66,8 @@ type Editing =
 
 const { t } = useAutomationText();
 const automation = useAutomationControls();
+// Variables sync is a TODO (docs/SYNC-CHANGES-PLAN.md): register its adapter here and add a button to that tab once a Cloud collection carries it.
+const syncAdapters = useAutomationSyncAdapters();
 const library = libraryJournal(useControlClient());
 const libraryPanel = ref<{ openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const editor = useAutomationEditor({
@@ -567,6 +571,12 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
           @new-action="pickerOpen = true"
           @set-enabled="setEnabled"
         >
+          <template #sync="{ kind }">
+            <SyncButton
+              :key="kind"
+              :adapter="kind === 'events' ? syncAdapters.event : syncAdapters.action"
+            />
+          </template>
           <template #variables>
             <RuntimeGlobalsEditor />
           </template>

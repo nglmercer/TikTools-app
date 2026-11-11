@@ -23,6 +23,15 @@ export interface E2EHostState {
   };
   /** Methods announced through `rpc.discover`; none by default, so optional Cloud areas stay hidden. */
   announcedMethods?: string[];
+  /** Cloud account and v2 workspace served to the sync panel (`cloud.status`, `sync.status`, `sync.v2.*`). */
+  sync?: {
+    signedIn: boolean;
+    enabled: boolean;
+    lastSyncedAt?: number | null;
+    entries: Array<Record<string, unknown>>;
+    /** Conflict handles resolved so far, as `<collection>/<key>:<choice>`. */
+    resolved: string[];
+  };
   /** Runtime globals served by `globals.list` and written by `globals.set`. */
   globals?: Record<string, string>;
   /** Behavior snapshot served for `automation.snapshot`. */
@@ -210,6 +219,16 @@ const INIT_SCRIPT = `
     'automation.library.snapshot': () => {
       throw { code: 'capability_unavailable', message: 'The fake host has no Owner library.' };
     },
+    'cloud.status': () => ({ origin: 'http://127.0.0.1:3000', state: state.sync?.signedIn ? 'signed-in' : 'signed-out', accountId: 'tester', persistence: 'memory-only', error: null }),
+    'sync.status': () => ({ enabled: state.sync?.enabled ?? false, signedIn: state.sync?.signedIn ?? false, syncing: false, pending: state.sync?.entries.filter((entry) => entry.pending).length ?? 0, conflicts: [], lastError: null, lastSyncedAt: state.sync?.lastSyncedAt ?? null }),
+    'sync.v2.selected': () => true,
+    'sync.v2.changes.list': () => state.sync?.entries ?? [],
+    'sync.v2.now': () => {
+      if (state.sync) state.sync.lastSyncedAt = 1_700_000_000;
+      return { pushed: 0, pulled: 0, workspacePending: 0, availableRecords: 0, conflicts: [], moreQueued: false };
+    },
+    'sync.v2.conflict.review': (params) => ({ handle: 'a'.repeat(64), collection: params.collection, key: params.key }),
+    'sync.v2.conflict.resolve': (params) => { state.sync?.resolved.push(String(params.choice)); return 'resolved'; },
     'collaboration.status': () => state.collaboration.status,
     'collaboration.configure': (params) => {
       const c = state.collaboration;

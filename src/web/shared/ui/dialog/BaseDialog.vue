@@ -50,6 +50,7 @@ onMounted(() => sync(open.value));
         >
           {{ title }}
         </h2>
+        <slot name="header-actions" />
         <BaseIconButton
           v-if="closable"
           :label="t('common.close')"

@@ -9,11 +9,13 @@ import automationApproval from './automation-approval.pt.ts';
 import definitionRecovery from './definition-recovery.pt.ts';
 import controller from './controller.pt.ts';
 import jsonView from './json-view.pt.ts';
+import syncChanges from './sync-changes.pt.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
   controller,
   jsonView,
+  syncChanges,
   settingsLayout,
   formsDesign,
   designKit,

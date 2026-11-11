@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiKitJson from './UiKitJson.vue';
+import UiKitSync from './UiKitSync.vue';
 import UiKitPatterns from './UiKitPatterns.vue';
 import { ref } from 'vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
@@ -87,6 +88,7 @@ const visible = ref(true);
     <UiKitPatterns class="ui-kit__panel--wide" />
     <UiKitWorkspace class="ui-kit__panel--wide" />
     <UiKitJson class="ui-kit__panel--wide" />
+    <UiKitSync class="ui-kit__panel--wide" />
     <section class="ui-kit__panel">
       <header class="ui-kit__header">
         Buttons

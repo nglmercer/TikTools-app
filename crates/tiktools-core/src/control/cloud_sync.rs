@@ -173,6 +173,49 @@ pub enum V2ConflictOutcome {
     Resolved,
 }
 
+/// One pending local edit of a v2 workspace entry, with the frozen Cloud base it
+/// was made against. `status` is `queued`, `unconfirmed` or `conflict`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct V2PendingChange {
+    pub status: String,
+    pub base: V2ConflictValue,
+    pub local: V2ConflictValue,
+}
+
+/// Read-only projection of one durable v2 workspace entry: the last fetched
+/// Cloud record, the pending local edit when there is one, and whether a newer
+/// local decision waits behind it. Nothing here contacts Cloud.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct V2ChangeEntry {
+    pub collection: String,
+    pub key: String,
+    pub remote: V2ConflictValue,
+    pub pending: Option<V2PendingChange>,
+    pub has_newer: bool,
+}
+
+pub(crate) fn v2_change_entry(entry: &cloud_client::WorkspaceEntry) -> V2ChangeEntry {
+    use cloud_client::WorkspacePendingStatus;
+    V2ChangeEntry {
+        collection: entry.target.collection.clone(),
+        key: entry.target.key.clone(),
+        remote: v2_value_from_record(entry.remote.as_ref()),
+        pending: entry.pending.as_ref().map(|pending| V2PendingChange {
+            status: match pending.status {
+                WorkspacePendingStatus::Queued => "queued",
+                WorkspacePendingStatus::Unconfirmed => "unconfirmed",
+                WorkspacePendingStatus::Conflict => "conflict",
+            }
+            .into(),
+            base: v2_value_from_record(pending.base_record.as_ref()),
+            local: v2_value_from_edit(&pending.edit),
+        }),
+        has_newer: entry.next.is_some(),
+    }
+}
+
 pub(crate) struct V2ConflictHandle {
     token: String,
     session: std::sync::Arc<cloud_client::Session>,
@@ -654,6 +697,43 @@ impl AppCore {
         }
     }
 
+    /// Local-only read of the durable v2 workspace for the current account:
+    /// cached Cloud values and pending edits, so a UI can show what differs
+    /// without contacting Cloud or entering a conflict review.
+    pub async fn sync_v2_changes_list(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<Vec<V2ChangeEntry>, OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let (session, _) = self.v2_identity().await?;
+            let coordinator = self.sync_coordinator()?.clone();
+            let epoch = self.v2_epoch(&coordinator, &session)?;
+            let core_session = session.clone();
+            let entries = tokio::task::spawn_blocking({
+                let list_coordinator = coordinator.clone();
+                move || list_coordinator.v2_product_entries(&core_session)
+            })
+            .await
+            .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))?
+            .map_err(|_| OperationError::unavailable("Cloud v2 changes are unavailable"))?;
+            self.cloud
+                .auth()
+                .with_current_session(&session, || {
+                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+                })
+                .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
+                .then_some(())
+                .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
+            Ok(entries.iter().map(v2_change_entry).collect())
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            Err(OperationError::unavailable(
+                "Cloud v2 changes require persistence",
+            ))
+        }
+    }
+
     /// Capture one v2 conflict comparison. The handle is one-time; resolution
     /// re-reads Cloud and requires the same comparison.
     pub async fn sync_v2_review_conflict(
@@ -902,5 +982,90 @@ impl AppCore {
                 Ok(SyncRecoveryOutcome::NewerEditNeedsReview)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod change_entry_tests {
+    use super::*;
+    use cloud_client::{
+        WorkspaceEdit, WorkspaceEntry, WorkspaceKey, WorkspaceLocalEdit, WorkspacePending,
+        WorkspacePendingStatus, WorkspaceRecord,
+    };
+    use serde_json::json;
+
+    fn record(revision: i64, value: serde_json::Value) -> WorkspaceRecord {
+        WorkspaceRecord {
+            collection: "plugin-selections".into(),
+            key: "alpha".into(),
+            revision,
+            deleted: false,
+            value: Some(value),
+        }
+    }
+
+    fn entry() -> WorkspaceEntry {
+        WorkspaceEntry {
+            target: WorkspaceKey::new("plugin-selections", "alpha").unwrap(),
+            remote: None,
+            pending: None,
+            next: None,
+        }
+    }
+
+    #[test]
+    fn entry_without_pending_edit_reports_the_cached_cloud_record() {
+        let mut item = entry();
+        item.remote = Some(record(4, json!({"version": "1.0.0", "enabled": true})));
+        let projected = v2_change_entry(&item);
+        assert_eq!(projected.collection, "plugin-selections");
+        assert_eq!(projected.key, "alpha");
+        assert_eq!(projected.remote.state, "present");
+        assert_eq!(projected.remote.revision, Some(4));
+        assert_eq!(projected.remote.version.as_deref(), Some("1.0.0"));
+        assert_eq!(projected.remote.enabled, Some(true));
+        assert!(projected.pending.is_none());
+        assert!(!projected.has_newer);
+    }
+
+    #[test]
+    fn absent_remote_and_pending_edit_keep_base_and_local_apart() {
+        let mut item = entry();
+        let base = record(2, json!({"version": "1.0.0", "enabled": true}));
+        item.remote = Some(base.clone());
+        item.pending = Some(WorkspacePending {
+            base_revision: Some(2),
+            edit: WorkspaceEdit::Put(json!({"version": "1.0.0", "enabled": false})),
+            local_generation: 3,
+            base_record: Some(base),
+            status: WorkspacePendingStatus::Conflict,
+            write_epoch: None,
+        });
+        item.next = Some(WorkspaceLocalEdit {
+            edit: WorkspaceEdit::Delete,
+            local_generation: 4,
+        });
+        let projected = v2_change_entry(&item);
+        let pending = projected.pending.expect("pending change");
+        assert_eq!(pending.status, "conflict");
+        assert_eq!(pending.base.enabled, Some(true));
+        assert_eq!(pending.local.enabled, Some(false));
+        assert!(projected.has_newer);
+
+        let mut fresh = entry();
+        fresh.pending = Some(WorkspacePending {
+            base_revision: None,
+            edit: WorkspaceEdit::Delete,
+            local_generation: 1,
+            base_record: None,
+            status: WorkspacePendingStatus::Queued,
+            write_epoch: None,
+        });
+        let projected = v2_change_entry(&fresh);
+        assert_eq!(projected.remote.state, "absent");
+        let pending = projected.pending.unwrap();
+        assert_eq!(pending.status, "queued");
+        assert_eq!(pending.base.state, "absent");
+        assert_eq!(pending.local.state, "deleted");
     }
 }
