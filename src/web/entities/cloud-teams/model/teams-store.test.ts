@@ -1,5 +1,7 @@
+import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
+import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { useTeamsStore } from './teams-store.ts';
 
@@ -115,5 +117,119 @@ describe('teams store', () => {
     expect(await teams.runCommand(team, 'live.status')).toBe(true);
     expect(teams.lastCommand?.status).toBe('unknown');
     expect(calls.find((call) => call.method === 'teams.commands.run')?.params).toEqual({ hostId: team, operation: 'live.status' });
+  });
+
+  describe('late replies', () => {
+    function deferred<T>() {
+      let resolve!: (value: T) => void; let reject!: (failure: unknown) => void;
+      const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+      return { promise, resolve, reject };
+    }
+    const invitation = { id: grantId, requestedRole: 'observer', expiresAt: 'later', token };
+    const row = { id: grantId, requestedRole: 'observer', status: 'pending', expiresAt: 'later' };
+
+    it('does not show or repopulate an invitation after the team was closed or another was selected', async () => {
+      const created = deferred<unknown>();
+      const { stores, calls } = host(['teams.hosts.list'], (method, params) => {
+        if (method === 'teams.hosts.list') return { items: [hostRow(team), hostRow(other)] };
+        if (method === 'teams.invitations.create') return created.promise;
+        if (method === 'teams.invitations.list') return { items: params?.hostId === team ? [row] : [] };
+        return { items: [] };
+      });
+      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      const teams = stores.use(() => useTeamsStore());
+      await teams.refresh();
+      await teams.select(team);
+      const pending = teams.createInvitation('observer', 900);
+      expect(teams.working).toBe(true);
+      await teams.select(other);
+      created.resolve(invitation);
+      await pending; await flushPromises();
+      expect(teams.selectedId).toBe(other);
+      expect(teams.issued).toBeNull();
+      expect(teams.invitations).toEqual([]);
+      expect(teams.working).toBe(false);
+      expect(calls.filter((call) => call.method === 'teams.invitations.create')).toHaveLength(1);
+    });
+
+    it('does not show an invitation that arrives after the panel closed', async () => {
+      const created = deferred<unknown>();
+      const { stores } = host(['teams.hosts.list'], (method) => {
+        if (method === 'teams.hosts.list') return { items: [hostRow(team)] };
+        if (method === 'teams.invitations.create') return created.promise;
+        return { items: [] };
+      });
+      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      const teams = stores.use(() => useTeamsStore());
+      await teams.refresh();
+      await teams.select(team);
+      const pending = teams.createInvitation('observer', 900);
+      teams.reset();
+      created.resolve(invitation);
+      await pending;
+      expect(teams.issued).toBeNull();
+      expect(teams.selectedId).toBeNull();
+      expect(teams.error).toBeNull();
+      expect(teams.working).toBe(false);
+    });
+
+    it('checks the generation again after reading the host link', async () => {
+      const link = deferred<unknown>();
+      const { stores } = host(['teams.hosts.list'], (method) => {
+        if (method === 'teams.hosts.list') return { items: [hostRow(team)] };
+        if (method === 'teams.host.status') return link.promise;
+        return { items: [] };
+      });
+      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      const teams = stores.use(() => useTeamsStore());
+      const refreshing = teams.refresh();
+      await flushPromises();
+      expect(teams.hosts.map((h) => h.id)).toEqual([team]);
+      teams.reset();
+      link.resolve({ state: 'connected', hostId: team, lastError: null });
+      await refreshing;
+      expect(teams.link.state).toBe('stopped');
+      expect(teams.loading).toBe(false);
+    });
+
+    it('drops the previous account teams and ignores its late failure when the account changes', async () => {
+      const first = deferred<unknown>();
+      let lists = 0;
+      const { stores } = host(['teams.hosts.list'], (method) => {
+        if (method === 'teams.hosts.list') return (lists += 1) === 1 ? first.promise : { items: [] };
+        return { items: [] };
+      });
+      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      const account = stores.use(() => useAccountStore());
+      account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+      const teams = stores.use(() => useTeamsStore());
+      teams.hosts = [hostRow(team) as never];
+      const refreshing = teams.refresh();
+      account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'bob', persistence: 'memory-only' };
+      expect(teams.hosts).toEqual([]);
+      first.reject(new Error('alice private failure'));
+      await refreshing; await flushPromises();
+      expect(teams.hosts).toEqual([]);
+      expect(teams.error).toBeNull();
+      expect(teams.errorDetail).toBeNull();
+      expect(teams.loading).toBe(false);
+    });
+
+    it('keeps the activity of a creating operation while the team it opens is loading', async () => {
+      const detail = deferred<unknown>();
+      const { stores } = host(['teams.hosts.list'], (method) => {
+        if (method === 'teams.hosts.create') return hostRow(team);
+        if (method === 'teams.invitations.list') return detail.promise;
+        return { items: [] };
+      });
+      await stores.use(() => useCapabilityStore()).refresh('host-a');
+      const teams = stores.use(() => useTeamsStore());
+      const creating = teams.createTeam('Team');
+      await flushPromises();
+      expect(teams.working).toBe(true);
+      detail.resolve({ items: [] });
+      expect(await creating).toBe(true);
+      expect(teams.working).toBe(false);
+    });
   });
 });

@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
+import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
+import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { createJournal, parseJournal, serializeJournal, setEntry } from './apply-journal.ts';
 import { JOURNAL_KEY, useBundlesStore } from './bundles-store.ts';
@@ -67,5 +70,53 @@ describe('package apply', () => {
     await bundles.loadJournal();
     expect(bundles.journal?.entries[0]?.status).toBe('interrupted');
     expect(parseJournal(writes.at(-1)!.value)?.entries[0]?.status).toBe('interrupted');
+  });
+});
+
+describe('package apply with Cloud templates and profiles', () => {
+  const documentId = '00000000-0000-4000-8000-000000000001';
+  const template = { templateVersion: 1, id: 'bundle-template', title: 'Bundle template', description: '', icon: 'gift',
+    actions: [{ name: 'act', typeId: 'core.log', config: {} }], event: { name: 'evt', trigger: 'tiktok.chat' } };
+
+  async function ownerHost() {
+    const items = [{ kind: 'template', id: documentId, version: null, revision: 4, required: true, status: 'ready', permissions: 'none' }];
+    const native = nativeDefinitionHost((method, params, options) => {
+      if (method === 'rpc.discover') return { methods: [{ name: 'bundles.packages.preflight' }] };
+      if (method === 'bundles.packages.preflight') return report(items, true);
+      if (method === 'automation.snapshot') { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+      if (method === 'app.state.get') return { state: {} };
+      if (method === 'app.state.set') return { state: {} };
+      if (method === 'cloudLibrary.read') return { meta: { id: documentId, revision: '4', sha256: 'a'.repeat(64) }, document: template };
+      if (method === 'automation.create') {
+        options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params?.record as { id: string }).id, revision: '1' }] });
+        return params?.record;
+      }
+      throw new Error(`unexpected ${method}`);
+    });
+    const { client, calls } = createFakeControlClient(native.handle);
+    const stores = createStoreHarness(client);
+    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    const account = stores.use(() => useAccountStore());
+    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    const bundles = stores.use(() => useBundlesStore());
+    await bundles.checkPackage(documentId);
+    return { bundles, calls, journal: libraryJournal(client) };
+  }
+
+  it('records a confirmed template review as done and a discarded one as skipped', async () => {
+    const confirmed = await ownerHost();
+    const applying = confirmed.bundles.applyPackage();
+    await vi.waitFor(() => expect(confirmed.journal.draft.value).not.toBeNull());
+    expect(confirmed.bundles.journal?.entries[0]?.status).toBe('running');
+    await confirmed.journal.confirm(); await applying;
+    expect(confirmed.bundles.journal?.entries[0]?.status).toBe('done');
+    expect(confirmed.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
+
+    const discarded = await ownerHost();
+    const second = discarded.bundles.applyPackage();
+    await vi.waitFor(() => expect(discarded.journal.draft.value).not.toBeNull());
+    discarded.journal.dismiss(); await second;
+    expect(discarded.bundles.journal?.entries[0]).toMatchObject({ status: 'skipped', message: 'the template import was discarded' });
+    expect(discarded.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
   });
 });

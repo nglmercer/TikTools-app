@@ -37,8 +37,14 @@ export function queryKey(query: CatalogQuery): string {
 }
 
 export interface CatalogSearch<T> {
-  /** Starts a request and returns its generation. */
-  begin(query: CatalogQuery): number;
+  /**
+   * Starts a request and returns its generation. `scope` names where the results come
+   * from (public catalog or the owner's private library): a different scope never shares
+   * items or cursors with the previous one.
+   */
+  begin(query: CatalogQuery, scope?: string): number;
+  /** Drops accepted items and cursor and makes every pending reply stale. */
+  reset(): void;
   /** Applies a reply only if it is still the newest request. */
   settle(generation: number, page: CatalogPage<T>): boolean;
   /** True while no newer request has started; failures from older requests are ignored. */
@@ -58,16 +64,23 @@ export function createCatalogSearch<T>(): CatalogSearch<T> {
   let next: string | null = null;
 
   return {
-    begin(query) {
+    begin(query, scope = '') {
       newest += 1;
       activeQuery = query;
-      const key = queryKey(query);
+      const key = `${scope}\n${queryKey(query)}`;
       if (key !== activeKey) {
         accepted = [];
         next = null;
         activeKey = key;
       }
       return newest;
+    },
+    reset() {
+      newest += 1;
+      activeKey = null;
+      activeQuery = null;
+      accepted = [];
+      next = null;
     },
     isNewest(generation) {
       return generation === newest;

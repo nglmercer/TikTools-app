@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { errorMessage } from '@/shared/api/control-client.ts';
+import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import { useCloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
-import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
-import { importLibraryTemplate } from '@/entities/cloud-bundles/lib/library-import.ts';
-import { importLibraryProfile } from '@/entities/cloud-bundles/lib/library-profile.ts';
+import { useCloudContext } from '@/entities/cloud-account/model/cloud-context.ts';
+import { useLibraryImport } from '@/entities/cloud-bundles/model/use-library-import.ts';
+import { createRequestScope } from '@/shared/lib/request-scope.ts';
 import {
   fetchCatalogItem,
   fetchCatalogPage,
@@ -42,8 +42,10 @@ async function mapBounded<T, R>(items: readonly T[], limit: number, work: (item:
 
 /**
  * Unified catalog state. "All" and "Míos" page through the server with a generation
- * guard, so a stale reply never replaces a newer query. "Instalados" is resolved from
- * the local inventory with bounded lookups, not by filtering one public page.
+ * guard, so a stale reply never replaces a newer query, and the two never share items or
+ * cursors. "Instalados" is resolved from the local inventory with bounded lookups, not by
+ * filtering one public page. A change of account, session or host drops what was loaded
+ * (private items included) and makes every pending reply stale.
  */
 export const useCatalogStore = defineStore('catalog', () => {
   const client = useControlClient();
@@ -61,12 +63,36 @@ export const useCatalogStore = defineStore('catalog', () => {
   const cursor = ref<string | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
-  const { detail: errorDetail, capture } = useCloudFailure();
+  const { detail: errorDetail, capture, clear: clearDetail } = useCloudFailure();
   const detail = ref<CatalogItemSummary | null>(null);
   const importState = ref<'idle' | 'working' | 'staged' | 'signIn' | 'failed'>('idle');
   const importMessage = ref('');
-  const account = useAccountStore();
+  const libraryImport = useLibraryImport();
   let installedTicket = 0;
+  const detailScope = createRequestScope();
+  const importScope = createRequestScope();
+
+  /** A new account, session or host starts from nothing: no private data, no late reply. */
+  const cloud = useCloudContext(() => {
+    search.reset();
+    installedTicket += 1;
+    detailScope.invalidate();
+    importScope.invalidate();
+    items.value = [];
+    cursor.value = null;
+    installedEntries.value = [];
+    detail.value = null;
+    loading.value = false;
+    clearError();
+    importState.value = 'idle';
+    importMessage.value = '';
+  });
+  void cloud;
+
+  function clearError(): void {
+    error.value = null;
+    clearDetail();
+  }
 
   /** Whether this host announced the unified catalog. `undefined` is not `false`. */
   const available = computed(() => capabilities.supports('catalog.items'));
@@ -86,10 +112,12 @@ export const useCatalogStore = defineStore('catalog', () => {
     const after = append ? search.cursor() : null;
     if (append && after === null) return;
     const mine = filters.value.view === 'mine';
-    const generation = search.begin(query);
+    // A newer list request supersedes an installed lookup, so its end cannot clear this one's loading.
+    installedTicket += 1;
+    const generation = search.begin(query, mine ? 'mine' : 'public');
     if (!append) publish();
     loading.value = true;
-    error.value = null;
+    clearError();
     try {
       const page = mine
         ? await fetchMinePage(client, query, after)
@@ -111,8 +139,10 @@ export const useCatalogStore = defineStore('catalog', () => {
     const ticket = ++installedTicket;
     const ids = [...installedIds.value].sort();
     installedLimited.value = ids.length > MAX_INSTALLED_LOOKUPS;
+    // The installed view supersedes any list request still in flight.
+    search.reset();
     loading.value = true;
-    error.value = null;
+    clearError();
     try {
       const entries = await mapBounded(ids.slice(0, MAX_INSTALLED_LOOKUPS), LOOKUP_CONCURRENCY, (id) =>
         resolveInstalledPlugin(client, id, target.value),
@@ -158,43 +188,43 @@ export const useCatalogStore = defineStore('catalog', () => {
   }
 
   async function openDetail(item: CatalogItemSummary): Promise<void> {
+    const ticket = detailScope.begin();
     detail.value = item;
     if (!item.published) return;
     try {
       const fresh = await fetchCatalogItem(client, item.kind, item.id, target.value);
-      if (detail.value?.id === item.id && detail.value.kind === item.kind) detail.value = fresh;
+      if (ticket.isCurrent() && detail.value?.id === item.id && detail.value.kind === item.kind) detail.value = fresh;
     } catch (failure) {
       // The list summary stays visible; the failure is shown as an error for the list.
-      error.value = capture(failure);
+      if (ticket.isCurrent()) error.value = capture(failure);
     }
   }
 
   function closeDetail(): void {
+    detailScope.invalidate();
     detail.value = null;
   }
 
   /**
-   * Imports a published or owned template or profile through the local library
-   * journal, the same path as the Cloud library. Imported automations stay disabled.
+   * Imports a published or owned template or profile through the shared Cloud import
+   * (the one owner-shell review, imported automations stay disabled). The result is
+   * `true` only when the owner confirmed the review.
    */
   async function importItem(item: CatalogItemSummary): Promise<boolean> {
     if ((item.kind !== 'template' && item.kind !== 'profile') || !item.published || item.revision === null) return false;
-    const origin = account.status?.origin ?? null;
-    const accountId = account.status?.accountId ?? null;
-    if (!origin || !accountId) {
-      importState.value = 'signIn';
-      return false;
-    }
+    const ticket = importScope.begin();
     importState.value = 'working';
     importMessage.value = '';
     try {
-      if (item.kind === 'template') await importLibraryTemplate(client, origin, accountId, item.id, item.revision);
-      else await importLibraryProfile(client, origin, accountId, item.id, item.revision);
-      importState.value = 'staged';
-      return true;
+      const source = { id: item.id, revision: item.revision };
+      await (item.kind === 'template' ? libraryImport.importTemplate(source) : libraryImport.importProfile(source));
+      if (ticket.isCurrent()) importState.value = 'staged';
+      return ticket.isCurrent();
     } catch (failure) {
-      importState.value = 'failed';
-      importMessage.value = errorMessage(failure);
+      if (!ticket.isCurrent()) return false;
+      const code = failure instanceof ControlCallError ? failure.code : '';
+      importState.value = code === 'signed_out' ? 'signIn' : code === 'cancelled' ? 'idle' : 'failed';
+      importMessage.value = code === 'signed_out' || code === 'cancelled' ? '' : errorMessage(failure);
       return false;
     }
   }

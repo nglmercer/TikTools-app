@@ -30,6 +30,7 @@ import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BaseNotification from '@/shared/ui/notification/BaseNotification.vue';
 import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
+import OwnerLibraryReview from '@/features/recover-owner-library/ui/OwnerLibraryReview.vue';
 import type { AppTab, BuiltinAppTab } from '@/types.ts';
 import AppMenuBar from '@/widgets/app-menu-bar/ui/AppMenuBar.vue';
 import type { NavigationItem, NavigationSection } from '@/widgets/app-navigation/model/navigation-types.ts';
@@ -281,6 +282,8 @@ function connect(): void {
       </main>
     </div>
 
+    <!-- The one review of Owner library changes (Cloud imports and profile changes), whatever page started them. -->
+    <OwnerLibraryReview />
     <DiagnosticsPanel v-if="diagnosticsOpen" />
     <AppStatusBar
       :status="status"

@@ -2,10 +2,11 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
-import { errorMessage } from '@/shared/api/control-client.ts';
+import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
-import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
-import { parseRuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
+import { useCloudContext } from '@/entities/cloud-account/model/cloud-context.ts';
+import { useLibraryImport } from '@/entities/cloud-bundles/model/use-library-import.ts';
+import { createRequestScope } from '@/shared/lib/request-scope.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
@@ -54,6 +55,7 @@ function document(value: unknown, expected: Meta): value is Document {
 const { t } = useI18n();
 const client = useControlClient();
 const account = useAccountStore();
+const libraryImport = useLibraryImport();
 const scope = ref<Scope>('public');
 const kind = ref<Kind | ''>('');
 const query = ref('');
@@ -88,30 +90,36 @@ const detail = computed(() => {
     names, templates,
   };
 });
-let generation = 0;
-let disposed = false;
+// Lists, one open document and the import each have their own generation: closing a
+// detail never discards the list, and none of them can answer for a newer view.
+const listScope = createRequestScope();
+const detailScope = createRequestScope();
+const importScope = createRequestScope();
 function clear(): void {
-  generation += 1; shown.value = null; selected.value = null; cursor.value = null; history.value = [];
+  listScope.invalidate(); detailScope.invalidate(); importScope.invalidate();
+  shown.value = null; selected.value = null; cursor.value = null; history.value = [];
   loading.value = false; detailLoading.value = false; error.value = ''; detailError.value = '';
   importing.value = false; staged.value = false; importError.value = '';
 }
 async function load(next: string | null, previous: (string | null)[]): Promise<void> {
   const requestedScope = scope.value;
   if (requestedScope === 'mine' && !mineAvailable.value) return;
-  const ticket = ++generation;
+  const ticket = listScope.begin();
+  detailScope.invalidate(); importScope.invalidate();
   const requestedKind = activeKind.value || null;
   const requestedQuery = activeQuery.value;
   loading.value = true; detailLoading.value = false; selected.value = null; error.value = ''; detailError.value = '';
+  importing.value = false; staged.value = false; importError.value = '';
   try {
     const result = await client.call<unknown>('cloudLibrary.list', {
       scope: requestedScope, kind: requestedKind, query: requestedQuery || null, after: next,
     });
-    if (disposed || ticket !== generation) return;
+    if (!ticket.isCurrent()) return;
     if (!page(result, requestedScope)) throw new Error('invalid page');
     shown.value = result; cursor.value = next; history.value = previous;
   } catch {
-    if (!disposed && ticket === generation) error.value = t('cloudLibrary.unavailable');
-  } finally { if (!disposed && ticket === generation) loading.value = false; }
+    if (ticket.isCurrent()) error.value = t('cloudLibrary.unavailable');
+  } finally { if (ticket.isCurrent()) loading.value = false; }
 }
 function search(): void { activeQuery.value = query.value.trim(); activeKind.value = kind.value; clear(); void load(null, []); }
 function nextPage(): void { if (shown.value?.nextCursor) void load(shown.value.nextCursor, [...history.value, cursor.value]); }
@@ -120,49 +128,44 @@ function previousPage(): void {
 }
 async function open(item: Meta): Promise<void> {
   if (loading.value || detailLoading.value || (scope.value === 'mine' && !mineAvailable.value)) return;
-  const ticket = ++generation;
-  detailLoading.value = true; selected.value = null; detailError.value = ''; staged.value = false; importError.value = '';
+  const ticket = detailScope.begin();
+  importScope.invalidate();
+  const requestedScope = scope.value;
+  detailLoading.value = true; selected.value = null; detailError.value = ''; staged.value = false; importError.value = ''; importing.value = false;
   try {
-    const result = await client.call<unknown>('cloudLibrary.read', { scope: scope.value, id: item.id, revision: item.revision });
-    if (disposed || ticket !== generation) return;
+    const result = await client.call<unknown>('cloudLibrary.read', { scope: requestedScope, id: item.id, revision: item.revision });
+    if (!ticket.isCurrent()) return;
     if (!document(result, item)) throw new Error('invalid document');
     selected.value = result;
-  } catch { if (!disposed && ticket === generation) detailError.value = t('cloudLibrary.unavailable'); }
-  finally { if (!disposed && ticket === generation) detailLoading.value = false; }
+  } catch { if (ticket.isCurrent()) detailError.value = t('cloudLibrary.unavailable'); }
+  finally { if (ticket.isCurrent()) detailLoading.value = false; }
 }
 
+/** The review is the single owner-shell dialog; this resolves when the owner confirmed or discarded it. */
 async function importTemplate(): Promise<void> {
   const current = selected.value;
   if (!current || importing.value || current.meta.kind !== 'template') return;
-  const origin = account.status?.origin ?? null;
-  const accountId = account.status?.accountId ?? null;
-  if (!origin || !accountId) { importError.value = t('cloudLibrary.signIn'); return; }
-  const parsed = parseRuleTemplate(current.document);
-  if (!parsed.ok) { importError.value = parsed.errors[0] ?? t('cloudLibrary.unavailable'); return; }
+  const ticket = importScope.begin();
   importing.value = true; importError.value = ''; staged.value = false;
   try {
-    await libraryJournal(client).request(
-      { operation: 'import-templates', templates: [parsed.template] },
-      null,
-      { origin, accountId, documentId: current.meta.id, revision: current.meta.revision, sha256: current.meta.sha256 },
-    );
-    staged.value = true;
+    const source = { id: current.meta.id, revision: current.meta.revision, scope: scope.value, record: current };
+    await libraryImport.importTemplate(source);
+    if (ticket.isCurrent()) staged.value = true;
   } catch (failure) {
-    importError.value = errorMessage(failure);
+    if (!ticket.isCurrent()) return;
+    const code = failure instanceof ControlCallError ? failure.code : '';
+    importError.value = code === 'signed_out' ? t('cloudLibrary.signIn') : code === 'cancelled' ? '' : errorMessage(failure);
   } finally {
-    importing.value = false;
+    if (ticket.isCurrent()) importing.value = false;
   }
 }
 watch(scope, () => search());
-// Observe the status object itself as well as transition flags: a logout and
-// re-login to the same account must invalidate an in-flight private response.
-watch(() => [account.status, account.working, account.loading], () => { if (scope.value === 'mine') clear(); }, { flush: 'sync' });
-// This is an advisory same-host notification, not a cross-process delivery
-// barrier. A missed reliable notification is reported through onGap.
-const offCloudContext = client.onTopic('cloud.context.invalidated', () => { if (scope.value === 'mine') clear(); });
-const offGap = client.onGap(() => { if (scope.value === 'mine') clear(); });
+// A logout and login of the same account, an account action in progress, the host's context
+// notice and a gap in the event stream (a missed notice) all end the private content.
+// The notice is advisory for the same host, not a cross-process delivery barrier.
+useCloudContext(() => { if (scope.value === 'mine') clear(); });
 onMounted(search);
-onUnmounted(() => { disposed = true; generation += 1; offCloudContext(); offGap(); });
+onUnmounted(clear);
 </script>
 
 <template>

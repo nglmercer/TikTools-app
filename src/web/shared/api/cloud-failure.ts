@@ -42,15 +42,23 @@ export function cloudFailure(failure: unknown): CloudFailure | null {
 
 /**
  * Keeps the envelope of the latest failure next to the message a store shows. `capture`
- * returns the message to store, so a store replaces `errorMessage(failure)` with it.
+ * returns the message to store, so a store replaces `errorMessage(failure)` with it, and
+ * `clear` drops the envelope when the store clears the message, so the two never disagree.
  */
-export function useCloudFailure(): { detail: ShallowRef<CloudFailure | null>; capture: (failure: unknown) => string } {
+export function useCloudFailure(): {
+  detail: ShallowRef<CloudFailure | null>;
+  capture: (failure: unknown) => string;
+  clear: () => void;
+} {
   const detail = shallowRef<CloudFailure | null>(null);
   return {
     detail,
     capture(failure) {
       detail.value = cloudFailure(failure);
       return errorMessage(failure);
+    },
+    clear() {
+      detail.value = null;
     },
   };
 }

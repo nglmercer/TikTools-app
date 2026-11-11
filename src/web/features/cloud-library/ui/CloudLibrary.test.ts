@@ -4,6 +4,8 @@ import { nextTick } from 'vue';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
+import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
+import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import CloudLibrary from './CloudLibrary.vue';
 
 const firstId = '00000000-0000-4000-8000-000000000001';
@@ -158,5 +160,74 @@ describe('CloudLibrary', () => {
     expect(wrapper.get('[role="alert"]').text()).toContain('could not be loaded');
     expect(wrapper.find('pre').exists()).toBe(false);
     wrapper.unmount();
+  });
+
+  describe('import', () => {
+    const template = { templateVersion: 1, id: 'portable-template', title: 'Safe example', description: '', icon: 'gift',
+      actions: [{ name: 'act', typeId: 'core.log', config: {} }], event: { name: 'evt', trigger: 'tiktok.chat' } };
+    async function ownerLibrary(hold?: { snapshot?: Promise<unknown> }) {
+      const native = nativeDefinitionHost((method, params, options) => {
+        if (method === 'automation.snapshot') { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+        if (method === 'app.state.get') return { state: {} };
+        if (method === 'cloudLibrary.list') return { items: [summary()], nextCursor: null };
+        if (method === 'cloudLibrary.read') return { meta: summary(), document: template };
+        if (method === 'automation.create') {
+          options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params?.record as { id: string }).id, revision: '1' }] });
+          return params?.record;
+        }
+        throw new Error(`unexpected ${method}`);
+      });
+      const { client, calls } = createFakeControlClient(async (method, params, options) => {
+        // The library read that follows the already-open document is held.
+        if (hold?.snapshot && method === 'automation.library.snapshot') await hold.snapshot;
+        return native.handle(method, params, options);
+      });
+      const stores = createStoreHarness(client);
+      const account = stores.use(() => useAccountStore());
+      account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+      const wrapper = mountWithPlugins(CloudLibrary, { global: { plugins: stores.plugins } });
+      await flushPromises();
+      await button(wrapper, 'First document').trigger('click');
+      await flushPromises();
+      return { wrapper, account, calls, journal: libraryJournal(client) };
+    }
+
+    it('opens the owner review without leaving the library, and shows the result only after the owner confirms', async () => {
+      const f = await ownerLibrary();
+      await button(f.wrapper, 'Import into library').trigger('click'); await flushPromises();
+      expect(f.journal.draft.value?.provenance).toMatchObject({ origin: 'https://cloud.example', accountId: 'alice', documentId: firstId, revision: '9007199254740993', sha256: 'a'.repeat(64) });
+      expect(f.wrapper.text()).not.toContain('Imported into the library.');
+      expect(button(f.wrapper, 'Import into library').attributes('disabled')).toBeDefined();
+      expect(f.calls.filter((call) => call.method === 'cloudLibrary.read')).toHaveLength(1);
+      await f.journal.confirm(); await flushPromises();
+      expect(f.wrapper.text()).toContain('Imported into the library.');
+      expect(button(f.wrapper, 'Import into library').attributes('disabled')).toBeUndefined();
+      expect(f.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
+      f.wrapper.unmount();
+    });
+
+    it('frees the import when the review is discarded and reports no error', async () => {
+      const f = await ownerLibrary();
+      await button(f.wrapper, 'Import into library').trigger('click'); await flushPromises();
+      f.journal.dismiss(); await flushPromises();
+      expect(button(f.wrapper, 'Import into library').attributes('disabled')).toBeUndefined();
+      expect(f.wrapper.find('[role="alert"]').exists()).toBe(false);
+      expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+      f.wrapper.unmount();
+    });
+
+    it('does not prepare a draft when the account changes while the library is being read', async () => {
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => { release = resolve; });
+      const f = await ownerLibrary({ snapshot: held });
+      await button(f.wrapper, 'Import into library').trigger('click'); await flushPromises();
+      f.account.working = true;
+      f.account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'bob', persistence: 'memory-only' };
+      f.account.working = false;
+      release(); await flushPromises();
+      expect(f.journal.draft.value).toBeNull();
+      expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
+      f.wrapper.unmount();
+    });
   });
 });

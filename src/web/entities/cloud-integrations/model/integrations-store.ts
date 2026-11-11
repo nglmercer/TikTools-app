@@ -3,6 +3,8 @@ import { computed, ref } from 'vue';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useCloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { createActivityCounter, createRequestScope } from '@/shared/lib/request-scope.ts';
+import { useCloudContext } from '@/entities/cloud-account/model/cloud-context.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import {
   connectWebhook,
@@ -28,7 +30,10 @@ export function isValidLabel(value: string): boolean {
 
 /**
  * Cloud integration connections for the signed-in account. The webhook secret
- * is held in memory only: it is shown once, then cleared on dismiss or unmount.
+ * is held in memory only: it is shown once, then cleared on dismiss or unmount, and a
+ * reply that arrives after the panel closed or the account changed never publishes it
+ * (the connection itself was still created and can be revoked). Lists, one event view
+ * and the operations each answer only for the generation that started them.
  */
 export const useIntegrationsStore = defineStore('cloud-integrations', () => {
   const client = useControlClient();
@@ -36,47 +41,76 @@ export const useIntegrationsStore = defineStore('cloud-integrations', () => {
 
   const connections = ref<readonly IntegrationConnection[]>([]);
   const loading = ref(false);
-  const working = ref(false);
+  const activity = createActivityCounter();
+  const working = activity.active;
   const error = ref<string | null>(null);
-  const { detail: errorDetail, capture } = useCloudFailure();
+  const { detail: errorDetail, capture, clear: clearDetail } = useCloudFailure();
   const issued = ref<IntegrationConnectResult | null>(null);
   const selectedId = ref<string | null>(null);
   const events = ref<IntegrationEventList | null>(null);
   const eventsError = ref<string | null>(null);
-  let listGeneration = 0;
-  let eventGeneration = 0;
+  const listScope = createRequestScope();
+  const eventScope = createRequestScope();
+  const secretScope = createRequestScope();
+  const operationScope = createRequestScope();
+  // Set while a panel is showing this account's data, so a new context reloads it.
+  let shown = false;
+
+  function clearError(): void {
+    error.value = null;
+    clearDetail();
+  }
+
+  /** A new account, session or host starts empty: no earlier list, secret, error or late reply survives. */
+  useCloudContext(() => {
+    const reload = shown;
+    reset();
+    connections.value = [];
+    clearError();
+    if (reload) void refresh();
+  });
 
   /** Undefined until the host announces the methods; never treated as absent. */
   const available = computed(() => capabilities.supports('integrations.connections'));
 
   async function refresh(): Promise<void> {
     if (available.value === false) return;
-    const ticket = ++listGeneration;
+    shown = true;
+    const ticket = listScope.begin();
     loading.value = true;
     try {
       const next = await listConnections(client);
-      if (ticket === listGeneration) connections.value = next;
-      if (ticket === listGeneration) error.value = null;
+      if (!ticket.isCurrent()) return;
+      connections.value = next;
+      clearError();
     } catch (failure) {
-      if (ticket === listGeneration) error.value = capture(failure);
+      if (ticket.isCurrent()) error.value = capture(failure);
     } finally {
-      if (ticket === listGeneration) loading.value = false;
+      if (ticket.isCurrent()) loading.value = false;
     }
   }
 
-  /** Creates a webhook connection. The label must already satisfy `isValidLabel`. */
+  /**
+   * Creates a webhook connection. The label must already satisfy `isValidLabel`. The
+   * result is `false` when the secret was not published, either because the request
+   * failed or because the panel closed or the account changed first.
+   */
   async function connect(label: string): Promise<boolean> {
-    working.value = true;
-    error.value = null;
+    const secret = secretScope.current();
+    const view = operationScope.current();
+    const leave = activity.enter();
+    clearError();
     try {
-      issued.value = await connectWebhook(client, label.trim());
+      const created = await connectWebhook(client, label.trim());
+      if (!secret.isCurrent()) return false;
+      issued.value = created;
       await refresh();
       return true;
     } catch (failure) {
-      error.value = capture(failure);
+      if (view.isCurrent()) error.value = capture(failure);
       return false;
     } finally {
-      working.value = false;
+      leave();
     }
   }
 
@@ -85,20 +119,20 @@ export const useIntegrationsStore = defineStore('cloud-integrations', () => {
   }
 
   async function openEvents(id: string): Promise<void> {
-    const ticket = ++eventGeneration;
+    const ticket = eventScope.begin();
     selectedId.value = id;
     events.value = null;
     eventsError.value = null;
     try {
       const next = await readEvents(client, id);
-      if (ticket === eventGeneration) events.value = next;
+      if (ticket.isCurrent()) events.value = next;
     } catch (failure) {
-      if (ticket === eventGeneration) eventsError.value = errorMessage(failure);
+      if (ticket.isCurrent()) eventsError.value = errorMessage(failure);
     }
   }
 
   function closeEvents(): void {
-    eventGeneration += 1;
+    eventScope.invalidate();
     selectedId.value = null;
     events.value = null;
     eventsError.value = null;
@@ -106,23 +140,35 @@ export const useIntegrationsStore = defineStore('cloud-integrations', () => {
 
   /** Revokes a connection. Later deliveries are refused; stored events stay readable. */
   async function remove(id: string): Promise<boolean> {
-    working.value = true;
-    error.value = null;
+    const view = operationScope.current();
+    const leave = activity.enter();
+    clearError();
     try {
       await disconnect(client, id);
+      // The revocation happened whatever the view is now; only the view is left alone.
+      if (!view.isCurrent()) return true;
       if (selectedId.value === id) closeEvents();
       await refresh();
       return true;
     } catch (failure) {
-      error.value = capture(failure);
+      if (view.isCurrent()) error.value = capture(failure);
       return false;
     } finally {
-      working.value = false;
+      leave();
     }
   }
 
-  /** Drops the secret and any open event view, for example when the panel closes. */
+  /**
+   * Drops the secret and any open event view, for example when the panel closes. Replies
+   * that are still on their way no longer touch the state, and the activity starts again.
+   */
   function reset(): void {
+    secretScope.invalidate();
+    listScope.invalidate();
+    operationScope.invalidate();
+    activity.reset();
+    loading.value = false;
+    shown = false;
     issued.value = null;
     closeEvents();
   }

@@ -1,10 +1,9 @@
 import { defineStore } from 'pinia';
 import { computed, ref, watch } from 'vue';
-import { errorMessage } from '@/shared/api/control-client.ts';
+import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import { useCloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import type { JobSnapshot } from '@/entities/plugin-package/api/package-types.ts';
 import { packagePreflight, uploadAsset, type AssetRecord, type PackagePreflight } from '../api/bundles-api.ts';
@@ -35,14 +34,14 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
   const client = useControlClient();
   const capabilities = useCapabilityStore();
   const packages = usePackagesStore();
-  const account = useAccountStore();
+  const libraryImport = useLibraryImport();
 
   const asset = ref<AssetRecord | null>(null);
   const preflight = ref<PackagePreflight | null>(null);
   const packageId = ref<string | null>(null);
   const working = ref(false);
   const error = ref<string | null>(null);
-  const { detail: errorDetail, capture } = useCloudFailure();
+  const { detail: errorDetail, capture, clear: clearDetail } = useCloudFailure();
   const journal = ref<ApplyJournal | null>(null);
   const applying = ref(false);
   const applyError = ref<string | null>(null);
@@ -59,6 +58,7 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
     }
     working.value = true;
     error.value = null;
+    clearDetail();
     try {
       asset.value = await uploadAsset(client, new Uint8Array(await file.arrayBuffer()));
       return true;
@@ -76,6 +76,7 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
     packageId.value = id;
     working.value = true;
     error.value = null;
+    clearDetail();
     preflight.value = null;
     try {
       const report = await packagePreflight(client, id);
@@ -148,28 +149,18 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
     return { status: 'failed', message: final?.error?.message ?? 'the install failed' };
   }
 
-  async function runTemplate(id: string, revision: number | null): Promise<Outcome> {
-    const origin = account.status?.origin ?? null;
-    const accountId = account.status?.accountId ?? null;
-    if (!origin || !accountId) return { status: 'failed', message: 'sign in to Cloud to import this template' };
-    if (revision === null) return { status: 'failed', message: 'the template has no revision' };
+  /**
+   * A template or profile step ends with what the owner decided in the review: confirming
+   * applies it, discarding it skips the step, and any other failure is recorded as it
+   * happened. Nothing is sent again after a failure.
+   */
+  async function runLibrary(kind: 'template' | 'profile', id: string, revision: number | null): Promise<Outcome> {
+    if (revision === null) return { status: 'failed', message: `the ${kind} has no revision` };
     try {
-      await importLibraryTemplate(client, origin, accountId, id, revision);
+      await (kind === 'template' ? libraryImport.importTemplate : libraryImport.importProfile)({ id, revision });
       return { status: 'done' };
     } catch (failure) {
-      return { status: 'failed', message: errorMessage(failure) };
-    }
-  }
-
-  async function runProfile(id: string, revision: number | null): Promise<Outcome> {
-    const origin = account.status?.origin ?? null;
-    const accountId = account.status?.accountId ?? null;
-    if (!origin || !accountId) return { status: 'failed', message: 'sign in to Cloud to import this profile' };
-    if (revision === null) return { status: 'failed', message: 'the profile has no revision' };
-    try {
-      await importLibraryProfile(client, origin, accountId, id, revision);
-      return { status: 'done' };
-    } catch (failure) {
+      if (failure instanceof ControlCallError && failure.code === 'cancelled') return { status: 'skipped', message: `the ${kind} import was discarded` };
       return { status: 'failed', message: errorMessage(failure) };
     }
   }
@@ -197,8 +188,8 @@ export const useBundlesStore = defineStore('cloud-bundles', () => {
     const entry = journal.value?.entries[index];
     if (!entry) return { status: 'failed', message: 'the journal entry is missing' };
     if (entry.kind === 'plugin') return runPlugin(entry.id, entry.version);
-    if (entry.kind === 'template') return runTemplate(entry.id, entry.revision);
-    if (entry.kind === 'profile') return runProfile(entry.id, entry.revision);
+    if (entry.kind === 'template') return runLibrary('template', entry.id, entry.revision);
+    if (entry.kind === 'profile') return runLibrary('profile', entry.id, entry.revision);
     return runOverlay(entry.id, entry.revision);
   }
 

@@ -32,7 +32,7 @@ export default {
     unavailable: 'No se pudieron cargar los documentos Cloud. Inténtalo de nuevo.', empty: 'No se encontraron documentos.',
     revision: 'Revisión {revision}', pages: 'Páginas de la biblioteca Cloud', previous: 'Anterior', next: 'Siguiente',
     event: 'Evento: {name}', actions: 'Acciones', templates: 'Plantillas',
-    import: 'Importar a la biblioteca', staged: 'Preparado para revisión. Abre la biblioteca para revisar y confirmar la importación.',
+    import: 'Importar a la biblioteca', staged: 'Importado a la biblioteca.',
     status: { draft: 'Borrador', pending: 'Pendiente de revisión', published: 'Publicado', rejected: 'Rechazado', withdrawn: 'Retirado' },
   },
   common: {

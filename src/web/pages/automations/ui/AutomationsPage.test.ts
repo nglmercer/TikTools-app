@@ -13,6 +13,7 @@ import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { proposalFixture } from '@/features/review-automation-proposal/testing/fixture.ts';
+import OwnerLibraryReview from '@/features/recover-owner-library/ui/OwnerLibraryReview.vue';
 import AutomationsPage from './AutomationsPage.vue';
 
 enableAutoUnmount(afterEach);
@@ -125,6 +126,8 @@ async function mountPage(intercept?: (method: string, params: RpcParams | undefi
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/automations', component: { render: () => null } }] });
   await router.push(`/automations${extras.query ?? ''}`);
   const wrapper = mountWithPlugins(AutomationsPage, { attachTo: document.body, global: { plugins: [router, ...stores.plugins] } });
+  // The app shell mounts the one library review dialog; the page only starts the requests.
+  mountWithPlugins(OwnerLibraryReview, { attachTo: document.body, global: { plugins: [router, ...stores.plugins] } });
   await flushPromises();
   calls.length = 0;
   return { wrapper, calls, requests, snapshot, versions, automation, client, initializing };
@@ -228,7 +231,7 @@ describe('AutomationsPage', () => {
     expect(wrapper.find('.globals-editor').exists()).toBe(true);
   });
 
-  it('shows Cloud documents as a library tab unless a unified catalog replaces them', async () => {
+  it('shows Cloud documents as a library tab, also when the host announces the removed unified catalog', async () => {
     const { wrapper } = await mountPage();
     const cloud = wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Cloud')!;
     expect(cloud).toBeDefined();
@@ -238,7 +241,7 @@ describe('AutomationsPage', () => {
     expect(wrapper.text()).toContain('Cloud library');
     expect(wrapper.find('.automation-library__table').exists()).toBe(false);
     const unified = await mountPage(undefined, true, { announce: ['catalog.items'] });
-    expect(unified.wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables']);
+    expect(unified.wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables', 'Cloud']);
   });
 
   it('lists events and opens the editor', async () => {

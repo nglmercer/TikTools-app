@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
+import { flushPromises } from '@vue/test-utils';
+import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { DEFAULT_CATALOG_FILTERS } from './catalog-query.ts';
 import { useCatalogStore } from './catalog-store.ts';
@@ -17,8 +19,9 @@ function item(id: string, kind = 'plugin') {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
-  return { promise, resolve };
+  let reject!: (failure: unknown) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
 }
 
 function host(announced: string[], handler: (method: string, params: unknown) => unknown) {
@@ -148,5 +151,80 @@ describe('unified catalog store', () => {
     expect(catalog.importState).toBe('signIn');
     expect(await catalog.importItem({ ...template, revision: null })).toBe(false);
     expect(calls.some((call) => call.method === 'cloudLibrary.read')).toBe(false);
+  });
+
+  it('never shares items or cursors between the public catalog and the owner library', async () => {
+    const mine = deferred<unknown>();
+    const { stores } = host(['catalog.items', 'catalog.mine'], (method) => {
+      if (method === 'catalog.mine') return mine.promise;
+      return { items: [item('public.one', 'template')], nextCursor: 'public-cursor' };
+    });
+    await discover(stores);
+    const catalog = stores.use(() => useCatalogStore());
+    await catalog.refresh();
+    expect(catalog.items.map((entry) => entry.id)).toEqual(['public.one']);
+    expect(catalog.hasMore).toBe(true);
+    const switching = catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, view: 'mine' });
+    expect(catalog.items).toEqual([]);
+    expect(catalog.hasMore).toBe(false);
+    mine.resolve({ items: [item('mine.one', 'template')], nextCursor: null });
+    await switching;
+    expect(catalog.items.map((entry) => entry.id)).toEqual(['mine.one']);
+  });
+
+  it('drops private items and ignores a late reply when the session changes, even for the same account', async () => {
+    const mine = deferred<unknown>();
+    const { stores } = host(['catalog.items', 'catalog.mine'], (method) => (method === 'catalog.mine' ? mine.promise : { items: [], nextCursor: null }));
+    await discover(stores);
+    const account = stores.use(() => useAccountStore());
+    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    const catalog = stores.use(() => useCatalogStore());
+    const loading = catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, view: 'mine' });
+    expect(catalog.loading).toBe(true);
+    account.status = { origin: 'https://cloud.example', state: 'signed-out', persistence: 'memory-only' };
+    account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'alice', persistence: 'memory-only' };
+    expect(catalog.loading).toBe(false);
+    mine.resolve({ items: [item('alice.private', 'template')], nextCursor: 'alice-cursor' });
+    await loading; await flushPromises();
+    expect(catalog.items).toEqual([]);
+    expect(catalog.hasMore).toBe(false);
+    expect(catalog.loading).toBe(false);
+  });
+
+  it('clears the message and the structured detail of a failure together, and ignores a late failure', async () => {
+    const stale = deferred<unknown>();
+    let calls = 0;
+    const { stores } = host(['catalog.items'], () => {
+      calls += 1;
+      if (calls === 1) return stale.promise;
+      if (calls === 2) throw new ControlCallError('unavailable', 'Cloud is down', { cloud: { code: 'offline', requestId: 'req-1' } });
+      return { items: [], nextCursor: null };
+    });
+    await discover(stores);
+    const catalog = stores.use(() => useCatalogStore());
+    const first = catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, text: 'a' });
+    await catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, text: 'b' });
+    expect(catalog.error).toBe('Cloud is down');
+    expect(catalog.errorDetail?.code).toBe('offline');
+    stale.reject(new ControlCallError('unavailable', 'older failure'));
+    await first;
+    expect(catalog.error).toBe('Cloud is down');
+    await catalog.setFilters({ ...DEFAULT_CATALOG_FILTERS, text: 'c' });
+    expect(catalog.error).toBeNull();
+    expect(catalog.errorDetail).toBeNull();
+  });
+
+  it('does not let a late detail answer reopen what was closed', async () => {
+    const fresh = deferred<unknown>();
+    const { stores } = host(['catalog.items', 'catalog.item'], (method) => (method === 'catalog.item' ? fresh.promise : { items: [], nextCursor: null }));
+    await discover(stores);
+    const catalog = stores.use(() => useCatalogStore());
+    const plugin = { kind: 'plugin', id: 'acme.gift', title: '', summary: '', publisher: null, categories: [], targets: [], version: '1.0.0', yanked: false, published: true, revision: null, sha256: null } as const;
+    const opening = catalog.openDetail(plugin);
+    expect(catalog.detail?.id).toBe('acme.gift');
+    catalog.closeDetail();
+    fresh.resolve(item('acme.gift'));
+    await opening;
+    expect(catalog.detail).toBeNull();
   });
 });

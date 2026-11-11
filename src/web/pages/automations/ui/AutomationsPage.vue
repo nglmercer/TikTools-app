@@ -5,6 +5,8 @@ import { routeLocationKey, routerKey } from 'vue-router';
 import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
 import { useAutomationSyncAdapters } from '@/features/manage-automations/model/use-automation-sync-adapter.ts';
+import { useAutomationToggleReview } from '@/features/manage-automations/model/use-automation-toggle-review.ts';
+import { useUnsavedSelectionGuard } from '@/features/manage-automations/model/use-unsaved-selection-guard.ts';
 import SyncButton from '@/features/sync-changes/ui/SyncButton.vue';
 import { useAutomationEditor } from '@/features/edit-automation-record/model/automation-editor.ts';
 import AutomationEditorReview from '@/features/edit-automation-record/ui/AutomationEditorReview.vue';
@@ -13,14 +15,12 @@ import AutomationProposalReview from '@/features/review-automation-proposal/ui/A
 import AutomationApprovalReview from '@/features/review-automation-approval/ui/AutomationApprovalReview.vue';
 import CloudLibrary from '@/features/cloud-library/ui/CloudLibrary.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
-import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import OwnerLibraryChanges from '@/features/recover-owner-library/ui/OwnerLibraryChanges.vue';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import OwnerDefinitionRecovery from '@/features/recover-owner-definition/ui/OwnerDefinitionRecovery.vue';
 import type { DefinitionState } from '@/entities/automation/model/definition-contracts.ts';
-import { recordKey, type AutomationHost, type AutomationKind, type AutomationRevision } from '@/entities/automation/model/record-versions.ts';
-import { errorMessage } from '@/shared/api/control-client.ts';
+import { recordKey } from '@/entities/automation/model/record-versions.ts';
 import {
   availableActionTypeIds,
   createActionFromType,
@@ -76,10 +76,17 @@ const editor = useAutomationEditor({
     ? automation.saveEvent(record as LiveEvent, base) : automation.saveAction(record as LiveAction, base),
   remove: automation.deleteRecord,
 });
+// Selection with unsaved changes and the enable/disable review are coordinated by two composables.
+const { discardOpen, guard, confirmDiscard } = useUnsavedSelectionGuard(editor.dirty);
+const toggle = useAutomationToggleReview({
+  controls: automation,
+  findRecord: (kind, id) => (kind === 'event' ? snapshot.value.events : snapshot.value.actions).find((record) => record.id === id),
+  t,
+});
 watch(library.state, (next, previous) => {
   if (JSON.stringify(next) !== JSON.stringify(previous)) {
     editor.requireRecoveryReview();
-    toggleNeedsReview.value = true;
+    toggle.markNeedsReview();
   }
 });
 const observedDefinitionState = shallowRef<DefinitionState | null>(null);
@@ -98,31 +105,18 @@ const tab = ref<LibraryTab>(isLibraryTab(saved?.tab) ? saved.tab : 'events');
 const requestedView = inject(routeLocationKey, null)?.query.view;
 const area = ref<LibraryArea>(requestedView === 'variables' ? 'variables' : tab.value);
 const selected = ref<string | null>(requestedView === 'variables' ? null : saved?.selected ?? null);
-// Cloud documents appear only when the host announces its Cloud library and no unified catalog replaces it.
-const capabilities = useCapabilityStore();
-const areas = computed<LibraryExtraArea[]>(() => [
-  'variables',
-  ...(capabilities.supports('catalog.items') !== true ? ['cloud' as const] : []),
-]);
+// Cloud documents are the library's own tab: the unified catalog that used to replace it was removed.
+const areas: LibraryExtraArea[] = ['variables', 'cloud'];
 const eventQuery = ref(saved?.eventQuery ?? '');
 const actionQuery = ref(saved?.actionQuery ?? '');
 const eventSort = ref<RecordSort>(isRecordSort(saved?.eventSort) ? saved.eventSort : 'name');
 const actionSort = ref<RecordSort>(isRecordSort(saved?.actionSort) ? saved.actionSort : 'name');
-const dirty = editor.dirty;
 const reviewOpen = ref(false);
 const proposalReviewOpen = ref(false);
 const proposalReviewPanel = ref<{ openReview: () => void; openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const approvalReviewOpen = ref(false);
 const approvalReviewPanel = ref<{ openReview: () => void; openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const definitionRecoveryPanel = ref<{ openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
-const toggleOpen = ref(false);
-const toggleBusy = ref(false);
-const toggleNeedsReview = ref(false);
-const toggleSatisfied = ref(false);
-const toggleError = ref('');
-const toggleTarget = shallowRef<{ kind: AutomationKind; id: string; name: string; enabled: boolean; revision: AutomationRevision; host: AutomationHost | null } | null>(null);
-const pending = shallowRef<(() => void) | null>(null);
-const discardOpen = ref(false);
 const pickerOpen = ref(false);
 const templatesOpen = ref(false);
 const profileImportOpen = ref(false);
@@ -260,21 +254,6 @@ const libraryTab = computed<LibraryArea>({
   }),
 });
 
-function guard(run: () => void): void {
-  if (!dirty.value) {
-    run();
-    return;
-  }
-  pending.value = run;
-  discardOpen.value = true;
-}
-
-function confirmDiscard(): void {
-  discardOpen.value = false;
-  pending.value?.();
-  pending.value = null;
-}
-
 function closeEditor(): void {
   guard(() => {
     resetEditor();
@@ -285,7 +264,7 @@ function closeEditor(): void {
 function onSheetKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || event.defaultPrevented) return;
   if (!isNarrow.value || !editing.value) return;
-  if (discardOpen.value || pickerOpen.value || templatesOpen.value || profileImportOpen.value || reviewOpen.value || proposalReviewOpen.value || approvalReviewOpen.value || toggleOpen.value) return;
+  if (discardOpen.value || pickerOpen.value || templatesOpen.value || profileImportOpen.value || reviewOpen.value || proposalReviewOpen.value || approvalReviewOpen.value || toggle.open.value) return;
   closeEditor();
 }
 
@@ -339,42 +318,7 @@ function removeRecord(kind: LibraryTab, id: string): void {
 }
 
 function setEnabled(kind: LibraryTab, id: string, enabled: boolean): void {
-  if (toggleBusy.value || toggleOpen.value) return;
-  const family = kind === 'events' ? 'event' : 'action';
-  const record = (kind === 'events' ? snapshot.value.events : snapshot.value.actions).find((r) => r.id === id);
-  const revision = automation.revisionFor(family, id);
-  toggleError.value = '';
-  if (!record || revision === undefined) { toggleError.value = t('automations.conflict.missingRevision'); return; }
-  toggleTarget.value = { kind: family, id, name: record.name, enabled, revision, host: automation.sourceHost.value };
-  toggleNeedsReview.value = false; toggleSatisfied.value = false; toggleOpen.value = true;
-}
-
-async function confirmToggle(): Promise<void> {
-  const target = toggleTarget.value;
-  if (!target || toggleBusy.value || toggleNeedsReview.value || toggleSatisfied.value) return;
-  toggleBusy.value = true;
-  try {
-    await automation.setRecordEnabled(target.kind, target.id, target.enabled, target.revision, target.host);
-    toggleOpen.value = false;
-  } catch (failure) {
-    toggleError.value = errorMessage(failure);
-    toggleNeedsReview.value = true;
-  } finally { toggleBusy.value = false; }
-}
-
-async function reviewToggle(): Promise<void> {
-  const target = toggleTarget.value;
-  if (!target || toggleBusy.value) return;
-  toggleBusy.value = true;
-  try {
-    const current = await automation.readRecord(target.kind, target.id);
-    if (!current.record) { toggleError.value = t('automations.conflict.deleted'); return; }
-    toggleTarget.value = { ...target, name: current.record.name, revision: current.revision, host: current.host ?? null };
-    toggleSatisfied.value = current.record.enabled === target.enabled;
-    toggleNeedsReview.value = false;
-    toggleError.value = toggleSatisfied.value ? t('automations.conflict.alreadyApplied') : '';
-  } catch (failure) { toggleError.value = errorMessage(failure); }
-  finally { toggleBusy.value = false; }
+  toggle.request(kind === 'events' ? 'event' : 'action', id, enabled);
 }
 
 function compare(): void {
@@ -383,10 +327,7 @@ function compare(): void {
 }
 function recoveredDefinition(): void {
   editor.requireRecoveryReview();
-  if (toggleOpen.value && toggleTarget.value) {
-    toggleNeedsReview.value = true; toggleSatisfied.value = false;
-    toggleError.value = t('definitionRecovery.compare');
-  }
+  toggle.recovered(t('definitionRecovery.compare'));
 }
 function useReviewedBase(): void {
   if (editor.adoptReview()) reviewOpen.value = false;
@@ -772,36 +713,36 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
       @adopt="useReviewedBase"
     />
     <BaseConfirmDialog
-      v-model:open="toggleOpen"
+      v-model:open="toggle.open.value"
       :title="t('automations.conflict.toggleTitle')"
-      :message="t(toggleTarget?.enabled ? 'automations.conflict.enableMessage' : 'automations.conflict.disableMessage', { name: toggleTarget?.name ?? '' })"
+      :message="t(toggle.target.value?.enabled ? 'automations.conflict.enableMessage' : 'automations.conflict.disableMessage', { name: toggle.target.value?.name ?? '' })"
       :confirm-label="t('automations.conflict.confirmToggle')"
-      :busy="toggleBusy || toggleNeedsReview || toggleSatisfied"
-      @confirm="confirmToggle"
+      :busy="toggle.confirmBlocked.value"
+      @confirm="toggle.confirm"
     >
       <p class="automations-page__target">
-        {{ t('automations.conflict.recordVersion', { id: toggleTarget?.id ?? '', revision: toggleTarget?.revision ?? t('automations.conflict.memory') }) }}
+        {{ t('automations.conflict.recordVersion', { id: toggle.target.value?.id ?? '', revision: toggle.target.value?.revision ?? t('automations.conflict.memory') }) }}
       </p>
       <p
-        v-if="toggleError"
+        v-if="toggle.error.value"
         role="alert"
       >
-        {{ toggleError }}
+        {{ toggle.error.value }}
       </p>
       <BaseButton
-        v-if="toggleNeedsReview"
-        :disabled="toggleBusy"
-        @click="reviewToggle"
+        v-if="toggle.needsReview.value"
+        :disabled="toggle.busy.value"
+        @click="toggle.review"
       >
         {{ t('automations.conflict.readCurrent') }}
       </BaseButton>
     </BaseConfirmDialog>
     <p
-      v-if="toggleError && !toggleOpen"
+      v-if="toggle.error.value && !toggle.open.value"
       class="automations-page__banner automations-page__banner--error"
       role="alert"
     >
-      {{ toggleError }}
+      {{ toggle.error.value }}
     </p>
   </div>
 </template>

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { useCloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { createActivityCounter, createRequestScope, type RequestTicket } from '@/shared/lib/request-scope.ts';
+import { useCloudContext } from '@/entities/cloud-account/model/cloud-context.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import {
   teamApi,
@@ -21,7 +23,10 @@ import {
 /**
  * Owner view of remote-control teams. Each team's detail (invitations, requests,
  * grants, sessions) is replaced as a unit, and a stale reply never overwrites a
- * newer selection. An invitation token lives in memory until it is dismissed.
+ * newer selection: closing or changing the team, a new account and closing the panel
+ * each end the answers still on their way. An invitation token lives in memory until it
+ * is dismissed, and one that arrives for a team no longer selected is never published
+ * (the invitation was still issued and can be revoked from that team).
  */
 export const useTeamsStore = defineStore('cloud-teams', () => {
   const client = useControlClient();
@@ -40,59 +45,88 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   const lastRedeem = ref<RedeemResult | null>(null);
   const lastCommand = ref<CommandOutcome | null>(null);
   const loading = ref(false);
-  const working = ref(false);
+  const activity = createActivityCounter();
+  const working = activity.active;
   const error = ref<string | null>(null);
-  const { detail: errorDetail, capture } = useCloudFailure();
-  let listGeneration = 0;
-  let detailGeneration = 0;
+  const { detail: errorDetail, capture, clear: clearDetail } = useCloudFailure();
+  const listScope = createRequestScope();
+  const detailScope = createRequestScope();
+  /** Ends with the selected team: invitations and role changes belong to the team they started for. */
+  const selectionScope = createRequestScope();
+  /** Ends with the account or the panel: messages and results of operations belong to the view that asked. */
+  const viewScope = createRequestScope();
+  // Set while a panel is showing this account's teams, so a new context reloads them.
+  let shown = false;
+
+  function clearError(): void {
+    error.value = null;
+    clearDetail();
+  }
+
+  /** A new account, session or host starts empty: no earlier team, token, error or late reply survives. */
+  useCloudContext(() => {
+    const reload = shown;
+    reset();
+    hosts.value = [];
+    devices.value = [];
+    lastRedeem.value = null;
+    lastCommand.value = null;
+    clearError();
+    if (reload) void refresh();
+  });
 
   const available = computed(() => capabilities.supports('teams.hosts.list'));
   const selected = computed(() => hosts.value.find((host) => host.id === selectedId.value) ?? null);
   const teamDevices = computed(() => devices.value.filter((device) => device.hostId === selectedId.value));
 
-  async function run(action: () => Promise<void>): Promise<boolean> {
-    working.value = true;
-    error.value = null;
+  /** Runs one operation. Overlapping or nested operations each count; only the view that started one hears its result. */
+  async function run(action: (view: RequestTicket) => Promise<void>): Promise<boolean> {
+    const view = viewScope.current();
+    const leave = activity.enter();
+    clearError();
     try {
-      await action();
+      await action(view);
       return true;
     } catch (failure) {
-      error.value = capture(failure);
+      if (view.isCurrent()) error.value = capture(failure);
       return false;
     } finally {
-      working.value = false;
+      leave();
     }
   }
 
   async function refresh(): Promise<void> {
     if (available.value === false) return;
-    const ticket = ++listGeneration;
+    shown = true;
+    const ticket = listScope.begin();
     loading.value = true;
     try {
       const [nextHosts, nextDevices] = await Promise.all([api.hosts(), api.devices()]);
-      if (ticket !== listGeneration) return;
+      if (!ticket.isCurrent()) return;
       hosts.value = nextHosts;
       devices.value = nextDevices;
-      error.value = null;
-      link.value = await api.hostLink().catch(() => link.value);
+      clearError();
+      const nextLink = await api.hostLink().catch(() => null);
+      if (!ticket.isCurrent()) return;
+      if (nextLink) link.value = nextLink;
       if (selectedId.value && !nextHosts.some((host) => host.id === selectedId.value)) closeTeam();
     } catch (failure) {
-      if (ticket === listGeneration) error.value = capture(failure);
+      if (ticket.isCurrent()) error.value = capture(failure);
     } finally {
-      if (ticket === listGeneration) loading.value = false;
+      if (ticket.isCurrent()) loading.value = false;
     }
   }
 
   /** Loads everything a team owner needs for one team. Replies for other teams are dropped. */
   async function loadDetail(hostId: string): Promise<void> {
-    const ticket = ++detailGeneration;
+    const ticket = detailScope.begin();
     const [nextInvitations, nextRequests, nextGrants, nextSessions] = await Promise.all([
       api.invitations(hostId),
       api.requests(hostId),
       api.grants(hostId),
       api.sessions(hostId),
     ]);
-    if (ticket !== detailGeneration || selectedId.value !== hostId) return;
+    if (!ticket.isCurrent() || selectedId.value !== hostId) return;
     invitations.value = nextInvitations;
     requests.value = nextRequests;
     grants.value = nextGrants;
@@ -100,13 +134,15 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   }
 
   async function select(hostId: string): Promise<void> {
+    selectionScope.invalidate();
     selectedId.value = hostId;
     issued.value = null;
     await run(() => loadDetail(hostId));
   }
 
   function closeTeam(): void {
-    detailGeneration += 1;
+    selectionScope.invalidate();
+    detailScope.invalidate();
     selectedId.value = null;
     invitations.value = [];
     requests.value = [];
@@ -120,8 +156,9 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   }
 
   function createTeam(name: string): Promise<boolean> {
-    return run(async () => {
+    return run(async (view) => {
       const created = await api.createHost(name.trim());
+      if (!view.isCurrent()) return;
       hosts.value = [...hosts.value, created];
       await select(created.id);
     });
@@ -130,24 +167,27 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   function renameTeam(name: string): Promise<boolean> {
     const host = selected.value;
     if (!host) return Promise.resolve(false);
-    return run(async () => {
+    return run(async (view) => {
       const updated = await api.updateHost(host.id, { name: name.trim(), expectedRevision: host.revision });
-      hosts.value = hosts.value.map((item) => (item.id === updated.id ? updated : item));
+      if (view.isCurrent()) hosts.value = hosts.value.map((item) => (item.id === updated.id ? updated : item));
     });
   }
 
   function enroll(kind: 'controller' | 'host', label: string): Promise<boolean> {
     const hostId = kind === 'host' ? selectedId.value ?? undefined : undefined;
-    return run(async () => {
+    return run(async (view) => {
       await api.enroll(kind, label.trim(), hostId);
-      devices.value = await api.devices();
+      const next = await api.devices();
+      if (view.isCurrent()) devices.value = next;
     });
   }
 
   function revokeDevice(deviceId: string): Promise<boolean> {
-    return run(async () => {
+    return run(async (view) => {
       await api.revokeDevice(deviceId);
-      devices.value = await api.devices();
+      const next = await api.devices();
+      if (!view.isCurrent()) return;
+      devices.value = next;
       await reloadDetail();
     });
   }
@@ -155,9 +195,14 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   function createInvitation(requestedRole: TeamRole, ttlSeconds?: number): Promise<boolean> {
     const hostId = selectedId.value;
     if (!hostId) return Promise.resolve(false);
-    return run(async () => {
-      issued.value = await api.createInvitation(hostId, requestedRole, ttlSeconds);
-      invitations.value = await api.invitations(hostId);
+    const selection = selectionScope.current();
+    return run(async (view) => {
+      const created = await api.createInvitation(hostId, requestedRole, ttlSeconds);
+      // The token is only shown while the team it was issued for is still the open one.
+      if (!view.isCurrent() || !selection.isCurrent()) return;
+      issued.value = created;
+      const next = await api.invitations(hostId);
+      if (selection.isCurrent()) invitations.value = next;
     });
   }
 
@@ -168,9 +213,11 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   function revokeInvitation(invitationId: string): Promise<boolean> {
     const hostId = selectedId.value;
     if (!hostId) return Promise.resolve(false);
+    const selection = selectionScope.current();
     return run(async () => {
       await api.revokeInvitation(hostId, invitationId);
-      invitations.value = await api.invitations(hostId);
+      const next = await api.invitations(hostId);
+      if (selection.isCurrent()) invitations.value = next;
     });
   }
 
@@ -213,8 +260,9 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
 
   /** Joins a team with an invitation token. Redeeming creates a request; the owner decides. */
   function redeem(token: string): Promise<boolean> {
-    return run(async () => {
-      lastRedeem.value = await api.redeem(token.trim());
+    return run(async (view) => {
+      const redeemed = await api.redeem(token.trim());
+      if (view.isCurrent()) lastRedeem.value = redeemed;
     });
   }
 
@@ -223,20 +271,30 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
    * reported it; a missing result stays `unknown` and is never reported as success.
    */
   function runCommand(hostId: string, operation: string): Promise<boolean> {
-    return run(async () => {
-      lastCommand.value = await api.runCommand(hostId.trim(), operation);
+    return run(async (view) => {
+      const outcome = await api.runCommand(hostId.trim(), operation);
+      if (view.isCurrent()) lastCommand.value = outcome;
     });
   }
 
   /** Starts or stops this PC's link for the selected team. The host must be enrolled for that team. */
   function setHostLink(start: boolean): Promise<boolean> {
-    return run(async () => {
-      link.value = start ? await api.startHostLink() : await api.stopHostLink();
+    return run(async (view) => {
+      const next = start ? await api.startHostLink() : await api.stopHostLink();
+      if (view.isCurrent()) link.value = next;
     });
   }
 
-  /** Drops the token and open team detail, for example when the panel unmounts. */
+  /**
+   * Drops the token and open team detail, for example when the panel unmounts. Replies
+   * still on their way no longer touch the state, and the activity starts again.
+   */
   function reset(): void {
+    shown = false;
+    listScope.invalidate();
+    viewScope.invalidate();
+    activity.reset();
+    loading.value = false;
     closeTeam();
   }
 

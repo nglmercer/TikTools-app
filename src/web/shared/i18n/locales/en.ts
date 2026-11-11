@@ -30,7 +30,7 @@ export default {
     unavailable: 'Cloud documents could not be loaded. Try again.', empty: 'No documents found.',
     revision: 'Revision {revision}', pages: 'Cloud library pages', previous: 'Previous', next: 'Next',
     event: 'Event: {name}', actions: 'Actions', templates: 'Templates',
-    import: 'Import into library', staged: 'Staged for review. Open the library to review and confirm the import.',
+    import: 'Import into library', staged: 'Imported into the library.',
     status: { draft: 'Draft', pending: 'Pending review', published: 'Published', rejected: 'Rejected', withdrawn: 'Withdrawn' },
   },
   common: {
