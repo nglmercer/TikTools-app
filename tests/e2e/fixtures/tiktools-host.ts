@@ -241,6 +241,7 @@ const INIT_SCRIPT = `
     },
     'cloud.status': () => ({ origin: 'http://127.0.0.1:3000', state: state.sync?.signedIn ? 'signed-in' : 'signed-out', accountId: 'tester', persistence: 'memory-only', error: null }),
     'sync.status': () => ({ enabled: state.sync?.enabled ?? false, signedIn: state.sync?.signedIn ?? false, syncing: false, pending: state.sync?.entries.filter((entry) => entry.pending).length ?? 0, conflicts: [], lastError: null, lastSyncedAt: state.sync?.lastSyncedAt ?? null }),
+    'sync.v2.stagePluginSettings': () => null,
     'sync.v2.selected': () => true,
     'sync.v2.changes.list': () => state.sync?.entries ?? [],
     'sync.v2.now': () => {
