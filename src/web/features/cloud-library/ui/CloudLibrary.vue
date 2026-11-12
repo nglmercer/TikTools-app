@@ -8,6 +8,7 @@ import { useCloudContext } from '@/entities/cloud-account/model/cloud-context.ts
 import { useLibraryImport } from '@/entities/cloud-bundles/model/use-library-import.ts';
 import { createRequestScope } from '@/shared/lib/request-scope.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
+import IconCloud from '@/shared/ui/icon/icons/IconCloud.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 
@@ -178,6 +179,14 @@ onUnmounted(clear);
     :is="bare ? 'div' : BaseGroupBox"
     v-bind="bare ? { class: 'cloud-library' } : { title: t('cloudLibrary.title'), description: t('cloudLibrary.description') }"
   >
+    <header class="cloud-library__heading">
+      <span class="cloud-library__emblem"><IconCloud /></span>
+      <div>
+        <h3>{{ t('cloudLibrary.title') }}</h3><p v-if="!bare">
+          {{ t('cloudLibrary.description') }}
+        </p>
+      </div>
+    </header>
     <form
       class="cloud-library__filters"
       @submit.prevent="search"
@@ -194,7 +203,7 @@ onUnmounted(clear);
       <label>{{ t('cloudLibrary.kind') }}
         <select v-model="kind"><option value="">{{ t('cloudLibrary.all') }}</option><option value="template">{{ t('cloudLibrary.template') }}</option><option value="profile">{{ t('cloudLibrary.profile') }}</option></select>
       </label>
-      <label>{{ t('cloudLibrary.query') }} <input
+      <label class="cloud-library__search">{{ t('cloudLibrary.query') }} <input
         v-model="query"
         maxlength="100"
         type="search"
@@ -208,12 +217,14 @@ onUnmounted(clear);
     </form>
     <p
       v-if="scope === 'mine' && !mineAvailable"
+      class="cloud-library__state"
       role="status"
     >
       {{ t('cloudLibrary.signIn') }}
     </p>
     <p
       v-if="loading"
+      class="cloud-library__state"
       role="status"
     >
       {{ t('cloudLibrary.loading') }}
@@ -225,7 +236,10 @@ onUnmounted(clear);
       {{ error }}
     </p>
     <template v-if="shown">
-      <p v-if="!shown.items.length">
+      <p
+        v-if="!shown.items.length"
+        class="cloud-library__state"
+      >
         {{ t('cloudLibrary.empty') }}
       </p>
       <ul
@@ -235,6 +249,7 @@ onUnmounted(clear);
         <li
           v-for="item in shown.items"
           :key="item.id"
+          :class="{ 'cloud-library__card--selected': selected?.meta.id === item.id }"
         >
           <button
             type="button"
@@ -265,6 +280,7 @@ onUnmounted(clear);
     </template>
     <p
       v-if="detailLoading"
+      class="cloud-library__state"
       role="status"
     >
       {{ t('cloudLibrary.loading') }}
@@ -320,6 +336,7 @@ onUnmounted(clear);
         </BaseButton>
         <p
           v-if="staged"
+          class="cloud-library__state"
           role="status"
         >
           {{ t('cloudLibrary.staged') }}
@@ -342,15 +359,23 @@ onUnmounted(clear);
 </template>
 
 <style scoped>
-.cloud-library__filters { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: end; }
-.cloud-library__filters label { display: grid; gap: var(--space-1); }
-.cloud-library__list { margin: var(--space-3) 0; padding: 0; list-style: none; border: var(--border-width) solid var(--color-border-subtle); border-radius: var(--radius-sm); }
-.cloud-library__list li { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-3); }
-.cloud-library__list li + li { border-top: var(--border-width) solid var(--color-border-subtle); }
-.cloud-library__list li > button { padding: 0; border: 0; background: transparent; font-weight: var(--font-weight-semibold); text-align: left; }
-.cloud-library__list li > button:hover:not(:disabled) { text-decoration: underline; background: transparent; }
-.cloud-library__list li > span { color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.cloud-library__detail { margin-top: var(--space-3); }
-.cloud-library__detail { overflow-wrap: anywhere; }
-nav { display: flex; gap: var(--space-2); }
+.cloud-library__heading { display:flex; align-items:center; gap:var(--space-3); margin-bottom:var(--space-4); }
+.cloud-library__emblem { display:grid; place-items:center; width:44px; height:44px; flex:none; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-selected); }
+.cloud-library__heading h3 { margin:0 0 var(--space-1); font-size:var(--font-size-lg); }
+.cloud-library__heading p { margin:0; color:var(--color-text-muted); font-size:var(--font-size-sm); }
+.cloud-library__filters { display:flex; flex-wrap:wrap; gap:var(--space-3); align-items:end; padding:var(--space-3); border:1px solid var(--color-border-subtle); border-radius:var(--radius-md); background:var(--color-bg-app); }
+.cloud-library__filters label { display:grid; gap:var(--space-2); min-width:100px; color:var(--color-text-muted); font-size:var(--font-size-sm); }
+.cloud-library__search { flex:1; }
+.cloud-library__filters input, .cloud-library__filters select, .cloud-library__filters > button { min-height:var(--control-height-md); padding:var(--space-2) var(--space-3); border:1px solid var(--color-border); border-radius:var(--radius-sm); background:var(--color-bg-field); color:var(--color-text); font:inherit; width:100%; box-sizing:border-box; }
+.cloud-library__filters > button { width:auto; background:var(--color-bg-selected); cursor:pointer; }
+.cloud-library__filters :focus-visible { outline:2px solid var(--color-accent); outline-offset:2px; }
+.cloud-library__state { display:grid; place-items:center; min-height:160px; margin:var(--space-4) 0; padding:var(--space-4); border:1px dashed var(--color-border); border-radius:var(--radius-md); color:var(--color-text-muted); text-align:center; }
+.cloud-library__list { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr)); gap:var(--space-3); margin:var(--space-4) 0; padding:0; list-style:none; }
+.cloud-library__list li { display:flex; flex-direction:column; gap:var(--space-3); padding:var(--space-4); border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-app); overflow-wrap:anywhere; }
+.cloud-library__list li:hover, .cloud-library__list .cloud-library__card--selected { border-color:var(--color-accent); }
+.cloud-library__list li > button { padding:0; border:0; background:transparent; color:var(--color-text); font-weight:var(--font-weight-semibold); text-align:left; cursor:pointer; }
+.cloud-library__list li > button::after { content:' ↗'; color:var(--color-text-subtle); }
+.cloud-library__list li > span { color:var(--color-text-muted); font-size:var(--font-size-sm); }
+.cloud-library__detail { margin-top:var(--space-4); padding:var(--space-4); border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--color-bg-app); overflow-wrap:anywhere; }
+nav { display:flex; justify-content:flex-end; gap:var(--space-2); }
 </style>

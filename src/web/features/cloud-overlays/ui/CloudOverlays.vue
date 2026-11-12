@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { failureText } from '@/shared/api/cloud-failure.ts';
 import { useI18n } from 'vue-i18n';
 import { OVERLAY_FIELDS, OVERLAY_KINDS, type OverlayElement, type OverlayKind } from '../../../../shared/cloud-overlay-schema.ts';
 import { useCloudOverlayStore } from '@/entities/overlay/model/cloud-overlay-store.ts';
 import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
 import CloudOverlayPreview from '@/entities/overlay/ui/CloudOverlayPreview.vue';
+import CloudImageUpload from '@/features/cloud-bundles/ui/CloudImageUpload.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
@@ -233,7 +235,23 @@ function setKind(value: string): void {
       </li>
     </ul>
 
-    <CloudOverlayPreview :document="overlay.draft" />
+    <section
+      v-if="overlay.draft.elements.some(element => element.type === 'art')"
+      class="cloud-overlays__assets"
+    >
+      <h4>{{ t('cloudBundles.assets') }}</h4>
+      <CloudImageUpload />
+      <BaseAlert
+        v-if="bundles.error"
+        tone="error"
+        :title="bundles.error === 'size' ? t('cloudBundles.tooLarge') : failureText(t, bundles.errorDetail, bundles.error)"
+        compact
+      />
+    </section>
+
+    <div class="cloud-overlays__preview">
+      <CloudOverlayPreview :document="overlay.draft" />
+    </div>
 
     <ul
       v-if="overlay.problems.length"
@@ -293,4 +311,17 @@ function setKind(value: string): void {
 .cloud-overlays__grow { flex:1 1 180px; min-width:0; }
 .cloud-overlays__block { display:grid; gap:var(--space-2); padding:var(--space-2); border:1px solid var(--color-border); border-radius:var(--radius-md); min-width:0; }
 .cloud-overlays__list, .cloud-overlays__problems { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-2); }
+.cloud-overlays__preview { display:grid; place-items:center; min-height:280px; padding:var(--space-4); border:1px solid var(--color-border-subtle); border-radius:var(--radius-md); background:var(--color-bg-panel); overflow:auto; }
+.cloud-overlays__preview > * { max-width:100%; }
+.cloud-overlays__row { gap:var(--space-3); }
+.cloud-overlays__title { padding-bottom:var(--space-3); border-bottom:1px solid var(--color-border-subtle); }
+.cloud-overlays__block { padding:var(--space-4); background:var(--color-bg-panel); }
+.cloud-overlays__assets { display:grid; gap:var(--space-5); padding:var(--space-6); border:1px solid var(--color-border); border-radius:var(--radius-md); }
+.cloud-overlays__assets h4 { margin:0; }
+@media (width < 700px) {
+ .cloud-overlays__row > * { min-width:0; max-width:100%; }
+ .cloud-overlays__row > :deep(.base-text-field) { flex:1 1 120px; width:100%; }
+ .cloud-overlays__preview { min-height:0; padding:var(--space-4); }
+ .cloud-overlays__block { padding:var(--space-5); }
+}
 </style>

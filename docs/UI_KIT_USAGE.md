@@ -100,3 +100,39 @@ permission consent, overwrite confirmation and validation remain explicit.
 4. Inspect actual desktop and mobile UI in EN/ES, long labels, touch targets,
    reduced motion, zoom/reflow and overflow. Label demonstration fixtures as
    such; do not present them as a successful live integration.
+
+## Overlay library
+
+The Overlays page opens `OverlayCloudPanel` in a `BaseDialog`; the design
+workspace stays mounted underneath. The modal uses a source sidebar, a
+search/type/sort row, preview cards and a selection summary with an explicit
+open action. Keep the footer outside the scrollable dialog body.
+
+Library previews use `OverlayLibraryPreview` and the SDK's existing preview
+mode with synthetic sample events. They show the included widgets and open
+the existing local editor; they are not public Cloud catalogue entries.
+“My overlays” uses the capability-gated account list. Package operations retain
+their existing feature implementation. Portable package tools are no longer
+exposed in the overlay workspace. Do not add style filters or publication badges without supporting metadata.
+
+Use the existing app/panel surfaces, selection border, accent, focus and radius
+tokens rather than copying the mockup's brighter blue or rounded corners.
+Below 900px the source navigation wraps above the collection. Below 700px
+the modal fills the viewport, navigation becomes a labelled selector and cards
+stack; only its content scrolls. The main workspace uses a widget selector below
+800px, keeping the preview and properties accessible without the desktop list. The UI kit includes overlay preview, empty, loading, failure and
+disabled-action examples in the active locale.
+
+### File selection and image uploads
+
+Use `file-upload/BaseFileUpload.vue` for a single binary file, with explicit
+`accept` and `maxBytes` limits. Picker and drop share validation; a selected file
+shows its name, size and image thumbnail. Selection never uploads automatically.
+`CloudImageUpload` owns the upload action and busy state. The backend still
+validates file contents. Use `BaseFileDrop` for existing JSON/text imports and
+clipboard operations. The UI kit includes a binary image upload example.
+
+Combo-box popups opened inside a modal must be teleported into the open dialog,
+so native top-layer and inert behavior keep them visible and interactive.
+Keep decorative introductions and repeated instructions out of the overlay
+workspace; preserve validation, errors and accessible field labels.

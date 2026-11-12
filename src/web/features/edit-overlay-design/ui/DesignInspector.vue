@@ -125,6 +125,7 @@ function onKeydown(event: KeyboardEvent): void {
 <template>
   <BasePanel
     class="design-inspector"
+    header-layout="inline"
     :title="t('overlays.editor.title')"
     flush
     @keydown="onKeydown"

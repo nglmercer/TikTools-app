@@ -85,3 +85,16 @@ describe('BaseComboBox', () => {
     expect(wrapper.props('modelValue')).toBe('stinger');
   });
 });
+
+ it('keeps its popup inside a modal dialog so it stays interactive', async () => {
+  const dialog = document.createElement('dialog');
+  dialog.setAttribute('open', '');
+  document.body.append(dialog);
+  const wrapper = mount(BaseComboBox, { props: { options, modelValue: 'fade' }, attachTo: dialog });
+  await wrapper.get('[role="combobox"]').trigger('click');
+  expect(dialog.querySelector('[role="listbox"]')).not.toBeNull();
+  (dialog.querySelectorAll('[role="option"]')[1] as HTMLElement).click();
+  expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['cut']);
+  wrapper.unmount();
+  dialog.remove();
+ });

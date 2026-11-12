@@ -47,16 +47,10 @@ describe('OverlaysPage', () => {
     );
   });
 
-  it('opens portable packages and returns to the existing design', async () => {
+  it('does not expose the obsolete portable package dialog', async () => {
     const { wrapper } = await mountPage();
-    const source = (wrapper.get('#overlay-source-url').element as HTMLInputElement).value;
-    await buttonByText(wrapper, 'Portable packages').trigger('click');
-    expect(wrapper.find('.overlays-page__portable').exists()).toBe(true);
-    expect(wrapper.get('.overlays-page__workspace').isVisible()).toBe(false);
-    await buttonByText(wrapper, 'Portable packages').trigger('click');
+    expect(wrapper.text()).not.toContain('Portable packages');
     expect(wrapper.find('.overlays-page__portable').exists()).toBe(false);
-    expect(wrapper.get('.overlays-page__workspace').isVisible()).toBe(true);
-    expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toBe(source);
   });
 
   it('offers the Cloud area only when the host announces overlays or packages', async () => {
@@ -66,17 +60,15 @@ describe('OverlaysPage', () => {
     expect(packages.wrapper.find('button[aria-label="Cloud"]').exists()).toBe(true);
   });
 
-  it('opens Cloud overlays and packages in the page and returns to the design', async () => {
+  it('opens the overlay library in a modal and returns to the retained design', async () => {
     const { wrapper } = await mountPage(['bundles.overlays.create', 'bundles.packages.preflight']);
     const source = (wrapper.get('#overlay-source-url').element as HTMLInputElement).value;
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
-    expect(wrapper.get('.overlay-cloud .base-panel__title').text()).toBe('Cloud');
-    expect(wrapper.find('.cloud-overlays').exists()).toBe(true);
-    expect(wrapper.find('.cloud-bundles').exists()).toBe(true);
-    expect(wrapper.get('.overlays-page__workspace').isVisible()).toBe(false);
-    await wrapper.get('.overlay-cloud button[aria-label="Back"]').trigger('click');
-    expect(wrapper.find('.overlay-cloud').exists()).toBe(false);
+    expect(wrapper.get('dialog.overlay-library').attributes('open')).toBeDefined();
+    expect(wrapper.findAll('.overlay-library__card')).toHaveLength(7);
     expect(wrapper.get('.overlays-page__workspace').isVisible()).toBe(true);
+    await wrapper.get('.overlay-library button[aria-label="Close"]').trigger('click');
+    expect(wrapper.find('.overlay-library__card').exists()).toBe(false);
     expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toBe(source);
   });
 
@@ -84,7 +76,30 @@ describe('OverlaysPage', () => {
     const { wrapper } = await mountPage(['bundles.packages.preflight']);
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     expect(wrapper.find('.cloud-overlays').exists()).toBe(false);
+    await buttonByText(wrapper, 'Images & packages').trigger('click');
     expect(wrapper.find('.cloud-bundles').exists()).toBe(true);
+  });
+
+  it('filters library cards and opens the selected widget without losing the workspace', async () => {
+    const { wrapper } = await mountPage(['bundles.overlays.create']);
+    await wrapper.get('button[aria-label="Cloud"]').trigger('click');
+    expect(buttonByText(wrapper, 'Open in editor').attributes('disabled')).toBeDefined();
+    await wrapper.get('.overlay-library input[type="search"]').setValue('gift');
+    expect(wrapper.findAll('.overlay-library__card')).toHaveLength(1);
+    await wrapper.get('.overlay-library__card').trigger('click');
+    expect(buttonByText(wrapper, 'Open in editor').attributes('disabled')).toBeUndefined();
+    await buttonByText(wrapper, 'Open in editor').trigger('click');
+    expect(wrapper.find('.overlay-library__card').exists()).toBe(false);
+    expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toContain('/widgets/gift/');
+  });
+
+  it('clears selection when search hides the selected overlay', async () => {
+    const { wrapper } = await mountPage(['bundles.overlays.create']);
+    await wrapper.get('button[aria-label="Cloud"]').trigger('click');
+    await wrapper.findAll('.overlay-library__card')[0]!.trigger('click');
+    await wrapper.get('.overlay-library input[type="search"]').setValue('no matching widget');
+    expect(wrapper.get('.overlay-library').text()).toContain('No matching overlays');
+    expect(buttonByText(wrapper, 'Open in editor').attributes('disabled')).toBeDefined();
   });
 
   it('copies the source url through the host', async () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends string | number">
-import { computed, nextTick, ref, useId, useTemplateRef } from 'vue';
+import { computed, nextTick, ref, shallowRef, useId, useTemplateRef } from 'vue';
 import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
 import { useAnchoredPosition } from '@/shared/lib/use-anchored-position.ts';
 import { useOutsidePointer } from '@/shared/lib/use-outside-pointer.ts';
@@ -26,6 +26,7 @@ const id = useId();
 const trigger = useTemplateRef('trigger');
 const listbox = useTemplateRef('listbox');
 const open = ref(false);
+const teleportTarget = shallowRef<HTMLElement | string>('body');
 const activeIndex = ref(-1);
 
 const { style } = useAnchoredPosition(trigger, listbox, open, { offset: 1, matchAnchorWidth: true });
@@ -50,6 +51,7 @@ function setActive(index: number): void {
 
 function show(): void {
   if (props.disabled || open.value) return;
+  teleportTarget.value = trigger.value?.closest('dialog[open]') ?? 'body';
   open.value = true;
   setActive(selectedIndex.value >= 0 ? selectedIndex.value : firstEnabledIndex(props.options));
 }
@@ -154,7 +156,7 @@ defineExpose({ focus: () => trigger.value?.focus() });
         <IconChevronDown :size="12" />
       </span>
     </button>
-    <Teleport to="body">
+    <Teleport :to="teleportTarget">
       <ul
         v-if="open"
         :id="`${id}-listbox`"

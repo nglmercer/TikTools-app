@@ -3,6 +3,7 @@ import { failureText } from '@/shared/api/cloud-failure.ts';
 import { onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
+import CloudImageUpload from './CloudImageUpload.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import IconInfo from '@/shared/ui/icon/icons/IconInfo.vue';
@@ -12,19 +13,9 @@ import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
 const { t, te } = useI18n();
 const bundles = useBundlesStore();
 const packageInput = ref('');
-const file = ref<File | null>(null);
-
 function statusLabel(value: string): string {
   const key = `cloudBundles.status.${value}`;
   return te(key) ? t(key) : value;
-}
-
-function onFile(event: Event): void {
-  file.value = (event.target as HTMLInputElement).files?.[0] ?? null;
-}
-
-async function upload(): Promise<void> {
-  if (file.value) await bundles.upload(file.value);
 }
 
 function journalStatus(value: string): string {
@@ -69,26 +60,7 @@ async function check(): Promise<void> {
 
     <div class="cloud-bundles__block">
       <h4>{{ t('cloudBundles.assets') }}</h4>
-      <div class="cloud-bundles__row">
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          :aria-label="t('cloudBundles.chooseImage')"
-          @change="onFile"
-        >
-        <BaseButton
-          :disabled="!file || bundles.working"
-          @click="upload"
-        >
-          {{ t('cloudBundles.upload') }}
-        </BaseButton>
-      </div>
-      <p
-        v-if="bundles.asset"
-        class="cloud-bundles__note"
-      >
-        {{ t('cloudBundles.uploaded', { id: bundles.asset.id, width: bundles.asset.width, height: bundles.asset.height }) }}
-      </p>
+      <CloudImageUpload />
     </div>
 
     <div class="cloud-bundles__block">
@@ -186,12 +158,12 @@ async function check(): Promise<void> {
 </template>
 
 <style scoped>
-.cloud-bundles { display:grid; gap:var(--space-3); min-width:0; }
+.cloud-bundles { display:grid; gap:var(--space-6); min-width:0; }
 .cloud-bundles__title, .cloud-bundles__block h4 { margin:0; }
 .cloud-bundles__info { display:inline-flex; margin-left:var(--space-2); vertical-align:middle; color:var(--color-text-muted); font-weight:normal; }
 .cloud-bundles__note { margin:0; color:var(--color-text-muted); }
 .cloud-bundles__row { display:flex; flex-wrap:wrap; gap:var(--space-2); align-items:center; min-width:0; }
 .cloud-bundles__grow { flex:1 1 200px; min-width:0; overflow-wrap:anywhere; }
-.cloud-bundles__block { display:grid; gap:var(--space-2); padding:var(--space-3); border-radius:var(--radius-md); border:1px solid var(--color-border); min-width:0; }
+.cloud-bundles__block { display:grid; gap:var(--space-5); padding:var(--space-6); border-radius:var(--radius-md); border:1px solid var(--color-border); min-width:0; }
 .cloud-bundles__list { list-style:none; margin:0; padding:0; display:grid; gap:var(--space-2); }
 </style>

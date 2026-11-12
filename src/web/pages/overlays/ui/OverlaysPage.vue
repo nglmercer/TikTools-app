@@ -2,7 +2,6 @@
 import { storeToRefs } from 'pinia';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import UniversalWidgetPanel from '../../../../widgets/sdk/UniversalWidgetPanel.vue';
 import type { WidgetLayer, WidgetLayerSeed } from '../../../../widgets/sdk/template.ts';
 import type { WidgetKind } from '../../../../widgets/sdk/templates.ts';
 import { cloneDesign } from '@/entities/overlay/lib/editor-history.ts';
@@ -13,6 +12,7 @@ import { useDesignEditor } from '@/features/edit-overlay-design/model/use-design
 import DesignInspector from '@/features/edit-overlay-design/ui/DesignInspector.vue';
 import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
+import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
@@ -24,15 +24,13 @@ import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import OverlayCloudPanel from '@/widgets/overlay-cloud/ui/OverlayCloudPanel.vue';
 import OverlayPreviewPanel from '@/widgets/overlay-preview/ui/OverlayPreviewPanel.vue';
 
-const { t, locale } = useI18n();
-const portableOpen = ref(false);
+const { t } = useI18n();
 const cloudOpen = ref(false);
 const capabilities = useCapabilityStore();
 // Cloud overlays and image packages appear only when the host announces them.
 const cloudAvailable = computed(
-  () => capabilities.supports('bundles.overlays.create') === true || capabilities.supports('bundles.packages.preflight') === true,
+  () => capabilities.supports('bundles.overlays.create') === true || capabilities.supports('bundles.overlays.list') === true || capabilities.supports('bundles.packages.preflight') === true,
 );
-const showWorkspace = computed(() => !portableOpen.value && !(cloudOpen.value && cloudAvailable.value));
 const store = useOverlaysStore();
 const { status, statusError, refreshing, designs, designsError } = storeToRefs(store);
 
@@ -129,32 +127,33 @@ onBeforeUnmount(() => store.dispose());
 <template>
   <div class="overlays-page">
     <header class="overlays-page__toolbar">
-      <BaseButton
-        class="overlays-page__portable-toggle"
-        :aria-pressed="portableOpen"
-        @click="portableOpen = !portableOpen; cloudOpen = false"
-      >
-        {{ t('overlays.portablePackages') }}
-      </BaseButton>
-      <BaseIconButton
-        v-if="cloudAvailable"
-        :label="t('overlays.cloud')"
-        variant="default"
-        :pressed="cloudOpen"
-        @click="cloudOpen = !cloudOpen; portableOpen = false"
-      >
-        <IconGlobe />
-      </BaseIconButton>
+      <div class="overlays-page__heading">
+        <IconLayers /><h1>{{ t('navigation.overlays') }}</h1>
+      </div>
+      <div class="overlays-page__actions">
+        <BaseButton
+          v-if="cloudAvailable"
+          :aria-label="t('overlays.cloud')"
+          aria-haspopup="dialog"
+          variant="primary"
+          @click="cloudOpen = true"
+        >
+          <template #icon>
+            <IconGlobe />
+          </template>{{ t('overlayLibrary.browse') }}
+        </BaseButton>
+      </div>
       <span
         class="overlays-page__gateway"
         :class="`overlays-page__gateway--${tone}`"
         role="status"
+        :title="gatewayHint || undefined"
+        :aria-description="gatewayHint || undefined"
       >
         <span
           class="overlays-page__dot"
           aria-hidden="true"
         />
-        <span class="overlays-page__gateway-title">{{ t('overlays.gateway.title') }}</span>
         <span class="overlays-page__gateway-text">{{ gatewayText }}</span>
       </span>
       <BaseIconButton
@@ -165,10 +164,6 @@ onBeforeUnmount(() => store.dispose());
       >
         <IconRefresh />
       </BaseIconButton>
-      <span
-        v-if="gatewayHint"
-        class="overlays-page__hint"
-      >{{ gatewayHint }}</span>
     </header>
 
     <p
@@ -185,20 +180,19 @@ onBeforeUnmount(() => store.dispose());
       </BaseButton>
     </p>
 
-    <UniversalWidgetPanel
-      v-if="portableOpen"
-      class="overlays-page__portable"
-      :locale="locale"
-    />
     <OverlayCloudPanel
-      v-else-if="cloudOpen && cloudAvailable"
-      class="overlays-page__cloud"
-      @back="cloudOpen = false"
+      v-if="cloudAvailable"
+      v-model:open="cloudOpen"
+      @select="requestKind($event); cloudOpen = false"
     />
-    <div
-      v-show="showWorkspace"
-      class="overlays-page__workspace"
-    >
+    <BaseComboBox
+      :model-value="kind"
+      class="overlays-page__mobile-kind"
+      :options="items.map(item => ({ value: item.kind, label: item.name }))"
+      :aria-label="t('overlays.widgets')"
+      @update:model-value="requestKind($event as WidgetKind)"
+    />
+    <div class="overlays-page__workspace">
       <BasePanel
         class="overlays-page__list"
         :title="t('overlays.widgets')"
@@ -221,11 +215,6 @@ onBeforeUnmount(() => store.dispose());
             >●</span>
           </template>
         </BaseList>
-        <template #footer>
-          <p class="overlays-page__description">
-            {{ t(`overlays.kinds.${kind}.description`) }}
-          </p>
-        </template>
       </BasePanel>
       <OverlayPreviewPanel
         class="overlays-page__preview"
@@ -256,6 +245,14 @@ onBeforeUnmount(() => store.dispose());
 </template>
 
 <style scoped>
+.overlays-page__heading { display:flex; align-items:center; gap:var(--space-4); }
+.overlays-page__heading h1 { margin:0; font-size:var(--font-size-lg); font-weight:var(--font-weight-semibold); }
+.overlays-page__actions { display:flex; gap:var(--space-4); margin-left:auto; }
+.overlays-page__toolbar { flex-wrap:wrap; padding-bottom:var(--space-4); border-bottom:1px solid var(--color-border-subtle); }
+.overlays-page__gateway { flex-basis:auto; }
+.overlays-page__workspace > * { border-radius:var(--radius-md); overflow:hidden; }
+.overlays-page__list :deep(.base-list__item) { min-height:40px; }
+
 .overlays-page {
   display: flex;
   flex: 1;
@@ -266,11 +263,7 @@ onBeforeUnmount(() => store.dispose());
   padding: var(--space-4);
 }
 
-.overlays-page__portable {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
+
 
 .overlays-page__toolbar {
   display: flex;
@@ -280,9 +273,7 @@ onBeforeUnmount(() => store.dispose());
   min-width: 0;
 }
 
-.overlays-page__portable-toggle {
-  flex: none;
-}
+
 
 .overlays-page__gateway {
   display: inline-flex;
@@ -350,7 +341,7 @@ onBeforeUnmount(() => store.dispose());
 .overlays-page__workspace {
   display: grid;
   flex: 1;
-  grid-template-columns: 220px minmax(0, 1fr) 360px;
+  grid-template-columns: 200px minmax(0, 1fr) 320px;
   gap: var(--space-4);
   min-height: 0;
 }
@@ -394,6 +385,7 @@ onBeforeUnmount(() => store.dispose());
   }
 }
 
+.overlays-page__mobile-kind { display:none; }
 @media (width < 800px) {
   .overlays-page {
     padding: var(--space-3);
@@ -419,11 +411,16 @@ onBeforeUnmount(() => store.dispose());
   .overlays-page__workspace {
     flex: none;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto 320px minmax(400px, auto);
+    grid-template-rows: auto auto;
   }
 
-  .overlays-page__list {
-    grid-row: auto;
-  }
+  .overlays-page__list { display:none; }
+  .overlays-page__mobile-kind { display:flex; flex:none; }
+  .overlays-page__heading { display:none; }
+  .overlays-page__actions { margin-left:0; }
+  .overlays-page__preview { min-height:300px; }
+  .overlays-page__inspector { height:auto; min-height:360px; }
+  .overlays-page__gateway { flex-basis:calc(100% - 60px); order:2; }
+  .overlays-page__toolbar > :deep(.base-icon-button) { order:3; }
 }
 </style>

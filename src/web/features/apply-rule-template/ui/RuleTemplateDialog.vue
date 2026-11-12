@@ -393,7 +393,7 @@ function runImport(): void {
 .rule-templates__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: var(--space-2);
+  gap: var(--space-3);
   max-height: min(55vh, 460px);
   overflow-y: auto;
 }
@@ -404,10 +404,11 @@ function runImport(): void {
   align-items: flex-start;
   justify-content: flex-start;
   gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+  min-height: 128px;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-bg-control);
+  background: var(--color-bg-app);
   color: var(--color-text);
   font-family: var(--font-family);
   font-size: var(--font-size-md);
@@ -433,6 +434,7 @@ function runImport(): void {
 .rule-templates__card-title {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
   font-weight: var(--font-weight-semibold);
 }

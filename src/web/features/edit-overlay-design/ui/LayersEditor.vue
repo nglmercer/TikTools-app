@@ -82,9 +82,6 @@ function add(action: MenuAction): void {
 
 <template>
   <div class="layers-editor">
-    <p class="layers-editor__hint">
-      {{ t('overlays.editor.layerHint') }}
-    </p>
     <div class="layers-editor__toolbar">
       <BaseButton
         size="sm"

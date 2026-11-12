@@ -6,6 +6,10 @@ export interface AssetRecord {
   readonly width: number;
   readonly height: number;
   readonly size: number;
+  /** RFC 3339. Absent on a Cloud that predates asset listing. */
+  readonly createdAt?: string;
+  /** Owner-chosen name, 1 to 120 characters. */
+  readonly label?: string;
 }
 
 export interface PreflightItem {
@@ -51,7 +55,15 @@ export function parseAsset(value: unknown): AssetRecord {
   const asset = record(value);
   const id = text(asset.id);
   if (!UUID.test(id)) throw new InvalidBundleResponse();
-  return { id, mime: text(asset.mime), width: count(asset.width), height: count(asset.height), size: count(asset.size) };
+  return {
+    id,
+    mime: text(asset.mime),
+    width: count(asset.width),
+    height: count(asset.height),
+    size: count(asset.size),
+    ...(typeof asset.createdAt === 'string' ? { createdAt: asset.createdAt } : {}),
+    ...(typeof asset.label === 'string' && asset.label.length > 0 ? { label: asset.label } : {}),
+  };
 }
 
 export function parsePreflight(value: unknown): PackagePreflight {

@@ -86,6 +86,7 @@ onBeforeUnmount(() => {
 <template>
   <BasePanel
     class="overlay-preview"
+    header-layout="inline"
     :title="t('overlays.preview.title')"
     :subtitle="t('overlays.preview.canvas')"
     flush
@@ -127,6 +128,7 @@ onBeforeUnmount(() => {
         <label
           class="overlay-preview__label"
           for="overlay-source-url"
+          :title="t('overlays.source.note')"
         >{{ t('overlays.source.title') }}</label>
         <div class="overlay-preview__url">
           <BaseTextField
@@ -154,9 +156,6 @@ onBeforeUnmount(() => {
           role="alert"
         >
           {{ copyError }}
-        </p>
-        <p class="overlay-preview__note">
-          {{ t('overlays.source.note') }}
         </p>
       </div>
     </template>
@@ -234,5 +233,12 @@ onBeforeUnmount(() => {
 
 .overlay-preview__error {
   color: var(--color-danger-hover);
+}
+@media (width < 800px) {
+ .overlay-preview { height:auto; }
+ .overlay-preview__workarea { height:auto; min-height:160px; padding:var(--space-4); }
+ .overlay-preview__url { flex-wrap:wrap; }
+ .overlay-preview__url > :first-child { flex-basis:100%; }
+ .overlay-preview__url > .base-button { width:100%; }
 }
 </style>

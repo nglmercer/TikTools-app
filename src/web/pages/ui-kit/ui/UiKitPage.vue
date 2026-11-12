@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiKitOverlayLibrary from './UiKitOverlayLibrary.vue';
 import UiKitJson from './UiKitJson.vue';
 import UiKitSync from './UiKitSync.vue';
 import UiKitPatterns from './UiKitPatterns.vue';
@@ -85,6 +86,7 @@ const visible = ref(true);
 
 <template>
   <div class="ui-kit">
+    <UiKitOverlayLibrary class="ui-kit__panel--wide" />
     <UiKitPatterns class="ui-kit__panel--wide" />
     <UiKitWorkspace class="ui-kit__panel--wide" />
     <UiKitJson class="ui-kit__panel--wide" />
