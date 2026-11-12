@@ -1,53 +1,53 @@
 <script setup lang="ts">
-import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { createCollaborationOwner } from '@/entities/collaboration/model/owner.ts';
-import { viewerGrant, type AdminTab, type Configuration, type Grant, type Principal } from '@/entities/collaboration/api/types.ts';
+import { viewerGrant, type Configuration, type Grant, type PairingRequest, type Principal } from '@/entities/collaboration/api/types.ts';
 import { parseGrant, prepareConfiguration, splitIds } from '@/entities/collaboration/lib/grants.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
-import GrantEditor from './GrantEditor.vue';
+import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
+import { areaById, type AccessArea } from '../model/access-areas.ts';
+import { cloneGrant } from '../model/clone-grant.ts';
 import type { CollaborationConfirmation } from '../model/confirmation.ts';
-import CollaborationOverview from './CollaborationOverview.vue';
-import DirectConnectionForm from './DirectConnectionForm.vue';
-import CollaborationRecords from './CollaborationRecords.vue';
-import CollaborationInvitation from './CollaborationInvitation.vue';
+import { presetGrant, type Preset } from '../model/presets.ts';
+import { useCollaborationPresentation } from '../lib/use-collaboration-presentation.ts';
+import AccessInspector from './AccessInspector.vue';
+import AccessMatrix, { type MatrixSelection } from './AccessMatrix.vue';
+import ConnectionSettings from './ConnectionSettings.vue';
+import InvitationDialog from './InvitationDialog.vue';
 
+interface Draft { revision: string; grant: Grant; original: string }
 const { t } = useI18n();
-const area = ref<'overview' | 'people' | 'invite' | 'direct'>('overview');
-// Listen address, public URL, TLS and allowed origins belong to the direct connection, not to the normal flow.
-const areaTabs = computed(() => [
-  { value: 'overview' as const, label: t('settingsLayout.overview') },
-  { value: 'people' as const, label: t('settingsLayout.people'), badge: status.value && status.value.pendingRequests > 0 ? status.value.pendingRequests : undefined },
-  { value: 'invite' as const, label: t('collaboration.invites') },
-  { value: 'direct' as const, label: t('collaboration.directTransport') },
-]);
+const { listenerStatus } = useCollaborationPresentation();
+const view = ref<'access' | 'connection'>('access');
 const owner = createCollaborationOwner(useControlClient());
-const { status, pages, tab, loading, working, error, uncertain, connected, checkedAt, secret, canInvite, joinLink, next, previous } = owner;
+owner.watchPeople();
+const { status, people, working, error, uncertain, connected, secret, canInvite, joinLink } = owner;
 const draft = ref<Configuration | null>(null);
 const baseRevision = ref('');
 const allowedOrigins = ref('');
 const message = ref('');
-const grant = ref(viewerGrant());
-const principalDraft = ref<{ id: string; revision: string; grant: Grant } | null>(null);
+const newGrant = ref<Grant>(viewerGrant());
+// A grant that was issued, kept so the dialog still describes it after the draft is edited again.
+const issuedGrant = ref<Grant>(viewerGrant());
+const drafts = ref<Record<string, Draft>>({});
+const selection = ref<MatrixSelection | null>(null);
 
 const confirmation = ref<CollaborationConfirmation | null>(null);
 const confirmOpen = computed({ get: () => confirmation.value !== null, set: (value) => { if (!value) confirmation.value = null; } });
 const blocked = computed(() => working.value || !connected.value || uncertain.value);
 const changed = computed(() => !!status.value && baseRevision.value !== status.value.configurationRevision);
-// Unsaved edits to the direct connection, compared with what the host last reported.
+// Unsaved edits to the connection, compared with what the host last reported.
 const dirty = computed(() => {
   if (!draft.value || !status.value) return false;
   const saved = status.value.configuration;
   return JSON.stringify({ ...draft.value, allowedOrigins: splitIds(allowedOrigins.value) }) !== JSON.stringify({ ...saved, allowedOrigins: saved.allowedOrigins });
 });
-function go(target: 'people' | 'invite' | 'direct'): void { area.value = target; if (target === 'people') tab.value = 'requests'; }
-const adminTab = computed({ get: () => tab.value, set: (value: AdminTab) => { void owner.selectTab(value); } });
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 function resetDraft(): void {
   if (!status.value) return;
@@ -55,6 +55,17 @@ function resetDraft(): void {
   allowedOrigins.value = draft.value.allowedOrigins.join('\n'); message.value = '';
 }
 watch(status, () => { if (!draft.value) resetDraft(); });
+
+const pending = computed(() => people.value.requests.filter(request => request.state === 'pending' && request.expiresAt > owner.now.value));
+const principals = computed(() => people.value.principals.filter(person => !person.revoked));
+const online = computed(() => {
+  const counts: Record<string, number> = {};
+  const connections = status.value?.gateway.sessionConnections ?? {};
+  for (const session of people.value.sessions) if (!session.revoked && connections[session.sessionId]) counts[session.principalId] = (counts[session.principalId] ?? 0) + connections[session.sessionId]!;
+  return counts;
+});
+const listener = computed(() => status.value ? listenerStatus(status.value) : null);
+
 async function applyConfiguration(): Promise<void> {
   if (!draft.value || changed.value || blocked.value) return;
   message.value = '';
@@ -67,21 +78,48 @@ async function applyConfiguration(): Promise<void> {
 }
 async function createInvitation(): Promise<void> {
   message.value = '';
-  try { await owner.createInvitation(parseGrant(grant.value)); } catch { message.value = t('collaboration.invalidGrant'); }
+  try {
+    const grant = parseGrant(newGrant.value);
+    issuedGrant.value = cloneGrant(grant);
+    await owner.createInvitation(grant);
+  } catch { message.value = t('collaboration.invalidGrant'); }
 }
-let principalSelection = 0;
-async function editPrincipal(input: Principal | string): Promise<void> {
-  const selection = ++principalSelection;
-  const principal = await owner.getPrincipal(typeof input === 'string' ? input : input.principalId);
-  if (principal && selection === principalSelection && !principal.revoked) principalDraft.value = { id: principal.principalId, revision: principal.grantRevision, grant: clone(principal.grant) };
+function applyPreset(kind: Preset): void { newGrant.value = presetGrant(kind); }
+
+let selectionToken = 0;
+async function select(target: string, area: AccessArea['id']): Promise<void> {
+  const token = ++selectionToken;
+  selection.value = { target, area };
+  if (target === 'new' || drafts.value[target]) return;
+  const principal = await owner.getPrincipal(target);
+  if (token !== selectionToken || !principal || principal.revoked) return;
+  drafts.value[target] = { revision: principal.grantRevision, grant: cloneGrant(principal.grant), original: JSON.stringify(principal.grant) };
 }
-function confirmGrant(): void {
-  if (!principalDraft.value) return;
-  try { confirmation.value = { action: 'grant', id: principalDraft.value.id, revision: principalDraft.value.revision, grant: parseGrant(principalDraft.value.grant) }; }
+const selectedArea = computed(() => selection.value ? areaById(selection.value.area) : null);
+const selectedPerson = computed<Principal | undefined>(() => principals.value.find(person => person.principalId === selection.value?.target));
+const inspectorTitle = computed(() => selection.value?.target === 'new' ? t('collaboration.newInvitation') : selectedPerson.value?.clientLabel ?? '');
+// Edits go to the identity's own draft; the first selection only needs to wait for the latest revision to load.
+const inspectorReady = computed(() => selection.value?.target === 'new' || (!!selection.value && !!drafts.value[selection.value.target]));
+const inspectorGrant = computed<Grant>({
+  get: () => selection.value?.target === 'new' ? newGrant.value : drafts.value[selection.value?.target ?? '']?.grant ?? selectedPerson.value?.grant ?? viewerGrant(),
+  set: (value) => {
+    if (!selection.value) return;
+    if (selection.value.target === 'new') newGrant.value = value;
+    else if (drafts.value[selection.value.target]) drafts.value[selection.value.target]!.grant = value;
+  },
+});
+const draftDirty = (id: string): boolean => !!drafts.value[id] && JSON.stringify(drafts.value[id]!.grant) !== drafts.value[id]!.original;
+const visibleDrafts = computed(() => Object.fromEntries(Object.entries(drafts.value).filter(([id]) => draftDirty(id))));
+function discard(id: string): void { delete drafts.value[id]; }
+function confirmGrant(id: string): void {
+  const item = drafts.value[id]; if (!item) return;
+  try { confirmation.value = { action: 'grant', id, revision: item.revision, grant: parseGrant(item.grant) }; }
   catch { message.value = t('collaboration.invalidGrant'); }
 }
-function requestDisable(): void { if (status.value) confirmation.value = { action: 'disable', configuration: { ...clone(status.value.configuration), enabled: false }, revision: status.value.configurationRevision }; }
-function closePrincipal(): void { principalSelection += 1; principalDraft.value = null; }
+function requestApprove(request: PairingRequest): void { confirmation.value = { action: 'approve', id: request.requestId, request, grant: request.grant }; }
+function requestReject(request: PairingRequest): void { confirmation.value = { action: 'reject', id: request.requestId }; }
+function requestRevoke(person: Principal): void { confirmation.value = { action: 'principal', id: person.principalId }; }
+function requestRevokeInvite(inviteId: string): void { confirmation.value = { action: 'invite', id: inviteId }; }
 const confirmTitle = computed(() => t(`collaboration.${confirmation.value?.action === 'disable' ? 'disableTitle' : confirmation.value?.action === 'approve' ? 'approveTitle' : confirmation.value?.action === 'grant' ? 'grantTitle' : confirmation.value?.action === 'reject' ? 'rejectTitle' : 'revokeTitle'}`));
 const confirmMessage = computed(() => {
   const keys = { disable: 'disableMessage', approve: 'approveMessage', reject: 'rejectMessage', grant: 'grantMessage', session: 'revokeSessionMessage', principal: 'revokePrincipalMessage', invite: 'revokeInviteMessage' } as const;
@@ -97,12 +135,17 @@ async function confirm(): Promise<void> {
     if (item.action in actions) success = await owner.act(actions[item.action as keyof typeof actions], item.id);
   }
   if (uncertain.value) { confirmation.value = null; return; }
-  if (success) { confirmation.value = null; if (item.action === 'disable') resetDraft(); if (item.action === 'grant') principalDraft.value = null; }
-  else if (owner.errorCode.value === 'revision_conflict') { confirmation.value = null; message.value = t(item.action === 'grant' ? 'collaboration.grantChanged' : 'collaboration.changed'); }
+  if (success) {
+    confirmation.value = null;
+    if (item.action === 'disable') resetDraft();
+    if (item.action === 'grant' && item.id) discard(item.id);
+    if (item.action === 'principal' && item.id) { discard(item.id); if (selection.value?.target === item.id) selection.value = null; }
+  } else if (owner.errorCode.value === 'revision_conflict') { confirmation.value = null; message.value = t(item.action === 'grant' ? 'collaboration.grantChanged' : 'collaboration.changed'); }
 }
 onMounted(() => { void owner.start(); });
-onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.value = null; });
+onUnmounted(() => { owner.stop(); confirmation.value = null; drafts.value = {}; });
 </script>
+
 <template>
   <div class="collaboration-editor">
     <BaseAlert
@@ -133,34 +176,83 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
       </BaseButton>
     </BaseGroupBox>
     <template v-if="status && draft">
-      <BaseTabs
-        v-model="area"
-        :tabs="areaTabs"
-        :label="t('collaboration.title')"
-        class="collaboration-editor__navigation"
-      >
-        <BaseAlert
-          v-if="!status.gateway.available && area !== 'overview'"
-          tone="warning"
-          :title="t('collaboration.unavailable')"
-        />
-        <BaseAlert
-          v-if="changed"
-          tone="warning"
-          :title="t('collaboration.changed')"
-        />
-        <CollaborationOverview
-          v-show="area === 'overview'"
-          :status="status"
-          :checked-at="checkedAt"
+      <BaseAlert
+        v-if="!status.gateway.available"
+        tone="warning"
+        :title="t('collaboration.unavailable')"
+      />
+      <BaseAlert
+        v-if="changed"
+        tone="warning"
+        :title="t('collaboration.changed')"
+      />
+      <template v-if="view === 'access'">
+        <header class="collaboration-editor__header">
+          <div>
+            <h2>{{ t('collaboration.accessTitle') }}</h2>
+            <p class="collaboration-editor__muted">
+              {{ t('collaboration.accessHint') }}
+            </p>
+          </div>
+          <div class="collaboration-editor__status">
+            <BaseStatus
+              v-if="listener"
+              :label="listener.label"
+              :tone="listener.tone"
+            />
+            <span class="collaboration-editor__muted">{{ status.gateway.address ?? status.configuration.bindAddress }} · {{ t('collaboration.connected', { count: status.gateway.connections }) }}</span>
+            <BaseButton @click="view = 'connection'">
+              {{ t('collaboration.connectionSettings') }}
+            </BaseButton>
+          </div>
+        </header>
+        <AccessMatrix
+          :requests="pending"
+          :principals="principals"
+          :online="online"
+          :drafts="visibleDrafts"
+          :new-grant="newGrant"
+          :selection="selection"
           :blocked="blocked"
-          @disable="requestDisable"
-          @navigate="go"
+          :can-invite="canInvite"
+          @select="select"
+          @preset="applyPreset"
+          @approve="requestApprove"
+          @reject="requestReject"
+          @revoke="requestRevoke"
+          @create="createInvitation"
+          @connection="view = 'connection'"
         />
-        <DirectConnectionForm
-          v-show="area === 'direct'"
+        <AccessInspector
+          v-if="selection && selectedArea && inspectorReady"
+          v-model="inspectorGrant"
+          :title="inspectorTitle"
+          :area="selectedArea"
+          :reset-key="selection.target"
+          :disabled="blocked"
+          :saveable="selection.target !== 'new'"
+          :dirty="selection.target !== 'new' && draftDirty(selection.target)"
+          @apply="confirmGrant(selection.target)"
+          @discard="discard(selection.target)"
+        />
+        <p
+          v-else
+          class="collaboration-editor__muted"
+        >
+          {{ t('collaboration.selectCell') }}
+        </p>
+      </template>
+      <template v-else>
+        <header class="collaboration-editor__header collaboration-editor__header--back">
+          <BaseButton @click="view = 'access'">
+            {{ t('collaboration.backToAccess') }}
+          </BaseButton>
+          <h2>{{ t('collaboration.connectionTitle') }}</h2>
+        </header>
+        <ConnectionSettings
           v-model="draft"
           v-model:allowed-origins="allowedOrigins"
+          :status="status"
           :blocked="blocked"
           :changed="changed"
           :dirty="dirty"
@@ -169,61 +261,18 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
           @apply="applyConfiguration"
           @reset="resetDraft"
         />
-        <CollaborationRecords
-          v-show="area === 'people'"
-          v-model:tab="adminTab"
-          :pages="pages"
-          :loading="loading"
-          :blocked="blocked"
-          :has-previous="previous.length > 0"
-          :has-next="next !== null"
-          :now="owner.now.value"
-          :session-connections="status.gateway.sessionConnections ?? {}"
-          @refresh="owner.first"
-          @previous="owner.previousPage"
-          @next="owner.nextPage"
-          @edit="editPrincipal"
-          @confirm="confirmation = clone($event)"
-        />
-        <CollaborationInvitation
-          v-show="area === 'invite'"
-          v-model="grant"
-          :blocked="blocked"
-          :can-invite="canInvite"
-          :join-link="joinLink"
-          :secret="secret"
-          @create="createInvitation"
-          @navigate="go"
-          @hide="secret = null"
-          @error="message = $event"
-        />
-        <BaseGroupBox
-          v-if="principalDraft"
-          :title="t('collaboration.editGrant')"
-        >
-          <p class="collaboration-editor__meta">
-            <code>{{ principalDraft.id }}</code> · {{ t('collaboration.revision') }} {{ principalDraft.revision }}
-          </p>
-          <GrantEditor
-            :key="`${principalDraft.id}:${principalDraft.revision}`"
-            v-model="principalDraft.grant"
-            :disabled="blocked"
-          />
-          <div class="collaboration-editor__actions">
-            <BaseButton
-              :disabled="blocked"
-              variant="primary"
-              @click="confirmGrant"
-            >
-              {{ t('collaboration.grantSave') }}
-            </BaseButton>
-            <BaseButton @click="closePrincipal">
-              {{ t('common.cancel') }}
-            </BaseButton>
-          </div>
-        </BaseGroupBox>
-      </BaseTabs>
+      </template>
     </template>
+    <InvitationDialog
+      :secret="secret"
+      :join-link="joinLink"
+      :grant="issuedGrant"
+      :fingerprint="status?.gateway.certificateFingerprint"
+      :blocked="blocked"
+      @close="secret = null"
+      @revoke="requestRevokeInvite"
+      @error="message = $event"
+    />
     <BaseConfirmDialog
       v-model:open="confirmOpen"
       :title="confirmTitle"

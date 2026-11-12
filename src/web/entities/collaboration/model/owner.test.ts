@@ -136,4 +136,25 @@ describe('owner collaboration lifecycle', () => {
     expect(model.secret.value).toBeNull(); expect(model.pages.value.requests).toEqual([]);
     expect(model.connected.value).toBe(false); expect(model.loading.value).toBe(false);
   });
+  it('reads every list for the access matrix, following cursors, and keeps refreshing it instead of one paged tab', async () => {
+    const principal = (id: string) => ({ principalId: id, clientLabel: id, clientKind: 'browser', grant: viewerGrant(), grantRevision: '1', revoked: false });
+    const { client, calls } = createFakeControlClient((method, params) => {
+      if (method === 'collaboration.status') return collaborationStatus();
+      if (method === 'collaboration.principals.list') return params?.['after'] === null ? { principals: [principal('a')], nextAfter: 'next' } : { principals: [principal('b')], nextAfter: null };
+      return emptyCollaborationPage(method);
+    });
+    const model = createCollaborationOwner(client); owned.push(model); model.watchPeople(); await model.start();
+    expect(model.people.value.principals.map((p) => p.principalId)).toEqual(['a', 'b']);
+    expect(calls.filter((c) => c.method === 'collaboration.principals.list').map((c) => c.params?.['after'])).toEqual([null, 'next']);
+    for (const kind of ['requests', 'sessions']) expect(calls.some((c) => c.method === `collaboration.${kind}.list`)).toBe(true);
+  });
+  it('rejects a cursor that does not advance while reading the matrix', async () => {
+    const { client } = createFakeControlClient((method) => {
+      if (method === 'collaboration.status') return collaborationStatus();
+      if (method === 'collaboration.principals.list') return { principals: [], nextAfter: 'same' };
+      return emptyCollaborationPage(method);
+    });
+    const model = createCollaborationOwner(client); owned.push(model); model.watchPeople(); await model.start();
+    expect(model.errorCode.value).toBe('protocol');
+  });
 });
