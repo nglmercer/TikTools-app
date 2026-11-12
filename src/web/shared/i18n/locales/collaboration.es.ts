@@ -1,5 +1,23 @@
 import type en from './collaboration.en.ts';
 export default {
+
+  "enableAll": "Activar todos los permisos",
+  "disableAll": "Desactivar todos los permisos",
+  "bulkLabel": "Permisos en grupo",
+  "bulkHint": "Solo modifica el borrador. Se mantienen las restricciones y la aprobación.",
+  "editorSections": {
+    "permissions": "Permisos",
+    "delegation": "Automatizaciones",
+    "effects": "Efectos externos",
+    "resources": "Recursos",
+    "advanced": "Avanzado"
+  },
+  "scopeModes": {
+    "all": "Todos",
+    "selected": "IDs seleccionados",
+    "none": "Ninguno"
+  }
+,
   rejectTitle: '¿Rechazar esta solicitud?',
   rejectMessage: 'Se rechazará esta solicitud pendiente. Los dispositivos ya aprobados conservarán su acceso.',
   revokeSessionMessage: 'Solo se revocará esta sesión de dispositivo. Los otros dispositivos aprobados y el LIVE local continuarán.',

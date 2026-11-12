@@ -1,137 +1,38 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { capabilities, resourceKinds, viewerGrant, type AutomationDelegation, type Capability, type EffectGrants, type Grant, type ResourceKind } from '@/entities/collaboration/api/types.ts';
-import { parseGrant, splitIds } from '@/entities/collaboration/lib/grants.ts';
+import { capabilities, viewerGrant, type Grant } from '@/entities/collaboration/api/types.ts';
+import { cloneGrant } from '../model/clone-grant.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
-import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
-import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
-import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
-import EffectGrantEditor from './EffectGrantEditor.vue';
+import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
+import GrantPermissions from './GrantPermissions.vue';
+import GrantDelegation from './GrantDelegation.vue';
+import GrantEffects from './GrantEffects.vue';
+import GrantResources from './GrantResources.vue';
+import AdvancedGrantEditor from './AdvancedGrantEditor.vue';
 
-defineProps<{ disabled?: boolean }>();
+const props = defineProps<{ disabled?: boolean }>();
 const model = defineModel<Grant>({ required: true });
 const { t } = useI18n();
-const readCapabilityIds = ['live.read', 'workflows.read', 'automation.read', 'points.read', 'competitions.read', 'commands.read'] as const;
-const writeCapabilityIds = ['workflows.toggle', 'workflows.edit', 'automation.toggle', 'automation.edit', 'points.adjust', 'competitions.manage'] as const;
-const current = [...readCapabilityIds, ...writeCapabilityIds] as const;
-const capabilityGroups = [
-  { key: 'read', ids: readCapabilityIds },
-  { key: 'write', ids: writeCapabilityIds },
-] as const;
-const labels = { 'live.read': 'capLive', 'workflows.read': 'capWorkflow', 'workflows.toggle': 'capWorkflowDisable', 'workflows.edit': 'capWorkflowDelete', 'automation.read': 'capAutomation', 'automation.toggle': 'capEventDisable', 'automation.edit': 'capEventDelete', 'points.read': 'capPoints', 'points.adjust': 'capPointsAdjust', 'competitions.read': 'capCompetitions', 'competitions.manage': 'capCompetitionStop', 'commands.read': 'capCommands' } as const;
-const effectCaps = ['http.request', 'audio.play', 'events.emit', 'scripts.execute'] as const;
-const effectLabels = { 'http.request': 'capHttp', 'audio.play': 'capAudio', 'events.emit': 'capEmit', 'scripts.execute': 'capScript' } as const;
-type DelegatedEffect = AutomationDelegation['effects'][number];
-const delegatedEffects: DelegatedEffect[] = ['log', 'delay', 'points', 'http', 'audio', 'emit', 'script'];
-const effectCapabilities: Partial<Record<DelegatedEffect, Capability[]>> = { points: ['points.read', 'points.adjust'], http: ['http.request'], audio: ['audio.play'], emit: ['events.emit'], script: ['scripts.execute', 'live.read'] };
-const requiredAutomation: Capability[] = ['automation.read', 'automation.edit', 'automation.toggle'];
-const writeDependencies: Partial<Record<Capability, Capability[]>> = {
-  'workflows.toggle': ['workflows.read', 'commands.read'],
-  'workflows.edit': ['workflows.read', 'commands.read'],
-  'automation.toggle': ['automation.read', 'commands.read'],
-  'automation.edit': ['automation.read', 'commands.read'],
-  'points.adjust': ['points.read', 'commands.read'],
-  'competitions.manage': ['competitions.read', 'commands.read'],
-};
-function requiredByDelegation(capability: Capability): boolean {
-  const delegation = model.value.automationDelegation;
-  return model.value.capabilities.includes(capability) && (model.value.capabilities.some((write) => writeDependencies[write]?.includes(capability)) || (!!delegation && (requiredAutomation.includes(capability) || delegation.effects.some((effect) => effectCapabilities[effect]?.includes(capability)))));
-}
-function setDelegatedEffect(effect: DelegatedEffect, enabled: boolean): void {
-  const value = copy();
-  const effects = new Set(value.automationDelegation?.effects ?? []);
-  if (enabled) effects.add(effect); else effects.delete(effect);
-  if (!effects.size) delete value.automationDelegation;
-  else {
-    value.automationDelegation = { ...value.automationDelegation, effects: [...effects], allowDynamicTargets: value.automationDelegation?.allowDynamicTargets ?? false };
-    const caps = new Set(value.capabilities);
-    requiredAutomation.forEach((capability) => caps.add(capability));
-    if (enabled) effectCapabilities[effect]?.forEach((capability) => caps.add(capability));
-    for (const capability of [...caps]) writeDependencies[capability]?.forEach((dependency) => caps.add(dependency));
-    value.capabilities = [...caps];
-  }
+const section = ref('permissions');
+const jsonReset = ref(0);
+const scopeReset = ref(0);
+const sections = computed(() => ['permissions', 'delegation', 'effects', 'resources', 'advanced'].map(value => ({ value, label: t(`collaboration.editorSections.${value}`) })));
+function setAll(enabled: boolean): void {
+  if (props.disabled) return;
+  const value = cloneGrant(model.value);
+  value.capabilities = enabled ? [...capabilities] : [];
+  if (!enabled) delete value.automationDelegation;
   model.value = value;
+  jsonReset.value += 1;
 }
-function setOwnerEdits(enabled: boolean): void {
-  const value = copy();
-  if (value.automationDelegation) {
-    if (enabled) value.automationDelegation.allowOwnerEdits = true;
-    else { delete value.automationDelegation.allowOwnerEdits; delete value.automationDelegation.allowOwnerSource; }
-  }
-  model.value = value;
-}
-function setOwnerSource(enabled: boolean): void {
-  const value = copy();
-  if (value.automationDelegation && value.automationDelegation.allowOwnerEdits) {
-    if (enabled) value.automationDelegation.allowOwnerSource = true;
-    else delete value.automationDelegation.allowOwnerSource;
-  }
-  model.value = value;
-}
-function setOtherAuthorEdits(enabled: boolean): void {
-  const value = copy();
-  if (value.automationDelegation) {
-    if (enabled) value.automationDelegation.allowOtherAuthorEdits = true;
-    else { delete value.automationDelegation.allowOtherAuthorEdits; delete value.automationDelegation.allowOtherAuthorSource; }
-  }
-  model.value = value;
-}
-function setOtherAuthorSource(enabled: boolean): void {
-  const value = copy();
-  if (value.automationDelegation?.allowOtherAuthorEdits) {
-    if (enabled) value.automationDelegation.allowOtherAuthorSource = true;
-    else delete value.automationDelegation.allowOtherAuthorSource;
-  }
-  model.value = value;
-}
-function setDynamicTargets(enabled: boolean): void {
-  const value = copy();
-  if (value.automationDelegation) value.automationDelegation.allowDynamicTargets = enabled;
-  model.value = value;
-}
-const modes = ref<Partial<Record<ResourceKind, 'all' | 'selected' | 'none'>>>({});
-const jsonDraft = ref('');
-const jsonDirty = ref(false);
-const invalid = ref(false);
-watch(model, (value) => {
-  for (const kind of resourceKinds) {
-    const ids = value.resources[kind];
-    modes.value[kind] = ids === undefined ? 'all' : ids.length || modes.value[kind] === 'selected' ? 'selected' : 'none';
-  }
-  if (!jsonDirty.value) jsonDraft.value = JSON.stringify(value, null, 2);
-}, { immediate: true, deep: true });
-const copy = () => JSON.parse(JSON.stringify(model.value)) as Grant;
-function setCapability(capability: Capability, allowed: boolean): void {
-  const value = copy(); const caps = new Set(value.capabilities);
-  if (allowed) caps.add(capability); else caps.delete(capability);
-  if (allowed) writeDependencies[capability]?.forEach((dependency) => caps.add(dependency));
-  value.capabilities = [...caps]; model.value = value;
-}
-function setMode(kind: ResourceKind, mode: 'all' | 'selected' | 'none'): void {
-  const value = copy(); modes.value[kind] = mode;
-  if (mode === 'all') delete value.resources[kind];
-  else value.resources[kind] = mode === 'none' ? [] : value.resources[kind] ?? [];
-  model.value = value;
-}
-function setIds(kind: ResourceKind, text: string): void { const value = copy(); value.resources[kind] = splitIds(text); model.value = value; }
-function setPointsLimit(event: Event): void {
-  const input = event.target as HTMLInputElement;
-  const value = copy();
-  value.maxPointsDelta = input.validity.badInput ? 0 : input.value === '' ? null : Number.isFinite(input.valueAsNumber) ? input.valueAsNumber : 0;
-  model.value = value;
-}
-function setEffects(effects: EffectGrants | undefined): void { const value = copy(); if (effects) value.effects = effects; else delete value.effects; model.value = value; }
 function preset(kind: 'viewer' | 'workflow' | 'agent'): void {
   const value = viewerGrant();
   if (kind !== 'viewer') { value.capabilities.push('workflows.read'); value.resources.workflow = []; }
   if (kind === 'agent') value.capabilities.push('commands.read');
-  jsonDirty.value = false; modes.value = {}; model.value = value;
-}
-function applyJson(): void {
-  try { const value = parseGrant(JSON.parse(jsonDraft.value)); jsonDirty.value = false; invalid.value = false; modes.value = {}; model.value = value; }
-  catch { invalid.value = true; }
+  model.value = value;
+  jsonReset.value += 1;
+  scopeReset.value += 1;
 }
 </script>
 
@@ -158,182 +59,60 @@ function applyJson(): void {
       </BaseButton>
     </div>
     <div
-      v-for="group in capabilityGroups"
-      :key="group.key"
-      class="grant-editor__group"
+      class="grant-editor__bulk"
+      role="group"
+      :aria-label="t('collaboration.bulkLabel')"
     >
-      <h4>{{ t(`collaboration.grantGroups.${group.key}`) }}</h4>
-      <div class="grant-editor__switches">
-        <BaseSwitch
-          v-for="capability in group.ids"
-          :key="capability"
-          :model-value="model.capabilities.includes(capability)"
-          :disabled="disabled || requiredByDelegation(capability)"
-          @update:model-value="setCapability(capability, $event)"
-        >
-          {{ t(`collaboration.${labels[capability]}`) }}
-        </BaseSwitch>
-      </div>
-    </div>
-    <p>{{ t('collaboration.reusableGrantHint') }}</p>
-    <label v-if="model.capabilities.includes('points.adjust')">
-      {{ t('collaboration.pointsLimit') }}
-      <input
-        type="number"
-        min="0"
-        step="any"
-        :value="model.maxPointsDelta ?? ''"
-        :disabled="disabled"
-        @input="setPointsLimit"
-      >
-      <span>{{ t('collaboration.pointsLimitHint') }}</span>
-    </label>
-    <SettingsDisclosure :title="t('collaboration.futurePermissions')">
-      <p>{{ t('collaboration.futureHint') }}</p>
-      <BaseSwitch
-        v-for="capability in capabilities.filter((c) => !current.some((v) => v === c) && !effectCaps.some((v) => v === c))"
-        :key="capability"
-        :model-value="model.capabilities.includes(capability)"
-        :disabled="disabled || requiredByDelegation(capability)"
-        @update:model-value="setCapability(capability, $event)"
-      >
-        {{ capability }}
-      </BaseSwitch>
-    </SettingsDisclosure>
-    <SettingsDisclosure :title="t('collaboration.delegationTitle')">
-      <p>{{ t('collaboration.delegationHint') }}</p>
-      <p>{{ t('collaboration.delegationReadHint') }}</p>
-      <BaseSwitch
-        v-for="effect in delegatedEffects"
-        :key="effect"
-        :model-value="model.automationDelegation?.effects.includes(effect) ?? false"
-        :disabled="disabled"
-        @update:model-value="setDelegatedEffect(effect, $event)"
-      >
-        {{ t(`collaboration.delegationEffects.${effect}`) }}
-      </BaseSwitch>
-      <BaseSwitch
-        :model-value="model.automationDelegation?.allowOwnerEdits ?? false"
-        :disabled="disabled || !model.automationDelegation"
-        @update:model-value="setOwnerEdits"
-      >
-        {{ t('collaboration.delegationOwnerEdits') }}
-      </BaseSwitch>
-      <p>{{ t('collaboration.delegationOwnerEditsHint') }}</p>
-      <BaseSwitch
-        :model-value="model.automationDelegation?.allowOwnerSource ?? false"
-        :disabled="disabled || !model.automationDelegation?.allowOwnerEdits"
-        @update:model-value="setOwnerSource"
-      >
-        {{ t('collaboration.delegationOwnerSource') }}
-      </BaseSwitch>
-      <p>{{ t('collaboration.delegationOwnerSourceHint') }}</p>
-      <BaseSwitch
-        :model-value="model.automationDelegation?.allowOtherAuthorEdits ?? false"
-        :disabled="disabled || !model.automationDelegation"
-        @update:model-value="setOtherAuthorEdits"
-      >
-        {{ t('collaboration.delegationOtherEdits') }}
-      </BaseSwitch>
-      <p>{{ t('collaboration.delegationOtherEditsHint') }}</p>
-      <BaseSwitch
-        :model-value="model.automationDelegation?.allowOtherAuthorSource ?? false"
-        :disabled="disabled || !model.automationDelegation?.allowOtherAuthorEdits"
-        @update:model-value="setOtherAuthorSource"
-      >
-        {{ t('collaboration.delegationOtherSource') }}
-      </BaseSwitch>
-      <p>{{ t('collaboration.delegationOtherSourceHint') }}</p>
-      <BaseSwitch
-        :model-value="model.automationDelegation?.allowDynamicTargets ?? false"
-        :disabled="disabled || !model.automationDelegation"
-        @update:model-value="setDynamicTargets"
-      >
-        {{ t('collaboration.delegationDynamic') }}
-      </BaseSwitch>
-    </SettingsDisclosure>
-    <SettingsDisclosure :title="t('collaboration.effectRules')">
-      <BaseSwitch
-        v-for="capability in effectCaps"
-        :key="capability"
-        :model-value="model.capabilities.includes(capability)"
-        :disabled="disabled || requiredByDelegation(capability)"
-        @update:model-value="setCapability(capability, $event)"
-      >
-        {{ t(`collaboration.${effectLabels[capability]}`) }}
-      </BaseSwitch>
-      <EffectGrantEditor
-        :model-value="model.effects"
-        :disabled="disabled"
-        @update:model-value="setEffects"
-      />
-    </SettingsDisclosure>
-    <SettingsDisclosure :title="t('collaboration.scopes')">
-      <div
-        v-for="kind in resourceKinds"
-        :key="kind"
-        class="grant-editor__scope"
-      >
-        <label>{{ t(`collaboration.scopeKinds.${kind}`) }}<select
-          :value="modes[kind]"
-          :disabled="disabled"
-          @change="setMode(kind, ($event.target as HTMLSelectElement).value as 'all' | 'selected' | 'none')"
-        ><option value="all">{{ t('collaboration.all') }}</option><option value="selected">{{ t('collaboration.selected') }}</option><option value="none">{{ t('collaboration.none') }}</option></select></label>
-        <BaseTextArea
-          v-if="modes[kind] === 'selected'"
-          :model-value="model.resources[kind]?.join('\n') ?? ''"
-          :aria-label="`${t(`collaboration.scopeKinds.${kind}`)} — ${t('collaboration.ids')}`"
-          :placeholder="t(kind === 'automation' ? 'collaboration.automationIds' : 'collaboration.ids')"
-          :disabled="disabled"
-          :rows="3"
-          maxlength="65536"
-          @update:model-value="setIds(kind, $event)"
-        />
-        <p v-if="kind === 'automation'">
-          {{ t('collaboration.automationScopeHint') }}
-        </p>
-      </div>
-    </SettingsDisclosure>
-    <SettingsDisclosure :title="t('collaboration.extraGrant')">
-      <BaseTextArea
-        v-model="jsonDraft"
-        :disabled="disabled"
-        :aria-label="t('collaboration.extraGrant')"
-        :rows="8"
-        maxlength="262144"
-        spellcheck="false"
-        @update:model-value="jsonDirty = true"
-      />
       <BaseButton
         :disabled="disabled"
-        @click="applyJson"
+        @click="setAll(true)"
       >
-        {{ t('collaboration.applyJson') }}
+        {{ t('collaboration.enableAll') }}
       </BaseButton>
-      <p
-        v-if="invalid"
-        role="alert"
+      <BaseButton
+        :disabled="disabled"
+        @click="setAll(false)"
       >
-        {{ t('collaboration.invalidGrant') }}
-      </p>
-    </SettingsDisclosure>
-    <SettingsDisclosure :title="t('collaboration.grantSummary')">
-      <BaseJsonView
-        :value="model"
-        max-height="300px"
+        {{ t('collaboration.disableAll') }}
+      </BaseButton>
+      <span>{{ t('collaboration.bulkHint') }}</span>
+    </div>
+    <BaseTabs
+      v-model="section"
+      :tabs="sections"
+      :label="t('collaboration.grantSummary')"
+      class="grant-editor__tabs"
+    >
+      <GrantPermissions
+        v-show="section === 'permissions'"
+        v-model="model"
+        :disabled="disabled"
       />
-    </SettingsDisclosure>
+      <AdvancedGrantEditor
+        v-show="section === 'advanced'"
+        v-model="model"
+        :disabled="disabled"
+        :reset-key="jsonReset"
+        @applied="scopeReset += 1"
+      />
+      <GrantDelegation
+        v-show="section === 'delegation'"
+        v-model="model"
+        :disabled="disabled"
+      />
+      <GrantEffects
+        v-show="section === 'effects'"
+        v-model="model"
+        :disabled="disabled"
+      />
+      <GrantResources
+        v-show="section === 'resources'"
+        v-model="model"
+        :disabled="disabled"
+        :reset-key="scopeReset"
+      />
+    </BaseTabs>
   </div>
 </template>
 
-<style scoped>
-.grant-editor { display: flex; flex-direction: column; gap: var(--space-3); }
-.grant-editor__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.grant-editor__scope { margin: var(--space-3) 0; }
-.grant-editor__group { display: flex; flex-direction: column; gap: var(--space-3); }
-.grant-editor__group h4 { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .04em; }
-.grant-editor__switches { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3) var(--space-4); }
-.grant-editor label { display: grid; gap: var(--space-2); }
-.grant-editor select, .grant-editor input { padding: var(--space-3); color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); }
-summary { cursor: pointer; }
-</style>
+<style src="./grant-editor.css"></style>

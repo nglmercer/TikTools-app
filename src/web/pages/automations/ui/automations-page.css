@@ -1,0 +1,149 @@
+.automations-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--space-4);
+}
+
+.automations-page__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  flex: none;
+  align-items: center;
+  gap: var(--space-4);
+  row-gap: var(--space-2);
+}
+
+.automations-page__spacer {
+  flex: 1;
+}
+
+/* Separates the profile picker group from page actions. */
+.automations-page__divider {
+  align-self: stretch;
+  width: var(--border-width);
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border);
+}
+
+.automations-page__banner {
+  flex: none;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-success);
+  border-radius: var(--radius-sm);
+  color: var(--color-success);
+}
+
+.automations-page__banner--error {
+  border-color: var(--color-danger);
+  color: var(--color-danger-hover);
+}
+
+.automations-page__target { overflow-wrap: anywhere; }
+.automations-page__proposal-button { height: auto; max-width: 45%; min-height: var(--control-height-sm); white-space: normal; }
+
+.automations-page__work {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.automations-page__nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.automations-page__nav > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.automations-page__runs {
+  flex: none;
+}
+
+.automations-page__sheet {
+  display: flex;
+  flex-direction: column;
+}
+
+.automations-page__sheet-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-height: var(--control-height-lg);
+  padding: var(--space-1) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-bg-panel-header);
+}
+
+.automations-page__sheet-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.automations-page__sheet-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.automations-page__sheet-body > .base-panel {
+  flex: 1;
+}
+
+@media (width < 900px) {
+  .automations-page {
+    padding: var(--space-3);
+    overflow-y: auto;
+  }
+
+  .automations-page__toolbar {
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+  }
+
+  /* The toolbar wraps, so the group divider no longer separates anything. */
+  .automations-page__divider {
+    display: none;
+  }
+
+  .automations-page__work {
+    flex: none;
+    min-height: auto;
+  }
+
+  .automations-page__nav {
+    flex: none;
+    height: min(64dvh, 560px);
+  }
+
+  /* On narrow screens the open record becomes a full-screen sheet over the page. */
+  .automations-page__sheet {
+    position: fixed;
+    inset: 30px 0 0 0;
+    z-index: 30;
+    border: 0;
+    background: var(--color-bg-app);
+  }
+
+  .automations-page__sheet-bar {
+    flex-wrap: nowrap;
+  }
+}

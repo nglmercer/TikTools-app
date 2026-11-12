@@ -136,3 +136,46 @@ Combo-box popups opened inside a modal must be teleported into the open dialog,
 so native top-layer and inert behavior keep them visible and interactive.
 Keep decorative introductions and repeated instructions out of the overlay
 workspace; preserve validation, errors and accessible field labels.
+
+## Collaboration settings and grants
+
+Keep Teams in its capability-gated settings tab rather than appending it below
+remote-host configuration. Collaboration uses tabs for status, device records,
+invitation creation and direct transport. Navigation retains unsaved drafts and
+makes no configuration writes. Permission categories use tabs; exact resource
+access uses labelled All / Selected IDs / None segmented controls.
+
+Bulk permission actions edit the local grant draft only. Enable-all selects
+known capabilities without widening resource, action, settings, points or
+external-effect restrictions. Disable-all also removes reusable automation
+authorization so the draft remains valid. Owner approval and grant-application
+confirmation remain explicit. The UI kit contains an isolated editable grant
+example with a disabled state. Mobile tab rows scroll horizontally; the primary
+settings tabs use a compact two-column layout on narrow phones.
+
+## Composition boundaries for complex views
+
+Split views by user task and state ownership rather than moving an entire
+component into one large composable. Collaboration's root owns lifecycle,
+approval/revocation confirmations and writes; overview, direct connection,
+records and invitation components receive data and emit actions. Grant panels
+share immutable capability/delegation edits while keeping resource-selection
+and raw-JSON drafts local. Explicit reset signals preserve preset and JSON
+apply behavior across the panels.
+
+SyncPanel owns its adapter and dialog-lifetime state. The sidebar and diff pane
+render narrow state interfaces; diff and merge choices are initialized in the
+root's lifecycle so closing a dialog cannot silently discard them. Cloud account
+sync separately owns one account/session invalidation generation shared by
+legacy recovery, v2 protocol/migration and v2 conflict hooks. Those hooks never
+subscribe to account changes independently.
+
+Team access, devices, invitations and membership use the existing Teams store;
+the root alone starts refresh and clears secret tokens on unmount. Automation
+record editor components emit saves/deletes to the page's existing guarded
+workflow. Read-only library projections and the history-menu registry have
+separate composables.
+
+Feature styles shared by extracted components live in namespaced feature CSS
+files, loaded by the root. Restrict native-control rules to explicit classes;
+do not broaden formerly scoped rules to every descendant input or label.

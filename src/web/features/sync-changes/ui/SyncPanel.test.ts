@@ -188,6 +188,22 @@ describe('SyncPanel conflicts', () => {
   });
 });
 
+describe('SyncPanel view lifecycle', () => {
+  it('retains unapplied conflict choices when its dialog closes and reopens', async () => {
+    const { wrapper, spies } = await open(allCapabilities);
+    await byLabel(wrapper, 'View Clash').trigger('click');
+    await byText(wrapper, 'All Cloud')!.trigger('click');
+    await wrapper.setProps({ open: false });
+    await wrapper.setProps({ open: true });
+    await flushPromises();
+    expect(spies.resolve).not.toHaveBeenCalled();
+    expect(wrapper.findAll('.sync-panel__choice[aria-checked="true"]').every(choice => choice.text().includes('Cloud'))).toBe(true);
+    await byText(wrapper, 'Apply merge')!.trigger('click');
+    await flushPromises();
+    expect(spies.resolve).toHaveBeenCalledWith('e4', { choice: 'merged', value: { name: 'Theirs', volume: 9, color: 'red' } });
+  });
+});
+
 describe('SyncPanel history view', () => {
   it('lists operations, shows the changed elements and diff of the selected one', async () => {
     const { wrapper, spies } = await open(allCapabilities);

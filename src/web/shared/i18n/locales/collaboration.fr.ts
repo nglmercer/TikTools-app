@@ -1,4 +1,22 @@
 export default {
+
+  "enableAll": "Activer toutes les permissions",
+  "disableAll": "Désactiver toutes les permissions",
+  "bulkLabel": "Permissions groupées",
+  "bulkHint": "Modifie uniquement le brouillon. Restrictions et approbation restent applicables.",
+  "editorSections": {
+    "permissions": "Permissions",
+    "delegation": "Automatisations",
+    "effects": "Effets externes",
+    "resources": "Ressources",
+    "advanced": "Avancé"
+  },
+  "scopeModes": {
+    "all": "Tous",
+    "selected": "IDs sélectionnés",
+    "none": "Aucun"
+  }
+,
   rejectTitle: 'Refuser cette demande ?',
   rejectMessage: 'Cette demande en attente sera refusée. Les appareils déjà approuvés conserveront leur accès.',
   revokeSessionMessage: 'Seule la session de cet appareil sera révoquée. Les autres appareils approuvés et le LIVE local continuent.',

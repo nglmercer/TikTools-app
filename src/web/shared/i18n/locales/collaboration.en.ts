@@ -1,4 +1,22 @@
 export default {
+
+  "enableAll": "Enable all permissions",
+  "disableAll": "Disable all permissions",
+  "bulkLabel": "Bulk permissions",
+  "bulkHint": "Edits this draft only. Resource restrictions and approval still apply.",
+  "editorSections": {
+    "permissions": "Permissions",
+    "delegation": "Automations",
+    "effects": "External effects",
+    "resources": "Resources",
+    "advanced": "Advanced"
+  },
+  "scopeModes": {
+    "all": "All",
+    "selected": "Selected IDs",
+    "none": "None"
+  }
+,
   rejectTitle: 'Reject this request?',
   rejectMessage: 'This pending request will be rejected. Existing approved devices will keep their access.',
   revokeSessionMessage: 'Only this device session will be revoked. Other approved devices and the local LIVE continue.',

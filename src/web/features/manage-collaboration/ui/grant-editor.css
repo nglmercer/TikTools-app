@@ -1,0 +1,28 @@
+.grant-editor { display: flex; flex-direction: column; gap: var(--space-3); }
+.grant-editor__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.grant-editor__scope { margin: var(--space-3) 0; }
+.grant-editor__group { display: flex; flex-direction: column; gap: var(--space-3); }
+.grant-editor__group h4 { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.grant-editor__switches { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-3) var(--space-4); }
+.grant-editor__points-limit { display: grid; gap: var(--space-2); }
+.grant-editor__points-limit input { padding: var(--space-3); color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); }
+.grant-editor__bulk { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4); padding:var(--space-5); border:1px solid var(--color-border); background:var(--color-bg-app); }
+.grant-editor__bulk > span { color:var(--color-text-muted); font-size:var(--font-size-sm); }
+.grant-editor__panel { display:grid; gap:var(--space-5); padding:var(--space-6) 0; }
+.grant-editor__panel h3, .grant-editor__scope h4 { margin:0; font-size:var(--font-size-md); }
+.grant-editor__scope { display:grid; gap:var(--space-4); padding:var(--space-5); border:1px solid var(--color-border-subtle); background:var(--color-bg-app); }
+.grant-editor__switches > .base-switch { display:flex; align-items:center; gap:var(--space-5); padding:var(--space-5); border:1px solid var(--color-border-subtle); background:var(--color-bg-app); }
+.grant-editor__tabs .base-tabs__list { flex-wrap:wrap; }
+@media (width < 600px) {
+ .grant-editor__switches { grid-template-columns:minmax(0,1fr); }
+ .grant-editor__actions { flex-wrap:nowrap; overflow-x:auto; padding-bottom:var(--space-3); }
+ .grant-editor__actions > button { flex:none; }
+ .grant-editor__bulk > button { flex:1; min-width:110px; height:auto; min-height:44px; white-space:normal; padding:var(--space-4); }
+ .grant-editor__bulk > button .base-button__label { white-space:normal; }
+ .grant-editor__tabs .base-tabs__list { flex-wrap:nowrap; overflow-x:auto; min-width:0; max-width:100%; }
+ .grant-editor__tabs .base-tabs__tab { flex:none; white-space:nowrap; }
+
+ .grant-editor__scope .base-segmented { display:flex; width:100%; }
+ .grant-editor__scope .base-segmented__option { flex:1; padding:0 var(--space-4); }
+ .grant-editor__tabs .base-tabs__tab { min-height:44px; }
+}

@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { useAutomationHistory } from '@/widgets/automation-history-menu/model/use-automation-history.ts';
+import { useAutomationLibraryData } from '../model/use-automation-library-data.ts';
+import type { EditingRecord } from '../model/editing-record.ts';
+import AutomationRecordEditor from './AutomationRecordEditor.vue';
 import { storeToRefs } from 'pinia';
-import { computed, inject, markRaw, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
 import { routeLocationKey, routerKey } from 'vue-router';
 import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useAutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
@@ -21,7 +25,6 @@ import OwnerDefinitionRecovery from '@/features/recover-owner-definition/ui/Owne
 import type { DefinitionState } from '@/entities/automation/model/definition-contracts.ts';
 import { recordKey } from '@/entities/automation/model/record-versions.ts';
 import {
-  availableActionTypeIds,
   createActionFromType,
   createEvent,
   isRecordSort,
@@ -33,12 +36,10 @@ import { usePointsStore } from '@/entities/points/model/points-store.ts';
 import type { AppliedRuleTemplate, RuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
 import { isRuleTemplateTab, type RuleTemplateTab } from '@/features/apply-rule-template/model/template-tab.ts';
 import RuleTemplateDialog from '@/features/apply-rule-template/ui/RuleTemplateDialog.vue';
-import ActionEditor from '@/features/edit-automation-action/ui/ActionEditor.vue';
-import EventEditor from '@/features/edit-automation-event/ui/EventEditor.vue';
 import ProfileImportDialog from '@/features/manage-rule-profiles/ui/ProfileImportDialog.vue';
 import ProfileToolbar from '@/features/manage-rule-profiles/ui/ProfileToolbar.vue';
 import ActionTypeDialog from '@/features/pick-action-type/ui/ActionTypeDialog.vue';
-import { resolvedPacks, type RuleProfile } from '@/entities/rule-template/model/rule-profiles-state.ts';
+import { type RuleProfile } from '@/entities/rule-template/model/rule-profiles-state.ts';
 import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
@@ -46,30 +47,17 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
-import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
-import IconFile from '@/shared/ui/icon/icons/IconFile.vue';
-import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
-import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
-import IconLock from '@/shared/ui/icon/icons/IconLock.vue';
-import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
-import type { MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
-import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
 import { isLibraryTab, type LibraryArea, type LibraryExtraArea, type LibraryTab } from '@/widgets/automation-library/model/library-tab.ts';
 import AutomationHistoryMenu from '@/widgets/automation-history-menu/ui/AutomationHistoryMenu.vue';
 import AutomationLibrary from '@/widgets/automation-library/ui/AutomationLibrary.vue';
 import AutomationRunsPanel from '@/widgets/automation-runs/ui/AutomationRunsPanel.vue';
-
-type Editing =
-  | { kind: 'event'; record: LiveEvent; isNew: boolean }
-  | { kind: 'action'; record: LiveAction; isNew: boolean };
 
 const { t } = useAutomationText();
 const automation = useAutomationControls();
 // Variables sync is a TODO (docs/SYNC-CHANGES-PLAN.md): register its adapter here and add a button to that tab once a Cloud collection carries it.
 const syncAdapters = useAutomationSyncAdapters();
 const library = libraryJournal(useControlClient());
-const libraryPanel = ref<{ openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const editor = useAutomationEditor({
   read: automation.readRecord,
   save: (kind, record, base) => kind === 'event'
@@ -113,10 +101,7 @@ const eventSort = ref<RecordSort>(isRecordSort(saved?.eventSort) ? saved.eventSo
 const actionSort = ref<RecordSort>(isRecordSort(saved?.actionSort) ? saved.actionSort : 'name');
 const reviewOpen = ref(false);
 const proposalReviewOpen = ref(false);
-const proposalReviewPanel = ref<{ openReview: () => void; openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const approvalReviewOpen = ref(false);
-const approvalReviewPanel = ref<{ openReview: () => void; openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
-const definitionRecoveryPanel = ref<{ openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const pickerOpen = ref(false);
 const templatesOpen = ref(false);
 const templatesTab = ref<RuleTemplateTab>('templates');
@@ -141,89 +126,16 @@ async function retryLibrary(): Promise<void> {
 }
 const isNarrow = useMediaQuery('(width < 900px)');
 
+const { libraryPanel, proposalReviewPanel, definitionRecoveryPanel, approvalReviewPanel, historyItems, historyAttention, openHistory } = useAutomationHistory(automation, () => proposalTarget.value);
 const snapshot = computed(() => automation.snapshot.value);
 
-// One menu for every host history and review; each entry opens the existing dialog of its panel.
-const historyItems = computed<MenuEntry[]>(() => {
-  const persistent = automation.persistent.value;
-  const entry = (id: string, label: string, icon: typeof IconFile, panel: { busy: boolean } | null): MenuEntry =>
-    ({ id, label, icon: markRaw(icon), disabled: !panel || panel.busy });
-  const items: MenuEntry[] = [];
-  const proposal = proposalReviewPanel.value;
-  const definition = definitionRecoveryPanel.value;
-  const library = libraryPanel.value;
-  const approval = approvalReviewPanel.value;
-  if (persistent === true) items.push(entry('adoption', t(proposal?.hasPending ? 'automationProposal.pendingButton' : 'automationProposal.history'), IconFile, proposal));
-  if (persistent === true || automation.sourceHost.value !== null) items.push(entry('definition', t(definition?.hasPending ? 'definitionRecovery.pendingButton' : 'definitionRecovery.history'), IconFlow, definition));
-  if (persistent !== false) items.push(entry('library', t(library?.hasPending ? 'libraryRecovery.pendingButton' : 'libraryRecovery.history'), IconLayers, library));
-  if (persistent === true) items.push(entry('approval', t(approval?.hasPending ? 'automationApproval.pendingButton' : 'automationApproval.history'), IconCheck, approval));
-  if (persistent === true && proposalTarget.value) {
-    items.push({ type: 'separator', id: 'reviews' });
-    items.push(entry('review-authority', t('automationProposal.open'), IconSearch, proposal));
-    items.push(entry('review-approval', t('automationApproval.open'), IconLock, approval));
-  }
-  return items;
-});
-const historyAttention = computed(() =>
-  Boolean(proposalReviewPanel.value?.hasPending || definitionRecoveryPanel.value?.hasPending || libraryPanel.value?.hasPending || approvalReviewPanel.value?.hasPending),
-);
-function openHistory(id: string): void {
-  const open: Record<string, (() => void) | undefined> = {
-    adoption: () => proposalReviewPanel.value?.openHistory(),
-    definition: () => definitionRecoveryPanel.value?.openHistory(),
-    library: () => libraryPanel.value?.openHistory(),
-    approval: () => approvalReviewPanel.value?.openHistory(),
-    'review-authority': () => proposalReviewPanel.value?.openReview(),
-    'review-approval': () => approvalReviewPanel.value?.openReview(),
-  };
-  open[id]?.();
-}
-const eventTypes = computed(() => snapshot.value.eventTypes ?? []);
-const packs = computed(() =>
-  resolvedPacks(
-    [...automation.profilePacks.value],
-    snapshot.value.events.map((event) => event.id),
-    snapshot.value.actions.map((action) => action.id),
-  ),
-);
-const activePack = computed(() => packs.value.find((pack) => pack.id === automation.activeProfileId.value) ?? null);
-const events = computed(() => {
-  const pack = activePack.value;
-  if (!pack) return snapshot.value.events;
-  const ids = new Set(pack.eventIds);
-  return snapshot.value.events.filter((event) => ids.has(event.id));
-});
-const actions = computed(() => {
-  const pack = activePack.value;
-  if (!pack) return snapshot.value.actions;
-  const ids = new Set(pack.actionIds);
-  return snapshot.value.actions.filter((action) => ids.has(action.id));
-});
-const availableTypes = computed(() => availableActionTypeIds(snapshot.value.plugins, snapshot.value.actionTypes));
-const gifts = computed<SearchOption[]>(() =>
-  automation.gifts.value.map((gift) => ({
-    value: gift.name,
-    label: gift.name,
-    detail: `${gift.diamondCount} 💎`,
-    iconUrl: gift.iconUrl,
-  })),
-);
-const viewers = computed<SearchOption[]>(() =>
-  leaderboard.value.map((viewer) => ({
-    value: viewer.uniqueId,
-    label: viewer.nickname ? `${viewer.nickname} (@${viewer.uniqueId})` : `@${viewer.uniqueId}`,
-    detail: t('automations.pickers.points', { points: viewer.points }),
-  })),
-);
-
-const editing = computed<Editing | null>(() => {
+const { packs, events, actions, eventTypes, availableTypes, gifts, viewers } = useAutomationLibraryData(automation, leaderboard);
+const editing = computed<EditingRecord | null>(() => {
   const state = editor.state.value;
   if (!state) return null;
   return state.kind === 'event' ? { kind: 'event', record: state.candidate as LiveEvent, isNew: state.create }
     : { kind: 'action', record: state.candidate as LiveAction, isNew: state.create };
 });
-const eventBaseline = computed(() => editor.state.value?.kind === 'event' ? editor.state.value.base as LiveEvent | null : null);
-const actionBaseline = computed(() => editor.state.value?.kind === 'action' ? editor.state.value.base as LiveAction | null : null);
 const proposalTarget = computed(() => {
   const state = editor.state.value;
   if (!state || state.create) return null;
@@ -596,76 +508,23 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
               :memory="automation.persistent.value === false"
               @compare="compare"
             />
-            <EventEditor
-              v-if="editing.kind === 'event'"
-              :key="editor.state.value?.token"
-              :baseline="eventBaseline ?? undefined"
-              :busy="editor.state.value?.busy"
+            <AutomationRecordEditor
+              :editing="editing"
+              :state="editor.state.value"
               :save-blocked="editor.saveBlocked.value"
-              :event="editing.record"
-              :is-new="editing.isNew"
-              :actions="actions"
+              :is-narrow="isNarrow"
+              :snapshot="snapshot"
               :event-types="eventTypes"
+              :actions="actions"
               :gifts="gifts"
               :viewers="viewers"
-              :test-runs="automation.testRuns.value"
-              :hotkey-status="automation.hotkeyStatus.value"
-              :error="automation.error.value"
-              @save="saveEvent"
+              :automation="automation"
+              @save-event="saveEvent"
+              @save-action="saveAction"
               @change="editor.change"
-              @delete="removeRecord('events', $event)"
-              @test="automation.testEvent"
-              @fire="automation.fireEvent"
-            >
-              <template
-                v-if="!isNarrow"
-                #leading
-              >
-                <BaseIconButton
-                  :label="t('common.back')"
-                  variant="default"
-                  size="sm"
-                  @click="closeEditor"
-                >
-                  <IconChevronLeft />
-                </BaseIconButton>
-              </template>
-            </EventEditor>
-            <ActionEditor
-              v-else
-              :key="editor.state.value?.token"
-              :baseline="actionBaseline ?? undefined"
-              :busy="editor.state.value?.busy"
-              :save-blocked="editor.saveBlocked.value"
-              :action="editing.record"
-              :is-new="editing.isNew"
-              :action-types="snapshot.actionTypes"
-              :test-runs="automation.testRuns.value"
-              :globals="automation.globals.value"
-              :action-options="automation.actionOptions.value"
-              :action-option-errors="automation.actionOptionErrors.value"
-              :open-media-picker="automation.openMediaPicker"
-              :error="automation.error.value"
-              @save="saveAction"
-              @change="editor.change"
-              @delete="removeRecord('actions', $event)"
-              @test="automation.testAction"
-              @load-options="automation.loadOptions"
-            >
-              <template
-                v-if="!isNarrow"
-                #leading
-              >
-                <BaseIconButton
-                  :label="t('common.back')"
-                  variant="default"
-                  size="sm"
-                  @click="closeEditor"
-                >
-                  <IconChevronLeft />
-                </BaseIconButton>
-              </template>
-            </ActionEditor>
+              @remove="removeRecord"
+              @close="closeEditor"
+            />
           </div>
         </div>
       </div>
@@ -752,154 +611,4 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
   </div>
 </template>
 
-<style scoped>
-.automations-page {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-  min-height: 0;
-  padding: var(--space-4);
-}
-
-.automations-page__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  flex: none;
-  align-items: center;
-  gap: var(--space-4);
-  row-gap: var(--space-2);
-}
-
-.automations-page__spacer {
-  flex: 1;
-}
-
-/* Separates the profile picker group from page actions. */
-.automations-page__divider {
-  align-self: stretch;
-  width: var(--border-width);
-  margin: var(--space-1) var(--space-2);
-  background: var(--color-border);
-}
-
-.automations-page__banner {
-  flex: none;
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--color-success);
-  border-radius: var(--radius-sm);
-  color: var(--color-success);
-}
-
-.automations-page__banner--error {
-  border-color: var(--color-danger);
-  color: var(--color-danger-hover);
-}
-
-.automations-page__target { overflow-wrap: anywhere; }
-.automations-page__proposal-button { height: auto; max-width: 45%; min-height: var(--control-height-sm); white-space: normal; }
-
-.automations-page__work {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-height: 0;
-}
-
-.automations-page__nav {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.automations-page__nav > * {
-  flex: 1;
-  min-height: 0;
-}
-
-.automations-page__runs {
-  flex: none;
-}
-
-.automations-page__sheet {
-  display: flex;
-  flex-direction: column;
-}
-
-.automations-page__sheet-bar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  min-height: var(--control-height-lg);
-  padding: var(--space-1) var(--space-3);
-  border-bottom: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-panel-header);
-}
-
-.automations-page__sheet-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-weight: var(--font-weight-semibold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.automations-page__sheet-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.automations-page__sheet-body > :deep(.base-panel) {
-  flex: 1;
-}
-
-@media (width < 900px) {
-  .automations-page {
-    padding: var(--space-3);
-    overflow-y: auto;
-  }
-
-  .automations-page__toolbar {
-    flex-wrap: wrap;
-    row-gap: var(--space-2);
-  }
-
-  /* The toolbar wraps, so the group divider no longer separates anything. */
-  .automations-page__divider {
-    display: none;
-  }
-
-  .automations-page__work {
-    flex: none;
-    min-height: auto;
-  }
-
-  .automations-page__nav {
-    flex: none;
-    height: min(64dvh, 560px);
-  }
-
-  /* On narrow screens the open record becomes a full-screen sheet over the page. */
-  .automations-page__sheet {
-    position: fixed;
-    inset: 30px 0 0 0;
-    z-index: 30;
-    border: 0;
-    background: var(--color-bg-app);
-  }
-
-  .automations-page__sheet-bar {
-    flex-wrap: nowrap;
-  }
-}
-</style>
+<style src="./automations-page.css"></style>

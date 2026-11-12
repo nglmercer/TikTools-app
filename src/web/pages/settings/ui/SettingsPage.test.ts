@@ -91,10 +91,14 @@ describe('SettingsPage', () => {
     }
   });
 
-  it('shows teams under Collaboration only when the host announces them', async () => {
+  it('offers Teams as a separate section only when the host announces them', async () => {
     const without = await mountPage('?section=collaboration');
     expect(without.wrapper.find('.cloud-teams').exists()).toBe(false);
     const withTeams = await mountPage('?section=collaboration', ['teams.hosts.list']);
+    expect(withTeams.wrapper.find('.cloud-teams').exists()).toBe(false);
+    await withTeams.wrapper.findAll('[role="tab"]').find(tab => tab.text() === 'Teams')!.trigger('click');
+    await flushPromises();
+    expect(withTeams.router.currentRoute.value.query.section).toBe('teams');
     expect(withTeams.wrapper.find('.cloud-teams').exists()).toBe(true);
     const account = await mountPage('?section=account', ['teams.hosts.list']);
     expect(account.wrapper.find('.cloud-teams').exists()).toBe(false);

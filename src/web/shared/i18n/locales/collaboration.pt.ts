@@ -1,4 +1,22 @@
 export default {
+
+  "enableAll": "Ativar todas as permissões",
+  "disableAll": "Desativar todas as permissões",
+  "bulkLabel": "Permissões em grupo",
+  "bulkHint": "Altera apenas o rascunho. Restrições e aprovação continuam válidas.",
+  "editorSections": {
+    "permissions": "Permissões",
+    "delegation": "Automações",
+    "effects": "Efeitos externos",
+    "resources": "Recursos",
+    "advanced": "Avançado"
+  },
+  "scopeModes": {
+    "all": "Todos",
+    "selected": "IDs selecionados",
+    "none": "Nenhum"
+  }
+,
   rejectTitle: 'Recusar esta solicitação?',
   rejectMessage: 'Esta solicitação pendente será recusada. Os dispositivos já aprovados mantêm o acesso.',
   revokeSessionMessage: 'Somente a sessão deste dispositivo será revogada. Os demais dispositivos aprovados e a LIVE local continuam.',

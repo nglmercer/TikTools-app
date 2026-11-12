@@ -32,6 +32,8 @@ describe('owner collaboration panel', () => {
     await button('Devices and requests').trigger('click');
     expect(wrapper.get('#collaboration-bind').isVisible()).toBe(false);
     await button('Status and access').trigger('click');
+    expect(wrapper.get('#collaboration-bind').isVisible()).toBe(false);
+    await button('Direct connection (advanced)').trigger('click');
     expect(wrapper.get('#collaboration-bind').isVisible()).toBe(true);
     expect((wrapper.get('#collaboration-bind').element as HTMLInputElement).value).toBe('127.0.0.1:8999');
     expect(calls.some(call => call.method === 'collaboration.configure')).toBe(false);
