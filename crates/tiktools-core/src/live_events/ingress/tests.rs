@@ -1,0 +1,1114 @@
+
+use super::*;
+use tiktools_tiktok::events::{
+    CanonicalLiveEvent, ChatEvent, EventMetadata, EventUser, GiftEnrichment, GiftEvent, LikeEvent,
+    RoomUserEvent, SocialEvent,
+};
+
+struct NoopEmitter;
+impl HostEmitter for NoopEmitter {
+    fn emit(&self, _: HostMessage) {}
+}
+
+/// Builds a core whose databases live in a fresh temp directory. The
+/// default `AppCore::new` writes to the user's real data root, which made
+/// these tests share (and leak) points state across runs.
+pub(super) fn isolated_core(emitter: Arc<dyn HostEmitter>) -> Arc<AppCore> {
+    let root = std::env::temp_dir().join(format!(
+        "tiktools-ingress-test-{}-{}",
+        std::process::id(),
+        fastrand::u64(..)
+    ));
+    let paths = crate::AppPaths {
+        data: root.join("data"),
+        plugins: root.join("plugins"),
+        plugin_data: root.join("plugin-data"),
+        builtin_plugins: root.join("absent"),
+        development_plugins: None,
+        logs: root.join("logs"),
+        temp: root.join("temp"),
+        root,
+    };
+    paths.ensure_directories().unwrap();
+    for p in [
+        paths.points_database(),
+        paths.automation_database(),
+        paths.analytics_database(),
+    ] {
+        std::fs::File::create(p).unwrap();
+    }
+    Arc::new(AppCore::with_paths(
+        emitter,
+        Arc::new(crate::NoopMediaHost),
+        paths,
+    ))
+}
+
+fn user() -> EventUser {
+    EventUser {
+        id: 7,
+        unique_id: "spectator".to_owned(),
+        nickname: "Spectator".to_owned(),
+        sec_uid: "sec-spectator".to_owned(),
+        avatar_url: None,
+    }
+}
+
+fn wrap(base: CanonicalLiveEvent, gift: Option<GiftEnrichment>) -> NativeLiveEvent {
+    NativeLiveEvent {
+        base,
+        metadata: EventMetadata {
+            method: "WebcastTest".to_owned(),
+            msg_id: 11,
+            is_history: false,
+        },
+        gift,
+    }
+}
+
+fn chat() -> NativeLiveEvent {
+    wrap(
+        CanonicalLiveEvent::Chat(ChatEvent {
+            user: user(),
+            comment: "hello".to_owned(),
+            ..Default::default()
+        }),
+        None,
+    )
+}
+
+fn connected(creator: &str) -> ClientEvent {
+    ClientEvent::Connected(tiktools_tiktok::ConnectionInfo {
+        unique_id: creator.to_owned(),
+        verified_creator: Some(creator.to_owned()),
+        room_id: "room".into(),
+        title: String::new(),
+        nickname: String::new(),
+        avatar_url: None,
+        viewers: 0,
+        total_users: 0,
+        gifts: Vec::new(),
+    })
+}
+
+#[tokio::test]
+async fn saturated_ingress_attributes_gap_to_stamped_creator_across_reconnect() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(1);
+    let stamped = |generation, event| tiktools_tiktok::StampedClientEvent { generation, event };
+    admit_stamped_event(&core, &sender, stamped(1, connected("alice"))).await;
+    // Connected is still queued, so the worker has not set the context.
+    admit_stamped_event(&core, &sender, stamped(1, ClientEvent::Event(chat()))).await;
+    let alice = core
+        .events
+        .creator_feed("alice", None, 0, 64, 2048)
+        .unwrap();
+    assert!(alice.gap);
+    assert!(
+        !core
+            .events
+            .creator_feed("bob", None, 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+    receiver.recv().await.unwrap();
+    admit_stamped_event(&core, &sender, stamped(2, connected("bob"))).await;
+    // A late old-generation packet is never attributed to Bob.
+    admit_stamped_event(&core, &sender, stamped(1, ClientEvent::Event(chat()))).await;
+    assert!(
+        !core
+            .events
+            .creator_feed("bob", None, 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+    admit_stamped_event(&core, &sender, stamped(2, ClientEvent::Event(chat()))).await;
+    assert!(
+        core.events
+            .creator_feed("bob", None, 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+    assert!(
+        core.events
+            .creator_feed("alice", alice.stream_id.as_deref(), 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+}
+
+#[tokio::test]
+async fn unresolved_shed_loss_is_bound_only_after_matching_connected_event() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(1);
+    sender
+        .send(IngressItem {
+            generation: 9,
+            event: ClientEvent::Event(chat()),
+        })
+        .await
+        .unwrap();
+    admit_stamped_event(
+        &core,
+        &sender,
+        tiktools_tiktok::StampedClientEvent {
+            generation: 7,
+            event: ClientEvent::Event(chat()),
+        },
+    )
+    .await;
+    assert!(
+        !core
+            .events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+    assert!(
+        !core
+            .events
+            .creator_feed("bob", None, 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+    receiver.recv().await.unwrap();
+    admit_stamped_event(
+        &core,
+        &sender,
+        tiktools_tiktok::StampedClientEvent {
+            generation: 7,
+            event: connected("alice"),
+        },
+    )
+    .await;
+    assert!(
+        core.events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+    assert!(
+        !core
+            .events
+            .creator_feed("bob", None, 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+}
+
+#[tokio::test]
+async fn unverified_connected_label_never_authorizes_scoped_feed_or_execution_context() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+    let mut unverified = connected("alice");
+    if let ClientEvent::Connected(info) = &mut unverified {
+        info.verified_creator = None;
+    }
+    for event in [unverified, ClientEvent::Event(chat())] {
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 0,
+                event,
+            },
+        )
+        .await;
+    }
+    drop(sender);
+    run_ingress_worker(
+        Arc::clone(&core),
+        receiver,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await;
+    assert!(!core.events.is_verified_live_generation(0, "alice"));
+    assert!(
+        !core
+            .events
+            .creator_feed("alice", None, 0, 64, 2048)
+            .unwrap()
+            .gap
+    );
+    assert!(core
+        .events
+        .creator_feed("alice", None, 0, 64, 2048)
+        .unwrap()
+        .events
+        .is_empty());
+    assert_eq!(core.events.feed_backfill(0, 64).events.len(), 1);
+    // The live connection remains usable, but no claimed creator/room
+    // can become authority for delegated execution or aggregation.
+    let mut fresh = chat();
+    fresh.metadata.msg_id += 1;
+    assert!(core
+        .prepare_live_event_with_generation(fresh, Some(0))
+        .unwrap()
+        .context
+        .is_none());
+}
+
+#[tokio::test]
+async fn contradictory_connected_identity_never_authorizes_lifecycle_events() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let mut projection = core.events.subscribe_projection();
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+    for event in [connected("alice"), connected("bob")] {
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 0,
+                event,
+            },
+        )
+        .await;
+    }
+    drop(sender);
+    run_ingress_worker(
+        Arc::clone(&core),
+        receiver,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await;
+    let context = recover_rwlock_read(&core.connection_context, "test context")
+        .clone()
+        .unwrap();
+    assert_eq!(context.unique_id, "bob");
+    assert!(!context.creator_verified);
+    assert!(!core.events.is_verified_live_generation(0, "alice"));
+    assert!(!core.events.is_verified_live_generation(0, "bob"));
+    let mut lifecycle_events = 0;
+    while let Ok(event) = projection.try_recv() {
+        if let crate::events::DomainEvent::LiveEvent { event_type, event } = event {
+            if matches!(
+                event_type.as_str(),
+                "tiktok.connected" | "tiktok.disconnected"
+            ) {
+                lifecycle_events += 1;
+                assert!(event.get("creator").is_none());
+            }
+        }
+    }
+    assert!(lifecycle_events >= 2);
+}
+
+#[tokio::test]
+async fn verified_native_lifecycle_authorizes_only_exact_current_scoped_status() {
+    use tiktools_tiktok::{ConnectionSnapshot, ConnectionState};
+    const CHILD: &str = "TIKTOOLS_TEST_VERIFIED_LIVE_STATUS_CHILD";
+    const ROOT: &str = "TIKTOOLS_TEST_VERIFIED_LIVE_STATUS_ROOT";
+    if std::env::var_os(CHILD).is_none() {
+        let root = std::env::temp_dir().join(format!(
+            "tt-live-status-evidence-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .arg("--exact")
+                .arg("live_events::ingress::tests::verified_native_lifecycle_authorizes_only_exact_current_scoped_status")
+                .arg("--nocapture")
+                .env(CHILD, "1")
+                .env(ROOT, &root)
+                .env("TIKTOOLS_PLUGIN_DATA_DIR", root.join("plugin-data"))
+                .output()
+                .unwrap();
+        std::fs::remove_dir_all(&root).unwrap();
+        assert!(
+            output.status.success(),
+            "child failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"),
+            "child did not execute the intended test: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        return;
+    }
+    let fixture_root =
+        std::path::PathBuf::from(std::env::var_os(ROOT).expect("child fixture root"));
+    for verified in [true, false] {
+        let root = fixture_root.join(if verified { "verified" } else { "unverified" });
+        let paths = crate::paths::AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("absent"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        let core = Arc::new(AppCore::with_paths(
+            Arc::new(NoopEmitter),
+            Arc::new(crate::NoopMediaHost),
+            paths,
+        ));
+        core.live
+            .set_connection_snapshot_for_test(ConnectionSnapshot {
+                generation: 7,
+                state: ConnectionState::Connected,
+            });
+        let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+        let mut event = connected("alice");
+        if !verified {
+            if let ClientEvent::Connected(info) = &mut event {
+                info.verified_creator = None;
+            }
+        }
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 7,
+                event,
+            },
+        )
+        .await;
+        drop(sender);
+        run_ingress_worker(
+            Arc::clone(&core),
+            receiver,
+            tokio_util::sync::CancellationToken::new(),
+        )
+        .await;
+        let status = core.live_status();
+        assert!(status.connected);
+        assert_eq!(status.unique_id.as_deref(), Some("alice"));
+        assert_eq!(status.room_id.as_deref(), Some("room"));
+        assert_eq!(status.connection_id.as_deref(), Some("connection-7"));
+        assert_eq!(
+            core.live_status_matches_verified_scope("alice", "room", "connection-7"),
+            verified
+        );
+        assert!(!core.live_status_matches_verified_scope("bob", "room", "connection-7"));
+        assert!(!core.live_status_matches_verified_scope("alice", "other", "connection-7"));
+        assert!(!core.live_status_matches_verified_scope("alice", "room", "connection-8"));
+        core.live
+            .set_connection_snapshot_for_test(ConnectionSnapshot {
+                generation: 7,
+                state: ConnectionState::Idle,
+            });
+        assert!(!core.live_status_matches_verified_scope("alice", "room", "connection-7"));
+        core.live
+            .set_connection_snapshot_for_test(ConnectionSnapshot {
+                generation: 8,
+                state: ConnectionState::Connected,
+            });
+        assert!(!core.live_status_matches_verified_scope("alice", "room", "connection-7"));
+        core.shutdown().await;
+        drop(core);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn unavailable_scoped_feed_does_not_discard_verified_owner_context() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    for generation in 100..229 {
+        core.events.record_live_ingress_gap(generation);
+    }
+    assert!(core
+        .events
+        .creator_feed("alice", None, 0, 64, 2048)
+        .is_err());
+    core.events.bind_live_generation(7, "alice");
+    *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
+        unique_id: "alice".into(),
+        room_id: "room".into(),
+        connection_id: "connection-7".into(),
+        creator_verified: true,
+    });
+    let effect = core
+        .prepare_live_event_with_generation(chat(), Some(7))
+        .unwrap();
+    assert_eq!(
+        effect
+            .context
+            .as_ref()
+            .map(|context| context.unique_id.as_str()),
+        Some("alice")
+    );
+}
+
+fn gift_final() -> NativeLiveEvent {
+    wrap(
+        CanonicalLiveEvent::Gift(GiftEvent {
+            user: user(),
+            gift_id: 1,
+            gift_name: "Rose".to_owned(),
+            gift_image_url: None,
+            diamond_count: 1,
+            repeat_count: 1,
+            combo_count: 1,
+            group_id: 0,
+            repeat_end: true,
+        }),
+        Some(GiftEnrichment {
+            name: "Rose".to_owned(),
+            diamond_count: 1,
+            streakable: true,
+            icon_url: None,
+        }),
+    )
+}
+
+#[tokio::test]
+async fn unverified_rooms_keep_distinct_local_combo_high_water_without_scoped_authority() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let mut gift = gift_final();
+    if let CanonicalLiveEvent::Gift(value) = &mut gift.base {
+        value.group_id = 123;
+    }
+    for (generation, room, msg_id, expected) in [
+        (1, "room-a", 71, 1),
+        (2, "room-b", 72, 1),
+        (2, "room-b", 73, 0),
+    ] {
+        *recover_rwlock_write(&core.connection_context, "test context") = Some(LiveContext {
+            unique_id: "caller-label".into(),
+            room_id: room.into(),
+            connection_id: format!("connection-{generation}"),
+            creator_verified: false,
+        });
+        gift.metadata.msg_id = msg_id;
+        let effect = core
+            .prepare_live_event_with_generation(gift.clone(), Some(generation))
+            .unwrap();
+        assert!(effect.context.is_none());
+        assert_eq!(effect.totals["increment"], expected);
+    }
+    assert!(core
+        .events
+        .creator_feed("caller-label", None, 0, 64, 2048)
+        .unwrap()
+        .events
+        .is_empty());
+}
+
+fn gift_streak_mid() -> NativeLiveEvent {
+    wrap(
+        CanonicalLiveEvent::Gift(GiftEvent {
+            user: user(),
+            gift_id: 1,
+            gift_name: "Rose".to_owned(),
+            gift_image_url: None,
+            diamond_count: 1,
+            repeat_count: 3,
+            combo_count: 3,
+            group_id: 9,
+            repeat_end: false,
+        }),
+        Some(GiftEnrichment {
+            name: "Rose".to_owned(),
+            diamond_count: 1,
+            streakable: true,
+            icon_url: None,
+        }),
+    )
+}
+
+fn follow() -> NativeLiveEvent {
+    wrap(
+        CanonicalLiveEvent::Social(SocialEvent {
+            user: user(),
+            action: 1,
+            follow_count: 2,
+            share_count: 0,
+            ..Default::default()
+        }),
+        None,
+    )
+}
+
+fn room_stats() -> NativeLiveEvent {
+    wrap(
+        CanonicalLiveEvent::RoomUser(RoomUserEvent {
+            total: 10,
+            total_user: 12,
+            popularity: 0,
+            anonymous: 0,
+            top_viewers: Vec::new(),
+            ranked_viewers: Vec::new(),
+        }),
+        None,
+    )
+}
+
+#[test]
+fn critical_events_cover_gifts_follows_and_shares() {
+    assert_eq!(classify_data_event(&gift_final()), DataClass::Critical);
+    assert_eq!(classify_data_event(&follow()), DataClass::Critical);
+    // Chat, likes, and room stats shed under overload; gift progress is protected.
+    assert_eq!(classify_data_event(&gift_streak_mid()), DataClass::Critical);
+    assert_eq!(classify_data_event(&chat()), DataClass::Sheddable);
+    assert_eq!(
+        classify_data_event(&wrap(
+            CanonicalLiveEvent::Like(LikeEvent {
+                user: user(),
+                count: 5,
+                total: 5,
+            }),
+            None,
+        )),
+        DataClass::Sheddable
+    );
+    assert_eq!(classify_data_event(&room_stats()), DataClass::Sheddable);
+}
+
+#[tokio::test]
+async fn full_queue_sheds_data_without_blocking_admission() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    // Capacity 1 held by an unreceived item: every further data event
+    // meets a full queue.
+    let (sender, _held) = tokio::sync::mpsc::channel::<IngressItem>(1);
+    sender
+        .send(IngressItem {
+            generation: 0,
+            event: ClientEvent::Event(room_stats()),
+        })
+        .await
+        .unwrap();
+    let before = core.live_ingress.dropped_data.load(Ordering::Relaxed);
+    tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        admit_event(&core, &sender, ClientEvent::Event(chat())),
+    )
+    .await
+    .expect("sheddable admission never blocks");
+    assert_eq!(
+        core.live_ingress.dropped_data.load(Ordering::Relaxed),
+        before + 1,
+        "shed data must be counted, never silently lost"
+    );
+    // Like drops are still non-blocking, but goal reliability degrades.
+    // The packet count is the number of likes lost (not just one).
+    let like_gaps_before = core.event_gap_stats().0;
+    admit_event(
+        &core,
+        &sender,
+        ClientEvent::Event(wrap(
+            CanonicalLiveEvent::Like(LikeEvent {
+                user: user(),
+                count: 15,
+                total: 1_000,
+            }),
+            None,
+        )),
+    )
+    .await;
+    assert_eq!(
+        core.live_ingress
+            .dropped_like_batches
+            .load(Ordering::Relaxed),
+        1
+    );
+    assert_eq!(
+        core.live_ingress.dropped_like_units.load(Ordering::Relaxed),
+        15
+    );
+    assert_eq!(core.event_gap_stats().0, like_gaps_before + 1);
+    assert_eq!(core.live_ingress.diagnostics()["droppedLikeUnits"], 15);
+    // Critical data on a full queue applies bounded backpressure and,
+    // when capacity cannot free up, reports a gap instead of success.
+    let gaps_before = core.event_gap_stats().0;
+    let critical_before = core.live_ingress.dropped_critical.load(Ordering::Relaxed);
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        admit_event(&core, &sender, ClientEvent::Event(gift_final())),
+    )
+    .await
+    .expect("critical admission is time-bounded");
+    assert_eq!(
+        core.live_ingress.dropped_critical.load(Ordering::Relaxed),
+        critical_before + 1
+    );
+    assert_eq!(core.event_gap_stats().0, gaps_before + 1);
+}
+
+/// Sustained overload far past queue capacity: admission stays
+/// responsive (sheddable events never block), accounting is exact
+/// (every sent item is accepted or counted shed), and memory stays
+/// bounded (the queue never exceeds its capacity).
+#[tokio::test]
+async fn sustained_overload_sheds_with_exact_accounting() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, _held) = tokio::sync::mpsc::channel::<IngressItem>(INGRESS_QUEUE_CAPACITY);
+    // Occupy the queue the same way a stalled worker would: the held
+    // receiver never drains, so every further admit meets pressure.
+    for _ in 0..INGRESS_QUEUE_CAPACITY {
+        sender
+            .send(IngressItem {
+                generation: 0,
+                event: ClientEvent::Event(room_stats()),
+            })
+            .await
+            .unwrap();
+    }
+    let sent = 10_000;
+    let started = now_millis();
+    for id in 0..sent {
+        let event = if id % 2 == 0 { chat() } else { room_stats() };
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            admit_event(&core, &sender, ClientEvent::Event(event)),
+        )
+        .await
+        .expect("sheddable admission never blocks");
+    }
+    let elapsed = now_millis().saturating_sub(started);
+    let accepted = core.live_ingress.accepted.load(Ordering::Relaxed);
+    let dropped = core.live_ingress.dropped_data.load(Ordering::Relaxed);
+    // The prefill injected pressure directly (never drained, never
+    // counted); every item sent through admission is either admitted
+    // or counted shed — none vanish.
+    assert_eq!(
+        accepted + dropped,
+        sent as u64,
+        "every admitted item is accepted or counted shed"
+    );
+    assert_eq!(accepted, 0, "a saturated queue admits nothing further");
+    assert!(
+        core.live_ingress.queued.load(Ordering::Relaxed) <= INGRESS_QUEUE_CAPACITY as u64,
+        "the queue never exceeds its bound"
+    );
+    println!("  sustained overload: {sent} shed-path admits in {elapsed} ms, dropped={dropped}");
+}
+
+/// Shutdown while the queue is saturated: the worker drains every
+/// accepted item (stale ones fence fast) and joins — no retained
+/// payloads, no detached task.
+#[tokio::test]
+async fn saturated_queue_drains_and_joins_on_shutdown() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(64);
+    // Admit through the real path (the sole production sender), so the
+    // queue gauge pairs exactly with worker takes. Stamps read
+    // generation 0 here ...
+    for _ in 0..64 {
+        admit_event(&core, &sender, ClientEvent::Event(chat())).await;
+    }
+    // ... and a newer connection arrives before the drain: every item
+    // fences on the fast path, so the drain is quick and side-effect
+    // free.
+    core.connection_sequence.store(9, Ordering::Release);
+    assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 64);
+    drop(sender);
+    let shutdown = tokio_util::sync::CancellationToken::new();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        run_ingress_worker(Arc::clone(&core), receiver, shutdown),
+    )
+    .await
+    .expect("saturated worker drains and exits");
+    assert_eq!(core.live_ingress.stale.load(Ordering::Relaxed), 64);
+    // Stale is exclusive: a fenced item performed no processing.
+    assert_eq!(core.live_ingress.processed.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.in_flight.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.outstanding(), 0);
+}
+
+#[tokio::test]
+async fn stale_queued_events_report_loss_only_for_their_creator() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+    for (generation, event) in [
+        (1, connected("alice")),
+        (1, ClientEvent::Event(chat())),
+        (2, connected("bob")),
+    ] {
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent { generation, event },
+        )
+        .await;
+    }
+    core.connection_sequence.store(2, Ordering::Release);
+    drop(sender);
+    run_ingress_worker(
+        Arc::clone(&core),
+        receiver,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await;
+    let alice = core
+        .events
+        .creator_feed("alice", None, 0, 64, 2048)
+        .unwrap();
+    let bob = core.events.creator_feed("bob", None, 0, 64, 2048).unwrap();
+    assert!(alice.gap);
+    assert!(alice.events.is_empty());
+    assert!(!bob.gap);
+    assert!(bob.events.is_empty());
+    assert_eq!(core.live_ingress.stale.load(Ordering::Relaxed), 2);
+}
+
+#[tokio::test]
+async fn worker_fences_stale_generations_and_joins() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    // A newer connection exists: the queued item belongs to the old one.
+    core.connection_sequence.store(4, Ordering::Release);
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+    // Admission is the sole production entry point, so the item is
+    // stamped and accounted there instead of being pushed into the queue
+    // behind the counters' backs.
+    admit_stamped_event(
+        &core,
+        &sender,
+        tiktools_tiktok::StampedClientEvent {
+            generation: 2,
+            event: ClientEvent::Event(chat()),
+        },
+    )
+    .await;
+    assert_eq!(core.live_ingress.accepted.load(Ordering::Relaxed), 1);
+    assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 1);
+    let shutdown = tokio_util::sync::CancellationToken::new();
+    let worker = tokio::spawn(run_ingress_worker(
+        Arc::clone(&core),
+        receiver,
+        shutdown.clone(),
+    ));
+    // Let the worker take the item, then stop it cleanly.
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    shutdown.cancel();
+    tokio::time::timeout(std::time::Duration::from_secs(3), worker)
+        .await
+        .expect("worker joins")
+        .expect("worker task succeeds");
+    assert_eq!(core.live_ingress.stale.load(Ordering::Relaxed), 1);
+    assert_eq!(core.live_ingress.processed.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.outstanding(), 0);
+    // The fenced chat never reached points: no side effects, no viewer.
+    assert!(core.points.viewer("spectator").is_none());
+    let diagnostics = core.live_ingress.diagnostics();
+    assert_eq!(diagnostics["capacity"], INGRESS_QUEUE_CAPACITY);
+    assert_eq!(diagnostics["staleFenced"], 1);
+}
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_consumption_never_underflows_admission_gauge() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(64);
+    let consumer_core = Arc::clone(&core);
+    let consumer = tokio::spawn(async move {
+        let mut taken = 0;
+        while receiver.recv().await.is_some() {
+            let before = consumer_core
+                .live_ingress
+                .queued
+                .fetch_sub(1, Ordering::Relaxed);
+            assert!((1..=65).contains(&before), "invalid queue depth: {before}");
+            taken += 1;
+        }
+        taken
+    });
+    for _ in 0..100_000 {
+        // Lifecycle admission always waits, so this exercises 100,000
+        // genuine publications and concurrent takes without shedding.
+        admit_event(
+            &core,
+            &sender,
+            ClientEvent::Reconnecting {
+                attempt: 1,
+                delay_ms: 0,
+            },
+        )
+        .await;
+    }
+    drop(sender);
+    assert_eq!(consumer.await.unwrap(), 100_000);
+    assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.accepted.load(Ordering::Relaxed), 100_000);
+}
+
+#[tokio::test]
+async fn cancelled_full_queue_releases_payloads_and_accounting() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, receiver) = tokio::sync::mpsc::channel(64);
+    for _ in 0..64 {
+        admit_event(&core, &sender, ClientEvent::Event(chat())).await;
+    }
+    let shutdown = tokio_util::sync::CancellationToken::new();
+    shutdown.cancel();
+    run_ingress_worker(Arc::clone(&core), receiver, shutdown).await;
+    assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.cancelled.load(Ordering::Relaxed), 64);
+    assert_eq!(core.live_ingress.processed.load(Ordering::Relaxed), 0);
+    assert!(sender.is_closed());
+    assert!(core.points.viewer("spectator").is_none());
+}
+#[tokio::test]
+async fn admission_preserves_original_generation_before_connected_processing() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, mut receiver) = tokio::sync::mpsc::channel(8);
+    for event in [
+        ClientEvent::Reconnecting {
+            attempt: 1,
+            delay_ms: 0,
+        },
+        ClientEvent::Event(chat()),
+        ClientEvent::Disconnected {
+            reason: "old".into(),
+        },
+    ] {
+        admit_stamped_event(
+            &core,
+            &sender,
+            tiktools_tiktok::StampedClientEvent {
+                generation: 7,
+                event,
+            },
+        )
+        .await;
+    }
+    core.connection_sequence.store(9, Ordering::Release);
+    for _ in 0..3 {
+        let item = receiver.recv().await.unwrap();
+        assert_eq!(item.generation, 7);
+        core.live_ingress.queued.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+#[tokio::test]
+async fn superseded_disconnect_cannot_clear_new_session() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    core.connection_sequence.store(9, Ordering::Release);
+    *recover_rwlock_write(&core.connection_context, "connection context") = Some(LiveContext {
+        unique_id: "new".into(),
+        room_id: "9".into(),
+        connection_id: "connection-9".into(),
+        creator_verified: true,
+    });
+    let (sender, receiver) = tokio::sync::mpsc::channel(8);
+    admit_stamped_event(
+        &core,
+        &sender,
+        tiktools_tiktok::StampedClientEvent {
+            generation: 2,
+            event: ClientEvent::Disconnected {
+                reason: "stale".into(),
+            },
+        },
+    )
+    .await;
+    drop(sender);
+    run_ingress_worker(
+        Arc::clone(&core),
+        receiver,
+        tokio_util::sync::CancellationToken::new(),
+    )
+    .await;
+    assert_eq!(
+        recover_rwlock_read(&core.connection_context, "connection context")
+            .as_ref()
+            .unwrap()
+            .unique_id,
+        "new"
+    );
+    assert_eq!(core.live_ingress.stale.load(Ordering::Relaxed), 1);
+}
+
+/// Graceful shutdown contract: with the sender gone (pump stopped) the
+/// worker processes every accepted event before it exits. Nothing is
+/// released, nothing is lost, and the accounting closes exactly.
+#[tokio::test]
+async fn graceful_shutdown_drains_thousands_of_accepted_events() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(INGRESS_QUEUE_CAPACITY);
+    for _ in 0..INGRESS_QUEUE_CAPACITY {
+        admit_event(&core, &sender, ClientEvent::Event(chat())).await;
+    }
+    assert_eq!(
+        core.live_ingress.accepted.load(Ordering::Relaxed),
+        INGRESS_QUEUE_CAPACITY as u64
+    );
+    assert_eq!(
+        core.live_ingress.queued.load(Ordering::Relaxed),
+        INGRESS_QUEUE_CAPACITY as u64
+    );
+    // A newer connection fences every queued item, so the drain is
+    // deterministic and side-effect free but still exercises the full
+    // "thousands of accepted events" path.
+    core.connection_sequence.store(9, Ordering::Release);
+    drop(sender);
+    let emergency = tokio_util::sync::CancellationToken::new();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        run_ingress_worker(Arc::clone(&core), receiver, emergency),
+    )
+    .await
+    .expect("graceful drain must complete");
+    assert_eq!(
+        core.live_ingress.stale.load(Ordering::Relaxed),
+        INGRESS_QUEUE_CAPACITY as u64
+    );
+    assert_eq!(core.live_ingress.processed.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.cancelled.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.in_flight.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.outstanding(), 0);
+    assert_eq!(
+        core.live_ingress.lifecycle(),
+        IngressLifecycle::Stopped,
+        "worker exit must reach the terminal lifecycle state"
+    );
+}
+
+/// Emergency stop (drain deadline already expired): every payload still
+/// buffered is released *and counted*, so the invariant still holds.
+#[tokio::test]
+async fn emergency_stop_accounts_every_released_queue_payload() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(64);
+    for _ in 0..64 {
+        admit_event(&core, &sender, ClientEvent::Event(chat())).await;
+    }
+    let emergency = tokio_util::sync::CancellationToken::new();
+    emergency.cancel();
+    run_ingress_worker(Arc::clone(&core), receiver, emergency).await;
+    assert_eq!(core.live_ingress.cancelled.load(Ordering::Relaxed), 64);
+    assert_eq!(core.live_ingress.abandoned.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.processed.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.outstanding(), 0);
+    assert_eq!(core.live_ingress.lifecycle(), IngressLifecycle::Stopped);
+}
+
+#[tokio::test]
+async fn shutdown_with_empty_queue_exits_cleanly() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, receiver) = tokio::sync::mpsc::channel::<IngressItem>(8);
+    drop(sender);
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        run_ingress_worker(
+            Arc::clone(&core),
+            receiver,
+            tokio_util::sync::CancellationToken::new(),
+        ),
+    )
+    .await
+    .expect("empty shutdown must not hang");
+    assert_eq!(core.live_ingress.accepted.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.cancelled.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.outstanding(), 0);
+    assert_eq!(core.live_ingress.lifecycle(), IngressLifecycle::Stopped);
+}
+
+/// Cancellation during queue reservation: a lifecycle event that would
+/// otherwise wait forever on a full queue is released when admission
+/// stops, and is counted as never admitted — not silently swallowed.
+#[tokio::test]
+async fn admission_stop_releases_event_waiting_on_queue_reservation() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, _held) = tokio::sync::mpsc::channel::<IngressItem>(1);
+    sender
+        .send(IngressItem {
+            generation: 0,
+            event: ClientEvent::Event(room_stats()),
+        })
+        .await
+        .unwrap();
+    let accepted_before = core.live_ingress.accepted.load(Ordering::Relaxed);
+    core.live_admission.cancel();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        admit_event(
+            &core,
+            &sender,
+            ClientEvent::Reconnecting {
+                attempt: 1,
+                delay_ms: 0,
+            },
+        ),
+    )
+    .await
+    .expect("admission stop must release a blocked reservation");
+    assert_eq!(
+        core.live_ingress
+            .admission_cancelled
+            .load(Ordering::Relaxed),
+        1
+    );
+    assert_eq!(
+        core.live_ingress.accepted.load(Ordering::Relaxed),
+        accepted_before,
+        "a released reservation must never be counted as accepted"
+    );
+}
+
+/// Shutdown racing an active producer: every attempt is either admitted
+/// or explicitly counted, and the consumer settles the invariant.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn admission_stop_while_producer_admits_accounts_every_event() {
+    let core = isolated_core(Arc::new(NoopEmitter));
+    let (sender, mut receiver) = tokio::sync::mpsc::channel::<IngressItem>(64);
+    let consumer_core = Arc::clone(&core);
+    let consumer = tokio::spawn(async move {
+        let mut taken = 0u64;
+        while receiver.recv().await.is_some() {
+            consumer_core
+                .live_ingress
+                .queued
+                .fetch_sub(1, Ordering::Relaxed);
+            consumer_core
+                .live_ingress
+                .in_flight
+                .fetch_add(1, Ordering::Relaxed);
+            consumer_core
+                .live_ingress
+                .in_flight
+                .fetch_sub(1, Ordering::Relaxed);
+            consumer_core
+                .live_ingress
+                .processed
+                .fetch_add(1, Ordering::Relaxed);
+            taken += 1;
+        }
+        taken
+    });
+    let producer_core = Arc::clone(&core);
+    let producer = tokio::spawn(async move {
+        let mut attempted = 0u64;
+        for _ in 0..10_000 {
+            attempted += 1;
+            admit_event(
+                &producer_core,
+                &sender,
+                ClientEvent::Reconnecting {
+                    attempt: 1,
+                    delay_ms: 0,
+                },
+            )
+            .await;
+        }
+        attempted
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    core.live_admission.cancel();
+    let attempted = tokio::time::timeout(std::time::Duration::from_secs(30), producer)
+        .await
+        .expect("producer never deadlocks on a stopped admission")
+        .expect("producer task");
+    let taken = tokio::time::timeout(std::time::Duration::from_secs(10), consumer)
+        .await
+        .expect("consumer joins")
+        .expect("consumer task");
+    let accepted = core.live_ingress.accepted.load(Ordering::Relaxed);
+    let admission_cancelled = core
+        .live_ingress
+        .admission_cancelled
+        .load(Ordering::Relaxed);
+    assert_eq!(
+        accepted + admission_cancelled,
+        attempted,
+        "every attempted admission is accepted or explicitly released"
+    );
+    assert_eq!(taken, accepted, "every accepted event was consumed");
+    assert_eq!(core.live_ingress.queued.load(Ordering::Relaxed), 0);
+    assert_eq!(core.live_ingress.outstanding(), 0);
+}
