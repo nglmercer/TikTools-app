@@ -82,4 +82,7 @@ export default {
   limits: { connections: 'Total connections', connectionsPerPrincipal: 'Connections per identity', frameBytes: 'Frame bytes', paramsBytes: 'Parameter bytes', pendingCalls: 'Pending calls per connection', requestsPerSecond: 'Requests per second', requestBurst: 'Request burst', commandIdsPerPrincipal: 'Retained command IDs per identity' },
   metrics: { connections: 'Open connections', sessions: 'Active device sessions', pending: 'Waiting for approval', listener: 'Remote listener' },
   tlsTitle: 'TLS', originsTitle: 'Allowed origins', grantGroups: { read: 'Read access', write: 'Changes and control' },
+  delegationEditing: 'Editing existing automations', openDirect: 'Open direct connection', heroSetup: 'Set up the direct connection before inviting controllers.', heroReady: 'Ready to accept controllers. Create a private invitation to add one.', heroPending: 'Devices waiting for your approval: {count}',
+  unsaved: 'You have unsaved changes.', presetsLabel: 'Start from a preset', howRulesWork: 'How external effect rules work', groupCount: '{on} of {total} enabled', dangerTitle: 'Stop accepting controllers', unavailableDetail: 'Changes made here only take effect on a host build that supports remote controllers.', listenerAddress: 'Listening on {address}',
+  grantChips: { read: 'Read {count}', control: 'Control {count}', effects: 'External effects {count}', delegation: 'Automation delegation', restricted: 'Restricted scope', unrestricted: 'All resources', none: 'No permissions' },
 };

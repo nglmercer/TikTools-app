@@ -6,10 +6,10 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
-import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import CollabSection from './CollabSection.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
-defineProps<{ blocked: boolean; changed: boolean; working: boolean; available: boolean }>();
+defineProps<{ blocked: boolean; changed: boolean; working: boolean; available: boolean; dirty: boolean }>();
 const draft = defineModel<Configuration>({ required: true });
 const allowedOrigins = defineModel<string>('allowedOrigins', { required: true });
 const emit = defineEmits<{ apply: []; reset: [] }>();
@@ -32,143 +32,161 @@ function setBoolean(key: 'enabled' | 'tlsProxy', value: boolean): void { if (dra
 </script>
 
 <template>
-  <section
-    class="collaboration-editor__direct"
+  <form
+    class="direct-form"
+    autocomplete="off"
+    @submit.prevent="emit('apply')"
   >
-    <BaseGroupBox
+    <CollabSection
       :title="t('collaboration.configuration')"
+      :description="t('collaboration.description')"
     >
-      <form
-        autocomplete="off"
-        @submit.prevent="emit('apply')"
-      >
-        <section class="collaboration-editor__section">
-          <BaseSwitch
-            :model-value="draft?.enabled ?? false"
-            :disabled="blocked || !available"
-            @update:model-value="setBoolean('enabled', $event)"
-          >
-            {{ t('collaboration.enabled') }}
-          </BaseSwitch>
-          <BaseFormGrid>
-            <BaseFormRow
-              for="collaboration-bind"
-              :label="t('collaboration.bind')"
-            >
-              <BaseTextField
-                id="collaboration-bind"
-                :model-value="draft?.bindAddress ?? ''"
-                maxlength="256"
-                :disabled="blocked"
-                @update:model-value="setText('bindAddress', $event)"
-              />
-            </BaseFormRow>
-            <BaseFormRow
-              for="collaboration-origin"
-              :label="t('collaboration.origin')"
-            >
-              <BaseTextField
-                id="collaboration-origin"
-                :model-value="draft?.advertisedOrigin ?? ''"
-                maxlength="2048"
-                :disabled="blocked"
-                placeholder="https://pc-a.example:8788"
-                @update:model-value="setText('advertisedOrigin', $event)"
-              />
-            </BaseFormRow>
-          </BaseFormGrid>
-        </section>
-        <section class="collaboration-editor__section">
-          <h3>{{ t('collaboration.tlsTitle') }}</h3>
-          <BaseSwitch
-            :model-value="draft?.tlsProxy ?? false"
+      <div class="direct-form__toggle">
+        <BaseSwitch
+          :model-value="draft?.enabled ?? false"
+          :disabled="blocked || !available"
+          @update:model-value="setBoolean('enabled', $event)"
+        >
+          {{ t('collaboration.enabled') }}
+        </BaseSwitch>
+        <p
+          v-if="!available"
+          class="collaboration-editor__muted"
+        >
+          {{ t('collaboration.unavailable') }}
+        </p>
+      </div>
+      <BaseFormGrid>
+        <BaseFormRow
+          for="collaboration-bind"
+          :label="t('collaboration.bind')"
+        >
+          <BaseTextField
+            id="collaboration-bind"
+            :model-value="draft?.bindAddress ?? ''"
+            maxlength="256"
             :disabled="blocked"
-            @update:model-value="setBoolean('tlsProxy', $event)"
-          >
-            {{ t('collaboration.tlsProxy') }}
-          </BaseSwitch>
-          <p
-            v-if="draft?.tlsProxy"
-            class="collaboration-editor__muted"
-          >
-            {{ t('collaboration.proxyHint') }}
-          </p>
-          <BaseFormGrid v-else>
-            <BaseFormRow
-              for="collaboration-certificate"
-              :label="t('collaboration.certificate')"
-            >
-              <BaseTextField
-                id="collaboration-certificate"
-                :model-value="draft?.tlsCertificate ?? ''"
-                :disabled="blocked"
-                maxlength="4096"
-                @update:model-value="setText('tlsCertificate', $event)"
-              />
-            </BaseFormRow>
-            <BaseFormRow
-              for="collaboration-key"
-              :label="t('collaboration.privateKey')"
-              :hint="t('collaboration.pathsHint')"
-            >
-              <BaseTextField
-                id="collaboration-key"
-                :model-value="draft?.tlsPrivateKey ?? ''"
-                :disabled="blocked"
-                maxlength="4096"
-                @update:model-value="setText('tlsPrivateKey', $event)"
-              />
-            </BaseFormRow>
-          </BaseFormGrid>
-        </section>
-        <section class="collaboration-editor__section">
-          <label for="collaboration-origins">{{ t('collaboration.originsTitle') }}</label>
-          <BaseTextArea
-            id="collaboration-origins"
-            v-model="allowedOrigins"
-            :rows="3"
-            maxlength="16384"
-            :disabled="blocked"
+            @update:model-value="setText('bindAddress', $event)"
           />
-        </section>
-        <SettingsDisclosure :title="t('collaboration.advanced')">
-          <BaseFormGrid>
-            <BaseFormRow
-              v-for="limit in limits"
-              :key="limit.key"
-              :for="`collaboration-${limit.key}`"
-              :label="t(`collaboration.limits.${limit.key}`)"
-            >
-              <input
-                :id="`collaboration-${limit.key}`"
-                :value="draft?.limits[limit.key] ?? 0"
-                type="number"
-                class="collaboration-editor__limit"
-                :min="limit.min"
-                :max="limit.max"
-                step="1"
-                :disabled="blocked"
-                @input="setLimit(limit.key, $event)"
-              >
-            </BaseFormRow>
-          </BaseFormGrid>
-        </SettingsDisclosure>
-        <div class="collaboration-editor__actions">
-          <BaseButton
-            type="submit"
-            variant="primary"
-            :disabled="blocked || changed || !available"
+        </BaseFormRow>
+        <BaseFormRow
+          for="collaboration-origin"
+          :label="t('collaboration.origin')"
+        >
+          <BaseTextField
+            id="collaboration-origin"
+            :model-value="draft?.advertisedOrigin ?? ''"
+            maxlength="2048"
+            :disabled="blocked"
+            placeholder="https://pc-a.example:8788"
+            @update:model-value="setText('advertisedOrigin', $event)"
+          />
+        </BaseFormRow>
+      </BaseFormGrid>
+    </CollabSection>
+    <CollabSection :title="t('collaboration.tlsTitle')">
+      <BaseSwitch
+        :model-value="draft?.tlsProxy ?? false"
+        :disabled="blocked"
+        @update:model-value="setBoolean('tlsProxy', $event)"
+      >
+        {{ t('collaboration.tlsProxy') }}
+      </BaseSwitch>
+      <p
+        v-if="draft?.tlsProxy"
+        class="collaboration-editor__muted"
+      >
+        {{ t('collaboration.proxyHint') }}
+      </p>
+      <BaseFormGrid v-else>
+        <BaseFormRow
+          for="collaboration-certificate"
+          :label="t('collaboration.certificate')"
+        >
+          <BaseTextField
+            id="collaboration-certificate"
+            :model-value="draft?.tlsCertificate ?? ''"
+            :disabled="blocked"
+            maxlength="4096"
+            @update:model-value="setText('tlsCertificate', $event)"
+          />
+        </BaseFormRow>
+        <BaseFormRow
+          for="collaboration-key"
+          :label="t('collaboration.privateKey')"
+          :hint="t('collaboration.pathsHint')"
+        >
+          <BaseTextField
+            id="collaboration-key"
+            :model-value="draft?.tlsPrivateKey ?? ''"
+            :disabled="blocked"
+            maxlength="4096"
+            @update:model-value="setText('tlsPrivateKey', $event)"
+          />
+        </BaseFormRow>
+      </BaseFormGrid>
+    </CollabSection>
+    <CollabSection :title="t('collaboration.originsTitle')">
+      <label
+        class="visually-hidden"
+        for="collaboration-origins"
+      >{{ t('collaboration.originsTitle') }}</label>
+      <BaseTextArea
+        id="collaboration-origins"
+        v-model="allowedOrigins"
+        :rows="3"
+        maxlength="16384"
+        :disabled="blocked"
+        :placeholder="t('collaboration.origins')"
+      />
+    </CollabSection>
+    <SettingsDisclosure :title="t('collaboration.advanced')">
+      <BaseFormGrid>
+        <BaseFormRow
+          v-for="limit in limits"
+          :key="limit.key"
+          :for="`collaboration-${limit.key}`"
+          :label="t(`collaboration.limits.${limit.key}`)"
+        >
+          <input
+            :id="`collaboration-${limit.key}`"
+            :value="draft?.limits[limit.key] ?? 0"
+            type="number"
+            class="collaboration-editor__limit"
+            :min="limit.min"
+            :max="limit.max"
+            step="1"
+            :disabled="blocked"
+            @input="setLimit(limit.key, $event)"
           >
-            {{ t('collaboration.save') }}
-          </BaseButton>
-          <BaseButton
-            :disabled="working"
-            @click="emit('reset')"
-          >
-            {{ t('collaboration.reset') }}
-          </BaseButton>
-        </div>
-      </form>
-    </BaseGroupBox>
-  </section>
+        </BaseFormRow>
+      </BaseFormGrid>
+    </SettingsDisclosure>
+    <div
+      class="collab-actionbar collab-actionbar--sticky"
+      :class="{ 'collab-actionbar--dirty': dirty }"
+    >
+      <p
+        class="collab-actionbar__note"
+        :role="dirty ? 'status' : undefined"
+      >
+        <template v-if="dirty">
+          {{ t('collaboration.unsaved') }}
+        </template>
+      </p>
+      <BaseButton
+        :disabled="working"
+        @click="emit('reset')"
+      >
+        {{ t('collaboration.reset') }}
+      </BaseButton>
+      <BaseButton
+        type="submit"
+        variant="primary"
+        :disabled="blocked || changed || !available"
+      >
+        {{ t('collaboration.save') }}
+      </BaseButton>
+    </div>
+  </form>
 </template>

@@ -32,7 +32,11 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
 
 <template>
   <div class="effect-grant-editor">
-    <p>{{ t('collaboration.effectRulesHint') }}</p>
+    <SettingsDisclosure :title="t('collaboration.howRulesWork')">
+      <p class="effect-grant-editor__note">
+        {{ t('collaboration.effectRulesHint') }}
+      </p>
+    </SettingsDisclosure>
     <SettingsDisclosure :title="t('collaboration.publicEffectFields')">
       <pre>{{ publicEffectRenderFields.join('\n') }}</pre>
     </SettingsDisclosure>
@@ -47,6 +51,7 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
         maxlength="2048"
         @input="patchHttp(index, { origin: text($event) })"
       ></label>
+      <div class="effect-grant-editor__grid">
       <label
         v-for="field in listFields"
         :key="field"
@@ -61,6 +66,8 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
           @update:model-value="patchHttp(index, { [field]: splitIds($event) })"
         />
       </label>
+      </div>
+      <div class="effect-grant-editor__grid">
       <label>{{ t('collaboration.maxBodyBytes') }}<input
         type="number"
         min="0"
@@ -75,6 +82,8 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
         :value="rule.maxResponseBytes"
         @input="patchHttp(index, { maxResponseBytes: numeric($event) })"
       ></label>
+      </div>
+      <div class="effect-grant-editor__switches">
       <BaseSwitch
         :model-value="rule.allowTextBody"
         :disabled="disabled"
@@ -89,7 +98,10 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
       >
         {{ t('collaboration.allowPrivateNetwork') }}
       </BaseSwitch>
+      </div>
       <BaseButton
+        class="effect-grant-editor__remove"
+        variant="danger"
         :disabled="disabled"
         @click="remove('http', index)"
       >
@@ -97,6 +109,7 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
       </BaseButton>
     </fieldset>
     <BaseButton
+      class="effect-grant-editor__add"
       :disabled="disabled || (model?.http.length ?? 0) >= 32"
       @click="addHttp"
     >
@@ -135,6 +148,8 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
         {{ t(`collaboration.effectOverlaps.${overlap}`) }}
       </BaseSwitch>
       <BaseButton
+        class="effect-grant-editor__remove"
+        variant="danger"
         :disabled="disabled"
         @click="remove('audio', index)"
       >
@@ -142,6 +157,7 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
       </BaseButton>
     </fieldset>
     <BaseButton
+      class="effect-grant-editor__add"
       :disabled="disabled || (model?.audio.length ?? 0) >= 32"
       @click="addAudio"
     >
@@ -159,8 +175,16 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
 </template>
 
 <style scoped>
-.effect-grant-editor, fieldset { display: grid; gap: var(--space-3); }
-fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-3); }
-label { display: grid; gap: var(--space-2); }
-input { color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); padding: var(--space-2); }
+.effect-grant-editor, fieldset { display: grid; gap: var(--space-5); min-width: 0; }
+fieldset { margin: 0; border: 1px solid var(--color-border-subtle); border-left: 3px solid var(--color-border-selected); border-radius: var(--radius-md); background: var(--color-bg-app); padding: var(--space-5) var(--space-6) var(--space-6); }
+legend { padding: 0 var(--space-3); color: var(--color-text); font-weight: var(--font-weight-semibold); }
+label { display: grid; gap: var(--space-2); min-width: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+input { min-width: 0; height: var(--control-height-md); color: var(--color-text); background: var(--color-bg-field); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0 var(--space-4); font: inherit; font-size: var(--font-size-md); }
+input:focus-visible { outline: 0; border-color: var(--color-border-focus); box-shadow: var(--focus-ring); }
+pre { margin: 0; font-family: var(--font-family-mono); font-size: var(--font-size-sm); }
+.effect-grant-editor__note { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-normal); }
+.effect-grant-editor__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-5); }
+.effect-grant-editor__switches { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-7); }
+.effect-grant-editor__remove { justify-self: end; }
+.effect-grant-editor__add { justify-self: stretch; border-style: dashed; }
 </style>

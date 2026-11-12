@@ -22,10 +22,10 @@ const { t } = useI18n();
 const area = ref<'overview' | 'people' | 'invite' | 'direct'>('overview');
 // Listen address, public URL, TLS and allowed origins belong to the direct connection, not to the normal flow.
 const areaTabs = computed(() => [
- { value: 'overview' as const, label: t('settingsLayout.overview') },
- { value: 'people' as const, label: t('settingsLayout.people') },
+  { value: 'overview' as const, label: t('settingsLayout.overview') },
+  { value: 'people' as const, label: t('settingsLayout.people'), badge: status.value && status.value.pendingRequests > 0 ? status.value.pendingRequests : undefined },
   { value: 'invite' as const, label: t('collaboration.invites') },
- { value: 'direct' as const, label: t('collaboration.directTransport') },
+  { value: 'direct' as const, label: t('collaboration.directTransport') },
 ]);
 const owner = createCollaborationOwner(useControlClient());
 const { status, pages, tab, loading, working, error, uncertain, connected, checkedAt, secret, canInvite, joinLink, next, previous } = owner;
@@ -40,6 +40,13 @@ const confirmation = ref<CollaborationConfirmation | null>(null);
 const confirmOpen = computed({ get: () => confirmation.value !== null, set: (value) => { if (!value) confirmation.value = null; } });
 const blocked = computed(() => working.value || !connected.value || uncertain.value);
 const changed = computed(() => !!status.value && baseRevision.value !== status.value.configurationRevision);
+// Unsaved edits to the direct connection, compared with what the host last reported.
+const dirty = computed(() => {
+  if (!draft.value || !status.value) return false;
+  const saved = status.value.configuration;
+  return JSON.stringify({ ...draft.value, allowedOrigins: splitIds(allowedOrigins.value) }) !== JSON.stringify({ ...saved, allowedOrigins: saved.allowedOrigins });
+});
+function go(target: 'people' | 'invite' | 'direct'): void { area.value = target; if (target === 'people') tab.value = 'requests'; }
 const adminTab = computed({ get: () => tab.value, set: (value: AdminTab) => { void owner.selectTab(value); } });
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 function resetDraft(): void {
@@ -133,7 +140,7 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
         class="collaboration-editor__navigation"
       >
         <BaseAlert
-          v-if="!status.gateway.available"
+          v-if="!status.gateway.available && area !== 'overview'"
           tone="warning"
           :title="t('collaboration.unavailable')"
         />
@@ -142,19 +149,13 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
           tone="warning"
           :title="t('collaboration.changed')"
         />
-        <BaseButton
-          v-if="status.pendingRequests > 0 && area !== 'people'"
-          class="collaboration-editor__pending"
-          @click="area = 'people'; tab = 'requests'"
-        >
-          {{ t('settingsLayout.requests') }} · {{ status.pendingRequests }}
-        </BaseButton>
         <CollaborationOverview
           v-show="area === 'overview'"
           :status="status"
           :checked-at="checkedAt"
           :blocked="blocked"
           @disable="requestDisable"
+          @navigate="go"
         />
         <DirectConnectionForm
           v-show="area === 'direct'"
@@ -162,6 +163,7 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
           v-model:allowed-origins="allowedOrigins"
           :blocked="blocked"
           :changed="changed"
+          :dirty="dirty"
           :working="working"
           :available="status.gateway.available"
           @apply="applyConfiguration"
@@ -191,6 +193,7 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; principalDraft.valu
           :join-link="joinLink"
           :secret="secret"
           @create="createInvitation"
+          @navigate="go"
           @hide="secret = null"
           @error="message = $event"
         />

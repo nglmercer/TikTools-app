@@ -1,6 +1,7 @@
 //! Real HTTP and private files exercise the coordinator boundary, without
 //! installing plugins, opening application databases, or using a v1 sync API.
 use super::*;
+use cloud_client::{PluginSelection, WorkspaceEdit, WorkspacePendingStatus};
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,

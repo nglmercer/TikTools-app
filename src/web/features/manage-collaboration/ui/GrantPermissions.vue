@@ -9,6 +9,7 @@ defineProps<{ disabled?: boolean }>();
 const model = defineModel<Grant>({ required: true });
 const { t } = useI18n();
 const { requiredByDelegation, setCapability } = useGrantCapabilities(model);
+const enabledIn = (ids: readonly string[]): number => ids.filter(id => (model.value.capabilities as string[]).includes(id)).length;
 function setPointsLimit(event: Event): void {
   const input = event.target as HTMLInputElement;
   const value = cloneGrant(model.value);
@@ -27,7 +28,10 @@ function setPointsLimit(event: Event): void {
       :key="group.key"
       class="grant-editor__group"
     >
-      <h4>{{ t(`collaboration.grantGroups.${group.key}`) }}</h4>
+      <h4 class="grant-editor__group-title">
+        <span>{{ t(`collaboration.grantGroups.${group.key}`) }}</span>
+        <span class="grant-editor__count">{{ t('collaboration.groupCount', { on: enabledIn(group.ids), total: group.ids.length }) }}</span>
+      </h4>
       <div class="grant-editor__switches">
         <BaseSwitch
           v-for="capability in group.ids"
@@ -40,7 +44,6 @@ function setPointsLimit(event: Event): void {
         </BaseSwitch>
       </div>
     </div>
-    <p>{{ t('collaboration.reusableGrantHint') }}</p>
     <label
       v-if="model.capabilities.includes('points.adjust')"
       class="grant-editor__points-limit"
@@ -56,5 +59,8 @@ function setPointsLimit(event: Event): void {
       >
       <span>{{ t('collaboration.pointsLimitHint') }}</span>
     </label>
+    <p class="grant-editor__hint">
+      {{ t('collaboration.reusableGrantHint') }}
+    </p>
   </section>
 </template>

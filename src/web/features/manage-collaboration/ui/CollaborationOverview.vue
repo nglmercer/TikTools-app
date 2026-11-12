@@ -7,48 +7,66 @@ import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosu
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
-import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import CollabSection from './CollabSection.vue';
 const props = defineProps<{ status: CollaborationStatus; checkedAt: number | null; blocked: boolean }>();
-const emit = defineEmits<{ disable: [] }>();
+const emit = defineEmits<{ disable: []; navigate: [area: 'people' | 'invite' | 'direct'] }>();
 const { t } = useI18n();
 const { date, listenerStatus } = useCollaborationPresentation();
 const listener = computed(() => listenerStatus(props.status));
+// One next step, chosen from the current state, instead of leaving the owner to guess which tab matters.
+const next = computed<{ message: string; action: string; area: 'people' | 'invite' | 'direct' } | null>(() => {
+  if (!props.status.gateway.available) return null;
+  if (props.status.pendingRequests > 0) return { message: t('collaboration.heroPending', { count: props.status.pendingRequests }), action: t('settingsLayout.requests'), area: 'people' };
+  if (!props.status.gateway.running || !props.status.configuration.enabled) return { message: t('collaboration.heroSetup'), action: t('collaboration.openDirect'), area: 'direct' };
+  return { message: t('collaboration.heroReady'), action: t('collaboration.invites'), area: 'invite' };
+});
 </script>
 
 <template>
-  <BaseGroupBox
-    :title="t('settingsLayout.overview')"
-    :description="t('collaboration.description')"
-  >
-    <dl class="collaboration-editor__metrics">
-      <div>
-        <dt>{{ t('collaboration.metrics.connections') }}</dt>
-        <dd>{{ status.gateway.connections }}</dd>
-      </div>
-      <div>
-        <dt>{{ t('collaboration.metrics.sessions') }}</dt>
-        <dd>{{ status.activeSessions }}</dd>
-      </div>
-      <div>
-        <dt>{{ t('collaboration.metrics.pending') }}</dt>
-        <dd>{{ status.pendingRequests }}</dd>
-      </div>
-      <div>
-        <dt>{{ t('collaboration.metrics.listener') }}</dt>
-        <dd>
-          <BaseStatus
-            :label="listener.label"
-            :tone="listener.tone"
-          />
-        </dd>
-      </div>
-    </dl>
-    <p
-      v-if="checkedAt"
-      class="collaboration-editor__muted"
+  <div class="overview">
+    <section
+      class="overview__hero"
+      :class="`overview__hero--${listener.tone}`"
     >
-      {{ t('collaboration.checked', { when: date(checkedAt) }) }}
-    </p>
+      <div class="overview__state">
+        <BaseStatus
+          class="overview__headline"
+          :label="listener.label"
+          :tone="listener.tone"
+        />
+        <p
+          v-if="status.gateway.running && status.gateway.address"
+          class="collaboration-editor__muted"
+        >
+          {{ t('collaboration.listenerAddress', { address: status.gateway.address }) }}
+        </p>
+        <p
+          v-if="next"
+          class="overview__next"
+        >
+          {{ next.message }}
+        </p>
+        <p
+          v-else
+          class="overview__next"
+        >
+          {{ t('collaboration.unavailableDetail') }}
+        </p>
+      </div>
+      <BaseButton
+        v-if="next"
+        class="overview__cta"
+        variant="primary"
+        @click="emit('navigate', next.area)"
+      >
+        {{ next.action }}
+      </BaseButton>
+    </section>
+    <BaseAlert
+      v-if="!status.gateway.available"
+      tone="warning"
+      :title="t('collaboration.unavailable')"
+    />
     <BaseAlert
       v-if="status.configuration.enabled && status.gateway.configurationRevision !== status.configurationRevision"
       tone="info"
@@ -58,6 +76,26 @@ const listener = computed(() => listenerStatus(props.status));
       v-if="status.gateway.lastError"
       :title="status.gateway.lastError"
     />
+    <dl class="collaboration-editor__metrics">
+      <div>
+        <dt>{{ t('collaboration.metrics.connections') }}</dt>
+        <dd>{{ status.gateway.connections }}</dd>
+      </div>
+      <div>
+        <dt>{{ t('collaboration.metrics.sessions') }}</dt>
+        <dd>{{ status.activeSessions }}</dd>
+      </div>
+      <div :class="{ 'collaboration-editor__metric--attention': status.pendingRequests > 0 }">
+        <dt>{{ t('collaboration.metrics.pending') }}</dt>
+        <dd>{{ status.pendingRequests }}</dd>
+      </div>
+    </dl>
+    <p
+      v-if="checkedAt"
+      class="collaboration-editor__muted"
+    >
+      {{ t('collaboration.checked', { when: date(checkedAt) }) }}
+    </p>
     <p
       v-if="status.gateway.running && status.gateway.certificateFingerprint"
       class="collaboration-editor__muted"
@@ -71,18 +109,6 @@ const listener = computed(() => listenerStatus(props.status));
     >
       {{ t('collaboration.proxyFingerprint') }}
     </p>
-    <div
-      v-if="status.configuration.enabled"
-      class="collaboration-editor__actions"
-    >
-      <BaseButton
-        variant="danger"
-        :disabled="blocked"
-        @click="emit('disable')"
-      >
-        {{ t('collaboration.disable') }}
-      </BaseButton>
-    </div>
     <SettingsDisclosure
       class="collaboration-editor__technical"
       :title="t('settingsLayout.technical')"
@@ -90,5 +116,21 @@ const listener = computed(() => listenerStatus(props.status));
       <p>{{ t('collaboration.host') }}: <code>{{ status.hostId }}</code></p>
       <p>{{ t('collaboration.instance') }}: <code>{{ status.hostInstanceId }}</code></p>
     </SettingsDisclosure>
-  </BaseGroupBox>
+    <CollabSection
+      v-if="status.configuration.enabled"
+      class="collab-section--danger"
+      :title="t('collaboration.dangerTitle')"
+      :description="t('collaboration.disableMessage')"
+    >
+      <template #actions>
+        <BaseButton
+          variant="danger"
+          :disabled="blocked"
+          @click="emit('disable')"
+        >
+          {{ t('collaboration.disable') }}
+        </BaseButton>
+      </template>
+    </CollabSection>
+  </div>
 </template>

@@ -19,16 +19,22 @@ function setEffects(effects: EffectGrants | undefined): void { const value = clo
   <section
     class="grant-editor__panel"
   >
-    <h3>{{ t('collaboration.effectRules') }}</h3>
-    <BaseSwitch
-      v-for="capability in effectCaps"
-      :key="capability"
-      :model-value="model.capabilities.includes(capability)"
-      :disabled="disabled || requiredByDelegation(capability)"
-      @update:model-value="setCapability(capability, $event)"
-    >
-      {{ t(`collaboration.${effectLabels[capability]}`) }}
-    </BaseSwitch>
+    <div class="grant-editor__group">
+      <h4 class="grant-editor__group-title">
+        <span>{{ t('collaboration.effectRules') }}</span>
+      </h4>
+      <div class="grant-editor__switches">
+        <BaseSwitch
+          v-for="capability in effectCaps"
+          :key="capability"
+          :model-value="model.capabilities.includes(capability)"
+          :disabled="disabled || requiredByDelegation(capability)"
+          @update:model-value="setCapability(capability, $event)"
+        >
+          {{ t(`collaboration.${effectLabels[capability]}`) }}
+        </BaseSwitch>
+      </div>
+    </div>
     <EffectGrantEditor
       :model-value="model.effects"
       :disabled="disabled"

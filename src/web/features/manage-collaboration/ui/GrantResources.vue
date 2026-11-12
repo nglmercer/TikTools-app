@@ -33,7 +33,12 @@ function setIds(kind: ResourceKind, text: string): void { const value = cloneGra
   <section
     class="grant-editor__panel"
   >
-    <h3>{{ t('collaboration.scopes') }}</h3>
+    <div class="grant-editor__group">
+      <h4 class="grant-editor__group-title">
+        <span>{{ t('collaboration.scopes') }}</span>
+      </h4>
+    </div>
+    <div class="grant-editor__scopes">
     <div
       v-for="kind in resourceKinds"
       :key="kind"
@@ -41,6 +46,7 @@ function setIds(kind: ResourceKind, text: string): void { const value = cloneGra
     >
       <h4>{{ t(`collaboration.scopeKinds.${kind}`) }}</h4>
       <BaseSegmented
+        size="sm"
         :model-value="modes[kind] ?? 'all'"
         :disabled="disabled"
         :aria-label="t(`collaboration.scopeKinds.${kind}`)"
@@ -57,9 +63,13 @@ function setIds(kind: ResourceKind, text: string): void { const value = cloneGra
         maxlength="65536"
         @update:model-value="setIds(kind, $event)"
       />
-      <p v-if="kind === 'automation'">
+      <p
+        v-if="kind === 'automation'"
+        class="grant-editor__hint"
+      >
         {{ t('collaboration.automationScopeHint') }}
       </p>
+    </div>
     </div>
   </section>
 </template>

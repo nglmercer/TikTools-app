@@ -26,11 +26,23 @@ function setAll(enabled: boolean): void {
   model.value = value;
   jsonReset.value += 1;
 }
-function preset(kind: 'viewer' | 'workflow' | 'agent'): void {
+type Preset = 'viewer' | 'workflow' | 'agent';
+const presets: Array<{ kind: Preset; label: string }> = [
+  { kind: 'viewer', label: 'collaboration.presetViewer' },
+  { kind: 'workflow', label: 'collaboration.presetWorkflow' },
+  { kind: 'agent', label: 'collaboration.presetAgent' },
+];
+function presetGrant(kind: Preset): Grant {
   const value = viewerGrant();
   if (kind !== 'viewer') { value.capabilities.push('workflows.read'); value.resources.workflow = []; }
   if (kind === 'agent') value.capabilities.push('commands.read');
-  model.value = value;
+  return value;
+}
+// A preset reads as selected only while the draft still matches its capabilities exactly.
+const sameCapabilities = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every(item => b.includes(item));
+const activePreset = computed(() => presets.find(item => sameCapabilities(presetGrant(item.kind).capabilities, model.value.capabilities))?.kind);
+function preset(kind: Preset): void {
+  model.value = presetGrant(kind);
   jsonReset.value += 1;
   scopeReset.value += 1;
 }
@@ -38,44 +50,21 @@ function preset(kind: 'viewer' | 'workflow' | 'agent'): void {
 
 <template>
   <div class="grant-editor">
-    <div class="grant-editor__actions">
-      <BaseButton
-        :disabled="disabled"
-        @click="preset('viewer')"
-      >
-        {{ t('collaboration.presetViewer') }}
-      </BaseButton>
-      <BaseButton
-        :disabled="disabled"
-        @click="preset('workflow')"
-      >
-        {{ t('collaboration.presetWorkflow') }}
-      </BaseButton>
-      <BaseButton
-        :disabled="disabled"
-        @click="preset('agent')"
-      >
-        {{ t('collaboration.presetAgent') }}
-      </BaseButton>
-    </div>
     <div
-      class="grant-editor__bulk"
+      class="grant-editor__presets"
       role="group"
-      :aria-label="t('collaboration.bulkLabel')"
+      :aria-label="t('collaboration.presetsLabel')"
     >
+      <span class="grant-editor__presets-label">{{ t('collaboration.presetsLabel') }}</span>
       <BaseButton
+        v-for="item in presets"
+        :key="item.kind"
         :disabled="disabled"
-        @click="setAll(true)"
+        :pressed="activePreset === item.kind"
+        @click="preset(item.kind)"
       >
-        {{ t('collaboration.enableAll') }}
+        {{ t(item.label) }}
       </BaseButton>
-      <BaseButton
-        :disabled="disabled"
-        @click="setAll(false)"
-      >
-        {{ t('collaboration.disableAll') }}
-      </BaseButton>
-      <span>{{ t('collaboration.bulkHint') }}</span>
     </div>
     <BaseTabs
       v-model="section"
@@ -83,6 +72,31 @@ function preset(kind: 'viewer' | 'workflow' | 'agent'): void {
       :label="t('collaboration.grantSummary')"
       class="grant-editor__tabs"
     >
+      <template #bar>
+        <div
+          class="grant-editor__bulk"
+          role="group"
+          :aria-label="t('collaboration.bulkLabel')"
+          :title="t('collaboration.bulkHint')"
+        >
+          <BaseButton
+            size="sm"
+            variant="ghost"
+            :disabled="disabled"
+            @click="setAll(true)"
+          >
+            {{ t('collaboration.enableAll') }}
+          </BaseButton>
+          <BaseButton
+            size="sm"
+            variant="ghost"
+            :disabled="disabled"
+            @click="setAll(false)"
+          >
+            {{ t('collaboration.disableAll') }}
+          </BaseButton>
+        </div>
+      </template>
       <GrantPermissions
         v-show="section === 'permissions'"
         v-model="model"
@@ -112,6 +126,9 @@ function preset(kind: 'viewer' | 'workflow' | 'agent'): void {
         :reset-key="scopeReset"
       />
     </BaseTabs>
+    <p class="grant-editor__hint">
+      {{ t('collaboration.bulkHint') }}
+    </p>
   </div>
 </template>
 

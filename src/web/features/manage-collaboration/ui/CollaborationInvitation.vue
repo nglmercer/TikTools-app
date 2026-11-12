@@ -4,13 +4,13 @@ import { ref, watch } from 'vue';
 import type { Grant, InvitationSecret } from '@/entities/collaboration/api/types.ts';
 import { useCollaborationPresentation } from '../lib/use-collaboration-presentation.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
+import CollabSection from './CollabSection.vue';
 import GrantEditor from './GrantEditor.vue';
 import InvitationQr from './InvitationQr.vue';
 const props = defineProps<{ blocked: boolean; canInvite: boolean; joinLink: string; secret: InvitationSecret | null }>();
 const grant = defineModel<Grant>({ required: true });
-const emit = defineEmits<{ create: []; hide: []; error: [message: string] }>();
+const emit = defineEmits<{ create: []; hide: []; error: [message: string]; navigate: [area: 'direct'] }>();
 const { t } = useI18n();
 const { date } = useCollaborationPresentation();
 const showQr = ref(false);
@@ -23,7 +23,7 @@ async function copyLink(): Promise<void> {
 </script>
 
 <template>
-  <BaseGroupBox
+  <CollabSection
     :title="t('collaboration.invites')"
     :description="t('collaboration.inviteHint')"
   >
@@ -31,21 +31,6 @@ async function copyLink(): Promise<void> {
       v-model="grant"
       :disabled="blocked"
     />
-    <p
-      v-if="!canInvite"
-      class="collaboration-editor__muted"
-    >
-      {{ t('collaboration.listenerRequired') }}
-    </p>
-    <div class="collaboration-editor__actions">
-      <BaseButton
-        variant="primary"
-        :disabled="!canInvite"
-        @click="emit('create')"
-      >
-        {{ t('collaboration.create') }}
-      </BaseButton>
-    </div>
     <section
       v-if="secret && joinLink"
       class="collaboration-editor__share"
@@ -66,7 +51,10 @@ async function copyLink(): Promise<void> {
         {{ t('collaboration.expires', { when: date(secret.expiresAt) }) }}
       </p>
       <div class="collaboration-editor__actions">
-        <BaseButton @click="copyLink">
+        <BaseButton
+          variant="primary"
+          @click="copyLink"
+        >
           {{ copied ? t('collaboration.copied') : t('collaboration.copy') }}
         </BaseButton>
         <BaseButton @click="showQr = !showQr">
@@ -81,5 +69,30 @@ async function copyLink(): Promise<void> {
         :value="joinLink"
       />
     </section>
-  </BaseGroupBox>
+    <template #footer>
+      <div class="collab-actionbar">
+        <p
+          v-if="!canInvite"
+          class="collab-actionbar__note"
+        >
+          {{ t('collaboration.listenerRequired') }}
+          <BaseButton
+            size="sm"
+            variant="ghost"
+            @click="emit('navigate', 'direct')"
+          >
+            {{ t('collaboration.openDirect') }}
+          </BaseButton>
+        </p>
+        <BaseButton
+          class="collab-actionbar__primary"
+          variant="primary"
+          :disabled="!canInvite"
+          @click="emit('create')"
+        >
+          {{ t('collaboration.create') }}
+        </BaseButton>
+      </div>
+    </template>
+  </CollabSection>
 </template>
