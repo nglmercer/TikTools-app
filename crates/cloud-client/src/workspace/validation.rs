@@ -86,6 +86,14 @@ pub(super) fn validate_collection(
     }
     Ok(())
 }
+/// Provenance of a forked document: backend metadata on the caller's own
+/// documents, never part of the portable value and never on public ones.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ForkOf {
+    document_id: Uuid,
+    revision: i64,
+}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DocumentMeta {
@@ -96,10 +104,14 @@ struct DocumentMeta {
     title: String,
     sha256: String,
     status: String,
+    #[serde(default, rename = "forkOf")]
+    fork_of: Option<ForkOf>,
 }
 impl DocumentMeta {
     fn valid(&self, public: bool) -> bool {
-        matches!(self.kind.as_str(), "template" | "profile")
+        self.fork_of.as_ref().is_none_or(|source| {
+            !public && (1..=100).contains(&source.revision) && !source.document_id.is_nil()
+        }) && matches!(self.kind.as_str(), "template" | "profile")
             && portable::valid_id(&self.slug)
             && (1..=100).contains(&self.revision)
             && !self.title.trim().is_empty()

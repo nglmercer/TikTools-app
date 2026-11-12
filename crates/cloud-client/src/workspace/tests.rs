@@ -1369,3 +1369,121 @@ async fn bounded_catalog_rejects_wrong_paths_extra_fields_and_oversized_bodies()
         .is_err());
     task.await.unwrap();
 }
+
+#[tokio::test]
+async fn variables_are_discovered_as_an_optional_collection_and_staged_through_the_normal_path() {
+    // The legacy list stays exactly the five v2 collections; `variables` is
+    // announced separately, and unknown optional names are ignored.
+    let mut announced = workspace_capability_document();
+    announced["sync"]["optionalCollections"] = json!(["variables", "future-collection"]);
+    let (origin, server) = mock(vec![
+        Reply::json(workspace_capability_document()),
+        Reply::json(announced),
+    ])
+    .await;
+    let catalog = CloudCatalog::new(&origin).unwrap();
+    assert!(
+        !catalog
+            .workspace_sync_capabilities()
+            .await
+            .unwrap()
+            .variables
+    );
+    assert!(
+        catalog
+            .workspace_sync_capabilities()
+            .await
+            .unwrap()
+            .variables
+    );
+    server.await.unwrap();
+
+    let value = json!({"schemaVersion":1,"name":"commandPort","type":"number","value":46665});
+    let stored = json!({"collection":"variables","key":"commandPort","revision":4,"deleted":false,"value":value});
+    let page = json!({"records":[stored],"nextAfter":null});
+    let (session, task) = native_session(vec![
+        Reply::json(stored.clone()),
+        Reply::json(page),
+        Reply::json(stored.clone()),
+    ])
+    .await;
+    let written = session
+        .workspace_put("variables", "commandPort", value.clone(), None)
+        .await
+        .unwrap();
+    assert_eq!(written.value, Some(value.clone()));
+    session
+        .workspace_collection("variables", None)
+        .await
+        .unwrap();
+    assert!(session
+        .workspace_record("variables", "commandPort")
+        .await
+        .is_ok());
+    let requests = task.await.unwrap();
+    assert_eq!(requests[1].method, "PUT");
+    assert_eq!(
+        requests[1].target,
+        "/api/v2/sync/collections/variables/commandPort"
+    );
+    // A secret variable is refused before any request is made.
+    let (session, task) = native_session(vec![]).await;
+    for bad in [
+        json!({"schemaVersion":1,"name":"apiKey","type":"secret","value":"x"}),
+        json!({"schemaVersion":1,"name":"other","type":"text","value":"x"}),
+        json!({"schemaVersion":1,"name":"apiKey","type":"text","value":1}),
+    ] {
+        assert!(matches!(
+            session
+                .workspace_put("variables", "apiKey", bad, None)
+                .await,
+            Err(SyncError::Configuration)
+        ));
+    }
+    assert_eq!(task.await.unwrap().len(), 1, "only the profile lookup");
+}
+
+#[tokio::test]
+async fn library_documents_accept_fork_provenance_only_on_private_metadata() {
+    let id = Uuid::from_u128(77);
+    let source = Uuid::from_u128(78);
+    let mut forked = document_view(id, 1, "draft");
+    forked["forkOf"] = json!({"documentId":source,"revision":2});
+    let page = json!({"items":[document_meta(id, 1, "draft")],"nextCursor":null});
+    let mut page_with_fork = page.clone();
+    page_with_fork["items"][0]["forkOf"] = json!({"documentId":source,"revision":2});
+    let mut unknown = forked.clone();
+    unknown["forkOf"]["parentId"] = json!("x");
+    let mut zero = forked.clone();
+    zero["forkOf"]["revision"] = json!(0);
+    let (session, task) = native_session(vec![
+        Reply::json(forked.clone()),
+        Reply::json(page_with_fork),
+        Reply::json(unknown),
+        Reply::json(zero),
+        Reply::json(document_view(id, 1, "draft")),
+    ])
+    .await;
+    assert_eq!(session.library_document(id).await.unwrap(), forked);
+    session.library_documents(None).await.unwrap();
+    for _ in 0..2 {
+        assert!(matches!(
+            session.library_document(id).await,
+            Err(SyncError::Protocol)
+        ));
+    }
+    assert!(session.library_document(id).await.is_ok());
+    task.await.unwrap();
+    // Public documents never carry provenance.
+    let mut public = document_view(id, 1, "published");
+    public["forkOf"] = json!({"documentId":source,"revision":1});
+    let (origin, task) = mock(vec![Reply::json(public)]).await;
+    assert!(matches!(
+        CloudCatalog::new(&origin)
+            .unwrap()
+            .document(id, Some(1))
+            .await,
+        Err(SyncError::Protocol)
+    ));
+    task.await.unwrap();
+}

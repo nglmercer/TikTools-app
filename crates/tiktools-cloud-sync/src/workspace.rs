@@ -522,6 +522,22 @@ impl WorkspaceCoordinator {
         admission: &ProductUploadAdmission<'_>,
         operation: impl FnOnce(&WorkspaceProductProof) -> Result<T, WorkspaceCoordError>,
     ) -> Result<T, WorkspaceCoordError> {
+        if crate::v2_product_outbox::OWNED_EDIT_COLLECTIONS
+            .contains(&proof.target().collection.as_str())
+        {
+            // Owner-owned edit (no native source row): the digest must still be
+            // the one staged under this account's consent generation.
+            let expected = crate::v2_product_outbox::owned_edit_digest(
+                proof.target(),
+                proof.edit(),
+                admission.config_generation,
+            );
+            if expected.as_deref() != Some(proof.decision_digest()) {
+                return Err(WorkspaceStateError::StaleReview.into());
+            }
+            eligibility.check()?;
+            return operation(proof);
+        }
         let decision = crate::V2ProductDecision::from_proof(
             &self.origin,
             &self.account_id,

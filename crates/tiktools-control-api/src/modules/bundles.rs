@@ -4,10 +4,13 @@
 use std::sync::Arc;
 
 pub use tiktools_core::cloud_bundles::{
-    AssetUploadParams, CloudAsset, LibraryItemPage, LibraryItemsQuery, OverlayCreateParams,
-    OverlayIdParams, OverlayRecord, OverlayReviseParams, OverlayWriteResult, PackageCreateParams,
-    PackageCreated, PackageIdParams, PackageItemParams, PackagePreflight, PackageRecord,
-    PreflightItem,
+    AssetIdParams, AssetSetLabelParams, AssetUploadParams, CatalogForkOrigin, CatalogForkParams,
+    CatalogForkResult, CloudAsset, CloudAssetPage, CloudDeleted, CloudPageQuery, LibraryItemPage,
+    LibraryItemsQuery, OverlayCreateParams, OverlayIdParams, OverlayPage, OverlayRecord,
+    OverlayReviseParams, OverlayRevisionPage, OverlayRevisionParams, OverlayRevisionRecord,
+    OverlayRevisionSummary, OverlayRevisionsQuery, OverlaySummary, OverlayWriteResult,
+    PackageCreateParams, PackageCreated, PackageIdParams, PackageItemParams, PackagePreflight,
+    PackageRecord, PreflightItem,
 };
 use tiktools_core::AppCore;
 
@@ -92,6 +95,88 @@ pub fn register(router: &mut ControlRouter) {
             core.bundles_package_preflight(params)
                 .await
                 .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<CatalogForkParams, CatalogForkResult, _, _>(
+        "catalog.fork",
+        "Copies a public template or profile into the signed-in owner's library as a private draft; needs library.fork",
+        true,
+        |core: Arc<AppCore>, params: CatalogForkParams| async move {
+            core.catalog_fork(params).await.map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<CloudPageQuery, CloudAssetPage, _, _>(
+        "bundles.assets.list",
+        "Lists the owner's Cloud images, newest first; needs media.operations list",
+        false,
+        |core: Arc<AppCore>, params: CloudPageQuery| async move {
+            core.bundles_assets_list(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<AssetSetLabelParams, CloudAsset, _, _>(
+        "bundles.assets.setLabel",
+        "Renames a Cloud image, or clears its label with null; needs media.operations rename",
+        true,
+        |core: Arc<AppCore>, params: AssetSetLabelParams| async move {
+            core.bundles_asset_set_label(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<AssetIdParams, CloudDeleted, _, _>(
+        "bundles.assets.delete",
+        "Deletes a Cloud image; conflict while an overlay still uses it; needs media.operations delete",
+        true,
+        |core: Arc<AppCore>, params: AssetIdParams| async move {
+            core.bundles_asset_delete(params).await.map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<CloudPageQuery, OverlayPage, _, _>(
+        "bundles.overlays.list",
+        "Lists the owner's overlays without their documents; needs overlays.operations list",
+        false,
+        |core: Arc<AppCore>, params: CloudPageQuery| async move {
+            core.bundles_overlays_list(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<OverlayRevisionsQuery, OverlayRevisionPage, _, _>(
+        "bundles.overlays.revisions",
+        "Lists the revisions of one overlay, newest first; needs overlays.operations revisions",
+        false,
+        |core: Arc<AppCore>, params: OverlayRevisionsQuery| async move {
+            core.bundles_overlay_revisions(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<OverlayRevisionParams, OverlayRevisionRecord, _, _>(
+        "bundles.overlays.revision",
+        "Reads one stored overlay revision with its document; needs overlays.operations revision",
+        false,
+        |core: Arc<AppCore>, params: OverlayRevisionParams| async move {
+            core.bundles_overlay_revision(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<OverlayIdParams, CloudDeleted, _, _>(
+        "bundles.overlays.delete",
+        "Deletes an overlay and all its revisions; conflict while a package pins it; needs overlays.operations delete",
+        true,
+        |core: Arc<AppCore>, params: OverlayIdParams| async move {
+            core.bundles_overlay_delete(params).await.map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<PackageIdParams, CloudDeleted, _, _>(
+        "bundles.packages.delete",
+        "Deletes a package, which releases the overlays it pinned; needs packages.operations delete",
+        true,
+        |core: Arc<AppCore>, params: PackageIdParams| async move {
+            core.bundles_package_delete(params).await.map_err(ApiError::from)
         },
     );
 }

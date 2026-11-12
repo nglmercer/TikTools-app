@@ -67,7 +67,8 @@ pub enum WorkspaceEdit {
     Delete,
 }
 impl WorkspaceEdit {
-    fn valid(&self, key: &WorkspaceKey) -> bool {
+    /// Whether this edit satisfies the portable contract of `key`'s collection.
+    pub fn valid(&self, key: &WorkspaceKey) -> bool {
         key.valid()
             && match self {
                 Self::Put(value) => portable::validate(&key.collection, &key.key, value),

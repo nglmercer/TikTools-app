@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 pub use tiktools_core::control::{
     CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus, SyncNowResult,
-    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, V2ChangeEntry, V2ConflictChoice,
-    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, V2PendingChange, WorkspaceV2Discovery,
+    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncV2StageVariablesParams,
+    SyncV2StageVariablesResult, V2ChangeEntry, V2ConflictChoice, V2ConflictOutcome,
+    V2ConflictReview, V2ConflictTarget, V2PendingChange, WorkspaceV2Discovery,
     WorkspaceV2Migration, WorkspaceV2Preview, WorkspaceV2SyncResult,
 };
 use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
@@ -202,6 +203,14 @@ pub fn register(router: &mut ControlRouter) {
             core.sync_v2_stage_plugin_settings(&params.plugin_id, params.settings)
                 .await
                 .map_err(map_error)
+        },
+    );
+    router.register_typed::<SyncV2StageVariablesParams, SyncV2StageVariablesResult, _, _>(
+        "sync.v2.stageVariables",
+        "Stages runtime variables for v2 sync; secrets are excluded and never leave the host; needs the Cloud variables collection",
+        true,
+        |core: Arc<AppCore>, params: SyncV2StageVariablesParams| async move {
+            core.sync_v2_stage_variables(params).await.map_err(map_error)
         },
     );
     router.register_typed::<Empty, Vec<V2ConflictTarget>, _, _>(

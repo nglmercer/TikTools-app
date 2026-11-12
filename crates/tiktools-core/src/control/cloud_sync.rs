@@ -194,7 +194,7 @@ pub struct V2PendingChange {
 /// Cloud record, the pending local edit when there is one, and whether a newer
 /// local decision waits behind it. Nothing here contacts Cloud. Values are
 /// projected only for the credential-free `plugin-selections` and
-/// `preferences` collections; every other collection (notably
+/// `preferences` and `variables` collections; every other collection (notably
 /// `plugin-settings`) is reduced to metadata and never leaves the host.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -207,7 +207,9 @@ pub struct V2ChangeEntry {
 }
 
 /// Collections whose records are credential-free by schema and may be shown.
-const VALUE_VISIBLE_COLLECTIONS: &[&str] = &["plugin-selections", "preferences"];
+/// `variables` is credential-free by contract (secrets are excluded in the
+/// host before staging), so its values are projected like preferences.
+const VALUE_VISIBLE_COLLECTIONS: &[&str] = &["plugin-selections", "preferences", "variables"];
 
 /// Keeps the state and revision of a value and drops everything else.
 fn v2_metadata_only(mut value: V2ConflictValue) -> V2ConflictValue {
@@ -361,7 +363,9 @@ fn sync_error(error: SyncCoordError) -> OperationError {
 }
 
 impl AppCore {
-    fn sync_coordinator(&self) -> Result<&tiktools_cloud_sync::SyncCoordinator, OperationError> {
+    pub(super) fn sync_coordinator(
+        &self,
+    ) -> Result<&tiktools_cloud_sync::SyncCoordinator, OperationError> {
         self.sync.coordinator().map_err(|reason| {
             let mut operation =
                 OperationError::unavailable(format!("cloud sync is unavailable: {reason}"));
@@ -664,7 +668,7 @@ impl AppCore {
         }
     }
 
-    async fn v2_identity(
+    pub(super) async fn v2_identity(
         self: &std::sync::Arc<Self>,
     ) -> Result<
         (
@@ -706,7 +710,7 @@ impl AppCore {
         Ok((session, identity))
     }
 
-    fn v2_epoch(
+    pub(super) fn v2_epoch(
         &self,
         coordinator: &tiktools_cloud_sync::SyncCoordinator,
         session: &std::sync::Arc<cloud_client::Session>,

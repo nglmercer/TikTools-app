@@ -255,7 +255,7 @@ impl Session {
         collection: &str,
         after: Option<&str>,
     ) -> Result<Value, SyncError> {
-        if !portable::COLLECTIONS.contains(&collection)
+        if !portable::is_collection(collection)
             || after.is_some_and(|key| !portable::valid_key(collection, key))
         {
             return Err(SyncError::Configuration);

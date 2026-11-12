@@ -30,8 +30,9 @@ use tiktools_control_api::modules::automation_library::{
 use tiktools_control_api::modules::bundles::LibraryItemsQuery;
 #[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::bundles::{
-    AssetUploadParams, OverlayCreateParams, OverlayIdParams, OverlayReviseParams,
-    PackageCreateParams, PackageIdParams,
+    AssetIdParams, AssetSetLabelParams, AssetUploadParams, CatalogForkParams, CloudPageQuery,
+    OverlayCreateParams, OverlayIdParams, OverlayReviseParams, OverlayRevisionParams,
+    OverlayRevisionsQuery, PackageCreateParams, PackageIdParams,
 };
 #[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::cloud::CloudLoginOperationParams;
@@ -531,6 +532,10 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
             validate::<tiktools_control_api::modules::sync::SyncV2ConflictResolveParams>(params)
         }
         #[cfg(feature = "cloud-auth")]
+        "sync.v2.stageVariables" => {
+            validate::<tiktools_control_api::modules::sync::SyncV2StageVariablesParams>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
         "sync.v2.stagePluginSettings" => {
             validate::<tiktools_control_api::modules::sync::SyncV2StagePluginSettingsParams>(params)
         }
@@ -563,6 +568,22 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "bundles.packages.read" => validate::<PackageIdParams>(params),
         #[cfg(feature = "cloud-auth")]
         "bundles.packages.preflight" => validate::<PackageIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.packages.delete" => validate::<PackageIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "catalog.fork" => validate::<CatalogForkParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.assets.list" | "bundles.overlays.list" => validate::<CloudPageQuery>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.assets.setLabel" => validate::<AssetSetLabelParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.assets.delete" => validate::<AssetIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.revisions" => validate::<OverlayRevisionsQuery>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.revision" => validate::<OverlayRevisionParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "bundles.overlays.delete" => validate::<OverlayIdParams>(params),
         #[cfg(feature = "cloud-auth")]
         "teams.invitations.redeem" => validate::<TeamRedeemParams>(params),
         #[cfg(feature = "cloud-auth")]

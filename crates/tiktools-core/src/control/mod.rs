@@ -53,6 +53,8 @@ mod cloud_publisher;
 #[cfg(feature = "cloud-auth")]
 pub(crate) mod cloud_sync;
 #[cfg(feature = "cloud-auth")]
+mod cloud_variables;
+#[cfg(feature = "cloud-auth")]
 mod cloud_workspace;
 mod commands;
 mod competitions;
@@ -126,6 +128,10 @@ pub use cloud_sync::{
     SyncNowResult, SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncRecoveryValue,
     V2ChangeEntry, V2ConflictChoice, V2ConflictOutcome, V2ConflictReview, V2ConflictTarget,
     V2ConflictValue, V2PendingChange, WorkspaceV2SyncResult,
+};
+#[cfg(feature = "cloud-auth")]
+pub use cloud_variables::{
+    SyncV2StageVariablesParams, SyncV2StageVariablesResult, VariableInput, VariableKind,
 };
 #[cfg(feature = "cloud-auth")]
 pub use cloud_workspace::{

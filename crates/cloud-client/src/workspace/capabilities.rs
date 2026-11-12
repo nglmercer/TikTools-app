@@ -14,6 +14,9 @@ pub struct WorkspaceSyncCapabilities {
     pub write_epoch_barrier: bool,
     /// True only if the irreversible account-wide enforcement endpoint is advertised.
     pub write_epoch_enforcement: bool,
+    /// The server announced the credential-free `variables` collection
+    /// (`sync.optionalCollections`). Unknown optional collections are ignored.
+    pub variables: bool,
 }
 
 #[derive(Deserialize)]
@@ -31,6 +34,8 @@ struct SyncDocument {
     base_path: String,
     schema_version: u32,
     collections: Vec<String>,
+    #[serde(default)]
+    optional_collections: Vec<String>,
     max_records: u32,
     max_bytes: u32,
     max_document_bytes: u32,
@@ -116,6 +121,10 @@ impl CloudCatalog {
                 .write_epoch_barrier
                 .as_ref()
                 .is_some_and(|barrier| barrier.require_epoch_path.is_some()),
+            variables: sync
+                .optional_collections
+                .iter()
+                .any(|name| name == "variables"),
         })
     }
 }

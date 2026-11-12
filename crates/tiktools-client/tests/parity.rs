@@ -655,3 +655,97 @@ fn v2_changes_list_accepts_empty_params_and_its_reply_has_no_settings_values() {
     assert!(text.contains("apiKey"));
     assert!(!text.contains("\"value\":{") && !text.contains("\"value\":\""));
 }
+
+#[cfg(feature = "cloud-auth")]
+#[test]
+fn cloud_lifecycle_requests_are_closed_and_typed() {
+    use serde_json::json;
+    let id = "3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c";
+    let ok = |method: &str, params: serde_json::Value| {
+        assert!(
+            tiktools_client::validate_params(method, &params).is_ok(),
+            "{method} {params}"
+        );
+    };
+    let bad = |method: &str, params: serde_json::Value| {
+        assert!(
+            tiktools_client::validate_params(method, &params).is_err(),
+            "{method} {params}"
+        );
+    };
+    for method in ["bundles.assets.list", "bundles.overlays.list"] {
+        ok(method, json!({}));
+        ok(method, json!({"cursor":"abc","limit":10}));
+        bad(method, json!({"origin":"https://attacker.invalid"}));
+    }
+    ok(
+        "bundles.assets.setLabel",
+        json!({"id": id, "label": "Logo"}),
+    );
+    ok("bundles.assets.setLabel", json!({"id": id, "label": null}));
+    bad("bundles.assets.setLabel", json!({"id": id}));
+    for method in [
+        "bundles.assets.delete",
+        "bundles.overlays.delete",
+        "bundles.packages.delete",
+    ] {
+        ok(method, json!({"id": id}));
+        bad(method, json!({}));
+        bad(method, json!({"id": id, "force": true}));
+    }
+    ok("bundles.overlays.revisions", json!({"id": id, "limit": 5}));
+    ok(
+        "bundles.overlays.revision",
+        json!({"id": id, "revision": 2}),
+    );
+    bad("bundles.overlays.revision", json!({"id": id}));
+    ok("catalog.fork", json!({"id": id}));
+    ok("catalog.fork", json!({"id": id, "revision": 3}));
+    bad("catalog.fork", json!({"id": id, "revision": "3"}));
+    bad("catalog.fork", json!({"id": id, "slug": "x"}));
+}
+
+#[cfg(feature = "cloud-auth")]
+#[test]
+fn variables_staging_is_closed_and_a_secret_type_is_known_but_never_a_wire_type() {
+    use serde_json::json;
+    let ok = |params: serde_json::Value| {
+        assert!(tiktools_client::validate_params("sync.v2.stageVariables", &params).is_ok());
+    };
+    ok(json!({}));
+    ok(json!({"variables":[
+        {"name":"a","type":"text","value":"x"},
+        {"name":"b","type":"number","value":1},
+        {"name":"c","type":"boolean","value":true},
+        {"name":"d","type":"list","value":["x"]},
+        {"name":"e","type":"secret","value":"x"}
+    ],"remove":["old"]}));
+    for bad in [
+        json!({"variables":[{"name":"a","type":"password","value":"x"}]}),
+        json!({"variables":[{"name":"a","type":"text","value":"x","extra":1}]}),
+        json!({"unexpected":true}),
+    ] {
+        assert!(tiktools_client::validate_params("sync.v2.stageVariables", &bad).is_err());
+    }
+}
+
+#[test]
+fn catalog_items_page_carries_data_state_only_when_known() {
+    use serde_json::json;
+    use tiktools_control_api::modules::registry::CloudCatalogItemPage;
+    let page: CloudCatalogItemPage = serde_json::from_value(
+        json!({"items":[],"nextCursor":null,"dataState":"noActiveGeneration"}),
+    )
+    .unwrap();
+    assert_eq!(page.data_state.as_deref(), Some("noActiveGeneration"));
+    assert_eq!(
+        serde_json::to_value(&page).unwrap()["dataState"],
+        "noActiveGeneration"
+    );
+    let legacy: CloudCatalogItemPage =
+        serde_json::from_value(json!({"items":[],"nextCursor":null})).unwrap();
+    assert!(serde_json::to_value(&legacy)
+        .unwrap()
+        .get("dataState")
+        .is_none());
+}

@@ -2,6 +2,9 @@
 use serde_json::Value;
 
 pub const MAX_DOCUMENT_BYTES: usize = 256 * 1024;
+/// The collections every v2 client knows. `GET /api/v2/capabilities` still
+/// announces exactly these in `sync.collections`, because deployed clients
+/// require that list to match their own; do not add to it.
 pub const COLLECTIONS: &[&str] = &[
     "plugin-selections",
     "rule-templates",
@@ -9,6 +12,62 @@ pub const COLLECTIONS: &[&str] = &[
     "plugin-settings",
     "preferences",
 ];
+/// Collections added after v2 shipped. They are announced separately
+/// (`sync.optionalCollections`) so older clients keep validating the
+/// capability document. A client uses one only when the server announces it.
+pub const OPTIONAL_COLLECTIONS: &[&str] = &["variables"];
+
+/// Every collection the server accepts.
+pub fn is_collection(collection: &str) -> bool {
+    COLLECTIONS.contains(&collection) || OPTIONAL_COLLECTIONS.contains(&collection)
+}
+
+/// `variables` value types. `secret` is deliberately not one of them: secrets
+/// never sync.
+pub const VARIABLE_TYPES: &[&str] = &["text", "number", "boolean", "list"];
+pub const MAX_VARIABLE_NAME_BYTES: usize = 64;
+pub const MAX_VARIABLE_TEXT_BYTES: usize = 4096;
+pub const MAX_VARIABLE_LIST_ITEMS: usize = 100;
+pub const MAX_VARIABLE_LIST_ITEM_CHARS: usize = 256;
+
+/// The desktop's runtime-global key grammar: `^[A-Za-z_][A-Za-z0-9_.-]{0,63}$`.
+pub fn valid_variable_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    (1..=MAX_VARIABLE_NAME_BYTES).contains(&bytes.len())
+        && (bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
+        && bytes[1..]
+            .iter()
+            .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(b))
+}
+
+fn variable_value(kind: &str, value: &Value) -> bool {
+    match kind {
+        "text" => value
+            .as_str()
+            .is_some_and(|s| s.len() <= MAX_VARIABLE_TEXT_BYTES),
+        "number" => value.as_f64().is_some_and(f64::is_finite),
+        "boolean" => value.is_boolean(),
+        "list" => value.as_array().is_some_and(|items| {
+            items.len() <= MAX_VARIABLE_LIST_ITEMS
+                && items.iter().all(|item| {
+                    item.as_str()
+                        .is_some_and(|s| s.chars().count() <= MAX_VARIABLE_LIST_ITEM_CHARS)
+                })
+        }),
+        _ => false,
+    }
+}
+
+fn variable(key: &str, value: &Value) -> bool {
+    object(value, &["schemaVersion", "name", "type", "value"])
+        && value.as_object().is_some_and(|map| map.len() == 4)
+        && value["schemaVersion"] == 1
+        && value["name"].as_str().is_some_and(|name| name == key)
+        && valid_variable_name(key)
+        && value["type"].as_str().is_some_and(|kind| {
+            VARIABLE_TYPES.contains(&kind) && variable_value(kind, &value["value"])
+        })
+}
 
 pub fn valid_id(id: &str) -> bool {
     (2..=64).contains(&id.len())
@@ -23,6 +82,7 @@ pub fn valid_key(collection: &str, key: &str) -> bool {
         "plugin-selections" | "plugin-settings" => valid_plugin_id(key),
         "rule-templates" | "profiles" => valid_id(key),
         "preferences" => key == "desktop",
+        "variables" => valid_variable_name(key),
         _ => false,
     }
 }
@@ -276,6 +336,7 @@ pub fn validate(collection: &str, key: &str, value: &Value) -> bool {
                 && value["pluginId"] == key
                 && value["settings"].is_object()
         }
+        "variables" => variable(key, value),
         "preferences" => {
             object(
                 value,
@@ -479,6 +540,97 @@ mod tests {
             deep = json!([deep]);
         }
         assert!(!safe(&deep));
+    }
+    fn variable(name: &str, kind: &str, value: Value) -> Value {
+        json!({"schemaVersion":1,"name":name,"type":kind,"value":value})
+    }
+    #[test]
+    fn variables_accept_each_type_with_a_matching_value() {
+        for (name, kind, value) in [
+            ("commandPort", "number", json!(46665)),
+            ("ratio", "number", json!(0.25)),
+            ("negative", "number", json!(-3)),
+            ("_flag", "boolean", json!(false)),
+            ("greeting.text-1_a", "text", json!("hola")),
+            ("empty", "text", json!("")),
+            ("tags", "list", json!(["a", "b"])),
+            ("none", "list", json!([])),
+            ("A1._-b", "text", json!("x")),
+        ] {
+            let doc = variable(name, kind, value);
+            assert!(validate("variables", name, &doc), "{doc}");
+            assert!(valid_key("variables", name));
+        }
+        assert!(is_collection("variables") && is_collection("preferences"));
+        assert!(!is_collection("secrets"));
+        assert!(
+            !COLLECTIONS.contains(&"variables"),
+            "the legacy list announced to deployed clients must not grow"
+        );
+    }
+    #[test]
+    fn variables_refuse_secrets_wrong_types_bad_names_and_oversize_values() {
+        let ok = |n: &str, k: &str, v: Value| validate("variables", n, &variable(n, k, v));
+        // Secrets never sync, whatever the value looks like.
+        assert!(!ok("apiKey", "secret", json!("hunter2")));
+        assert!(!ok("apiKey", "password", json!("x")));
+        assert!(!ok("x", "Text", json!("x")));
+        // The value must match the declared type.
+        assert!(!ok("a", "text", json!(1)));
+        assert!(!ok("a", "number", json!("1")));
+        assert!(!ok("a", "number", json!(null)));
+        assert!(!ok("a", "boolean", json!("true")));
+        assert!(!ok("a", "list", json!("a,b")));
+        assert!(!ok("a", "list", json!([1])));
+        assert!(!ok("a", "list", json!([["nested"]])));
+        // Bounds.
+        assert!(ok("a", "text", json!("a".repeat(4096))));
+        assert!(!ok("a", "text", json!("a".repeat(4097))));
+        assert!(ok("a", "list", json!(vec!["a"; 100])));
+        assert!(!ok("a", "list", json!(vec!["a"; 101])));
+        assert!(ok("a", "list", json!(["ñ".repeat(256)])));
+        assert!(!ok("a", "list", json!(["a".repeat(257)])));
+        // Key grammar.
+        for name in [
+            "",
+            "9lives",
+            "has space",
+            "semi;colon",
+            "slash/a",
+            "{{ x }}",
+            "é",
+        ] {
+            assert!(!valid_key("variables", name), "{name:?}");
+        }
+        assert!(valid_key("variables", &"k".repeat(64)));
+        assert!(!valid_key("variables", &"k".repeat(65)));
+        // Key and name must agree; fields are closed and complete.
+        assert!(!validate(
+            "variables",
+            "a",
+            &variable("b", "text", json!("x"))
+        ));
+        let mut extra = variable("a", "text", json!("x"));
+        extra["secret"] = json!(true);
+        assert!(!validate("variables", "a", &extra));
+        let mut version = variable("a", "text", json!("x"));
+        version["schemaVersion"] = json!(2);
+        assert!(!validate("variables", "a", &version));
+        assert!(!validate(
+            "variables",
+            "a",
+            &json!({"schemaVersion":1,"name":"a","type":"text"})
+        ));
+        assert!(!validate(
+            "variables",
+            "a",
+            &json!({"schemaVersion":1,"name":"a","value":"x"})
+        ));
+        assert!(!validate("variables", "a", &json!(["a"])));
+        // The general credential guards still apply to values.
+        assert!(!ok("a", "text", json!("Bearer abcdef")));
+        assert!(!ok("a", "text", json!("https://user:pw@example.test/")));
+        assert!(!ok("a", "text", json!("-----BEGIN PRIVATE KEY-----")));
     }
     #[test]
     fn jsonb_numeric_equivalence_preserves_exact_decimal_wire_values() {

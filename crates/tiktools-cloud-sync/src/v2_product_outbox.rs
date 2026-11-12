@@ -131,6 +131,33 @@ where
     }
 }
 
+/// Collections whose staged edit is its own source of truth: there is no
+/// native source row to recheck, so the staged proof (bound to the account's
+/// consent generation by its digest) is the whole admission. Only credential-
+/// free collections belong here.
+pub(crate) const OWNED_EDIT_COLLECTIONS: &[&str] = &["variables"];
+
+/// Digest `stage_v2_product_edit` binds to a staged owner-owned edit.
+pub(crate) fn owned_edit_digest(
+    target: &WorkspaceKey,
+    edit: &WorkspaceEdit,
+    config_generation: impl std::fmt::Display,
+) -> Option<String> {
+    let input = serde_json::json!({
+        "collection": target.collection,
+        "key": target.key,
+        "edit": edit,
+        "generation": config_generation.to_string(),
+    });
+    let encoded = serde_json::to_vec(&input).ok()?;
+    Some(
+        Sha256::digest(encoded)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect(),
+    )
+}
+
 /// A durable product decision. Native source adapters must not construct it
 /// from UI claims; its revision belongs to the locally committed source.
 #[derive(Clone, Serialize)]
@@ -651,20 +678,8 @@ impl SyncCoordinator {
                 {
                     return Err(SyncCoordError::StaleReview);
                 }
-                let digest_input = serde_json::json!({
-                    "collection": target.collection,
-                    "key": target.key,
-                    "edit": edit,
-                    "generation": config.generation.to_string(),
-                });
-                let digest = {
-                    let encoded = serde_json::to_vec(&digest_input)
-                        .map_err(|_| SyncCoordError::StaleReview)?;
-                    Sha256::digest(encoded)
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect::<String>()
-                };
+                let digest = owned_edit_digest(&target, &edit, config.generation)
+                    .ok_or(SyncCoordError::StaleReview)?;
                 let root = self
                     .config_path
                     .parent()

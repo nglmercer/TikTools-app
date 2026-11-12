@@ -114,6 +114,11 @@ pub struct CloudCatalogItemsQuery {
 pub struct CloudCatalogItemPage {
     pub items: Vec<Value>,
     pub next_cursor: Option<String>,
+    /// `ready` or `noActiveGeneration` (no plugin generation is published yet,
+    /// which is an empty registry and not an outage). Absent when the Cloud
+    /// does not announce it or announces a value this host does not know.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_state: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -179,7 +184,17 @@ fn project_items_v3(mut value: Value) -> Result<CloudCatalogItemPage, OperationE
         Some(Value::String(v)) => Some(v),
         _ => return Err(OperationError::internal("invalid catalog cursor")),
     };
-    let result = CloudCatalogItemPage { items, next_cursor };
+    let data_state = match object.remove("dataState") {
+        Some(Value::String(state)) if matches!(state.as_str(), "ready" | "noActiveGeneration") => {
+            Some(state)
+        }
+        _ => None,
+    };
+    let result = CloudCatalogItemPage {
+        items,
+        next_cursor,
+        data_state,
+    };
     let bytes = serde_json::to_vec(&result)
         .map_err(|_| OperationError::internal("invalid catalog response"))?;
     if bytes.len() > MAX_CATALOG_RESULT_BYTES {
@@ -424,6 +439,24 @@ mod tests {
         .unwrap();
         assert_eq!(page.items[0]["releaseRef"]["size"], "9007199254740995");
         assert_eq!(page.next_cursor.as_deref(), Some("eyJrIjoxfQ"));
+        assert_eq!(page.data_state, None, "absent stays absent");
+        let empty = project_items_v3(
+            json!({"items": [], "nextCursor": null, "dataState": "noActiveGeneration"}),
+        )
+        .unwrap();
+        assert_eq!(empty.data_state.as_deref(), Some("noActiveGeneration"));
+        assert_eq!(
+            serde_json::to_value(&empty).unwrap()["dataState"],
+            "noActiveGeneration"
+        );
+        let unknown =
+            project_items_v3(json!({"items": [], "nextCursor": null, "dataState": "future"}))
+                .unwrap();
+        assert_eq!(unknown.data_state, None);
+        assert!(serde_json::to_value(&unknown)
+            .unwrap()
+            .get("dataState")
+            .is_none());
         assert!(project_items_v3(json!({"items": [], "nextCursor": 3})).is_err());
         assert!(project_items_v3(json!({"nextCursor": null})).is_err());
     }
