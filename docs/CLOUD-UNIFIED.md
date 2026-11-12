@@ -23,6 +23,37 @@ unknown as absent. Older hosts keep the legacy Cloud views.
 | Teams | `teams.hosts.*`, `teams.devices.*`, `teams.invitations.*`, `teams.requests.*`, `teams.grants.*`, `teams.sessions.*`, `teams.host.status`, `teams.host.start`, `teams.host.stop` | Settings, account section |
 | Images and packages | `bundles.assets.upload`, `bundles.packages.preflight`, `bundles.packages.read`, `bundles.overlays.*`, `bundles.packages.create` | Settings, account section |
 
+### Lifecycle methods and the Cloud capability gate
+
+A second gate sits in the host: besides being announced by `rpc.discover`, each method below
+checks the Cloud instance's anonymous `GET /api/v2/capabilities` before it makes its own request. A
+missing key or operation means the call fails with `capability_unavailable`
+(`data = {reason: "cloud_feature_unsupported", capability, operation}`, or
+`reason: "capabilities_missing"` when the instance has no capability document) and the feature
+endpoint is never contacted. Input is validated before any network use.
+
+| Method | Params | Result | Needs |
+| --- | --- | --- | --- |
+| `bundles.assets.list` | `{cursor?, limit?}` (limit 1-50) | `CloudAssetPage {items: CloudAsset[], nextCursor}` | `media.operations` `list` |
+| `bundles.assets.setLabel` | `{id, label}` (`label` required; `null` clears; else trimmed 1-120 chars) | `CloudAsset` | `media.operations` `rename` |
+| `bundles.assets.delete` | `{id}` | `CloudDeleted {id, deleted}` | `media.operations` `delete` |
+| `bundles.overlays.list` | `{cursor?, limit?}` | `OverlayPage {items: OverlaySummary[], nextCursor}` | `overlays.operations` `list` |
+| `bundles.overlays.revisions` | `{id, cursor?, limit?}` | `OverlayRevisionPage` | `overlays.operations` `revisions` |
+| `bundles.overlays.revision` | `{id, revision}` | `OverlayRevisionRecord` (with `document`) | `overlays.operations` `revision` |
+| `bundles.overlays.delete` | `{id}` | `CloudDeleted` | `overlays.operations` `delete` |
+| `bundles.packages.delete` | `{id}` | `CloudDeleted` | `packages.operations` `delete` |
+| `catalog.fork` | `{id, revision?}` | `CatalogForkResult {id, revision, status: "draft", forkOf: {documentId, revision}}` | `library.fork.available` |
+
+`CloudAsset` gained optional `createdAt` and `label`. Typed failures:
+
+- `conflict` with `data.reason` `assetReferenced` (an overlay revision still names the image) or
+  `overlayPinned` (a package still pins the overlay; delete the package first, which releases it).
+  `data.cloud` keeps the safe envelope fields (`code`, `requestId`).
+- `quota_exceeded` (HTTP 507; assets, overlays, revisions, library): also returned by the existing
+  create and revise calls now, where it used to be a generic `unavailable`.
+- `catalog.fork`: `not_found` / `notPublished` (404), `conflict` / `alreadyInLibrary` (409, the copy keeps
+  the source's portable id), `quota_exceeded` / `libraryQuota` (507), `unavailable` / `rateLimited` (429).
+
 ## Catalog
 
 - **Plugins, Explore.** On a host that announces `catalog.items` (or before discovery has
@@ -36,8 +67,8 @@ unknown as absent. Older hosts keep the legacy Cloud views.
 - **Backend not available** (offline, unauthorized, error) is a neutral state with a retry icon
   and a sign-in icon when the session is the problem. `dataState: noActiveGeneration` is an empty
   plugin registry, not an outage: Explore says nothing is published yet for plugins while
-  templates and profiles still render. (The host currently drops `dataState` from the page it
-  hands to the webview; until it forwards it, an empty page reads as "No results".)
+  templates and profiles still render. The host forwards `dataState` (`ready` or `noActiveGeneration`) in the
+  `catalog.items` reply; any other value is dropped and the field is absent for a Cloud that does not send it.
 - **A plugin row** opens the existing remote details (an installed one opens its own details);
   the install icon starts the signed package review, the same consent step as any registry install.
   Yanked plugins cannot be installed. Bundled plugins that are not installed yet stay above the

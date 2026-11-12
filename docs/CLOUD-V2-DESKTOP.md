@@ -476,7 +476,8 @@ foundation table.
 
 ## Workspace collections and local behavior
 
-Exactly the following five collections are supported. Unknown collections,
+Exactly the following five collections are supported, plus the optional `variables`
+collection below, which a client uses only when the instance announces it. Unknown collections,
 invalid keys and unknown schema fields fail validation; they are not silently
 discarded while advancing the cursor.
 
@@ -493,6 +494,45 @@ Merely storing cloud preference JSON does not implement theme, locale,
 motion or update-channel application. All advertised fields need a concrete
 native/local consumer, or must be reported as supported cloud data awaiting
 local application. Do not silently replace an unsupported locale or setting.
+
+### Optional collection: variables (host done, UI pending)
+
+`variables` is a sixth, credential-free collection announced in `sync.optionalCollections`
+of `GET /api/v2/capabilities` (the legacy `sync.collections` list stays the five above, because
+deployed clients require it to match). Key: the variable name
+(`^[A-Za-z_][A-Za-z0-9_.-]{0,63}$`, the runtime-global rule). Value:
+`{schemaVersion:1, name, type, value}` with `type` one of `text` (string, at most 4096 bytes),
+`number` (finite), `boolean`, `list` (at most 100 strings of at most 256 characters). `secret` is
+not a wire type: **secret variables never sync.**
+
+Host behaviour (crates/tiktools-core `control/cloud_variables.rs`):
+
+- `sync.v2.stageVariables {variables:[{name,type,value}], remove:[name]}` returns
+  `{staged, removed, excludedSecrets, rejected}`. A `secret` variable is excluded before anything is
+  built: its value is dropped unread and appears in no pending edit, request body, log, error,
+  `sync.v2.changes.list` entry or workspace file. A variable the portable contract refuses (bad name,
+  wrong value type, oversize, value that looks like a credential such as `Bearer ...`) is listed in
+  `rejected` and never staged; the rest still stage. `remove` stages a delete (also how a variable
+  that became secret is withdrawn from the Cloud).
+- Gating: the call checks the instance's capability document
+  (`WorkspaceSyncCapabilities::variables`). When it is absent the call fails with
+  `capability_unavailable` (`data.reason` is `variables_unsupported`, or `capabilities_missing` for a
+  404) and nothing is staged. A request that only contains secrets stages nothing and makes no
+  network call. Without staged variables, `sync.v2.now` behaves exactly as before.
+- Upload: a staged variables edit is its own source (there is no native source row), so the product
+  upload admission accepts it when its digest still matches the account's consent generation
+  (`OWNED_EDIT_COLLECTIONS` in crates/tiktools-cloud-sync). Writes use the same fenced PUT, epoch,
+  `If-Match` / `If-None-Match` and conflict machinery as every other collection.
+- Pull: the change feed is account-wide, so variables written by another device are cached in the
+  workspace and listed by `sync.v2.changes.list` (values are projected for `variables`, like
+  `plugin-selections` and `preferences`; they are credential-free by contract). The host does
+  **not** apply them to the local runtime globals: applying remote variables, typed local storage
+  and secret handling in the UI are the pending step. Local runtime globals are still text-only.
+- Older clients: a client built before the contracts change rejects `variables` records with a
+  protocol error. Do not write variables from an account until every device that syncs it has the
+  new contracts.
+- Not verified here: conflict review/resolve for a `variables` key reuses the generic v2 conflict
+  RPCs but is not covered by a test in this repository.
 
 Runtime globals, TikTok/OAuth credentials, cookies, session tokens, signing
 material, native binaries and ephemeral LIVE state are not additional sync

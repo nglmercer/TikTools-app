@@ -12,7 +12,7 @@ base version, conflict review (base, local, Cloud) and the background worker.
 - Read-only RPC `sync.v2.changes.list`: a local read of the v2 workspace (cached Cloud value, pending edit
   with its frozen base). No network, no fences, no writes.
   **Plugin settings values never leave the host.** Settings are arbitrary plugin data and may be sensitive, so
-  the reply values are projected only for the credential-free `plugin-selections` and `preferences`
+  the reply values are projected only for the credential-free `plugin-selections`, `preferences` and `variables`
   collections. Every other collection, and always `plugin-settings`, is reduced to metadata: plugin id,
   collection, state and revision of the cached and base records, the pending status, `hasNewer`, and for
   settings a sorted `changedKeys` list of top-level setting NAMES that differ from the base. The cached Cloud
@@ -81,13 +81,17 @@ Cloud has a public overlay gallery.
 
 ## TODO (not implemented)
 
-- [ ] **Variables sync.** Planned, deliberately not built. Runtime globals are local to the host and
-  no Cloud collection carries them (`preferences` only holds the `desktop` record). Needs a backend
-  decision first: a new `variables` collection in `cloud-contracts` and RemakeBackend, or a section
-  of the preferences record. Open points: typed values (text, number, boolean, list, secret);
-  **secrets must never sync in clear text** (exclude them or store only a reference); conflict
-  behaviour per type. Until then the Variables tab shows no sync button (nothing is shown as synced that is not); the
-  adapter would be registered next to the others in `AutomationsPage.vue`.
+- [ ] **Variables sync.** Host done, UI pending. The `variables` collection exists in `cloud-contracts` and
+  RemakeBackend (types text, number, boolean, list; **secret never syncs**), is announced in
+  `sync.optionalCollections`, and the host stages it with `sync.v2.stageVariables` (secrets are excluded in the
+  host, contract violations are reported by name, an instance without the capability gets
+  `capability_unavailable`). `sync.v2.changes.list` projects variable values (credential-free by contract).
+  Details: [Desktop Cloud v2](CLOUD-V2-DESKTOP.md#optional-collection-variables-host-done-ui-pending).
+  Still to do: the Variables tab adapter in `AutomationsPage.vue` (typed local variables, a secret type that
+  is never offered to the host as a value), applying pulled variables to the runtime globals (today globals
+  are text-only and the host does not apply them), conflict behaviour per type in the UI, and a test of the
+  generic conflict review/resolve on a `variables` key. Until the adapter exists the Variables tab shows no
+  sync button.
 - [x] Three-way conflict view in the panel (per-field Base/Local/Cloud choice, all local / all Cloud, apply
   merge). Only adapters that declare `merge` show it; no current adapter can stage a merged value.
 - [ ] Per-record history and restore (phase 2).
