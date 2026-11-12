@@ -439,8 +439,9 @@ mod tests {
         assert_eq!(result.selections, 1);
         assert_eq!(result.pending, 1);
         assert!(result.migration_available);
+        // An unreviewed local source must block preview even without the installer.
         core.db
-            .invalidate_plugin_package_source_untracked("demo")
+            .set_plugin_state_with_untracked_sync("demo", true, false)
             .unwrap();
         assert!(core.workspace_v2_preview().await.is_err());
         core.shutdown().await;
