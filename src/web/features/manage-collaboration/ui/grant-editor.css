@@ -40,8 +40,8 @@
 
 @media (width < 600px) {
   .grant-editor__switches, .grant-editor__scopes { grid-template-columns: minmax(0, 1fr); }
-  .grant-editor__presets { flex-wrap: nowrap; overflow-x: auto; padding-bottom: var(--space-3); }
-  .grant-editor__presets > button { flex: none; min-height: 44px; }
+  .grant-editor__presets-label { flex: 1 0 100%; margin: 0; }
+  .grant-editor__presets > button { flex: 1; min-height: 44px; }
   .grant-editor__bulk { width: 100%; margin-left: 0; }
   .grant-editor__bulk > button { flex: 1; min-height: 44px; }
   .grant-editor__tabs .base-tabs__list { flex-wrap: nowrap; overflow-x: auto; min-width: 0; max-width: 100%; }

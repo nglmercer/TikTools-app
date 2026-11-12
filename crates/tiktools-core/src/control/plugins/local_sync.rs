@@ -334,30 +334,6 @@ impl AppCore {
             _invocation: invocation,
         })
     }
-
-    /// Stage a local selection change for upload. Inert unless sync is
-    /// enabled and an account is known; never fails the local operation.
-    #[cfg(feature = "cloud-auth")]
-    pub(super) fn stage_selection(&self, id: &str, version: &str, enabled: bool) {
-        let Ok(coordinator) = self.sync.coordinator() else {
-            return;
-        };
-        if let Err(error) = coordinator.record_local_change(id, version, enabled) {
-            tracing::warn!(plugin = %id, %error, "cloud sync staging failed");
-        }
-    }
-
-    /// Stage a local uninstall for upload. Same opt-in and failure
-    /// semantics as [`Self::stage_selection`].
-    #[cfg(feature = "cloud-auth")]
-    pub(super) fn stage_removal(&self, id: &str) {
-        let Ok(coordinator) = self.sync.coordinator() else {
-            return;
-        };
-        if let Err(error) = coordinator.record_local_removal(id) {
-            tracing::warn!(plugin = %id, %error, "cloud sync staging failed");
-        }
-    }
 }
 
 #[cfg(all(test, feature = "cloud-auth", feature = "persistence"))]

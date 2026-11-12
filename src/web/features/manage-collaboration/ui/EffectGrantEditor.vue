@@ -52,52 +52,52 @@ function topics(raw: string): void { const value = copy(); value.emitTopics = sp
         @input="patchHttp(index, { origin: text($event) })"
       ></label>
       <div class="effect-grant-editor__grid">
-      <label
-        v-for="field in listFields"
-        :key="field"
-      >
-        {{ t(`collaboration.effectFields.${field}`) }}
-        <BaseTextArea
-          :model-value="rule[field].join('\n')"
-          :aria-label="t(`collaboration.effectFields.${field}`)"
-          :rows="2"
-          maxlength="65536"
-          :disabled="disabled"
-          @update:model-value="patchHttp(index, { [field]: splitIds($event) })"
-        />
-      </label>
+        <label
+          v-for="field in listFields"
+          :key="field"
+        >
+          {{ t(`collaboration.effectFields.${field}`) }}
+          <BaseTextArea
+            :model-value="rule[field].join('\n')"
+            :aria-label="t(`collaboration.effectFields.${field}`)"
+            :rows="2"
+            maxlength="65536"
+            :disabled="disabled"
+            @update:model-value="patchHttp(index, { [field]: splitIds($event) })"
+          />
+        </label>
       </div>
       <div class="effect-grant-editor__grid">
-      <label>{{ t('collaboration.maxBodyBytes') }}<input
-        type="number"
-        min="0"
-        max="262144"
-        :value="rule.maxBodyBytes"
-        @input="patchHttp(index, { maxBodyBytes: numeric($event) })"
-      ></label>
-      <label>{{ t('collaboration.maxResponseBytes') }}<input
-        type="number"
-        min="1"
-        max="2097152"
-        :value="rule.maxResponseBytes"
-        @input="patchHttp(index, { maxResponseBytes: numeric($event) })"
-      ></label>
+        <label>{{ t('collaboration.maxBodyBytes') }}<input
+          type="number"
+          min="0"
+          max="262144"
+          :value="rule.maxBodyBytes"
+          @input="patchHttp(index, { maxBodyBytes: numeric($event) })"
+        ></label>
+        <label>{{ t('collaboration.maxResponseBytes') }}<input
+          type="number"
+          min="1"
+          max="2097152"
+          :value="rule.maxResponseBytes"
+          @input="patchHttp(index, { maxResponseBytes: numeric($event) })"
+        ></label>
       </div>
       <div class="effect-grant-editor__switches">
-      <BaseSwitch
-        :model-value="rule.allowTextBody"
-        :disabled="disabled"
-        @update:model-value="patchHttp(index, { allowTextBody: $event })"
-      >
-        {{ t('collaboration.allowTextBody') }}
-      </BaseSwitch>
-      <BaseSwitch
-        :model-value="rule.allowPrivateNetwork"
-        :disabled="disabled"
-        @update:model-value="patchHttp(index, { allowPrivateNetwork: $event })"
-      >
-        {{ t('collaboration.allowPrivateNetwork') }}
-      </BaseSwitch>
+        <BaseSwitch
+          :model-value="rule.allowTextBody"
+          :disabled="disabled"
+          @update:model-value="patchHttp(index, { allowTextBody: $event })"
+        >
+          {{ t('collaboration.allowTextBody') }}
+        </BaseSwitch>
+        <BaseSwitch
+          :model-value="rule.allowPrivateNetwork"
+          :disabled="disabled"
+          @update:model-value="patchHttp(index, { allowPrivateNetwork: $event })"
+        >
+          {{ t('collaboration.allowPrivateNetwork') }}
+        </BaseSwitch>
       </div>
       <BaseButton
         class="effect-grant-editor__remove"

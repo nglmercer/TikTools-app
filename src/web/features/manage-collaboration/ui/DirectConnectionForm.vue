@@ -53,7 +53,7 @@ function setBoolean(key: 'enabled' | 'tlsProxy', value: boolean): void { if (dra
           v-if="!available"
           class="collaboration-editor__muted"
         >
-          {{ t('collaboration.unavailable') }}
+          {{ t('collaboration.unavailableDetail') }}
         </p>
       </div>
       <BaseFormGrid>

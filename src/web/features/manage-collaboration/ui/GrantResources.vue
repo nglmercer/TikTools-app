@@ -39,37 +39,37 @@ function setIds(kind: ResourceKind, text: string): void { const value = cloneGra
       </h4>
     </div>
     <div class="grant-editor__scopes">
-    <div
-      v-for="kind in resourceKinds"
-      :key="kind"
-      class="grant-editor__scope"
-    >
-      <h4>{{ t(`collaboration.scopeKinds.${kind}`) }}</h4>
-      <BaseSegmented
-        size="sm"
-        :model-value="modes[kind] ?? 'all'"
-        :disabled="disabled"
-        :aria-label="t(`collaboration.scopeKinds.${kind}`)"
-        :options="(['all', 'selected', 'none'] as const).map(value => ({ value, label: t(`collaboration.scopeModes.${value}`) }))"
-        @update:model-value="setMode(kind, $event)"
-      />
-      <BaseTextArea
-        v-if="modes[kind] === 'selected'"
-        :model-value="model.resources[kind]?.join('\n') ?? ''"
-        :aria-label="`${t(`collaboration.scopeKinds.${kind}`)} — ${t('collaboration.ids')}`"
-        :placeholder="t(kind === 'automation' ? 'collaboration.automationIds' : 'collaboration.ids')"
-        :disabled="disabled"
-        :rows="3"
-        maxlength="65536"
-        @update:model-value="setIds(kind, $event)"
-      />
-      <p
-        v-if="kind === 'automation'"
-        class="grant-editor__hint"
+      <div
+        v-for="kind in resourceKinds"
+        :key="kind"
+        class="grant-editor__scope"
       >
-        {{ t('collaboration.automationScopeHint') }}
-      </p>
-    </div>
+        <h4>{{ t(`collaboration.scopeKinds.${kind}`) }}</h4>
+        <BaseSegmented
+          size="sm"
+          :model-value="modes[kind] ?? 'all'"
+          :disabled="disabled"
+          :aria-label="t(`collaboration.scopeKinds.${kind}`)"
+          :options="(['all', 'selected', 'none'] as const).map(value => ({ value, label: t(`collaboration.scopeModes.${value}`) }))"
+          @update:model-value="setMode(kind, $event)"
+        />
+        <BaseTextArea
+          v-if="modes[kind] === 'selected'"
+          :model-value="model.resources[kind]?.join('\n') ?? ''"
+          :aria-label="`${t(`collaboration.scopeKinds.${kind}`)} — ${t('collaboration.ids')}`"
+          :placeholder="t(kind === 'automation' ? 'collaboration.automationIds' : 'collaboration.ids')"
+          :disabled="disabled"
+          :rows="3"
+          maxlength="65536"
+          @update:model-value="setIds(kind, $event)"
+        />
+        <p
+          v-if="kind === 'automation'"
+          class="grant-editor__hint"
+        >
+          {{ t('collaboration.automationScopeHint') }}
+        </p>
+      </div>
     </div>
   </section>
 </template>

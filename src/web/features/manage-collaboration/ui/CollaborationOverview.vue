@@ -48,9 +48,9 @@ const next = computed<{ message: string; action: string; area: 'people' | 'invit
         </p>
         <p
           v-else
-          class="overview__next"
+          class="overview__next overview__next--warning"
         >
-          {{ t('collaboration.unavailableDetail') }}
+          {{ t('collaboration.unavailable') }}
         </p>
       </div>
       <BaseButton
@@ -62,11 +62,6 @@ const next = computed<{ message: string; action: string; area: 'people' | 'invit
         {{ next.action }}
       </BaseButton>
     </section>
-    <BaseAlert
-      v-if="!status.gateway.available"
-      tone="warning"
-      :title="t('collaboration.unavailable')"
-    />
     <BaseAlert
       v-if="status.configuration.enabled && status.gateway.configurationRevision !== status.configurationRevision"
       tone="info"
