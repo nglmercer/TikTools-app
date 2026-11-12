@@ -1,0 +1,192 @@
+.plugin-catalog {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: var(--border-width) solid var(--color-border-subtle);
+  background: var(--color-bg-panel);
+  color: var(--color-text);
+}
+
+.plugin-catalog__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.plugin-catalog__tabs {
+  flex: 1;
+}
+
+.plugin-catalog__tabs .base-tabs__bar {
+  padding: var(--space-2) var(--space-3) 0;
+  background: var(--color-bg-panel-header);
+}
+
+/* Search and the icon tools share the tab row; on narrow screens they wrap below it. */
+.plugin-catalog__bar {
+  display: flex;
+  min-height: var(--control-height-md);
+  flex: 1 1 240px;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-bottom: var(--space-2);
+}
+
+.plugin-catalog__search {
+  flex: 1;
+  min-width: 0;
+  max-width: 320px;
+  margin: 0;
+}
+
+.plugin-catalog__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.plugin-catalog__body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+
+.plugin-catalog__error,
+.plugin-catalog__notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-danger-hover);
+  font-size: var(--font-size-sm);
+}
+
+.plugin-catalog__notice {
+  color: var(--color-text-muted);
+}
+
+.plugin-catalog__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plugin-catalog__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: calc(var(--control-height-lg) + var(--space-3));
+  padding: 0 var(--space-4);
+}
+
+.plugin-catalog__row + .plugin-catalog__row {
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.plugin-catalog__row:hover {
+  background: var(--color-bg-hover);
+}
+
+/* The open button stretches over the whole row; switches, chips and buttons stay clickable above it. */
+.plugin-catalog__open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.plugin-catalog__open::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
+.plugin-catalog__open:focus-visible {
+  outline: var(--border-width) solid var(--color-border-focus);
+  outline-offset: calc(var(--border-width) * -1);
+}
+
+.plugin-catalog__control {
+  position: relative;
+  z-index: 1;
+}
+
+.plugin-catalog__name {
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-catalog__row--off .plugin-catalog__name {
+  opacity: 0.6;
+}
+
+.plugin-catalog__sub {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-catalog__meta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.plugin-catalog__mono {
+  font-family: var(--font-family-mono);
+}
+
+.plugin-catalog__chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.plugin-catalog__chip--warning {
+  border: var(--border-width) solid var(--color-warning);
+  color: var(--color-warning);
+}
+
+.plugin-catalog__chevron {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+@media (width < 600px) {
+  .plugin-catalog__bar {
+    flex-basis: 100%;
+  }
+
+  .plugin-catalog__search {
+    max-width: none;
+  }
+}

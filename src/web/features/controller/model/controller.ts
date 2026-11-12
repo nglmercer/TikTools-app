@@ -344,3 +344,5 @@ export function createControllerModel(control: ControlClient) {
     prepareCommand, commandIsCurrent, changeWorkflow, resolveCommand, prepareReview, reviewIsCurrent, reviewUnknown,
     inventory, refresh, start, stop, connect, disconnect, draft, draftIds, editRetainedDraft, edit, discard, rebaseDraft, draftStorage };
 }
+
+export type ControllerModel = ReturnType<typeof createControllerModel>;
