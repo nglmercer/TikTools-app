@@ -2,7 +2,7 @@ import { computed, type Ref } from 'vue';
 import type { ViewerRecord } from '../../../../shared/messages.ts';
 import type { AutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
 import { availableActionTypeIds } from '@/entities/automation/lib/automation-records.ts';
-import { resolvedPacks } from '@/entities/rule-template/model/rule-profiles-state.ts';
+import { resolvedPacks } from '@/entities/rule-template/lib/rule-profiles.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
 

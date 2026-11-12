@@ -9,7 +9,7 @@ import {
   parseRuleProfileImport,
   profileParamSchema,
   type RuleProfile,
-} from '@/entities/rule-template/model/rule-profiles-state.ts';
+} from '@/entities/rule-template/lib/rule-profiles.ts';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import BaseImportDialog from '@/shared/ui/import-dialog/BaseImportDialog.vue';
 import type { ImportTab, StagedImportItem } from '@/shared/ui/import-dialog/import-types.ts';

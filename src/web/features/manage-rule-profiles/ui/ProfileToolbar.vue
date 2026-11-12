@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, markRaw, ref, shallowRef, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { DEFAULT_PROFILE_ID, type ProfilePack } from '@/entities/rule-template/model/rule-profiles-state.ts';
+import { DEFAULT_PROFILE_ID, type ProfilePack } from '@/entities/rule-template/lib/rule-profiles.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';

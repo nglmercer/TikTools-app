@@ -1,6 +1,7 @@
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, expect, it } from 'vitest';
 import type { LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
+import { i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AutomationLibrary from './AutomationLibrary.vue';
 
@@ -28,4 +29,19 @@ it.each(['events', 'actions'] as const)('a %s checkbox requests a toggle without
 
   await wrapper.get('.automation-library__name').trigger('pointerdown');
   expect(wrapper.emitted('update:selected')).toEqual([[tab === 'events' ? event.id : action.id]]);
+});
+
+it.each(['events', 'actions'] as const)('the %s table distinguishes an unmatched query from an empty library', async (tab) => {
+  const wrapper = mountWithPlugins(AutomationLibrary, { props: {
+    tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set(['core.log']),
+    eventTypes: [], runs: [], eventQuery: 'missing', actionQuery: 'missing',
+  } });
+  expect(wrapper.findAll('.base-empty-state')).toHaveLength(1);
+  expect(wrapper.get('.base-empty-state__title').text()).toBe(i18n.global.t('automations.library.noMatches', { query: 'missing' }));
+  expect(wrapper.find('.base-empty-state__description').exists()).toBe(false);
+  await wrapper.setProps({ events: [], actions: [], eventQuery: '', actionQuery: '' });
+  expect(wrapper.findAll('.base-empty-state')).toHaveLength(1);
+  const key = tab === 'events' ? 'emptyEvents' : 'emptyActions';
+  expect(wrapper.get('.base-empty-state__title').text()).toBe(i18n.global.t(`automations.library.${key}`));
+  expect(wrapper.find('.base-empty-state__description').exists()).toBe(true);
 });

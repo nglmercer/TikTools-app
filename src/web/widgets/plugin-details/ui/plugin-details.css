@@ -1,0 +1,124 @@
+.plugin-details {
+  flex: 1;
+}
+
+.plugin-details__content {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.plugin-details__divider {
+  width: var(--border-width);
+  height: var(--control-height-md);
+  background: var(--color-border);
+}
+
+.plugin-details__tabs {
+  flex: 1;
+}
+
+.plugin-details__tabs .base-tabs__bar {
+  padding: var(--space-2) var(--space-3) 0;
+}
+
+.plugin-details__warning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-warning);
+  color: var(--color-warning);
+}
+
+.plugin-details__pane {
+  box-sizing: border-box;
+  padding: var(--space-4);
+}
+
+.plugin-details__pane > * {
+  max-width: 960px;
+}
+
+.plugin-details__strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
+}
+
+.plugin-details__general {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.plugin-details__description {
+  margin: 0;
+}
+
+.plugin-details__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.plugin-details__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.plugin-details__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height-md);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-bg-field);
+  color: var(--color-text-muted);
+}
+
+.plugin-details__value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-details__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.plugin-details__lead {
+  color: var(--color-text-muted);
+}
+
+.plugin-details__mono {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.plugin-details__chip {
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-control);
+  color: var(--color-text);
+  line-height: 20px;
+}
+
+.plugin-details__none {
+  color: var(--color-text-subtle);
+}

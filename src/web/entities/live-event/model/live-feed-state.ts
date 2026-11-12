@@ -1,11 +1,14 @@
+import { createFeedViewport } from './feed-viewport.ts';
+import { scheduleFrame, cancelFrame } from './feed-frame.ts';
+import { createFeedCoalescer } from './feed-coalescing.ts';
+import { createFeedRecovery } from './feed-recovery.ts';
 import { liveMessageIdentity, LIVE_IDENTITY_CAPACITY, LIVE_IDENTITY_TTL_MS } from '../../../../shared/live-identity.ts';
-import { ref, shallowRef, watch } from 'vue';
+import { ref, shallowRef } from 'vue';
 
 import type { GiftCatalogEntry, LikeLeaderPayload, UiEvent } from '../../../../shared/messages.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
-import type { DisplayEvent, EventFilter, TopViewerPayload } from '@/types.ts';
-import { debounce, loadViewState, saveViewState, type DebouncedCallback } from '@/shared/lib/view-state.ts';
+import type { DisplayEvent, TopViewerPayload } from '@/types.ts';
 import { createFeedRankings } from '@/entities/ranking/model/feed-rankings.ts';
 
 export interface LiveFeedCallbacks {
@@ -17,53 +20,33 @@ export interface GiftCatalogResult {
   gifts: GiftCatalogEntry[];
 }
 
-export interface FeedBackfillResult {
-  oldestCursor: number;
-  latestCursor: number;
-  depth: number;
-  gap: boolean;
-  truncated: boolean;
-  events: Array<{ cursor: number; event: UiEvent }>;
-}
+export type { FeedBackfillResult } from './feed-recovery.ts';
 
 export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedCallbacks) {
   const seenMsgIds = new Map<string, number>();
   const seenCursors = new Set<number>();
-  let recoveryGeneration = 0;
-  let recoveryInFlight = false;
-  let recoveryRequested = false;
-  let recoveryAfter: number | null = null;
   let duplicates = 0;
-  let recoveryGaps = 0;
-  let recoveredEvents = 0;
-  let recoveredGaps = 0;
-  let unjournaledSuspended = 0;
   let needsCursorSort = false;
   let sessionScope = '';
   let sessionRoom = '';
   let sessionCreator = '';
   let rankingCreator = '';
   let rankingRoom = '';
-  const savedFeed = loadViewState().feed;
+  let disposed = false;
+  let presentationActive = true;
   const events = shallowRef<DisplayEvent[]>([]);
-  const filter = ref<EventFilter>(savedFeed?.filter ?? 'all');
-  const imagesEnabled = ref(true);
-  const renderLimit = ref(100);
-  const searchQuery = ref(savedFeed?.searchQuery ?? '');
+  const viewport = createFeedViewport(events, () => !disposed && presentationActive);
+  const {
+    filter, imagesEnabled, renderLimit, searchQuery, autoScroll, unreadCount, streamContainerRef,
+    scrollToBottom, handleToggleAutoScroll, setFilter, setSearchQuery, setStreamContainerRef,
+  } = viewport;
   const topViewers = shallowRef<TopViewerPayload[]>([]);
   const likeLeaders = shallowRef<LikeLeaderPayload[]>([]);
   const liveViewers = ref(0);
   const giftCatalog = shallowRef<GiftCatalogEntry[]>([]);
-  const autoScroll = ref(savedFeed?.autoScroll ?? true);
-  const unreadCount = ref(0);
-    const droppedUiEvents = ref(0);
+  const droppedUiEvents = ref(0);
   const error = ref<string | null>(null);
   let nextEventId = 0;
-  const streamContainerRef = ref<HTMLDivElement | null>(null);
-  let restoreScrollTop = savedFeed?.scrollTop;
-  let scrollSaveHandler: DebouncedCallback | null = null;
-  let restoreFrame = 0;
-  let restoreTimer: ReturnType<typeof setTimeout> | null = null;
   let refreshRevision = 0;
   const unsubscribers: Array<() => void> = [];
   const feedRankings = createFeedRankings(control);
@@ -74,10 +57,6 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let flushQueued = false;
   let flushFrame = 0;
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
-  let scrollTimer: ReturnType<typeof setTimeout> | null = null;
-  let scrollFrame = 0;
-  let disposed = false;
-  let presentationActive = true;
   let commits = 0;
   let received = 0;
   let presentationCoalesced = 0;
@@ -85,16 +64,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let lastHostSuspended: number | null = null;
   let lastHostBusDropped: number | null = null;
   let lastDeliverySequence: number | null = null;
-    let lastFeedCursor: number | null = null;
-
-  const scheduleFrame = (callback: () => void): number => {
-    if (typeof requestAnimationFrame === 'function') return requestAnimationFrame(callback);
-    callback();
-    return 0;
-  };
-  const cancelFrame = (id: number): void => {
-    if (id !== 0 && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(id);
-  };
+  let lastFeedCursor: number | null = null;
 
   const stageEvent = (event: DisplayEvent): void => {
     if (disposed) return;
@@ -111,118 +81,6 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       if (typeof requestAnimationFrame === 'function') flushTimer = setTimeout(flushStaged, 100);
       flushFrame = scheduleFrame(flushStaged);
     }
-  };
-
-  const giftGroupKey = (event: UiEvent): string | null => {
-    const group = event.giftDetails?.groupId?.trim() ?? '';
-    if (!group || /^0+$/.test(group)) return null;
-    const giftId = event.giftDetails?.giftId?.trim() ?? '';
-    if (!giftId || /^0+$/.test(giftId)) return null;
-    return JSON.stringify([event.roomId ?? sessionRoom, event.creatorId ?? sessionCreator, event.author, giftId, group]);
-  };
-
-  const applyGiftProgress = (target: DisplayEvent, update: UiEvent): void => {
-    const count = update.giftDetails?.count ?? target.giftDetails?.count ?? 1;
-    const diamonds = update.giftDetails?.diamonds ?? target.giftDetails?.diamonds ?? 0;
-    target.giftDetails = {
-      ...target.giftDetails,
-      name: update.giftDetails?.name ?? target.giftDetails?.name ?? 'Gift',
-      count,
-      diamonds,
-      giftId: update.giftDetails?.giftId ?? target.giftDetails?.giftId,
-      imageUrl: update.giftDetails?.imageUrl ?? target.giftDetails?.imageUrl,
-      groupId: update.giftDetails?.groupId ?? target.giftDetails?.groupId,
-      repeatEnd: update.giftDetails?.repeatEnd ?? target.giftDetails?.repeatEnd,
-      streakable: update.giftDetails?.streakable ?? target.giftDetails?.streakable,
-    };
-    target.text = update.text;
-    if (update.nickname !== undefined) target.nickname = update.nickname;
-    if (update.avatarUrl !== undefined) target.avatarUrl = update.avatarUrl;
-    if (update.i18nKey !== undefined) target.i18nKey = update.i18nKey;
-    if (update.i18nParams !== undefined) target.i18nParams = update.i18nParams;
-    if (update.msgId !== undefined) target.msgId = update.msgId;
-    target.receivedAt = Date.now();
-  };
-
-  const tryMergeGiftStreak = (event: UiEvent): boolean => {
-    if (event.kind !== 'gift') return false;
-    const key = giftGroupKey(event);
-    if (key === null) return false;
-    for (let i = staged.length - 1; i >= 0; i -= 1) {
-      const candidate = staged[i]!;
-      if (candidate.kind === 'gift' && giftGroupKey(candidate) === key) {
-        applyGiftProgress(candidate, event);
-        presentationCoalesced += 1;
-        return true;
-      }
-    }
-    const committed = events.value;
-    for (let i = committed.length - 1; i >= 0; i -= 1) {
-      const candidate = committed[i]!;
-      if (candidate.kind === 'gift' && giftGroupKey(candidate) === key) {
-        applyGiftProgress(candidate, event);
-        events.value = [...committed];
-        presentationCoalesced += 1;
-        return true;
-      }
-    }
-    return false;
-  };
-
-  // A like is not a TikTok gift combo. Only coalesce its visual rows when
-  // the backend supplies a reliable per-viewer total and stable viewer key.
-  // The feed journal, automation rules, points and analytics retain each packet.
-  const LIKE_BURST_WINDOW_MS = 3_000;
-  const likeGroupKey = (event: UiEvent): string | null => {
-    if (event.kind !== 'like' || !event.likeViewerKey ||
-        !Number.isSafeInteger(event.likeUserTotal) || (event.likeUserTotal ?? 0) <= 0) return null;
-    return JSON.stringify([
-      event.creatorId ?? sessionCreator,
-      event.roomId ?? sessionRoom,
-      event.likeViewerKey,
-    ]);
-  };
-
-  const tryMergeLikeBurst = (event: UiEvent, cursor?: number): boolean => {
-    const key = likeGroupKey(event);
-    if (key === null) return false;
-    const now = Date.now();
-    const canMerge = (candidate: DisplayEvent): boolean => {
-      const elapsed = now - candidate.receivedAt;
-      return likeGroupKey(candidate) === key &&
-        elapsed >= 0 && elapsed <= LIKE_BURST_WINDOW_MS &&
-        candidate.likeUserTotal !== undefined &&
-        event.likeUserTotal! > candidate.likeUserTotal;
-    };
-    const updatedRow = (candidate: DisplayEvent): DisplayEvent => ({
-      ...candidate,
-      ...event,
-      id: candidate.id,
-      feedCursor: cursor ?? event.feedCursor ?? candidate.feedCursor,
-      receivedAt: now,
-    });
-
-    for (let i = staged.length - 1; i >= 0; i -= 1) {
-      const candidate = staged[i]!;
-      if (!canMerge(candidate)) continue;
-      staged.splice(i, 1);
-      staged.push(updatedRow(candidate));
-      presentationCoalesced += 1;
-      return true;
-    }
-
-    const committed = events.value;
-    for (let i = committed.length - 1; i >= 0; i -= 1) {
-      const candidate = committed[i]!;
-      if (!canMerge(candidate)) continue;
-      // Re-stage the existing row after any already staged events to reflect
-      // the latest activity without duplicating the user's row.
-      events.value = [...committed.slice(0, i), ...committed.slice(i + 1)];
-      stageEvent(updatedRow(candidate));
-      presentationCoalesced += 1;
-      return true;
-    }
-    return false;
   };
 
   const evictToVisibleLimit = (combined: DisplayEvent[]): void => {
@@ -259,7 +117,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     evictToVisibleLimit(combined);
     events.value = combined;
     if (!autoScroll.value) unreadCount.value += batch.length;
-    if (autoScroll.value) queueScroll();
+    if (autoScroll.value) scrollToBottom();
   };
 
   const resetEvents = (): void => {
@@ -273,60 +131,35 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     liveViewers.value = 0;
   };
 
-  const applyScroll = (): void => {
-    if (scrollTimer !== null) clearTimeout(scrollTimer);
-    scrollTimer = null;
-    cancelFrame(scrollFrame);
-    scrollFrame = 0;
-    if (disposed || !presentationActive || !autoScroll.value) return;
-    const container = streamContainerRef.value;
-    if (container) container.scrollTop = container.scrollHeight;
-  };
-
-  const queueScroll = (): void => {
-    if (scrollFrame !== 0 || scrollTimer !== null || disposed || !presentationActive) return;
-    if (typeof requestAnimationFrame === 'function') scrollTimer = setTimeout(applyScroll, 100);
-    scrollFrame = scheduleFrame(applyScroll);
-  };
-
-  const scrollToBottom = (): void => {
-    queueScroll();
-  };
-
   const dispose = (): void => {
     disposed = true;
     feedRankings.dispose();
+    viewport.dispose();
     cancelFrame(flushFrame);
-    cancelFrame(scrollFrame);
-    cancelFrame(restoreFrame);
-    if (restoreTimer !== null) clearTimeout(restoreTimer);
-    restoreTimer = null;
     if (flushTimer !== null) clearTimeout(flushTimer);
-    if (scrollTimer !== null) clearTimeout(scrollTimer);
-    flushTimer = scrollTimer = null;
+    flushTimer = null;
     refreshRevision += 1;
-    saveFeedStateDebounced.cancel();
-    scrollSaveHandler?.cancel();
     seenMsgIds.clear();
     seenCursors.clear();
     flushFrame = 0;
-    scrollFrame = 0;
     flushQueued = false;
     staged = [];
     while (unsubscribers.length > 0) unsubscribers.pop()?.();
-    const container = streamContainerRef.value;
-    if (container && scrollSaveHandler) {
-      container.removeEventListener('scroll', scrollSaveHandler);
-      scrollSaveHandler = null;
-    }
   };
+
+  const coalescer = createFeedCoalescer({
+    staged: () => staged,
+    events,
+    session: () => ({ room: sessionRoom, creator: sessionCreator }),
+    stage: stageEvent,
+  });
 
   const pushFeedEvent = (event: UiEvent, cursor?: number): boolean => {
     if (disposed) return false;
     received += 1;
     if (!presentationActive) {
       droppedUiEvents.value += 1;
-      if (cursor === undefined) unjournaledSuspended += 1;
+      if (cursor === undefined) recovery.noteUnjournaledDrop();
       return false;
     }
     if ((event.roomId && sessionRoom && event.roomId !== sessionRoom) || (event.creatorId && sessionCreator && event.creatorId !== sessionCreator)) return false;
@@ -351,8 +184,10 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     // Streakable combos arrive as N progress packets plus a final
     // `repeatEnd` packet sharing one groupId. Fold them into a single live
     // row that updates in place instead of flooding Regalos with duplicates.
-    if (tryMergeGiftStreak(event)) return true;
-    if (tryMergeLikeBurst(event, cursor)) return true;
+    if (coalescer.tryMergeGiftStreak(event) || coalescer.tryMergeLikeBurst(event, cursor)) {
+      presentationCoalesced += 1;
+      return true;
+    }
     stageEvent({ ...event, feedCursor: cursor, id: nextEventId++, receivedAt: Date.now() });
     return true;
   };
@@ -367,61 +202,18 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     });
   };
 
-  const recoverFeed = async (): Promise<void> => {
-    if (recoveryInFlight) { recoveryRequested = true; return; }
-    if (typeof (control as { call?: unknown }).call !== 'function') { unjournaledSuspended = 0; insertDiscontinuity(); return; }
-    const generation = recoveryGeneration;
-    recoveryInFlight = true;
-    let recoveredAny = false;
-    let after = recoveryAfter ?? lastFeedCursor ?? 0;
-    recoveryAfter = after;
-    try {
-      // One host journal is bounded. Page by the last returned cursor, never
-      // by latestCursor (which could skip the rest of a truncated page).
-      for (let page = 0; page < 16; page += 1) {
-        const result = await control.call<FeedBackfillResult>('ui.feed.backfill', { version: 1, after });
-        if (disposed || !presentationActive || generation !== recoveryGeneration) return;
-        if (result.latestCursor < after) {
-          seenCursors.clear(); lastFeedCursor = null; after = 0; recoveryAfter = 0;
-          recoveryGaps += 1; insertDiscontinuity();
-          continue;
-        }
-        if (unjournaledSuspended > 0) {
-          unjournaledSuspended = 0; recoveryGaps += 1; insertDiscontinuity();
-        }
-        let recovered = 0;
-        let next = after;
-        for (const entry of result.events ?? []) {
-          if (!Number.isSafeInteger(entry?.cursor) || entry.cursor <= after || !entry.event) continue;
-          next = Math.max(next, entry.cursor);
-          if (pushFeedEvent(entry.event, entry.cursor)) recovered += 1;
-        }
-        if (recovered > 0) {
-          recoveredEvents += recovered;
-          if (!recoveredAny) recoveredGaps += 1;
-          recoveredAny = true;
-        }
-        droppedUiEvents.value = Math.max(0, droppedUiEvents.value - recovered);
-        if (result.gap) { recoveryGaps += 1; insertDiscontinuity(); }
-        if (!result.truncated) { if (!recoveryRequested) recoveryAfter = null; break; }
-        if (next <= after || page === 15) { recoveryGaps += 1; insertDiscontinuity(); break; }
-        after = next;
-        recoveryAfter = after;
-      }
-    } catch {
-      if (!disposed && presentationActive && generation === recoveryGeneration) { recoveryGaps += 1; insertDiscontinuity(); }
-    } finally {
-      recoveryInFlight = false;
-      if (recoveryRequested && !disposed && presentationActive) {
-        recoveryRequested = false;
-        void recoverFeed();
-      }
-    }
-  };
+  const recovery = createFeedRecovery(control, {
+    active: () => !disposed && presentationActive,
+    cursor: () => lastFeedCursor,
+    resetCursor: () => { seenCursors.clear(); lastFeedCursor = null; },
+    push: pushFeedEvent,
+    discontinuity: insertDiscontinuity,
+    dropped: droppedUiEvents,
+  });
 
   if (typeof control.onGap === 'function') {
     unsubscribers.push(control.onGap(() => {
-      if (!disposed && presentationActive) void recoverFeed();
+      if (!disposed && presentationActive) void recovery.recover();
     }));
   }
 
@@ -431,41 +223,32 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     // identity must never describe discarded staging.
     if (!active) flushStaged();
     presentationActive = active;
-    recoveryGeneration += 1;
+    recovery.invalidate();
     if (!active) {
-      if (!autoScroll.value && streamContainerRef.value) {
-        restoreScrollTop = streamContainerRef.value.scrollTop;
-        saveFeedState();
-      }
+      viewport.pause();
       droppedUiEvents.value += staged.length;
       staged = [];
       cancelFrame(flushFrame);
-      cancelFrame(scrollFrame);
-      cancelFrame(restoreFrame);
-      if (restoreTimer !== null) clearTimeout(restoreTimer);
-      restoreTimer = null;
-      restoreFrame = 0;
       if (flushTimer !== null) clearTimeout(flushTimer);
-      if (scrollTimer !== null) clearTimeout(scrollTimer);
-      flushTimer = scrollTimer = null;
-      flushFrame = scrollFrame = 0;
+      flushTimer = null;
+      flushFrame = 0;
       flushQueued = false;
     } else {
-      void recoverFeed();
+      void recovery.recover();
     }
   };
 
   unsubscribers.push(control.onTopic<{ feedSuspended: number; feedBusDropped?: number; feedForwarded?: number }>('ui.projection.stats', (data) => {
     if (!Number.isFinite(data.feedSuspended)) return;
     if (lastDeliverySequence === null && typeof data.feedForwarded === 'number') lastDeliverySequence = data.feedForwarded;
-    if (lastDeliverySequence !== null && typeof data.feedForwarded === 'number' && data.feedForwarded > lastDeliverySequence && presentationActive) void recoverFeed();
+    if (lastDeliverySequence !== null && typeof data.feedForwarded === 'number' && data.feedForwarded > lastDeliverySequence && presentationActive) void recovery.recover();
     const previous = lastHostSuspended ?? data.feedSuspended;
     droppedUiEvents.value += Math.max(0, data.feedSuspended - previous);
     lastHostSuspended = data.feedSuspended;
     if (typeof data.feedBusDropped === 'number' && Number.isFinite(data.feedBusDropped)) {
       const previousDropped = lastHostBusDropped ?? data.feedBusDropped;
       droppedUiEvents.value += Math.max(0, data.feedBusDropped - previousDropped);
-      if (data.feedBusDropped > previousDropped && presentationActive) void recoverFeed();
+      if (data.feedBusDropped > previousDropped && presentationActive) void recovery.recover();
       lastHostBusDropped = data.feedBusDropped;
     }
   }));
@@ -482,8 +265,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       sessionScope = scope;
       sessionRoom = data.roomId ?? '';
       sessionCreator = data.uniqueId ?? '';
-      recoveryGeneration += 1;
-      recoveryAfter = null;
+      recovery.invalidate(true);
     }
     // Idempotent: also reloads ranking snapshots after a same-room reconnect.
     void feedRankings.connect(data.uniqueId ?? '', data.roomId ?? '');
@@ -497,9 +279,9 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     const cursor = typeof deliveredCursor === 'number' && Number.isSafeInteger(deliveredCursor) ? deliveredCursor : undefined;
     const previousCursor = lastFeedCursor;
     const gap = cursor !== undefined && previousCursor !== null && cursor > previousCursor + 1;
-    if (gap) recoveryAfter = Math.min(recoveryAfter ?? previousCursor ?? 0, previousCursor ?? 0);
+    if (gap) recovery.noteGap(previousCursor);
     pushFeedEvent(data.event, cursor);
-    if (gap && presentationActive) void recoverFeed();
+    if (gap && presentationActive) void recovery.recover();
   }));
   unsubscribers.push(control.onTopic<{
     creatorId: string;
@@ -541,7 +323,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
 
   const refresh = async (): Promise<void> => {
     const revision = ++refreshRevision;
-    if (lastFeedCursor === null) void recoverFeed();
+    if (lastFeedCursor === null) void recovery.recover();
     try {
       const result = await control.call<GiftCatalogResult>('gifts.list', {});
       if (!disposed && revision === refreshRevision) giftCatalog.value = result.gifts;
@@ -550,75 +332,8 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     }
   };
 
-  const handleToggleAutoScroll = (): void => {
-    const nextState = !autoScroll.value;
-    autoScroll.value = nextState;
-    if (!nextState) {
-      cancelFrame(scrollFrame);
-      scrollFrame = 0;
-      if (scrollTimer !== null) clearTimeout(scrollTimer);
-      scrollTimer = null;
-    }
-    if (nextState) {
-      unreadCount.value = 0;
-      scrollToBottom();
-    }
-  };
-
-  const setFilter = (value: EventFilter): void => {
-    filter.value = value;
-  };
-  const setSearchQuery = (value: string): void => {
-    searchQuery.value = value;
-  };
-    const saveFeedState = (): void => {
-    saveViewState('feed', {
-      filter: filter.value,
-      searchQuery: searchQuery.value,
-      autoScroll: autoScroll.value,
-      scrollTop: streamContainerRef.value?.scrollTop ?? 0,
-    });
-  };
-  const saveFeedStateDebounced = debounce(saveFeedState);
-  unsubscribers.push(watch([filter, searchQuery, autoScroll], saveFeedStateDebounced));
-    const applySavedScrollTop = (): void => {
-    const container = streamContainerRef.value;
-    const top = restoreScrollTop;
-    if (!container || top === undefined || top <= 0 || autoScroll.value) return;
-    if (container.scrollHeight < top) return;
-    container.scrollTop = top;
-    restoreScrollTop = undefined;
-  };
-  unsubscribers.push(watch(events, applySavedScrollTop));
-  const setStreamContainerRef = (element: Element | null): void => {
-    const next = element instanceof HTMLDivElement ? element : null;
-    if (streamContainerRef.value === next) return;
-    const previous = streamContainerRef.value;
-    if (previous && scrollSaveHandler) {
-      previous.removeEventListener('scroll', scrollSaveHandler);
-      scrollSaveHandler.cancel();
-      scrollSaveHandler = null;
-    }
-    streamContainerRef.value = next;
-    const container = streamContainerRef.value;
-    if (!container) return;
-    cancelFrame(restoreFrame);
-    if (restoreTimer !== null) clearTimeout(restoreTimer);
-    const restore = (): void => {
-      cancelFrame(restoreFrame);
-      restoreFrame = 0;
-      if (restoreTimer !== null) clearTimeout(restoreTimer);
-      restoreTimer = null;
-      if (!disposed) applySavedScrollTop();
-    };
-    if (!autoScroll.value && restoreScrollTop !== undefined && restoreScrollTop > 0) restoreTimer = setTimeout(restore, 100);
-    restoreFrame = scheduleFrame(restore);
-    scrollSaveHandler = debounce(saveFeedState);
-    container.addEventListener('scroll', scrollSaveHandler);
-  };
-
   return {
-    diagnostics: () => ({ visible: events.value.length, staged: staged.length, dropped: droppedUiEvents.value, presentationActive, commits, received, duplicates, recoveryGaps, recoveredEvents, recoveredGaps, presentationCoalesced, retentionEvicted, identities: seenMsgIds.size, recoveryInFlight, cursor: lastFeedCursor, timers: Number(flushTimer !== null) + Number(scrollTimer !== null) + Number(restoreTimer !== null), frames: Number(flushFrame !== 0) + Number(scrollFrame !== 0) + Number(restoreFrame !== 0) }),
+    diagnostics: () => ({ visible: events.value.length, staged: staged.length, dropped: droppedUiEvents.value, presentationActive, commits, received, duplicates, ...recovery.diagnostics(), presentationCoalesced, retentionEvicted, identities: seenMsgIds.size, cursor: lastFeedCursor, timers: Number(flushTimer !== null) + viewport.diagnostics().timers, frames: Number(flushFrame !== 0) + viewport.diagnostics().frames }),
     events,
     imagesEnabled,
     renderLimit,

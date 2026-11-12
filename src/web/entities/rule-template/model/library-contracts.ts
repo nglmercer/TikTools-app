@@ -4,7 +4,7 @@ import { exact, object } from '@/entities/automation/model/definition-contracts.
 import { assertRecord, validRevision, type AutomationKind } from '@/entities/automation/model/record-versions.ts';
 import { sourceNumbersSafe } from '@/shared/lib/json-source.ts';
 import { parseRuleTemplate, type AppliedRuleTemplate, type RuleTemplate } from '../lib/rule-templates.ts';
-import type { ProfilePack } from './rule-profiles-state.ts';
+import type { ProfilePack } from '../lib/rule-profiles.ts';
 import { canonicalJson, scalarCompare } from '@/shared/lib/canonical-json.ts';
 import { sha256 } from '@/shared/lib/sha256.ts';
 

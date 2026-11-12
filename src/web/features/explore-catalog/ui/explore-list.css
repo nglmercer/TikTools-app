@@ -1,0 +1,146 @@
+.explore-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.explore-list__note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.explore-list__note--error {
+  color: var(--color-danger-hover);
+}
+
+.explore-list__actions {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.explore-list__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explore-list__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: calc(var(--control-height-lg) + var(--space-3));
+  padding: 0 var(--space-4);
+}
+
+.explore-list__row + .explore-list__row {
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.explore-list__row:hover {
+  background: var(--color-bg-hover);
+}
+
+.explore-list__row--off .explore-list__name {
+  opacity: 0.6;
+}
+
+.explore-list__kind {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+/* The open button stretches over the whole row; chips and buttons stay clickable above it. */
+.explore-list__open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.explore-list__open {
+  cursor: pointer;
+}
+
+button.explore-list__open::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
+button.explore-list__open:focus-visible {
+  outline: var(--border-width) solid var(--color-border-focus);
+  outline-offset: calc(var(--border-width) * -1);
+}
+
+.explore-list__control {
+  position: relative;
+  z-index: 1;
+}
+
+.explore-list__name {
+  overflow: hidden;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explore-list__sub {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explore-list__meta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.explore-list__mono {
+  font-family: var(--font-family-mono);
+}
+
+.explore-list__chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  color: var(--color-warning);
+  font-size: var(--font-size-sm);
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.explore-list__chevron {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.explore-list__more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-subtle);
+}

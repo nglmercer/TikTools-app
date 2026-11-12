@@ -154,3 +154,5 @@ export function useConnectionAutosave(source: AutosaveSource) {
 
   return { draft, editing, testing, saveState, values, url, urlKey, urlInvalid, dirty, summary, edit, flush, reset, clearTimers };
 }
+
+export type ConnectionAutosave = ReturnType<typeof useConnectionAutosave>;

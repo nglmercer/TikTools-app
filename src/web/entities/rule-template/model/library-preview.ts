@@ -1,5 +1,5 @@
 import type { LibraryMutation, LibrarySnapshot } from './library-contracts.ts';
-import { resolvedPacks } from './rule-profiles-state.ts';
+import { resolvedPacks } from '../lib/rule-profiles.ts';
 import type { AutomationRecord } from '@/entities/automation/model/record-versions.ts';
 
 export interface LibraryPreviewRow { kind: 'action' | 'event'; name: string; before: AutomationRecord | null; after: AutomationRecord | null }

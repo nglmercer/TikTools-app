@@ -1,0 +1,101 @@
+.rule-templates__lead {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.rule-templates__toolbar {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.rule-templates__search {
+  flex: 1;
+}
+
+.rule-templates__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--space-3);
+  max-height: min(55vh, 460px);
+  overflow-y: auto;
+}
+
+.rule-templates__card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  min-height: 128px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-app);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rule-templates__card:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-control-hover);
+}
+
+.rule-templates__card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.rule-templates__card:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.rule-templates__card-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+}
+
+.rule-templates__card-description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.rule-templates__card-trigger {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.rule-templates__badge {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-selected);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+}
+
+.rule-templates__problem {
+  color: var(--color-warning);
+  font-size: var(--font-size-xs);
+}
+
+.rule-templates__params {
+  margin-top: var(--space-5);
+}
+
+.rule-templates__muted {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.rule-templates__error {
+  margin: var(--space-3) 0 0;
+  color: var(--color-danger-hover);
+}

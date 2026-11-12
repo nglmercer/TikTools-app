@@ -5,7 +5,7 @@ import type { GiftCatalogEntry, HotkeyStatusData } from '../../../../shared/mess
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
 import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { useRuleProfilesStore } from '@/entities/rule-template/model/rule-profiles-store.ts';
-import type { ProfilePack } from '@/entities/rule-template/model/rule-profiles-state.ts';
+import type { ProfilePack } from '@/entities/rule-template/lib/rule-profiles.ts';
 import type { RuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
 import { useRuleTemplatesStore } from '@/entities/rule-template/model/rule-templates-store.ts';
 import { useGlobalsStore } from '@/entities/runtime-global/model/globals-store.ts';

@@ -1,0 +1,38 @@
+.schema-control__range,
+.schema-control__media,
+.schema-control__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.schema-control__range {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.schema-control__range-value {
+  min-width: 4ch;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.schema-control__grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.schema-control__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+.schema-control__error {
+  flex-basis: 100%;
+  color: var(--color-danger-hover);
+  font-size: var(--font-size-sm);
+}

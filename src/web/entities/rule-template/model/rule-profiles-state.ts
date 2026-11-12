@@ -1,319 +1,18 @@
-import { instantiateBoundedTemplates } from '../lib/bounded-expansion.ts';
-
 import { ref } from 'vue';
-
-import type { JsonObject } from '../../../../automation/types.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
-import {
-  parseRuleTemplate,
-  ruleParamDefaults,
-  RULE_TEMPLATE_ID_PATTERN,
-  type AppliedRuleTemplate,
-  type RuleTemplate,
-} from '@/entities/rule-template/lib/rule-templates.ts';
+import type { AppliedRuleTemplate } from '../lib/rule-templates.ts';
+import { DEFAULT_PROFILE_ID, resolvedPacks, slugProfileId, type ProfilePack, type RuleProfile, type ProfileUniverse } from '../lib/rule-profiles.ts';
+import { PROFILE_PACKS_KEY, ACTIVE_PROFILE_KEY, parseStoredProfilePacks } from './profile-pack-storage.ts';
 
-export const PROFILE_VERSION = 1;
-export const MAX_PROFILE_ENTRIES = 32;
-export const DEFAULT_PROFILE_ID = 'default';
-export const MAX_PROFILE_TEXT_BYTES = 262144;
-
-const PACKS_KEY = 'behavior.profiles.packs';
-const ACTIVE_KEY = 'behavior.profiles.active';
-
-export interface RuleProfileEntry {
-  template: RuleTemplate;
-  params: JsonObject;
-}
-
-export interface RuleProfile {
-  profileVersion: 1;
-  id: string;
-  name: string;
-  description: string;
-  params: JsonObject;
-  templates: RuleProfileEntry[];
-}
-
-export interface ProfilePack {
-  id: string;
-  name: string;
-  description: string;
-  eventIds: string[];
-  actionIds: string[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function readText(value: unknown, max: number): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (trimmed === '') return null;
-  return Array.from(trimmed).slice(0, max).join('');
-}
-
-function readParams(value: unknown): JsonObject | null {
-  if (value === undefined) return {};
-  if (!isRecord(value)) return null;
-  return value as JsonObject;
-}
-
-export function parseRuleProfile(value: unknown): { ok: true; profile: RuleProfile } | { ok: false; errors: string[] } {
-  const errors: string[] = [];
-  if (!isRecord(value)) return { ok: false, errors: ['profile must be a JSON object'] };
-  if (value['profileVersion'] !== PROFILE_VERSION) {
-    return { ok: false, errors: [`unsupported profileVersion (want ${PROFILE_VERSION})`] };
-  }
-  const rawId = value['id'];
-  const id = typeof rawId === 'string' && rawId !== '' && rawId !== DEFAULT_PROFILE_ID && Array.from(rawId).length <= 64 &&
-    rawId.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, '') === rawId && !/\p{Cc}/u.test(rawId) ? rawId : null;
-  if (!id) {
-    errors.push('id must be a nonreserved canonical profile ID of 1–64 characters');
-  }
-  const name = readText(value['name'], 80);
-  if (!name) errors.push('name is required');
-  const description = readText(value['description'], 500) ?? '';
-  const params = readParams(value['params']);
-  if (!params) errors.push('params must be an object');
-
-  const templates: RuleProfileEntry[] = [];
-  const raw = value['templates'];
-  if (!Array.isArray(raw)) {
-    errors.push('templates must be an array');
-  } else if (raw.length === 0 || raw.length > MAX_PROFILE_ENTRIES) {
-    errors.push(`templates must hold 1-${MAX_PROFILE_ENTRIES} entries`);
-  } else {
-    raw.forEach((entry: unknown, index: number) => {
-      const label = `#${index + 1}`;
-      if (!isRecord(entry)) {
-        errors.push(`templates[${label}] must be an object`);
-        return;
-      }
-      const parsed = parseRuleTemplate(entry['template']);
-      if (!parsed.ok) {
-        for (const error of parsed.errors) errors.push(`templates[${label}]: ${error}`);
-        return;
-      }
-      const entryParams = readParams(entry['params']);
-      if (!entryParams) {
-        errors.push(`templates[${label}].params must be an object`);
-        return;
-      }
-      templates.push({ template: parsed.template, params: entryParams });
-    });
-  }
-
-  if (errors.length > 0 || !id || !name || !params) {
-    return { ok: false, errors };
-  }
-  return { ok: true, profile: { profileVersion: 1, id, name, description, params, templates } };
-}
-
-export function parseRuleProfileImport(text: string): { profile: RuleProfile | null; errors: string[] } {
-  if (text.length > MAX_PROFILE_TEXT_BYTES) {
-    return { profile: null, errors: ['import is too large (max 256 KB of text)'] };
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(text) as unknown;
-  } catch {
-    return { profile: null, errors: ['import is not valid JSON'] };
-  }
-  if (isRecord(value) && value['templateVersion'] !== undefined) {
-    return { profile: null, errors: ['this is a template document; import it as a template'] };
-  }
-  const parsed = parseRuleProfile(value);
-  if (!parsed.ok) return { profile: null, errors: parsed.errors };
-  return { profile: parsed.profile, errors: [] };
-}
-
-export function mergedEntryParams(profile: RuleProfile, entry: RuleProfileEntry, overrides: JsonObject = {}): JsonObject {
-  return { ...ruleParamDefaults(entry.template.params), ...profile.params, ...entry.params, ...overrides };
-}
-
-export function instantiateProfile(profile: RuleProfile, overrides: JsonObject = {}): AppliedRuleTemplate[] {
-  return instantiateBoundedTemplates(profile.templates.map((entry) => ({ template: entry.template, params: mergedEntryParams(profile, entry, overrides) })));
-}
-
-export function profileParamSchema(profile: RuleProfile): { schema: JsonObject; defaults: JsonObject } | null {
-  const properties: JsonObject = {};
-  const required: string[] = [];
-  for (const entry of profile.templates) {
-    const schema = entry.template.params;
-    if (!isRecord(schema)) continue;
-    const props = schema['properties'];
-    if (isRecord(props)) Object.assign(properties, props);
-    const req = schema['required'];
-    if (Array.isArray(req)) {
-      for (const key of req) {
-        if (typeof key === 'string' && !required.includes(key)) required.push(key);
-      }
-    }
-  }
-  if (Object.keys(properties).length === 0) return null;
-  const schema: JsonObject = { type: 'object', properties };
-  if (required.length > 0) schema['required'] = required;
-  return { schema, defaults: { ...ruleParamDefaults(schema), ...profile.params } };
-}
-
-export function resolvedPacks(
-  packs: ProfilePack[],
-  eventIds: string[],
-  actionIds: string[],
-): ProfilePack[] {
-  const ownedEvents = new Set(packs.flatMap((pack) => pack.eventIds));
-  const ownedActions = new Set(packs.flatMap((pack) => pack.actionIds));
-  return [
-    {
-      id: DEFAULT_PROFILE_ID,
-      name: '',
-      description: '',
-      eventIds: eventIds.filter((id) => !ownedEvents.has(id)),
-      actionIds: actionIds.filter((id) => !ownedActions.has(id)),
-    },
-    ...packs,
-  ];
-}
-
-export function slugProfileId(name: string): string | null {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
-  if (slug === '' || slug === DEFAULT_PROFILE_ID || !RULE_TEMPLATE_ID_PATTERN.test(slug)) return null;
-  return slug;
-}
-
-export interface ExportedProfileDoc {
-  doc: Record<string, unknown>;
-  entries: number;
-  skipped: number;
-}
-
-export function buildProfileDoc(
-  pack: ProfilePack,
-  events: Array<{ id: string; name: string; enabled: boolean; trigger: string; filters: unknown; cooldownMs: number; cooldownScope: string; runMode: string; actionIds: string[] }>,
-  actions: Array<{ id: string; name: string; typeId: string; enabled: boolean; config: unknown }>,
-): ExportedProfileDoc {
-  const eventSet = new Set(pack.eventIds);
-  const actionSet = new Set(pack.actionIds);
-  const byId = new Map(actions.map((action) => [action.id, action]));
-  const templates: unknown[] = [];
-  let skipped = 0;
-  for (const event of events) {
-    if (!eventSet.has(event.id)) continue;
-    const exported = event.actionIds
-      .filter((id) => actionSet.has(id))
-      .map((id) => byId.get(id))
-      .filter((action) => action !== undefined)
-      .map((action) => ({
-        name: action.name,
-        typeId: action.typeId,
-        enabled: action.enabled,
-        config: action.config ?? {},
-      }));
-    if (exported.length === 0) {
-      skipped += 1;
-      continue;
-    }
-    templates.push({
-      template: {
-        templateVersion: 1,
-        id: `export-${event.id}`.slice(0, 64),
-        title: event.name,
-        description: '',
-        icon: 'plugin',
-        actions: exported,
-        event: {
-          name: event.name,
-          enabled: event.enabled,
-          trigger: event.trigger,
-          filters: event.filters ?? [],
-          cooldownMs: event.cooldownMs,
-          cooldownScope: event.cooldownScope,
-          runMode: event.runMode,
-        },
-      },
-      params: {},
-    });
-  }
-  return {
-    doc: {
-      profileVersion: 1,
-      id: pack.id,
-      name: pack.name === '' ? pack.id : pack.name,
-      description: pack.description,
-      params: {},
-      templates,
-    },
-    entries: templates.length,
-    skipped,
-  };
-}
-
-export function downloadTextFile(filename: string, text: string): void {
-  if (typeof document === 'undefined' || typeof URL === 'undefined') return;
-  const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function asPack(value: unknown): ProfilePack | null {
-  if (!isRecord(value)) return null;
-  const id = readText(value['id'], 64);
-  const name = readText(value['name'], 80);
-  const eventIds = value['eventIds'];
-  const actionIds = value['actionIds'];
-  if (!id || !name || !Array.isArray(eventIds) || !Array.isArray(actionIds)) return null;
-  if (!eventIds.every((entry) => typeof entry === 'string') || !actionIds.every((entry) => typeof entry === 'string')) {
-    return null;
-  }
-  return {
-    id,
-    name,
-    description: typeof value['description'] === 'string' ? (value['description'] as string).slice(0, 500) : '',
-    eventIds: [...eventIds] as string[],
-    actionIds: [...actionIds] as string[],
-  };
-}
-
-function asPacks(raw: string | undefined): { packs: ProfilePack[]; errors: string[] } {
-  if (!raw || raw.trim() === '') return { packs: [], errors: [] };
-  let value: unknown;
-  try {
-    value = JSON.parse(raw) as unknown;
-  } catch {
-    return { packs: [], errors: ['stored profiles are not valid JSON'] };
-  }
-  if (!Array.isArray(value)) return { packs: [], errors: ['stored profiles must be an array'] };
-  const packs: ProfilePack[] = [];
-  const errors: string[] = [];
-  value.forEach((entry: unknown, index: number) => {
-    const pack = asPack(entry);
-    if (!pack) {
-      errors.push(`stored profiles[${index + 1}] is malformed (dropped)`);
-    } else if (pack.id === DEFAULT_PROFILE_ID) {
-      errors.push(`stored profiles[${index + 1}] uses the reserved default id (dropped)`);
-    } else {
-      packs.push(pack);
-    }
-  });
-  return { packs, errors };
-}
-
-export interface ProfileUniverse {
-  eventIds: string[];
-  actionIds: string[];
-}
+// Keep the existing entry point for profile document consumers and stores.
+export { PROFILE_VERSION, MAX_PROFILE_ENTRIES, DEFAULT_PROFILE_ID, MAX_PROFILE_TEXT_BYTES,
+  parseRuleProfile, parseRuleProfileImport, mergedEntryParams, instantiateProfile, profileParamSchema,
+  resolvedPacks, slugProfileId,
+} from '../lib/rule-profiles.ts';
+export type { RuleProfileEntry, RuleProfile, ProfilePack, ProfileUniverse } from '../lib/rule-profiles.ts';
+export { buildProfileDoc, downloadTextFile } from '../lib/profile-document.ts';
+export type { ExportedProfileDoc } from '../lib/profile-document.ts';
 
 export function useRuleProfiles(control: ControlClient, persistence: () => boolean | null = () => null) {
   const packs = ref<ProfilePack[]>([]);
@@ -327,12 +26,12 @@ export function useRuleProfiles(control: ControlClient, persistence: () => boole
     error.value = null;
     try {
       const result = await control.call<{ state: Record<string, string> }>('app.state.get', {
-        keys: [PACKS_KEY, ACTIVE_KEY],
+        keys: [PROFILE_PACKS_KEY, ACTIVE_PROFILE_KEY],
       });
-      const parsed = asPacks(result.state[PACKS_KEY]);
+      const parsed = parseStoredProfilePacks(result.state[PROFILE_PACKS_KEY]);
       packs.value = parsed.packs;
       if (parsed.errors.length > 0) error.value = parsed.errors.join('; ');
-      const active = (result.state[ACTIVE_KEY] ?? '').trim();
+      const active = (result.state[ACTIVE_PROFILE_KEY] ?? '').trim();
       activeId.value =
         active !== '' && (active === DEFAULT_PROFILE_ID || parsed.packs.some((pack) => pack.id === active))
           ? active
@@ -347,8 +46,8 @@ export function useRuleProfiles(control: ControlClient, persistence: () => boole
   const persist = async (next: ProfilePack[], active: string): Promise<void> => {
     if (persistence() !== false) throw new ControlCallError('capability_unavailable', 'Persistent profile changes require the native atomic library.');
     await Promise.all([
-      control.call('app.state.set', { key: PACKS_KEY, value: JSON.stringify(next) }),
-      control.call('app.state.set', { key: ACTIVE_KEY, value: active }),
+      control.call('app.state.set', { key: PROFILE_PACKS_KEY, value: JSON.stringify(next) }),
+      control.call('app.state.set', { key: ACTIVE_PROFILE_KEY, value: active }),
     ]);
     packs.value = next;
     activeId.value = active;

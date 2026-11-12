@@ -1,4 +1,4 @@
-import { instantiateProfile, parseRuleProfileImport } from '@/entities/rule-template/model/rule-profiles-state.ts';
+import { instantiateProfile, parseRuleProfileImport } from '@/entities/rule-template/lib/rule-profiles.ts';
 import type { LibraryMutation } from '@/entities/rule-template/model/library-contracts.ts';
 
 /**

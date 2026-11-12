@@ -1,6 +1,6 @@
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, expect, test } from 'vitest';
-import type { ActionTypeDefinition } from '../../../../automation/behavior/types.ts';
+import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
@@ -124,4 +124,30 @@ test('configuring a template replaces the tabs and goes back to the list', async
   await wrapper.findAll('.base-dialog__footer button').at(-1)!.trigger('click');
   expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Templates', 'Cloud', 'Import']);
   expect(wrapper.findAll('.rule-templates__card').length).toBeGreaterThan(0);
+});
+
+test('retries the same generated records after failure and generates new identities only after a draft edit', async () => {
+  await activateLocale('en');
+  const wrapper = mountTemplates();
+  await wrapper.findAll('.rule-templates__card').find((card) => card.text().includes('Local one'))!.trigger('click');
+  const attempt = (index: number) => wrapper.emitted('apply')![index] as [LiveAction[], LiveEvent, (success: boolean) => void];
+  await wrapper.get('.base-button--primary').trigger('click');
+  const [firstActions, firstEvent, failed] = attempt(0);
+  failed(false);
+  await flushPromises();
+  await wrapper.get('.base-button--primary').trigger('click');
+  const [retryActions, retryEvent, retryFailed] = attempt(1);
+  expect(retryActions.map((action) => action.id)).toEqual(firstActions.map((action) => action.id));
+  expect(retryEvent.id).toBe(firstEvent.id);
+  retryFailed(false);
+  await flushPromises();
+  await wrapper.get('input').setValue('Changed event');
+  await wrapper.get('.base-button--primary').trigger('click');
+  const [editedActions, editedEvent, succeeded] = attempt(2);
+  expect(editedActions.map((action) => action.id)).not.toEqual(firstActions.map((action) => action.id));
+  expect(editedEvent.id).not.toBe(firstEvent.id);
+  expect(editedEvent.name).toBe('Changed event');
+  succeeded(true);
+  await flushPromises();
+  expect(wrapper.emitted('update:open')!.at(-1)).toEqual([false]);
 });

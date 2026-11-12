@@ -43,7 +43,6 @@
   color: var(--color-danger-hover);
 }
 
-.automations-page__target { overflow-wrap: anywhere; }
 .automations-page__proposal-button { height: auto; max-width: 45%; min-height: var(--control-height-sm); white-space: normal; }
 
 .automations-page__work {

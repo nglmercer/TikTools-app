@@ -1,5 +1,9 @@
 import type { ControlTransport } from './control-transport.ts';
 import type { HostMessage } from '../../../shared/messages.ts';
+import { ControlCallError, type ControlClient, type TopicHandler, type PushHandler, type TransportErrorHandler, type GapHandler, type Unsubscribe } from './control-contracts.ts';
+import { isRecord, type RpcResponseWire } from './control-wire.ts';
+import { createControlRequests } from './control-requests.ts';
+export * from './control-contracts.ts';
 
 declare global {
   interface Window {
@@ -11,143 +15,8 @@ declare global {
   }
 }
 
-export type RpcParams = Record<string, unknown>;
-
-export interface RequestMetadata {
-  expectedRevision?: string;
-  commandId?: string;
-  hostInstanceId?: string;
-}
-export interface ResourceVersion {
-  kind: string;
-  id: string;
-  scope: string;
-  revision: string;
-}
-export interface CommandReceipt {
-  commandId: string;
-  state: 'accepted' | 'running' | 'succeeded' | 'failed' | 'unknown';
-  resource?: { kind: string; id: string; scope: string };
-  committedAt?: number;
-}
-export interface ResponseMetadata {
-  resourceVersions: ResourceVersion[];
-  command?: CommandReceipt;
-  hostInstanceId?: string;
-  [field: string]: unknown;
-}
-export interface ControlCallOptions {
-  signal?: AbortSignal;
-  /** Optional bounded deadline for a call whose native contract is longer. */
-  timeoutMs?: number;
-  meta?: RequestMetadata;
-  onMetadata?: (meta: ResponseMetadata | undefined) => void;
-}
-export interface CallResult<T> {
-  result: T;
-  meta?: ResponseMetadata;
-}
-
-/** Metadata-aware calls retain the domain payload's existing shape. */
-export async function callWithMeta<T = unknown>(
-  control: ControlClient, method: string, params?: RpcParams,
-  options?: Omit<ControlCallOptions, 'onMetadata'>,
-): Promise<CallResult<T>> {
-  let meta: ResponseMetadata | undefined;
-  const result = await control.call<T>(method, params, { ...options, onMetadata: (value) => { meta = value; } });
-  return { result, meta };
-}
-
-export class ControlCallError extends Error {
-  readonly code: string;
-  readonly data?: unknown;
-
-  constructor(code: string, message: string, data?: unknown) {
-    super(message);
-    this.name = 'ControlCallError';
-    this.code = code;
-    this.data = data;
-  }
-}
-
-export function errorMessage(failure: unknown): string {
-  return failure instanceof Error ? failure.message : String(failure);
-}
-
-export type TopicHandler<T = unknown> = (data: T) => void;
-export type PushHandler = (message: HostMessage) => void;
-export type TransportErrorHandler = (message: string) => void;
-export type GapHandler = (lost: number) => void;
-export type Unsubscribe = () => void;
-
-type PendingCall = {
-  resolve: (result: unknown, meta?: ResponseMetadata) => void;
-  reject: (error: ControlCallError) => void;
-  timer: ReturnType<typeof setTimeout>;
-  cleanupAbort: () => void;
-};
-
-type RpcResponseWire = {
-  id?: number | string | null;
-  result?: unknown;
-  meta?: unknown;
-  error?: { code?: unknown; message?: unknown; data?: unknown };
-};
-
-const DEFAULT_TIMEOUT_MS = 150_000;
-const MAX_PENDING_CALLS = 128;
-// Mirrors MAX_REQUEST_BYTES in crates/tiktools-control-api/src/transport.rs
-
-const MAX_WEBVIEW_REQUEST_BYTES = 1024 * 1024;
-
-const textEncoder = new TextEncoder();
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function isResponseMetadata(value: unknown): value is ResponseMetadata {
-  if (!isRecord(value) || !Array.isArray(value['resourceVersions'])) return false;
-  if (value['hostInstanceId'] !== undefined && typeof value['hostInstanceId'] !== 'string') return false;
-  const command = value['command'];
-  if (command !== undefined) {
-    if (!isRecord(command) || typeof command['commandId'] !== 'string' ||
-        !['accepted', 'running', 'succeeded', 'failed', 'unknown'].includes(String(command['state']))) return false;
-    if (command['committedAt'] !== undefined && (typeof command['committedAt'] !== 'number' || !Number.isSafeInteger(command['committedAt']))) return false;
-    const resource = command['resource'];
-    if (resource !== undefined && (!isRecord(resource) || typeof resource['kind'] !== 'string' || typeof resource['id'] !== 'string' || typeof resource['scope'] !== 'string')) return false;
-  }
-  return value['resourceVersions'].every((version: unknown) => isRecord(version) &&
-    typeof version['kind'] === 'string' && typeof version['id'] === 'string' &&
-    typeof version['scope'] === 'string' && typeof version['revision'] === 'string' &&
-    /^(0|[1-9][0-9]*)$/.test(version['revision']));
-}
-
-export interface PresentationView {
-  feed: boolean;
-  behavior: boolean;
-  points: boolean;
-  visible: boolean;
-}
-
-export interface ControlClient {
-  setPresentation?(view: PresentationView): Promise<void>;
-  diagnostics?(): { pending: number; capacity: number; overloaded: number; topicCount?: number; topicSubscriptions?: number; pushSubscriptions?: number };
-  attach(): void;
-  detach(): void;
-  call<T = unknown>(method: string, params?: RpcParams, options?: ControlCallOptions): Promise<T>;
-  onTopic<T = unknown>(topic: string, handler: TopicHandler<T>): Unsubscribe;
-  onPush(type: HostMessage['type'], handler: PushHandler): Unsubscribe;
-  onTransportError(handler: TransportErrorHandler): Unsubscribe;
-  onGap(handler: GapHandler): Unsubscribe;
-}
-
 export function createControlClient(options?: { timeoutMs?: number; transport?: ControlTransport }): ControlClient {
   const transport = options?.transport;
-  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  let nextId = 0;
-  const requestPrefix = globalThis.crypto?.randomUUID?.() ??
-    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   let presentationRevision = 0;
   let presentationGeneration: number | null = null;
   let projectionBaselineSet = false;
@@ -162,9 +31,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
   let longTasks = 0;
   let longTaskMs = 0;
   let longTaskObserver: PerformanceObserver | null = null;
-  let overloaded = 0;
   let detached = false;
-  const pending = new Map<number | string, PendingCall>();
   const topics = new Map<string, Set<TopicHandler<unknown>>>();
   const pushes = new Map<string, Set<PushHandler>>();
   const transportErrors = new Set<TransportErrorHandler>();
@@ -184,6 +51,15 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
     for (const handler of transportErrors) notify('transport-error', handler, message);
   };
 
+  const requests = createControlRequests({
+    transport,
+    timeoutMs: options?.timeoutMs,
+    generation: () => presentationGeneration,
+    detached: () => detached,
+    reportTransportError,
+    handledResponse: () => { handledMessages += 1; },
+  });
+
   const receive = (raw: string): void => {
     let value: unknown;
     const parseStarted = performance.now();
@@ -197,27 +73,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
     parseMs += performance.now() - parseStarted;
     if (!isRecord(value)) return;
     if (value['type'] === 'rpc-response' && isRecord(value['response'])) {
-      const response = value['response'] as RpcResponseWire;
-      if (response.id === undefined || response.id === null) return;
-      const call = pending.get(response.id);
-      if (!call) return;
-      handledMessages += 1;
-      pending.delete(response.id);
-      clearTimeout(call.timer);
-      call.cleanupAbort();
-      if (response.error !== undefined && response.error !== null) {
-        const code = typeof response.error.code === 'string' ? response.error.code : 'error';
-        const message =
-          typeof response.error.message === 'string' ? response.error.message : 'request failed';
-        call.reject(new ControlCallError(code, message, response.error.data));
-      } else {
-        const metadata = response.meta;
-        if (metadata !== undefined && metadata !== null && !isResponseMetadata(metadata)) {
-          call.reject(new ControlCallError('protocol', 'invalid response metadata'));
-          return;
-        }
-        call.resolve(response.result ?? null, metadata ?? undefined);
-      }
+      requests.settle(value['response'] as RpcResponseWire);
       return;
     }
     if (value['method'] === 'event.gap' && isRecord(value['params'])) {
@@ -284,7 +140,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
         for (const handler of topics.get('ui.projection.stats') ?? []) handler(response.stats);
       }
     },
-    diagnostics: () => ({ parsedMessages, parsedStringUnits: parsedBytes, handledMessages, ignoredMessages, batches, parseMs, maxBatchMs, longTasksSupported, longTasks, longTaskMs, pending: pending.size, capacity: MAX_PENDING_CALLS, overloaded,
+    diagnostics: () => ({ parsedMessages, parsedStringUnits: parsedBytes, handledMessages, ignoredMessages, batches, parseMs, maxBatchMs, longTasksSupported, longTasks, longTaskMs, ...requests.diagnostics(),
       topicCount: topics.size, topicSubscriptions: [...topics.values()].reduce((total, handlers) => total + handlers.size, 0),
       pushSubscriptions: [...pushes.values()].reduce((total, handlers) => total + handlers.size, 0),
     }),
@@ -300,12 +156,7 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
       }
       if (transport) {
         transport.attach(receive, (reason) => {
-          for (const call of pending.values()) {
-            clearTimeout(call.timer);
-            call.cleanupAbort();
-            call.reject(new ControlCallError('transport', reason));
-          }
-          pending.clear();
+          requests.rejectAll(reason);
           reportTransportError(reason);
         }, () => {
           for (const handler of gaps) notify('event.gap', handler, 0);
@@ -335,97 +186,10 @@ export function createControlClient(options?: { timeoutMs?: number; transport?: 
       pushes.clear();
       transportErrors.clear();
       gaps.clear();
-      for (const [, call] of pending) {
-        clearTimeout(call.timer);
-        call.cleanupAbort();
-        call.reject(new ControlCallError('transport', 'control client detached'));
-      }
-      pending.clear();
+      requests.rejectAll('control client detached');
     },
 
-    call<T = unknown>(method: string, params?: RpcParams, options?: ControlCallOptions): Promise<T> {
-      return new Promise<T>((resolve, reject) => {
-        const signal = options?.signal;
-        if (options?.timeoutMs !== undefined && (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 1 || options.timeoutMs > 300_000)) {
-          reject(new ControlCallError('client', 'invalid control request timeout'));
-          return;
-        }
-        if (signal?.aborted) { reject(new ControlCallError('cancelled', 'control request owner disposed')); return; }
-        if (detached) {
-          reject(new ControlCallError('transport', 'control client detached'));
-          return;
-        }
-        if (pending.size >= MAX_PENDING_CALLS) {
-          overloaded += 1;
-          const error = new ControlCallError('overloaded', 'control client pending request limit reached');
-          reportTransportError(error.message);
-          reject(error);
-          return;
-        }
-        if (!transport && !window.ipc) {
-          reject(new ControlCallError('transport', 'native host is unavailable'));
-          return;
-        }
-        const id = `rpc-${requestPrefix}-${++nextId}`;
-        let payload: string;
-        try {
-          payload = JSON.stringify({ jsonrpc: '2.0', id, method, params: params ?? {},
-            ...(options?.meta === undefined ? {} : { meta: options.meta }),
-            ...(presentationGeneration === null ? {} : { pageGeneration: presentationGeneration }),
-          });
-        } catch (error) {
-          reject(
-            new ControlCallError('transport', `could not serialize ${method}: ${String(error)}`),
-          );
-          return;
-        }
-        const requestLimit = method === 'automation.library.submit' ? 8 * 1024 * 1024 + 64 * 1024 : MAX_WEBVIEW_REQUEST_BYTES;
-        if (textEncoder.encode(payload).length > requestLimit) {
-          const error = new ControlCallError(
-            'too_large',
-            `request ${method} exceeds the ${requestLimit}-byte limit`,
-          );
-          reportTransportError(error.message);
-          reject(error);
-          return;
-        }
-        const onAbort = (): void => {
-          if (!pending.delete(id)) return;
-          clearTimeout(timer);
-          cleanupAbort();
-          reject(new ControlCallError('cancelled', 'control request owner disposed; accepted operation may still complete'));
-        };
-        const cleanupAbort = (): void => { signal?.removeEventListener('abort', onAbort); };
-        const timer = setTimeout(() => {
-          pending.delete(id);
-          cleanupAbort();
-          const error = new ControlCallError('timeout', `request ${method} timed out`);
-          reportTransportError(error.message);
-          reject(error);
-        }, options?.timeoutMs ?? timeoutMs);
-        pending.set(id, {
-          resolve: (result, meta) => {
-            try { options?.onMetadata?.(meta); }
-            catch { reject(new ControlCallError('client', 'could not process response metadata')); return; }
-            resolve(result as T);
-          },
-          reject,
-          timer,
-          cleanupAbort,
-        });
-        signal?.addEventListener('abort', onAbort, { once: true });
-        if (signal?.aborted) { onAbort(); return; }
-        try {
-          if (transport) transport.send(payload);
-          else window.ipc!.postMessage(payload);
-        } catch (error) {
-          pending.delete(id);
-          clearTimeout(timer);
-          cleanupAbort();
-          reject(new ControlCallError('transport', `could not send ${method}: ${String(error)}`));
-        }
-      });
-    },
+    call: requests.call,
 
     onTopic<T = unknown>(topic: string, handler: TopicHandler<T>): Unsubscribe {
       let handlers = topics.get(topic);

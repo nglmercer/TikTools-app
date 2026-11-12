@@ -167,6 +167,26 @@ describe.each(['stacked', 'sections'] as const)('credentials and authorization i
     expect(wrapper.findAllComponents({ name: 'ProvisionTokenDialog' })).toHaveLength(1);
   });
 
+  test('switching layouts retains the draft and its pending save without reconnecting', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = mountCredentials({ provisionState: undefined });
+      await wrapper.get('input').setValue('http://127.0.0.1:9001');
+      vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS - 1);
+      await wrapper.setProps({ layout: layout === 'stacked' ? 'sections' : 'stacked' });
+      expect((wrapper.get('input').element as HTMLInputElement).value).toBe('http://127.0.0.1:9001');
+      expect(wrapper.emitted('save')).toBeUndefined();
+      vi.advanceTimersByTime(1);
+      expect(wrapper.emitted('save')).toEqual([
+        ['peak.game', { serverUrl: 'http://127.0.0.1:9001', apiToken: '••••••••', playerId: 'p1' }],
+      ]);
+      expect(wrapper.emitted('test')).toBeUndefined();
+      expect(wrapper.emitted('loadSettings')).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('one edit produces one save sequence, and the other form keeps its fields', async () => {
     vi.useFakeTimers();
     try {

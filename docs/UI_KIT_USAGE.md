@@ -179,3 +179,101 @@ separate composables.
 Feature styles shared by extracted components live in namespaced feature CSS
 files, loaded by the root. Restrict native-control rules to explicit classes;
 do not broaden formerly scoped rules to every descendant input or label.
+
+The controller proposal builder owns the preview capture and the only call that
+applies generated JSON to the proposal model. Its draft composable owns field
+values, source loading and identity resets for the builder lifetime, so changing
+conditional field panels cannot discard input. Action fields, event fields and
+action selection receive narrow state interfaces. Pure field validators preserve
+size, URL, identity and numeric bounds independently of rendering. Shared proposal
+styles remain scoped in each component rather than becoming global selectors.
+
+Plugin connection layouts share one editor-owned autosave, model-refresh timer
+and provisioning dialog. Stacked and sectioned panels render the same draft and
+emit edits/test/connection intents; switching layouts does not restart the save
+debounce or duplicate connection requests. The presentation hook only projects
+schemas, icons and localized status text, and service notes are shared by both
+layouts. Credentials continue to report intent to the editor through its slot.
+
+Automation record sessions own the page-lifetime editor, guarded selection and
+profile navigation, version comparisons and recovery invalidation. The page
+keeps template/profile dialogs, route handling and persisted view preferences.
+The mobile sheet toolbar receives the same history-panel refs as the desktop
+menu; it never mounts another set of recovery panels. Toggle confirmation is a
+controlled view of the existing review model, including its stale-read gate.
+
+The live feed keeps delivery identity, cursor acceptance, bounded staging and
+transport subscriptions in its state coordinator. Backfill recovery owns one
+serialized, generation-fenced paging loop; gift/like coalescing only folds visual
+rows after acceptance. The viewport owns saved preferences, scroll restoration
+and its frames/listeners. Pausing commits accepted staging before disabling the
+presentation, and disposal cancels each module's own resources.
+
+Plugin details keep tab availability, one-shot catalog requests, pending test
+state and uninstall confirmation in their root. The general pane projects
+metadata and capabilities. The connection pane owns its editor ref and flushes
+pending settings before reporting a probe request to the root; it does not
+create a second plugin store or reset pending checks when changing tabs.
+
+EventEditor owns its single cloned draft, baseline/dirty comparison, save/test/fire
+commands and deletion confirmation. Conditions and their template picker, action
+selection/order and cooldown sections emit field changes back to that draft.
+They never save or replace the whole event independently, so edits in one section
+preserve changes from the others and Discard restores the shared baseline.
+
+Automation state composes a coherent snapshot/version/host projection, a bounded
+recent-run buffer, a checked record gateway and explicit test/fire execution.
+All transport listeners still use one root-owned subscription client. The root
+alone invalidates refresh generations and installs library snapshots; it owns
+the shared error state. Gateway helpers receive its refresh callbacks and the original shared native
+journals instead of opening independent mutation paths.
+
+AutomationLibrary owns area visits, query/sort models and the committed-state
+checkbox reset while a toggle waits for review. Its read-only row projection
+combines filters, localized labels and recent-run metadata. Event/action tables
+emit selection and toggle intent without mutating records. Keep extra areas
+mounted after their first visit so changing tables cannot discard their drafts.
+
+Approval review keeps one model and all journal/selection/version observers in
+the root. Saved-source, manifest/subject, decision and history panels render
+captured data and report user intent. Consent refs and activate/revoke/recovery
+calls remain root-owned, so remounting a panel cannot create another authority
+path or retain independent consent after the host, revisions or dialog change.
+
+Rule-template dialogs own navigation and one dialog-lifetime draft/import pair.
+The catalog only projects availability and reports a selection; the configuration
+view edits the existing draft fields. Applying retains the generated candidate
+IDs after a failed attempt and invalidates them only when the draft changes under
+the existing working-state rules. Manual import stages parsed templates separately
+and reports completion through the caller's callback.
+
+Profile document parsing, parameter layering/bounded expansion and default-pack
+resolution live in the pure rule-profile library. Export conversion is separate
+from the local sidecar decoder and stateful profile operations. Document readers
+and preview code import the pure helpers directly; the original state module
+re-exports its public contract for existing callers. Native atomic changes stay
+in the profile store and its shared library journal.
+
+AppShell keeps runtime startup, global diagnostics and the single Owner library
+review mounted at the application level. Navigation projects built-in/plugin
+pages and synchronizes the route with the existing navigation store. One shell
+interaction hook owns the drawer, media/key listeners and touch disposers.
+Notifications keep their dismissal state in an always-mounted shell child.
+
+The control client coordinates the transport, presentation revision/generation
+and subscriber delivery. Its request queue owns bounded admission, byte limits,
+serialization, deadlines, cancellation and response settlement. Contracts/errors
+and metadata validation are independent modules; the original client entry point
+re-exports the public API so transports and callers retain one error identity.
+Detach and transport failures drain that same queue through one cleanup path.
+
+ExploreList owns catalog refresh, pagination, hidden/installed filtering and
+loading/error/import notices. Its row component renders the kind, availability
+and action controls, then reports open/install/import intent to the list. It
+never initializes another catalog store or starts a library mutation itself.
+
+SchemaFieldControl dispatches simple control kinds and delegates option, media
+and text/template controls to focused renderers. Picker errors and variable-menu
+state remain in one field-lifetime helper. Renderers report typed value changes
+without creating their own field draft; media references retain host metadata,
+and variable popups use the live anchor from the rendered text control.

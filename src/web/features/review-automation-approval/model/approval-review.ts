@@ -186,3 +186,5 @@ export function useApprovalReview(control: ControlClient) {
     sourcePrecisionSafe, activateEligible, revokeEligible, canActivate, canRevoke, reviewVersions, select, closeReview, observe, observeHost, includeDependency, setDependencyEnabled,
     readSaved, refreshJournals, activate: () => transition('activate'), revoke: () => transition('revoke'), resolveOriginal, reviewUnknown, finalDependencyState, dispose };
 }
+
+export type ApprovalReviewModel = ReturnType<typeof useApprovalReview>;

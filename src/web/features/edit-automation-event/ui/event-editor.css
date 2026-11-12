@@ -1,0 +1,77 @@
+.event-editor {
+  height: 100%;
+}
+
+.event-editor__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+/* Two columns that wrap on narrow widths: what triggers it | what it runs. */
+.event-editor__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.event-editor__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.event-editor__divider {
+  align-self: stretch;
+  width: var(--border-width);
+  margin: var(--space-1) var(--space-2);
+  background: var(--color-border);
+}
+
+.event-editor__error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger-hover);
+}
+
+.event-editor__muted {
+  margin: 0;
+  color: var(--color-text-subtle);
+}
+
+.event-editor__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event-editor__action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height-md);
+}
+
+.event-editor__action > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-editor__type {
+  color: var(--color-text-subtle);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.event-editor__scope {
+  display: flex;
+  gap: var(--space-2);
+}

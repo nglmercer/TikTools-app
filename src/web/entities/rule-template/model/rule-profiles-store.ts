@@ -8,7 +8,9 @@ import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { canonicalJson } from '@/shared/lib/canonical-json.ts';
 import type { AppliedRuleTemplate } from '../lib/rule-templates.ts';
-import { buildProfileDoc, resolvedPacks, slugProfileId, useRuleProfiles, type RuleProfile } from './rule-profiles-state.ts';
+import { useRuleProfiles } from './rule-profiles-state.ts';
+import { resolvedPacks, slugProfileId, type RuleProfile } from '../lib/rule-profiles.ts';
+import { buildProfileDoc } from '../lib/profile-document.ts';
 import { libraryJournal } from './library-journal.ts';
 
 export const useRuleProfilesStore = defineStore('rule-profiles', () => {

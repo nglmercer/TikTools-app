@@ -1,0 +1,22 @@
+.approval-tools { display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
+.approval-tools .base-button, .approval-dialog .base-button { height: auto; min-height: var(--control-height-sm); white-space: normal; }
+.approval-dialog .approval-text, .approval-identity { overflow-wrap: anywhere; }
+.approval-dialog .base-dialog__title { white-space: normal; overflow-wrap: anywhere; }
+.approval-dialog .base-dialog__body { overflow-anchor: none; }
+.approval-dialog .base-checkbox { align-items: flex-start; margin: var(--space-3) 0; }
+.approval-dialog .base-checkbox__box { margin-top: 3px; }
+.approval-status, .approval-card { margin: var(--space-3) 0; padding: var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm); }
+.approval-section { margin-top: var(--space-5); padding-top: var(--space-3); border-top: var(--border-width) solid var(--color-border); }
+.approval-card .approval-summary { cursor: pointer; overflow-wrap: anywhere; }
+.approval-card .approval-heading { margin-block: var(--space-2); }
+.approval-card .approval-list { padding-inline-start: var(--space-5); }
+.approval-history { padding-inline-start: var(--space-5); }
+.approval-history .approval-list-item { padding-block: var(--space-3); overflow-wrap: anywhere; }
+.approval-history .approval-paragraph { margin: var(--space-2) 0; }
+@media (width < 600px) {
+  .approval-dialog .base-dialog__footer { flex-direction: column; align-items: stretch; }
+  .approval-dialog .base-dialog__spacer { display: none; }
+  .approval-dialog .base-dialog__body { padding: var(--space-3); }
+  .approval-tools { width: 100%; }
+  .approval-tools .base-button { flex: 1 1 140px; }
+}
