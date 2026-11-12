@@ -77,4 +77,15 @@ describe('SyncButton', () => {
     const wrapper = await mount(adapter);
     expect(wrapper.get('button').attributes('disabled')).toBeDefined();
   });
+
+  it('stays enabled and counts while signed out for a section that only compares with this device', async () => {
+    const { adapter } = fakeAdapter({ reset: true, markReviewed: true });
+    expect(adapter.requiresCloud).toBe(false);
+    const wrapper = await mount(adapter, 'signed-out', false);
+    expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
+    expect(wrapper.get('.sync-button__badge').text()).toBe('4');
+    await wrapper.get('button').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[role="dialog"], dialog').exists()).toBe(true);
+  });
 });

@@ -175,17 +175,27 @@ pub enum V2ConflictOutcome {
 
 /// One pending local edit of a v2 workspace entry, with the frozen Cloud base it
 /// was made against. `status` is `queued`, `unconfirmed` or `conflict`.
+///
+/// For `plugin-settings` entries `base` and `local` carry no value (their
+/// `value` is always null): settings are arbitrary plugin data that may be
+/// sensitive, so only `changed_keys`, the sorted top-level setting names whose
+/// value differs from the base (or that were added or removed), is projected.
+/// It is `null` for every other collection.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct V2PendingChange {
     pub status: String,
     pub base: V2ConflictValue,
     pub local: V2ConflictValue,
+    pub changed_keys: Option<Vec<String>>,
 }
 
 /// Read-only projection of one durable v2 workspace entry: the last fetched
 /// Cloud record, the pending local edit when there is one, and whether a newer
-/// local decision waits behind it. Nothing here contacts Cloud.
+/// local decision waits behind it. Nothing here contacts Cloud. Values are
+/// projected only for the credential-free `plugin-selections` and
+/// `preferences` collections; every other collection (notably
+/// `plugin-settings`) is reduced to metadata and never leaves the host.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct V2ChangeEntry {
@@ -196,12 +206,60 @@ pub struct V2ChangeEntry {
     pub has_newer: bool,
 }
 
+/// Collections whose records are credential-free by schema and may be shown.
+const VALUE_VISIBLE_COLLECTIONS: &[&str] = &["plugin-selections", "preferences"];
+
+/// Keeps the state and revision of a value and drops everything else.
+fn v2_metadata_only(mut value: V2ConflictValue) -> V2ConflictValue {
+    value.value = None;
+    value.version = None;
+    value.enabled = None;
+    value
+}
+
+fn settings_map(value: &serde_json::Value) -> Option<&serde_json::Map<String, serde_json::Value>> {
+    value.get("settings").and_then(serde_json::Value::as_object)
+}
+
+/// Sorted top-level names of the plugin settings that differ between the base
+/// record and the pending edit. Only names are returned, never values.
+fn changed_setting_keys(
+    base: Option<&cloud_client::WorkspaceRecord>,
+    edit: &cloud_client::WorkspaceEdit,
+) -> Vec<String> {
+    let before = base
+        .filter(|record| !record.deleted)
+        .and_then(|record| record.value.as_ref())
+        .and_then(settings_map);
+    let after = match edit {
+        cloud_client::WorkspaceEdit::Put(value) => settings_map(value),
+        cloud_client::WorkspaceEdit::Delete => None,
+    };
+    let mut names = std::collections::BTreeSet::new();
+    for map in [before, after].into_iter().flatten() {
+        names.extend(map.keys().cloned());
+    }
+    names
+        .into_iter()
+        .filter(|name| before.and_then(|map| map.get(name)) != after.and_then(|map| map.get(name)))
+        .collect()
+}
+
 pub(crate) fn v2_change_entry(entry: &cloud_client::WorkspaceEntry) -> V2ChangeEntry {
     use cloud_client::WorkspacePendingStatus;
+    let collection = entry.target.collection.as_str();
+    let visible = VALUE_VISIBLE_COLLECTIONS.contains(&collection);
+    let project = |value: V2ConflictValue| {
+        if visible {
+            value
+        } else {
+            v2_metadata_only(value)
+        }
+    };
     V2ChangeEntry {
         collection: entry.target.collection.clone(),
         key: entry.target.key.clone(),
-        remote: v2_value_from_record(entry.remote.as_ref()),
+        remote: project(v2_value_from_record(entry.remote.as_ref())),
         pending: entry.pending.as_ref().map(|pending| V2PendingChange {
             status: match pending.status {
                 WorkspacePendingStatus::Queued => "queued",
@@ -209,8 +267,10 @@ pub(crate) fn v2_change_entry(entry: &cloud_client::WorkspaceEntry) -> V2ChangeE
                 WorkspacePendingStatus::Conflict => "conflict",
             }
             .into(),
-            base: v2_value_from_record(pending.base_record.as_ref()),
-            local: v2_value_from_edit(&pending.edit),
+            base: project(v2_value_from_record(pending.base_record.as_ref())),
+            local: project(v2_value_from_edit(&pending.edit)),
+            changed_keys: (collection == "plugin-settings")
+                .then(|| changed_setting_keys(pending.base_record.as_ref(), &pending.edit)),
         }),
         has_newer: entry.next.is_some(),
     }
@@ -1067,5 +1127,154 @@ mod change_entry_tests {
         assert_eq!(pending.status, "queued");
         assert_eq!(pending.base.state, "absent");
         assert_eq!(pending.local.state, "deleted");
+    }
+    fn settings_record(revision: i64, settings: serde_json::Value) -> WorkspaceRecord {
+        WorkspaceRecord {
+            collection: "plugin-settings".into(),
+            key: "alpha".into(),
+            revision,
+            deleted: false,
+            value: Some(json!({"schemaVersion": 1, "pluginId": "alpha", "settings": settings})),
+        }
+    }
+
+    fn settings_entry(
+        base: Option<WorkspaceRecord>,
+        edit: WorkspaceEdit,
+        status: WorkspacePendingStatus,
+    ) -> WorkspaceEntry {
+        WorkspaceEntry {
+            target: WorkspaceKey::new("plugin-settings", "alpha").unwrap(),
+            remote: base.clone(),
+            pending: Some(WorkspacePending {
+                base_revision: base.as_ref().map(|record| record.revision),
+                edit,
+                local_generation: 2,
+                base_record: base,
+                status,
+                write_epoch: None,
+            }),
+            next: Some(WorkspaceLocalEdit {
+                edit: WorkspaceEdit::Put(json!({
+                    "schemaVersion": 1,
+                    "pluginId": "alpha",
+                    "settings": {"apiKey": "NEXT-SECRET-VALUE"}
+                })),
+                local_generation: 3,
+            }),
+        }
+    }
+
+    #[test]
+    fn plugin_settings_expose_only_changed_key_names_never_values() {
+        let base = settings_record(
+            5,
+            json!({"apiKey": "OLD-SECRET-VALUE", "volume": 3, "gone": {"nested": "REMOVED-VALUE"}, "same": "SAME-VALUE"}),
+        );
+        let edit = WorkspaceEdit::Put(json!({
+            "schemaVersion": 1,
+            "pluginId": "alpha",
+            "settings": {"apiKey": "NEW-SECRET-VALUE", "volume": 3, "same": "SAME-VALUE", "added": ["ADDED-VALUE"]}
+        }));
+        let item = settings_entry(Some(base), edit, WorkspacePendingStatus::Conflict);
+        let projected = v2_change_entry(&item);
+        let pending = projected.pending.as_ref().expect("pending change");
+        assert_eq!(
+            pending.changed_keys.as_deref(),
+            Some(&["added".to_owned(), "apiKey".to_owned(), "gone".to_owned()][..])
+        );
+        assert_eq!(pending.status, "conflict");
+        assert_eq!(pending.base.state, "present");
+        assert_eq!(pending.base.revision, Some(5));
+        assert_eq!(pending.local.state, "present");
+        assert_eq!(projected.remote.revision, Some(5));
+        assert!(projected.has_newer);
+        let text = serde_json::to_string(&projected).unwrap();
+        for secret in [
+            "OLD-SECRET-VALUE",
+            "NEW-SECRET-VALUE",
+            "NEXT-SECRET-VALUE",
+            "REMOVED-VALUE",
+            "SAME-VALUE",
+            "ADDED-VALUE",
+            "nested",
+        ] {
+            assert!(!text.contains(secret), "{secret} leaked into {text}");
+        }
+        assert!(text.contains("apiKey"));
+    }
+
+    #[test]
+    fn plugin_settings_creation_and_deletion_list_every_key_without_values() {
+        let created = settings_entry(
+            None,
+            WorkspaceEdit::Put(json!({
+                "schemaVersion": 1,
+                "pluginId": "alpha",
+                "settings": {"token": "CREATED-SECRET", "mode": "fast"}
+            })),
+            WorkspacePendingStatus::Queued,
+        );
+        let projected = v2_change_entry(&created);
+        let pending = projected.pending.as_ref().unwrap();
+        assert_eq!(pending.base.state, "absent");
+        assert_eq!(
+            pending.changed_keys.as_deref(),
+            Some(&["mode".to_owned(), "token".to_owned()][..])
+        );
+        assert!(!serde_json::to_string(&projected)
+            .unwrap()
+            .contains("CREATED-SECRET"));
+
+        let deleted = settings_entry(
+            Some(settings_record(2, json!({"token": "DELETED-SECRET"}))),
+            WorkspaceEdit::Delete,
+            WorkspacePendingStatus::Queued,
+        );
+        let projected = v2_change_entry(&deleted);
+        let pending = projected.pending.as_ref().unwrap();
+        assert_eq!(pending.local.state, "deleted");
+        assert_eq!(
+            pending.changed_keys.as_deref(),
+            Some(&["token".to_owned()][..])
+        );
+        assert!(!serde_json::to_string(&projected)
+            .unwrap()
+            .contains("DELETED-SECRET"));
+    }
+
+    #[test]
+    fn selections_keep_their_values_and_have_no_changed_keys() {
+        let mut item = entry();
+        item.pending = Some(WorkspacePending {
+            base_revision: None,
+            edit: WorkspaceEdit::Put(json!({"version": "2.0.0", "enabled": true})),
+            local_generation: 1,
+            base_record: None,
+            status: WorkspacePendingStatus::Queued,
+            write_epoch: None,
+        });
+        let pending = v2_change_entry(&item).pending.unwrap();
+        assert_eq!(pending.changed_keys, None);
+        assert_eq!(pending.local.version.as_deref(), Some("2.0.0"));
+        assert!(pending.local.value.is_some());
+    }
+
+    #[test]
+    fn unknown_collections_are_reduced_to_metadata() {
+        let mut item = entry();
+        item.target = WorkspaceKey::new("profiles", "p1").unwrap();
+        item.remote = Some(WorkspaceRecord {
+            collection: "profiles".into(),
+            key: "p1".into(),
+            revision: 9,
+            deleted: false,
+            value: Some(json!({"name": "PROFILE-NAME"})),
+        });
+        let projected = v2_change_entry(&item);
+        assert_eq!(projected.remote.revision, Some(9));
+        assert!(!serde_json::to_string(&projected)
+            .unwrap()
+            .contains("PROFILE-NAME"));
     }
 }

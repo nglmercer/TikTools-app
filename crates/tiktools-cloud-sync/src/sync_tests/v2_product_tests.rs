@@ -698,6 +698,7 @@ async fn v2_product_entries_lists_staged_edits_without_network_or_mutation() {
     assert_eq!(pending.edit, edit);
     // Reading is local-only and leaves the durable state untouched.
     assert_eq!(workspace.snapshot().unwrap().generation, staged_generation);
+
     let requests_after = {
         let inner = mock.inner.lock().unwrap();
         (
@@ -707,6 +708,63 @@ async fn v2_product_entries_lists_staged_edits_without_network_or_mutation() {
         )
     };
     assert_eq!(requests_after, requests_before);
+    mock.stop();
+}
+
+#[tokio::test]
+async fn v2_product_entries_lists_a_staged_plugin_settings_edit_as_stored() {
+    let dir = TempDir::new("v2-product-entries-settings");
+    let mock = MockSync::start("v2-entries-settings-user").await;
+    let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+    login(&auth, "entries-settings-login").await;
+    let session = auth.session().await.unwrap();
+    let preview = marked_preview(&sync, &session);
+    let lease = sync.protocol.try_cutover().unwrap();
+    lease
+        .prepare(&preview, &mock.origin, "v2-entries-settings-user", &[])
+        .unwrap();
+    let workspace = crate::WorkspaceCoordinator::open(
+        dir.join("a-sync"),
+        mock.origin.clone(),
+        "v2-entries-settings-user".into(),
+    )
+    .unwrap();
+    workspace.bootstrap_reviewed(&preview).unwrap();
+    lease
+        .finish(&preview, &mock.origin, "v2-entries-settings-user")
+        .unwrap();
+    drop(lease);
+    sync.set_enabled(false).unwrap();
+    let consent = sync.review_v2_resume(&session, None).unwrap();
+    sync.confirm_v2_resume(&consent).unwrap();
+    // A staged plugin-settings edit is listed with its envelope intact. This
+    // layer returns the durable entry as stored; the host's projection
+    // (`v2_change_entry` in tiktools-core) is what keeps the values off the
+    // RPC reply and is tested there against exactly this envelope.
+    let settings_target = WorkspaceKey::new("plugin-settings", "tiktools.alpha").unwrap();
+    let settings_edit = WorkspaceEdit::Put(serde_json::json!({
+        "schemaVersion": 1,
+        "pluginId": "tiktools.alpha",
+        "settings": {"greeting": "SETTINGS-PRIVATE-VALUE", "volume": 4}
+    }));
+    sync.stage_v2_product_edit(
+        session.clone(),
+        settings_target.clone(),
+        settings_edit.clone(),
+    )
+    .unwrap();
+    let entries = sync.v2_product_entries(&session).unwrap();
+    let settings = entries
+        .iter()
+        .find(|entry| entry.target == settings_target)
+        .expect("staged settings entry is listed");
+    let pending = settings.pending.as_ref().expect("pending settings edit");
+    assert_eq!(pending.status, WorkspacePendingStatus::Queued);
+    assert_eq!(pending.edit, settings_edit);
+    assert!(pending.base_record.is_none());
+    let staged_generation = workspace.snapshot().unwrap().generation;
+    let _ = sync.v2_product_entries(&session).unwrap();
+    assert_eq!(workspace.snapshot().unwrap().generation, staged_generation);
     mock.stop();
 }
 

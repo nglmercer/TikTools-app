@@ -30,6 +30,11 @@ export interface SyncChange {
   base?: JsonValue;
   /** Name of the device that made a fetched change. */
   device?: string;
+  /**
+   * Names of the fields that changed, for elements whose values must never reach the page (plugin
+   * settings). The panel then lists the names instead of a JSON diff, and offers no field merge.
+   */
+  changedKeys?: readonly string[];
 }
 
 /** What the person chose for a conflict. `merged` carries the field-level result. */
@@ -70,6 +75,12 @@ export interface SyncCapabilities {
   fork: boolean;
   branches: boolean;
   autoSync: boolean;
+  /**
+   * Advance the reference this section compares with to what is there now (`markReviewed`). Only
+   * for sections whose comparison base is a local reference copy; sections compared with Cloud do
+   * not declare it.
+   */
+  markReviewed: boolean;
 }
 
 export const noSyncCapabilities: Readonly<SyncCapabilities> = Object.freeze({
@@ -84,6 +95,7 @@ export const noSyncCapabilities: Readonly<SyncCapabilities> = Object.freeze({
   fork: false,
   branches: false,
   autoSync: false,
+  markReviewed: false,
 });
 
 export interface SyncScope {
@@ -132,6 +144,11 @@ export interface SyncAdapter {
   autoSync?: { get(): boolean; set(value: boolean): Promise<void> };
   /** Starts the "fork a public template" flow. */
   fork?(): Promise<void>;
+  /**
+   * Makes the current state the new reference, so nothing counts as changed any more. It does not
+   * send anything, and the previous reference can no longer be reset to.
+   */
+  markReviewed?(): Promise<void>;
 }
 
 /** Declares an adapter with every capability false unless stated. */

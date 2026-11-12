@@ -11,6 +11,7 @@ export type SyncConfirmation =
   | { kind: 'forcePush' }
   | { kind: 'forcePull' }
   | { kind: 'resetAll' }
+  | { kind: 'markReviewed' }
   | { kind: 'reset'; id: string; name: string }
   | { kind: 'restore'; operationId: string; id: string; name: string }
   | { kind: 'revert'; operationId: string };
@@ -84,6 +85,7 @@ export function useSyncPanel(adapter: SyncAdapter, source: SyncChanges) {
       forcePush: caps.force && !!adapter.forcePush,
       forcePull: caps.force && !!adapter.forcePull,
       resetAll: caps.reset && !!(adapter.resetAll ?? adapter.reset),
+      markReviewed: caps.markReviewed && !!adapter.markReviewed,
       reset: caps.reset && !!adapter.reset,
       restore: caps.history && !!adapter.restore,
       revert: caps.history && !!adapter.restore,
@@ -107,6 +109,7 @@ export function useSyncPanel(adapter: SyncAdapter, source: SyncChanges) {
           ? () => adapter.resetAll!()
           : async () => { for (const change of changes.value) await adapter.reset!(change.id); });
         break;
+      case 'markReviewed': await run(() => adapter.markReviewed!()); break;
       case 'reset': await run(() => adapter.reset!(pending.id)); break;
       case 'restore': await run(() => adapter.restore!(pending.operationId, pending.id)); break;
       case 'revert': await run(() => adapter.restore!(pending.operationId)); break;

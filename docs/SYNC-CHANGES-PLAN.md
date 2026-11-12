@@ -11,12 +11,26 @@ base version, conflict review (base, local, Cloud) and the background worker.
   controls an adapter declares in `capabilities`.
 - Read-only RPC `sync.v2.changes.list`: a local read of the v2 workspace (cached Cloud value, pending edit
   with its frozen base). No network, no fences, no writes.
+  **Plugin settings values never leave the host.** Settings are arbitrary plugin data and may be sensitive, so
+  the reply values are projected only for the credential-free `plugin-selections` and `preferences`
+  collections. Every other collection, and always `plugin-settings`, is reduced to metadata: plugin id,
+  collection, state and revision of the cached and base records, the pending status, `hasNewer`, and for
+  settings a sorted `changedKeys` list of top-level setting NAMES that differ from the base. The cached Cloud
+  value and the pending edit value of a settings record are `null` in the reply (asserted on the serialized
+  JSON in the `tiktools-core` `change_entry_tests`, the typed-client parity test and the adapter tests).
 - Plugins adapter (selections and staged settings): whole-pass sync (`sync.v2.now`) and keep-local or
-  take-Cloud for conflicts. No selective send, fetch-only, field merge, force, reset or history.
+  take-Cloud for conflicts. No selective send, fetch-only, field merge, force, reset or history. A settings
+  change is listed as "Changed settings: a, b" with no JSON diff and no field-level merge; resolving it keeps
+  the local version or takes Cloud's through the existing review and resolve RPCs, which run on the host.
 - Automations adapter (Events and Actions tabs): **compares with the last-known snapshot kept in this
   browser, not with Cloud**, because rule profiles and templates are not staged into the v2 workspace
-  (only plugin selections, plugin settings and preferences are). It offers reset only. The snapshot is
-  taken the first time a section is seen and is never advanced until a transport exists.
+  (only plugin selections, plugin settings and preferences are). The panel's status strip says so plainly
+  ("compared with this device's reference copy, not with Cloud; nothing is sent"), and the toolbar button
+  stays enabled while signed out because the diff is local. It offers reset and **mark as reviewed**: an
+  explicit `markReviewed` capability (declared in the `SyncAdapter` contract, false by default and hidden by
+  the panel when absent) with a confirmed header action that advances the reference copy to the current local
+  records and clears the count. It discards the ability to reset to the old reference. Without it the
+  reference is taken the first time a section is seen and only moves when a transport exists.
 
 What the plan's table claimed for automations (push, fetch, merge, force, history) needs backend work first:
 native adapters for the `profiles` and `rule-templates` records, staging from the Owner library operations,

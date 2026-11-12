@@ -620,3 +620,38 @@ fn cloud_library_requests_are_closed_and_revisions_are_strings() {
     )
     .is_err());
 }
+
+#[cfg(feature = "cloud-auth")]
+#[test]
+fn v2_changes_list_accepts_empty_params_and_its_reply_has_no_settings_values() {
+    use tiktools_control_api::modules::sync::V2ChangeEntry;
+
+    assert!(
+        tiktools_client::validate_params("sync.v2.changes.list", &serde_json::json!({})).is_ok()
+    );
+
+    // The reply a host sends for a staged plugin-settings edit: metadata and
+    // key names only. The typed client must read it and carry no value.
+    let reply = serde_json::json!([{
+        "collection": "plugin-settings",
+        "key": "alpha",
+        "remote": {"state": "present", "revision": 3, "value": null, "version": null, "enabled": null},
+        "pending": {
+            "status": "queued",
+            "base": {"state": "present", "revision": 3, "value": null, "version": null, "enabled": null},
+            "local": {"state": "present", "revision": null, "value": null, "version": null, "enabled": null},
+            "changedKeys": ["apiKey", "volume"]
+        },
+        "hasNewer": false
+    }]);
+    let entries: Vec<V2ChangeEntry> = serde_json::from_value(reply).expect("reply parses");
+    let pending = entries[0].pending.as_ref().expect("pending change");
+    assert_eq!(
+        pending.changed_keys.as_deref(),
+        Some(&["apiKey".to_owned(), "volume".to_owned()][..])
+    );
+    assert!(entries[0].remote.value.is_none() && pending.local.value.is_none());
+    let text = serde_json::to_string(&entries).unwrap();
+    assert!(text.contains("apiKey"));
+    assert!(!text.contains("\"value\":{") && !text.contains("\"value\":\""));
+}

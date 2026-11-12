@@ -29,7 +29,11 @@ export default {
   loadFailed: 'No se pudieron cargar los cambios.', actionFailed: 'La operación falló.',
   kinds: { event: 'Evento', action: 'Acción', template: 'Plantilla', plugin: 'Plugin', pluginSettings: 'Ajustes', preferences: 'Preferencias', record: 'Registro' },
   scopes: { events: 'Eventos', actions: 'Acciones', plugins: 'Plugins' },
-  automationsNotice: 'Las automatizaciones aún no viajan a Cloud. Esta lista las compara con la última instantánea que vio este dispositivo.',
+  automationsNotice: 'Se compara con la copia de referencia de este dispositivo, no con Cloud. No se envía nada.',
+  markReviewed: 'Marcar como revisado', markReviewedHint: 'Usar la versión actual como nueva copia de referencia (no se envía nada)',
+  confirmMarkReviewed: '¿Usar la versión actual como nueva copia de referencia? Restablecer ya no volverá a la anterior. No se envía nada a Cloud.',
+  thisDevice: 'Este dispositivo',
+  keysChanged: 'Ajustes cambiados: {keys}', keysNone: 'Ajustes cambiados', valuesHidden: 'Los valores de los ajustes se quedan en este dispositivo y no se muestran.',
   pluginsNotice: 'Comparado con la última versión traída de Cloud. Sincronizar envía todo lo pendiente.',
   v2Off: 'La sincronización Cloud v2 no está activa para esta cuenta. Termina la migración en Ajustes, Cuenta y Cloud.',
 };

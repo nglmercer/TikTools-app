@@ -130,7 +130,9 @@ const picks = ref<Record<string, FieldSide>>({});
 const conflict = computed(() => {
   const change = panel.current.value;
   if (panel.view.value !== 'changes' || !change || change.side !== 'conflict' || !caps.resolve) return null;
-  return { change, fields: caps.merge ? buildFieldChoices(change.base, change.after, change.remote) : [] };
+  // Elements whose values never reach the page (changedKeys) cannot be merged field by field.
+  const merge = caps.merge && !change.changedKeys;
+  return { change, merge, fields: merge ? buildFieldChoices(change.base, change.after, change.remote) : [] };
 });
 watch(conflict, (next) => {
   picks.value = Object.fromEntries((next?.fields ?? []).map((field) => [field.key, field.choice]));
@@ -206,6 +208,16 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
         </template>
         {{ t('syncChanges.sync') }}
       </BaseButton>
+      <BaseIconButton
+        v-if="caps.markReviewed && adapter.markReviewed"
+        :label="t('syncChanges.markReviewed')"
+        :hint="t('syncChanges.markReviewedHint')"
+        variant="default"
+        :disabled="panel.busy.value || panel.changes.value.length === 0"
+        @click="panel.ask({ kind: 'markReviewed' })"
+      >
+        <IconCheck />
+      </BaseIconButton>
       <span
         v-if="menuEntries.length"
         class="sync-panel__more"
@@ -271,8 +283,11 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
       <div class="sync-panel__status">
         <span class="sync-panel__cloud">
           <IconCloud />
-          <strong>{{ t('syncChanges.cloud') }}</strong>
-          <span class="sync-panel__muted">{{ notice ?? lastSync }}</span>
+          <strong>{{ adapter.requiresCloud === false ? t('syncChanges.thisDevice') : t('syncChanges.cloud') }}</strong>
+          <span
+            class="sync-panel__muted sync-panel__notice"
+            :title="notice"
+          >{{ notice ?? lastSync }}</span>
         </span>
         <span class="sync-panel__spacer" />
         <span
@@ -518,7 +533,7 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
               v-if="conflict"
               class="sync-panel__conflict"
             >
-              <span class="sync-panel__muted">{{ caps.merge ? t('syncChanges.conflictHelp') : t('syncChanges.conflictBoth') }}</span>
+              <span class="sync-panel__muted">{{ conflict.merge ? t('syncChanges.conflictHelp') : t('syncChanges.conflictBoth') }}</span>
               <div
                 v-for="field in conflict.fields"
                 :key="field.key"
@@ -547,7 +562,7 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
               </div>
               <div class="sync-panel__actions">
                 <BaseButton
-                  v-if="caps.merge"
+                  v-if="conflict.merge"
                   variant="primary"
                   :disabled="panel.busy.value"
                   @click="applyMerge"
@@ -584,8 +599,17 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
             </template>
           </BaseEmptyState>
 
+          <div
+            v-if="shown?.changedKeys"
+            class="sync-panel__keys"
+            role="region"
+            :aria-label="t('syncChanges.diffRegion')"
+          >
+            <span>{{ shown.changedKeys.length ? t('syncChanges.keysChanged', { keys: shown.changedKeys.join(', ') }) : t('syncChanges.keysNone') }}</span>
+            <span class="sync-panel__muted">{{ t('syncChanges.valuesHidden') }}</span>
+          </div>
           <BaseJsonDiff
-            v-if="shown && shownSides"
+            v-else-if="shown && shownSides"
             v-model:layout="layout"
             class="sync-panel__diff"
             :label="t('syncChanges.diffRegion')"
@@ -617,6 +641,18 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
   flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+
+.sync-panel__keys {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.sync-panel__notice {
+  min-width: 0;
 }
 
 .sync-panel__auto {

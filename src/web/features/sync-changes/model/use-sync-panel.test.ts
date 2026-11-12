@@ -22,6 +22,7 @@ describe('useSyncPanel', () => {
     await state.fetchChanges();
     state.ask({ kind: 'forcePush' });
     state.ask({ kind: 'resetAll' });
+    state.ask({ kind: 'markReviewed' });
     state.ask({ kind: 'revert', operationId: 'op1' });
     expect(state.confirmation.value).toBeNull();
     expect(spies.push).not.toHaveBeenCalled();
@@ -40,6 +41,21 @@ describe('useSyncPanel', () => {
     state.ask({ kind: 'forcePull' });
     await state.confirm();
     expect(spies.forcePull).toHaveBeenCalledOnce();
+    expect(state.confirmation.value).toBeNull();
+  });
+
+  it('keeps mark as reviewed pending until confirmed', async () => {
+    const { state, spies } = await panel({ markReviewed: true });
+    state.ask({ kind: 'markReviewed' });
+    expect(state.confirmation.value).toEqual({ kind: 'markReviewed' });
+    state.cancel();
+    await state.confirm();
+    expect(spies.markReviewed).not.toHaveBeenCalled();
+    state.ask({ kind: 'markReviewed' });
+    const before = spies.list.mock.calls.length;
+    await state.confirm();
+    expect(spies.markReviewed).toHaveBeenCalledOnce();
+    expect(spies.list.mock.calls.length).toBe(before + 1);
     expect(state.confirmation.value).toBeNull();
   });
 

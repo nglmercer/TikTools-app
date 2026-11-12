@@ -29,7 +29,11 @@ export default {
   loadFailed: 'Impossible de charger les modifications.', actionFailed: 'L’opération a échoué.',
   kinds: { event: 'Événement', action: 'Action', template: 'Modèle', plugin: 'Plugin', pluginSettings: 'Réglages', preferences: 'Préférences', record: 'Enregistrement' },
   scopes: { events: 'Événements', actions: 'Actions', plugins: 'Plugins' },
-  automationsNotice: 'Les automatisations ne passent pas encore par Cloud. Cette liste les compare au dernier instantané vu par cet appareil.',
+  automationsNotice: 'Comparé à la copie de référence de cet appareil, pas à Cloud. Rien n’est envoyé.',
+  markReviewed: 'Marquer comme vérifié', markReviewedHint: 'Utiliser la version actuelle comme nouvelle copie de référence (rien n’est envoyé)',
+  confirmMarkReviewed: 'Utiliser la version actuelle comme nouvelle copie de référence ? Le rétablissement ne reviendra plus à l’ancienne. Rien n’est envoyé à Cloud.',
+  thisDevice: 'Cet appareil',
+  keysChanged: 'Réglages modifiés : {keys}', keysNone: 'Réglages modifiés', valuesHidden: 'Les valeurs des réglages restent sur cet appareil et ne sont pas affichées.',
   pluginsNotice: 'Comparé à la dernière version récupérée de Cloud. Synchroniser envoie tout ce qui est en attente.',
   v2Off: 'La synchronisation Cloud v2 n’est pas active pour ce compte. Terminez la migration dans Réglages, Compte et Cloud.',
 };

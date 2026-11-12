@@ -42,6 +42,10 @@ function statusOf(base: WorkspaceValue, local: WorkspaceValue): SyncChange['stat
  * last Cloud value the store fetched (the base of a pending edit), `after` the staged local edit.
  * A Cloud selection that differs from the installed plugin is listed as something to fetch. The
  * v2 engine syncs whole passes, so there is no selective send, no fetch-only and no field merge.
+ *
+ * Plugin settings are different: their values never reach the page. A settings change is listed
+ * by name and the keys that changed, with no diff and no merge; a conflict can only be resolved
+ * by keeping the local version or taking Cloud's (both run on the host).
  */
 export function createPluginSyncAdapter(deps: PluginSyncDeps): SyncAdapter {
   const supported = (): boolean => deps.supports('sync.v2.changes.list') !== false;
@@ -62,6 +66,14 @@ export function createPluginSyncAdapter(deps: PluginSyncDeps): SyncAdapter {
     const id = idOf(entry.collection, entry.key);
     const name = pluginName(entry.key);
     const pending = entry.pending;
+    if (entry.collection === SETTINGS) {
+      // Settings can hold anything, so no value is read or shown: only which keys changed. The host
+      // already omits the values; this stays true even if an older host still sent them.
+      if (!pending) return null;
+      const changedKeys = [...(pending.changedKeys ?? [])];
+      if (pending.status !== 'queued') return { id, kind, name, status: 'conflict', side: 'conflict', changedKeys };
+      return { id, kind, name, status: statusOf(pending.base, pending.local), side: 'local', changedKeys };
+    }
     if (pending && pending.status !== 'queued') {
       return {
         id, kind, name, status: 'conflict', side: 'conflict',

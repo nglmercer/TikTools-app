@@ -29,7 +29,11 @@ export default {
   loadFailed: 'The changes could not be loaded.', actionFailed: 'The operation failed.',
   kinds: { event: 'Event', action: 'Action', template: 'Template', plugin: 'Plugin', pluginSettings: 'Settings', preferences: 'Preferences', record: 'Record' },
   scopes: { events: 'Events', actions: 'Actions', plugins: 'Plugins' },
-  automationsNotice: 'Automations do not travel to Cloud yet. This list compares them with the last snapshot this device saw.',
+  automationsNotice: 'Compared with this device’s reference copy, not with Cloud. Nothing is sent.',
+  markReviewed: 'Mark as reviewed', markReviewedHint: 'Use the current version as the new reference copy (nothing is sent)',
+  confirmMarkReviewed: 'Use the current version as the new reference copy? Reset will no longer go back to the old one. Nothing is sent to Cloud.',
+  thisDevice: 'This device',
+  keysChanged: 'Changed settings: {keys}', keysNone: 'Settings changed', valuesHidden: 'Setting values stay on this device and are not shown.',
   pluginsNotice: 'Compared with the last version fetched from Cloud. Sync sends everything pending.',
   v2Off: 'Cloud v2 sync is not active for this account. Finish the migration in Settings, Account & Cloud.',
 };

@@ -14,6 +14,12 @@ export interface WorkspacePendingChange {
   status: 'queued' | 'unconfirmed' | 'conflict';
   base: WorkspaceValue;
   local: WorkspaceValue;
+  /**
+   * Plugin settings only: the top-level setting names that differ from the base. The host never
+   * sends the values of plugin settings (they can hold anything, including secrets), so `base` and
+   * `local` of such an entry carry a state and revision but a null `value`.
+   */
+  changedKeys: string[] | null;
 }
 
 /** One durable v2 workspace entry: the last fetched Cloud value and the pending local edit. */

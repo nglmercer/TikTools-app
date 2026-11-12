@@ -29,7 +29,11 @@ export default {
   loadFailed: 'Não foi possível carregar as alterações.', actionFailed: 'A operação falhou.',
   kinds: { event: 'Evento', action: 'Ação', template: 'Modelo', plugin: 'Plugin', pluginSettings: 'Definições', preferences: 'Preferências', record: 'Registo' },
   scopes: { events: 'Eventos', actions: 'Ações', plugins: 'Plugins' },
-  automationsNotice: 'As automatizações ainda não vão para o Cloud. Esta lista compara-as com o último instantâneo visto por este dispositivo.',
+  automationsNotice: 'Comparado com a cópia de referência deste dispositivo, não com o Cloud. Nada é enviado.',
+  markReviewed: 'Marcar como revisto', markReviewedHint: 'Usar a versão atual como nova cópia de referência (nada é enviado)',
+  confirmMarkReviewed: 'Usar a versão atual como nova cópia de referência? Repor já não voltará à anterior. Nada é enviado para o Cloud.',
+  thisDevice: 'Este dispositivo',
+  keysChanged: 'Definições alteradas: {keys}', keysNone: 'Definições alteradas', valuesHidden: 'Os valores das definições ficam neste dispositivo e não são mostrados.',
   pluginsNotice: 'Comparado com a última versão obtida do Cloud. Sincronizar envia tudo o que está pendente.',
   v2Off: 'A sincronização Cloud v2 não está ativa nesta conta. Conclua a migração em Definições, Conta e Cloud.',
 };

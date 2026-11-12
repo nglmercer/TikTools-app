@@ -32,6 +32,7 @@ export function fakeAdapter(capabilities: Partial<SyncCapabilities> = {}, change
     history: vi.fn(async () => sampleOperations),
     restore: vi.fn<(operationId: string, id?: string) => Promise<void>>(async () => {}),
     fork: vi.fn(async () => {}),
+    markReviewed: vi.fn(async () => {}),
     setAuto: vi.fn(async () => {}),
   };
   const adapter: SyncAdapter = defineSyncAdapter({
@@ -51,11 +52,12 @@ export function fakeAdapter(capabilities: Partial<SyncCapabilities> = {}, change
     history: spies.history,
     restore: spies.restore,
     fork: spies.fork,
+    markReviewed: spies.markReviewed,
     autoSync: { get: () => false, set: spies.setAuto },
   });
   return { adapter, spies };
 }
 
 export const allCapabilities: SyncCapabilities = {
-  push: true, fetch: true, sync: true, reset: true, resolve: true, merge: true, force: true, history: true, fork: true, branches: false, autoSync: true,
+  push: true, fetch: true, sync: true, reset: true, resolve: true, merge: true, force: true, history: true, fork: true, branches: false, autoSync: true, markReviewed: true,
 };

@@ -1,5 +1,5 @@
 import { defineSyncAdapter, type JsonValue, type SyncAdapter, type SyncChange } from '@/entities/cloud-sync/api/sync-adapter.ts';
-import { readSnapshot, writeSnapshot, type SectionSnapshot } from '@/entities/cloud-sync/lib/snapshot-store.ts';
+import { advanceSnapshot, readSnapshot, snapshotRevision, writeSnapshot, type SectionSnapshot } from '@/entities/cloud-sync/lib/snapshot-store.ts';
 import { jsonEqual } from '@/shared/ui/json/json-diff.ts';
 import type { LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import type { AutomationHost, AutomationRecordVersion, AutomationRevision, AutomationWriteBase } from '@/entities/automation/model/record-versions.ts';
@@ -17,8 +17,15 @@ export interface AutomationSyncDeps {
   save: (record: AutoRecord, base: AutomationWriteBase) => Promise<unknown>;
   remove: (kind: AutomationSyncKind, id: string, revision: AutomationRevision, host?: AutomationHost | null) => Promise<void>;
   t: (key: string) => string;
-  /** Where the last-known snapshot lives; defaults to this browser's storage. */
-  snapshots?: { read: (scope: string) => SectionSnapshot | null; write: (scope: string, snapshot: SectionSnapshot) => void };
+  /**
+   * Where the reference copy lives; defaults to this browser's storage. `advance` replaces it on
+   * purpose (mark as reviewed) and tells readers to compare again; `write` only seeds it.
+   */
+  snapshots?: {
+    read: (scope: string) => SectionSnapshot | null;
+    write: (scope: string, snapshot: SectionSnapshot) => void;
+    advance?: (scope: string, snapshot: SectionSnapshot) => void;
+  };
 }
 
 const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue;
@@ -28,12 +35,13 @@ const toJson = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) 
  *
  * No Cloud collection carries individual automation records yet (rule profiles are not staged
  * into the v2 workspace), so there is no Cloud base to compare with. Local records are compared
- * with the last-known snapshot this device kept: the first time the section is seen, and never
- * advanced by anything but a transport, which does not exist yet. Only reset is offered.
+ * with the reference copy this device kept: taken the first time the section is seen, and only
+ * advanced when the person marks the section as reviewed (a transport will advance it later).
+ * Nothing is sent. Reset and mark as reviewed are offered.
  */
 export function createAutomationSyncAdapter(deps: AutomationSyncDeps): SyncAdapter {
   const scopeId = deps.kind === 'event' ? 'events' : 'actions';
-  const snapshots = deps.snapshots ?? { read: readSnapshot, write: writeSnapshot };
+  const snapshots = deps.snapshots ?? { read: readSnapshot, write: writeSnapshot, advance: advanceSnapshot };
   const storeKey = `automation-${scopeId}`;
 
   const current = (): Map<string, JsonValue> => new Map(deps.records().map((record) => [record.id, toJson(record)]));
@@ -73,13 +81,19 @@ export function createAutomationSyncAdapter(deps: AutomationSyncDeps): SyncAdapt
 
   return defineSyncAdapter({
     scope: { id: scopeId, label: deps.t(`syncChanges.scopes.${scopeId}`) },
-    capabilities: { reset: true },
+    capabilities: { reset: true, markReviewed: true },
     requiresCloud: false,
     kindLabel: (kind) => deps.t(`syncChanges.kinds.${kind}`),
-    watchSource: deps.records,
+    watchSource: () => [deps.records(), snapshotRevision()],
     notice: () => deps.t('syncChanges.automationsNotice'),
     list,
     reset,
+    async markReviewed() {
+      if (!deps.loaded()) throw new Error(deps.t('syncChanges.actionFailed'));
+      const next = Object.fromEntries(current());
+      if (snapshots.advance) snapshots.advance(storeKey, next);
+      else snapshots.write(storeKey, next);
+    },
     async resetAll() {
       for (const change of await list()) await reset(change.id);
     },
