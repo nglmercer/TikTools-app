@@ -141,6 +141,21 @@ describe('BaseJsonView tree mode', () => {
     expect(wrapper.find('pre').exists()).toBe(true);
   });
 
+  it('retains expanded nodes when the tree is unmounted for code or invalid source', async () => {
+    const wrapper = mountWithPlugins(BaseJsonView, { props: { source: '{"nested":{"value":7}}', mode: 'tree', switchable: true } });
+    const nested = () => wrapper.findAll('.base-json__toggle').find((button) => button.text().includes('"nested"'))!;
+    await nested().trigger('click');
+    expect(wrapper.text()).toContain('"value": 7');
+    await wrapper.get('button[aria-label="Code view"]').trigger('click');
+    await wrapper.get('button[aria-label="Tree view"]').trigger('click');
+    expect(nested().attributes('aria-expanded')).toBe('true');
+    await wrapper.setProps({ source: 'invalid JSON' });
+    expect(wrapper.get('pre').text()).toBe('invalid JSON');
+    await wrapper.setProps({ source: '{"nested":{"value":8}}' });
+    expect(nested().attributes('aria-expanded')).toBe('true');
+    expect(wrapper.text()).toContain('"value": 8');
+  });
+
   it('hides the switch unless asked for', () => {
     const wrapper = mountWithPlugins(BaseJsonView, { props: { value } });
     expect(wrapper.find('button[aria-label="Tree view"]').exists()).toBe(false);

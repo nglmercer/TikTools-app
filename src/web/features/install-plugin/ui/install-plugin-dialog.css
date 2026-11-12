@@ -1,0 +1,124 @@
+.install-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.install-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.install-dialog__name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.install-dialog__muted,
+.install-dialog__detail {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.install-dialog__mono {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-normal);
+}
+
+.install-dialog__badge {
+  flex: none;
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  line-height: 22px;
+}
+
+.install-dialog__badge--verified {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.install-dialog__badge--unsigned,
+.install-dialog__badge--untrusted {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.install-dialog__description {
+  margin: 0;
+  line-height: var(--line-height-normal);
+}
+
+.install-dialog__facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+}
+
+.install-dialog__facts dt {
+  color: var(--color-text-muted);
+}
+
+.install-dialog__facts dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.install-dialog__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.install-dialog__heading {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.install-dialog__chips,
+.install-dialog__changes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.install-dialog__chip {
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-control);
+  line-height: 20px;
+}
+
+.install-dialog__added {
+  color: var(--color-warning);
+}
+
+.install-dialog__removed {
+  color: var(--color-text-muted);
+}
+
+.install-dialog__changelog {
+  max-height: 160px;
+  padding: var(--space-3);
+  overflow: auto;
+  border: var(--border-width) solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+}

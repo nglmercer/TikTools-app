@@ -47,6 +47,19 @@ describe('BaseJsonDiff unified', () => {
     expect(wrapper.findAll('.base-json-diff__line').length).toBe(visibleBefore + hidden);
   });
 
+  it('retains unfolded context across layouts and resets it for a new document', async () => {
+    const list = Array.from({ length: 40 }, (_, index) => index);
+    const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before: { list, flag: false }, after: { list, flag: true }, switchable: true } });
+    await wrapper.get('.base-json-diff__fold').trigger('click');
+    await wrapper.get('button[aria-label="Side by side"]').trigger('click');
+    expect(wrapper.find('.base-json-diff__fold').exists()).toBe(false);
+    expect(wrapper.findAll('.base-json-diff__split').length).toBeGreaterThan(40);
+    await wrapper.get('button[aria-label="Unified"]').trigger('click');
+    expect(wrapper.find('.base-json-diff__fold').exists()).toBe(false);
+    await wrapper.setProps({ after: { list, flag: 'updated' } });
+    expect(wrapper.find('.base-json-diff__fold').exists()).toBe(true);
+  });
+
   it('says so when nothing differs and offers the content behind a fold', () => {
     const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before: { a: [1, 2, 3, 4, 5, 6] }, after: { a: [1, 2, 3, 4, 5, 6] } } });
     expect(wrapper.text()).toContain('No differences');

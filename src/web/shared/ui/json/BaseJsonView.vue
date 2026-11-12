@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, shallowRef, toRaw } from 'vue';
+import { computed, shallowRef, toRaw } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
-import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
-import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconCode from '@/shared/ui/icon/icons/IconCode.vue';
 import IconCollapseAll from '@/shared/ui/icon/icons/IconCollapseAll.vue';
@@ -13,6 +11,8 @@ import IconTree from '@/shared/ui/icon/icons/IconTree.vue';
 import IconWrapText from '@/shared/ui/icon/icons/IconWrapText.vue';
 import { buildTree, DEFAULT_TREE_DEPTH, expandableIds, ROOT_ID } from './json-tree.ts';
 import { DEFAULT_MAX_CHARS, DEFAULT_MAX_LINES, plainTextLines, prettyJson, tokenizeJson, type JsonLines } from './json-tokens.ts';
+import JsonTreeView from './JsonTreeView.vue';
+import { useJsonCopy } from './use-json-copy.ts';
 import './json.css';
 
 const props = withDefaults(
@@ -88,33 +88,11 @@ function collapseAll(): void {
   expanded.value = new Set();
 }
 
-const copied = ref(false);
-let timer: ReturnType<typeof setTimeout> | undefined;
-onBeforeUnmount(() => clearTimeout(timer));
+const { copied, copy } = useJsonCopy(
+  () => parsed.value.ok ? prettyJson(parsed.value.value, { sortKeys: props.sortKeys }) : (props.source ?? ''),
+  (text) => emit('copy', text),
+);
 
-function fallbackCopy(text: string): void {
-  const area = document.createElement('textarea');
-  area.value = text;
-  area.setAttribute('readonly', '');
-  area.style.position = 'fixed';
-  area.style.opacity = '0';
-  document.body.append(area);
-  area.select();
-  try { document.execCommand('copy'); } finally { area.remove(); }
-}
-
-async function copy(): Promise<void> {
-  const text = parsed.value.ok ? prettyJson(parsed.value.value, { sortKeys: props.sortKeys }) : (props.source ?? '');
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    try { fallbackCopy(text); } catch { return; }
-  }
-  copied.value = true;
-  clearTimeout(timer);
-  timer = setTimeout(() => { copied.value = false; }, 1600);
-  emit('copy', text);
-}
 </script>
 
 <template>
@@ -200,72 +178,12 @@ async function copy(): Promise<void> {
         :key="at"
         :class="`json-token--${token.kind}`"
       >{{ token.text }}</span>{{ index < code.lines.length - 1 ? '\n' : '' }}</span></pre>
-      <div
+      <JsonTreeView
         v-else
-        class="base-json__tree"
-        :class="{ 'base-json__tree--wrap': wrap }"
-      >
-        <div
-          v-for="row in tree.rows"
-          :key="row.id"
-          class="base-json__row"
-          :style="{ '--json-depth': row.depth }"
-        >
-          <p
-            v-if="row.kind === 'more'"
-            class="base-json__more"
-          >
-            {{ t('jsonView.moreItems', { count: row.count }) }}
-          </p>
-          <button
-            v-else-if="row.expandable"
-            class="base-json__toggle"
-            type="button"
-            :aria-expanded="row.open"
-            @click="toggle(row.id)"
-          >
-            <IconChevronDown
-              v-if="row.open"
-              class="base-json__chevron"
-            />
-            <IconChevronRight
-              v-else
-              class="base-json__chevron"
-            />
-            <span
-              v-if="row.label !== null"
-              :class="row.labelKind === 'key' ? 'json-token--key' : 'base-json__index'"
-            >{{ row.label }}</span>
-            <span
-              v-if="row.label !== null"
-              class="json-token--punct"
-            >: </span>
-            <span
-              v-for="(token, at) in row.tokens"
-              :key="at"
-              :class="`json-token--${token.kind}`"
-            >{{ token.text }}</span>
-          </button>
-          <span
-            v-else
-            class="base-json__leaf"
-          >
-            <span
-              v-if="row.label !== null"
-              :class="row.labelKind === 'key' ? 'json-token--key' : 'base-json__index'"
-            >{{ row.label }}</span>
-            <span
-              v-if="row.label !== null"
-              class="json-token--punct"
-            >: </span>
-            <span
-              v-for="(token, at) in row.tokens"
-              :key="at"
-              :class="`json-token--${token.kind}`"
-            >{{ token.text }}</span>
-          </span>
-        </div>
-      </div>
+        :rows="tree.rows"
+        :wrap="wrap"
+        @toggle="toggle"
+      />
     </div>
     <p
       v-if="truncated"
@@ -346,74 +264,6 @@ async function copy(): Promise<void> {
   color: var(--color-json-gutter);
   text-align: right;
   user-select: none;
-}
-
-.base-json__tree {
-  padding: var(--space-2) var(--space-3);
-  color: var(--color-text);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
-  line-height: 1.5;
-  white-space: pre;
-}
-
-.base-json__tree--wrap {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.base-json__row {
-  padding-inline-start: calc(var(--json-depth, 0) * var(--space-6));
-}
-
-.base-json__toggle {
-  display: inline-flex;
-  align-items: baseline;
-  max-width: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  white-space: inherit;
-  overflow-wrap: inherit;
-  cursor: pointer;
-  outline: none;
-  transform: none;
-}
-
-.base-json__toggle:hover {
-  background: var(--color-bg-hover);
-}
-
-.base-json__toggle:focus-visible {
-  box-shadow: var(--focus-ring);
-}
-
-.base-json__chevron {
-  align-self: center;
-  width: 12px;
-  height: 12px;
-  margin-inline-end: var(--space-2);
-  color: var(--color-text-muted);
-}
-
-.base-json__leaf {
-  display: inline-block;
-  padding-inline-start: calc(12px + var(--space-2));
-}
-
-.base-json__index {
-  color: var(--color-text-muted);
-}
-
-.base-json__more {
-  margin: 0;
-  padding-inline-start: calc(12px + var(--space-2));
-  color: var(--color-text-muted);
-  font-style: italic;
 }
 
 .base-json__notice {

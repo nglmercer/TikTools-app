@@ -13,6 +13,7 @@ mod approved_observer;
     feature = "plugin-install"
 ))]
 mod v2_mutation_integration;
+#[cfg(all(feature = "cloud-auth", feature = "plugin-install"))]
 mod v2_variables_sync;
 use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,

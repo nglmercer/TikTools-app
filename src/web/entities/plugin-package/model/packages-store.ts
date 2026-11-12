@@ -10,15 +10,13 @@ import type {
   PackagePreview,
   PackageSpecInput,
   PluginVersions,
-  RegistryDefaults,
-  RegistryStatus,
-  RegistryPackageView,
-  SearchResults,
   UpdatePolicy,
   UpdateReport,
 } from '../api/package-types.ts';
 import { installFailure, reviewFromError } from '../lib/install-error.ts';
 import { isActiveJob } from '../lib/package-format.ts';
+import { createPackageRegistryState } from './package-registry-state.ts';
+import { createPackageUpdateReport } from './package-update-report.ts';
 
 const MAX_JOBS = 50;
 
@@ -49,36 +47,21 @@ function closedReview(): ReviewState {
 export const usePackagesStore = defineStore('plugin-packages', () => {
   const client = useControlClient();
   const automation = useAutomationStore();
+  const registry = createPackageRegistryState(client);
+  const updateReport = createPackageUpdateReport(client);
+  const { updates, checkingUpdates, updatesError, updateCount, loadUpdates, checkUpdates } = updateReport;
 
   const jobs = shallowRef<JobSnapshot[]>([]);
   const receipts = ref<Record<string, InstallReceipt>>({});
-  const updates = shallowRef<UpdateReport | null>(null);
-  const checkingUpdates = ref(false);
-  const updatesError = ref('');
-  const registries = shallowRef<RegistryStatus[]>([]);
-  const registriesLoaded = ref(false);
-  const defaults = ref<RegistryDefaults | null>(null);
-  const registryError = ref('');
-  const searchQuery = ref('');
-  const searchCategory = ref('');
-  const searchResults = shallowRef<SearchResults | null>(null);
-  const searching = ref(false);
-  const searchError = ref('');
   const versions = ref<Record<string, PluginVersions>>({});
   const versionsError = ref<Record<string, string>>({});
   const review = ref<ReviewState>(closedReview());
-  const remotePackages = ref<Record<string, RegistryPackageView>>({});
-  const remoteErrors = ref<Record<string, string>>({});
-  const remoteRequests = new Map<string, number>();
   const versionRequests = new Map<string, number>();
   const pendingUpdates = new Map<string, { pluginId: string; version?: string }>();
   let subscribed = false;
   let reviewRequest = 0;
-  let updatesRequest = 0;
-  let updatesNotificationPending = false;
 
   const activeJobs = computed(() => jobs.value.filter(isActiveJob));
-  const updateCount = computed(() => updates.value?.updates.filter((entry) => entry.latest && entry.latestStatus === 'approved' && !entry.pinned).length ?? 0);
 
   function upsertJob(job: JobSnapshot): void {
     const rest = jobs.value.filter((entry) => entry.id !== job.id);
@@ -120,8 +103,7 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
       // Notifications may be delayed or share a wall-clock timestamp. Treat
       // them as invalidations and read the host's current report instead.
       if (!data?.report) return;
-      if (checkingUpdates.value) updatesNotificationPending = true;
-      else void loadUpdates();
+      updateReport.invalidateFromNotification();
     });
     client.onTopic('plugin.updated', () => void automation.refresh());
   }
@@ -146,44 +128,6 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
       jobs.value = result.jobs.slice(0, MAX_JOBS);
     } catch {
       jobs.value = [];
-    }
-  }
-
-  function invalidateUpdateApprovals(): void {
-    if (updates.value) updates.value = { ...updates.value, updates: updates.value.updates.map((entry) => ({ ...entry, currentStatus:'unknown', latestStatus:'unknown', autoApplicable:false })) };
-  }
-
-  async function loadUpdates(): Promise<void> {
-    if (checkingUpdates.value) return;
-    const request = ++updatesRequest;
-    invalidateUpdateApprovals();
-    try {
-      const result = await client.call<UpdateReport>('plugins.updates.list', {});
-      if (request === updatesRequest) updates.value = result;
-    } catch {
-      if (request === updatesRequest) updates.value = null;
-    }
-  }
-
-  async function checkUpdates(): Promise<void> {
-    if (checkingUpdates.value) return;
-    const request = ++updatesRequest;
-    checkingUpdates.value = true;
-    updatesError.value = '';
-    invalidateUpdateApprovals();
-    try {
-      const result = await client.call<UpdateReport>('plugins.updates.check', {});
-      if (request === updatesRequest) updates.value = result;
-    } catch (failure) {
-      if (request === updatesRequest) updatesError.value = installFailure(failure).message;
-    } finally {
-      if (request === updatesRequest) {
-        checkingUpdates.value = false;
-        if (updatesNotificationPending) {
-          updatesNotificationPending = false;
-          void loadUpdates();
-        }
-      }
     }
   }
 
@@ -309,66 +253,8 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
     }
   }
 
-  async function search(page = 1): Promise<void> {
-    searching.value = true;
-    searchError.value = '';
-    try {
-      searchResults.value = await client.call<SearchResults>('registry.search', {
-        query: searchQuery.value.trim(),
-        page,
-        ...(searchCategory.value ? { category: searchCategory.value } : {}),
-      });
-    } catch (failure) {
-      searchError.value = installFailure(failure).message;
-    } finally {
-      searching.value = false;
-    }
-  }
-
-  async function loadRemotePackage(registry: string, id: string): Promise<void> {
-    const key = `${registry}/${id}`;
-    const request = (remoteRequests.get(key) ?? 0) + 1;
-    remoteRequests.set(key, request);
-    const previous = remotePackages.value[key];
-    if (previous) remotePackages.value = { ...remotePackages.value, [key]: { ...previous, liveStatuses:{} } };
-    try {
-      const view = await client.call<RegistryPackageView>('registry.package', { id, registry });
-      if (remoteRequests.get(key) !== request) return;
-      remotePackages.value = { ...remotePackages.value, [key]: view };
-      const rest = { ...remoteErrors.value };
-      delete rest[key];
-      remoteErrors.value = rest;
-    } catch (failure) {
-      if (remoteRequests.get(key) !== request) return;
-      remoteErrors.value = { ...remoteErrors.value, [key]: installFailure(failure).message };
-    }
-  }
-
-  async function loadRegistries(): Promise<void> {
-    try {
-      const [list, current] = await Promise.all([
-        client.call<{ registries: RegistryStatus[] }>('registry.list', {}),
-        client.call<RegistryDefaults>('registry.defaults.get', {}),
-      ]);
-      registries.value = Array.isArray(list?.registries) ? list.registries : [];
-      registriesLoaded.value = Array.isArray(list?.registries);
-      defaults.value = current;
-      registryError.value = '';
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-    }
-  }
-
-  async function saveDefaults(next: RegistryDefaults): Promise<void> {
-    try {
-      defaults.value = await client.call<RegistryDefaults>('registry.defaults.set', { ...next });
-      registryError.value = '';
-    } catch (failure) {
-      registryError.value = installFailure(failure).message;
-    }
-  }
-
   return {
+    ...registry,
     jobs,
     activeJobs,
     receipts,
@@ -376,20 +262,9 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
     updateCount,
     checkingUpdates,
     updatesError,
-    registries,
-    registriesLoaded,
-    defaults,
-    registryError,
-    searchQuery,
-    searchCategory,
-    searchResults,
-    searching,
-    searchError,
     versions,
     versionsError,
     review,
-    remotePackages,
-    remoteErrors,
     initialize,
     loadReceipts,
     loadJobs,
@@ -404,9 +279,5 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
     cancelJob,
     loadVersions,
     setPolicy,
-    search,
-    loadRemotePackage,
-    loadRegistries,
-    saveDefaults,
   };
 });

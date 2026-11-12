@@ -277,3 +277,19 @@ and text/template controls to focused renderers. Picker errors and variable-menu
 state remain in one field-lifetime helper. Renderers report typed value changes
 without creating their own field draft; media references retain host metadata,
 and variable popups use the live anchor from the rendered text control.
+
+JSON viewers keep navigation state at the document component boundary. `BaseJsonView`
+owns parsing, lazy bounded projections and expanded node IDs; `JsonTreeView` renders
+rows and emits toggle intents. `useJsonCopy` owns clipboard fallback and confirmation
+lifetime while receiving the full document independently of display truncation.
+`BaseJsonDiff` owns comparison and unfolded context; `json-diff-view` projects visible
+and unified rows without state, and `JsonDiffRows` renders both layouts. Scoped row
+styles stay with their renderers; switching layouts does not reset navigation state.
+
+The package store coordinates one job subscription, receipts, version history and
+install/update consent. Its registry-state module owns catalog queries, remote
+package request fences and registry preferences. Its update-report module owns
+current-status invalidation, refresh ordering and notifications deferred during
+checks; it registers no subscriptions itself. The installation dialog retains
+confirmation and token-bound sideload acceptance, delegating package facts and
+permission changes to read-only renderers with shared scoped styles.
