@@ -37,6 +37,9 @@ export function isActiveJob(job: JobSnapshot): boolean {
   return job.status === 'queued' || job.status === 'running';
 }
 
+/** The one registry the product installs from: the signed registry of the configured Cloud. */
+export const OFFICIAL_REGISTRY = 'official';
+
 export function remoteSelection(registry: string, id: string): string {
   return `registry:${registry}/${id}`;
 }

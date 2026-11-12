@@ -11,24 +11,32 @@ import {
   applyRuleTemplate,
   BUILTIN_RULE_TEMPLATES,
   exportRuleTemplate,
+  MAX_RULE_TEMPLATE_BYTES,
   missingRuleTemplateRequirements,
   ruleParamDefaults,
   type RuleTemplate,
 } from '@/entities/rule-template/lib/rule-templates.ts';
+import type { RuleTemplateTab } from '../model/template-tab.ts';
 import { parseRuleTemplateImport } from '@/entities/rule-template/model/rule-templates-state.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
+import CloudLibrary from '@/features/cloud-library/ui/CloudLibrary.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
-import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
 import BaseFormRow from '@/shared/ui/form/BaseFormRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import IconCloud from '@/shared/ui/icon/icons/IconCloud.vue';
+import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
+import IconUpload from '@/shared/ui/icon/icons/IconUpload.vue';
+import BaseImportDialog from '@/shared/ui/import-dialog/BaseImportDialog.vue';
+import type { ImportTab, StagedImportItem } from '@/shared/ui/import-dialog/import-types.ts';
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
-type Screen = 'list' | 'configure' | 'import';
+type Screen = 'list' | 'configure';
+/** Largest template file the manual import accepts; the parser refuses more text than this. */
+const MAX_IMPORT_BYTES = MAX_RULE_TEMPLATE_BYTES * 4;
 
 const props = withDefaults(
   defineProps<{
@@ -47,6 +55,7 @@ const emit = defineEmits<{
 }>();
 
 const open = defineModel<boolean>('open', { default: false });
+const tab = defineModel<RuleTemplateTab>('tab', { default: 'templates' });
 
 const { t } = useI18n();
 const { triggerName } = useAutomationText();
@@ -84,10 +93,29 @@ const entries = computed(() =>
     }),
 );
 const title = computed(() => {
-  if (screen.value === 'import') return t('automations.templates.importTitle');
   if (screen.value === 'configure' && selected.value) return localizedText(selected.value.title);
   return t('automations.templates.title');
 });
+const tabs = computed<ImportTab[]>(() => [
+  { value: 'templates', label: t('importDialog.templatesTab'), icon: IconFlow },
+  { value: 'cloud', label: t('importDialog.cloudTab'), icon: IconCloud },
+  { value: 'manual', label: t('importDialog.manualTab'), icon: IconUpload },
+]);
+const stagedItems = computed<StagedImportItem[]>(() =>
+  (staged.value?.templates ?? []).map((template) => ({ key: template.id, label: localizedText(template.title) })),
+);
+const importLabels = computed(() => ({
+  dropTitle: t('automations.import.dropTitle'),
+  dropHint: t('automations.import.dropHint'),
+  browse: t('automations.import.browse'),
+  paste: t('automations.import.paste'),
+  pasteBlocked: t('automations.import.pasteBlocked'),
+  clipboard: t('automations.import.clipboard'),
+  unreadable: t('automations.import.unreadable'),
+  staged: t('automations.import.staged', { count: stagedItems.value.length }),
+  clear: t('automations.import.clear'),
+  run: t('automations.import.run'),
+}));
 
 watch(open, (value) => {
   if (!value) return;
@@ -180,220 +208,170 @@ function runImport(): void {
 </script>
 
 <template>
-  <BaseDialog
+  <BaseImportDialog
     v-model:open="open"
+    v-model:tab="tab"
     :title="title"
     :width="720"
+    :tabs="tabs"
+    :hide-tabs="screen === 'configure'"
+    :max-bytes="MAX_IMPORT_BYTES"
+    :staged="stagedItems"
+    :staged-source="staged?.source"
+    :busy="importing"
+    :errors="tab === 'manual' ? importErrors : []"
+    :success="tab === 'manual' && imported > 0 ? t('automations.import.done', { count: imported }) : ''"
+    :labels="importLabels"
+    @content="stage"
+    @error="onImportError"
+    @clear="staged = null"
+    @import="runImport"
   >
-    <template v-if="screen === 'list'">
-      <p class="rule-templates__lead">
-        {{ t('automations.templates.lead') }}
-      </p>
-      <div class="rule-templates__toolbar">
-        <BaseTextField
-          v-model="query"
-          class="rule-templates__search"
-          type="search"
-          :placeholder="t('automations.templates.search')"
-          :aria-label="t('automations.templates.search')"
+    <template #templates>
+      <template v-if="screen === 'configure' && selected">
+        <p class="rule-templates__lead">
+          {{ localizedText(selected.description) }}
+        </p>
+        <BaseFormGrid>
+          <BaseFormRow
+            :for="`${id}-event`"
+            :label="t('automations.templates.eventName')"
+          >
+            <BaseTextField
+              :id="`${id}-event`"
+              v-model="eventName"
+            />
+          </BaseFormRow>
+          <BaseFormRow
+            v-for="(action, index) in selected.actions"
+            :key="`${action.typeId}-${index}`"
+            :for="`${id}-action-${index}`"
+            :label="selected.actions.length > 1 ? t('automations.templates.actionNameOf', { name: action.typeId }) : t('automations.templates.actionName')"
+          >
+            <BaseTextField
+              :id="`${id}-action-${index}`"
+              v-model="actionNames[index]"
+            />
+          </BaseFormRow>
+        </BaseFormGrid>
+        <BaseGroupBox
+          v-if="selected.params"
+          class="rule-templates__params"
+          :title="t('automations.templates.options')"
         >
-          <template #prefix>
-            <IconSearch />
-          </template>
-        </BaseTextField>
-        <BaseButton @click="screen = 'import'">
-          {{ t('automations.templates.import') }}
-        </BaseButton>
-      </div>
-      <p
-        v-if="customError"
-        class="rule-templates__error"
-        role="alert"
-      >
-        {{ customError }}
-      </p>
-      <p
-        v-if="!entries.length"
-        class="rule-templates__muted"
-      >
-        {{ t('automations.templates.empty') }}
-      </p>
-      <div class="rule-templates__grid">
-        <button
-          v-for="entry in entries"
-          :key="`${entry.template.custom ? 'custom' : 'builtin'}-${entry.template.id}`"
-          class="rule-templates__card"
-          type="button"
-          :disabled="entry.problems.length > 0"
-          @click="configure(entry.template)"
+          <BaseSchemaForm
+            v-model="params"
+            :schema="selected.params"
+          />
+        </BaseGroupBox>
+        <p
+          v-if="error"
+          class="rule-templates__error"
+          role="alert"
         >
-          <span class="rule-templates__card-title">
-            {{ localizedText(entry.template.title) }}
+          {{ error }}
+        </p>
+        <p class="rule-templates__muted">
+          {{ t('automations.templates.reviewHint') }}
+        </p>
+      </template>
+
+      <template v-else>
+        <p class="rule-templates__lead">
+          {{ t('automations.templates.lead') }}
+        </p>
+        <div class="rule-templates__toolbar">
+          <BaseTextField
+            v-model="query"
+            class="rule-templates__search"
+            type="search"
+            :placeholder="t('automations.templates.search')"
+            :aria-label="t('automations.templates.search')"
+          >
+            <template #prefix>
+              <IconSearch />
+            </template>
+          </BaseTextField>
+        </div>
+        <p
+          v-if="customError"
+          class="rule-templates__error"
+          role="alert"
+        >
+          {{ customError }}
+        </p>
+        <p
+          v-if="!entries.length"
+          class="rule-templates__muted"
+        >
+          {{ t('automations.templates.empty') }}
+        </p>
+        <div class="rule-templates__grid">
+          <button
+            v-for="entry in entries"
+            :key="`${entry.template.custom ? 'custom' : 'builtin'}-${entry.template.id}`"
+            class="rule-templates__card"
+            type="button"
+            :disabled="entry.problems.length > 0"
+            @click="configure(entry.template)"
+          >
+            <span class="rule-templates__card-title">
+              {{ localizedText(entry.template.title) }}
+              <span
+                v-if="entry.template.custom"
+                class="rule-templates__badge"
+              >{{ t('automations.templates.imported') }}</span>
+            </span>
+            <span class="rule-templates__card-description">{{ localizedText(entry.template.description) }}</span>
+            <span class="rule-templates__card-trigger">{{ triggerName(entry.template.event.trigger, snapshot.eventTypes ?? []) }}</span>
             <span
-              v-if="entry.template.custom"
-              class="rule-templates__badge"
-            >{{ t('automations.templates.imported') }}</span>
-          </span>
-          <span class="rule-templates__card-description">{{ localizedText(entry.template.description) }}</span>
-          <span class="rule-templates__card-trigger">{{ triggerName(entry.template.event.trigger, snapshot.eventTypes ?? []) }}</span>
-          <span
-            v-for="problem in entry.problems"
-            :key="problem"
-            class="rule-templates__problem"
-          >{{ problem }}</span>
-        </button>
-      </div>
+              v-for="problem in entry.problems"
+              :key="problem"
+              class="rule-templates__problem"
+            >{{ problem }}</span>
+          </button>
+        </div>
+      </template>
     </template>
 
-    <template v-else-if="screen === 'configure' && selected">
-      <p class="rule-templates__lead">
-        {{ localizedText(selected.description) }}
-      </p>
-      <BaseFormGrid>
-        <BaseFormRow
-          :for="`${id}-event`"
-          :label="t('automations.templates.eventName')"
-        >
-          <BaseTextField
-            :id="`${id}-event`"
-            v-model="eventName"
-          />
-        </BaseFormRow>
-        <BaseFormRow
-          v-for="(action, index) in selected.actions"
-          :key="`${action.typeId}-${index}`"
-          :for="`${id}-action-${index}`"
-          :label="selected.actions.length > 1 ? t('automations.templates.actionNameOf', { name: action.typeId }) : t('automations.templates.actionName')"
-        >
-          <BaseTextField
-            :id="`${id}-action-${index}`"
-            v-model="actionNames[index]"
-          />
-        </BaseFormRow>
-      </BaseFormGrid>
-      <BaseGroupBox
-        v-if="selected.params"
-        class="rule-templates__params"
-        :title="t('automations.templates.options')"
-      >
-        <BaseSchemaForm
-          v-model="params"
-          :schema="selected.params"
-        />
-      </BaseGroupBox>
-      <p
-        v-if="error"
-        class="rule-templates__error"
-        role="alert"
-      >
-        {{ error }}
-      </p>
-      <p class="rule-templates__muted">
-        {{ t('automations.templates.reviewHint') }}
-      </p>
+    <template #cloud>
+      <CloudLibrary bare />
     </template>
 
-    <template v-else>
+    <template #manual-lead>
       <p class="rule-templates__lead">
         {{ t('automations.templates.importLead') }}
       </p>
-      <BaseFileDrop
-        :title="t('automations.import.dropTitle')"
-        :hint="t('automations.import.dropHint')"
-        :browse-label="t('automations.import.browse')"
-        :paste-label="t('automations.import.paste')"
-        :paste-blocked-label="t('automations.import.pasteBlocked')"
-        :clipboard-label="t('automations.import.clipboard')"
-        :unreadable-label="t('automations.import.unreadable')"
-        :disabled="importing"
-        @content="stage"
-        @error="onImportError"
-      />
-      <div
-        v-if="staged"
-        class="rule-templates__staged"
-      >
-        <p>
-          <strong>{{ t('automations.import.staged', { count: staged.templates.length }) }}</strong>
-          {{ t('automations.import.from', { source: staged.source }) }}
-        </p>
-        <ul>
-          <li
-            v-for="template in staged.templates"
-            :key="template.id"
-          >
-            {{ localizedText(template.title) }}
-          </li>
-        </ul>
-        <BaseButton
-          size="sm"
-          @click="staged = null"
-        >
-          {{ t('automations.import.clear') }}
-        </BaseButton>
-      </div>
-      <p
-        v-if="imported > 0"
-        class="rule-templates__success"
-        role="status"
-      >
-        {{ t('automations.import.done', { count: imported }) }}
-      </p>
-      <p
-        v-for="message in importErrors"
-        :key="message"
-        class="rule-templates__error"
-        role="alert"
-      >
-        {{ message }}
-      </p>
     </template>
 
-    <template #footer>
-      <template v-if="screen === 'configure' && selected">
-        <BaseButton
-          variant="primary"
-          @click="apply"
-        >
-          {{ t('automations.templates.create') }}
-        </BaseButton>
-        <BaseButton
-          v-if="selected.custom"
-          @click="download(selected)"
-        >
-          {{ t('automations.templates.export') }}
-        </BaseButton>
-        <BaseButton
-          v-if="selected.custom"
-          variant="danger"
-          @click="remove(selected)"
-        >
-          {{ t('automations.templates.delete') }}
-        </BaseButton>
-        <BaseButton @click="screen = 'list'">
-          {{ t('automations.templates.back') }}
-        </BaseButton>
-      </template>
-      <template v-else-if="screen === 'import'">
-        <BaseButton
-          variant="primary"
-          :disabled="!staged || importing"
-          @click="runImport"
-        >
-          {{ t('automations.import.run') }}
-        </BaseButton>
-        <BaseButton @click="screen = 'list'">
-          {{ t('automations.templates.back') }}
-        </BaseButton>
-      </template>
+    <template
+      v-if="screen === 'configure' && selected"
+      #footer
+    >
       <BaseButton
-        v-else
-        @click="open = false"
+        variant="primary"
+        @click="apply"
       >
-        {{ t('common.close') }}
+        {{ t('automations.templates.create') }}
+      </BaseButton>
+      <BaseButton
+        v-if="selected.custom"
+        @click="download(selected)"
+      >
+        {{ t('automations.templates.export') }}
+      </BaseButton>
+      <BaseButton
+        v-if="selected.custom"
+        variant="danger"
+        @click="remove(selected)"
+      >
+        {{ t('automations.templates.delete') }}
+      </BaseButton>
+      <BaseButton @click="screen = 'list'">
+        {{ t('automations.templates.back') }}
       </BaseButton>
     </template>
-  </BaseDialog>
+  </BaseImportDialog>
 </template>
 
 <style scoped>
@@ -486,31 +464,14 @@ function runImport(): void {
   margin-top: var(--space-5);
 }
 
-.rule-templates__staged {
-  margin-top: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-}
-
-.rule-templates__staged p,
-.rule-templates__staged ul {
-  margin: 0 0 var(--space-3);
-}
-
 .rule-templates__muted {
   margin: var(--space-4) 0 0;
   color: var(--color-text-subtle);
   font-size: var(--font-size-sm);
 }
 
-.rule-templates__error,
-.rule-templates__success {
+.rule-templates__error {
   margin: var(--space-3) 0 0;
   color: var(--color-danger-hover);
-}
-
-.rule-templates__success {
-  color: var(--color-success);
 }
 </style>

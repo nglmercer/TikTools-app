@@ -18,38 +18,36 @@ unknown as absent. Older hosts keep the legacy Cloud views.
 
 | Surface | Methods | Where |
 | --- | --- | --- |
-| Catalog | `catalog.items`, `catalog.item`, `catalog.mine` | Plugins page (its entry point) |
+| Catalog | `catalog.items`, `catalog.item`, `catalog.mine` | Plugins page, Explore tab |
 | Connections | `integrations.connections`, `integrations.connect`, `integrations.events`, `integrations.disconnect` | Settings, account section |
 | Teams | `teams.hosts.*`, `teams.devices.*`, `teams.invitations.*`, `teams.requests.*`, `teams.grants.*`, `teams.sessions.*`, `teams.host.status`, `teams.host.start`, `teams.host.stop` | Settings, account section |
 | Images and packages | `bundles.assets.upload`, `bundles.packages.preflight`, `bundles.packages.read`, `bundles.overlays.*`, `bundles.packages.create` | Settings, account section |
 
 ## Catalog
 
-- **One entry point.** On a host that announces `catalog.items` the plugins page opens on
-  the catalog: a search box, **Filters** and **⋯**, with no view selector and no standing
-  paragraph. **⋯** holds *Manage installed plugins*, *Manage processors* and *Install from
-  file…*; those workspaces show a *‹ Catalog* link back. An installed plugin offers
-  *Open or configure* in its detail panel. The saved view `cloud` is the catalog, and the
-  old saved default (`plugins` with nothing open) no longer overrides it. Hosts that do not
-  announce `catalog.items` keep the previous three views.
-- **All** pages through the public catalog. Replies are applied only for the
-  newest query; a slow older reply is dropped.
-- **Installed** resolves each installed plugin with one bounded `catalog.item`
-  lookup, four at a time, at most 50 plugins. A plugin the catalog does not
-  publish is shown as local and labelled as not published. Installed plugins
-  beyond the budget are not resolved, and the view says so.
-- **Míos** pages through the signed-in owner's templates and profiles with
-  `catalog.mine`. It needs a session; signing in is offered in the toolbar. It
-  never asks for plugins.
-- **Install** a plugin through the signed package review, the same consent step
-  as any registry install. Yanked and unpublished plugins cannot be installed
-  from the catalog.
-- **Import a template** submits the published revision through the local library
-  journal, with the Cloud origin, account and revision as provenance. The
-  imported template is inert until the user enables it.
-- **Profiles** import the same way as templates: the profile is parsed, its
-  default parameters are applied, and it is submitted to the library journal.
-  Imported automations stay disabled.
+- **Plugins, Explore.** On a host that announces `catalog.items` (or before discovery has
+  answered), the *Explore* tab of the Plugins page lists the Cloud catalog as rows in the same
+  list style as *Installed*. The tools row has a search box, one icon toggle per kind (plugins,
+  templates, profiles; pressing the active kind shows everything again) and *My library*. A host
+  that announces methods without `catalog.items` keeps the registry-based Explore. The old
+  standalone catalog pages and their toolbar are gone; there is no registry or source to add.
+- **Replies apply only for the newest query**; a slow older reply is dropped. Paging is by
+  cursor (*Load more*), and *My library* (`catalog.mine`) never shows plugins.
+- **Backend not available** (offline, unauthorized, error) is a neutral state with a retry icon
+  and a sign-in icon when the session is the problem. `dataState: noActiveGeneration` is an empty
+  plugin registry, not an outage: Explore says nothing is published yet for plugins while
+  templates and profiles still render. (The host currently drops `dataState` from the page it
+  hands to the webview; until it forwards it, an empty page reads as "No results".)
+- **A plugin row** opens the existing remote details (an installed one opens its own details);
+  the install icon starts the signed package review, the same consent step as any registry install.
+  Yanked plugins cannot be installed. Bundled plugins that are not installed yet stay above the
+  catalog rows. The "plugin id or https address" strip was removed: the product rejects remote
+  package URLs, and the catalog rows are the install path.
+- **A template or profile row** is imported through the single library import and the one owner
+  review dialog; imported automations stay disabled. *Rule templates* (Automations) holds the same
+  library in its *Cloud* tab, and a saved `?view=cloud` link opens it there.
+- **Plugin preferences** keep only the update policy (channel, automatic updates, interval, local
+  package installation).
 
 ## Connections
 
@@ -132,8 +130,9 @@ view says when older events were not shown.
   announce `catalog.items`. Its services remain in use by the catalog.
 - The legacy Cloud plugin view stays for hosts without the unified catalog.
   Removing it needs a migration note and is not done.
-- Saved view state for the plugins page keeps its names and adds `catalog`; `cloud` is read
-  as `catalog`.
+- Saved view state for the plugins page keeps its names; a saved `catalog` or `cloud` view
+  opens on the installed plugins. In Automations the *Cloud* library tab moved into *Rule
+  templates*; `?view=cloud` still works and opens that dialog on its Cloud tab.
 - The direct collaboration transport is unchanged. Its listen address, public HTTPS address,
   TLS files, reverse-proxy switch and allowed origins moved into a closed *Direct connection
   (advanced)* section of the overview.

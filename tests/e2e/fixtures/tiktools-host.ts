@@ -32,6 +32,18 @@ export interface E2EHostState {
     /** Conflict handles resolved so far, as `<collection>/<key>:<choice>`. */
     resolved: string[];
   };
+  /**
+   * Cloud catalog served by `catalog.items` / `catalog.mine` / `catalog.item` (wire items). `error` makes
+   * the list methods fail with that code and optional `data`; `dataState` is forwarded as the page's.
+   */
+  catalog?: {
+    items: Array<Record<string, unknown>>;
+    mine?: Array<Record<string, unknown>>;
+    /** Documents served by `cloudLibrary.list` (the Cloud tab of the rule templates dialog). */
+    library?: Array<Record<string, unknown>>;
+    dataState?: 'ready' | 'noActiveGeneration';
+    error?: { code: string; message: string; data?: unknown };
+  };
   /** Runtime globals served by `globals.list` and written by `globals.set`. */
   globals?: Record<string, string>;
   /** Behavior snapshot served for `automation.snapshot`. */
@@ -209,6 +221,14 @@ const INIT_SCRIPT = `
     return behaviorEnvelope(record, [behaviorMeta(kind, id)]);
   };
 
+  const catalogPage = (items, params) => {
+    if (state.catalog?.error) throw state.catalog.error;
+    const text = String(params.query || '').toLowerCase();
+    const rows = (items || []).filter((item) => (!params.kind || item.identity.kind === params.kind)
+      && (!text || String(item.presentation?.title || '').toLowerCase().includes(text)));
+    return { items: rows, nextCursor: null, ...(state.catalog?.dataState ? { dataState: state.catalog.dataState } : {}) };
+  };
+
   const handlers = {
     // The fake host serves automation.snapshot from memory, so it reports
     // the same non-persistent feature set a memory-only host would.
@@ -337,6 +357,15 @@ const INIT_SCRIPT = `
     },
     'rankings.snapshot': (params) => ({ id: params.id, entries: [], total: 0, revision: 0 }),
     'registry.list': () => ({ registries: [] }),
+    // Cloud catalog (Plugins, Explore): one page per call, filtered by kind and text like the host does.
+    'catalog.items': (params) => catalogPage(state.catalog?.items, params),
+    'catalog.mine': (params) => catalogPage(state.catalog?.mine ?? [], params),
+    'cloudLibrary.list': () => ({ items: state.catalog?.library ?? [], nextCursor: null }),
+    'catalog.item': (params) => {
+      const found = (state.catalog?.items ?? []).find((item) => item.identity.kind === params.kind && item.identity.id === params.id);
+      if (!found) throw { code: 'not_found', message: 'catalog item not found' };
+      return found;
+    },
     'registry.defaults.get': () => ({ channel: 'stable', autoUpdate: 'notify', checkIntervalHours: 12, allowSideload: true }),
     'app.update.status': () => ({
       currentVersion: '4.1.0', availableVersion: null, channel: 'stable', state: 'idle',

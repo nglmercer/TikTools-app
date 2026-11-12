@@ -1,5 +1,5 @@
 import { ControlCallError, type ControlClient } from '@/shared/api/control-client.ts';
-import type { CatalogKind, CatalogPage, CatalogQuery } from '../model/catalog-query.ts';
+import type { CatalogDataState, CatalogKind, CatalogPage, CatalogQuery } from '../model/catalog-query.ts';
 
 /**
  * Presentation of one unified catalog item. It describes what the item is,
@@ -85,9 +85,12 @@ export function parseCatalogPage(value: unknown): CatalogPage<CatalogItemSummary
   if (!page || !Array.isArray(page.items)) throw new InvalidCatalogResponse();
   const cursor = page.nextCursor;
   if (cursor !== null && cursor !== undefined && typeof cursor !== 'string') throw new InvalidCatalogResponse();
+  const dataState: CatalogDataState | undefined =
+    page.dataState === 'noActiveGeneration' ? 'noActiveGeneration' : page.dataState === 'ready' ? 'ready' : undefined;
   return {
     items: page.items.map(parseCatalogItem),
     nextCursor: typeof cursor === 'string' ? cursor : null,
+    ...(dataState ? { dataState } : {}),
   };
 }
 

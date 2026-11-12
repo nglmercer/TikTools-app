@@ -76,7 +76,7 @@ describe('SettingsPage', () => {
   it('no longer hosts the areas that moved to their own pages', async () => {
     for (const section of ['', '?section=account', '?section=collaboration', '?section=plugins', '?section=globals']) {
       const { wrapper } = await mountPage(section, announced);
-      expect(wrapper.find('.plugin-sources, #plugin-sources-channel').exists()).toBe(false);
+      expect(wrapper.find('.plugin-update-policy, #plugin-update-policy-channel').exists()).toBe(false);
       expect(wrapper.find('.globals-editor').exists()).toBe(false);
       expect(wrapper.find('.cloud-overlays, .cloud-bundles, .cloud-connections').exists()).toBe(false);
       expect(wrapper.text()).not.toContain('Allow local package installation');

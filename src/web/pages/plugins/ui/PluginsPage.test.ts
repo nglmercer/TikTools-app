@@ -7,6 +7,7 @@ import type { ProcessorStatusEntry } from '../../../../shared/messages.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
+import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginsPage from './PluginsPage.vue';
@@ -96,17 +97,24 @@ const preview = {
   consentToken: 'token-1',
 };
 
+/** A host that announces its methods but not the unified catalog: Explore falls back to the registry. */
+const REGISTRY_HOST = ['plugins.updates.list', 'sync.status', 'sync.v2.changes.list', 'cloud.status'];
+
 async function mountPage(
   plugins: PluginStatus[] = [plugin('deck'), plugin('tts', { installed: false, enabled: false })],
   registries: unknown[] | undefined = undefined,
   liveStatuses: Record<string, string> = { '1.2.0': 'approved' },
   /** Methods the host announces through `rpc.discover`, as a host with the unified catalog does. */
-  announce: string[] = [],
+  announce: string[] = REGISTRY_HOST,
   updates: unknown[] = [],
   /** Route query the page is opened with, as a link from elsewhere would. */
   query = '',
+  /** Answers first, for methods a test wants to control (the Cloud catalog). */
+  handle?: (method: string, params: Record<string, unknown> | undefined) => unknown,
 ) {
-  const { client, calls } = createFakeControlClient((method) => {
+  const { client, calls } = createFakeControlClient((method, params) => {
+    const handled = handle?.(method, params);
+    if (handled !== undefined) return handled;
     if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
     if (method === 'catalog.items') return { items: [], nextCursor: null };
     if (method === 'registry.list' && registries) return { registries };
@@ -213,7 +221,7 @@ describe('PluginsPage', () => {
     expect(wrapper.find('.plugin-catalog').exists()).toBe(false);
     expect(wrapper.get('.plugin-preferences .base-panel__title').text()).toBe('Preferences');
     expect(wrapper.get('.plugin-preferences').text()).toContain('Allow local package installation');
-    expect(wrapper.find('#plugin-sources-channel').exists()).toBe(true);
+    expect(wrapper.find('#plugin-update-policy-channel').exists()).toBe(true);
     await buttonByLabel(wrapper, 'Back').trigger('click');
     expect(wrapper.find('.plugin-preferences').exists()).toBe(false);
     expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
@@ -469,6 +477,8 @@ describe('PluginsPage', () => {
       [{}, 'Current status unavailable'],
       [{ '1.2.0': 'key-revoked' }, 'Signing key revoked'],
     ] as const) {
+      // The previous round's saved selection would reopen its details instead of the tabs.
+      localStorage.clear();
       const { wrapper, calls } = await mountPage(undefined, undefined, liveStatuses);
       await openTab(wrapper, 'Explore');
       await selectPlugin(wrapper, 'Acme TTS');
@@ -517,10 +527,16 @@ describe('PluginsPage', () => {
     const unified = (plugins?: PluginStatus[]) => mountPage(plugins, undefined, undefined, ['catalog.items']);
     const savedView = () => JSON.parse(localStorage.getItem('tiktok-live-view-state') ?? '{}').plugins?.view;
 
+    // A previous test's debounced save must not land in this test's storage.
+    beforeEach(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      localStorage.clear();
+    });
+
     it('still opens on the installed plugins and never requests the Cloud catalog', async () => {
       const { wrapper, calls } = await unified();
       expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
-      expect(wrapper.find('.catalog-toolbar').exists()).toBe(false);
+      expect(wrapper.find('.explore-toolbar').exists()).toBe(false);
       expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toContain('Installed');
       expect(wrapper.find('button[aria-label="Cloud catalog"]').exists()).toBe(false);
       expect(calls.some((call) => call.method === 'catalog.items')).toBe(false);
@@ -531,7 +547,7 @@ describe('PluginsPage', () => {
         localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, plugins: { view } }));
         const { wrapper } = await unified();
         expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
-        expect(wrapper.find('.catalog-toolbar').exists()).toBe(false);
+        expect(wrapper.find('.explore-toolbar').exists()).toBe(false);
       }
     });
 
@@ -542,6 +558,113 @@ describe('PluginsPage', () => {
       await new Promise((resolve) => setTimeout(resolve, 400));
       expect(savedView()).toBe('processors');
     });
+  });
+
+  describe('Explore on the Cloud catalog', () => {
+    const wire = (kind: string, id: string, title: string) => ({
+      identity: { kind, id },
+      presentation: { title, summary: '', publisher: 'acme', categories: [] },
+      compatibility: { targets: [] },
+      releaseRef: kind === 'plugin' ? { type: 'pluginRelease', version: '1.2.0' } : { type: 'documentRevision', revision: 3, sha256: 'a'.repeat(64) },
+      publication: { yanked: false },
+    });
+    const cloudItems = [wire('plugin', 'acme.tts', 'Acme TTS'), wire('template', 'tpl-1', 'Gift alert'), wire('profile', 'prof-1', 'Starter pack')];
+    const explore = (handle?: Parameters<typeof mountPage>[6], announce = ['catalog.items']) =>
+      mountPage(undefined, undefined, undefined, announce, [], '', handle ?? ((method) => (method === 'catalog.items' ? { items: cloudItems, nextCursor: null } : undefined)));
+    const names = (wrapper: Wrapper) => wrapper.findAll('.explore-list__row').map((item) => item.get('.explore-list__name').text());
+    const methods = (calls: { method: string }[]) => calls.map((call) => call.method);
+
+    it('renders the Cloud catalog when the host announces it, without touching the registries', async () => {
+      const { wrapper, calls } = await explore();
+      expect(methods(calls)).not.toContain('catalog.items');
+      await openTab(wrapper, 'Explore');
+      expect(names(wrapper)).toEqual(['Acme TTS', 'Gift alert', 'Starter pack']);
+      expect(methods(calls)).toContain('catalog.items');
+      expect(methods(calls)).not.toContain('registry.search');
+      expect(methods(calls)).not.toContain('registry.list');
+      expect(wrapper.text()).not.toMatch(/marketplace/i);
+      expect(wrapper.find('.explore-toolbar').exists()).toBe(true);
+    });
+
+    it('falls back to the registry search when the host does not announce the catalog', async () => {
+      const { wrapper, calls } = await explore(undefined, REGISTRY_HOST);
+      await openTab(wrapper, 'Explore');
+      expect(methods(calls)).toContain('registry.search');
+      expect(methods(calls)).toContain('registry.list');
+      expect(methods(calls)).not.toContain('catalog.items');
+      expect(wrapper.find('.explore-toolbar').exists()).toBe(false);
+      expect(wrapper.text()).toContain('Acme TTS');
+    });
+
+    it('keeps calling the catalog while discovery has not answered', async () => {
+      const { wrapper, calls } = await explore(undefined, []);
+      await openTab(wrapper, 'Explore');
+      expect(methods(calls)).toContain('catalog.items');
+      expect(methods(calls)).not.toContain('registry.search');
+      expect(names(wrapper)).toEqual(['Acme TTS', 'Gift alert', 'Starter pack']);
+    });
+
+    it('shows a neutral retry state when the Cloud is unreachable, never the marketplace wording', async () => {
+      const { wrapper } = await explore((method) => {
+        if (method === 'catalog.items') throw new ControlCallError('unavailable', 'cloud down', { cloud: { code: 'temporaryFailure' } });
+        return undefined;
+      });
+      await openTab(wrapper, 'Explore');
+      expect(wrapper.text()).toContain('The Cloud catalog is not available');
+      expect(wrapper.find('button[aria-label="Try again"]').exists()).toBe(true);
+      expect(wrapper.text()).not.toMatch(/marketplace/i);
+    });
+
+    it('treats an empty plugin registry as nothing published, while templates still render', async () => {
+      const { wrapper } = await explore((method) => (method === 'catalog.items'
+        ? { items: [wire('template', 'tpl-1', 'Gift alert')], nextCursor: null, dataState: 'noActiveGeneration' }
+        : undefined));
+      await openTab(wrapper, 'Explore');
+      expect(names(wrapper)).toEqual(['Gift alert']);
+      expect(wrapper.text()).toContain('No plugins are published yet.');
+      expect(wrapper.text()).not.toContain('not available');
+    });
+
+    it('opens the remote details of a catalog plugin and reviews it through the signed package', async () => {
+      const { wrapper, calls } = await explore();
+      await openTab(wrapper, 'Explore');
+      await wrapper.get('.explore-list__row button.explore-list__open').trigger('click');
+      await flushPromises();
+      expect(calls.find((call) => call.method === 'registry.package')?.params).toEqual({ id: 'acme.tts', registry: 'official' });
+      expect(wrapper.text()).toContain('Reads chat aloud.');
+    });
+
+    it('offers no manual install strip for an id or an https address', async () => {
+      const { wrapper } = await explore();
+      await openTab(wrapper, 'Explore');
+      expect(wrapper.find('input[placeholder="Plugin id or https address"]').exists()).toBe(false);
+      const legacy = await mountPage(undefined, undefined, undefined, REGISTRY_HOST);
+      await openTab(legacy.wrapper, 'Explore');
+      expect(legacy.wrapper.find('input[placeholder="Plugin id or https address"]').exists()).toBe(false);
+    });
+
+    it('lists bundled plugins that are not installed above the catalog and does not repeat them', async () => {
+      const { wrapper } = await explore((method) => (method === 'catalog.items'
+        ? { items: [wire('plugin', 'tts', 'Bundled TTS in Cloud'), wire('template', 'tpl-1', 'Gift alert')], nextCursor: null }
+        : undefined));
+      await openTab(wrapper, 'Explore');
+      expect(wrapper.findAll('.plugin-catalog__row').map((item) => item.text())).toEqual([expect.stringContaining('TTS')]);
+      expect(names(wrapper)).toEqual(['Gift alert']);
+    });
+  });
+
+  it('keeps only the update policy in the plugin preferences: no registry can be added, enabled or disabled', async () => {
+    const { wrapper } = await mountPage();
+    await buttonByLabel(wrapper, 'Preferences').trigger('click');
+    await flushPromises();
+    const panel = wrapper.get('.plugin-preferences');
+    expect(panel.find('#plugin-update-policy-channel').exists()).toBe(true);
+    expect(panel.find('#plugin-update-policy-auto').exists()).toBe(true);
+    expect(panel.find('#plugin-update-policy-interval').exists()).toBe(true);
+    expect(panel.text()).toContain('Allow local package installation');
+    expect(panel.findAll('input[type="url"], input[type="text"][placeholder*="http"]')).toHaveLength(0);
+    expect(panel.findAll('button').map((button) => button.attributes('aria-label') ?? button.text())).not.toEqual(expect.arrayContaining([expect.stringMatching(/add|remove|enable|disable|source|registry/i)]));
+    expect(panel.text()).not.toMatch(/registr|source/i);
   });
 
   it('restores the selected plugin from the view state', async () => {

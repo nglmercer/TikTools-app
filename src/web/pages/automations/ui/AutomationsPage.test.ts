@@ -130,7 +130,7 @@ async function mountPage(intercept?: (method: string, params: RpcParams | undefi
   mountWithPlugins(OwnerLibraryReview, { attachTo: document.body, global: { plugins: [router, ...stores.plugins] } });
   await flushPromises();
   calls.length = 0;
-  return { wrapper, calls, requests, snapshot, versions, automation, client, initializing };
+  return { wrapper, calls, requests, snapshot, versions, automation, client, initializing, router };
 }
 
 // Icon-only buttons are found by their accessible label, the rest by their text.
@@ -201,7 +201,7 @@ describe('AutomationsPage', () => {
 
   it('keeps the runtime variables as their own tab next to events and actions', async () => {
     const { wrapper, calls } = await mountPage((method) => (method === 'globals.list' ? { globals: { commandPort: '46665' } } : undefined));
-    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables', 'Cloud']);
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables']);
     expect(wrapper.find('.globals-editor').exists()).toBe(false);
     expect(calls.some((call) => call.method === 'globals.list')).toBe(false);
     await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Variables')!.trigger('click');
@@ -231,17 +231,40 @@ describe('AutomationsPage', () => {
     expect(wrapper.find('.globals-editor').exists()).toBe(true);
   });
 
-  it('shows Cloud documents as a library tab, also when the host announces the removed unified catalog', async () => {
+  it('has no Cloud tab in the library: the Cloud library is a tab of the templates dialog', async () => {
     const { wrapper } = await mountPage();
-    const cloud = wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Cloud')!;
-    expect(cloud).toBeDefined();
-    expect(wrapper.text()).not.toContain('Cloud library');
-    await cloud.trigger('click');
-    await flushPromises();
-    expect(wrapper.text()).toContain('Cloud library');
-    expect(wrapper.find('.automation-library__table').exists()).toBe(false);
+    const library = () => wrapper.findAll('[role="tab"]').map((tab) => tab.text());
+    expect(library()).toEqual(['Events (2)', 'Actions (1)', 'Variables']);
     const unified = await mountPage(undefined, true, { announce: ['catalog.items'] });
-    expect(unified.wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables', 'Cloud']);
+    expect(unified.wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables']);
+    expect(document.querySelector('dialog[open]')).toBeNull();
+  });
+
+  it('opens the templates dialog on its Cloud tab from a saved ?view=cloud link and clears the link when it closes', async () => {
+    const { wrapper, router } = await mountPage(undefined, true, { query: '?view=cloud' });
+    await flushPromises();
+    const dialog = document.querySelector('dialog[open]')!;
+    expect(dialog).not.toBeNull();
+    const tabs = Array.from(dialog.querySelectorAll('[role="tab"]'));
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(['Templates', 'Cloud', 'Import']);
+    expect(tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent?.trim()).toBe('Cloud');
+    expect(dialog.textContent).toContain('Library');
+    // The page is still the library: no Cloud tab in its own bar.
+    expect(wrapper.findAll('.automation-library [role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', 'Variables']);
+    expect(router.currentRoute.value.query.view).toBe('cloud');
+    dialog.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click();
+    await flushPromises();
+    expect(router.currentRoute.value.query.view).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it('opens the templates dialog on Templates, not on a Cloud tab left from before', async () => {
+    const { wrapper } = await mountPage();
+    await buttonByLabel(wrapper, 'From template…').trigger('click');
+    await flushPromises();
+    const selected = document.querySelector('dialog[open] [role="tab"][aria-selected="true"]');
+    expect(selected?.textContent?.trim()).toBe('Templates');
+    wrapper.unmount();
   });
 
   it('lists events and opens the editor', async () => {

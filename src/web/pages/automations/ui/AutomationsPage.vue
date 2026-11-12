@@ -13,7 +13,6 @@ import AutomationEditorReview from '@/features/edit-automation-record/ui/Automat
 import AutomationEditNotice from '@/features/edit-automation-record/ui/AutomationEditNotice.vue';
 import AutomationProposalReview from '@/features/review-automation-proposal/ui/AutomationProposalReview.vue';
 import AutomationApprovalReview from '@/features/review-automation-approval/ui/AutomationApprovalReview.vue';
-import CloudLibrary from '@/features/cloud-library/ui/CloudLibrary.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
 import OwnerLibraryChanges from '@/features/recover-owner-library/ui/OwnerLibraryChanges.vue';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
@@ -32,6 +31,7 @@ import { useAutomationText } from '@/entities/automation/model/use-automation-te
 import HotkeyIndicator from '@/entities/automation/ui/HotkeyIndicator.vue';
 import { usePointsStore } from '@/entities/points/model/points-store.ts';
 import type { AppliedRuleTemplate, RuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
+import { isRuleTemplateTab, type RuleTemplateTab } from '@/features/apply-rule-template/model/template-tab.ts';
 import RuleTemplateDialog from '@/features/apply-rule-template/ui/RuleTemplateDialog.vue';
 import ActionEditor from '@/features/edit-automation-action/ui/ActionEditor.vue';
 import EventEditor from '@/features/edit-automation-event/ui/EventEditor.vue';
@@ -105,8 +105,8 @@ const tab = ref<LibraryTab>(isLibraryTab(saved?.tab) ? saved.tab : 'events');
 const requestedView = inject(routeLocationKey, null)?.query.view;
 const area = ref<LibraryArea>(requestedView === 'variables' ? 'variables' : tab.value);
 const selected = ref<string | null>(requestedView === 'variables' ? null : saved?.selected ?? null);
-// Cloud documents are the library's own tab: the unified catalog that used to replace it was removed.
-const areas: LibraryExtraArea[] = ['variables', 'cloud'];
+// The Cloud library lives in the rule templates dialog; only the variables sit next to Events and Actions.
+const areas: LibraryExtraArea[] = ['variables'];
 const eventQuery = ref(saved?.eventQuery ?? '');
 const actionQuery = ref(saved?.actionQuery ?? '');
 const eventSort = ref<RecordSort>(isRecordSort(saved?.eventSort) ? saved.eventSort : 'name');
@@ -119,6 +119,18 @@ const approvalReviewPanel = ref<{ openReview: () => void; openHistory: () => voi
 const definitionRecoveryPanel = ref<{ openHistory: () => void; busy: boolean; hasPending: boolean } | null>(null);
 const pickerOpen = ref(false);
 const templatesOpen = ref(false);
+const templatesTab = ref<RuleTemplateTab>('templates');
+// Saved links to `?view=cloud` (the old Cloud tab) open the templates dialog on its Cloud tab.
+// Optional injections: the page also renders without a router (tests, embeds).
+const route = inject(routeLocationKey, null);
+const router = inject(routerKey, null);
+function openTemplates(next: RuleTemplateTab = 'templates'): void {
+  templatesTab.value = isRuleTemplateTab(next) ? next : 'templates';
+  templatesOpen.value = true;
+}
+if (requestedView === 'cloud') openTemplates('cloud');
+watch(() => route?.query.view, (view) => { if (view === 'cloud') openTemplates('cloud'); });
+watch(templatesOpen, (isOpen) => { if (!isOpen && route?.query.view === 'cloud') void router?.replace({ query: {} }); });
 const profileImportOpen = ref(false);
 const retryingLibrary = ref(false);
 async function retryLibrary(): Promise<void> {
@@ -280,9 +292,6 @@ function newEvent(trigger?: string): void {
 }
 
 // Other pages link here with `?trigger=<event type>` to start a rule for it.
-// Optional injections: the page also renders without a router (tests, embeds).
-const route = inject(routeLocationKey, null);
-const router = inject(routerKey, null);
 function openRequestedTrigger(): void {
   const trigger = route?.query.trigger;
   if (typeof trigger !== 'string' || !/^[a-z][a-z0-9_.-]{0,127}$/.test(trigger)) return;
@@ -409,7 +418,7 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
         :label="t('automations.templates.open')"
         variant="default"
         :disabled="automation.profileLoading.value"
-        @click="templatesOpen = true"
+        @click="openTemplates()"
       >
         <IconPlus />
       </BaseIconButton>
@@ -520,11 +529,6 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
           </template>
           <template #variables>
             <RuntimeGlobalsEditor />
-          </template>
-          <template #cloud>
-            <div class="automations-page__cloud">
-              <CloudLibrary />
-            </div>
           </template>
         </AutomationLibrary>
         <div
@@ -680,6 +684,7 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
     />
     <RuleTemplateDialog
       v-model:open="templatesOpen"
+      v-model:tab="templatesTab"
       :snapshot="snapshot"
       :custom-templates="automation.customTemplates.value"
       :custom-error="automation.templateError.value"
@@ -815,8 +820,6 @@ onBeforeUnmount(() => { editor.dispose(); window.removeEventListener('keydown', 
   flex: 1;
   min-height: 0;
 }
-
-.automations-page__cloud { padding: var(--space-4) var(--space-3); }
 
 .automations-page__runs {
   flex: none;

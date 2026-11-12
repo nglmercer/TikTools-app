@@ -22,7 +22,6 @@ import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
 import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
 import IconFilter from '@/shared/ui/icon/icons/IconFilter.vue';
-import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconHash from '@/shared/ui/icon/icons/IconHash.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
 import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
@@ -85,7 +84,7 @@ const tabs = computed(() => [
   ...(props.areas ?? []).map((area) => ({
     value: area,
     label: t(`automations.library.${area}`),
-    icon: area === 'variables' ? IconHash : IconGlobe,
+    icon: IconHash,
   })),
 ]);
 // An extra area is built the first time it opens and then kept, so an unsaved draft survives switching tabs.
@@ -358,13 +357,6 @@ const sort = computed({
         class="automation-library__pane automation-library__area"
       >
         <slot name="variables" />
-      </div>
-      <div
-        v-if="areas?.includes('cloud') && visited.has('cloud')"
-        v-show="tab === 'cloud'"
-        class="automation-library__pane automation-library__area"
-      >
-        <slot name="cloud" />
       </div>
     </BaseTabs>
   </section>

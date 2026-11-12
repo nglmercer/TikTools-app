@@ -16,7 +16,7 @@ import {
 export const PROFILE_VERSION = 1;
 export const MAX_PROFILE_ENTRIES = 32;
 export const DEFAULT_PROFILE_ID = 'default';
-const MAX_PROFILE_TEXT_BYTES = 262144;
+export const MAX_PROFILE_TEXT_BYTES = 262144;
 
 const PACKS_KEY = 'behavior.profiles.packs';
 const ACTIVE_KEY = 'behavior.profiles.active';

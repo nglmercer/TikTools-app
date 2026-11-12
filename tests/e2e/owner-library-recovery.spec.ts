@@ -242,14 +242,14 @@ for (const locale of ['en', 'es'] as const) {
 
     await page.getByRole('button', { name: words.automations.templates.open, exact: true }).click();
     templates = page.getByRole('dialog', { name: words.automations.templates.title, exact: true });
-    await templates.getByRole('button', { name: words.automations.templates.import, exact: true }).click();
-    const templateImport = page.getByRole('dialog', { name: words.automations.templates.importTitle, exact: true });
+    // Importing is the third tab of the same dialog; its drop zone replaces the old separate import screen.
+    await templates.getByRole('tab', { name: words.importDialog.manualTab, exact: true }).click();
+    const templateImport = templates;
     const customId = `browser-gallery-${locale}`; const customName = `Browser custom library ${locale}`;
     await file(templateImport, documentTemplate(locale, customId, customName), `template-${locale}.json`);
     await templateImport.getByRole('button', { name: words.automations.import.run, exact: true }).click();
     commands.push((await confirm(page, words, sent, 'import-templates')).record.intent.commandId);
-    await templateImport.getByRole('button', { name: words.automations.templates.back, exact: true }).click();
-    templates = page.getByRole('dialog', { name: words.automations.templates.title, exact: true });
+    await templates.getByRole('tab', { name: words.importDialog.templatesTab, exact: true }).click();
     await templates.getByRole('searchbox').fill(customName);
     await templates.locator('.rule-templates__card').filter({ hasText: customName }).click();
     configure = page.getByRole('dialog', { name: customName, exact: true });

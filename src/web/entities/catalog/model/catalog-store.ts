@@ -19,6 +19,7 @@ import {
   createCatalogSearch,
   DEFAULT_CATALOG_FILTERS,
   filtersToQuery,
+  type CatalogDataState,
   type CatalogFilters,
 } from './catalog-query.ts';
 
@@ -62,6 +63,8 @@ export const useCatalogStore = defineStore('catalog', () => {
   const items = ref<readonly CatalogItemSummary[]>([]);
   const cursor = ref<string | null>(null);
   const loading = ref(false);
+  /** Whether the last accepted page came from an empty plugin registry. */
+  const dataState = ref<CatalogDataState>('ready');
   const error = ref<string | null>(null);
   const { detail: errorDetail, capture, clear: clearDetail } = useCloudFailure();
   const detail = ref<CatalogItemSummary | null>(null);
@@ -80,6 +83,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     importScope.invalidate();
     items.value = [];
     cursor.value = null;
+    dataState.value = 'ready';
     installedEntries.value = [];
     detail.value = null;
     loading.value = false;
@@ -126,7 +130,10 @@ export const useCatalogStore = defineStore('catalog', () => {
       const accepted = append
         ? { items: [...search.items(), ...page.items], nextCursor: page.nextCursor }
         : page;
-      if (search.settle(generation, accepted)) publish();
+      if (search.settle(generation, accepted)) {
+        publish();
+        dataState.value = page.dataState ?? 'ready';
+      }
     } catch (failure) {
       if (search.isNewest(generation)) error.value = capture(failure);
     } finally {
@@ -245,6 +252,7 @@ export const useCatalogStore = defineStore('catalog', () => {
     installedLimited,
     cursor,
     loading,
+    dataState,
     error,
     errorDetail,
     detail,

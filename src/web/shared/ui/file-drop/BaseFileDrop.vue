@@ -13,8 +13,11 @@ const props = withDefaults(
     unreadableLabel: string;
     accept?: string;
     disabled?: boolean;
+    /** Largest accepted file or pasted text, in bytes. Larger input is refused with `tooLargeLabel`. */
+    maxBytes?: number;
+    tooLargeLabel?: string;
   }>(),
-  { accept: '.json,application/json', disabled: false },
+  { accept: '.json,application/json', disabled: false, maxBytes: undefined, tooLargeLabel: '' },
 );
 
 const emit = defineEmits<{ content: [text: string, source: string]; error: [message: string] }>();
@@ -24,7 +27,14 @@ const input = useTemplateRef('input');
 const dragging = ref(false);
 const notice = ref('');
 
+function tooLarge(bytes: number): boolean {
+  if (props.maxBytes === undefined || bytes <= props.maxBytes) return false;
+  emit('error', props.tooLargeLabel || props.unreadableLabel);
+  return true;
+}
+
 function read(file: File): void {
+  if (tooLarge(file.size)) return;
   const reader = new FileReader();
   reader.onload = () => emit('content', typeof reader.result === 'string' ? reader.result : '', file.name);
   reader.onerror = () => emit('error', props.unreadableLabel);
@@ -53,7 +63,7 @@ function onDocumentPaste(event: ClipboardEvent): void {
   if (!text || props.disabled) return;
   event.preventDefault();
   notice.value = '';
-  emit('content', text, props.clipboardLabel);
+  if (!tooLarge(new TextEncoder().encode(text).length)) emit('content', text, props.clipboardLabel);
 }
 
 async function paste(): Promise<void> {
@@ -61,7 +71,7 @@ async function paste(): Promise<void> {
     if (!navigator.clipboard?.readText) throw new Error('clipboard unavailable');
     const text = await navigator.clipboard.readText();
     notice.value = '';
-    emit('content', text, props.clipboardLabel);
+    if (!tooLarge(new TextEncoder().encode(text).length)) emit('content', text, props.clipboardLabel);
   } catch {
     notice.value = props.pasteBlockedLabel;
     zone.value?.focus();

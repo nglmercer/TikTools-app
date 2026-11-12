@@ -5,6 +5,8 @@ import type { TabOption } from './tab-types.ts';
 
 const props = defineProps<{
   tabs: readonly TabOption<T>[];
+  /** Accessible name of the tab list, when the surrounding heading does not already name it. */
+  label?: string;
 }>();
 
 const model = defineModel<T>({ required: true });
@@ -46,6 +48,7 @@ function onKeydown(event: KeyboardEvent): void {
       <div
         class="base-tabs__list"
         role="tablist"
+        :aria-label="label"
         @keydown="onKeydown"
       >
         <button

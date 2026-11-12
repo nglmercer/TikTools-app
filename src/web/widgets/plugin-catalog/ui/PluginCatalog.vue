@@ -2,10 +2,13 @@
 import { computed, ref, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ActionTypeDefinition, PluginStatus } from '../../../../automation/behavior/types.ts';
+import { useCatalogStore } from '@/entities/catalog/model/catalog-store.ts';
 import { catalogPlugins, type PluginsPanelTab } from '@/entities/plugin/lib/plugin-catalog.ts';
 import { isPluginCommand, pluginMenu, type PluginCommand } from '@/entities/plugin/lib/plugin-menu.ts';
 import type { SearchEntry, UpdateInfo } from '@/entities/plugin-package/api/package-types.ts';
-import { remoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
+import { OFFICIAL_REGISTRY, remoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
+import ExploreList from '@/features/explore-catalog/ui/ExploreList.vue';
+import ExploreToolbar from '@/features/explore-catalog/ui/ExploreToolbar.vue';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
@@ -43,15 +46,19 @@ const props = defineProps<{
   searching?: boolean;
   searchError?: string;
   checkingUpdates?: boolean;
-  /** False when no enabled registry exists (official one unpublished). */
+  /** False when no enabled registry exists (official one unpublished). Only the registry-based Explore reads it. */
   marketplaceAvailable?: boolean;
+  /**
+   * Explore lists the Cloud catalog (`catalog.items`) instead of the registry search. Hosts
+   * that do not announce it keep the registry-based list.
+   */
+  exploreCatalog?: boolean;
   /** The package review is open: a second .plugin cannot be chosen yet. */
   installDisabled?: boolean;
 }>();
 
 const emit = defineEmits<{
   'install-package': [];
-  'install-spec': [spec: string];
   search: [];
   'check-updates': [];
   update: [id: string, version?: string];
@@ -69,7 +76,7 @@ const processorQuery = defineModel<string>('processorQuery', { default: '' });
 
 const { t } = useI18n();
 const titleId = useId();
-const specInput = ref('');
+const catalogStore = useCatalogStore();
 /** Key of the row a context menu was opened on; never the open plugin, which has its own panel. */
 const menuKey = ref<string | null>(null);
 
@@ -92,6 +99,12 @@ function updateName(update: UpdateInfo): string {
   return plugin ? localizedText(plugin.descriptor.name) : update.id;
 }
 
+/** Explore shows the Cloud catalog only when the host serves it. */
+const exploring = computed(() => props.exploreCatalog === true && tab.value === 'browse');
+const installedIds = computed(() => new Set(props.plugins.filter((plugin) => plugin.installed).map((plugin) => plugin.descriptor.id)));
+/** Bundled plugins already listed above the catalog: the catalog does not repeat them. */
+const listedLocally = computed(() => new Set(props.plugins.filter((plugin) => !plugin.installed).map((plugin) => plugin.descriptor.id)));
+
 const rows = computed<CatalogRow[]>(() => {
   if (tab.value === 'updates') {
     const words = query.value.trim().toLowerCase();
@@ -103,6 +116,16 @@ const rows = computed<CatalogRow[]>(() => {
         update,
         plugin: props.plugins.find((plugin) => plugin.descriptor.id === update.id),
       }));
+  }
+  if (exploring.value) {
+    // Bundled plugins that are not installed yet stay here; the Cloud catalog lists the rest below them.
+    const { type, view, text } = catalogStore.filters;
+    if (view === 'mine' || (type !== 'all' && type !== 'plugin')) return [];
+    return catalogPlugins(props.plugins, 'browse', props.actionTypes, text, localizedText).map((plugin) => ({
+      key: plugin.descriptor.id,
+      kind: 'local' as const,
+      plugin,
+    }));
   }
   const local = catalogPlugins(props.plugins, tab.value === 'installed' ? 'installed' : 'browse', props.actionTypes, query.value, localizedText).map(
     (plugin) => ({ key: plugin.descriptor.id, kind: 'local' as const, plugin }),
@@ -133,7 +156,7 @@ function onMenu(action: MenuAction): void {
 }
 
 const filtering = computed(() => query.value.trim().length > 0);
-const searchable = computed(() => !(tab.value === 'browse' && props.marketplaceAvailable === false));
+const searchable = computed(() => !(tab.value === 'browse' && !exploring.value && props.marketplaceAvailable === false));
 const searchValue = computed({
   get: () => (tab.value === 'browse' ? remoteQuery.value : tab.value === 'processors' ? processorQuery.value : query.value),
   set: (value: string) => {
@@ -170,11 +193,9 @@ function submitSearch(): void {
   if (tab.value === 'browse') emit('search');
 }
 
-function submitSpec(): void {
-  const spec = specInput.value.trim();
-  if (!spec) return;
-  emit('install-spec', spec);
-  specInput.value = '';
+/** A catalog plugin opens its own details when installed, otherwise the details of the Cloud release. */
+function openCatalogPlugin(id: string, installed: boolean): void {
+  emit('open', installed ? id : remoteSelection(OFFICIAL_REGISTRY, id));
 }
 </script>
 
@@ -196,8 +217,9 @@ function submitSpec(): void {
     >
       <template #bar>
         <div class="plugin-catalog__bar">
+          <ExploreToolbar v-if="exploring" />
           <form
-            v-if="searchable"
+            v-else-if="searchable"
             class="plugin-catalog__search"
             role="search"
             @submit.prevent="submitSearch"
@@ -268,36 +290,15 @@ function submitSpec(): void {
       </template>
 
       <div class="plugin-catalog__body">
-        <form
-          v-if="tab === 'browse'"
-          class="plugin-catalog__spec"
-          @submit.prevent="submitSpec"
-        >
-          <BaseTextField
-            v-model="specInput"
-            size="sm"
-            :placeholder="t('plugins.catalog.installSpec')"
-            :aria-label="t('plugins.catalog.installSpec')"
-          />
-          <BaseIconButton
-            :label="t('plugins.catalog.review')"
-            variant="default"
-            size="sm"
-            :disabled="!specInput.trim()"
-            @click="submitSpec"
-          >
-            <IconDownload />
-          </BaseIconButton>
-        </form>
         <p
-          v-if="tab === 'browse' && marketplaceAvailable === false"
+          v-if="tab === 'browse' && !exploring && marketplaceAvailable === false"
           class="plugin-catalog__notice"
           role="status"
         >
           {{ t('plugins.catalog.marketplaceUnavailable') }}
         </p>
         <p
-          v-if="tab === 'browse' && searchError"
+          v-if="tab === 'browse' && !exploring && searchError"
           class="plugin-catalog__error"
           role="alert"
         >
@@ -456,7 +457,7 @@ function submitSpec(): void {
             </BaseButton>
           </BaseEmptyState>
           <BaseEmptyState
-            v-else-if="tab === 'browse' && marketplaceAvailable === false"
+            v-else-if="tab === 'browse' && !exploring && marketplaceAvailable === false"
             :title="t('plugins.catalog.marketplaceUnavailable')"
             :description="t('plugins.catalog.marketplaceUnavailableHint')"
           >
@@ -468,7 +469,7 @@ function submitSpec(): void {
             </BaseButton>
           </BaseEmptyState>
           <BaseEmptyState
-            v-else-if="tab === 'browse'"
+            v-else-if="tab === 'browse' && !exploring"
             :title="searching ? t('plugins.catalog.searching') : t('plugins.catalog.emptyBrowse')"
             :description="t('plugins.catalog.emptyBrowseHint')"
           >
@@ -480,8 +481,14 @@ function submitSpec(): void {
             </BaseButton>
           </BaseEmptyState>
           <BaseEmptyState
-            v-else
+            v-else-if="tab === 'updates'"
             :title="filtering ? t('plugins.catalog.noMatches', { query: query.trim() }) : t('plugins.catalog.emptyUpdates')"
+          />
+          <ExploreList
+            v-if="exploring"
+            :installed-ids="installedIds"
+            :hidden-ids="listedLocally"
+            @open-plugin="openCatalogPlugin"
           />
         </BaseContextMenu>
       </div>
@@ -550,21 +557,6 @@ function submitSpec(): void {
   height: 100%;
   min-height: 0;
   overflow: auto;
-}
-
-.plugin-catalog__spec {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-3);
-  border-bottom: var(--border-width) solid var(--color-border-subtle);
-}
-
-.plugin-catalog__spec > :first-child {
-  flex: 1;
-  min-width: 0;
 }
 
 .plugin-catalog__error,

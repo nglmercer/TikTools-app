@@ -8,6 +8,7 @@ import type { PluginCommand } from '@/entities/plugin/lib/plugin-menu.ts';
 import { parseRemoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { useProcessorsStore } from '@/entities/processor/model/processors-store.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import { usePluginSyncAdapter } from '@/features/manage-plugins/model/use-plugin-sync-adapter.ts';
@@ -27,6 +28,7 @@ const plugins = usePluginControls();
 const syncAdapter = usePluginSyncAdapter();
 const packages = usePackagesStore();
 const processorsStore = useProcessorsStore();
+const capabilities = useCapabilityStore();
 const saved = loadViewState().plugins;
 
 /**
@@ -118,7 +120,12 @@ function closeDetails(): void {
 }
 const updateEntries = computed(() => packages.updates?.updates ?? []);
 const remoteEntries = computed(() => packages.searchResults?.entries ?? []);
-/** Unknown until the registry list loads; only `false` shows the unavailable state. */
+/**
+ * Explore lists the Cloud catalog unless the host says it does not serve it: `undefined`
+ * (discovery pending) keeps calling, `false` falls back to the registry search of older hosts.
+ */
+const exploreCatalog = computed(() => capabilities.supports('catalog.items') !== false);
+/** Registry fallback only: unknown until the registry list loads; only `false` shows the unavailable state. */
 const marketplaceAvailable = computed(() =>
   packages.registriesLoaded ? packages.registries.some((registry) => registry.enabled) : undefined,
 );
@@ -128,16 +135,22 @@ function search(): void {
 }
 
 function openCatalogTab(next: PluginCatalogTab): void {
-  if (next === 'browse' && !packages.searchResults && !packages.searching) search();
+  if (next === 'browse' && !exploreCatalog.value && !packages.searchResults && !packages.searching) search();
+}
+
+/** Older hosts: the registry list and its search back Explore. */
+function loadRegistryExplore(): void {
+  void packages.loadRegistries();
+  openCatalogTab(catalog.value);
 }
 
 onMounted(() => {
   void packages.initialize();
-  void packages.loadRegistries();
-  openCatalogTab(catalog.value);
+  if (!exploreCatalog.value) loadRegistryExplore();
 });
 
 watch(catalog, openCatalogTab);
+watch(exploreCatalog, (on) => { if (!on) loadRegistryExplore(); });
 
 watch(selected, (next, previous) => {
   if (next !== null && next !== previous) detailsTab.value = 'general';
@@ -224,9 +237,9 @@ watch(activeView, () => { processorSelected.value = null; });
       :search-error="packages.searchError"
       :checking-updates="packages.checkingUpdates"
       :marketplace-available="marketplaceAvailable"
+      :explore-catalog="exploreCatalog"
       :install-disabled="packages.review.open"
       @install-package="plugins.installPackage()"
-      @install-spec="plugins.installSpec"
       @search="search"
       @check-updates="packages.checkUpdates()"
       @update="(id, version) => packages.updatePlugin(id, version)"

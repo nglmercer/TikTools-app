@@ -14,9 +14,16 @@ export interface CatalogQuery {
   readonly target?: string;
 }
 
+/**
+ * `noActiveGeneration` is an empty plugin registry, not an outage: templates and profiles
+ * are still served. A host that does not report the state leaves it out.
+ */
+export type CatalogDataState = 'ready' | 'noActiveGeneration';
+
 export interface CatalogPage<T> {
   readonly items: readonly T[];
   readonly nextCursor: string | null;
+  readonly dataState?: CatalogDataState;
 }
 
 export function normalizeQuery(input: Partial<CatalogQuery>): CatalogQuery {

@@ -10,12 +10,16 @@ import definitionRecovery from './definition-recovery.es.ts';
 import controller from './controller.es.ts';
 import jsonView from './json-view.es.ts';
 import syncChanges from './sync-changes.es.ts';
+import exploreCatalog from './explore-catalog.es.ts';
+import importDialog from './import-dialog.es.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
   controller,
   jsonView,
   syncChanges,
+  exploreCatalog,
+  importDialog,
   settingsLayout,
   formsDesign,
   designKit,

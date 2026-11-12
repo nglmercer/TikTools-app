@@ -21,3 +21,22 @@ test('profile aggregate failure stays in the import dialog with its staged file 
   form.vm.$emit('update:modelValue', { value: 'safe' }); await flushPromises();
   await wrapper.get('.base-button--primary').trigger('click'); expect(wrapper.emitted('apply')).toHaveLength(1);
 });
+
+test('profile import is one manual source: no tab bar, a staged profile with clear, and a file size limit', async () => {
+  await activateLocale('en');
+  const wrapper = mountWithPlugins(ProfileImportDialog, { props: { open: true }, attachTo: document.body });
+  expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
+  const drop = wrapper.getComponent(BaseFileDrop);
+  expect(drop.props('maxBytes')).toBeGreaterThan(0);
+  expect(wrapper.get('.base-button--primary').attributes('disabled')).toBeDefined();
+  drop.vm.$emit('content', '{"nope":true}', 'bad.json'); await flushPromises();
+  expect(wrapper.get('[role="alert"]').text()).toBe('That file is not a rule profile.');
+  const profile = { profileVersion: 1, id: 'p1', name: 'Starter', description: '', params: {}, templates: [{ template: { templateVersion: 1, id: 't1', title: 'T', actions: [{ name: 'Log', typeId: 'core.log', config: {} }], event: { name: 'Chat', trigger: 'tiktok.chat' } }, params: {} }] };
+  drop.vm.$emit('content', JSON.stringify(profile), 'starter.tikprofile.json'); await flushPromises();
+  expect(wrapper.get('.base-import-dialog__staged').text()).toContain('Profile “Starter” · 1 rules');
+  expect(wrapper.get('.base-import-dialog__staged').text()).toContain('starter.tikprofile.json');
+  expect(wrapper.get('.base-button--primary').text()).toBe('Create 1 rules');
+  await wrapper.get('button[aria-label="Clear"]').trigger('click');
+  expect(wrapper.find('.base-import-dialog__staged').exists()).toBe(false);
+  expect(wrapper.get('.base-button--primary').attributes('disabled')).toBeDefined();
+});

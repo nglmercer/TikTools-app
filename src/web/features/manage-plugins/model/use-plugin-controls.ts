@@ -24,10 +24,6 @@ export function usePluginControls() {
     });
   }
 
-  function installSpec(spec: string): void {
-    void packages.reviewSpec({ kind: 'spec', spec });
-  }
-
   return {
     behavior: behavior as unknown as Readonly<Ref<BehaviorSnapshot>>,
     behaviorError,
@@ -47,7 +43,6 @@ export function usePluginControls() {
     setEnabled: store.handleSetPluginEnabled,
     uninstall: store.handleUninstallPlugin,
     installPackage,
-    installSpec,
   };
 }
 

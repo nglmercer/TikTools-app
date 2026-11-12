@@ -10,10 +10,14 @@ import definitionRecovery from './definition-recovery.en.ts';
 import controller from './controller.en.ts';
 import jsonView from './json-view.en.ts';
 import syncChanges from './sync-changes.en.ts';
+import exploreCatalog from './explore-catalog.en.ts';
+import importDialog from './import-dialog.en.ts';
 export default {
   controller,
   jsonView,
   syncChanges,
+  exploreCatalog,
+  importDialog,
   settingsLayout,
   formsDesign,
   designKit,

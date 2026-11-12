@@ -31,7 +31,7 @@ onMounted(() => void packages.loadRegistries());
 </script>
 
 <template>
-  <div class="plugin-sources">
+  <div class="plugin-update-policy">
     <BaseAlert
       v-if="packages.registryError"
       :title="packages.registryError"
@@ -39,34 +39,34 @@ onMounted(() => void packages.loadRegistries());
     />
     <BaseFormGrid>
       <BaseFormRow
-        for="plugin-sources-channel"
+        for="plugin-update-policy-channel"
         :label="t('packages.policy.channel')"
       >
         <BaseComboBox
-          id="plugin-sources-channel"
+          id="plugin-update-policy-channel"
           v-model="channel"
           :options="channelOptions"
           :disabled="!packages.defaults"
         />
       </BaseFormRow>
       <BaseFormRow
-        for="plugin-sources-auto"
+        for="plugin-update-policy-auto"
         :label="t('packages.policy.autoUpdate')"
         :hint="t('packages.policy.autoHint')"
       >
         <BaseComboBox
-          id="plugin-sources-auto"
+          id="plugin-update-policy-auto"
           v-model="autoUpdate"
           :options="autoOptions"
           :disabled="!packages.defaults"
         />
       </BaseFormRow>
       <BaseFormRow
-        for="plugin-sources-interval"
+        for="plugin-update-policy-interval"
         :label="t('packages.sources.interval')"
       >
         <BaseSpinBox
-          id="plugin-sources-interval"
+          id="plugin-update-policy-interval"
           v-model="interval"
           :min="1"
           :max="168"
@@ -85,7 +85,7 @@ onMounted(() => void packages.loadRegistries());
 </template>
 
 <style scoped>
-.plugin-sources {
+.plugin-update-policy {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);

@@ -52,6 +52,11 @@ function document(value: unknown, expected: Meta): value is Document {
     && value.meta.slug === expected.slug && record(value.document);
 }
 
+withDefaults(defineProps<{
+  /** Without the group box and its title, for a host (a dialog tab) that already names the area. */
+  bare?: boolean;
+}>(), { bare: false });
+
 const { t } = useI18n();
 const client = useControlClient();
 const account = useAccountStore();
@@ -169,9 +174,9 @@ onUnmounted(clear);
 </script>
 
 <template>
-  <BaseGroupBox
-    :title="t('cloudLibrary.title')"
-    :description="t('cloudLibrary.description')"
+  <component
+    :is="bare ? 'div' : BaseGroupBox"
+    v-bind="bare ? { class: 'cloud-library' } : { title: t('cloudLibrary.title'), description: t('cloudLibrary.description') }"
   >
     <form
       class="cloud-library__filters"
@@ -333,14 +338,18 @@ onUnmounted(clear);
         {{ t('common.close') }}
       </button>
     </section>
-  </BaseGroupBox>
+  </component>
 </template>
 
 <style scoped>
 .cloud-library__filters { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: end; }
 .cloud-library__filters label { display: grid; gap: var(--space-1); }
-.cloud-library__list { display: grid; gap: var(--space-2); padding-left: var(--space-4); }
-.cloud-library__list li { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; }
+.cloud-library__list { margin: var(--space-3) 0; padding: 0; list-style: none; border: var(--border-width) solid var(--color-border-subtle); border-radius: var(--radius-sm); }
+.cloud-library__list li { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center; justify-content: space-between; padding: var(--space-2) var(--space-3); }
+.cloud-library__list li + li { border-top: var(--border-width) solid var(--color-border-subtle); }
+.cloud-library__list li > button { padding: 0; border: 0; background: transparent; font-weight: var(--font-weight-semibold); text-align: left; }
+.cloud-library__list li > button:hover:not(:disabled) { text-decoration: underline; background: transparent; }
+.cloud-library__list li > span { color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .cloud-library__detail { margin-top: var(--space-3); }
 .cloud-library__detail { overflow-wrap: anywhere; }
 nav { display: flex; gap: var(--space-2); }

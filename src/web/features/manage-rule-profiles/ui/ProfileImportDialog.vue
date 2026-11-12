@@ -5,14 +5,15 @@ import type { JsonObject } from '../../../../automation/types.ts';
 import type { AppliedRuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
 import {
   instantiateProfile,
+  MAX_PROFILE_TEXT_BYTES,
   parseRuleProfileImport,
   profileParamSchema,
   type RuleProfile,
 } from '@/entities/rule-template/model/rule-profiles-state.ts';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
-import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
-import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import BaseImportDialog from '@/shared/ui/import-dialog/BaseImportDialog.vue';
+import type { ImportTab, StagedImportItem } from '@/shared/ui/import-dialog/import-types.ts';
+import IconUpload from '@/shared/ui/icon/icons/IconUpload.vue';
 import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 
@@ -28,6 +29,9 @@ const emit = defineEmits<{ apply: [profile: RuleProfile, applied: AppliedRuleTem
 const open = defineModel<boolean>('open', { default: false });
 
 const { t } = useI18n();
+/** Profiles come from a file or the clipboard; the Cloud catalog imports them from Plugins, Explore. */
+const tab = ref('manual');
+const tabs = computed<ImportTab[]>(() => [{ value: 'manual', label: t('importDialog.manualTab'), icon: IconUpload }]);
 const staged = ref<{ source: string; profile: RuleProfile } | null>(null);
 const problems = ref<string[]>([]);
 const values = ref<JsonObject>({});
@@ -36,6 +40,29 @@ watch(values, () => { if (!props.working) candidate.value = null; }, { deep: tru
 
 const settings = computed(() => (staged.value ? profileParamSchema(staged.value.profile) : null));
 const messages = computed(() => [...problems.value, ...(props.error ? [props.error] : [])]);
+const stagedItems = computed<StagedImportItem[]>(() =>
+  staged.value
+    ? [{
+        key: staged.value.profile.id,
+        label: t('automations.import.profileStaged', { name: staged.value.profile.name, count: staged.value.profile.templates.length }),
+      }]
+    : [],
+);
+const labels = computed(() => ({
+  dropTitle: t('automations.import.dropTitle'),
+  dropHint: t('automations.import.dropHint'),
+  browse: t('automations.import.browse'),
+  paste: t('automations.import.paste'),
+  pasteBlocked: t('automations.import.pasteBlocked'),
+  clipboard: t('automations.import.clipboard'),
+  unreadable: t('automations.import.unreadable'),
+  staged: t('automations.import.staged', { count: stagedItems.value.length }),
+  clear: t('automations.import.clear'),
+  close: t('common.cancel'),
+}));
+const importLabel = computed(() =>
+  staged.value ? t('automations.import.profileApply', { count: staged.value.profile.templates.length }) : t('automations.import.run'),
+);
 
 watch(open, (value) => {
   if (!value) return;
@@ -62,6 +89,12 @@ function onError(message: string): void {
   problems.value = [message];
 }
 
+function clear(): void {
+  staged.value = null;
+  candidate.value = null;
+  problems.value = [];
+}
+
 function apply(): void {
   const pending = staged.value;
   if (!pending || props.working) {
@@ -76,34 +109,30 @@ function apply(): void {
 </script>
 
 <template>
-  <BaseDialog
+  <BaseImportDialog
     v-model:open="open"
+    v-model:tab="tab"
     :title="t('automations.import.profileTitle')"
     :width="600"
+    :tabs="tabs"
+    :max-bytes="MAX_PROFILE_TEXT_BYTES"
+    :staged="stagedItems"
+    :staged-source="staged?.source"
+    :busy="working"
+    :errors="messages"
+    :import-label="importLabel"
+    :labels="labels"
+    @content="stage"
+    @error="onError"
+    @clear="clear"
+    @import="apply"
   >
-    <p class="profile-import__lead">
-      {{ t('automations.import.profileLead') }}
-    </p>
-    <BaseFileDrop
-      :title="t('automations.import.dropTitle')"
-      :hint="t('automations.import.dropHint')"
-      :browse-label="t('automations.import.browse')"
-      :paste-label="t('automations.import.paste')"
-      :paste-blocked-label="t('automations.import.pasteBlocked')"
-      :clipboard-label="t('automations.import.clipboard')"
-      :unreadable-label="t('automations.import.unreadable')"
-      :disabled="working"
-      @content="stage"
-      @error="onError"
-    />
-    <div
-      v-if="staged"
-      class="profile-import__staged"
-    >
-      <p>
-        <strong>{{ t('automations.import.profileStaged', { name: staged.profile.name, count: staged.profile.templates.length }) }}</strong>
-        {{ t('automations.import.from', { source: staged.source }) }}
+    <template #manual-lead>
+      <p class="profile-import__lead">
+        {{ t('automations.import.profileLead') }}
       </p>
+    </template>
+    <template #staged-extra>
       <BaseGroupBox
         v-if="settings"
         :title="t('automations.import.profileSettings')"
@@ -114,52 +143,13 @@ function apply(): void {
           :schema="settings.schema"
         />
       </BaseGroupBox>
-    </div>
-    <p
-      v-for="message in messages"
-      :key="message"
-      class="profile-import__error"
-      role="alert"
-    >
-      {{ message }}
-    </p>
-    <template #footer>
-      <BaseButton
-        variant="primary"
-        :disabled="!staged || working"
-        @click="apply"
-      >
-        {{ staged ? t('automations.import.profileApply', { count: staged.profile.templates.length }) : t('automations.import.run') }}
-      </BaseButton>
-      <BaseButton
-        :disabled="working"
-        @click="open = false"
-      >
-        {{ t('common.cancel') }}
-      </BaseButton>
     </template>
-  </BaseDialog>
+  </BaseImportDialog>
 </template>
 
 <style scoped>
 .profile-import__lead {
-  margin: 0 0 var(--space-4);
-  color: var(--color-text-muted);
-}
-
-.profile-import__staged {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  margin-top: var(--space-4);
-}
-
-.profile-import__staged p {
   margin: 0;
-}
-
-.profile-import__error {
-  margin: var(--space-3) 0 0;
-  color: var(--color-danger-hover);
+  color: var(--color-text-muted);
 }
 </style>

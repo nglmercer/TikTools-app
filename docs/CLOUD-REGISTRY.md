@@ -49,8 +49,10 @@ registry discovery. Root pins are provisioned independently at build time.
 
 Root keys are JSON arrays of public keys, baked in at compile time. Without
 pinned official root keys the official source is not registered at all (it is
-never trusted from keys served by the origin itself), and the Plugins page
-reports the marketplace as unavailable. Legacy static-tree and staging
+never trusted from keys served by the origin itself), and installs from the
+registry cannot be reviewed. Plugins, Explore does not depend on it: it lists the Cloud catalog
+(`catalog.items`); only hosts that do not announce that method fall back to the registry search,
+which reports the marketplace as unavailable. Legacy static-tree and staging
 environment variables no longer configure product sources; build the product
 for the intended Cloud origin and provision its independent pins instead.
 Previously configured extra sources remain in the local configuration file but

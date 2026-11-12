@@ -5,9 +5,9 @@ export function isLibraryTab(value: unknown): value is LibraryTab {
 }
 
 /** Areas that sit next to the records in the library's tab bar; the page decides which ones exist. */
-export type LibraryExtraArea = 'variables' | 'cloud';
+export type LibraryExtraArea = 'variables';
 export type LibraryArea = LibraryTab | LibraryExtraArea;
 
 export function isLibraryArea(value: unknown): value is LibraryArea {
-  return isLibraryTab(value) || value === 'variables' || value === 'cloud';
+  return isLibraryTab(value) || value === 'variables';
 }

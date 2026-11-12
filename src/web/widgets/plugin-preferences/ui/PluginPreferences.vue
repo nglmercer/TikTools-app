@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import PluginSourcesEditor from '@/features/manage-plugin-sources/ui/PluginSourcesEditor.vue';
+import PluginUpdatePolicyEditor from '@/features/manage-plugin-update-policy/ui/PluginUpdatePolicyEditor.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
@@ -24,7 +24,7 @@ const { t } = useI18n();
         <IconChevronLeft />
       </BaseIconButton>
     </template>
-    <PluginSourcesEditor />
+    <PluginUpdatePolicyEditor />
   </BasePanel>
 </template>
 
@@ -34,7 +34,7 @@ const { t } = useI18n();
   min-height: 0;
 }
 
-.plugin-preferences :deep(.plugin-sources) {
+.plugin-preferences :deep(.plugin-update-policy) {
   max-width: 560px;
 }
 </style>
