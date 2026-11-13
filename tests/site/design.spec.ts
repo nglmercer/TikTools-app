@@ -24,6 +24,9 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
     const toolbar = await page.locator('#demo-controls').boundingBox();
     const workspace = await page.locator('#app').boundingBox();
     expect(toolbar && workspace && Math.abs(toolbar.y + toolbar.height - workspace.y) < 2).toBe(true);
+    const shell = await page.locator('.app-layout').boundingBox();
+    expect(shell && shell.y + shell.height <= 962).toBe(true);
+    await expect(page.getByRole('button', { name: /^Diagnostics/ })).toBeInViewport();
     await expect(page.getByTestId('demo-reset')).toBeInViewport();
   }
   await page.getByRole('combobox', { name: 'Scenario', exact: true }).click();
