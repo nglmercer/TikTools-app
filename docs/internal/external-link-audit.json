@@ -1,9 +1,18 @@
 {
-  "reviewedAt": "2026-11-13T18:26:35.455Z",
+  "reviewedAt": "2026-11-13T19:04:49.871Z",
   "scope": "Current public Markdown links. Immutable archive links remain inventoried as historical evidence.",
   "results": [
     {
       "url": "https://github.com/hernan-lc/TikTools-app/actions/runs/43469055839",
+      "status": 200,
+      "state": "available",
+      "pages": [
+        "en/releases/4.2.2.md",
+        "es/releases/4.2.2.md"
+      ]
+    },
+    {
+      "url": "https://github.com/hernan-lc/TikTools-app/actions/runs/43484544700",
       "status": 200,
       "state": "available",
       "pages": [
@@ -45,6 +54,16 @@
       "pages": [
         "en/developer/cloud.md",
         "es/developer/cloud.md"
+      ]
+    },
+    {
+      "url": "https://github.com/nglmercer/TikTools-app",
+      "status": 200,
+      "state": "available",
+      "pages": [
+        "en/index.md",
+        "es/index.md",
+        "index.md"
       ]
     },
     {
@@ -252,6 +271,7 @@
       "status": 200,
       "state": "available",
       "pages": [
+        "en/index.md",
         "en/releases/4.2.1-rc.1.md",
         "en/releases/4.2.1-rc.2.md",
         "en/releases/4.2.1-rc.3.md",
@@ -259,6 +279,7 @@
         "en/releases/index.md",
         "en/user/installation.md",
         "en/user/updates.md",
+        "es/index.md",
         "es/releases/4.2.1-rc.1.md",
         "es/releases/4.2.1-rc.2.md",
         "es/releases/4.2.1-rc.3.md",

@@ -113,6 +113,7 @@ jobs:
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
             libxdo-dev \
+            libxkbcommon-x11-0 libxkbcommon-x11-dev \
             xvfb xauth \
             mold \
             pkg-config
@@ -162,6 +163,48 @@ jobs:
           RELEASE_PLATFORM: ${{ matrix.platform }}
         run: bun scripts/task.ts package
 
+      # v4.2.2 source is 80c5cb1fbfa45eaeb1c086c71320a15e565d8541.
+      # Build and staging above use only the tag. Packaging below overlays two
+      # reviewed helpers from the separate workflow tooling SHA, after build.
+      - name: Post-build packaging overlay (source tag v4.2.2 80c5, separate tooling SHA)
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_TOOLING_SHA: ${{ github.sha }}
+          RELEASE_SOURCE_SHA: ${{ needs.version.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+          git diff --exit-code HEAD
+          test -z "$(git ls-files --others --exclude-standard)"
+          tooling="$RUNNER_TEMP/tiktools-recovery-tooling"
+          git init "$tooling"
+          git -C "$tooling" -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+            fetch --depth=1 "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$RECOVERY_TOOLING_SHA"
+          git -C "$tooling" checkout --detach FETCH_HEAD
+          test "$(git -C "$tooling" rev-parse HEAD)" = "$RECOVERY_TOOLING_SHA"
+          sha256sum target/release/tiktools-desktop > "$RUNNER_TEMP/tiktools-recovery-binary.sha256"
+          find release/staging/TikTools -type f -print0 | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/tiktools-recovery-staging.sha256"
+          helpers=(scripts/appimage/linuxdeploy-plugin-tiktoolswebkit.sh scripts/lib/verify-installers.ts)
+          for helper in "${helpers[@]}"; do
+            cp "$tooling/$helper" "$helper"
+            cmp "$tooling/$helper" "$helper"
+          done
+          while IFS= read -r changed; do
+            case "$changed" in
+              scripts/appimage/linuxdeploy-plugin-tiktoolswebkit.sh|scripts/lib/verify-installers.ts) ;;
+              *) echo "::error::Unexpected recovery overlay: $changed"; exit 1 ;;
+            esac
+          done < <(git diff --name-only HEAD)
+          test -z "$(git ls-files --others --exclude-standard)"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+          sha256sum --check --quiet "$RUNNER_TEMP/tiktools-recovery-binary.sha256"
+          sha256sum --check --quiet "$RUNNER_TEMP/tiktools-recovery-staging.sha256"
+          echo "Packaging overlay: source tag $RELEASE_TAG ($RELEASE_SOURCE_SHA); tooling $RECOVERY_TOOLING_SHA"
+          git diff --name-only HEAD
+
       - name: Package and verify desktop installers
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
@@ -176,19 +219,22 @@ jobs:
           RELEASE_PLATFORM: ${{ matrix.platform }}
         run: bun scripts/package-installers.ts
 
-      - name: Check out recovery validation tooling separately from immutable source
+      - name: Verify packaging preserved the immutable binary and staging
         if: runner.os == 'Linux'
         env:
-          GH_TOKEN: ${{ github.token }}
-          RECOVERY_TOOLING_SHA: ${{ github.sha }}
+          RELEASE_SOURCE_SHA: ${{ needs.version.outputs.source_sha }}
         run: |
-          tooling="$RUNNER_TEMP/tiktools-recovery-tooling"
-          git init "$tooling"
-          git -C "$tooling" -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
-            fetch --depth=1 "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$RECOVERY_TOOLING_SHA"
-          git -C "$tooling" checkout --detach FETCH_HEAD
-          test "$(git -C "$tooling" rev-parse HEAD)" = "$RECOVERY_TOOLING_SHA"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SOURCE_SHA"
           test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+          while IFS= read -r changed; do
+            case "$changed" in
+              scripts/appimage/linuxdeploy-plugin-tiktoolswebkit.sh|scripts/lib/verify-installers.ts) ;;
+              *) echo "::error::Unexpected recovery change after packaging: $changed"; exit 1 ;;
+            esac
+          done < <(git diff --name-only HEAD)
+          test -z "$(git ls-files --others --exclude-standard)"
+          sha256sum --check --quiet "$RUNNER_TEMP/tiktools-recovery-binary.sha256"
+          sha256sum --check --quiet "$RUNNER_TEMP/tiktools-recovery-staging.sha256"
 
       - name: Start the packaged Linux AppImage with an isolated profile
         if: runner.os == 'Linux'
@@ -201,6 +247,19 @@ jobs:
           version="${RELEASE_TAG#v}"
           dbus-run-session -- xvfb-run -a bun "$RUNNER_TEMP/tiktools-recovery-tooling/scripts/smoke-appimage.ts" \
             "$GITHUB_WORKSPACE/release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version" --extracted-mode
+
+      # Keep a failed GUI candidate for local investigation without repeating
+      # the Rust build. Diagnostic artifacts never bypass the successful build
+      # dependency required by the publication job.
+      - name: Retain failed Linux AppImage for local debugging
+        if: failure() && runner.os == 'Linux'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: diagnostic-appimage-${{ github.run_id }}
+          path: release/TikTools-*-linux-x86_64-installer.AppImage
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 3
 
       - name: Upload release archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

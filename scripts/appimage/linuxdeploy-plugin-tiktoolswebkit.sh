@@ -108,14 +108,27 @@ while IFS= read -r plugin; do
   fi
   install -m 0755 "$gst_plugins/libgst$plugin.so" "$gst_target/"
 done < "$manifest"
-# Deploy codec dependencies without flattening the plugin directory. This child
+
+# winit's xkbcommon-dl opens this SONAME at runtime; it is absent from the
+# desktop binary's DT_NEEDED entries. Seed only that runtime library, then let
+# linuxdeploy deploy its dependencies (notably libxcb-xkb.so.1) and patch RPATH.
+# Use pkg-config from libxkbcommon-x11-dev, never the host's unversioned .so.
+xkb_libdir="$(pkg-config --variable=libdir xkbcommon-x11)"
+xkb_library="$APPDIR/usr/lib/libxkbcommon-x11.so.0"
+if [ -z "$xkb_libdir" ] || [ ! -f "$xkb_libdir/libxkbcommon-x11.so.0" ]; then
+  echo "linuxdeploy-plugin-tiktoolswebkit: missing libxkbcommon-x11.so.0; install libxkbcommon-x11-0 and libxkbcommon-x11-dev" >&2
+  exit 1
+fi
+install -m 0755 "$xkb_libdir/libxkbcommon-x11.so.0" "$xkb_library"
+
+# Deploy XKB and codec dependencies without flattening the plugin directory. This child
 # has no --plugin option, so it cannot invoke this input plugin recursively.
 tiktools_linuxdeploy="$(dirname "${BASH_SOURCE[0]}")/linuxdeploy-x86_64.AppImage"
 if [ ! -x "$tiktools_linuxdeploy" ]; then
   echo "linuxdeploy-plugin-tiktoolswebkit: missing dependency deployer $tiktools_linuxdeploy" >&2
   exit 1
 fi
-"$tiktools_linuxdeploy" --appdir "$APPDIR" --deploy-deps-only "$gst_target" --deploy-deps-only "$scanner_target"
+"$tiktools_linuxdeploy" --appdir "$APPDIR" --deploy-deps-only "$gst_target" --deploy-deps-only "$scanner_target" --deploy-deps-only "$xkb_library"
 
 # Keep the host's Wayland client stack (see the header). Mixed versions make
 # Mesa's EGL initialization fail in the WebKit web process on newer distros.
