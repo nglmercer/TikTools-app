@@ -130,6 +130,24 @@ export async function verifyAppImageWebKit(appDir: string): Promise<void> {
   }
 }
 
+/** dlopen-only X11 keyboard libraries must resolve from the AppImage itself. */
+export async function verifyAppImageXkb(appDir: string): Promise<void> {
+  const libDir = join(appDir, 'usr', 'lib');
+  for (const name of ['libxkbcommon-x11.so.0', 'libxkbcommon.so.0', 'libxcb-xkb.so.1']) {
+    const path = join(libDir, name);
+    // Require packaged files: a symlink to a host library would hide this gap.
+    if (!await lstat(path).then((stat) => stat.isFile(), () => false) || !await isElf(path)) {
+      throw new Error(`AppImage is missing bundled XKB runtime ${name}`);
+    }
+    const dynamic = await run(['readelf', '-d', path], appDir, 15_000);
+    const paths = [...dynamic.matchAll(/\((?:RPATH|RUNPATH)\)[^\n]*\[([^\]]*)\]/g)]
+      .flatMap((match) => match[1]!.split(':'));
+    if (!paths.some((entry) => entry === '$ORIGIN' || entry === '$ORIGIN/.')) {
+      throw new Error(`AppImage XKB runtime ${name} has no sibling-library RPATH`);
+    }
+  }
+}
+
 /** Check Debian-family runtime names without assuming other distributions use them. */
 export function verifyDebDependencies(dependencies: string): void {
   for (const name of ['libgtk-3-0', 'libwebkit2gtk-4.1-0']) {
@@ -159,6 +177,7 @@ export async function verifyInstaller(staging: string, installer: string, format
       await run([installer, '--appimage-extract'], temp);
       await verifyLinuxDesktop(join(temp, 'squashfs-root'));
       await verifyAppImageWebKit(join(temp, 'squashfs-root'));
+      await verifyAppImageXkb(join(temp, 'squashfs-root'));
       const root = join(temp, 'squashfs-root', 'usr');
       // linuxdeploy patches the ELF RPATH, so compare its reported version.
       await checkContents(staging, join(root, 'lib', 'tiktools-desktop'), join(root, 'bin', 'tiktools-desktop'), version, true);
