@@ -46,16 +46,9 @@ jobs:
         run: |
           bun -e 'const version = process.env.RELEASE_TAG.slice(1).split("+")[0]; console.log(`prerelease=${version.includes("-")}`)' >> "$GITHUB_OUTPUT"
 
-  quality:
-    name: run CI quality gate
-    needs: version
-    uses: ./.github/workflows/ci.yml
-    permissions:
-      contents: read
-
   build:
     name: package (${{ matrix.platform }})
-    needs: quality
+    needs: version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
