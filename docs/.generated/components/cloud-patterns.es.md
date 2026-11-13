@@ -10,11 +10,11 @@
 | `beforeLabel` | `string` | Opcional | `undefined` |
 | `afterLabel` | `string` | Opcional | `undefined` |
 | `label` | `string` | Opcional | `undefined` |
-| `switchable` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `switchable` | `boolean` | Opcional | `false` |
 | `context` | `number` | Opcional | `3` |
 | `maxHeight` | `string &#124; number` | Opcional | `undefined` |
 | `maxLines` | `number` | Opcional | `DEFAULT_MAX_LINES` |
-| `sortKeys` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `sortKeys` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 
@@ -26,16 +26,14 @@ Modelos:
 
 Slots: —.
 
-### BasePanel.vue
+### SyncPanel.vue
 
-[Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/panel/BasePanel.vue)
+[Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/features/sync-changes/ui/SyncPanel.vue)
 
 | Propiedad | Tipo | Presencia | Default |
 | --- | --- | --- | --- |
-| `title` | `string` | Obligatoria | `—` |
-| `subtitle` | `string` | Opcional | `undefined / Vue boolean false` |
-| `flush` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `headerLayout` | `'auto' &#124; 'inline' &#124; 'stacked'` | Opcional | `undefined / Vue boolean false` |
+| `adapter` | `SyncAdapter` | Obligatoria | `—` |
+| `preparing` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 
@@ -43,6 +41,6 @@ Sin eventos propios declarados.
 
 Modelos:
 
-Sin v-model propio.
+- `open`: `boolean`, `{ default: false }`
 
-Slots: `leading`, `status`, `actions`, `default`, `footer`.
+Slots: `preparation`.

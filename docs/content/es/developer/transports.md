@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "008f1f03ea7ac38072efb2584c11a75601c1c69c142a2fb5ae8953afba876b02"
-translationRevision: "008f1f03ea7ac38072efb2584c11a75601c1c69c142a2fb5ae8953afba876b02"
+sourceRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
+translationRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
 order: 200
 ---
 
-# Transportes actuales y restricciones de plataforma
+# Transportes actuales y restricciones de plataforma {#current-transports-and-platform-restrictions}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Selecciona el transporte que existe en la compilación y plataforma de destino. Lee [Control API](control-api.md) y [colaboración](collaboration.md). Un transporte lleva operaciones serializadas; no debe crear otro núcleo ni otorgar autoridad por sí mismo.
 
-## Elegir el límite
+## Elegir el límite {#choose-the-boundary}
 
 | Recorrido | Implementación actual | Límite importante |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ Selecciona el transporte que existe en la compilación y plataforma de destino. 
 
 La interfaz TypeScript está en `src/web/shared/api/control-transport.ts`. El transporte de pares no activa implícitamente relays públicos ni descubrimiento de terceros. WebRTC es nativo Rust (`webrtc` 0.21.1), sin depender de `RTCPeerConnection` del navegador en la interfaz del escritorio.
 
-## Inspeccionar la ruta seleccionada
+## Inspeccionar la ruta seleccionada {#inspect-the-selected-route}
 
 Descubre métodos y capacidades del host antes de emparejar o mostrar acciones del controlador:
 
@@ -44,10 +44,10 @@ bun scripts/task.ts test web remote-browser-transport
 
 `tiktools-rtc/src/route.rs` observa el par ICE seleccionado para clasificar conexión directa o relay. El estado listo no demuestra una ruta directa. La señalización/relay Cloud es independiente de la autorización y debe conservar la comprobación de permisos nativos.
 
-## Resultado esperado y estado
+## Resultado esperado y estado {#expected-result-and-status}
 
 IPC local y transporte de escritorio son rutas establecidas. Pares nativos, WebRTC y controlador tienen código y pruebas dirigidas, pero despliegue y aceptación entre equipos siguen experimentales. Los textos que afirman ausencia de pares/relay son históricos. Android admite IPC local; los perfiles remotos persistidos carecen de almacén de credenciales seleccionado y no hay addons/WebView de escritorio.
 
-## Recuperación
+## Recuperación {#recovery}
 
 Una desconexión puede dejar operaciones aceptadas inciertas. Reconectar exige invalidar proyecciones privadas, negociar identidad y reanudar o recargar flujos acotados. No debilites certificados ni vuelvas silenciosamente al propietario local tras un fallo remoto. La [implementación RTC](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) y el grafo real sustituyen planes antiguos.

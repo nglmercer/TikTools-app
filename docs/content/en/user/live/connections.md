@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "642878a380846ff5bf87c9769f203e7223972ccba4152bcfeaa0ab4fd0a443df"
-translationRevision: "642878a380846ff5bf87c9769f203e7223972ccba4152bcfeaa0ab4fd0a443df"
+sourceRevision: "37f7274550d3010051ab456da2a2091b650e5e7aaaf30756b6695435bcfc08c7"
+translationRevision: "37f7274550d3010051ab456da2a2091b650e5e7aaaf30756b6695435bcfc08c7"
 order: 10
 ---
 
-# Manage LIVE connections
+# Manage LIVE connections {#manage-live-connections}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Connect to a specific creator, understand reconnection, and configure plugin servers independently. You need a working [desktop installation](../installation.md), network access, and the creator's handle. Check [requirements](../requirements.md) before diagnosing operating system problems.
 
-## Connect deliberately
+## Connect deliberately {#connect-deliberately}
 
 1. Open **Connections**. Enter the handle, with or without `@`; a display name is not the same identifier.
 2. Start with **Use Cookie** off. If TikTok requires an authorized session, enable it and enter the cookie only in the masked field. Cookies remain in memory; do not paste them into diagnostics or Cloud settings.
@@ -30,10 +30,10 @@ After a successful direct connection, enable monitoring to wait for a creator to
 
 The explorer offers discovered rooms, but results can become stale. Refresh before assuming a room is still available. Plugin server connections in the lower panel configure their own services; a connected plugin does not establish TikTok or Cloud authentication.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 Direct connections, monitoring and plugin connection controls are available. Reconnecting to the same creator preserves the current feed context; changing creator starts another context. Actual TikTok access depends on the upstream room and session, and is not guaranteed by a successful local test.
 
-## Recovery
+## Recovery {#recovery}
 
 For offline rooms, verify that the creator is live. For session or rate-limit errors, follow the reported retry condition. Repeated reconnect clicks do not refresh authentication. Use [troubleshooting](../preferences/troubleshooting.md) to collect the failing component and time without exposing credentials.

@@ -7,15 +7,15 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "656d66181906290b0c7e91071809b03c2182d991fc5b15784e41e43c5544c4bf"
-translationRevision: "656d66181906290b0c7e91071809b03c2182d991fc5b15784e41e43c5544c4bf"
+sourceRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
+translationRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
 ---
 
-# Patrones de overlays
+# Patrones de overlays {#overlay-patterns}
 
 ## Objetivo y requisitos {#purpose}
 
-Edita geometría con controles acotados y muestra una vista SVG local. El gateway nativo y la conexión con OBS requieren la aplicación instalada. Usa el workspace Vue existente con su proveedor i18n. La vista monta los componentes reales en un iframe aislado de la aplicación; el tema documental no carga el CSS global del escritorio.
+Inspecciona el diálogo existente de biblioteca, previews animados locales, estados vacío/carga/error y selector de imagen acotado. El ejemplo no sube el archivo seleccionado. El gateway nativo y la conexión con OBS requieren la aplicación instalada. Usa el workspace Vue existente con su proveedor i18n. La vista monta los componentes reales en un iframe aislado de la aplicación; el tema documental no carga el CSS global del escritorio.
 
 ## Probar el ejemplo {#example}
 

@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7b9c4f341bee3d70a132afc723f43b61146015839ea23cd739008d61f5bb14f2"
-translationRevision: "7b9c4f341bee3d70a132afc723f43b61146015839ea23cd739008d61f5bb14f2"
+sourceRevision: "d061de3feeae9f8cfa6d7e1b5156c7e66795f7e46d64e31f4e2edd933465e52c"
+translationRevision: "d061de3feeae9f8cfa6d7e1b5156c7e66795f7e46d64e31f4e2edd933465e52c"
 ---
 
-# FloatingPanel
+# FloatingPanel {#floatingpanel}
 
 ## Objetivo y requisitos {#purpose}
 

@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9d2f97e5880ef39a26d3afba6d80177ff25f2826cbe3a8ff41c459d7c2a91df9"
-translationRevision: "9d2f97e5880ef39a26d3afba6d80177ff25f2826cbe3a8ff41c459d7c2a91df9"
+sourceRevision: "9a9cbc72991ae221165d8b84e5601a68116d34de7e7e02c44d73642f6ea75911"
+translationRevision: "9a9cbc72991ae221165d8b84e5601a68116d34de7e7e02c44d73642f6ea75911"
 ---
 
-# Splitter and MasterDetail
+# Splitter and MasterDetail {#splitter-and-masterdetail}
 
 ## Purpose and prerequisites {#purpose}
 

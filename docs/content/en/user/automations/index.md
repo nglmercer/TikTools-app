@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ed0812cc38caebe0861f2732f625347dea351ed14cc7d0c985e2b8cf1dbaf7bd"
-translationRevision: "ed0812cc38caebe0861f2732f625347dea351ed14cc7d0c985e2b8cf1dbaf7bd"
+sourceRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
+translationRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
 order: 10
 ---
 
-# Organize automations
+# Organize automations {#organize-automations}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Build a small, understandable library that responds to LIVE events. You need a working desktop host. A real [LIVE connection](../live/connections.md) is needed to validate upstream events; plugin actions also require their plugin and service to be ready.
 
-## Understand the library
+## Understand the library {#understand-the-library}
 
 An **Action** is a reusable configured operation, such as writing a log line or playing a sound. An **Event** chooses a trigger, filters, cooldown and linked actions. A profile groups definitions for a workflow; only one profile pack is active at a time. Runtime [Variables](variables.md) supply values that several actions can reuse.
 
@@ -31,10 +31,10 @@ An **Action** is a reusable configured operation, such as writing a log line or 
 
 Tests can execute the configured effects. Read the selected action list before pressing **Test** or firing an event, especially for audio, HTTP, points and plugin operations. Use logging while learning.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 Local editing, execution, templates, profiles and history are available. Plugin triggers appear only while their supporting plugin is installed and enabled. Imported definitions remain disabled until explicit activation. The Events/Actions **Changes** panel is a [local reference comparison](../cloud/changes.md), not automatic Cloud upload.
 
-## Recovery
+## Recovery {#recovery}
 
 For no run, check active profile, enabled states, trigger, filters, cooldown and missing actions in that order. For a revision conflict, read the current saved definition and review again. Do not overwrite another person's update blindly. Export a known-good [profile](templates.md) before broad changes.

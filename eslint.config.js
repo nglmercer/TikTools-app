@@ -31,7 +31,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/**/*.{js,mjs,cjs,ts,tsx,jsx,vue}'],
+    files: ['src/**/*.{js,mjs,cjs,ts,tsx,jsx,vue}', 'docs/examples/**/*.{ts,vue}', 'docs/.vitepress/theme/**/*.{ts,vue}'],
     languageOptions: {
       globals: globals.browser,
     },
@@ -47,7 +47,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.{js,mjs,cjs,ts,tsx,jsx}', 'vite.config.ts', 'vitest.config.ts'],
+    files: ['scripts/**/*.{js,mjs,cjs,ts,tsx,jsx}', 'docs/scripts/**/*.ts', 'docs/.vitepress/*.ts', 'vite*.config.ts', 'vitest.config.ts'],
     languageOptions: {
       globals: {
         ...globals.node,

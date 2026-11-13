@@ -6,7 +6,7 @@
 | Property | Type | Presence | Default |
 | --- | --- | --- | --- |
 | `tabs` | `readonly TabOption<T>[]` | Required | `—` |
-| `label` | `string` | Optional | `undefined / Vue boolean false` |
+| `label` | `string` | Optional | `undefined` |
 
 Own events (native control attributes are forwarded according to the component):
 

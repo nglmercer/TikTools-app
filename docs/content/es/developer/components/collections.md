@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "09f0e0e4e0a82a220af5834ae37791173e55fd8406b73875b6e12b5609065019"
-translationRevision: "09f0e0e4e0a82a220af5834ae37791173e55fd8406b73875b6e12b5609065019"
+sourceRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
+translationRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
 ---
 
-# Listas y tablas
+# Listas y tablas {#lists-and-tables}
 
 ## Objetivo y requisitos {#purpose}
 

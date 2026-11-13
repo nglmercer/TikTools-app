@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d4e475fe98a36afd316ddf03877384a3b0a376c8ab93b4892d64f66a7671d746"
-translationRevision: "d4e475fe98a36afd316ddf03877384a3b0a376c8ab93b4892d64f66a7671d746"
+sourceRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
+translationRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
 order: 40
 ---
 
-# Frontend layers and data flow
+# Frontend layers and data flow {#frontend-layers-and-data-flow}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Extend the Vue application without coupling a page to native IPC. The frontend uses Vue 3.5, Pinia 4, Vue Router 5 and vue-i18n 11 from the installed workspace ranges. Use the locked dependencies and [setup](setup.md) commands rather than a new frontend scaffold.
 
-## Find the owning layer
+## Find the owning layer {#find-the-owning-layer}
 
 The current Feature-Sliced Design layout is under `src/web/`:
 
@@ -33,7 +33,7 @@ The current Feature-Sliced Design layout is under `src/web/`:
 
 Compose higher layers from lower ones. Keep host calls behind the shared control client; transport selection belongs to bootstrap. The old `src/web/platform` and `src/web/views` locations in legacy articles are historical.
 
-## Implement a focused change
+## Implement a focused change {#implement-a-focused-change}
 
 1. Locate the route in `app/router/routes.ts`, then follow its page to the feature and entity store.
 2. Use an existing shared component for fields, status or dialogs. Preserve its labels, focus behavior and event contract.
@@ -46,7 +46,7 @@ bun scripts/task.ts frontend-lint
 bun scripts/task.ts frontend-build
 ```
 
-## Expected result, status and recovery
+## Expected result, status and recovery {#expected-result-status-and-recovery}
 
 The route renders current host data and retains unsaved edits on conflicts. Rankings has source and a route but remains hidden from normal navigation; do not infer product availability from a component's presence. Native, local-browser and demo bootstrap paths can provide different transports while using the same feature code.
 

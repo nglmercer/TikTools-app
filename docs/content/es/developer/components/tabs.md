@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f36e0070f6432eb4236f0796404db3c1aa1948fc1fbfaff3fa3f30699612f696"
-translationRevision: "f36e0070f6432eb4236f0796404db3c1aa1948fc1fbfaff3fa3f30699612f696"
+sourceRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
+translationRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
 ---
 
-# Pestañas y barras
+# Pestañas y barras {#tabs-and-toolbars}
 
 ## Objetivo y requisitos {#purpose}
 

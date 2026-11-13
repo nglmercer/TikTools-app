@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "66a07fff758de08ce36d8c6494f7b8eb3d56aa1ad30bae5b5eaed42baa11956c"
-translationRevision: "66a07fff758de08ce36d8c6494f7b8eb3d56aa1ad30bae5b5eaed42baa11956c"
+sourceRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
+translationRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
 order: 250
 ---
 
-# Build a first plugin
+# Build a first plugin {#build-a-first-plugin}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Produce a validated package that returns a harmless action summary. Use the repository's matching `tiktools-plugin` devkit and Bun 1.4.4 for TypeScript authoring. Create this sample in a separate development directory; it is an authoring example, not an application dependency change.
 
-## Scaffold and validate
+## Scaffold and validate {#scaffold-and-validate}
 
 From the TikTools checkout, build the author CLI through the task runner:
 
@@ -37,7 +37,7 @@ tiktools-plugin validate --publish
 
 The scaffold creates a schema-v3 manifest, stable publisher-prefixed ID, action descriptor, SDK import and build configuration. Keep runtime `napi-vm`, `apiVersion:1` and the built module entry aligned. The name is historical; current execution uses QuickJS.
 
-## Write and build the guest
+## Write and build the guest {#write-and-build-the-guest}
 
 The generated action can stay entirely inside the typed result boundary:
 
@@ -54,10 +54,10 @@ export default definePlugin({
 
 Install the generated package's declared dependencies in that separate package, then run `tiktools-plugin build --release`. It compiles JavaScript ahead of time and packs an archive. There is no runtime TypeScript transpiler or Node process. The [TypeScript SDK](https://github.com/nglmercer/TikTools-app/blob/remake/packages/plugin-sdk/src/plugin.ts) owns helper signatures; the manifest schema is editor assistance while the host parser remains authoritative.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 `validate` reports compatibility and publication issues; a successful build creates a `.plugin` package with its manifest, entry and integrity metadata. A summary-only action needs no extra host effects. If you add event emission, HTTP or audio, update declarations and review the requested authority before testing.
 
-## Recovery and verification
+## Recovery and verification {#recovery-and-verification}
 
 If the entry is missing, build before packaging and check its manifest-relative path. Do not point the process runtime at uncompiled JavaScript. For local staging, use `tiktools-plugin dev stage --into /absolute/path/dev-plugins` and a private test host configured for that root. Development staging is separate from installation; it does not prove signed registry trust. Continue with [runtime limits](runtimes.md) and [signing](packaging-registry.md) before distributing the sample.

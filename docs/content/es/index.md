@@ -7,11 +7,11 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "e23cbcdf58a3b358a164210d95be22be48de642576f752a68ec38797f3a00fa4"
-translationRevision: "e23cbcdf58a3b358a164210d95be22be48de642576f752a68ec38797f3a00fa4"
+sourceRevision: "f860cd3e027543682f5b9caea326b7d3d3929e5ec545dde59472b53c5a639f38"
+translationRevision: "f860cd3e027543682f5b9caea326b7d3d3929e5ec545dde59472b53c5a639f38"
 ---
 
-# Documentación de TikTools
+# Documentación de TikTools {#tiktools-documentation}
 
 Elige la guía de la tarea que quieres completar. Usuario empieza por binarios publicados; Desarrollo explica la preparación del código y los contratos. La demo utiliza datos ficticios en la interfaz Vue real.
 

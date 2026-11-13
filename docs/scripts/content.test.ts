@@ -25,6 +25,11 @@ describe('public documentation metadata', () => {
   test('does not treat identical English prose as a Spanish translation', () => {
     expect(metadataErrors([article('en', en), article('es', en)]).join('\n')).toContain('untranslated English article');
   });
+  test('preserves equivalent heading fragments when switching languages', () => {
+    const translated = article('es', es);
+    translated.headings[0]!.id = 'instalar';
+    expect(metadataErrors([article('en', en), translated]).join('\n')).toContain('heading anchors differ');
+  });
   test('rejects several main headings and draft public content', () => {
     const draft = article('es', es);
     draft.frontmatter.contentStatus = 'draft';

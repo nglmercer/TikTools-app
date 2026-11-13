@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e8a5f268a9aa929d72578a9f6636533c2326215109c40f779375a8832e39fd70"
-translationRevision: "e8a5f268a9aa929d72578a9f6636533c2326215109c40f779375a8832e39fd70"
+sourceRevision: "20ba9e681b63ffa9aff2ff5d868738d242fd4eab4d520d9e08656760ee8361ba"
+translationRevision: "20ba9e681b63ffa9aff2ff5d868738d242fd4eab4d520d9e08656760ee8361ba"
 order: 40
 ---
 
-# Reutilizar y revisar variables de ejecución
+# Reutilizar y revisar variables de ejecución {#reuse-and-review-runtime-variables}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Cambia una vez un valor compartido y reutilízalo en varias acciones. Necesitas **Automations → Variables** y un host compatible con las operaciones correspondientes. La edición tipada y las operaciones revisadas de Cloud dependen de sus capacidades; guardar localmente no requiere subir datos.
 
-## Guardar un valor local
+## Guardar un valor local {#save-a-local-value}
 
 1. Añade una variable llamada `showLabel`. Las claves comienzan con letra o guion bajo y admiten letras, números, puntos y guiones, hasta `64` caracteres. Evita claves repetidas.
 2. Si está disponible la edición tipada, elige texto e introduce `Programa de la tarde`. También se admiten número, booleano, lista y secreto. Las listas utilizan un arreglo JSON de cadenas, como `["rojo", "azul"]`.
@@ -33,12 +33,12 @@ Cambia una vez un valor compartido y reutilízalo en varias acciones. Necesitas 
 
 Los `params` se sustituyen al aplicar una plantilla; los `globals` se leen durante la ejecución. Una clave ausente produce texto vacío: verifica su escritura antes de usarla como destino o identificador. Las sugerencias del campo ofrecen rutas de evento apropiadas para el disparador.
 
-## Revisar cambios de Cloud por separado
+## Revisar cambios de Cloud por separado {#review-cloud-changes-separately}
 
 El control **Changes** de Variables ofrece operaciones nativas revisadas de envío, consulta, aplicación/adopción y retirada cuando el host las admite. Guarda primero la edición local, selecciona una comparación, inspecciona tipo y valor y elige explícitamente la dirección. Consultar una propuesta de Cloud es distinto de aplicarla localmente. Retirar un valor compartido también es distinto de borrar una fila local.
 
 Los valores secretos o bloqueados se ocultan en las comparaciones y no pueden enviarse mediante esta ruta. No conviertas un secreto en texto ordinario para evitar el bloqueo.
 
-## Resultado esperado, estado y recuperación
+## Resultado esperado, estado y recuperación {#expected-result-status-and-recovery}
 
 Están disponibles las variables locales y el intercambio revisado según capacidades; guardar localmente nunca sube datos automáticamente. Las claves o valores inválidos y las revisiones antiguas bloquean el guardado. Corrige el campo señalado o vuelve a cargar antes de repetir. Para fallos de sesión, consulta [cuenta de Cloud](../cloud/account.md); para comparaciones, [Changes](../cloud/changes.md).

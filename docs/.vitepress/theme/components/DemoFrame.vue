@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue';
+import { computed, onMounted, ref, useId } from 'vue';
 import { useData, withBase } from 'vitepress';
 import { parseDemoOptions } from '../../../../src/web/demo/scenarios.ts';
 
 const props = defineProps<{ scenario: string; locale?: string; route?: string; tour?: string; title: string }>();
 const { lang } = useData();
 const loaded = ref(false);
-const instance = useId().replaceAll(/[^a-zA-Z0-9_-]/g, '_');
+const instance = ref(`docs-${useId().replaceAll(/[^a-zA-Z0-9_-]/g, '_')}`);
+onMounted(() => { instance.value = `docs-${crypto.randomUUID()}`; });
 const es = computed(() => lang.value.startsWith('es'));
 const url = computed(() => {
-  const params = new URLSearchParams({ scenario: props.scenario, locale: props.locale ?? (es.value ? 'es' : 'en'), instance: `docs-${instance}` });
+  const params = new URLSearchParams({ scenario: props.scenario, locale: props.locale ?? (es.value ? 'es' : 'en'), instance: instance.value });
   if (props.route) params.set('route', props.route);
   if (props.tour) params.set('tour', props.tour);
   const valid = parseDemoOptions(params.toString());

@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b7e9f9456c4e6f5abbdbb3858192c39593e5e7393972bab1d2ca2457d63537e6"
-translationRevision: "b7e9f9456c4e6f5abbdbb3858192c39593e5e7393972bab1d2ca2457d63537e6"
+sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
 order: 10
 ---
 
-# Configurar reglas de puntos
+# Configurar reglas de puntos {#configure-point-rules}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Decide cómo la actividad entrante genera tu moneda local y verifica una asignación sencilla. Necesitas TikTools abierto y un creador conocido para la comprobación LIVE posterior. Las reglas de puntos y las acciones de automatización son independientes: una regla puede asignar puntos aunque no hayas creado automatizaciones.
 
-## Definir cómo se obtienen puntos
+## Definir cómo se obtienen puntos {#set-the-earning-policy}
 
 1. Abre **Points** y localiza el panel de reglas. Elige un nombre reconocible para la moneda, por ejemplo `Estrellas`.
 2. Activa únicamente las fuentes deseadas: monedas de regalos, chat, likes, compartidos, seguidores o entradas. Cada fuente tiene su propia tasa e interruptor.
@@ -29,11 +29,11 @@ Decide cómo la actividad entrante genera tu moneda local y verifica una asignac
 
 Las tasas de regalos y likes utilizan las cantidades de contribución recibidas. Por ejemplo, una contribución de `10` likes con una tasa de `0.1` produce `1` punto antes de una bonificación aplicable. Una fila del feed no equivale necesariamente a una unidad de contribución. Cambiar las tasas establece la política de asignaciones posteriores; no esperes que recalcule el pasado.
 
-## Resultado esperado y estado
+## Resultado esperado y estado {#expected-result-and-status}
 
 Están disponibles las reglas locales, los saldos y los controles manuales de añadir o descontar. Con la configuración aislada de chat, un mensaje nuevo aceptado debería aumentar en uno el saldo del espectador. Los niveles siguen el valor de puntos por nivel. Son puntos de la aplicación, sin equivalencia prometida con moneda de TikTok ni pagos.
 
-## Recuperación
+## Recuperación {#recovery}
 
 Comprueba primero el interruptor de la fuente, la tasa guardada y el identificador del espectador. Una automatización que también asigne puntos puede sumar otra asignación. Los reinicios se bloquean durante conexiones LIVE activas o en curso; desconecta antes de reiniciar y lee la confirmación. Conserva una [copia con la aplicación cerrada](../preferences/backups.md) antes de borrar saldos.
 

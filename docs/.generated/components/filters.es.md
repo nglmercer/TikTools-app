@@ -6,7 +6,7 @@
 | Propiedad | Tipo | Presencia | Default |
 | --- | --- | --- | --- |
 | `label` | `string` | Obligatoria | `—` |
-| `count` | `string` | Opcional | `undefined / Vue boolean false` |
+| `count` | `string` | Opcional | `undefined` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 
@@ -24,8 +24,8 @@ Slots: `search`, `default`, `actions`.
 
 | Propiedad | Tipo | Presencia | Default |
 | --- | --- | --- | --- |
-| `disabled` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `indeterminate` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `disabled` | `boolean` | Opcional | `false` |
+| `indeterminate` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 

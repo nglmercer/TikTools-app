@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "951946c8afe780a0fa42a1ee78e8962cdda20b38ebd69332cbdb9e77d9c34acf"
-translationRevision: "951946c8afe780a0fa42a1ee78e8962cdda20b38ebd69332cbdb9e77d9c34acf"
+sourceRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
+translationRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
 order: 280
 ---
 
-# Empaquetado, firmas y registros de plugins
+# Empaquetado, firmas y registros de plugins {#plugin-packaging-signing-and-registries}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Distribuye un paquete cuyos bytes, autoridad del editor y compatibilidad se comprueben por separado. Parte de un plugin validado y un destino admitido. Firmar requiere claves privadas fuera del repositorio; delegar desde la raíz del registro es responsabilidad distinta del operador.
 
-## Preparar un archivo revisable
+## Preparar un archivo revisable {#prepare-a-reviewable-archive}
 
 ```sh
 tiktools-plugin validate --publish
@@ -37,13 +37,13 @@ tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path
 
 Sustituye el nombre por la salida real, incluida su plataforma si corresponde. La firma cubre las sumas, que cubren los archivos. Las claves públicas pueden compartirse; las privadas no deben llegar al código ni a registros.
 
-## Confianza y política de actualización
+## Confianza y política de actualización {#trust-and-update-policy}
 
 El protocolo estático utiliza autoridad firmada por raíz y claves delegadas de índice/editor. Aprobar un espacio de nombres no equivale a verificar integridad; un resumen del catálogo Cloud no reemplaza ninguna cadena. El resolvedor comprueba canal, motor, esquema/protocolo/ABI, runtime y destino. Versiones retiradas, revocadas o incompatibles siguen excluidas aunque coincida su hash.
 
 La instalación muestra primero una revisión. Actualizar automáticamente exige política permitida, paquete sin fijar, editor firmado compatible y ausencia de autoridad nueva; ampliar permisos requiere revisión. Instalar desde catálogo Cloud es distinto de operar registros estáticos y el producto rechaza URLs remotas arbitrarias.
 
-## Resultado esperado, recuperación y verificación
+## Resultado esperado, recuperación y verificación {#expected-result-recovery-and-verification}
 
 El instalador verifica bytes antes de aplicar el paquete revisado y conserva estado de reversión/recuperación. La preparación de desarrollo queda fuera de su gestión. Ante fallos de confianza, corrige delegación o metadatos sin adoptar anulaciones de firma como política habitual. Si el inicio queda incierto, detén sustituciones y reconcilia el resultado.
 

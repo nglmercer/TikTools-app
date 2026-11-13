@@ -2,6 +2,9 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vitepress';
 import { siteConfig } from '../../scripts/lib/site-config.ts';
 import { audienceSidebar } from './navigation.ts';
+import { writeFile } from 'node:fs/promises';
+import { buildProvenance } from '../../scripts/lib/build-provenance.ts';
+import { renderDocSearch } from '../scripts/search-policy.ts';
 
 const site = siteConfig();
 const content = resolve(import.meta.dirname, '../content');
@@ -28,9 +31,10 @@ export default defineConfig({
   themeConfig: {
     siteTitle: 'TikTools', ...theme('en'),
     socialLinks: [{ icon: 'github', link: 'https://github.com/nglmercer/TikTools-app' }],
-    search: { provider: 'local', options: { locales: { es: { translations: { button: { buttonText: 'Buscar', buttonAriaLabel: 'Buscar documentación' }, modal: { displayDetails: 'Mostrar detalles', resetButtonTitle: 'Borrar búsqueda', backButtonTitle: 'Cerrar búsqueda', noResultsText: 'Sin resultados', footer: { selectText: 'seleccionar', selectKeyAriaLabel: 'intro', navigateText: 'navegar', navigateUpKeyAriaLabel: 'flecha arriba', navigateDownKeyAriaLabel: 'flecha abajo', closeText: 'cerrar', closeKeyAriaLabel: 'escape' } } } } } } },
+    search: { provider: 'local', options: { _render: renderDocSearch, locales: { es: { translations: { button: { buttonText: 'Buscar', buttonAriaLabel: 'Buscar documentación' }, modal: { displayDetails: 'Mostrar detalles', resetButtonTitle: 'Borrar búsqueda', backButtonTitle: 'Cerrar búsqueda', noResultsText: 'Sin resultados', footer: { selectText: 'seleccionar', selectKeyAriaLabel: 'intro', navigateText: 'navegar', navigateUpKeyAriaLabel: 'flecha arriba', navigateDownKeyAriaLabel: 'flecha abajo', closeText: 'cerrar', closeKeyAriaLabel: 'escape' } } } } } } },
   },
   sitemap: { hostname: site.url },
+  async buildEnd(config) { await writeFile(resolve(config.outDir, '.build-info.json'), JSON.stringify(buildProvenance('docs')) + '\n'); },
   transformHead({ pageData }) {
     const path = pageData.relativePath.replace(/index\.md$/, '').replace(/\.md$/, '.html');
     const url = new URL(path, site.url).href;

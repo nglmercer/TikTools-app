@@ -8,7 +8,7 @@
 | `items` | `readonly MenuEntry[]` | Obligatoria | `—` |
 | `anchor` | `AnchorTarget &#124; null` | Obligatoria | `—` |
 | `placement` | `Placement` | Opcional | `'bottom-start'` |
-| `focusFirst` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `focusFirst` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 

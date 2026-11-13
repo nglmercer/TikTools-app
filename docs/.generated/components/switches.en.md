@@ -5,7 +5,7 @@
 
 | Property | Type | Presence | Default |
 | --- | --- | --- | --- |
-| `disabled` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `disabled` | `boolean` | Optional | `false` |
 
 Own events (native control attributes are forwarded according to the component):
 

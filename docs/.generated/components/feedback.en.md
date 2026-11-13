@@ -26,7 +26,7 @@ Slots: `default`.
 | Property | Type | Presence | Default |
 | --- | --- | --- | --- |
 | `title` | `string` | Required | `—` |
-| `description` | `string` | Optional | `undefined / Vue boolean false` |
+| `description` | `string` | Optional | `undefined` |
 
 Own events (native control attributes are forwarded according to the component):
 

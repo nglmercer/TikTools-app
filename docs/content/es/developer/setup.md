@@ -7,24 +7,24 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d907aca4a6ab33f86bdd51498fd7607322ebbff9daefb3338bd0c004c06dbfb1"
-translationRevision: "d907aca4a6ab33f86bdd51498fd7607322ebbff9daefb3338bd0c004c06dbfb1"
+sourceRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
+translationRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
 order: 10
 ---
 
-# Preparación y ciclos de desarrollo
+# Preparación y ciclos de desarrollo {#development-setup-and-loops}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Compilar el código actual de `remake` sin modificar el perfil instalado del usuario. Utiliza Bun 1.4.4, indicado en `package.json`, Rust 1.95 o posterior y un Node compatible con el Vite del lockfile: `^20.19.0 || >=22.12.0`. CI usa actualmente Rust 1.99.1. Compilar es distinto de [instalar un binario](../user/installation.md).
 
-## Preparación por plataforma
+## Preparación por plataforma {#platform-setup}
 
 En Windows instala MSVC Build Tools, WebView2 y Strawberry Perl nativo para OpenSSL vendorizado. El wrapper de Cargo detecta MSVC y Perl nativo, respetando los overrides explícitos `OPENSSL_SRC_PERL`/`PERL`. El Perl de MSYS/Cygwin no sirve para esta ruta MSVC. LLVM `lld-link` es opcional.
 
 Para desarrollar el escritorio en Ubuntu 24.04, CI instala `libasound2-dev`, `libappindicator3-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`, `libxdo-dev` y `pkg-config`. Empaquetar AppImage también requiere los metadatos de desarrollo de GStreamer, sus plugins base/good/libav y el scanner. `mold` acelera opcionalmente el enlazado Linux. Android/Termux utiliza un toolchain Android nativo, no esas bibliotecas de escritorio.
 
-## Instalar dependencias
+## Instalar dependencias {#install-dependencies}
 
 ```sh
 git switch remake
@@ -33,7 +33,7 @@ bun ci
 
 Conserva los lockfiles de Bun y Cargo. Utiliza `bun install` sólo al cambiar dependencias intencionalmente. La documentación es un workspace explícito: VitePress estable tiene su dependencia Vite aislada y la aplicación conserva Vite 8. No fuerces ambos a una sola versión mayor.
 
-## Elige un ciclo
+## Elige un ciclo {#choose-a-loop}
 
 ```sh
 bun run start                 # Vite y host de escritorio Wry de desarrollo
@@ -46,7 +46,7 @@ bun scripts/task.ts packaged  # frontend empaquetado, sin URL de desarrollo
 
 Para pruebas nativas aisladas, asigna a `TIKTOOLS_HOME` un directorio descartable antes de iniciar el host. Utiliza el mismo directorio desde las terminales CLI que lo controlan. Nunca elimines un bloqueo de propietario activo.
 
-## Validar y recuperar
+## Validar y recuperar {#validate-and-recover}
 
 ```sh
 bun scripts/task.ts frontend-lint

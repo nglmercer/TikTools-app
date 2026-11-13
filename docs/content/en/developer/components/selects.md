@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e6f4c5dfd68771ef38f21c961a0088748c85a5b42bccf8d40e96734c593425c0"
-translationRevision: "e6f4c5dfd68771ef38f21c961a0088748c85a5b42bccf8d40e96734c593425c0"
+sourceRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
+translationRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
 ---
 
-# ComboBox and SearchSelect
+# ComboBox and SearchSelect {#combobox-and-searchselect}
 
 ## Purpose and prerequisites {#purpose}
 

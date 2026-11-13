@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d4e475fe98a36afd316ddf03877384a3b0a376c8ab93b4892d64f66a7671d746"
-translationRevision: "d4e475fe98a36afd316ddf03877384a3b0a376c8ab93b4892d64f66a7671d746"
+sourceRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
+translationRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
 order: 40
 ---
 
-# Capas y flujo de datos del frontend
+# Capas y flujo de datos del frontend {#frontend-layers-and-data-flow}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Amplía la aplicación Vue sin acoplar una página al IPC nativo. El frontend utiliza Vue 3.5, Pinia 4, Vue Router 5 y vue-i18n 11 según los rangos del workspace. Conserva las dependencias bloqueadas y utiliza las órdenes de [preparación](setup.md) en lugar de crear otro proyecto frontend.
 
-## Encontrar la capa propietaria
+## Encontrar la capa propietaria {#find-the-owning-layer}
 
 La organización actual de Feature-Sliced Design está en `src/web/`:
 
@@ -33,7 +33,7 @@ La organización actual de Feature-Sliced Design está en `src/web/`:
 
 Compón las capas superiores con las inferiores. Las llamadas al host pasan por el cliente compartido; la selección del transporte pertenece al arranque. Las rutas `src/web/platform` y `src/web/views` de artículos antiguos son históricas.
 
-## Implementar un cambio concreto
+## Implementar un cambio concreto {#implement-a-focused-change}
 
 1. Localiza la ruta en `app/router/routes.ts` y sigue su página hasta la funcionalidad y el almacén de entidad.
 2. Usa componentes compartidos existentes para campos, estados y diálogos. Conserva etiquetas, foco y contrato de eventos.
@@ -46,7 +46,7 @@ bun scripts/task.ts frontend-lint
 bun scripts/task.ts frontend-build
 ```
 
-## Resultado esperado, estado y recuperación
+## Resultado esperado, estado y recuperación {#expected-result-status-and-recovery}
 
 La ruta muestra datos actuales y conserva los cambios sin guardar ante conflictos. Rankings tiene código y ruta, pero sigue oculto en la navegación normal; la presencia de un componente no demuestra disponibilidad del producto. Los arranques nativo, de navegador local y de demostración pueden proporcionar transportes distintos al mismo código funcional.
 

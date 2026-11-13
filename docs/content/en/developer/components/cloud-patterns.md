@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "fadb45d2f760db5dcc3355d50ce9025b960cd8038867931e1c3fd6e7194d0f5a"
-translationRevision: "fadb45d2f760db5dcc3355d50ce9025b960cd8038867931e1c3fd6e7194d0f5a"
+sourceRevision: "a5be0a16c34204ad89125df5c698b0334738b85226c6938f9b1be57aab0ff869"
+translationRevision: "a5be0a16c34204ad89125df5c698b0334738b85226c6938f9b1be57aab0ff869"
 ---
 
-# Cloud review patterns
+# Cloud review patterns {#cloud-review-patterns}
 
 ## Purpose and prerequisites {#purpose}
 

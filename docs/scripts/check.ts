@@ -3,10 +3,12 @@ import { dirname, resolve } from 'node:path';
 import { contentRoot, metadataErrors, readArticles } from './content.ts';
 import { migrationErrors } from './migration.ts';
 import { parseDemoOptions } from '../../src/web/demo/scenarios.ts';
+import { checkControlContract } from './control-contract.ts';
 
 const args = process.argv.slice(2);
 if (args.some((arg) => arg !== '--content-only')) throw new Error('usage: bun docs/scripts/check.ts [--content-only]');
 const articles = await readArticles();
+await checkControlContract();
 const errors = metadataErrors(articles);
 const byPath = new Map(articles.map((article) => [article.path, article]));
 let internalLinks = 0;

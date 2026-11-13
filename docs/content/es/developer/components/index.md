@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4e1674bbe699bd18cf2a465bfa4729e45f60705f0e8fd9cd83d7b9fb8f150838"
-translationRevision: "4e1674bbe699bd18cf2a465bfa4729e45f60705f0e8fd9cd83d7b9fb8f150838"
+sourceRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
+translationRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
 order: 290
 ---
 
-# Componentes compartidos y composición de interfaz
+# Componentes compartidos y composición de interfaz {#shared-ui-components-and-composition}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Compón funcionalidades con el kit existente conservando interacción y localización. Usa las herramientas Vue del workspace y lee el [mapa frontend](../frontend.md). Esta página presenta el kit; código, propiedades, pruebas y referencia de cada familia mantienen autoridad sobre su API exacta.
 
-## Encontrar el componente adecuado
+## Encontrar el componente adecuado {#find-the-correct-primitive}
 
 `src/web/shared/ui/` contiene botones, campos de texto/fecha/color, áreas de texto, casillas, interruptores, selectores, pestañas, tablas, formularios, diálogos, estados, alertas y estructura. Los tokens están en `src/web/app/styles/tokens.css`; estilos base y adaptables componen la aplicación. Utilízalos para espaciado, color, tipografía y foco, evitando otro tema por funcionalidad.
 
@@ -43,11 +43,11 @@ const { t } = useI18n();
 
 El formulario contenedor controla envío y validación. `BaseButton` admite `default`, `primary`, `danger` y `ghost`; un color destructivo no constituye confirmación por sí mismo.
 
-## Resultado esperado y estado
+## Resultado esperado y estado {#expected-result-and-status}
 
 Los componentes compartidos implementan comportamiento consistente de teclado, foco y ARIA. La composición necesita revisión: ejemplos de texto no son etiquetas, iconos requieren nombres, deshabilitar debe reflejar la operación actual y los errores asíncronos deben seguir visibles. La ruta de desarrollo del kit demuestra componentes; no es otra funcionalidad del producto ni una prueba de aceptación del backend.
 
-## Verificación y recuperación
+## Verificación y recuperación {#verify-and-recover}
 
 Ejecuta `bun scripts/task.ts test web BaseButton`, la prueba dirigida del componente modificado y `bun scripts/task.ts frontend-lint`. Comprueba anchura estrecha, teclado y etiquetas traducidas. Si un atributo termina en el contenedor en vez del input, revisa `shared/lib/use-split-attrs.ts` y sus pruebas antes de omitir el componente. Consulta [accesibilidad](../i18n-accessibility.md) y el [código de interfaz](https://github.com/nglmercer/TikTools-app/tree/remake/src/web/shared/ui) al adaptar ejemplos de familias.
 

@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b7e9f9456c4e6f5abbdbb3858192c39593e5e7393972bab1d2ca2457d63537e6"
-translationRevision: "b7e9f9456c4e6f5abbdbb3858192c39593e5e7393972bab1d2ca2457d63537e6"
+sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
 order: 10
 ---
 
-# Configure point rules
+# Configure point rules {#configure-point-rules}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Choose how incoming activity earns your local currency, then verify one simple award. You need TikTools running and a known creator for a later LIVE check. Point rules and automation actions are separate: a rule can award points even when you have created no automation.
 
-## Set the earning policy
+## Set the earning policy {#set-the-earning-policy}
 
 1. Open **Points** and locate the rules panel. Choose a recognizable currency name, such as `Stars`.
 2. Enable only the sources you want: coins from gifts, chat, likes, shares, follows or joins. Each source has its own rate and enable switch.
@@ -29,11 +29,11 @@ Choose how incoming activity earns your local currency, then verify one simple a
 
 Gift and like rates use received contribution quantities. For example, a like contribution of `10` at `0.1` points per like yields `1` point before any applicable bonus. A displayed feed row is not necessarily one contribution unit. Changing rates sets the policy for subsequent awards; do not expect it to recalculate the past.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 Local rules, viewer balances and manual add/deduct controls are available. With the isolated chat setup, one accepted new chat should increase its viewer's balance by one. Levels follow the configured points-per-level value. These are local application points, not TikTok currency or a payout promise.
 
-## Recovery
+## Recovery {#recovery}
 
 Check the source enable switch, saved rate and viewer identifier first. An automation that also awards points can add a second award. Reset controls are locked during active/busy LIVE connections; disconnect before a planned reset and read its confirmation. Keep a [closed-app backup](../preferences/backups.md) before clearing accumulated balances.
 

@@ -7,16 +7,16 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ffb1cbe7579915541fc907b15934fad5850b4483acba65764a485f9d083142d0"
-translationRevision: "ffb1cbe7579915541fc907b15934fad5850b4483acba65764a485f9d083142d0"
+sourceRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
+translationRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
 order: 0
 ---
 
-# Develop TikTools
+# Develop TikTools {#develop-tiktools}
 
 TikTools keeps one native AppCore behind typed control operations. Vue renders the desktop, local-browser and controller interfaces; Winit/Wry owns desktop windows. The CLI and SDK use the same operations. Start with the [development setup](setup.md), then choose the smallest loop that covers your change.
 
-## Choose an entry point
+## Choose an entry point {#choose-an-entry-point}
 
 | Work | Entry point | What it establishes |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ TikTools keeps one native AppCore behind typed control operations. Vue renders t
 | Documentation | `bun scripts/task.ts docs dev` | Markdown and isolated VitePress build. |
 | Public demo | Separate demo entry and simulated transport | Fictional deterministic scenarios, not upstream services. |
 
-## Source ownership
+## Source ownership {#source-ownership}
 
 - `crates/tiktools-core`: services, operations and SQLite. It does not depend on a WebView.
 - `crates/tiktools-control-api`: registry, JSON-RPC routing, IPC and discovery.
@@ -36,7 +36,7 @@ TikTools keeps one native AppCore behind typed control operations. Vue renders t
 - `src/automation/contracts/generated`: versioned frontend event contracts generated from Rust. Do not retype these schemas in a demo or guide.
 - `packages`: the existing TypeScript plugin SDK/UI packages. Plugin implementations live in the external plugins repository.
 
-## Contribution boundary
+## Contribution boundary {#contribution-boundary}
 
 Keep native, local-browser, remote-controller and demo entry points explicit. Absence of a native host is an error in a real entry point; it must not silently select a mock. Dispose listeners, subscriptions and timers with the owning scope. Keep Rust/Bun lockfiles and required CI gates intact.
 

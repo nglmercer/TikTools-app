@@ -19,7 +19,14 @@ export const demoRoutes = ['/connections', '/feed', '/automations', '/points', '
 export function validDemoRoute(value: string): boolean {
   if (!value.startsWith('/') || value.startsWith('//') || /[\\#]/.test(value) || [...value].some((character) => character.charCodeAt(0) < 32)) return false;
   const url = new URL(value, 'https://demo.invalid');
-  return demoRoutes.some((route) => url.pathname === route || (route === '/components' && /^\/components\/[a-z-]+$/.test(url.pathname))) && [...url.searchParams].every(([key, value]) => ['tab', 'section', 'view'].includes(key) && /^[a-z-]{1,32}$/.test(value));
+  if (!demoRoutes.some((route) => url.pathname === route || (route === '/components' && /^\/components\/[a-z-]+$/.test(url.pathname)))) return false;
+  if ([...url.searchParams].length > 8) return false;
+  return [...url.searchParams].every(([key, value]) => {
+    if (['tab', 'section', 'view'].includes(key)) return /^[a-z-]{1,32}$/.test(value);
+    if (url.pathname !== '/debug') return false;
+    if (key === 'returnTo') return value.length <= 512 && !value.startsWith('/debug') && validDemoRoute(value);
+    return ['source', 'entity', 'entry'].includes(key) && /^[a-zA-Z0-9_.:-]{0,160}$/.test(value);
+  });
 }
 export function parseDemoOptions(search: string) {
   const params = new URLSearchParams(search);

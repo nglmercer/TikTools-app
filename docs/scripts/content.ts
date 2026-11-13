@@ -78,6 +78,7 @@ export function metadataErrors(articles: readonly Article[]): string[] {
     const counterpart = path.replace(/^(en|es)\//, data.locale === 'en' ? 'es/' : 'en/');
     if (!articles.some((entry) => entry.relativePath === counterpart && entry.frontmatter.translationKey === data.translationKey)) errors.push(`${path}: missing equivalent translation ${counterpart}`);
     if (data.locale === 'es' && article.body === source.body) errors.push(`${path}: untranslated English article`);
+    if (data.locale === 'es' && JSON.stringify(article.headings) !== JSON.stringify(source.headings)) errors.push(`${path}: translated heading anchors differ from the source`);
   }
   return errors;
 }

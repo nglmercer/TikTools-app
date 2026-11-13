@@ -11,6 +11,7 @@ import { OFFICIAL_REGISTRY, remoteSelection } from '@/entities/plugin-package/li
 import ExploreList from '@/features/explore-catalog/ui/ExploreList.vue';
 import ExploreToolbar from '@/features/explore-catalog/ui/ExploreToolbar.vue';
 import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
@@ -48,11 +49,14 @@ const remoteQuery = defineModel<string>('remoteQuery', { default: '' });
 const processorQuery = defineModel<string>('processorQuery', { default: '' });
 
 const { t } = useI18n();
-const guideSteps = computed(() => [
-  { id: 'search', selector: '[data-guide=plugins-search]', title: t('guides.pluginsSearchTitle'), description: t('guides.pluginsSearch') },
-  { id: 'changes', selector: '[data-guide=changes]', title: t('guides.changesTitle'), description: t('guides.changes') },
-  { id: 'install', selector: '[data-guide=plugins-install]', title: t('guides.installTitle'), description: t('guides.install') },
-]);
+const guideCapabilities = useCapabilityStore();
+let installedBeforeRequest = new Set<string>();
+const installRequested = ref(false);
+function requestInstall(): void {
+  installedBeforeRequest = new Set(props.plugins.filter((plugin) => plugin.installed).map((plugin) => plugin.descriptor.id));
+  installRequested.value = true;
+  emit('install-package');
+}
 const moreOpen = ref(false);
 const moreAnchor = ref<HTMLElement | null>(null);
 const moreItems = computed(() => [{ id: 'preferences', label: t('plugins.catalog.preferences'), icon: IconGear }]);
@@ -199,13 +203,14 @@ function openCatalogPlugin(id: string, installed: boolean): void {
               data-guide="plugins-install"
               :aria-label="t('plugins.install.package')"
               :disabled="installDisabled"
-              @click="emit('install-package')"
+              @click="requestInstall"
             >
               {{ t('plugins.install.button') }}
             </BaseButton>
             <GuideButton
-              id="plugins-v1"
-              :steps="guideSteps"
+              tour="plugin"
+              :capabilities="guideCapabilities"
+              :task-state="() => ({ 'plugin.installed': installRequested && plugins.some(plugin => plugin.installed && !installedBeforeRequest.has(plugin.descriptor.id)) })"
             />
             <BaseIconButton
               :label="t('syncChanges.more')"

@@ -8,10 +8,10 @@
 | `type` | `'text' &#124; 'password' &#124; 'search' &#124; 'email' &#124; 'url'` | Opcional | `'text'` |
 | `placeholder` | `string` | Opcional | `undefined` |
 | `size` | `ControlSize` | Opcional | `'md'` |
-| `disabled` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `readonly` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `invalid` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `revealable` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `disabled` | `boolean` | Opcional | `false` |
+| `readonly` | `boolean` | Opcional | `false` |
+| `invalid` | `boolean` | Opcional | `false` |
+| `revealable` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 
@@ -36,8 +36,8 @@ Slots: `prefix`, `suffix`.
 | `suffix` | `string` | Opcional | `undefined` |
 | `size` | `ControlSize` | Opcional | `'md'` |
 | `orientation` | `'vertical' &#124; 'horizontal'` | Opcional | `'vertical'` |
-| `disabled` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `readonly` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `disabled` | `boolean` | Opcional | `false` |
+| `readonly` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 

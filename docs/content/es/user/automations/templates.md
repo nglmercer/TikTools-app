@@ -7,22 +7,22 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a8f48a8f385f19965c6f887a0fe90ca07dc34d65dd65147d529d356c7d896f0b"
-translationRevision: "a8f48a8f385f19965c6f887a0fe90ca07dc34d65dd65147d529d356c7d896f0b"
+sourceRevision: "49bb4d1eb5dff9f267b30e8d0ee693a6dfcb492ff4609d190370e40c72b094ab"
+translationRevision: "49bb4d1eb5dff9f267b30e8d0ee693a6dfcb492ff4609d190370e40c72b094ab"
 order: 50
 ---
 
-# Importar plantillas y administrar perfiles
+# Importar plantillas y administrar perfiles {#import-templates-and-manage-profiles}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Reutiliza una regla revisada o un conjunto de reglas sin activar efectos accidentalmente. Necesitas **Automations**, un archivo JSON o elemento de catálogo confiable y los plugins exigidos por sus acciones. Exporta el perfil actual antes de sustituir una configuración estable.
 
-## Elegir la superficie adecuada
+## Elegir la superficie adecuada {#choose-the-right-surface}
 
 Un documento `.tiktemplate.json` describe un evento y sus acciones. Un `.tikprofile.json` agrupa varias plantillas. Abre el diálogo de plantillas desde Automations para consultar plantillas integradas o propias, su biblioteca Cloud o la importación manual. La barra de perfiles permite crear, seleccionar, exportar e importar perfiles manualmente. **Plugins → Explore** busca plugins; las plantillas y perfiles se administran aquí.
 
-## Revisar e importar
+## Revisar e importar {#review-and-import}
 
 1. Abre el diálogo correspondiente y elige un archivo o pega JSON compatible. Comprueba el nombre preparado y su origen antes de continuar.
 2. Para una plantilla, inspecciona disparador, tipos de acción y parámetros. Para un perfil, revisa también el número de entradas y los parámetros comunes.
@@ -33,10 +33,10 @@ Un documento `.tiktemplate.json` describe un evento y sus acciones. Un `.tikprof
 
 Parámetros como <code v-pre>{{ params.giftName }}</code> se resuelven al aplicar la plantilla. Referencias como <code v-pre>{{ event.user.uniqueId }}</code> permanecen para cada evento; las [variables globales](variables.md) aportan valores compartidos durante la ejecución.
 
-## Resultado esperado y estado
+## Resultado esperado y estado {#expected-result-and-status}
 
 Están disponibles las superficies locales de importación y exportación. La consulta de Cloud requiere capacidad del host, cuenta y servicio. Una vista previa del catálogo no demuestra que funcione el servicio externo de una acción. Si faltan plugins, las definiciones pueden quedar inutilizables hasta instalarlos y configurarlos.
 
-## Recuperación
+## Recuperación {#recovery}
 
 Si el JSON es inválido, sigue los errores del analizador y comprueba el tipo de documento: renombrar cualquier JSON no lo convierte. Ante conflictos de revisión, actualiza la biblioteca antes de repetir. Conserva el perfil exportado conocido y consulta [copias de seguridad](../preferences/backups.md) para los datos que la exportación no incluye.

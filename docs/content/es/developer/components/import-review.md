@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9feefa7ed700a514aa3096f66d03cb1610d4433af87500d029103581f9e972ad"
-translationRevision: "9feefa7ed700a514aa3096f66d03cb1610d4433af87500d029103581f9e972ad"
+sourceRevision: "0d2900f8be78c415674d80b76f48d296eaef1e0bbfe0d5e3754c5f6f904bdc38"
+translationRevision: "0d2900f8be78c415674d80b76f48d296eaef1e0bbfe0d5e3754c5f6f904bdc38"
 ---
 
-# Importación y revisión
+# Importación y revisión {#import-and-review}
 
 ## Objetivo y requisitos {#purpose}
 

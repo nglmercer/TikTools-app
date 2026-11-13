@@ -5,7 +5,7 @@
 
 | Propiedad | Tipo | Presencia | Default |
 | --- | --- | --- | --- |
-| `disabled` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `disabled` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 

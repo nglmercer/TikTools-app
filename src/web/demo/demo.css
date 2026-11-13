@@ -1,0 +1,9 @@
+body { margin: 0; }
+#demo-controls { position: relative; z-index: 100; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; min-height: 44px; background: var(--bg, #24262e); color: var(--text, #eee); border-bottom: 1px solid #626676; font: 13px system-ui, sans-serif; }
+#demo-controls button, #demo-controls select, #demo-controls a { color: inherit; background: transparent; border: 1px solid #717685; padding: 4px 8px; border-radius: 3px; font: inherit; text-decoration: none; }
+#demo-controls option { color: #eee; background: #24262e; }
+#demo-controls :focus-visible { outline: 2px solid #a9c6ff; outline-offset: 2px; }
+#demo-controls small { flex-basis: 100%; }
+#demo-controls output { display: none; }
+#app { height: calc(100dvh - 92px); min-height: 300px; }
+@media (max-width: 600px) { #app { height: calc(100dvh - 150px); } }

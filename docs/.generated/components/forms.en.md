@@ -6,12 +6,12 @@
 | Property | Type | Presence | Default |
 | --- | --- | --- | --- |
 | `label` | `string` | Required | `—` |
-| `for` | `string` | Optional | `undefined / Vue boolean false` |
-| `hint` | `string` | Optional | `undefined / Vue boolean false` |
-| `error` | `string` | Optional | `undefined / Vue boolean false` |
-| `required` | `boolean` | Optional | `undefined / Vue boolean false` |
-| `stacked` | `boolean` | Optional | `undefined / Vue boolean false` |
-| `group` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `for` | `string` | Optional | `undefined` |
+| `hint` | `string` | Optional | `undefined` |
+| `error` | `string` | Optional | `undefined` |
+| `required` | `boolean` | Optional | `false` |
+| `stacked` | `boolean` | Optional | `false` |
+| `group` | `boolean` | Optional | `false` |
 
 Own events (native control attributes are forwarded according to the component):
 

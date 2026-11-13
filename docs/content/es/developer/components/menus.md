@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "21146c51ffc85d65c198467e0ea40b0456109c96a082932442cbfcb9ea905bae"
-translationRevision: "21146c51ffc85d65c198467e0ea40b0456109c96a082932442cbfcb9ea905bae"
+sourceRevision: "9da10089b4e61005dba26f1fc5e4e4f61ce9d2a4c511fc40083c4e78d5ee7621"
+translationRevision: "9da10089b4e61005dba26f1fc5e4e4f61ce9d2a4c511fc40083c4e78d5ee7621"
 ---
 
-# Menús
+# Menús {#menus}
 
 ## Objetivo y requisitos {#purpose}
 

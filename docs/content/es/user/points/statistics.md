@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d5dbbb56264f471438c1a7038b46630490c409388010a946b01cc0b4ff82bd47"
-translationRevision: "d5dbbb56264f471438c1a7038b46630490c409388010a946b01cc0b4ff82bd47"
+sourceRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
+translationRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
 order: 20
 ---
 
-# Consultar estadísticas por fechas
+# Consultar estadísticas por fechas {#review-statistics-across-dates}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Compara la actividad de un creador durante un período útil y comprende por qué sus totales difieren del feed visible o del saldo de puntos. Necesitas actividad registrada en la instalación local y el creador correcto seleccionado desde [Connections](../live/connections.md). El inicio de sesión en Cloud no proporciona estas estadísticas locales.
 
-## Consultar el período registrado
+## Consultar el período registrado {#query-the-recorded-period}
 
 1. Abre **Analytics** y confirma el creador junto a los controles de fecha. El creador seleccionado determina qué agregados guardados se consultan.
 2. Elige **Today**, `7d`, `30d`, `90d` o un rango personalizado. Para fechas personalizadas, establece inicio y fin explícitamente y comprueba su orden.
@@ -29,11 +29,11 @@ Compara la actividad de un creador durante un período útil y comprende por qu�
 
 La página actual llama a la operación nativa `analytics.summary` con un creador y un intervalo. Lee agregados persistentes, incluidas sesiones registradas previamente; no se limita a los eventos que permanecen en el feed actual. La base de estadísticas guarda agregados y no una transcripción del chat.
 
-## Resultado esperado y estado
+## Resultado esperado y estado {#expected-result-and-status}
 
 Están disponibles las estadísticas locales persistentes y las consultas por fechas. Es normal que períodos sin actividad devuelvan resultados vacíos. Los saldos pueden diferir porque las [tasas](rules.md), los ajustes manuales y las automatizaciones miden otra cosa. Diamantes, número de regalos y puntos no son unidades intercambiables.
 
-## Recuperación
+## Recuperación {#recovery}
 
 Si faltan datos, borra la búsqueda, amplía las fechas, confirma el creador y actualiza. Ante un error del host, conserva su código de diagnóstico y repite cuando se recupere la conexión. Vaciar el feed no borra estadísticas. Un directorio de datos nuevo no contiene historial anterior; consulta [copias de seguridad](../preferences/backups.md) para trasladar una instalación.
 

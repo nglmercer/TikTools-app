@@ -6,9 +6,9 @@
 | Propiedad | Tipo | Presencia | Default |
 | --- | --- | --- | --- |
 | `title` | `string` | Obligatoria | `—` |
-| `subtitle` | `string` | Opcional | `undefined / Vue boolean false` |
-| `flush` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `headerLayout` | `'auto' &#124; 'inline' &#124; 'stacked'` | Opcional | `undefined / Vue boolean false` |
+| `subtitle` | `string` | Opcional | `undefined` |
+| `flush` | `boolean` | Opcional | `false` |
+| `headerLayout` | `'auto' &#124; 'inline' &#124; 'stacked'` | Opcional | `undefined` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 

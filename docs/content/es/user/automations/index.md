@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ed0812cc38caebe0861f2732f625347dea351ed14cc7d0c985e2b8cf1dbaf7bd"
-translationRevision: "ed0812cc38caebe0861f2732f625347dea351ed14cc7d0c985e2b8cf1dbaf7bd"
+sourceRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
+translationRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
 order: 10
 ---
 
-# Organizar automatizaciones
+# Organizar automatizaciones {#organize-automations}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Construye una biblioteca pequeña y comprensible que responda a eventos LIVE. Necesitas el host de escritorio funcionando. Una [conexión LIVE](../live/connections.md) real permite validar eventos externos; las acciones de plugins también requieren su plugin y servicio preparados.
 
-## Comprender la biblioteca
+## Comprender la biblioteca {#understand-the-library}
 
 Una **Action** es una operación reutilizable configurada, como escribir una línea o reproducir sonido. Un **Event** elige disparador, filtros, espera y acciones vinculadas. Un perfil agrupa definiciones para un flujo de trabajo; solo hay un paquete de perfil activo a la vez. Las [Variables](variables.md) proporcionan valores reutilizables por varias acciones.
 
@@ -31,10 +31,10 @@ Una **Action** es una operación reutilizable configurada, como escribir una lí
 
 Las pruebas pueden ejecutar los efectos configurados. Lee la lista seleccionada antes de pulsar **Test** o disparar un evento, especialmente si incluye audio, HTTP, puntos o plugins. Aprende primero con registros.
 
-## Resultado esperado y estado
+## Resultado esperado y estado {#expected-result-and-status}
 
 Están disponibles la edición local, la ejecución, las plantillas, los perfiles y el historial. Los disparadores de plugins aparecen mientras su plugin está instalado y activo. Las definiciones importadas permanecen desactivadas hasta su activación explícita. **Changes** en Eventos/Acciones es una [comparación local](../cloud/changes.md), sin subida automática a Cloud.
 
-## Recuperación
+## Recuperación {#recovery}
 
 Si no se ejecuta, comprueba perfil activo, interruptores, disparador, filtros, espera y acciones ausentes, en ese orden. Ante un conflicto de revisión, vuelve a leer la definición guardada y revísala. Evita sobrescribir a ciegas cambios ajenos. Exporta un [perfil](templates.md) conocido antes de modificaciones amplias.

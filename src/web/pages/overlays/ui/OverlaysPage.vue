@@ -9,6 +9,7 @@ import { gatewayTone, isOverlayKind, overlayKinds } from '@/entities/overlay/lib
 import { useOverlaysStore } from '@/entities/overlay/model/overlays-store.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { useDesignEditor } from '@/features/edit-overlay-design/model/use-design-editor.ts';
+import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
 import DesignInspector from '@/features/edit-overlay-design/ui/DesignInspector.vue';
 import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
@@ -125,12 +126,20 @@ onBeforeUnmount(() => store.dispose());
 </script>
 
 <template>
-  <div class="overlays-page">
+  <div
+    class="overlays-page"
+    data-guide-scope="overlays"
+  >
     <header class="overlays-page__toolbar">
       <div class="overlays-page__heading">
         <IconLayers /><h1>{{ t('navigation.overlays') }}</h1>
       </div>
       <div class="overlays-page__actions">
+        <GuideButton
+          tour="overlay"
+          :capabilities="capabilities"
+          :task-state="() => ({ 'overlay.previewed': saved })"
+        />
         <BaseButton
           v-if="cloudAvailable"
           :aria-label="t('overlays.cloud')"
@@ -145,6 +154,7 @@ onBeforeUnmount(() => store.dispose());
       </div>
       <span
         class="overlays-page__gateway"
+        data-guide="overlay-gateway"
         :class="`overlays-page__gateway--${tone}`"
         role="status"
         :title="gatewayHint || undefined"
@@ -217,11 +227,13 @@ onBeforeUnmount(() => store.dispose());
         </BaseList>
       </BasePanel>
       <OverlayPreviewPanel
+        data-guide="overlay-preview"
         class="overlays-page__preview"
         :kind="kind"
         :design="editor.draft.value"
       />
       <DesignInspector
+        data-guide="overlay-design"
         class="overlays-page__inspector"
         :editor="editor"
         :saving="saving"

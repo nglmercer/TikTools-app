@@ -7,11 +7,11 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "46d125f2f25331f334bae523fd0e022207ecdc0a85aabd5e282a05ace016a4fd"
-translationRevision: "46d125f2f25331f334bae523fd0e022207ecdc0a85aabd5e282a05ace016a4fd"
+sourceRevision: "b063a84f44d6bfcdec8143cd88d520bd375a52192c6073389920843d53016ffb"
+translationRevision: "b063a84f44d6bfcdec8143cd88d520bd375a52192c6073389920843d53016ffb"
 ---
 
-# Versiones y canales
+# Versiones y canales {#releases-and-channels}
 
 Consulta las notas antes de cambiar de versión. La lista de GitHub distingue las versiones publicadas, estables y preliminares. Una etiqueta de código no garantiza que sus instaladores ya estén publicados.
 

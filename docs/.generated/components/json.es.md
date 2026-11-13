@@ -8,13 +8,13 @@
 | `value` | `unknown` | Opcional | `undefined` |
 | `source` | `string` | Opcional | `undefined` |
 | `label` | `string` | Opcional | `undefined` |
-| `lineNumbers` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `switchable` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `lineNumbers` | `boolean` | Opcional | `false` |
+| `switchable` | `boolean` | Opcional | `false` |
 | `copyable` | `boolean` | Opcional | `true` |
 | `maxHeight` | `string &#124; number` | Opcional | `undefined` |
 | `maxLines` | `number` | Opcional | `DEFAULT_MAX_LINES` |
 | `maxChars` | `number` | Opcional | `DEFAULT_MAX_CHARS` |
-| `sortKeys` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `sortKeys` | `boolean` | Opcional | `false` |
 | `treeDepth` | `number` | Opcional | `DEFAULT_TREE_DEPTH` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
@@ -39,11 +39,11 @@ Slots: —.
 | `beforeLabel` | `string` | Opcional | `undefined` |
 | `afterLabel` | `string` | Opcional | `undefined` |
 | `label` | `string` | Opcional | `undefined` |
-| `switchable` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `switchable` | `boolean` | Opcional | `false` |
 | `context` | `number` | Opcional | `3` |
 | `maxHeight` | `string &#124; number` | Opcional | `undefined` |
 | `maxLines` | `number` | Opcional | `DEFAULT_MAX_LINES` |
-| `sortKeys` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `sortKeys` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 

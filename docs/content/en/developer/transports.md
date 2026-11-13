@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "008f1f03ea7ac38072efb2584c11a75601c1c69c142a2fb5ae8953afba876b02"
-translationRevision: "008f1f03ea7ac38072efb2584c11a75601c1c69c142a2fb5ae8953afba876b02"
+sourceRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
+translationRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
 order: 200
 ---
 
-# Current transports and platform restrictions
+# Current transports and platform restrictions {#current-transports-and-platform-restrictions}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Select the transport that actually exists for the target build and platform. Read [Control API](control-api.md) and [collaboration](collaboration.md). A transport carries serialized operations; it must not introduce a second core or grant authority by itself.
 
-## Choose the boundary
+## Choose the boundary {#choose-the-boundary}
 
 | Path | Current implementation | Important limit |
 | --- | --- | --- |
@@ -31,7 +31,7 @@ Select the transport that actually exists for the target build and platform. Rea
 
 The TypeScript transport interface lives at `src/web/shared/api/control-transport.ts`. Native peer configuration does not implicitly enable public third-party relays or discovery. WebRTC is Rust-native (`webrtc` 0.21.1), not a dependency on browser `RTCPeerConnection` in the desktop UI.
 
-## Inspect the selected route
+## Inspect the selected route {#inspect-the-selected-route}
 
 Discover the connected host's supported methods and capabilities before pairing or displaying a controller action:
 
@@ -44,10 +44,10 @@ bun scripts/task.ts test web remote-browser-transport
 
 `tiktools-rtc/src/route.rs` observes the selected ICE candidate pair to classify direct versus relay. Ready state alone cannot prove a direct route. Cloud signaling/relay plumbing is separate from business authorization and must retain native grant checks.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 Local IPC and desktop transport are established paths. Native peer, WebRTC and controller integration have source and focused tests, but deployment and multi-PC acceptance remain experimental. Legacy text claiming there is no peer/relay implementation is historical. Android local IPC works; persistent remote profiles have no selected credential store, and desktop native addons/WebViews remain unavailable there.
 
-## Recovery
+## Recovery {#recovery}
 
 Treat disconnect as possible uncertainty for accepted operations. Reconnect must invalidate private projections, renegotiate identity and resume or snapshot bounded streams. Never downgrade certificate checks or fall back silently to a local owner after remote failure. The [RTC implementation](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) and actual feature graph supersede older transport plans.

@@ -16,28 +16,46 @@ Source commit: `80c5cb1fbfa45eaeb1c086c71320a15e565d8541`. Branch: `feat/docs-si
 
 - Python provenance/coverage audit passed: 71 document hashes, 11 image hashes, 11 unchanged originals, 695 explicit inventory anchors, one H1 per rewritten document, 939 link treatments, all original document/image archive targets present.
 - `git diff --check -- README.md CONTRIBUTING.md docs` passed.
-- `bun scripts/task.ts docs check` passed against the then-present 117 public articles, 909 internal links/images and 73 external links. Public article counts can change as the parent and content owners finish integration.
+- `bun scripts/task.ts docs check` passed against the then-present 117 public articles, 909 internal links/images and 73 external links. The final primary check passed with 159 articles and 1,255 internal links/images, verified 17 component families and 291 RPC methods, and passed documentation types.
 - No Cargo build, native GUI, production request or real account was used. External URL availability was not probed.
 
 ## Parent reconciliation
 
-- The eight per-version release destinations below are parent-owned and were not present at this snapshot. Their EN/ES slugs are fixed in the map. The release index exists.
+- All eight per-version release pages are now complete in EN/ES under the newly assigned scope. All 118 migration destinations exist. RC3 is identified as a published prerelease; 4.2.2 remains unpublished after Linux packaging failure, with compilation/CI green and recovery ongoing.
 - Archived source-code links remain verbatim and can point outside the archive tree. Their 32 exact-commit permalinks are recorded in `linkTreatment.originalLinks[].historicalTarget`; code snapshots were not copied or substituted for the required document/image archive.
 - Publication of the website, update feeds and 4.2.2 artifacts was not verified or claimed. The old 4.2.2 source prose is retained only as historical evidence.
 - The parent owns any published website aliases, release status, site task runner, assembly, preview, VitePress configuration, demo and public article corrections.
 
-- `docs/content/en/releases/4.2.1-rc.1.md`
-- `docs/content/en/releases/4.2.1-rc.2.md`
-- `docs/content/en/releases/4.2.1-rc.3.md`
-- `docs/content/en/releases/4.2.2.md`
-- `docs/content/es/releases/4.2.1-rc.1.md`
-- `docs/content/es/releases/4.2.1-rc.2.md`
-- `docs/content/es/releases/4.2.1-rc.3.md`
-- `docs/content/es/releases/4.2.2.md`
+
+
+## Site and release-feed publication handoff
+
+The second assigned scope adds `scripts/publish-site.ts`, its focused tests and `.github/workflows/site.yml`, and updates only the **Publish update feed** step in `.github/workflows/release.yml`. It does not alter the release environment, packaging, signing, immutable uploads or the existing frontend CI workflow. These four files are intended for the parent's publication block, separately from the 164 primary documentation paths below. Total assigned changed paths: **168**.
+
+Both writers use one bounded CAS/reapply driver and normal fast-forward pushes. A conflict reconstructs only the writer's authorized overlay from the current branch, rather than applying an old checkout or snapshot. Site writes/removals are limited to exact-hash manifest ownership; protected update paths, CNAME, `.nojekyll`, foreign blobs and their modes remain inherited. Dirty artifacts, wrong base/source revision, unlisted files, symlinks and implicit adoption of legacy paths are rejected. A reviewed ownership seed is supported for the first legacy migration.
+
+The feed writer authenticates candidate artifacts and current channel heads through the existing `stage-update-channels.ts` on every retry. Its overlay can touch only stable/beta JSON plus their signatures. It rejects downgrade, same-version byte rewrites, incomplete pairs and foreign paths, and preserves unselected channels byte for byte. Site publication has no permanent disabled guard: it requires workflow_dispatch, the explicit publish input, the remake ref, a verified build artifact and authorized credentials for RELEASE_REPO. No workflow was dispatched and no production Git remote was read or written.
+
+### Publication verification actually run
+
+- `bun test ./scripts/publish-site.test.ts`: **37 passed**, including real temporary Git conflicts in both directions, exact JSON/signature preservation, foreign file modes, no-op replay, lost push acknowledgement, bounded conflicts and rejection cases. All test remotes are temporary local bare repositories.
+- Targeted TypeScript passed with strict mode, unchecked-index checking and unused-symbol checking. Publisher ESLint passed with zero warnings.
+- Both workflow files parsed as YAML. `git diff --check` passed for the assigned scope.
+- `bun scripts/task.ts docs test` passed its then-current six Bun metadata regressions. The parent subsequently expanded that task to demo/help units and focused Playwright; that expanded suite and the assembled browser artifact remain parent integration checks.
+- `bun scripts/task.ts docs check` passed the final 159-article content/migration check, generated-reference check (17 families/291 methods) and docs TypeScript.
+- One global `vue-tsc --noEmit` run failed in the parent-owned `src/web/demo/runtime/host.ts:149`: `queued` was used where the transport exposed `queuedResponses`. This report records that observed result; the file was not edited here.
+- No Cargo build, production signature verification, real account, native GUI, GitHub Actions execution or live publication was performed. Feed cryptographic verification remains in the unchanged existing signing/staging pipeline; new Git-conflict tests inject authenticated fixture pairs.
+
+### Publication changed paths
+
+- [scripts/publish-site.ts](../../../scripts/publish-site.ts)
+- [scripts/publish-site.test.ts](../../../scripts/publish-site.test.ts)
+- [.github/workflows/site.yml](../../../.github/workflows/site.yml)
+- [.github/workflows/release.yml](../../../.github/workflows/release.yml)
 
 ## Every changed path in the primary scope
 
-156 paths: 71 rewritten files and 85 additions. Original image paths are preserved, not changed.
+164 primary paths: 71 rewritten files and 93 additions, including eight complete localized release notes. Original image paths are preserved, not changed.
 
 - [CONTRIBUTING.md](../../../CONTRIBUTING.md)
 - [README.md](../../../README.md)
@@ -195,3 +213,11 @@ Source commit: `80c5cb1fbfa45eaeb1c086c71320a15e565d8541`. Branch: `feat/docs-si
 - [docs/ui/tts-playback/README.md](../../ui/tts-playback/README.md)
 - [docs/ui/tts-redesign/README.md](../../ui/tts-redesign/README.md)
 - [docs/universal-widgets.md](../../universal-widgets.md)
+- [docs/content/en/releases/4.2.1-rc.1.md](../../content/en/releases/4.2.1-rc.1.md)
+- [docs/content/en/releases/4.2.1-rc.2.md](../../content/en/releases/4.2.1-rc.2.md)
+- [docs/content/en/releases/4.2.1-rc.3.md](../../content/en/releases/4.2.1-rc.3.md)
+- [docs/content/en/releases/4.2.2.md](../../content/en/releases/4.2.2.md)
+- [docs/content/es/releases/4.2.1-rc.1.md](../../content/es/releases/4.2.1-rc.1.md)
+- [docs/content/es/releases/4.2.1-rc.2.md](../../content/es/releases/4.2.1-rc.2.md)
+- [docs/content/es/releases/4.2.1-rc.3.md](../../content/es/releases/4.2.1-rc.3.md)
+- [docs/content/es/releases/4.2.2.md](../../content/es/releases/4.2.2.md)

@@ -1,4 +1,4 @@
-import { readFile, access } from 'node:fs/promises';
+import { readFile, access, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve, relative } from 'node:path';
 interface Original { source: string; sha256: string; anchors?: string[] }
@@ -12,6 +12,15 @@ export async function migrationErrors(root: string): Promise<string[]> {
   if (migration.sourceCommit !== inventory.sourceCommit) errors.push('Migration provenance commit changed.');
   const entries = new Map(migration.entries.map((entry) => [entry.source, entry]));
   if (entries.size !== migration.entries.length) errors.push('Duplicate migration sources.');
+  async function legacyDocuments(directory: string): Promise<void> {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (['content', 'internal', 'node_modules', '.vitepress', '.generated', 'examples', 'contracts', 'scripts'].includes(entry.name)) continue;
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) await legacyDocuments(path);
+      else if (entry.name.endsWith('.md') && !entries.has(relative(root, path).replaceAll('\\', '/'))) errors.push(`Unmapped legacy document: ${relative(root, path)}`);
+    }
+  }
+  await legacyDocuments(resolve(root, 'docs'));
   const safePath = (path: string) => { const target = resolve(root, path); if (relative(root, target).startsWith('..')) throw new Error('Migration path escapes repository.'); return target; };
   for (const document of inventory.documents) {
     const entry = entries.get(document.source);

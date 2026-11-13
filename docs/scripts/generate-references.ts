@@ -15,7 +15,7 @@ const cell = (value: string) => '`' + value.replaceAll('|', '&#124;').replaceAll
 for (const [family, definition] of Object.entries(componentFamilies)) {
   const apis: Array<{ path: string; props: string[][]; events: string[][]; models: string[][]; slots: string[] }> = [];
   for (const name of definition.components) {
-    const path = `src/web/shared/ui/${name}.vue`;
+    const path = name.startsWith('@') ? `src/web/${name.slice(1)}.vue` : `src/web/shared/ui/${name}.vue`;
     const source = await readFile(resolve(root, path), 'utf8');
     const { descriptor } = parse(source);
     const script = ts.createSourceFile(path + '.ts', descriptor.scriptSetup?.content ?? descriptor.script?.content ?? '', ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -34,7 +34,7 @@ for (const [family, definition] of Object.entries(componentFamilies)) {
       ts.forEachChild(node, visit);
     }
     visit(script);
-    for (const prop of props) prop.push(defaults.get(prop[0]!) ?? (prop[2] === 'required' ? '—' : 'undefined / Vue boolean false'));
+    for (const prop of props) prop.push(defaults.get(prop[0]!) ?? (prop[2] === 'required' ? '—' : prop[1] === 'boolean' ? 'false' : 'undefined'));
     const slots = [...new Set([...(descriptor.template?.content ?? '').matchAll(/<slot\b([^>]*)/g)].map((match) => /\bname="([^"]+)"/.exec(match[1]!)?.[1] ?? (/\b:name=/.test(match[1]!) ? 'dynamic' : 'default')))];
     apis.push({ path, props, events, models, slots });
   }

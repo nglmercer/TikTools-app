@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "bed1f1ddc5f283b7f5323c831a7342bda1d91c8c2ec02bb39accacedaf75ef76"
-translationRevision: "bed1f1ddc5f283b7f5323c831a7342bda1d91c8c2ec02bb39accacedaf75ef76"
+sourceRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e0636475d"
+translationRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e0636475d"
 ---
 
-# Paneles y diálogos
+# Paneles y diálogos {#panels-and-dialogs}
 
 ## Objetivo y requisitos {#purpose}
 

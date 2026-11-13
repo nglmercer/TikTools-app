@@ -7,16 +7,16 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ffb1cbe7579915541fc907b15934fad5850b4483acba65764a485f9d083142d0"
-translationRevision: "ffb1cbe7579915541fc907b15934fad5850b4483acba65764a485f9d083142d0"
+sourceRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
+translationRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
 order: 0
 ---
 
-# Desarrollar TikTools
+# Desarrollar TikTools {#develop-tiktools}
 
 TikTools mantiene un único AppCore nativo detrás de operaciones de control tipadas. Vue representa las interfaces de escritorio, navegador local y controller; Winit/Wry administra las ventanas nativas. CLI y SDK utilizan las mismas operaciones. Empieza por la [preparación de desarrollo](setup.md) y elige el ciclo mínimo que cubra tu cambio.
 
-## Elige una entrada
+## Elige una entrada {#choose-an-entry-point}
 
 | Trabajo | Entrada | Qué comprueba |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ TikTools mantiene un único AppCore nativo detrás de operaciones de control tip
 | Documentación | `bun scripts/task.ts docs dev` | Markdown y build aislado de VitePress. |
 | Demo pública | Entrada propia y transporte simulado | Escenarios ficticios deterministas, no servicios externos. |
 
-## Responsabilidad del código
+## Responsabilidad del código {#source-ownership}
 
 - `crates/tiktools-core`: servicios, operaciones y SQLite. No depende de una WebView.
 - `crates/tiktools-control-api`: registro, JSON-RPC, IPC y descubrimiento.
@@ -36,7 +36,7 @@ TikTools mantiene un único AppCore nativo detrás de operaciones de control tip
 - `src/automation/contracts/generated`: contratos de eventos versionados para el frontend, generados desde Rust. No vuelvas a escribir esos schemas en la demo o las guías.
 - `packages`: SDK y componentes TypeScript existentes para plugins. Sus implementaciones viven en el repositorio externo de plugins.
 
-## Límites de contribución
+## Límites de contribución {#contribution-boundary}
 
 Mantén explícitas las entradas nativa, de navegador local, controller remoto y demo. La ausencia del host nativo debe producir un error en una entrada real; nunca debe activar un mock silenciosamente. Libera listeners, suscripciones y temporizadores con su scope propietario. Conserva los lockfiles de Rust/Bun y los checks obligatorios de CI.
 

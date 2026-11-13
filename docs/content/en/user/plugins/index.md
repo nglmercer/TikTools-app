@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a47f15cc883d413091565a8e3f52ea96c44f6aafd730efc7aa3d6d54c5448e54"
-translationRevision: "a47f15cc883d413091565a8e3f52ea96c44f6aafd730efc7aa3d6d54c5448e54"
+sourceRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
+translationRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
 order: 10
 ---
 
-# Install and manage plugins
+# Install and manage plugins {#install-and-manage-plugins}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Add an integration, review its requested access and confirm that its actions are usable. You need a desktop package compatible with the plugin's operating system, architecture and host version. Remote catalog and download operations require network access; some account-based services also require [Cloud sign-in](../cloud/account.md).
 
-## Review before enabling
+## Review before enabling {#review-before-enabling}
 
 1. Open **Plugins** and inspect Installed, Explore or Updates. Explore requests plugin entries only. Find automation templates and profiles in [Automations](../automations/templates.md).
 2. Select a plugin to inspect its description, version, compatibility and runtime. Check the publisher and requested capabilities or permissions rather than trusting a familiar display name alone.
@@ -29,11 +29,11 @@ Add an integration, review its requested access and confirm that its actions are
 
 Plugins can run native code or separate processes. A process boundary can isolate a crash, but it is not an operating system sandbox. Install software from publishers you trust. A valid signature identifies reviewed package provenance; it does not make every effect appropriate for your workflow.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 Package review, installation jobs, plugin preferences and version management are available. Actual actions depend on the installed manifest, host capabilities and external service. Event processors have their own panel and can add optional analysis fields to events; raw fields remain distinct.
 
-## Recovery
+## Recovery {#recovery}
 
 For installation failure, read the job error for compatibility, signature, runtime or download problems. Do not weaken verification just to clear an error. If an update causes trouble, inspect retained versions and use rollback where available. Review dependent automations before disabling or uninstalling a plugin. Keep [backups](../preferences/backups.md) of plugin data and configuration before removing them.
 

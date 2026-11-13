@@ -10,11 +10,11 @@
 | `beforeLabel` | `string` | Optional | `undefined` |
 | `afterLabel` | `string` | Optional | `undefined` |
 | `label` | `string` | Optional | `undefined` |
-| `switchable` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `switchable` | `boolean` | Optional | `false` |
 | `context` | `number` | Optional | `3` |
 | `maxHeight` | `string &#124; number` | Optional | `undefined` |
 | `maxLines` | `number` | Optional | `DEFAULT_MAX_LINES` |
-| `sortKeys` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `sortKeys` | `boolean` | Optional | `false` |
 
 Own events (native control attributes are forwarded according to the component):
 
@@ -26,16 +26,14 @@ Models:
 
 Slots: —.
 
-### BasePanel.vue
+### SyncPanel.vue
 
-[Source](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/panel/BasePanel.vue)
+[Source](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/features/sync-changes/ui/SyncPanel.vue)
 
 | Property | Type | Presence | Default |
 | --- | --- | --- | --- |
-| `title` | `string` | Required | `—` |
-| `subtitle` | `string` | Optional | `undefined / Vue boolean false` |
-| `flush` | `boolean` | Optional | `undefined / Vue boolean false` |
-| `headerLayout` | `'auto' &#124; 'inline' &#124; 'stacked'` | Optional | `undefined / Vue boolean false` |
+| `adapter` | `SyncAdapter` | Required | `—` |
+| `preparing` | `boolean` | Optional | `false` |
 
 Own events (native control attributes are forwarded according to the component):
 
@@ -43,6 +41,6 @@ No own declared events.
 
 Models:
 
-No own v-model.
+- `open`: `boolean`, `{ default: false }`
 
-Slots: `leading`, `status`, `actions`, `default`, `footer`.
+Slots: `preparation`.

@@ -8,7 +8,7 @@
 | `options` | `readonly SelectOption<T>[]` | Obligatoria | `—` |
 | `placeholder` | `string` | Opcional | `''` |
 | `size` | `ControlSize` | Opcional | `'md'` |
-| `disabled` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `disabled` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 
@@ -29,8 +29,8 @@ Slots: `prefix`.
 | `options` | `readonly SearchOption[]` | Obligatoria | `—` |
 | `placeholder` | `string` | Opcional | `undefined` |
 | `allowCustom` | `boolean` | Opcional | `false` |
-| `disabled` | `boolean` | Opcional | `undefined / Vue boolean false` |
-| `invalid` | `boolean` | Opcional | `undefined / Vue boolean false` |
+| `disabled` | `boolean` | Opcional | `false` |
+| `invalid` | `boolean` | Opcional | `false` |
 
 Eventos propios (los atributos de control nativo se reenvían según el componente):
 

@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "218bdedbc7ba20f8a9bcdf2c2e78d5e6311859ab8bf11a2b61b26916a33d7139"
-translationRevision: "218bdedbc7ba20f8a9bcdf2c2e78d5e6311859ab8bf11a2b61b26916a33d7139"
+sourceRevision: "f349a31abdf7624b102acaba5c27285a602d6f46f0fdcd7dac6a440754bb7f8e"
+translationRevision: "f349a31abdf7624b102acaba5c27285a602d6f46f0fdcd7dac6a440754bb7f8e"
 ---
 
-# Alerts, empty states and status
+# Alerts, empty states and status {#alerts-empty-states-and-status}
 
 ## Purpose and prerequisites {#purpose}
 

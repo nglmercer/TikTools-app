@@ -7,15 +7,15 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "656d66181906290b0c7e91071809b03c2182d991fc5b15784e41e43c5544c4bf"
-translationRevision: "656d66181906290b0c7e91071809b03c2182d991fc5b15784e41e43c5544c4bf"
+sourceRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
+translationRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
 ---
 
-# Overlay patterns
+# Overlay patterns {#overlay-patterns}
 
 ## Purpose and prerequisites {#purpose}
 
-Edit geometry in bounded controls and show a local SVG preview. Native gateway and OBS connectivity require the installed application. Use the existing Vue workspace and its i18n provider. The preview mounts the real shared components in an isolated application frame; the documentation theme does not load desktop global CSS.
+Inspect the existing overlay-library dialog, local animated previews, empty/loading/error examples and bounded image picker. This example does not upload the selected file. Native gateway and OBS connectivity require the installed application. Use the existing Vue workspace and its i18n provider. The preview mounts the real shared components in an isolated application frame; the documentation theme does not load desktop global CSS.
 
 ## Try the example {#example}
 

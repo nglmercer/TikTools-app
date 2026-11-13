@@ -6,9 +6,9 @@
 | Property | Type | Presence | Default |
 | --- | --- | --- | --- |
 | `title` | `string` | Required | `—` |
-| `subtitle` | `string` | Optional | `undefined / Vue boolean false` |
-| `flush` | `boolean` | Optional | `undefined / Vue boolean false` |
-| `headerLayout` | `'auto' &#124; 'inline' &#124; 'stacked'` | Optional | `undefined / Vue boolean false` |
+| `subtitle` | `string` | Optional | `undefined` |
+| `flush` | `boolean` | Optional | `false` |
+| `headerLayout` | `'auto' &#124; 'inline' &#124; 'stacked'` | Optional | `undefined` |
 
 Own events (native control attributes are forwarded according to the component):
 
@@ -20,21 +20,15 @@ No own v-model.
 
 Slots: `leading`, `status`, `actions`, `default`, `footer`.
 
-### BaseSpinBox.vue
+### OverlayLibraryPreview.vue
 
-[Source](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/spin-box/BaseSpinBox.vue)
+[Source](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/widgets/overlay-cloud/ui/OverlayLibraryPreview.vue)
 
 | Property | Type | Presence | Default |
 | --- | --- | --- | --- |
-| `min` | `number` | Optional | `undefined` |
-| `max` | `number` | Optional | `undefined` |
-| `step` | `number` | Optional | `1` |
-| `precision` | `number` | Optional | `undefined` |
-| `suffix` | `string` | Optional | `undefined` |
-| `size` | `ControlSize` | Optional | `'md'` |
-| `orientation` | `'vertical' &#124; 'horizontal'` | Optional | `'vertical'` |
-| `disabled` | `boolean` | Optional | `undefined / Vue boolean false` |
-| `readonly` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `kind` | `WidgetKind` | Required | `—` |
+| `design` | `WidgetStyle` | Optional | `undefined` |
+| `label` | `string` | Required | `—` |
 
 Own events (native control attributes are forwarded according to the component):
 
@@ -42,6 +36,6 @@ No own declared events.
 
 Models:
 
-- `modelValue`: `number`, `{ default: 0 }`
+No own v-model.
 
-Slots: `prefix`.
+Slots: —.

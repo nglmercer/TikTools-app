@@ -8,13 +8,13 @@
 | `value` | `unknown` | Optional | `undefined` |
 | `source` | `string` | Optional | `undefined` |
 | `label` | `string` | Optional | `undefined` |
-| `lineNumbers` | `boolean` | Optional | `undefined / Vue boolean false` |
-| `switchable` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `lineNumbers` | `boolean` | Optional | `false` |
+| `switchable` | `boolean` | Optional | `false` |
 | `copyable` | `boolean` | Optional | `true` |
 | `maxHeight` | `string &#124; number` | Optional | `undefined` |
 | `maxLines` | `number` | Optional | `DEFAULT_MAX_LINES` |
 | `maxChars` | `number` | Optional | `DEFAULT_MAX_CHARS` |
-| `sortKeys` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `sortKeys` | `boolean` | Optional | `false` |
 | `treeDepth` | `number` | Optional | `DEFAULT_TREE_DEPTH` |
 
 Own events (native control attributes are forwarded according to the component):
@@ -39,11 +39,11 @@ Slots: —.
 | `beforeLabel` | `string` | Optional | `undefined` |
 | `afterLabel` | `string` | Optional | `undefined` |
 | `label` | `string` | Optional | `undefined` |
-| `switchable` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `switchable` | `boolean` | Optional | `false` |
 | `context` | `number` | Optional | `3` |
 | `maxHeight` | `string &#124; number` | Optional | `undefined` |
 | `maxLines` | `number` | Optional | `DEFAULT_MAX_LINES` |
-| `sortKeys` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `sortKeys` | `boolean` | Optional | `false` |
 
 Own events (native control attributes are forwarded according to the component):
 

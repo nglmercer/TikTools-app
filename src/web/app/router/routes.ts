@@ -4,8 +4,11 @@ import type { AppTab } from '@/types.ts';
 import { legacySettingsRedirect } from './legacy-settings.ts';
 import { pluginPageRouteName, tabLocation } from './tab-routes.ts';
 
-const developmentRoutes: RouteRecordRaw[] = import.meta.env.DEV
-  ? [{ path: '/ui-kit', name: 'ui-kit', component: () => import('@/pages/ui-kit/ui/UiKitPage.vue') }]
+const developmentRoutes: RouteRecordRaw[] = import.meta.env.DEV || import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1'
+  ? [
+    { path: '/ui-kit', name: 'ui-kit', component: () => import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1' ? import('@/demo/catalog/ComponentCatalog.vue') : import('@/pages/ui-kit/ui/UiKitPage.vue') },
+    ...(import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1' ? [{ path: '/components/:family?', name: 'component-catalog', component: () => import('@/demo/catalog/ComponentCatalog.vue') }] : []),
+  ]
   : [];
 
 export const routes: RouteRecordRaw[] = [

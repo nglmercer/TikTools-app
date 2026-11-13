@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "55238bcae6244a8b18ed1974a20f087d208a8e182059dc16c55d216b4b627eaa"
-translationRevision: "55238bcae6244a8b18ed1974a20f087d208a8e182059dc16c55d216b4b627eaa"
+sourceRevision: "f9d8877d583d78c94a8a46a2beb25bc623dd606706f219eef87285c0a249d6a8"
+translationRevision: "f9d8877d583d78c94a8a46a2beb25bc623dd606706f219eef87285c0a249d6a8"
 ---
 
-# Vista y diff JSON
+# Vista y diff JSON {#json-view-and-diff}
 
 ## Objetivo y requisitos {#purpose}
 

@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a8902b1b03921afa12cad0cea9bbc55912e6b55081154b3d511577dae3b6a400"
-translationRevision: "a8902b1b03921afa12cad0cea9bbc55912e6b55081154b3d511577dae3b6a400"
+sourceRevision: "5552b08e589e44879d88ee299720ed1644285e42fa201261b1cf377fd163f865"
+translationRevision: "5552b08e589e44879d88ee299720ed1644285e42fa201261b1cf377fd163f865"
 order: 150
 ---
 
-# Ejecución de automatizaciones y contratos de scripts
+# Ejecución de automatizaciones y contratos de scripts {#automation-execution-and-script-contracts}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Implementa automatizaciones con descriptores del host y contratos de eventos generados. Trabaja en un perfil privado con efectos externos desactivados hasta probarlos intencionalmente. Conoce la [normalización](events.md) y los [metadatos de control](control-api.md); el editor Vue configura ejecución propiedad de Rust.
 
-## Crear una regla mínima
+## Crear una regla mínima {#build-a-minimal-rule}
 
 Una acción de comportamiento guarda un tipo configurado. Un evento selecciona disparador, filtros, enfriamiento e identificadores de acciones. Los workflows componen nodos y puertos versionados. Los descriptores integrados provienen del núcleo y los de plugins de sus manifiestos instalados. No copies otro catálogo de acciones al editor.
 
@@ -35,14 +35,14 @@ bun scripts/task.ts test bun automation
 
 El [directorio de contratos generados](https://github.com/nglmercer/TikTools-app/tree/remake/src/automation/contracts/generated) posee tipos frontend, metadatos y muestras. Para exponer otro campo, amplía el contrato Rust y regenera ambos juntos.
 
-## Límite del script
+## Límite del script {#script-boundary}
 
 `core.code` y los nodos script ejecutan QuickJS acotado. Reciben JSON `event`, `inputs` y `data`, alias de inputs. No tienen cargador Node, archivos, red, WebView ni base de datos. Mantén transformaciones deterministas y serializables; emplea acciones del host para HTTP, puntos, audio y plugins. Los límites de código/resultado y presupuesto de ejecución pertenecen al host, no a un temporizador del navegador.
 
-## Resultado esperado y estado
+## Resultado esperado y estado {#expected-result-and-status}
 
 Las reglas guardadas ejecutan mediante el runtime y su intermediario de capacidades. Los procesadores añaden evidencia en `event.intel` sin reemplazar campos originales. Changes de Automations es revisión local, no sincronización de configuración de la cuenta. Variables revisadas tiene implementación nativa real; Changes de Overlays es otro seguimiento sin integrar.
 
-## Recuperación
+## Recuperación {#recovery}
 
 Ante conflictos, compara los registros actuales sin perder el candidato. Un borrador remoto permanece desactivado hasta revisión y transferencia de autoridad; inspeccionar una vista previa no autoriza ejecución. Los efectos externos inciertos requieren inspección y recuperación retenida. Repetir historial visual nunca debe disparar automatizaciones. Usa [plantillas](templates.md) para importaciones controladas y [pruebas](testing.md) para evidencia por límite.

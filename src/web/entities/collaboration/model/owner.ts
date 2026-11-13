@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue';
+import { appNow } from '@/shared/lib/app-clock.ts';
 import { ControlCallError, errorMessage, type ControlClient, type RpcParams } from '@/shared/api/control-client.ts';
 import type { AdminTab, CollaborationStatus, Configuration, Grant, InvitationSecret, PageRows, PairingRequest, Principal, Session } from '../api/types.ts';
 
@@ -25,7 +26,7 @@ export function createCollaborationOwner(client: ControlClient) {
   /** Everyone at once (requests, identities, sessions) for the access matrix; independent of the paged tabs. */
   const people = ref<{ requests: PairingRequest[]; principals: Principal[]; sessions: Session[] }>({ requests: [], principals: [], sessions: [] });
   const peopleLoading = ref(false);
-  const now = ref(Date.now());
+  const now = ref(appNow());
   const live = new AbortController();
   let disposed = false;
   let hostChanged = false;
@@ -70,7 +71,7 @@ export function createCollaborationOwner(client: ControlClient) {
         return;
       }
       status.value = result;
-      connected.value = true; checkedAt.value = Date.now();
+      connected.value = true; checkedAt.value = appNow();
       if (!result.configuration.enabled) secret.value = null;
     } catch (failure) { if (!disposed && generation === statusGeneration) { connected.value = false; report(failure); } }
   }
@@ -180,7 +181,7 @@ export function createCollaborationOwner(client: ControlClient) {
     if (!canInvite.value) return;
     secret.value = null;
     const result = await mutate<InvitationSecret>('collaboration.invites.create', { grant: clone(grant) });
-    if (result && !disposed) { now.value = Date.now(); secret.value = result.expiresAt > now.value ? result : null; }
+    if (result && !disposed) { now.value = appNow(); secret.value = result.expiresAt > now.value ? result : null; }
     await refresh();
   }
   async function act(action: 'requests.approve' | 'requests.reject' | 'sessions.revoke' | 'principals.revoke' | 'invites.revoke', id: string): Promise<boolean> {
@@ -205,7 +206,7 @@ export function createCollaborationOwner(client: ControlClient) {
     await refresh();
     if (disposed) return;
     timer = setInterval(() => {
-      now.value = Date.now();
+      now.value = appNow();
       if (secret.value && secret.value.expiresAt <= now.value) secret.value = null;
       if (polling || working.value) return;
       polling = true;

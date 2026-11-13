@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "988ac45919742ac8d3a515f05511d9661b368341e2fe445d6c7ed305dc70ea1d"
-translationRevision: "988ac45919742ac8d3a515f05511d9661b368341e2fe445d6c7ed305dc70ea1d"
+sourceRevision: "fc9bfc55b0fa1e4d41cdbdf75ec6c865707d53b3f8cf823871a97a0b7c9cfff2"
+translationRevision: "fc9bfc55b0fa1e4d41cdbdf75ec6c865707d53b3f8cf823871a97a0b7c9cfff2"
 order: 20
 ---
 
-# Create your first logging rule
+# Create your first logging rule {#create-your-first-logging-rule}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Verify the event-to-action path with one local log line. You need a running desktop host and access to **Automations**. No Cloud account, audio service or external endpoint is needed. Use fictional or non-sensitive chat text: logging records the rendered message.
 
-## Create the action
+## Create the action {#create-the-action}
 
 1. Open **Automations → Actions** in the profile you want to use.
 2. Create an action of type **Write to the log** (`core.log`) named `Chat check`.
@@ -30,7 +30,7 @@ Chat check: {{ event.user.uniqueId }} said {{ event.data.comment }}
 
 These are the current normalized chat paths. `event.data.comment` is the message; `event.user.uniqueId` is the viewer handle. A display name uses a different field.
 
-## Create the event
+## Create the event {#create-the-event}
 
 1. Open **Events**, create `Chat check event` and select `tiktok.chat` as its trigger.
 2. Link only `Chat check`. Keep the normal all-actions mode.
@@ -39,11 +39,11 @@ These are the current normalized chat paths. `event.data.comment` is the message
 5. Add a condition on `event.data.comment`, operator equals (`eq`), value `!hello`. Save again and explicitly enable the event.
 6. Connect to a [LIVE](../live/connections.md) you are authorized to test. Observe a new `!hello` chat in the [feed](../live/feed.md), then check automation history after the cooldown allows it.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 The local logging action and chat trigger are available. The sample should produce a readable log result; a matching real chat should produce a run with the actual handle and message. Other chat text should fail the exact-match condition.
 
-## Recovery
+## Recovery {#recovery}
 
 If a sample stops matching after adding the filter, its supplied comment may differ from `!hello`. Check the real event fields, active profile and enabled states instead of repeatedly firing. Tests can run effects; keeping this rule log-only makes its effect predictable. Disable the event when finished, or continue with [recipes](recipes.md).
 

@@ -185,7 +185,10 @@ watch(activeView, () => { processorSelected.value = null; });
 </script>
 
 <template>
-  <div class="plugins-page">
+  <div
+    class="plugins-page"
+    data-guide-scope="plugins"
+  >
     <p
       v-if="plugins.behaviorError.value"
       class="plugins-page__banner plugins-page__banner--error"
@@ -234,6 +237,7 @@ watch(activeView, () => { processorSelected.value = null; });
       v-model:query="query"
       v-model:remote-query="packages.searchQuery"
       v-model:processor-query="processorQuery"
+      data-guide="plugin-catalog"
       :plugins="behavior.plugins"
       :action-types="behavior.actionTypes"
       :remote="remoteEntries"

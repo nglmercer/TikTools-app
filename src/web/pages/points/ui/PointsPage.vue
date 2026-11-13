@@ -40,13 +40,18 @@ watch([query, sort], persist);
 </script>
 
 <template>
-  <div class="points-page">
+  <div
+    class="points-page"
+    data-guide-scope="points"
+  >
     <PointsRulesPanel
+      data-guide="points-rules"
       class="points-page__rules"
     />
     <PointsLeaderboardPanel
       v-model:query="query"
       v-model:sort="sort"
+      data-guide="points-leaderboard"
       class="points-page__leaderboard"
       :locked="locked"
     />

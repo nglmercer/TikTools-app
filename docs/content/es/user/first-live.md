@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "fb0f6071475eae033404ecb741bd0e84e265acb737d13de14d96dae78f02e729"
-translationRevision: "fb0f6071475eae033404ecb741bd0e84e265acb737d13de14d96dae78f02e729"
+sourceRevision: "fb7101f2010cd57478f9f6b2ea9cbb8c0a6401975fe4b29b311c41b13c1a5185"
+translationRevision: "fb7101f2010cd57478f9f6b2ea9cbb8c0a6401975fe4b29b311c41b13c1a5185"
 order: 30
 ---
 
-# Primera conexión LIVE
+# Primera conexión LIVE {#first-live-connection}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Recibir eventos de un creador antes de activar automatizaciones. Necesitas una instalación funcional, acceso a internet y un creador que esté transmitiendo. Iniciar sesión en Cloud es una conexión distinta y no autentica TikTok.
 
-## Conectar
+## Conectar {#connect}
 
 1. Abre **Connections** o la acción **Connect** de la barra inferior.
 2. Escribe el handle del creador. El `@` inicial es opcional. Comprueba el identificador, no el nombre visible.
@@ -27,15 +27,15 @@ Recibir eventos de un creador antes de activar automatizaciones. Necesitas una i
 5. Abre **Live feed**. Espera un evento real o pide un mensaje de chat inocuo. Comprueba su creador y hora.
 6. Selecciona un evento para ver sus detalles. Selecciona el nombre o avatar de un espectador para consultar su perfil registrado.
 
-## Resultado esperado
+## Resultado esperado {#expected-result}
 
 El estado pasa a conectado y aparecen los eventos entrantes. Una sala sin actividad puede no producir eventos nuevos. Los puntos dependen de las reglas habilitadas y los resultados de automatización dependen de las acciones y eventos configurados.
 
-## Monitoreo y reconexión
+## Monitoreo y reconexión {#monitoring-and-reconnecting}
 
 Tras comprobar una conexión directa, **Monitor and auto-connect** puede esperar a que el creador inicie su LIVE. Su estado diferencia espera, comprobación y conexión. Detén el monitoreo para editar un creador bloqueado. Reconectar al mismo creador conserva el feed actual; cambiar de creador inicia otro contexto.
 
-## Recuperación
+## Recuperación {#recovery}
 
 Si el creador está desconectado, confirma que transmite antes de reintentar. Ante errores de autenticación o límites del servicio, abre **Diagnostics** y sigue la condición indicada; repetir clics no corrige una sesión caducada. Si necesitas cookie, obtén una sesión autorizada reciente y no incluyas su valor en capturas, registros o solicitudes de soporte. Permanece en memoria y no es una credencial reutilizable de Cloud.
 

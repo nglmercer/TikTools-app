@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4a235e2a2ca46026de7a16ffba7cf22d01a917128d218ce2de3696b5596b8644"
-translationRevision: "4a235e2a2ca46026de7a16ffba7cf22d01a917128d218ce2de3696b5596b8644"
+sourceRevision: "f4689110b15bb50cfe3cf4b95b0e93982ec06a139895d5440761b8b047aff4ca"
+translationRevision: "f4689110b15bb50cfe3cf4b95b0e93982ec06a139895d5440761b8b047aff4ca"
 ---
 
-# Filtros y selección
+# Filtros y selección {#filters-and-selection}
 
 ## Objetivo y requisitos {#purpose}
 

@@ -9,7 +9,7 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 const count = ref(0);
 </script>
 <template>
-  <div class="component-example" :data-state="props.state"><BaseButton :disabled="disabled" @click="count++">{{ props.state === 'loading' ? t.loading : t.action }} · {{ count }}</BaseButton></div>
+  <div class="component-example" :data-state="props.state"><BaseButton :disabled="disabled" @click="count++">{{ props.state === 'loading' ? t.loading : props.state === 'long' ? t.long : t.action }} · {{ count }}</BaseButton></div>
 </template>
 <style scoped>
 .component-example { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; min-width: 0; padding: 12px; }

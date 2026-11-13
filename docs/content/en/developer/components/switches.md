@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "78dad1f3ace9e6ba3da5c8e434b570e0371f665492a35a369979a4ae6ee88790"
-translationRevision: "78dad1f3ace9e6ba3da5c8e434b570e0371f665492a35a369979a4ae6ee88790"
+sourceRevision: "fa20b0faee8aad6fcf04c58fbc0932d3a99c78667e38bbf3f3be007cadf0fce9"
+translationRevision: "fa20b0faee8aad6fcf04c58fbc0932d3a99c78667e38bbf3f3be007cadf0fce9"
 ---
 
-# Switches
+# Switches {#switches}
 
 ## Purpose and prerequisites {#purpose}
 

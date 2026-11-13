@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "46c72bb38652a500095b2525c5e58783ba111a3abeb7303346d06acfbaae8483"
-translationRevision: "46c72bb38652a500095b2525c5e58783ba111a3abeb7303346d06acfbaae8483"
+sourceRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
+translationRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
 order: 30
 ---
 
-# Prepare collaboration and team access
+# Prepare collaboration and team access {#prepare-collaboration-and-team-access}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Grant another operator a defined role while retaining owner control. You need a capable desktop host and a deliberate choice between local/native collaboration and account-based Teams. Teams also needs [Cloud sign-in](account.md) and matching deployed service support. Start with read-only access and a nonproduction setup.
 
-## Configure owner access
+## Configure owner access {#configure-owner-access}
 
 1. Open **Settings → Collaboration**. Inspect connection status and enable/configure the intended listener or gateway through its controls.
 2. Review allowed origins and the access matrix before creating an invitation. Choose only the areas, operations and resources the operator needs.
@@ -28,17 +28,17 @@ Grant another operator a defined role while retaining owner control. You need a 
 
 Delegated definition editing, adopting a definition as owner and approving delegated execution are distinct decisions. Read the saved source, referenced actions and permissions in the specific review. A definition preview alone does not authorize an effect.
 
-## Prepare an account-based team
+## Prepare an account-based team {#prepare-an-account-based-team}
 
 When **Settings → Teams** is offered, create a named team and select it. Enroll **this PC** as a host with a recognizable device label, then use **Start serving** and inspect its link state. Creation and local-host enrollment are wired in the frontend; they are separate from inviting a teammate. A controller device has its own enrollment role.
 
 Choose a recipient, role and invitation lifetime, then review incoming requests, members and devices. The nickname search flow requires a separately deployed backend endpoint and may be unavailable on the current service. Do not assume a failed search means the person has no account, and do not substitute an arbitrary ID to bypass selection.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 Owner access controls and frontend team creation/enrollment exist. The complete remote collaboration workflow is experimental: real two-PC LIVE operation, production nickname lookup, NAT/relay behavior and every platform/effect recovery path are not established here. A ready link alone does not prove end-to-end permission enforcement for your intended action.
 
-## Recovery
+## Recovery {#recovery}
 
 For stale grants or host revisions, reload and review again. For unconfirmed commands, inspect the recorded outcome before retrying. Stop serving or revoke access when ending a session. Keep invitation tokens and credentials out of public [diagnostic reports](../preferences/troubleshooting.md).
 

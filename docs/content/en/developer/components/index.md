@@ -7,18 +7,18 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4e1674bbe699bd18cf2a465bfa4729e45f60705f0e8fd9cd83d7b9fb8f150838"
-translationRevision: "4e1674bbe699bd18cf2a465bfa4729e45f60705f0e8fd9cd83d7b9fb8f150838"
+sourceRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
+translationRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
 order: 290
 ---
 
-# Shared UI components and composition
+# Shared UI components and composition {#shared-ui-components-and-composition}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Compose a feature from the existing UI kit while preserving interaction and localization. Use Vue's installed workspace toolchain and read the [frontend map](../frontend.md). This page introduces the kit; each component's source, props, tests and dedicated family reference remain authoritative for its exact API.
 
-## Find the correct primitive
+## Find the correct primitive {#find-the-correct-primitive}
 
 `src/web/shared/ui/` contains buttons, text/date/color fields, text areas, checkboxes, switches, combo boxes, tabs, tables, forms, dialogs, status, alerts and structural controls. Design tokens live in `src/web/app/styles/tokens.css`; base and responsive styles compose the application. Use tokens for spacing, colors, type and focus treatment rather than creating a second theme in each feature.
 
@@ -43,11 +43,11 @@ const { t } = useI18n();
 
 Its containing form owns submit behavior and validation. `BaseButton` supports `default`, `primary`, `danger` and `ghost` variants; a destructive color is not a confirmation workflow by itself.
 
-## Expected result and status
+## Expected result and status {#expected-result-and-status}
 
 Shared primitives provide consistent implemented keyboard, focus and ARIA behavior. Composition still needs review: placeholders are not labels, icon-only controls need names, disabled states must reflect current operation ownership, and asynchronous errors must remain visible. The development UI-kit route is a demonstrator, not a separate product feature or a backend acceptance test.
 
-## Verify and recover
+## Verify and recover {#verify-and-recover}
 
 Run `bun scripts/task.ts test web BaseButton`, the changed component's focused test and `bun scripts/task.ts frontend-lint`. Check narrow width, keyboard navigation and translated labels. If an attribute lands on a wrapper instead of the input, inspect `shared/lib/use-split-attrs.ts` and the control test before bypassing the primitive. Consult [accessibility](../i18n-accessibility.md) and the [UI source](https://github.com/nglmercer/TikTools-app/tree/remake/src/web/shared/ui) when adapting a family reference example.
 

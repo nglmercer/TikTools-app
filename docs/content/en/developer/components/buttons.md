@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9e29ac19ee2394f8a7a04d3bcc19506f0fd511d6359f8c47008989b66c5db0ba"
-translationRevision: "9e29ac19ee2394f8a7a04d3bcc19506f0fd511d6359f8c47008989b66c5db0ba"
+sourceRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6940dcc"
+translationRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6940dcc"
 ---
 
-# Buttons and actions
+# Buttons and actions {#buttons-and-actions}
 
 ## Purpose and prerequisites {#purpose}
 

@@ -7,11 +7,11 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8bca9ebe3a38168f87f6b6b653020a33a2433633157dc740451c1c14ff937ab2"
-translationRevision: "8bca9ebe3a38168f87f6b6b653020a33a2433633157dc740451c1c14ff937ab2"
+sourceRevision: "bbf2a26d0d2b51d7eea5245dde57023be2a6a4203b1b348258c5e5206aecbbd3"
+translationRevision: "bbf2a26d0d2b51d7eea5245dde57023be2a6a4203b1b348258c5e5206aecbbd3"
 ---
 
-# TextField and SpinBox
+# TextField and SpinBox {#textfield-and-spinbox}
 
 ## Purpose and prerequisites {#purpose}
 

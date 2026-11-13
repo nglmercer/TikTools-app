@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "5d7fbfc359cdf7c8c0b545b961361cf3d77ef535627f85a4ea31ed74d60e1155"
-translationRevision: "5d7fbfc359cdf7c8c0b545b961361cf3d77ef535627f85a4ea31ed74d60e1155"
+sourceRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
+translationRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
 order: 20
 ---
 
-# Review changes by area
+# Review changes by area {#review-changes-by-area}
 
-## Goal and prerequisites
+## Goal and prerequisites {#goal-and-prerequisites}
 
 Understand what a **Changes** panel compares before resetting, sending or adopting data. You need saved local content. Cloud operations additionally need a supported host, the relevant synchronization mode and a [signed-in account](account.md). Panels with the same name do not all perform the same transport.
 
-## Review Events and Actions locally
+## Review Events and Actions locally {#review-events-and-actions-locally}
 
 1. Open **Automations**, select Events or Actions and open **Changes**.
 2. Read the notice: this area compares current definitions with a reference retained on this device. The first loaded visit seeds that reference, so it can legitimately show no changes.
@@ -28,7 +28,7 @@ Understand what a **Changes** panel compares before resetting, sending or adopti
 
 The Events/Actions adapter has no Cloud collection for individual definitions in this version. A clean comparison is neither a Cloud backup nor evidence that another computer received your edits.
 
-## Review Variables and Plugins explicitly
+## Review Variables and Plugins explicitly {#review-variables-and-plugins-explicitly}
 
 Variables have their own native reviewed sharing: save locally, fetch candidates, inspect the comparison and explicitly send, apply/adopt or withdraw. Secret or blocked values remain masked and cannot be sent through that path. Local save never uploads. See [Variables](../automations/variables.md).
 
@@ -36,7 +36,7 @@ Plugin Changes uses its supported synchronization workspace for plugin selection
 
 Cloud overlays use the [library/editor](../overlays/index.md) create/revise flow. A shared overlay Changes adapter is not available in this base version.
 
-## Expected result, status and recovery
+## Expected result, status and recovery {#expected-result-status-and-recovery}
 
 Local automation comparison and capability-gated native sharing are available in their respective areas. Operations with remote side effects depend on the service; production acceptance is not implied. If a review becomes stale, refresh and compare again. If the outcome is unconfirmed, inspect status/journal information before creating another operation. Never treat a timeout as proof that nothing changed.
 

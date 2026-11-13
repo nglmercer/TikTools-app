@@ -7,18 +7,18 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "67b7118973ffa6e904cad9833e9cc82ae2170c517692349403f990e16c599d63"
-translationRevision: "67b7118973ffa6e904cad9833e9cc82ae2170c517692349403f990e16c599d63"
+sourceRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
+translationRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
 order: 10
 ---
 
-# Iniciar sesión en tu cuenta de Cloud
+# Iniciar sesión en tu cuenta de Cloud {#sign-in-to-your-cloud-account}
 
-## Objetivo y requisitos
+## Objetivo y requisitos {#goal-and-prerequisites}
 
 Conecta la aplicación de escritorio a su servicio Cloud configurado para operaciones de catálogo y colaboración vinculadas a una cuenta. Necesitas Internet, un navegador del sistema y un almacén de credenciales del sistema operativo funcional. La edición local sigue siendo útil sin Cloud; su sesión no autentica la conexión LIVE de TikTok.
 
-## Iniciar y verificar la identidad
+## Iniciar y verificar la identidad {#sign-in-and-verify-identity}
 
 1. Abre **Settings → Account**. Lee el estado actual antes de iniciar otro acceso.
 2. Pulsa **Sign in**. El escritorio inicia un receptor de retorno local y abre la página de acceso configurada en el navegador del sistema.
@@ -29,12 +29,12 @@ Conecta la aplicación de escritorio a su servicio Cloud configurado para operac
 
 El host nativo administra el token de sesión. Guarda las credenciales mediante el almacén del sistema operativo y solo entrega estado no secreto a la interfaz. No existe una alternativa de archivo en texto plano si falla el almacenamiento seguro. Copiar la carpeta de datos no transporta una sesión autenticada.
 
-## Resultado esperado y estado
+## Resultado esperado y estado {#expected-result-and-status}
 
 El acceso nativo, la restauración y el cierre de sesión están disponibles en hosts compilados con autenticación Cloud. Una cuenta configurada puede restaurarse al reiniciar y validarse de nuevo con el servicio. Introducir otra cookie de TikTok no repara un host sin Cloud o sin configuración.
 
 La disponibilidad del acceso y la aceptación real de proveedores y plataformas dependen del servicio desplegado y del equipo. Una validación local no demuestra que funcionen todas las rutas de producción.
 
-## Recuperación
+## Recuperación {#recovery}
 
 Si el intento caducó o se canceló, ciérralo e inicia uno nuevo. Ante fallos de red o servicio, conserva el código de diagnóstico y repite tras recuperarse. Si falla el almacén de credenciales, restablece el almacenamiento seguro del sistema; no pegues tokens en ajustes ni en mensajes de soporte. Consulta [Changes](changes.md) para sincronización explícita y [colaboración](collaboration.md) para los permisos separados.

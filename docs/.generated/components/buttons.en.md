@@ -8,8 +8,8 @@
 | `variant` | `'default' &#124; 'primary' &#124; 'danger' &#124; 'ghost'` | Optional | `'default'` |
 | `size` | `ControlSize` | Optional | `'md'` |
 | `type` | `'button' &#124; 'submit' &#124; 'reset'` | Optional | `'button'` |
-| `block` | `boolean` | Optional | `undefined / Vue boolean false` |
-| `disabled` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `block` | `boolean` | Optional | `false` |
+| `disabled` | `boolean` | Optional | `false` |
 | `pressed` | `boolean` | Optional | `undefined` |
 
 Own events (native control attributes are forwarded according to the component):
@@ -32,7 +32,7 @@ Slots: `icon`, `default`.
 | `hint` | `string` | Optional | `undefined` |
 | `variant` | `'default' &#124; 'ghost' &#124; 'primary' &#124; 'danger'` | Optional | `'ghost'` |
 | `size` | `ControlSize` | Optional | `'md'` |
-| `disabled` | `boolean` | Optional | `undefined / Vue boolean false` |
+| `disabled` | `boolean` | Optional | `false` |
 | `pressed` | `boolean` | Optional | `undefined` |
 
 Own events (native control attributes are forwarded according to the component):
