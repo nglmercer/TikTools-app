@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/combo-box/BaseComboBox.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `options` | `readonly SelectOption<T>[]` | Obligatoria | `—` |
 | `placeholder` | `string` | Opcional | `''` |
@@ -24,7 +24,7 @@ Slots: `prefix`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/search-select/BaseSearchSelect.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `options` | `readonly SearchOption[]` | Obligatoria | `—` |
 | `placeholder` | `string` | Opcional | `undefined` |

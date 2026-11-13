@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useData, withBase } from 'vitepress';
+import { documentLocale } from '../../../locales.ts';
 
 defineProps<{ selector?: boolean }>();
 
 const { lang } = useData();
-const demoHref = computed(() => `${withBase('/demo/')}?scenario=connection&locale=${lang.value.startsWith('es') ? 'es' : 'en'}`);
+const demoHref = computed(() => `${withBase('/demo/')}?scenario=connection&locale=${documentLocale(lang.value)}`);
 </script>
 
 <template>

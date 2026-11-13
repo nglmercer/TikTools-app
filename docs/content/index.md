@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "e7c0329b9e5161a5ec34ed28fda46005975f45fd6278b060aaa4ba584165a2dd"
-translationRevision: "e7c0329b9e5161a5ec34ed28fda46005975f45fd6278b060aaa4ba584165a2dd"
+sourceRevision: "bb2118694b71f5253af2a48ec8355edf9fe3925a6d3bd5fbe112aad5ca271148"
+translationRevision: "bb2118694b71f5253af2a48ec8355edf9fe3925a6d3bd5fbe112aad5ca271148"
 search: false
 layout: page
 order: 0
@@ -24,7 +24,7 @@ TikTools / Documentation
 
 <template #language>
 
-<span lang="es">English y español</span>
+English · Español · Português · Français
 
 </template>
 
@@ -53,6 +53,8 @@ Connect your TikTok LIVE, set up automations, and build something of your own. S
 
 - [**English** <span lang="en">User guides and developer documentation</span>](./en/index.md)
 - [**Español** <span lang="es">Guías de usuario y documentación técnica</span>](./es/index.md)
+- [**Português** <span lang="pt">Guias de uso e documentação técnica</span>](./pt/index.md)
+- [**Français** <span lang="fr">Guides d’utilisation et documentation technique</span>](./fr/index.md)
 
 </template>
 

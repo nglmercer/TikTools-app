@@ -104,10 +104,10 @@ Rust, desktop, MSRV, plugin runtime, CodeQL and dependency-review checks.
 
 ## Documentation and demo maintenance
 
-Public articles live under `docs/content/en/` and `docs/content/es/`, separated
+Public articles live under `docs/content/{en,es,pt,fr}/`, separated
 into user and developer audiences. Read current source before updating a
 guide, especially when an old design contains future requirements. Update
-both equivalent paths in the same change with complete localized prose.
+all four equivalent paths in the same change with complete localized prose.
 
 Each public article needs exactly one H1, a clear goal and prerequisites,
 concrete steps or examples, an expected result, failure recovery and an honest
@@ -116,10 +116,10 @@ includes localized `title`, `locale`, `audience`, `featureStatus`,
 `contentStatus: reviewed`, `sourceLocale: en` and numeric `order`.
 `featureStatus` is `available`, `experimental`, `planned` or `historical`.
 
-Set both `sourceRevision` and `translationRevision`, in both languages, to the
+Set both `sourceRevision` and `translationRevision`, in all four languages, to the
 SHA-256 of the English Markdown body after removing frontmatter and trimming
 outer whitespace. Recompute after an English body change and review the
-translation; a copied English article is not a Spanish translation. Keep UI
+translation; a copied English article is not a translation. Keep UI
 labels and API identifiers exact when they name real controls or methods.
 
 ```sh

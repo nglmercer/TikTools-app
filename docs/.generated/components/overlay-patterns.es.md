@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/panel/BasePanel.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `title` | `string` | Obligatoria | `—` |
 | `subtitle` | `string` | Opcional | `undefined` |
@@ -24,7 +24,7 @@ Slots: `leading`, `status`, `actions`, `default`, `footer`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/widgets/overlay-cloud/ui/OverlayLibraryPreview.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `kind` | `WidgetKind` | Obligatoria | `—` |
 | `design` | `WidgetStyle` | Opcional | `undefined` |

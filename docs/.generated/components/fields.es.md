@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/text-field/BaseTextField.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `type` | `'text' &#124; 'password' &#124; 'search' &#124; 'email' &#124; 'url'` | Opcional | `'text'` |
 | `placeholder` | `string` | Opcional | `undefined` |
@@ -27,7 +27,7 @@ Slots: `prefix`, `suffix`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/spin-box/BaseSpinBox.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `min` | `number` | Opcional | `undefined` |
 | `max` | `number` | Opcional | `undefined` |

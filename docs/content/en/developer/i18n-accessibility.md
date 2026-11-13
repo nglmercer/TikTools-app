@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "56df24ca7f2e599f17ab161e54cee92bc41aeed3788789e949bee20cbe227713"
-translationRevision: "56df24ca7f2e599f17ab161e54cee92bc41aeed3788789e949bee20cbe227713"
+sourceRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
+translationRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
 order: 120
 ---
 
@@ -16,7 +16,7 @@ order: 120
 
 ## Goal and prerequisites {#goal-and-prerequisites}
 
-Add a screen that remains understandable in supported locales and usable by keyboard, touch and assistive technology. Read [frontend layers](frontend.md) and use the existing shared UI. Runtime application locales and the English/Spanish documentation editions are separate systems.
+Add a screen that remains understandable in supported locales and usable by keyboard, touch and assistive technology. Read [frontend layers](frontend.md) and use the existing shared UI. Runtime application locales and the English, Spanish, Portuguese and French documentation editions are separate systems.
 
 ## Add localized content {#add-localized-content}
 

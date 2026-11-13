@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "56df24ca7f2e599f17ab161e54cee92bc41aeed3788789e949bee20cbe227713"
-translationRevision: "56df24ca7f2e599f17ab161e54cee92bc41aeed3788789e949bee20cbe227713"
+sourceRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
+translationRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
 order: 120
 ---
 
@@ -16,7 +16,7 @@ order: 120
 
 ## Objetivo y requisitos {#goal-and-prerequisites}
 
-Añade pantallas comprensibles en los idiomas admitidos y utilizables con teclado, tacto y tecnologías de asistencia. Lee las [capas frontend](frontend.md) y usa la interfaz compartida. Los idiomas de la aplicación y las ediciones inglesa/española de esta documentación son sistemas distintos.
+Añade pantallas comprensibles en los idiomas admitidos y utilizables con teclado, tacto y tecnologías de asistencia. Lee las [capas frontend](frontend.md) y usa la interfaz compartida. Los idiomas de la aplicación y las ediciones en inglés, español, portugués y francés de esta documentación son sistemas distintos.
 
 ## Añadir contenido localizado {#add-localized-content}
 

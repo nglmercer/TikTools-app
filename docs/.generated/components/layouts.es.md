@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/splitter/BaseSplitter.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `orientation` | `'horizontal' &#124; 'vertical'` | Opcional | `'horizontal'` |
 | `min` | `number` | Opcional | `80` |
@@ -25,7 +25,7 @@ Slots: `start`, `end`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/layout/MasterDetailLayout.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `narrow` | `boolean` | Obligatoria | `—` |
 | `detailOpen` | `boolean` | Obligatoria | `—` |

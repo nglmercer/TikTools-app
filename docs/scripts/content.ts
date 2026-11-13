@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
 import { createMarkdownRenderer } from 'vitepress';
+import { docLocales } from '../locales.ts';
 
 export const contentRoot = resolve(import.meta.dirname, '../content');
 export const contentHash = (body: string) => createHash('sha256').update(body.trim()).digest('hex');
@@ -57,7 +58,7 @@ export function metadataErrors(articles: readonly Article[]): string[] {
     for (const key of ['title', 'docId', 'translationKey', 'locale', 'audience', 'featureStatus', 'contentStatus', 'sourceLocale', 'sourceRevision', 'translationRevision']) {
       if (typeof data[key] !== 'string' || !data[key]) errors.push(`${path}: missing ${key}`);
     }
-    if (!['en', 'es'].includes(String(data.locale))) errors.push(`${path}: invalid document locale`);
+    if (!(docLocales as readonly string[]).includes(String(data.locale))) errors.push(`${path}: invalid document locale`);
     if (!['user', 'developer', 'all'].includes(String(data.audience))) errors.push(`${path}: invalid audience`);
     if (!['available', 'experimental', 'planned', 'historical'].includes(String(data.featureStatus))) errors.push(`${path}: invalid feature status`);
     if (data.contentStatus !== 'reviewed') errors.push(`${path}: unreviewed public content`);
@@ -68,17 +69,19 @@ export function metadataErrors(articles: readonly Article[]): string[] {
     const identity = `${data.docId}:${data.locale}`;
     if (seen.has(identity)) errors.push(`${path}: duplicate document identity ${identity}`);
     seen.add(identity);
-    const localized = /^(en|es)\//.test(path);
-    if (!localized) continue; // The bilingual root selector is the explicit x-default fallback.
+    const localized = /^(en|es|pt|fr)\//.test(path);
+    if (!localized) continue; // The language root selector is the explicit x-default fallback.
     if (!path.startsWith(`${String(data.locale)}/`)) errors.push(`${path}: locale/path mismatch`);
     const source = english.get(String(data.translationKey));
     if (!source) { errors.push(`${path}: missing English source`); continue; }
     const revision = contentHash(source.body);
     if (data.sourceRevision !== revision || data.translationRevision !== revision) errors.push(`${path}: source or translation revision is stale`);
-    const counterpart = path.replace(/^(en|es)\//, data.locale === 'en' ? 'es/' : 'en/');
-    if (!articles.some((entry) => entry.relativePath === counterpart && entry.frontmatter.translationKey === data.translationKey)) errors.push(`${path}: missing equivalent translation ${counterpart}`);
-    if (data.locale === 'es' && article.body === source.body) errors.push(`${path}: untranslated English article`);
-    if (data.locale === 'es' && JSON.stringify(article.headings) !== JSON.stringify(source.headings)) errors.push(`${path}: translated heading anchors differ from the source`);
+    for (const locale of docLocales) {
+      const counterpart = path.replace(/^(en|es|pt|fr)\//, `${locale}/`);
+      if (!articles.some((entry) => entry.relativePath === counterpart && entry.frontmatter.translationKey === data.translationKey)) errors.push(`${path}: missing equivalent translation ${counterpart}`);
+    }
+    if (data.locale !== 'en' && article.body === source.body) errors.push(`${path}: untranslated English article`);
+    if (data.locale !== 'en' && JSON.stringify(article.headings) !== JSON.stringify(source.headings)) errors.push(`${path}: translated heading anchors differ from the source`);
   }
   return errors;
 }

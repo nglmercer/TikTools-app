@@ -3,6 +3,7 @@ import { parse } from 'vue/compiler-sfc';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import { docLocales, docCopy } from '../locales.ts';
 import { componentFamilies } from './component-families.ts';
 const root = resolve(import.meta.dirname, '../..');
 const check = process.argv.includes('--check');
@@ -38,24 +39,25 @@ for (const [family, definition] of Object.entries(componentFamilies)) {
     const slots = [...new Set([...(descriptor.template?.content ?? '').matchAll(/<slot\b([^>]*)/g)].map((match) => /\bname="([^"]+)"/.exec(match[1]!)?.[1] ?? (/\b:name=/.test(match[1]!) ? 'dynamic' : 'default')))];
     apis.push({ path, props, events, models, slots });
   }
-  for (const locale of ['en', 'es'] as const) {
-    const es = locale === 'es';
+  for (const locale of docLocales) {
+    const t = docCopy[locale].reference;
     let fragment = '';
     for (const api of apis) {
-      fragment += `\n### ${api.path.split('/').at(-1)}\n\n[${es ? 'Código fuente' : 'Source'}](https://github.com/nglmercer/TikTools-app/blob/remake/${api.path})\n\n`;
-      fragment += `| ${es ? 'Propiedad' : 'Property'} | ${es ? 'Tipo' : 'Type'} | ${es ? 'Presencia' : 'Presence'} | Default |\n| --- | --- | --- | --- |\n`;
-      fragment += api.props.length ? api.props.map((p) => `| ${cell(p[0]!)} | ${cell(p[1]!)} | ${p[2] === 'required' ? (es ? 'Obligatoria' : 'Required') : (es ? 'Opcional' : 'Optional')} | ${cell(p[3]!)} |`).join('\n') + '\n' : `| — | — | — | — |\n`;
-      fragment += `\n${es ? 'Eventos propios (los atributos de control nativo se reenvían según el componente)' : 'Own events (native control attributes are forwarded according to the component)'}:\n\n`;
-      fragment += api.events.length ? api.events.map((p) => `- ${cell(p[0]!)}: ${cell(p[1]!)}`).join('\n') + '\n' : (es ? 'Sin eventos propios declarados.\n' : 'No own declared events.\n');
-      fragment += `\n${es ? 'Modelos' : 'Models'}:\n\n` + (api.models.length ? api.models.map((p) => `- ${cell(p[0]!)}: ${cell(p[1]!)}, ${cell(p[2]!)}`).join('\n') + '\n' : (es ? 'Sin v-model propio.\n' : 'No own v-model.\n'));
+      fragment += `\n### ${api.path.split('/').at(-1)}\n\n[${t.source}](https://github.com/nglmercer/TikTools-app/blob/remake/${api.path})\n\n`;
+      fragment += `| ${t.property} | ${t.type} | ${t.presence} | ${t.default} |\n| --- | --- | --- | --- |\n`;
+      fragment += api.props.length ? api.props.map((p) => `| ${cell(p[0]!)} | ${cell(p[1]!)} | ${p[2] === 'required' ? (t.required) : (t.optional)} | ${cell(p[3]!)} |`).join('\n') + '\n' : `| — | — | — | — |\n`;
+      fragment += `\n${t.events}:\n\n`;
+      fragment += api.events.length ? api.events.map((p) => `- ${cell(p[0]!)}: ${cell(p[1]!)}`).join('\n') + '\n' : (t.noEvents + '\n');
+      fragment += `\n${t.models}:\n\n` + (api.models.length ? api.models.map((p) => `- ${cell(p[0]!)}: ${cell(p[1]!)}, ${cell(p[2]!)}`).join('\n') + '\n' : (t.noModels + '\n'));
       fragment += `\nSlots: ${api.slots.map(cell).join(', ') || '—'}.\n`;
     }
     await output(`docs/.generated/components/${family}.${locale}.md`, fragment);
   }
 }
 const schema = JSON.parse(await readFile(resolve(root, 'docs/contracts/control-api.json'), 'utf8')) as { methods: Array<{ name: string; description: string; sideEffect: boolean; destructive: boolean; requiresDesktop: boolean; concurrency?: string }> };
-for (const locale of ['en', 'es']) {
-  let text = `| ${locale === 'es' ? 'Método' : 'Method'} | ${locale === 'es' ? 'Efectos' : 'Effects'} | ${locale === 'es' ? 'Destructivo' : 'Destructive'} | Desktop | CAS |\n| --- | --- | --- | --- | --- |\n`;
+for (const locale of docLocales) {
+  const t = docCopy[locale].reference;
+  let text = `| ${t.method} | ${t.effects} | ${t.destructive} | Desktop | CAS |\n| --- | --- | --- | --- | --- |\n`;
   text += schema.methods.map((m) => `| ${cell(m.name)} | ${m.sideEffect} | ${m.destructive} | ${m.requiresDesktop} | ${m.concurrency ?? '—'} |`).join('\n') + '\n';
   await output(`docs/.generated/control-api.${locale}.md`, text);
 }

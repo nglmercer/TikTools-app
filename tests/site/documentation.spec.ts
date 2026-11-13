@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve, join, sep } from 'node:path';
 import { readArticles, metadataErrors } from '../../docs/scripts/content.ts';
+import { docCopy, docLocales } from '../../docs/locales.ts';
 import { siteConfig } from '../../scripts/lib/site-config.ts';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -32,26 +33,28 @@ async function demoFrame(page: Page): Promise<Frame> {
   return frame!;
 }
 
-test('every EN/ES article has a reviewed equivalent, current hash and shared heading anchors', async () => {
+test('all four Markdown languages have reviewed equivalents, current hashes and shared heading anchors', async () => {
   const all = await articles;
   expect(metadataErrors(all)).toEqual([]);
   const english = all.filter((article) => article.relativePath.startsWith('en/'));
-  const spanish = all.filter((article) => article.relativePath.startsWith('es/'));
   expect(english.length).toBeGreaterThan(0);
-  expect(spanish).toHaveLength(english.length);
-  for (const source of english) {
-    const translated = spanish.find((article) => article.relativePath === source.relativePath.replace(/^en\//, 'es/'));
-    expect(translated, source.relativePath).toBeTruthy();
-    const revision = createHash('sha256').update(source.body.trim()).digest('hex');
-    for (const article of [source, translated!]) {
-      expect(article.frontmatter.docId).toBe(source.frontmatter.docId);
-      expect(article.frontmatter.translationKey).toBe(source.frontmatter.translationKey);
-      expect(article.frontmatter.sourceRevision).toBe(revision);
-      expect(article.frontmatter.translationRevision).toBe(revision);
-      expect(article.headings.filter((heading) => heading.level === 'h1')).toHaveLength(1);
+  for (const locale of docLocales.filter((locale) => locale !== 'en')) {
+    const translations = all.filter((article) => article.relativePath.startsWith(`${locale}/`));
+    expect(translations).toHaveLength(english.length);
+    for (const source of english) {
+      const translated = translations.find((article) => article.relativePath === source.relativePath.replace(/^en\//, `${locale}/`));
+      expect(translated, source.relativePath).toBeTruthy();
+      const revision = createHash('sha256').update(source.body.trim()).digest('hex');
+      for (const article of [source, translated!]) {
+        expect(article.frontmatter.docId).toBe(source.frontmatter.docId);
+        expect(article.frontmatter.translationKey).toBe(source.frontmatter.translationKey);
+        expect(article.frontmatter.sourceRevision).toBe(revision);
+        expect(article.frontmatter.translationRevision).toBe(revision);
+        expect(article.headings.filter((heading) => heading.level === 'h1')).toHaveLength(1);
+      }
+      expect(translated!.body).not.toBe(source.body);
+      expect(translated!.headings).toEqual(source.headings);
     }
-    expect(translated!.body).not.toBe(source.body);
-    expect(translated!.headings).toEqual(source.headings);
   }
 });
 
@@ -65,15 +68,15 @@ test('all localized built pages expose matching lang, canonical, hreflang and si
   expect(sitemap.ok()).toBe(true);
   const xml = await sitemap.text();
   const locations = new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!.replace(/\/index\.html$/, '/')));
-  for (const article of (await articles).filter((entry) => /^(en|es)\//.test(entry.relativePath))) {
+  for (const article of (await articles).filter((entry) => /^(en|es|pt|fr)\//.test(entry.relativePath))) {
     const response = await request.get(htmlPath(article.relativePath));
     expect(response.status(), article.relativePath).toBe(200);
     const html = await response.text();
     const locale = String(article.frontmatter.locale);
-    const tail = canonicalPath(article.relativePath).replace(/^(en|es)\//, '');
+    const tail = canonicalPath(article.relativePath).replace(/^(en|es|pt|fr)\//, '');
     expect(html, article.relativePath).toMatch(new RegExp(`<html[^>]+lang="${locale}"`));
     expect(html).toContain(`<link rel="canonical" href="${new URL(canonicalPath(article.relativePath), site.url).href}">`);
-    for (const language of ['en', 'es']) {
+    for (const language of docLocales) {
       expect(html).toContain(`<link rel="alternate" hreflang="${language}" href="${new URL(`${language}/${tail}`, site.url).href}">`);
     }
     expect(html).toContain(`<link rel="alternate" hreflang="x-default" href="${new URL(`en/${tail}`, site.url).href}">`);
@@ -82,37 +85,37 @@ test('all localized built pages expose matching lang, canonical, hreflang and si
   }
 });
 
-test('locale switching preserves the equivalent article and heading hash', async ({ page }) => {
+test('locale switching preserves the equivalent article and stable heading in all four languages', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 960 });
   await page.goto('en/user/preferences/backups.html#restore-and-verify');
-  await page.getByRole('button', { name: 'Change language', exact: true }).click();
-  const spanish = page.locator('.VPNavBarTranslations').getByRole('link', { name: 'Español', exact: true });
-  await expect(spanish).toHaveAttribute('href', `${site.base}es/user/preferences/backups.html#restore-and-verify`);
-  await spanish.click();
-  await expect(page).toHaveURL(/\/es\/user\/preferences\/backups\.html#restore-and-verify$/);
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await expect(page.locator('#restore-and-verify')).toContainText('Restaurar');
-  await page.getByRole('button', { name: 'Cambiar idioma', exact: true }).click();
-  await page.locator('.VPNavBarTranslations').getByRole('link', { name: 'English', exact: true }).click();
-  await expect(page).toHaveURL(/\/en\/user\/preferences\/backups\.html#restore-and-verify$/);
-  await expect(page.locator('#restore-and-verify')).toContainText('Restore');
+  let current: typeof docLocales[number] = 'en';
+  for (const locale of ['es', 'pt', 'fr', 'en'] as const) {
+    await page.getByRole('button', { name: docCopy[current].language, exact: true }).click();
+    const link = page.locator('.VPNavBarTranslations').getByRole('link', { name: docCopy[locale].label, exact: true });
+    await expect(link).toHaveAttribute('href', `${site.base}${locale}/user/preferences/backups.html#restore-and-verify`);
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`/${locale}/user/preferences/backups\\.html#restore-and-verify$`));
+    await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    await expect(page.locator('#restore-and-verify')).toBeVisible();
+    current = locale;
+  }
 });
 
-for (const locale of ['en', 'es'] as const) {
+for (const locale of docLocales) {
   test(`${locale}: local search has translated controls and locale-specific results`, async ({ page }) => {
     await page.goto(`${locale}/user/preferences/backups.html`);
     await page.locator('.VPNavBarSearch button').click();
     const input = page.locator('#localsearch-input');
-    await expect(input).toHaveAttribute('placeholder', locale === 'es' ? 'Buscar' : 'Search');
-    await input.fill(locale === 'es' ? 'Respaldar' : 'Back up');
+    await expect(input).toHaveAttribute('placeholder', docCopy[locale].search);
+    await input.fill(({ en: 'Back up', es: 'Respaldar', pt: 'backup', fr: 'sauvegarde' })[locale]);
     const results = page.locator('.VPLocalSearchBox a.result');
     await expect(results.first()).toBeVisible();
     const urls = await results.evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href));
     expect(urls.length).toBeGreaterThan(0);
     expect(urls.every((url) => new URL(url).pathname.startsWith(`${site.base}${locale}/`))).toBe(true);
-    await expect(results.filter({ hasText: locale === 'es' ? 'Respaldar y restaurar' : 'Back up and restore' }).first()).toBeVisible();
+    await expect(results.filter({ hasText: (await articles).find((entry) => entry.relativePath === `${locale}/user/preferences/backups.md`)!.frontmatter.title as string }).first()).toBeVisible();
     await input.fill('zzzznoresultstiktoolsreview');
-    await expect(page.locator('.VPLocalSearchBox')).toContainText(locale === 'es' ? 'Sin resultados' : 'No results for');
+    await expect(page.locator('.VPLocalSearchBox')).toContainText(docCopy[locale].noResults);
     await page.keyboard.press('Escape');
     await expect(input).not.toBeVisible();
   });
@@ -120,7 +123,7 @@ for (const locale of ['en', 'es'] as const) {
   test(`${locale}: mobile navigation reaches user and developer documentation`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${locale}/user/live/feed.html`);
-    const menu = page.getByRole('button', { name: locale === 'es' ? 'Navegación' : 'Navigation', exact: true });
+    const menu = page.getByRole('button', { name: docCopy[locale].navigation, exact: true });
     await menu.click();
     await expect(menu).toHaveAttribute('aria-expanded', 'true');
     const sidebar = page.locator('.VPSidebar');
@@ -135,8 +138,8 @@ for (const locale of ['en', 'es'] as const) {
     await expect(page).toHaveURL(new RegExp(`/${locale}/user/preferences/backups\\.html$`));
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await page.getByRole('button', { name: 'mobile navigation', exact: true }).click();
-    await page.locator('.VPNavScreenMenuGroup').getByRole('button', { name: locale === 'es' ? 'Audiencia' : 'Audience', exact: true }).click();
-    await page.locator('.VPNavScreen').getByRole('link', { name: locale === 'es' ? 'Desarrollo' : 'Developer', exact: true }).click();
+    await page.locator('.VPNavScreenMenuGroup').getByRole('button', { name: docCopy[locale].audience, exact: true }).click();
+    await page.locator('.VPNavScreen').getByRole('link', { name: docCopy[locale].developer, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/${locale}/developer/$`));
     await expect(page.locator('.VPNavScreen')).not.toBeVisible();
     await expect(page.locator('main h1')).toBeVisible();

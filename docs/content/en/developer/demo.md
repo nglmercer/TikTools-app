@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "1e325329dca092fc033b20225ee01c1b066796ba9f279454964e0ccfd26f26a4"
-translationRevision: "1e325329dca092fc033b20225ee01c1b066796ba9f279454964e0ccfd26f26a4"
+sourceRevision: "faaecb5fb98c82d290108d1d9ffc8375e8f0fcd04600da60557a63272ad57d59"
+translationRevision: "faaecb5fb98c82d290108d1d9ffc8375e8f0fcd04600da60557a63272ad57d59"
 order: 140
 ---
 
@@ -34,11 +34,11 @@ For an uncommitted local preview, use `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/t
 
 `src/web/app/mount-workspace.ts` provides the shared app/Pinia/router factory; importing it does not mount or choose a transport. Explicit demo bootstrap supplies `src/web/demo/runtime/transport.ts` at the shared `ControlTransport`/control-client boundary. Pure seed fixtures live in `demo/fixtures/base-host.ts`, independently of Playwright. `shared/lib/app-storage.ts` and `demo/storage.ts` provide isolated storage adapters so resets cannot clear native preferences or another demo instance. Pages, widgets and features should use their existing entity stores and `src/web/shared/api` calls. Do not create a second imitation application, inject fake native APIs into ordinary native startup or let demo requests fall through to a real host.
 
-`demo/scenarios.ts` validates 11 scenario IDs and the allowed routes/locales/tours. `runtime/host.ts` registers explicit method handlers; discovery lists those handlers, request IDs are echoed in `rpc-response`, and unsupported effects return an error immediately. The host seeds fictional records and advances a fixed clock one tick per Next event. Play advances every two seconds; Pause stops production. The stream stops at 300 ticks and retains at most 60 feed events and 60 runs. Response queues and stored records have separate limits.
+`demo/scenarios.ts` validates 11 scenario IDs and the allowed routes/locales/tours. `runtime/host.ts` registers explicit method handlers; discovery lists those handlers, request IDs are echoed in `rpc-response`, and unsupported effects return an error immediately. The host seeds fictional records and advances a fixed clock one tick per Next event. Play and Next event first connect the fictional creator through the simulated RPC when needed, then deliver an immediate event. Play continues every two seconds; Pause stops production. The toolbar displays playback state and the event count. The stream stops at 300 ticks and retains at most 60 feed events and 60 runs. Response queues and stored records have separate limits.
 
 Reset clears only the current `tiktools.demo.<instance>.*` prefix and reloads the frame. Reloading resets module singletons, journals, i18n and diagnostics. Different embedded frames receive distinct instance IDs. Page exit unmounts Vue, disposes stores, detaches the client/transport and clears both timers. The demo does not install a `window.ipc` bridge or perform arbitrary HTTP, shell, RCON, visitor-script execution or native update installation. Its CSP rejects network connections. Log templates and filter simulation use pure shared functions; these are examples of the frontend contract, not a replacement for Rust execution.
 
-The shared entry `startTour(id, {router, capabilities, taskState})` and exported `tourRegistry` live in `src/web/features/guided-help/index.ts`. Seven versioned tours use stable page targets and separate EN/ES/PT/FR catalogs. They load Driver.js only on request, constrain targets to the workspace, respect reduced motion, restore focus and cancel bounded waits on navigation. Dismissal never completes a task or executes an application action.
+The shared entry `startTour(id, {router, capabilities, taskState})` and exported `tourRegistry` live in `src/web/features/guided-help/index.ts`. Seven versioned tours use stable page targets and separate EN/ES/PT/FR catalogs. They load Driver.js only on request, constrain targets to the workspace, respect reduced motion, restore focus and cancel bounded waits on navigation. Dismissal never completes a task or executes an application action. Tutorial selection names the complete task, prepares its matching scenario and pauses playback before starting. Driver’s close control dismisses the guide; the toolbar reports the outcome. Reset clears this instance’s versioned progress.
 
 ## Expected result and status {#expected-result-and-status}
 

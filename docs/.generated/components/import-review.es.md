@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/import-dialog/BaseImportDialog.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `title` | `string` | Obligatoria | `—` |
 | `width` | `number` | Opcional | `720` |

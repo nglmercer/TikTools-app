@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/tabs/BaseTabs.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `tabs` | `readonly TabOption<T>[]` | Obligatoria | `—` |
 | `label` | `string` | Opcional | `undefined` |
@@ -22,7 +22,7 @@ Slots: `bar`, `default`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/toolbar/BaseToolbar.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `orientation` | `'horizontal' &#124; 'vertical'` | Opcional | `'horizontal'` |
 

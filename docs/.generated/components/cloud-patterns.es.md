@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/json/BaseJsonDiff.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `before` | `unknown` | Opcional | `undefined` |
 | `after` | `unknown` | Opcional | `undefined` |
@@ -30,7 +30,7 @@ Slots: —.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/features/sync-changes/ui/SyncPanel.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `adapter` | `SyncAdapter` | Obligatoria | `—` |
 | `preparing` | `boolean` | Opcional | `false` |

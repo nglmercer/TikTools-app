@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "1e325329dca092fc033b20225ee01c1b066796ba9f279454964e0ccfd26f26a4"
-translationRevision: "1e325329dca092fc033b20225ee01c1b066796ba9f279454964e0ccfd26f26a4"
+sourceRevision: "faaecb5fb98c82d290108d1d9ffc8375e8f0fcd04600da60557a63272ad57d59"
+translationRevision: "faaecb5fb98c82d290108d1d9ffc8375e8f0fcd04600da60557a63272ad57d59"
 order: 140
 ---
 
@@ -34,11 +34,11 @@ Para previsualizar cambios sin commit usa `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scrip
 
 `src/web/app/mount-workspace.ts` proporciona la factoría compartida de aplicación/Pinia/router; importarla no monta ni selecciona transporte. El arranque demo explícito aporta `src/web/demo/runtime/transport.ts` al límite `ControlTransport`/cliente de control. Las muestras puras viven en `demo/fixtures/base-host.ts`, independientes de Playwright. `shared/lib/app-storage.ts` y `demo/storage.ts` aíslan almacenamiento para que reiniciar no borre preferencias nativas ni otra instancia demo. Páginas, widgets y funcionalidades deben utilizar sus almacenes y llamadas existentes en `src/web/shared/api`. No crees una segunda aplicación de imitación, no inyectes APIs nativas falsas en el arranque normal ni permitas que una solicitud demo termine en un host real.
 
-`demo/scenarios.ts` valida 11 escenarios y las rutas, idiomas y recorridos admitidos. `runtime/host.ts` registra handlers explícitos: discovery anuncia esos handlers, los IDs se conservan en `rpc-response` y los efectos no admitidos devuelven error inmediatamente. El host prepara datos ficticios y avanza un reloj fijo al pulsar Siguiente evento. Reproducir avanza cada dos segundos; Pausar detiene la producción. El flujo termina a los 300 pasos y conserva hasta 60 eventos y 60 ejecuciones. Las colas de respuestas y registros tienen límites independientes.
+`demo/scenarios.ts` valida 11 escenarios y las rutas, idiomas y recorridos admitidos. `runtime/host.ts` registra handlers explícitos: discovery anuncia esos handlers, los IDs se conservan en `rpc-response` y los efectos no admitidos devuelven error inmediatamente. El host prepara datos ficticios y avanza un reloj fijo al pulsar Siguiente evento. Reproducir y Siguiente evento conectan primero al creador ficticio mediante el RPC simulado si hace falta y generan un evento inmediato. Reproducir continúa cada dos segundos; Pausar detiene la producción. La barra muestra el estado y el contador de eventos. El flujo termina a los 300 pasos y conserva hasta 60 eventos y 60 ejecuciones. Las colas de respuestas y registros tienen límites independientes.
 
 Reiniciar limpia únicamente el prefijo `tiktools.demo.<instance>.*` y recarga el iframe. Recargar reinicializa singletons, journals, i18n y diagnósticos. Cada iframe recibe un identificador distinto. Al salir se desmonta Vue, se liberan stores, cliente y transporte, y se detienen ambos temporizadores. La demo no instala `window.ipc` ni realiza HTTP arbitrario, shell, RCON, ejecución de código visitante o actualización nativa. Su CSP rechaza conexiones de red. Las plantillas de log y filtros simulados usan funciones puras compartidas: representan el contrato del frontend y no sustituyen la ejecución Rust.
 
-La entrada `startTour(id, {router, capabilities, taskState})` y el registro `tourRegistry` están en `src/web/features/guided-help/index.ts`. Siete recorridos versionados utilizan objetivos estables y catálogos separados EN/ES/PT/FR. Driver.js carga bajo demanda, limita objetivos al workspace, respeta movimiento reducido, restaura foco y cancela esperas acotadas al navegar. Cerrar una guía nunca completa tareas ni ejecuta acciones de la aplicación.
+La entrada `startTour(id, {router, capabilities, taskState})` y el registro `tourRegistry` están en `src/web/features/guided-help/index.ts`. Siete recorridos versionados utilizan objetivos estables y catálogos separados EN/ES/PT/FR. Driver.js carga bajo demanda, limita objetivos al workspace, respeta movimiento reducido, restaura foco y cancela esperas acotadas al navegar. Cerrar una guía nunca completa tareas ni ejecuta acciones de la aplicación. El selector nombra la tarea completa, prepara su escenario y pausa la reproducción antes de iniciar. El cierre de Driver descarta la guía y la barra muestra el resultado. Reiniciar limpia el progreso versionado de esta instancia.
 
 ## Resultado esperado y estado {#expected-result-and-status}
 

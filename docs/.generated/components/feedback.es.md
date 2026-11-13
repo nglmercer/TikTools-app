@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/alert/BaseAlert.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `tone` | `'error' &#124; 'warning' &#124; 'info' &#124; 'ok'` | Opcional | `'error'` |
 | `title` | `string` | Obligatoria | `—` |
@@ -23,7 +23,7 @@ Slots: `default`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/empty-state/BaseEmptyState.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `title` | `string` | Obligatoria | `—` |
 | `description` | `string` | Opcional | `undefined` |
@@ -42,7 +42,7 @@ Slots: `icon`, `default`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/status/BaseStatus.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `label` | `string` | Obligatoria | `—` |
 | `tone` | `StatusTone` | Opcional | `'neutral'` |

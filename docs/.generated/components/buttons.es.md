@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/button/BaseButton.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `variant` | `'default' &#124; 'primary' &#124; 'danger' &#124; 'ghost'` | Opcional | `'default'` |
 | `size` | `ControlSize` | Opcional | `'md'` |
@@ -26,7 +26,7 @@ Slots: `icon`, `default`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/button/BaseIconButton.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `label` | `string` | Obligatoria | `—` |
 | `hint` | `string` | Opcional | `undefined` |

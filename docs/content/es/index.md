@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "24dadf5def54403406f3d877bac51a422608198ead6489003dbcbfe9b0e60e73"
-translationRevision: "24dadf5def54403406f3d877bac51a422608198ead6489003dbcbfe9b0e60e73"
+sourceRevision: "33094c0616b62ed788f107ae8287e95a8bab6ec7d37f26613f19dee55c5316d0"
+translationRevision: "33094c0616b62ed788f107ae8287e95a8bab6ec7d37f26613f19dee55c5316d0"
 layout: page
 order: 0
 ---
@@ -23,7 +23,7 @@ TikTools / Documentación
 
 <template #language>
 
-[English](../en/index.md)
+[English](../en/index.md) · [Português](../pt/index.md) · [Français](../fr/index.md)
 
 </template>
 

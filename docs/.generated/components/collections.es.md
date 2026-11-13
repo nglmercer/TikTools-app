@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/list/BaseList.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `items` | `readonly T[]` | Obligatoria | `—` |
 | `itemKey` | `(item: T) => K` | Obligatoria | `—` |
@@ -22,7 +22,7 @@ Slots: `default`, `empty`.
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/table/BaseTable.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `columns` | `readonly TableColumn[]` | Obligatoria | `—` |
 | `rows` | `readonly T[]` | Obligatoria | `—` |

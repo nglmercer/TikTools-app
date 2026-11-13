@@ -3,7 +3,7 @@
 
 [Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/menu/BaseMenu.vue)
 
-| Propiedad | Tipo | Presencia | Default |
+| Propiedad | Tipo | Presencia | Predeterminado |
 | --- | --- | --- | --- |
 | `items` | `readonly MenuEntry[]` | Obligatoria | `—` |
 | `anchor` | `AnchorTarget &#124; null` | Obligatoria | `—` |

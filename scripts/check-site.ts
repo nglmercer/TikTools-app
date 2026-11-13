@@ -1,5 +1,6 @@
 import { readdir, readFile, access } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
+import { docLocales } from '../docs/locales.ts';
 import { siteConfig } from './lib/site-config.ts';
 import { parseDemoOptions, validDemoRoute } from '../src/web/demo/scenarios.ts';
 const root = resolve(import.meta.dirname, '../dist/site');
@@ -14,7 +15,7 @@ for (const [path, source] of html) {
   if ((source.match(/<h1(?:\s|>)/g) ?? []).length !== 1) errors.push(`${name}: expected exactly one rendered h1`);
   const expected = new URL(name.replace(/index\.html$/, ''), site.url).href;
   if (!source.includes(`rel="canonical" href="${expected}"`)) errors.push(`${name}: incorrect canonical`);
-  for (const language of ['en', 'es', 'x-default']) if (!source.includes(`hreflang="${language}"`)) errors.push(`${name}: missing hreflang ${language}`);
+  for (const language of [...docLocales, 'x-default']) if (!source.includes(`hreflang="${language}"`)) errors.push(`${name}: missing hreflang ${language}`);
   for (const match of source.matchAll(/\b(?:href|src)="([^"]+)"/g)) {
     const value = match[1]!.replaceAll('&amp;', '&');
     if (/^(https?:|mailto:|data:|blob:)/.test(value)) continue;
