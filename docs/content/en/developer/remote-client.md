@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "038401863b917043d865bb96dc3a0a3fcf80520e19195623f6d2d48ed787a6b5"
-translationRevision: "038401863b917043d865bb96dc3a0a3fcf80520e19195623f6d2d48ed787a6b5"
+sourceRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
+translationRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
 order: 90
 ---
 
@@ -44,4 +44,4 @@ The native desktop has an isolated `tiktools-desktop --controller` entry and pro
 
 ## Recover {#recover}
 
-On a sequence gap, use the negotiated subscription snapshot/resume path and clear private projections when identity changes. Do not replay business mutations automatically after reconnect. A changed certificate requires explicit trust review. The [client implementation guide](https://github.com/nglmercer/TikTools-app/blob/remake/docs/LIVE-COLLABORATION-CLIENT.md) documents profile leases and refresh uncertainty; real multi-PC and OS-store acceptance must be reported separately from loopback tests.
+On a sequence gap, use the negotiated subscription snapshot/resume path and clear private projections when identity changes. Do not replay business mutations automatically after reconnect. A changed certificate requires explicit trust review. The [profile implementation](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/profiles/mod.rs) documents profile leases and refresh uncertainty; real multi-PC and OS-store acceptance must be reported separately from loopback tests.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "038401863b917043d865bb96dc3a0a3fcf80520e19195623f6d2d48ed787a6b5"
-translationRevision: "038401863b917043d865bb96dc3a0a3fcf80520e19195623f6d2d48ed787a6b5"
+sourceRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
+translationRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
 order: 90
 ---
 
@@ -44,4 +44,4 @@ El escritorio nativo ofrece `tiktools-desktop --controller` y diarios vinculados
 
 ## Recuperación {#recover}
 
-Ante un hueco de secuencia, usa instantánea y reanudación negociadas; borra proyecciones privadas al cambiar la identidad. No repitas mutaciones automáticamente al reconectar. Un certificado cambiado exige revisar la confianza. La [guía de implementación](https://github.com/nglmercer/TikTools-app/blob/remake/docs/LIVE-COLLABORATION-CLIENT.md) explica exclusión de perfiles e incertidumbre de renovación; distingue pruebas locales de aceptación real con varios equipos y almacenes del sistema.
+Ante un hueco de secuencia, usa instantánea y reanudación negociadas; borra proyecciones privadas al cambiar la identidad. No repitas mutaciones automáticamente al reconectar. Un certificado cambiado exige revisar la confianza. La [implementación de perfiles](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/profiles/mod.rs) explica exclusión de perfiles e incertidumbre de renovación; distingue pruebas locales de aceptación real con varios equipos y almacenes del sistema.

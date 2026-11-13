@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "c86b2035db7b1ef43325a65e57b7ba769d0478ad268bf946698cb67ee553b254"
-translationRevision: "c86b2035db7b1ef43325a65e57b7ba769d0478ad268bf946698cb67ee553b254"
+sourceRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
+translationRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
 order: 20
 ---
 
@@ -40,4 +40,4 @@ IPC local, SQLite y los plugins portables de proceso/QuickJS tienen rutas Androi
 
 ## Verificación y recuperación {#verify-and-recover}
 
-Ejecuta `bash scripts/termux/doctor.sh`, `bash scripts/termux/test.sh` y `bash scripts/termux/smoke.sh` desde la raíz del checkout. Indica las comprobaciones de frontend omitidas. Ante símbolos C++ ausentes en `protoc`, compara `env -u LD_LIBRARY_PATH protoc --version` antes de cambiar bibliotecas. Repara un almacén CA ausente sin desactivar su validación. La compilación cruzada no demuestra aceptación en el teléfono. La [guía fuente de Termux](https://github.com/nglmercer/TikTools-app/blob/remake/docs/TERMUX.md) detalla las pruebas y restricciones.
+Ejecuta `bash scripts/termux/doctor.sh`, `bash scripts/termux/test.sh` y `bash scripts/termux/smoke.sh` desde la raíz del checkout. Indica las comprobaciones de frontend omitidas. Ante símbolos C++ ausentes en `protoc`, compara `env -u LD_LIBRARY_PATH protoc --version` antes de cambiar bibliotecas. Repara un almacén CA ausente sin desactivar su validación. La compilación cruzada no demuestra aceptación en el teléfono. La [script de validación de Termux](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/termux/smoke.sh) detalla las pruebas y restricciones.

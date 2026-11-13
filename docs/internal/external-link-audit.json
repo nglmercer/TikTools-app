@@ -1,5 +1,5 @@
 {
-  "reviewedAt": "2026-11-13T17:53:22.012Z",
+  "reviewedAt": "2026-11-13T18:26:35.455Z",
   "scope": "Current public Markdown links. Immutable archive links remain inventoried as historical evidence.",
   "results": [
     {
@@ -111,6 +111,15 @@
       ]
     },
     {
+      "url": "https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/profiles/mod.rs",
+      "status": 200,
+      "state": "available",
+      "pages": [
+        "en/developer/remote-client.md",
+        "es/developer/remote-client.md"
+      ]
+    },
+    {
       "url": "https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-control-api/src/registry.rs",
       "status": 200,
       "state": "available",
@@ -174,24 +183,6 @@
       ]
     },
     {
-      "url": "https://github.com/nglmercer/TikTools-app/blob/remake/docs/LIVE-COLLABORATION-CLIENT.md",
-      "status": 200,
-      "state": "available",
-      "pages": [
-        "en/developer/remote-client.md",
-        "es/developer/remote-client.md"
-      ]
-    },
-    {
-      "url": "https://github.com/nglmercer/TikTools-app/blob/remake/docs/TERMUX.md",
-      "status": 200,
-      "state": "available",
-      "pages": [
-        "en/developer/platforms.md",
-        "es/developer/platforms.md"
-      ]
-    },
-    {
       "url": "https://github.com/nglmercer/TikTools-app/blob/remake/packages/plugin-sdk/plugin.schema.json",
       "status": 200,
       "state": "available",
@@ -227,6 +218,15 @@
       "pages": [
         "en/developer/testing.md",
         "es/developer/testing.md"
+      ]
+    },
+    {
+      "url": "https://github.com/nglmercer/TikTools-app/blob/remake/scripts/termux/smoke.sh",
+      "status": 200,
+      "state": "available",
+      "pages": [
+        "en/developer/platforms.md",
+        "es/developer/platforms.md"
       ]
     },
     {

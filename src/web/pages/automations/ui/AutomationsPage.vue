@@ -52,7 +52,6 @@ import AutomationRunsPanel from '@/widgets/automation-runs/ui/AutomationRunsPane
 const { t } = useAutomationText();
 const guideCapabilities = useCapabilityStore();
 const automation = useAutomationControls();
-// Variables sync is a TODO (docs/SYNC-CHANGES-PLAN.md): register its adapter here and add a button to that tab once a Cloud collection carries it.
 const syncAdapters = useAutomationSyncAdapters();
 const variableSync = useVariableSyncAdapter();
 const library = libraryJournal(useControlClient());

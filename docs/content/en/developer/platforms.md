@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "c86b2035db7b1ef43325a65e57b7ba769d0478ad268bf946698cb67ee553b254"
-translationRevision: "c86b2035db7b1ef43325a65e57b7ba769d0478ad268bf946698cb67ee553b254"
+sourceRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
+translationRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
 order: 20
 ---
 
@@ -40,4 +40,4 @@ Local IPC, SQLite and portable process/QuickJS plugins have implemented Android 
 
 ## Verify and recover {#verify-and-recover}
 
-Run `bash scripts/termux/doctor.sh`, `bash scripts/termux/test.sh` and `bash scripts/termux/smoke.sh` from the checkout root. Report skipped frontend checks honestly. For broken `protoc` C++ symbols, compare `env -u LD_LIBRARY_PATH protoc --version` before changing libraries. A missing CA bundle must be repaired, never bypassed. Cross-compilation alone does not establish phone acceptance. The [native Termux source guide](https://github.com/nglmercer/TikTools-app/blob/remake/docs/TERMUX.md) records the targeted probes and remaining restrictions.
+Run `bash scripts/termux/doctor.sh`, `bash scripts/termux/test.sh` and `bash scripts/termux/smoke.sh` from the checkout root. Report skipped frontend checks honestly. For broken `protoc` C++ symbols, compare `env -u LD_LIBRARY_PATH protoc --version` before changing libraries. A missing CA bundle must be repaired, never bypassed. Cross-compilation alone does not establish phone acceptance. The [Termux smoke script](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/termux/smoke.sh) records the targeted probes and remaining restrictions.

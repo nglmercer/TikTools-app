@@ -144,12 +144,13 @@ real accounts, production requests or effectful plugin execution. Keep demo
 behavior behind its explicit transport/bootstrap boundary. Do not introduce
 demo-only business rules into the production core.
 
-`docs/inventory.json` is the migration baseline. Every original path and
-heading must retain a meaningful route through `docs/migration-map.json` and
-the bilingual legacy stubs. Preserve the exact originals and images in
+`docs/inventory.json` is the migration baseline. Every original document and heading must retain a recorded destination in
+`docs/migration-map.json`. Retired Markdown stubs and duplicate images have
+been removed from the active tree; use current guides or versioned originals. Preserve the exact originals and images in
 `docs/internal/archive/<original-repository-path>`; update migration notes
 rather than historical bytes. Normative plans and dated evidence belong in
-the internal archive. Legacy stubs remain outside public search.
+the internal archive. The archive remains outside public content and search. Do not recreate retired
+legacy copies beside the new guides.
 
 The site and release-feed workflows share the exported `reapplyWithCas`
 contract in `scripts/publish-site.ts`: fetch the current head on every attempt,
