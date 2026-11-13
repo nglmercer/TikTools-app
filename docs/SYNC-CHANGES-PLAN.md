@@ -85,8 +85,36 @@ requires host approval. Backend migration: RemakeBackend
   downloaded settings/other section records and Variables/Overlays adapters remain
   separate implementation work; the section-scoped publication change does not
   claim those transports exist.
-- Backend code/migration has not been deployed. Production-account migration was
-  not executed.
+- Backend code/migration has not been deployed. The initial 4.2.0 validation did
+  not activate Cloud v2. During the later RC1 GUI test, v2 activation executed on
+  the copied profile. This operation has account-wide scope: the server policy
+  was confirmed active afterwards, but no baseline was captured to determine
+  whether it was already required. The six workspace conflicts remain intact;
+  original profile files were untouched.
+
+### 4.2.1-rc.1 reproduction
+
+The Linux prerelease is published at
+<https://github.com/nglmercer/TikTools-app/releases/tag/v4.2.1-rc.1>.
+The downloaded AppImage, DEB and portable archive match the uploaded checksums.
+The actual AppImage reports `4.2.1-rc.1`; bundled `appsink`, WAV and H.264 tests
+passed. GitHub Actions is disabled, so these Linux artifacts were built locally.
+
+The GUI reproduced "The changes could not be loaded" after v2 activation.
+A diagnostic linked against the compiled core, without starting the background
+sync worker, reads all six changes and conflicts sequentially. With 32 concurrent
+read-only `sync_v2_changes_list` calls, 3 succeed and 29 fail with
+`conflict: another sync or cutover operation is active`. These reads currently
+capture their identity through `with_product_local_edit`, which reserves the
+exclusive mutation admission. The toolbar counter and panel also issue reads
+independently. Fix the read admission and retain exact session/consent revalidation;
+do not remove write fences or hide the failure behind an empty successful list.
+The panel should also expose the native error and offer a local-read retry.
+
+The production backend responds `200` at `/api/v2/capabilities` and announces v2,
+while the new `/api/v3/remote/people` route responds `404`. The existing remote
+hosts route responds `401` without credentials. Nickname search therefore still
+requires deployment of backend commit `6a69c99` and its additive migration.
 
 ## Goal
 
