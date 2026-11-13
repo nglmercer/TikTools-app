@@ -1,16 +1,18 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::teams::{
-    CommandOutcome, CommandRunParams, RemoteHostStatus, TeamCreateParams, TeamDecisionParams,
-    TeamDevice, TeamDeviceList, TeamDeviceParams, TeamEnrollParams, TeamGrantList,
-    TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost, TeamHostList, TeamHostParams,
-    TeamInvitationCreateParams, TeamInvitationCreated, TeamInvitationList, TeamInvitationParams,
-    TeamRedeemParams, TeamRedeemResult, TeamRequestList, TeamSessionList, TeamSessionParams,
-    TeamUpdateParams,
+    CommandOutcome, CommandRunParams, PeerMemberships, RemoteHostStatus, TeamCreateParams,
+    TeamDecisionParams, TeamDevice, TeamDeviceList, TeamDeviceParams, TeamEnrollParams,
+    TeamGrantList, TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost, TeamHostList,
+    TeamHostParams, TeamInvitationCreateParams, TeamInvitationCreated, TeamInvitationList,
+    TeamInvitationParams, TeamPeople, TeamPeopleSearchParams, TeamRedeemParams, TeamRedeemResult,
+    TeamRequestList, TeamSessionList, TeamSessionParams, TeamUpdateParams,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
 
 pub(crate) const METHODS: &[&str] = &[
+    TEAMS_PEOPLE_SEARCH,
+    TEAMS_ACCESSIBLE_LIST,
     TEAMS_COMMANDS_RUN,
     TEAMS_INVITATIONS_REDEEM,
     TEAMS_HOST_STATUS,
@@ -36,6 +38,8 @@ pub(crate) const METHODS: &[&str] = &[
 ];
 
 const TEAMS_COMMANDS_RUN: &str = "teams.commands.run";
+const TEAMS_PEOPLE_SEARCH: &str = "teams.people.search";
+const TEAMS_ACCESSIBLE_LIST: &str = "teams.accessible.list";
 const TEAMS_INVITATIONS_REDEEM: &str = "teams.invitations.redeem";
 const TEAMS_HOST_STATUS: &str = "teams.host.status";
 const TEAMS_HOST_START: &str = "teams.host.start";
@@ -59,6 +63,17 @@ const TEAMS_SESSIONS_LIST: &str = "teams.sessions.list";
 const TEAMS_SESSIONS_REVOKE: &str = "teams.sessions.revoke";
 
 impl TikToolsClient {
+    pub async fn teams_people_search(
+        &self,
+        params: TeamPeopleSearchParams,
+    ) -> Result<TeamPeople, ClientError> {
+        self.call(TEAMS_PEOPLE_SEARCH, params).await
+    }
+
+    pub async fn teams_accessible_list(&self) -> Result<PeerMemberships, ClientError> {
+        self.call(TEAMS_ACCESSIBLE_LIST, Empty::default()).await
+    }
+
     pub async fn teams_hosts_list(&self) -> Result<TeamHostList, ClientError> {
         self.call(TEAMS_HOSTS_LIST, Empty::default()).await
     }

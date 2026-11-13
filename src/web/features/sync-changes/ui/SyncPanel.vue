@@ -23,19 +23,19 @@ import SyncDiffPane from './SyncDiffPane.vue';
 import { useSyncLabels } from '../lib/use-sync-labels.ts';
 import { useSyncDiff } from '../model/use-sync-diff.ts';
 
-const props = defineProps<{ adapter: SyncAdapter }>();
+const props = withDefaults(defineProps<{ adapter: SyncAdapter; preparing?: boolean }>(), { preparing: false });
 const open = defineModel<boolean>('open', { default: false });
 const { t } = useI18n();
 
 const caps = props.adapter.capabilities;
-const source = useSyncChanges(props.adapter);
+const source = useSyncChanges(props.adapter, computed(() => !props.preparing));
 const panel = useSyncPanel(props.adapter, source);
 const auto = ref(props.adapter.autoSync?.get() ?? false);
 const menuOpen = ref(false);
 
 // Each time the panel opens it shows fresh data on the Changes view.
 watch(open, (isOpen) => {
-  if (!isOpen) return;
+  if (!isOpen || props.preparing) return;
   menuOpen.value = false;
   void panel.show('changes');
   void panel.refresh();
@@ -93,103 +93,104 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
   <BaseDialog
     v-model:open="open"
     class="sync-panel"
+    :class="{ 'sync-panel--preparing': preparing }"
     :title="title"
-    :width="1100"
+    :width="preparing ? 760 : 1100"
   >
     <template #header-actions>
-      <BaseSwitch
-        v-if="caps.autoSync && adapter.autoSync"
-        v-model="auto"
-        class="sync-panel__auto"
-        :title="t('syncChanges.autoHint')"
-        :disabled="panel.busy.value"
-        @update:model-value="adapter.autoSync!.set($event)"
-      >
-        {{ t('syncChanges.auto') }}
-      </BaseSwitch>
-      <BaseIconButton
-        v-if="caps.fetch"
-        :label="t('syncChanges.fetch')"
-        variant="default"
-        :disabled="panel.busy.value"
-        @click="panel.fetchChanges()"
-      >
-        <IconDownload />
-      </BaseIconButton>
-      <BaseIconButton
-        v-if="caps.push"
-        :label="t('syncChanges.push')"
-        variant="default"
-        :disabled="panel.busy.value || !panel.checkedIds.value.length"
-        @click="panel.push()"
-      >
-        <IconUpload />
-      </BaseIconButton>
-      <BaseButton
-        v-if="caps.sync"
-        variant="primary"
-        :title="t('syncChanges.syncHint')"
-        :disabled="panel.busy.value"
-        @click="panel.syncAll()"
-      >
-        <template #icon>
-          <IconRefresh :class="{ 'sync-panel__spin': panel.busy.value }" />
-        </template>
-        {{ t('syncChanges.sync') }}
-      </BaseButton>
-      <BaseIconButton
-        v-if="caps.markReviewed && adapter.markReviewed"
-        :label="t('syncChanges.markReviewed')"
-        :hint="t('syncChanges.markReviewedHint')"
-        variant="default"
-        :disabled="panel.busy.value || panel.changes.value.length === 0"
-        @click="panel.ask({ kind: 'markReviewed' })"
-      >
-        <IconCheck />
-      </BaseIconButton>
-      <span
-        v-if="menuEntries.length"
-        class="sync-panel__more"
-        @keydown.escape="onMenuEscape"
-        @focusout="onMenuFocusOut"
-      >
-        <BaseIconButton
-          :label="t('syncChanges.more')"
-          variant="default"
-          :pressed="menuOpen"
-          aria-haspopup="menu"
-          :aria-expanded="menuOpen"
+      <template v-if="!preparing">
+        <BaseSwitch
+          v-if="caps.autoSync && adapter.autoSync"
+          v-model="auto"
+          class="sync-panel__auto"
+          :title="t('syncChanges.autoHint')"
           :disabled="panel.busy.value"
-          @click="menuOpen = !menuOpen"
+          @update:model-value="adapter.autoSync!.set($event)"
         >
-          <IconMoreVertical />
+          {{ t('syncChanges.auto') }}
+        </BaseSwitch>
+        <BaseIconButton
+          v-if="caps.fetch"
+          :label="t('syncChanges.fetch')"
+          variant="default"
+          :disabled="panel.busy.value"
+          @click="panel.fetchChanges()"
+        >
+          <IconDownload />
         </BaseIconButton>
-        <ul
-          v-if="menuOpen"
-          class="sync-panel__menu"
-          role="menu"
+        <BaseIconButton
+          v-if="caps.push && panel.sendable.value.length"
+          :label="t('syncChanges.push')"
+          variant="default"
+          :disabled="panel.busy.value || !panel.checkedIds.value.length"
+          @click="panel.push()"
         >
-          <li
-            v-for="entry in menuEntries"
-            :key="entry.id"
-            role="none"
+          <IconUpload />
+        </BaseIconButton>
+
+        <BaseIconButton
+          v-if="caps.markReviewed && adapter.markReviewed"
+          :label="t('syncChanges.markReviewed')"
+          :hint="t('syncChanges.markReviewedHint')"
+          variant="default"
+          :disabled="panel.busy.value || panel.changes.value.length === 0"
+          @click="panel.ask({ kind: 'markReviewed' })"
+        >
+          <IconCheck />
+        </BaseIconButton>
+        <span
+          v-if="menuEntries.length"
+          class="sync-panel__more"
+          @keydown.escape="onMenuEscape"
+          @focusout="onMenuFocusOut"
+        >
+          <BaseIconButton
+            :label="t('syncChanges.more')"
+            variant="default"
+            :pressed="menuOpen"
+            aria-haspopup="menu"
+            :aria-expanded="menuOpen"
+            :disabled="panel.busy.value"
+            @click="menuOpen = !menuOpen"
           >
-            <button
-              class="sync-panel__menu-item"
-              :class="{ 'sync-panel__menu-item--danger': entry.danger }"
-              type="button"
-              role="menuitem"
-              @click="onMenu(entry.id)"
+            <IconMoreVertical />
+          </BaseIconButton>
+          <ul
+            v-if="menuOpen"
+            class="sync-panel__menu"
+            role="menu"
+          >
+            <li
+              v-for="entry in menuEntries"
+              :key="entry.id"
+              role="none"
             >
-              <component :is="entry.icon" />
-              {{ entry.label }}
-            </button>
-          </li>
-        </ul>
-      </span>
+              <button
+                class="sync-panel__menu-item"
+                :class="{ 'sync-panel__menu-item--danger': entry.danger }"
+                type="button"
+                role="menuitem"
+                @click="onMenu(entry.id)"
+              >
+                <component :is="entry.icon" />
+                {{ entry.label }}
+              </button>
+            </li>
+          </ul>
+        </span>
+      </template>
     </template>
 
-    <div class="sync-panel__body">
+    <section
+      v-if="preparing"
+      class="sync-panel__preparation"
+    >
+      <slot name="preparation" />
+    </section>
+    <div
+      v-else
+      class="sync-panel__body"
+    >
       <div
         v-if="showConfirm(panel.confirmation.value)"
         class="sync-panel__confirm"
@@ -241,7 +242,21 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
         tone="error"
         compact
         :title="panel.failure.value ?? t('syncChanges.loadFailed')"
-      />
+      >
+        <div
+          v-if="panel.loadError.value"
+          class="sync-panel__read-error"
+        >
+          <span>{{ panel.loadError.value }}</span>
+          <BaseButton
+            size="sm"
+            :disabled="panel.loading.value || panel.busy.value"
+            @click="panel.refresh()"
+          >
+            {{ t('syncChanges.retryRead') }}
+          </BaseButton>
+        </div>
+      </BaseAlert>
 
       <div class="sync-panel__main">
         <SyncSidebar
@@ -260,6 +275,23 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
         />
       </div>
     </div>
+    <template
+      v-if="!preparing"
+      #footer
+    >
+      <BaseButton
+        v-if="caps.sync"
+        variant="primary"
+        :title="t('syncChanges.syncHint')"
+        :disabled="panel.busy.value"
+        @click="panel.syncAll()"
+      >
+        <template #icon>
+          <IconRefresh :class="{ 'sync-panel__spin': panel.busy.value }" />
+        </template>
+        {{ t('syncChanges.sync') }}
+      </BaseButton>
+    </template>
   </BaseDialog>
 </template>
 

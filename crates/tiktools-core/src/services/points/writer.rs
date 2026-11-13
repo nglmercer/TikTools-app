@@ -107,6 +107,7 @@ pub(super) fn run_points_writer(database: Arc<DatabaseManager>, shared: Arc<Poin
             // on work nobody can apply.
             tracing::error!(
                 %error,
+                sqlite_extended_code = error.sqlite_extended_code(),
                 "points writer could not open SQLite; every queued op is reported as a permanent failure"
             );
             shared.errors.fetch_add(1, Ordering::Relaxed);
@@ -206,6 +207,7 @@ fn apply_points_batch_resilient(
     if let Err(error) = database.apply_points_batch(connection, batch) {
         tracing::error!(
             %error,
+            sqlite_extended_code = error.sqlite_extended_code(),
             ops = batch.len(),
             max_seq = batch.last().map_or(0, PointsWriteOp::seq),
             "points batch transaction failed; retrying the transaction"
@@ -223,7 +225,7 @@ fn apply_points_batch_resilient(
                 }
                 Err(error) => {
                     shared.errors.fetch_add(1, Ordering::Relaxed);
-                    tracing::error!(%error, attempt, "points batch transaction retry failed");
+                    tracing::error!(%error, attempt, sqlite_extended_code = error.sqlite_extended_code(), "points batch transaction retry failed");
                 }
             }
         }
@@ -241,7 +243,7 @@ fn apply_points_batch_resilient(
                     // preservation cannot be guaranteed, so say so loudly
                     // with the exact op identity instead of vanishing.
                     Err(error) => {
-                        tracing::error!(%error, seq = op.seq(), "points write failed and cannot be retried further");
+                        tracing::error!(%error, sqlite_extended_code = error.sqlite_extended_code(), seq = op.seq(), "points write failed and cannot be retried further");
                         shared.record_failure(op.seq());
                     }
                 }

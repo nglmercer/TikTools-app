@@ -447,6 +447,13 @@ impl AppCore {
                 "app state value exceeds 65536 characters",
             ));
         }
+        if key.starts_with(crate::services::runtime_variables::TYPE_PREFIX)
+            || key == crate::services::runtime_variables::REVISION_KEY
+        {
+            return Err(OperationError::invalid(
+                "variable type metadata must be saved through globals.typed.replace",
+            ));
+        }
         #[cfg(feature = "persistence")]
         if super::owner_library::LIBRARY_STATE_KEYS.contains(&key) {
             return self.library_app_state_set(key, value);

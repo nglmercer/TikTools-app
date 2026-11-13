@@ -4,6 +4,7 @@ import { computed, markRaw, ref, useTemplateRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isConnectionBusy } from '@/entities/connection/lib/connection-status.ts';
 import ConnectionIndicator from '@/entities/connection/ui/ConnectionIndicator.vue';
+import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
@@ -70,6 +71,10 @@ function onRecent(action: MenuAction): void {
 <template>
   <BasePanel :title="t('connections.live.title')">
     <template #actions>
+      <GuideButton
+        tour="connection"
+        :task-state="() => ({ 'connection.connected': status === 'connected' })"
+      />
       <DiagnosticStatusAction
         v-if="error"
         :label="t('diagnostics.connectionFailed')"

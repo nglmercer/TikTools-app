@@ -19,6 +19,8 @@ data/*.db-wal
 test-results/
 playwright-report/
 playwright/.cache/
+/docs/.vitepress/cache/
+/docs/.vitepress/.temp/
 # The napi-vm native fixture commits its compiled guest entry and the
 # bundled npm package layout the integration tests stage from.
 !crates/tiktools-plugin-loader/tests/fixtures/napi-vm-native/dist/

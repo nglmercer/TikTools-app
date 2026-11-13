@@ -92,7 +92,8 @@ impl WorkspaceEdit {
             Self::Delete => Ok(0),
         }
     }
-    fn matches(&self, record: &WorkspaceRecord) -> bool {
+    /// Compare an edit with a record using portable JSON number equivalence.
+    pub fn matches(&self, record: &WorkspaceRecord) -> bool {
         match self {
             Self::Put(value) => {
                 !record.deleted

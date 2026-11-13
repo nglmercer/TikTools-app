@@ -1,4 +1,5 @@
 import { shallowRef, ref } from 'vue';
+import { appNow } from '@/shared/lib/app-clock.ts';
 
 export type DiagnosticLevel = 'info' | 'warning' | 'error';
 export type DiagnosticSource =
@@ -108,7 +109,7 @@ export function createDiagnosticLog(options: { capacity?: number; maxBytes?: num
 }
 
 // One UI session. No localStorage, disk writes, raw console interception or credentials.
-export const diagnosticLog = createDiagnosticLog();
+export const diagnosticLog = createDiagnosticLog({ now: appNow });
 export const diagnosticView = {
   open: ref(false), request: ref(0), selectedId: ref(''), source: ref(''), entityId: ref(''),
 };

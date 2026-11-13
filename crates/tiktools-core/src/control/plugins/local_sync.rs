@@ -307,7 +307,7 @@ pub(super) fn confirm_local_plugin_mutation(
 
 impl AppCore {
     #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
-    pub(super) fn try_plugin_source_lease(
+    pub(crate) fn try_plugin_source_lease(
         &self,
     ) -> Result<tiktools_cloud_sync::ProductEmissionLease, OperationError> {
         tiktools_cloud_sync::ProductEmissionFence::open(

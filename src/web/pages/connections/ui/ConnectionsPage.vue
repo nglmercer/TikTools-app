@@ -63,13 +63,17 @@ watch([useCookie, selectedServer], persist);
 </script>
 
 <template>
-  <div class="connections-page">
+  <div
+    class="connections-page"
+    data-guide-scope="connections"
+  >
     <div class="connections-page__top">
       <LiveConnectPanel
         v-model:handle="handle"
         v-model:cookie="cookie"
         v-model:use-cookie="useCookie"
         v-model:auto-connect="autoConnect"
+        data-guide="connection-form"
         class="connections-page__live"
         :status="connection.status"
         :monitor-enabled="connection.monitorStatus?.enabled"
@@ -90,6 +94,7 @@ watch([useCookie, selectedServer], persist);
         @select-recent="selectRecent"
       />
       <LiveExplorerPanel
+        data-guide="connection-explorer"
         class="connections-page__explorer"
         :current-creator="connection.activeCreator"
         @connect="connectRoom"
@@ -98,6 +103,7 @@ watch([useCookie, selectedServer], persist);
     <PlatformConnectionsPanel />
     <PluginServersPanel
       v-model:selected="selectedServer"
+      data-guide="connection-plugins"
       class="connections-page__servers"
     />
   </div>

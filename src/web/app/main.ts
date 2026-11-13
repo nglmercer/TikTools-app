@@ -2,15 +2,13 @@ import { createBrowserTransport, LocalSessionError, touchLocalSession } from '@/
 import { createRemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
 import { createSessionRecovery, sessionRecoveryKey, type SessionRecovery } from '@/shared/api/session-recovery.ts';
 import { createBrowserControllerClient } from '@/features/controller/model/browser-controller.ts';
-import { createPinia } from 'pinia';
 import { createApp, type App as VueApp } from 'vue';
 import { ControlCallError, createControlClient, notifyFrontendReady } from '@/shared/api/control-client.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { detectLocale } from '@/shared/i18n/locale-preference.ts';
-import App from './App.vue';
 import ControllerRoot from '@/features/controller/ui/ControllerRoot.vue';
-import { createAppRouter } from './router/router.ts';
+import { mountWorkspace } from './mount-workspace.ts';
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/local-browser.css';
@@ -91,27 +89,25 @@ async function mountApp(): Promise<VueApp> {
     });
   }
   if (transport) await transport.connect().catch(() => {});
-  const router = createAppRouter();
-  const app = createApp(App)
-    .use(createPinia())
-    .use(i18n)
-    .use(router)
-    .provide(controlClientKey, createControlClient({ transport }));
-  if (session) app.provide(sessionRecoveryKey, session);
-  app.onUnmount(() => banner?.remove());
-  if (browser) {
-    // Keep the sliding window alive while the page is open but idle, and
-    // revalidate immediately when a hidden tab becomes visible again.
-    const touch = (): void => {
-      if (document.visibilityState === 'hidden') return;
-      void touchLocalSession().then((state) => { if (state !== 'ok') session?.report(state); });
-    };
-    const timer = setInterval(touch, 5 * 60_000);
-    document.addEventListener('visibilitychange', touch);
-    app.onUnmount(() => { clearInterval(timer); document.removeEventListener('visibilitychange', touch); });
-  }
-  await Promise.all([activateLocale(detectLocale()), router.isReady()]);
-  app.mount('#app');
+  const app = await mountWorkspace({
+    client: createControlClient({ transport }),
+    locale: detectLocale(),
+    configure(app) {
+      if (session) app.provide(sessionRecoveryKey, session);
+      app.onUnmount(() => banner?.remove());
+      if (browser) {
+        // Keep the sliding window alive while the page is open but idle, and
+        // revalidate immediately when a hidden tab becomes visible again.
+        const touch = (): void => {
+          if (document.visibilityState === 'hidden') return;
+          void touchLocalSession().then((state) => { if (state !== 'ok') session?.report(state); });
+        };
+        const timer = setInterval(touch, 5 * 60_000);
+        document.addEventListener('visibilitychange', touch);
+        app.onUnmount(() => { clearInterval(timer); document.removeEventListener('visibilitychange', touch); });
+      }
+    },
+  });
   // The desktop WebView reveals its hidden window on frontend-ready. A browser page
   // has no native window and no window.ipc, so it must not send it.
   if (!browser) notifyFrontendReady();

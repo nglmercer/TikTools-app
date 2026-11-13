@@ -9,6 +9,7 @@ import {
   teamApi,
   type IssuedInvitation,
   type TeamDevice,
+  type AccessibleTeam,
   type TeamGrant,
   type TeamHost,
   type TeamInvitation,
@@ -33,6 +34,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
   const capabilities = useCapabilityStore();
   const api = teamApi(client);
 
+  const accessible = ref<readonly AccessibleTeam[]>([]);
   const hosts = ref<readonly TeamHost[]>([]);
   const devices = ref<readonly TeamDevice[]>([]);
   const selectedId = ref<string | null>(null);
@@ -77,6 +79,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
 
   const available = computed(() => capabilities.supports('teams.hosts.list'));
   const selected = computed(() => hosts.value.find((host) => host.id === selectedId.value) ?? null);
+  const localHostDevice = computed(() => devices.value.find(device => device.isThisDevice && device.kind === 'host' && device.status === 'active' && device.hostId === selectedId.value) ?? null);
   const teamDevices = computed(() => devices.value.filter((device) => device.hostId === selectedId.value));
 
   /** Runs one operation. Overlapping or nested operations each count; only the view that started one hears its result. */
@@ -106,7 +109,9 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
       hosts.value = nextHosts;
       devices.value = nextDevices;
       clearError();
-      const nextLink = await api.hostLink().catch(() => null);
+      // A failed status read is unknown, never a previously cached ready link.
+      link.value = { state: 'unknown', hostId: null, lastError: null };
+      const nextLink = await api.hostLink();
       if (!ticket.isCurrent()) return;
       if (nextLink) link.value = nextLink;
       if (selectedId.value && !nextHosts.some((host) => host.id === selectedId.value)) closeTeam();
@@ -177,6 +182,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     const hostId = kind === 'host' ? selectedId.value ?? undefined : undefined;
     return run(async (view) => {
       await api.enroll(kind, label.trim(), hostId);
+      if (view.isCurrent() && kind === 'controller') accessible.value = [];
       const next = await api.devices();
       if (view.isCurrent()) devices.value = next;
     });
@@ -192,12 +198,12 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     });
   }
 
-  function createInvitation(requestedRole: TeamRole, ttlSeconds?: number): Promise<boolean> {
+  function createInvitation(requestedRole: TeamRole, ttlSeconds?: number, recipientId?: string): Promise<boolean> {
     const hostId = selectedId.value;
     if (!hostId) return Promise.resolve(false);
     const selection = selectionScope.current();
     return run(async (view) => {
-      const created = await api.createInvitation(hostId, requestedRole, ttlSeconds);
+      const created = await api.createInvitation(hostId, requestedRole, ttlSeconds, recipientId);
       // The token is only shown while the team it was issued for is still the open one.
       if (!view.isCurrent() || !selection.isCurrent()) return;
       issued.value = created;
@@ -277,7 +283,28 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     });
   }
 
+  async function refreshLink(): Promise<void> {
+    if (!shown || available.value === false) return;
+    const view = viewScope.current();
+    try {
+      const next = await api.hostLink();
+      if (view.isCurrent()) link.value = next;
+    } catch (failure) {
+      if (view.isCurrent()) {
+        link.value = { state: 'unknown', hostId: null, lastError: null };
+        error.value = capture(failure);
+      }
+    }
+  }
+
   /** Starts or stops this PC's link for the selected team. The host must be enrolled for that team. */
+  function refreshAccessible(): Promise<boolean> {
+    return run(async view => {
+      const next = await api.accessible();
+      if (view.isCurrent()) accessible.value = next;
+    });
+  }
+
   function setHostLink(start: boolean): Promise<boolean> {
     return run(async (view) => {
       const next = start ? await api.startHostLink() : await api.stopHostLink();
@@ -291,6 +318,8 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
    */
   function reset(): void {
     shown = false;
+    accessible.value = [];
+    link.value = { state: 'stopped', hostId: null, lastError: null };
     listScope.invalidate();
     viewScope.invalidate();
     activity.reset();
@@ -300,7 +329,10 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
 
   return {
     hosts,
+    accessible,
+    refreshAccessible,
     devices: teamDevices,
+    localHostDevice,
     allDevices: devices,
     selected,
     selectedId,
@@ -315,6 +347,7 @@ export const useTeamsStore = defineStore('cloud-teams', () => {
     runCommand,
     redeem,
     setHostLink,
+    refreshLink,
     loading,
     working,
     error,

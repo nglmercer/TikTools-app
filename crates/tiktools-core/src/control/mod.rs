@@ -53,7 +53,11 @@ mod cloud_publisher;
 #[cfg(feature = "cloud-auth")]
 pub(crate) mod cloud_sync;
 #[cfg(feature = "cloud-auth")]
+pub(crate) mod cloud_variable_review;
+#[cfg(feature = "cloud-auth")]
 mod cloud_variables;
+#[cfg(feature = "cloud-auth")]
+pub use cloud_variable_review::{VariableSyncApply, VariableSyncChange, VariableSyncReview};
 #[cfg(feature = "cloud-auth")]
 mod cloud_workspace;
 mod commands;
@@ -77,6 +81,10 @@ mod cloud_integrations;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 mod cloud_teams;
 mod globals;
+mod runtime_variables;
+pub use runtime_variables::{
+    RuntimeVariable, RuntimeVariableKind, RuntimeVariablesReplace, RuntimeVariablesSnapshot,
+};
 mod helpers;
 mod live;
 mod live_platforms;
@@ -134,8 +142,8 @@ pub use cloud_library::{
 #[cfg(feature = "cloud-auth")]
 pub use cloud_sync::{
     SyncNowResult, SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncRecoveryValue,
-    V2ChangeEntry, V2ConflictChoice, V2ConflictOutcome, V2ConflictReview, V2ConflictTarget,
-    V2ConflictValue, V2PendingChange, WorkspaceV2SyncResult,
+    SyncSection, V2ChangeEntry, V2ConflictChoice, V2ConflictOutcome, V2ConflictReview,
+    V2ConflictTarget, V2ConflictValue, V2PendingChange, WorkspaceV2SyncResult,
 };
 #[cfg(feature = "cloud-auth")]
 pub use cloud_variables::{
@@ -143,7 +151,8 @@ pub use cloud_variables::{
 };
 #[cfg(feature = "cloud-auth")]
 pub use cloud_workspace::{
-    WorkspaceV2Discovery, WorkspaceV2DiscoveryState, WorkspaceV2Migration, WorkspaceV2Preview,
+    WorkspaceInventoryRepairParams, WorkspaceInventoryReview, WorkspaceV2Discovery,
+    WorkspaceV2DiscoveryState, WorkspaceV2Migration, WorkspaceV2Preview,
 };
 #[cfg(any(test, feature = "native-tiktok"))]
 pub(crate) use helpers::check_session_cookie_len;

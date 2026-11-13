@@ -43,7 +43,7 @@ use tiktools_control_api::modules::competitions::{
 use tiktools_control_api::modules::creators::{CreatorGetParams, CreatorsRecentParams};
 use tiktools_control_api::modules::gifts::GiftDebugParams;
 use tiktools_control_api::modules::globals::{
-    GlobalsDeleteParams, GlobalsGetParams, GlobalsSetParams,
+    GlobalsDeleteParams, GlobalsGetParams, GlobalsSetParams, RuntimeVariablesReplace,
 };
 #[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::integrations::{IntegrationConnectParams, IntegrationIdParams};
@@ -309,6 +309,10 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
             .map(|_| ())
             .map_err(invalid),
         "globals.list" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
+        "globals.typed.list" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
+        "globals.typed.replace" => RuntimeVariablesReplace::deserialize(params)
+            .map(|_| ())
+            .map_err(invalid),
         "globals.get" => GlobalsGetParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
@@ -544,8 +548,23 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         #[cfg(feature = "cloud-auth")]
         "sync.v2.migrate"
         | "sync.v2.rebuild"
+        | "sync.v2.inventory.review"
         | "sync.v2.changes.list"
         | "sync.v2.conflict.list" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.variables.review" | "sync.v2.variables.fetch" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.variables.apply" | "sync.v2.variables.send" | "sync.v2.variables.withdraw" => {
+            validate::<tiktools_control_api::modules::sync::VariableSyncApply>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.inventory.repair" => {
+            validate::<tiktools_control_api::modules::sync::WorkspaceInventoryRepairParams>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.section" => {
+            validate::<tiktools_control_api::modules::sync::SyncSectionParams>(params)
+        }
         #[cfg(feature = "cloud-auth")]
         "sync.v2.conflict.review" => {
             validate::<tiktools_control_api::modules::sync::SyncV2ConflictReviewParams>(params)
@@ -618,7 +637,11 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         #[cfg(feature = "cloud-auth")]
         "teams.host.stop" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
-        "teams.hosts.list" => validate::<Empty>(params),
+        "teams.hosts.list" | "teams.accessible.list" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.people.search" => {
+            validate::<tiktools_control_api::modules::teams::TeamPeopleSearchParams>(params)
+        }
         #[cfg(feature = "cloud-auth")]
         "teams.hosts.create" => validate::<TeamCreateParams>(params),
         #[cfg(feature = "cloud-auth")]

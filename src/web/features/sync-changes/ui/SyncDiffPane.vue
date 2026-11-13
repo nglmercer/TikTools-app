@@ -13,7 +13,7 @@ import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
 import BaseJsonDiff from '@/shared/ui/json/BaseJsonDiff.vue';
 
 type SyncDetailPanel = Pick<SyncPanelState, 'view' | 'operation' | 'historyChange' | 'current' | 'busy' | 'ask' | 'resolve'>;
-const props = defineProps<{ adapter: Pick<SyncAdapter, 'capabilities' | 'kindLabel' | 'restore'>; panel: SyncDetailPanel; diff: SyncDiffState }>();
+const props = defineProps<{ adapter: Pick<SyncAdapter, 'capabilities' | 'kindLabel' | 'restore' | 'resolveLabels'>; panel: SyncDetailPanel; diff: SyncDiffState }>();
 const emit = defineEmits<{ selectHistoryChange: [id: string] }>();
 const { t } = useI18n();
 const caps = props.adapter.capabilities;
@@ -87,6 +87,20 @@ const { layout, shown, shownSides, operationStats, picks, conflict, preview, set
           :class="`sync-panel__state--${panel.current.value.status}`"
         >{{ statusLabel(panel.current.value) }}</span>
         <span class="sync-panel__spacer" />
+        <BaseButton
+          v-if="caps.apply && panel.current.value.canApply !== false && panel.current.value.side !== 'conflict'"
+          :disabled="panel.busy.value"
+          @click="panel.ask({ kind: 'apply', id: panel.current.value!.id, name: panel.current.value!.name })"
+        >
+          {{ t('syncChanges.applyCloud') }}
+        </BaseButton>
+        <BaseButton
+          v-if="caps.withdraw && panel.current.value.canWithdraw !== false"
+          :disabled="panel.busy.value"
+          @click="panel.ask({ kind: 'withdraw', id: panel.current.value!.id, name: panel.current.value!.name })"
+        >
+          {{ t('syncChanges.withdraw') }}
+        </BaseButton>
         <BaseIconButton
           v-if="canReset"
           :label="t('syncChanges.reset')"
@@ -98,7 +112,7 @@ const { layout, shown, shownSides, operationStats, picks, conflict, preview, set
         </BaseIconButton>
       </div>
       <div
-        v-if="conflict"
+        v-if="conflict && (conflict.change.canResolveLocal !== false || conflict.change.canResolveCloud !== false)"
         class="sync-panel__conflict"
       >
         <span class="sync-panel__muted">{{ conflict.merge ? t('syncChanges.conflictHelp') : t('syncChanges.conflictBoth') }}</span>
@@ -141,18 +155,20 @@ const { layout, shown, shownSides, operationStats, picks, conflict, preview, set
             {{ t('syncChanges.applyMerge') }}
           </BaseButton>
           <BaseButton
-            :title="t('syncChanges.allLocalHint')"
+            v-if="conflict.change.canResolveLocal !== false"
+            :title="adapter.resolveLabels?.local ?? t('syncChanges.allLocalHint')"
             :disabled="panel.busy.value"
             @click="caps.merge ? setAll('local') : panel.resolve(conflict.change.id, { choice: 'local' })"
           >
-            {{ t('syncChanges.allLocal') }}
+            {{ adapter.resolveLabels?.local ?? t('syncChanges.allLocal') }}
           </BaseButton>
           <BaseButton
-            :title="t('syncChanges.allCloudHint')"
+            v-if="conflict.change.canResolveCloud !== false"
+            :title="adapter.resolveLabels?.cloud ?? t('syncChanges.allCloudHint')"
             :disabled="panel.busy.value"
             @click="caps.merge ? setAll('cloud') : panel.resolve(conflict.change.id, { choice: 'cloud' })"
           >
-            {{ t('syncChanges.allCloud') }}
+            {{ adapter.resolveLabels?.cloud ?? t('syncChanges.allCloud') }}
           </BaseButton>
         </div>
       </div>
@@ -168,7 +184,22 @@ const { layout, shown, shownSides, operationStats, picks, conflict, preview, set
     </BaseEmptyState>
 
     <div
-      v-if="shown?.changedKeys"
+      v-if="shown?.notice"
+      class="sync-panel__keys"
+      role="status"
+    >
+      {{ shown.notice }}
+    </div>
+    <div
+      v-if="shown?.valuesHidden"
+      class="sync-panel__keys"
+      role="region"
+      :aria-label="t('syncChanges.diffRegion')"
+    >
+      {{ t('syncChanges.variableValuesHidden') }}
+    </div>
+    <div
+      v-else-if="shown?.changedKeys"
       class="sync-panel__keys"
       role="region"
       :aria-label="t('syncChanges.diffRegion')"

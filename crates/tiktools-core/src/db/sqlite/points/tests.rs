@@ -69,6 +69,29 @@ fn save(seq: u64, id: &str, total: f64, delta: f64) -> PointsWriteOp {
 }
 
 #[test]
+fn a_competing_writer_preserves_the_batch_until_the_lock_is_released() {
+    let f = Fixture::new();
+    let mut writer = f.db.open_points_writer().unwrap();
+    writer.busy_timeout(std::time::Duration::ZERO).unwrap();
+    let mut other = f.db.open(&f.db.points_path()).unwrap();
+    let reservation = other
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .unwrap();
+    let batch = [save(1, "contended-viewer", 12.0, 12.0)];
+    let error = f.db.apply_points_batch(&mut writer, &batch).unwrap_err();
+    assert_eq!(
+        error.sqlite_extended_code(),
+        Some(rusqlite::ffi::SQLITE_BUSY)
+    );
+    assert_eq!(f.revision("contended-viewer"), None);
+    assert_eq!(f.outbox(), 0);
+    reservation.rollback().unwrap();
+    f.db.apply_points_batch(&mut writer, &batch).unwrap();
+    assert_eq!(f.revision("contended-viewer"), Some(1));
+    assert_eq!(f.outbox(), 1);
+}
+
+#[test]
 fn display_projection_is_explicit_bounded_and_omits_unselected_profile_fields() {
     use crate::collaboration::{Grant, ResourceKind, SNAPSHOT_BYTES};
     let f = Fixture::new();

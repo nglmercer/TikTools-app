@@ -1,0 +1,15 @@
+export default {
+  history: "定义更改", pendingButton: "处理定义更改", title: "所有者定义更改",
+  lead: "主机会在发送前记录每次保存、删除和启用状态更改。恢复只检查原始结果，绝不会再次发送更改。",
+  host: "主机 {id} · 实例 {instance}", pending: "未确认的 {operation} · {kind} {id} · 基线修订版 {revision}",
+  command: "原始操作：{id}", resolve: "检查原始结果", refresh: "刷新历史",
+  base: "已审查基线修订版：{revision}", originalInstance: "原始主机实例：{instance}",
+  unknown: "我已审查原始操作，并理解其结果仍然未知。", archive: "归档不确定结果",
+  compare: "恢复的历史不会替换你的草稿。再次写入前，请比较当前已保存的源内容。",
+  noPending: "没有未确认的定义更改。", empty: "近期没有定义更改。",
+  succeeded: "成功", rejected: "已拒绝", 'reviewed-unknown': "已审查未知结果",
+  create: "创建", update: "保存", delete: "删除", enable: "启用", disable: "禁用", action: "操作", event: "事件",
+  revision: "修订版 {revision} · 受影响记录：{count}", otherPending: "一项定义更改需要恢复。再次转移执行权前，请打开“定义更改”。",
+  unavailable: "原生定义日志不可用。持久化更改仍被阻止。",
+  profileFailed: "定义已保存。分配配置方案失败：{reason}",
+};

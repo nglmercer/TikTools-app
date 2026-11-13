@@ -1,5 +1,5 @@
 import { enableAutoUnmount, mount } from '@vue/test-utils';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import BaseComboBox from './BaseComboBox.vue';
 
 const options = [
@@ -77,6 +77,18 @@ describe('BaseComboBox', () => {
     document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     await wrapper.vm.$nextTick();
     expect(listbox()).toBeNull();
+  });
+
+  it('clears the typeahead timeout when a selector is unmounted', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const baseline = vi.getTimerCount();
+      const wrapper = mountComboBox('fade');
+      await wrapper.get('[role="combobox"]').trigger('keydown', { key: 's' });
+      expect(vi.getTimerCount()).toBeGreaterThan(baseline);
+      wrapper.unmount();
+      expect(vi.getTimerCount()).toBe(baseline);
+    } finally { vi.useRealTimers(); }
   });
 
   it('changes the value by typeahead while closed', async () => {

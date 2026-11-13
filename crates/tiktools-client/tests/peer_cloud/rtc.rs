@@ -25,6 +25,7 @@ pub async fn unsupported_device(
             host_id: host.into(),
             requested_role: "moderator".into(),
             ttl_seconds: Some(300),
+            recipient_id: None,
         })
         .await
         .unwrap();

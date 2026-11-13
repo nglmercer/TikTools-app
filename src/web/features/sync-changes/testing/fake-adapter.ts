@@ -23,6 +23,8 @@ export function fakeAdapter(capabilities: Partial<SyncCapabilities> = {}, change
     list: vi.fn(async () => changes),
     push: vi.fn<(ids: readonly string[]) => Promise<void>>(async () => {}),
     fetch: vi.fn(async () => {}),
+    apply: vi.fn<(id: string) => Promise<void>>(async () => {}),
+    withdraw: vi.fn<(id: string) => Promise<void>>(async () => {}),
     sync: vi.fn(async () => {}),
     reset: vi.fn<(id: string) => Promise<void>>(async () => {}),
     resetAll: vi.fn(async () => {}),
@@ -43,6 +45,8 @@ export function fakeAdapter(capabilities: Partial<SyncCapabilities> = {}, change
     list: spies.list,
     push: spies.push,
     fetch: spies.fetch,
+    apply: spies.apply,
+    withdraw: spies.withdraw,
     sync: spies.sync,
     reset: spies.reset,
     resetAll: spies.resetAll,
@@ -59,5 +63,5 @@ export function fakeAdapter(capabilities: Partial<SyncCapabilities> = {}, change
 }
 
 export const allCapabilities: SyncCapabilities = {
-  push: true, fetch: true, sync: true, reset: true, resolve: true, merge: true, force: true, history: true, fork: true, branches: false, autoSync: true, markReviewed: true,
+  push: true, fetch: true, sync: true, reset: true, resolve: true, merge: true, force: true, history: true, fork: true, branches: false, autoSync: true, markReviewed: true, apply: true, withdraw: true,
 };

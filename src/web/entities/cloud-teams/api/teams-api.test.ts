@@ -31,3 +31,11 @@ describe('team response parsing', () => {
     expect(() => parseRedeemResult({ requestId: 'x', hostId: id, status: 'pending', requestedRole: 'moderator' })).toThrow(InvalidTeamResponse);
   });
 });
+
+
+it('parses nicknames for authorized teams without accepting full email addresses', async () => {
+  const { parseAccessibleTeams } = await import('./teams-api.ts');
+  const row = { id: '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c', name: 'Stream', role: 'observer', ownerNickname: 'user' };
+  expect(parseAccessibleTeams({ items: [row] })[0]?.ownerNickname).toBe('user');
+  expect(() => parseAccessibleTeams({ items: [{ ...row, ownerNickname: 'user@example.com' }] })).toThrow();
+});

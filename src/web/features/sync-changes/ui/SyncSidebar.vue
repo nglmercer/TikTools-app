@@ -13,7 +13,7 @@ import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 
 type SyncSidebarPanel = Pick<SyncPanelState,
   'view' | 'sendable' | 'allChecked' | 'checkedIds' | 'groups' | 'current' | 'changes' | 'loading' |
-  'busy' | 'operations' | 'operation' | 'historyLoading' |
+  'loadError' | 'busy' | 'operations' | 'operation' | 'historyLoading' |
   'toggleAll' | 'toggle'>;
 const props = defineProps<{ adapter: Pick<SyncAdapter, 'capabilities' | 'kindLabel'>; panel: SyncSidebarPanel }>();
 const emit = defineEmits<{ selectChange: [id: string]; selectOperation: [id: string]; send: [] }>();
@@ -82,7 +82,7 @@ const viewOptions = computed(() => [
             role="listitem"
           >
             <BaseCheckbox
-              v-if="caps.push && change.side === 'local'"
+              v-if="caps.push && change.side === 'local' && change.canSend !== false"
               :model-value="panel.checkedIds.value.includes(change.id)"
               :aria-label="t('syncChanges.sendElement', { name: change.name })"
               @update:model-value="panel.toggle(change.id)"
@@ -108,7 +108,7 @@ const viewOptions = computed(() => [
           </div>
         </template>
         <BaseEmptyState
-          v-if="!panel.changes.value.length && !panel.loading.value"
+          v-if="!panel.changes.value.length && !panel.loading.value && !panel.loadError.value"
           :title="t('syncChanges.empty')"
         >
           <template #icon>
@@ -117,7 +117,7 @@ const viewOptions = computed(() => [
         </BaseEmptyState>
       </div>
       <div
-        v-if="caps.push"
+        v-if="caps.push && panel.sendable.value.length"
         class="sync-panel__send"
       >
         <BaseButton

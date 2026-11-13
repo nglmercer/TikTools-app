@@ -92,9 +92,11 @@ function reset(): void { source.value = ''; entityId.value = ''; level.value = '
       </BaseButton>
       <div
         class="logs__tools"
+        data-guide="diagnostics-actions"
         role="group"
         :aria-label="t('diagnostics.actions')"
       >
+        <slot name="guide" />
         <BaseIconButton
           :label="t(hasFilters ? 'diagnostics.copyFiltered' : 'diagnostics.copyAll')"
           :disabled="!filtered.length"

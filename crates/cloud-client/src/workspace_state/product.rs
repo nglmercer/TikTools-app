@@ -15,6 +15,17 @@ impl WorkspaceState {
         !self.product_receipts.is_empty()
     }
 
+    /// Last durable decision, including an acknowledged or discarded one.
+    /// This is a replay receipt, never permission to prepare or emit a write.
+    pub fn product_latest_decision(&self, target: &WorkspaceKey) -> Option<WorkspaceProductProof> {
+        self.product_receipts
+            .binary_search_by(|r| r.target.cmp(target))
+            .ok()
+            .and_then(|index| self.product_receipts.get(index))
+            .cloned()
+            .map(WorkspaceProductProof)
+    }
+
     /// Capture a receipt only when it identifies the currently queued edit.
     /// Unconfirmed writes and newer edits never inherit an older receipt.
     pub fn product_queued_proof(&self, target: &WorkspaceKey) -> Option<WorkspaceProductProof> {
@@ -35,6 +46,34 @@ impl WorkspaceState {
         if self.product_queued_proof(proof.target()).as_ref() != Some(proof) {
             return Err(WorkspaceStateError::StaleReview);
         }
+        Ok(())
+    }
+
+    /// Cancel a proven queued decision before any request has been prepared.
+    /// Uncertain originals require the epoch-fenced recovery flow instead.
+    pub fn discard_product_queued(&mut self, proof: &WorkspaceProductProof) -> Result<()> {
+        self.verify_product_queued(proof)?;
+        let index = self
+            .index(proof.target())
+            .map_err(|_| WorkspaceStateError::StaleReview)?;
+        let entry = &self.entries[index];
+        if !self.product_guarded
+            || entry.next.is_some()
+            || entry
+                .pending
+                .as_ref()
+                .is_none_or(|pending| pending.write_epoch.is_some())
+        {
+            return Err(WorkspaceStateError::StaleReview);
+        }
+        let mut candidate = self.clone();
+        if candidate.entries[index].remote.is_none() {
+            candidate.entries.remove(index);
+        } else {
+            candidate.entries[index].pending = None;
+        }
+        candidate.validate()?;
+        *self = candidate;
         Ok(())
     }
 

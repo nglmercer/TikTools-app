@@ -1,0 +1,5154 @@
+{
+  "version": 1,
+  "sourceCommit": "80c5cb1fbfa45eaeb1c086c71320a15e565d8541",
+  "reviewedFromCommit": "b72370014ac0cdd4da01be43e7ad86d19d4c9d1c",
+  "documents": [
+    {
+      "source": "CONTRIBUTING.md",
+      "sha256": "25445ab4913ab891f4e75183d1a75d6e2053b9a0f9ffe49c0facebfb8d5c0b35",
+      "bytes": 3007,
+      "anchors": [
+        "contributing-to-tiktools-",
+        "supported-toolchain-",
+        "setup-and-checks-",
+        "security-and-privacy-",
+        "releases-and-branch-policy-"
+      ],
+      "links": [
+        {
+          "target": "#contributing-to-tiktools",
+          "kind": "link"
+        },
+        {
+          "target": "#supported-toolchain",
+          "kind": "link"
+        },
+        {
+          "target": "docs/GETTING_STARTED.md",
+          "kind": "link"
+        },
+        {
+          "target": "#setup-and-checks",
+          "kind": "link"
+        },
+        {
+          "target": "#security-and-privacy",
+          "kind": "link"
+        },
+        {
+          "target": "#releases-and-branch-policy",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "README.md",
+      "sha256": "1e1fe7e2848b41cd9131df77813ddab342e46e93a3197f9c7b25bd036fab5c46",
+      "bytes": 10177,
+      "anchors": [
+        "tiktools-",
+        "what-it-includes-",
+        "quick-start-",
+        "commands-",
+        "development--quality-",
+        "project-layout-",
+        "runtime-plugin-model-",
+        "data-and-privacy-",
+        "documentation-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools",
+          "kind": "link"
+        },
+        {
+          "target": "docs/TERMUX.md",
+          "kind": "link"
+        },
+        {
+          "target": "#what-it-includes",
+          "kind": "link"
+        },
+        {
+          "target": "docs/LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#quick-start",
+          "kind": "link"
+        },
+        {
+          "target": "docs/GETTING_STARTED.md",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/nglmercer/plugins-example-tiktools",
+          "kind": "link"
+        },
+        {
+          "target": "#commands",
+          "kind": "link"
+        },
+        {
+          "target": "#development-quality",
+          "kind": "link"
+        },
+        {
+          "target": "CONTRIBUTING.md",
+          "kind": "link"
+        },
+        {
+          "target": "#project-layout",
+          "kind": "link"
+        },
+        {
+          "target": "#runtime-plugin-model",
+          "kind": "link"
+        },
+        {
+          "target": "#data-and-privacy",
+          "kind": "link"
+        },
+        {
+          "target": "#documentation",
+          "kind": "link"
+        },
+        {
+          "target": "docs/GETTING_STARTED.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/ARCHITECTURE.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/CONTROL_API.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/LIVE-COLLABORATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/LIVE-COLLABORATION-TRANSPORT.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/LIVE-COLLABORATION-OWNER.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/DEVELOPMENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/TERMUX.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/TERMUX_AGENT_WORKFLOW.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/TERMUX_VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "CONTRIBUTING.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/AUTOMATIONS.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/PLUGINS.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/PLUGIN_AUTHORING.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/PLUGIN_REGISTRY_PROTOCOL.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/PLUGIN_UI_ARCHITECTURE.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/PLAYWRIGHT.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/TROUBLESHOOTING.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/USER_GUIDE.md",
+          "kind": "link"
+        },
+        {
+          "target": "docs/UI_KIT_USAGE.md",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/AGENT_API.md",
+      "sha256": "b8aeb68a010880816430736d7e86d535e4ee3b460e06ca5974f6e27b9e3f4a38",
+      "bytes": 19018,
+      "anchors": [
+        "tiktools-agent-api-",
+        "typed-rust-sdk-tiktools-client-",
+        "cli-tiktools-api-",
+        "verification-",
+        "secrets-",
+        "host-safe-endpoints-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-agent-api",
+          "kind": "link"
+        },
+        {
+          "target": "#typed-rust-sdk-tiktools-client",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "CONTROL_API.md#version-metadata",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "CONTROL_API.md#version-metadata",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-POINTS.md#available-api-and-agent-use",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md#remote-workflow-commands",
+          "kind": "link"
+        },
+        {
+          "target": "#cli-tiktools-api",
+          "kind": "link"
+        },
+        {
+          "target": "#verification",
+          "kind": "link"
+        },
+        {
+          "target": "#secrets",
+          "kind": "link"
+        },
+        {
+          "target": "#host-safe-endpoints",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/APP-PACKAGING.md",
+      "sha256": "c541179e0ebeec43e3425380681f4455495dfe7feb9fd3a771197e377998c2cf",
+      "bytes": 4427,
+      "anchors": [
+        "desktop-packaging-in-development-"
+      ],
+      "links": [
+        {
+          "target": "#desktop-packaging-in-development",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/APP-UPDATER.md",
+      "sha256": "6f418e1a2632b4ee9868a4b86070e80d3859041581afdfaa144126e9fa1fc3ad",
+      "bytes": 7474,
+      "anchors": [
+        "application-updater-in-development-",
+        "release-workflow-configuration-"
+      ],
+      "links": [
+        {
+          "target": "#application-updater-in-development",
+          "kind": "link"
+        },
+        {
+          "target": "#release-workflow-configuration",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/ARCHITECTURE.md",
+      "sha256": "e3ce5a2b847c4a946b21aa228443b5d8fe6092267a98eb39c1bb8f5746bfb000",
+      "bytes": 9158,
+      "anchors": [
+        "architecture-",
+        "workspace-boundaries-",
+        "desktop-lifecycle-",
+        "ipc-contract-",
+        "event-and-live-flow-",
+        "persistence-",
+        "automations-",
+        "plugins-",
+        "platform-code-"
+      ],
+      "links": [
+        {
+          "target": "#architecture",
+          "kind": "link"
+        },
+        {
+          "target": "#workspace-boundaries",
+          "kind": "link"
+        },
+        {
+          "target": "#desktop-lifecycle",
+          "kind": "link"
+        },
+        {
+          "target": "#ipc-contract",
+          "kind": "link"
+        },
+        {
+          "target": "#event-and-live-flow",
+          "kind": "link"
+        },
+        {
+          "target": "#persistence",
+          "kind": "link"
+        },
+        {
+          "target": "#automations",
+          "kind": "link"
+        },
+        {
+          "target": "#plugins",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_UI_ARCHITECTURE.md",
+          "kind": "link"
+        },
+        {
+          "target": "PLAYWRIGHT.md",
+          "kind": "link"
+        },
+        {
+          "target": "#platform-code",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/AUTOMATIONS.md",
+      "sha256": "f7e8a7758d00c52e752fca7708dbae2330b09d52e5e916c45ebb9160adb48c7f",
+      "bytes": 6495,
+      "anchors": [
+        "automations-",
+        "behavior-records-",
+        "built-in-action-types-",
+        "scripts-",
+        "workflows-",
+        "capabilities-",
+        "enriched-events-and-processor-fields-",
+        "event-context-and-previews-",
+        "testing-"
+      ],
+      "links": [
+        {
+          "target": "#automations",
+          "kind": "link"
+        },
+        {
+          "target": "#behavior-records",
+          "kind": "link"
+        },
+        {
+          "target": "#built-in-action-types",
+          "kind": "link"
+        },
+        {
+          "target": "#scripts",
+          "kind": "link"
+        },
+        {
+          "target": "#workflows",
+          "kind": "link"
+        },
+        {
+          "target": "#capabilities",
+          "kind": "link"
+        },
+        {
+          "target": "#enriched-events-and-processor-fields",
+          "kind": "link"
+        },
+        {
+          "target": "#event-context-and-previews",
+          "kind": "link"
+        },
+        {
+          "target": "#testing",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/BACKEND-LIKE-GOALS.md",
+      "sha256": "47c57befbd7d374002a13203c64336175202818debc43b094e878e7745ce88a6",
+      "bytes": 5583,
+      "anchors": [
+        "tiktok-like-batch-goals-compatibility-and-validation-",
+        "existing-rules-unchanged-",
+        "simulated-integration-regression-",
+        "validation-",
+        "feed-presentation-one-visible-row-for-a-short-like-burst-",
+        "live-likes-leaderboard-"
+      ],
+      "links": [
+        {
+          "target": "#tiktok-like-batch-goals-compatibility-and-validation",
+          "kind": "link"
+        },
+        {
+          "target": "#existing-rules-unchanged",
+          "kind": "link"
+        },
+        {
+          "target": "#simulated-integration-regression",
+          "kind": "link"
+        },
+        {
+          "target": "#validation",
+          "kind": "link"
+        },
+        {
+          "target": "#feed-presentation-one-visible-row-for-a-short-like-burst",
+          "kind": "link"
+        },
+        {
+          "target": "#live-likes-leaderboard",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/CLOUD-ACCOUNT.md",
+      "sha256": "8251930a8f77bc169b29d7f3f7883735f3714a920b0ea5125c601d3e931bed00",
+      "bytes": 5513,
+      "anchors": [
+        "cloud-account-desktop-native-auth-",
+        "components-",
+        "flow-",
+        "configuration-",
+        "security-properties-",
+        "validation-2026-11-03-local-"
+      ],
+      "links": [
+        {
+          "target": "#cloud-account-desktop-native-auth",
+          "kind": "link"
+        },
+        {
+          "target": "#components",
+          "kind": "link"
+        },
+        {
+          "target": "#flow",
+          "kind": "link"
+        },
+        {
+          "target": "#configuration",
+          "kind": "link"
+        },
+        {
+          "target": "#security-properties",
+          "kind": "link"
+        },
+        {
+          "target": "#validation-2026-11-03-local",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/CLOUD-REGISTRY.md",
+      "sha256": "bea6b1c5e3c2a9f99b9f6ab9a9d3806030283d970587d1a6240379d1adbb6371",
+      "bytes": 8969,
+      "anchors": [
+        "official-cloud-registry-integration-",
+        "how-it-works-",
+        "configuration-",
+        "earlier-verification-",
+        "real-binary-end-to-end-validation-",
+        "limitations-"
+      ],
+      "links": [
+        {
+          "target": "#official-cloud-registry-integration",
+          "kind": "link"
+        },
+        {
+          "target": "#how-it-works",
+          "kind": "link"
+        },
+        {
+          "target": "#configuration",
+          "kind": "link"
+        },
+        {
+          "target": "#earlier-verification",
+          "kind": "link"
+        },
+        {
+          "target": "#real-binary-end-to-end-validation",
+          "kind": "link"
+        },
+        {
+          "target": "#limitations",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/CLOUD-SYNC.md",
+      "sha256": "d0fb3866deec17b2760cd8096b2e3d072dd6ec99f68e909ed3be8f62334e4460",
+      "bytes": 13536,
+      "anchors": [
+        "cloud-sync-desktop-multi-device-plugin-selections-",
+        "backend-v2-handoff-reviewed-on-2026-11-08-",
+        "current-local-evidence-",
+        "existing-v1-components-",
+        "existing-v1-flow-",
+        "existing-v1-state-isolation-",
+        "historical-v1-validation-2026-11-04-local-"
+      ],
+      "links": [
+        {
+          "target": "#cloud-sync-desktop-multi-device-plugin-selections",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "#backend-v2-handoff-reviewed-on-2026-11-08",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-V2-DESKTOP.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-V2-DESKTOP.md#required-acceptance-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#current-local-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#existing-v1-components",
+          "kind": "link"
+        },
+        {
+          "target": "#existing-v1-flow",
+          "kind": "link"
+        },
+        {
+          "target": "#existing-v1-state-isolation",
+          "kind": "link"
+        },
+        {
+          "target": "#historical-v1-validation-2026-11-04-local",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/CLOUD-UNIFIED.md",
+      "sha256": "1b081aeff0c03d5af23cde92911e07e84e7c10ac671cf4a8d5941d43ffcf9d41",
+      "bytes": 13224,
+      "anchors": [
+        "unified-cloud-in-the-app-",
+        "one-origin-no-manual-infrastructure-",
+        "capabilities-gate-every-surface-",
+        "lifecycle-methods-and-the-cloud-capability-gate-",
+        "catalog-",
+        "connections-",
+        "teams-",
+        "images-and-packages-",
+        "errors-and-diagnostics-",
+        "retirement-and-compatibility-",
+        "not-implemented-"
+      ],
+      "links": [
+        {
+          "target": "#unified-cloud-in-the-app",
+          "kind": "link"
+        },
+        {
+          "target": "#one-origin-no-manual-infrastructure",
+          "kind": "link"
+        },
+        {
+          "target": "#capabilities-gate-every-surface",
+          "kind": "link"
+        },
+        {
+          "target": "#lifecycle-methods-and-the-cloud-capability-gate",
+          "kind": "link"
+        },
+        {
+          "target": "#catalog",
+          "kind": "link"
+        },
+        {
+          "target": "#connections",
+          "kind": "link"
+        },
+        {
+          "target": "#teams",
+          "kind": "link"
+        },
+        {
+          "target": "#images-and-packages",
+          "kind": "link"
+        },
+        {
+          "target": "#errors-and-diagnostics",
+          "kind": "link"
+        },
+        {
+          "target": "#retirement-and-compatibility",
+          "kind": "link"
+        },
+        {
+          "target": "#not-implemented",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/CLOUD-V2-DESKTOP.md",
+      "sha256": "9cef83420668ed33eb028098055760b8041080fe6b1695978772d1972e5a35f7",
+      "bytes": 65845,
+      "anchors": [
+        "desktop-cloud-v2-implementation-and-acceptance-specification-",
+        "scope-and-current-evidence-",
+        "implemented-foundation-and-local-checks-2026-11-08-",
+        "instance-authentication-and-trust-",
+        "workspace-collections-and-local-behavior-",
+        "optional-collection-variables-reviewed-section-sync-",
+        "native-variables-review-bridge-source-after-rc2-",
+        "reviewed-variables-actions-422-",
+        "portability-credentials-and-source-review-",
+        "durable-coordinator-conflicts-and-recovery-",
+        "state-and-lifecycle-",
+        "conditional-mutations-and-uncertainty-",
+        "expired-cursors-rates-and-quotas-",
+        "explicit-v1-cutover-",
+        "catalog-document-library-and-moderation-ux-",
+        "control-api-and-implementation-sequence-",
+        "required-acceptance-evidence-"
+      ],
+      "links": [
+        {
+          "target": "#desktop-cloud-v2-implementation-and-acceptance-specification",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-SYNC.md",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-ACCOUNT.md",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-REGISTRY.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions",
+          "kind": "link"
+        },
+        {
+          "target": "#scope-and-current-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-foundation-and-local-checks-2026-11-08",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/cloud-client/src/workspace.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/cloud-client/src/workspace_state.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/cloud-client/src/workspace_store.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-cloud-sync/src/workspace.rs",
+          "kind": "link"
+        },
+        {
+          "target": "#instance-authentication-and-trust",
+          "kind": "link"
+        },
+        {
+          "target": "#workspace-collections-and-local-behavior",
+          "kind": "link"
+        },
+        {
+          "target": "#optional-collection-variables-reviewed-section-sync",
+          "kind": "link"
+        },
+        {
+          "target": "#native-variables-review-bridge-source-after-rc2",
+          "kind": "link"
+        },
+        {
+          "target": "#reviewed-variables-actions-4-2-2",
+          "kind": "link"
+        },
+        {
+          "target": "#portability-credentials-and-source-review",
+          "kind": "link"
+        },
+        {
+          "target": "#durable-coordinator-conflicts-and-recovery",
+          "kind": "link"
+        },
+        {
+          "target": "#state-and-lifecycle",
+          "kind": "link"
+        },
+        {
+          "target": "#conditional-mutations-and-uncertainty",
+          "kind": "link"
+        },
+        {
+          "target": "#expired-cursors-rates-and-quotas",
+          "kind": "link"
+        },
+        {
+          "target": "#explicit-v1-cutover",
+          "kind": "link"
+        },
+        {
+          "target": "#catalog-document-library-and-moderation-ux",
+          "kind": "link"
+        },
+        {
+          "target": "#control-api-and-implementation-sequence",
+          "kind": "link"
+        },
+        {
+          "target": "#required-acceptance-evidence",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/CONTROL_API.md",
+      "sha256": "06971693a7d101c8f66649f47cd1d1b59fd2644e0c4525195dee16b0b45b578d",
+      "bytes": 33844,
+      "anchors": [
+        "tiktools-control-api-",
+        "protocol-",
+        "version-metadata-",
+        "native-owner-library-api-",
+        "external-effect-receipts-",
+        "discovery-",
+        "cli-",
+        "headless-host-",
+        "methods-",
+        "safety-rules-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-control-api",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-TRANSPORT.md",
+          "kind": "link"
+        },
+        {
+          "target": "#protocol",
+          "kind": "link"
+        },
+        {
+          "target": "#version-metadata",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-TRANSPORT.md#subscription-and-recovery",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#execution-subject-resolution-and-manifest-preview",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#native-owner-definition-intents",
+          "kind": "link"
+        },
+        {
+          "target": "#native-owner-library-api",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#external-effect-receipts",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md#implemented-external-effect-grants-and-handoff",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-POINTS.md",
+          "kind": "link"
+        },
+        {
+          "target": "#discovery",
+          "kind": "link"
+        },
+        {
+          "target": "#cli",
+          "kind": "link"
+        },
+        {
+          "target": "#headless-host",
+          "kind": "link"
+        },
+        {
+          "target": "#methods",
+          "kind": "link"
+        },
+        {
+          "target": "#safety-rules",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/DECLARATIVE_PLUGINS.md",
+      "sha256": "3e2a1eec26bcdaad3cbf874b73c802955b1853bcd315d2ac5ea3195866124f58",
+      "bytes": 24326,
+      "anchors": [
+        "declarative-plugins-schema-v3-",
+        "minimal-manifest-",
+        "templates-",
+        "the-http-block-",
+        "trust-policy-",
+        "secret-settings-",
+        "dynamic-options-",
+        "host-option-sources-",
+        "actions-",
+        "action-request-budgets-",
+        "templates--1",
+        "pages-",
+        "settings-defaults-",
+        "connection-probing-",
+        "structured-json-and-execution-keys-",
+        "import-a-token-from-local-configuration-",
+        "automatic-connection-and-game-folder-setup-"
+      ],
+      "links": [
+        {
+          "target": "#declarative-plugins-schema-v3",
+          "kind": "link"
+        },
+        {
+          "target": "#minimal-manifest",
+          "kind": "link"
+        },
+        {
+          "target": "#templates",
+          "kind": "link"
+        },
+        {
+          "target": "#the-http-block",
+          "kind": "link"
+        },
+        {
+          "target": "#actions",
+          "kind": "link"
+        },
+        {
+          "target": "#trust-policy",
+          "kind": "link"
+        },
+        {
+          "target": "#secret-settings",
+          "kind": "link"
+        },
+        {
+          "target": "#dynamic-options",
+          "kind": "link"
+        },
+        {
+          "target": "#host-option-sources",
+          "kind": "link"
+        },
+        {
+          "target": "#actions",
+          "kind": "link"
+        },
+        {
+          "target": "#action-request-budgets",
+          "kind": "link"
+        },
+        {
+          "target": "#templates-1",
+          "kind": "link"
+        },
+        {
+          "target": "#pages",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_UI_ARCHITECTURE.md",
+          "kind": "link"
+        },
+        {
+          "target": "#settings-defaults",
+          "kind": "link"
+        },
+        {
+          "target": "#connection-probing",
+          "kind": "link"
+        },
+        {
+          "target": "#structured-json-and-execution-keys",
+          "kind": "link"
+        },
+        {
+          "target": "#import-a-token-from-local-configuration",
+          "kind": "link"
+        },
+        {
+          "target": "#automatic-connection-and-game-folder-setup",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/DEPENDENCY-REFRESH.md",
+      "sha256": "894bcc846ba98b85869a7d095748055c31037871315a0fbc56b9fdfe6c47f358",
+      "bytes": 7478,
+      "anchors": [
+        "dependency-refresh-2026-10-26-",
+        "versions-",
+        "compatibility-changes-and-constraints-",
+        "validation-environment-",
+        "pr-integration-validation-"
+      ],
+      "links": [
+        {
+          "target": "#dependency-refresh-2026-10-26",
+          "kind": "link"
+        },
+        {
+          "target": "#versions",
+          "kind": "link"
+        },
+        {
+          "target": "NAPI-VM-MIGRATION-PLAN.md",
+          "kind": "link"
+        },
+        {
+          "target": "#compatibility-changes-and-constraints",
+          "kind": "link"
+        },
+        {
+          "target": "https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0",
+          "kind": "link"
+        },
+        {
+          "target": "#validation-environment",
+          "kind": "link"
+        },
+        {
+          "target": "#pr-integration-validation",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/DEVELOPMENT.md",
+      "sha256": "9c67bb814dac69dba3f426be0e028a78ef423d10d58d16ec9e536774d5447c97",
+      "bytes": 13781,
+      "anchors": [
+        "development-guide-",
+        "fast-checks-",
+        "web-development-loops-",
+        "optional-build-cache-kache-",
+        "desktop-loop-",
+        "cutting-a-release-",
+        "source-ownership-",
+        "adding-a-control-method-",
+        "adding-an-automation-action-",
+        "adding-workflow-nodes-",
+        "plugin-development-",
+        "paths-and-databases-",
+        "verification-before-commit-",
+        "branch-protection-recommendation-"
+      ],
+      "links": [
+        {
+          "target": "#development-guide",
+          "kind": "link"
+        },
+        {
+          "target": "#fast-checks",
+          "kind": "link"
+        },
+        {
+          "target": "#web-development-loops",
+          "kind": "link"
+        },
+        {
+          "target": "#optional-build-cache-kache",
+          "kind": "link"
+        },
+        {
+          "target": "#desktop-loop",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/nglmercer/plugins-example-tiktools",
+          "kind": "link"
+        },
+        {
+          "target": "PLAYWRIGHT.md",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_UI_ARCHITECTURE.md",
+          "kind": "link"
+        },
+        {
+          "target": "#cutting-a-release",
+          "kind": "link"
+        },
+        {
+          "target": "#source-ownership",
+          "kind": "link"
+        },
+        {
+          "target": "#adding-a-control-method",
+          "kind": "link"
+        },
+        {
+          "target": "#adding-an-automation-action",
+          "kind": "link"
+        },
+        {
+          "target": "#adding-workflow-nodes",
+          "kind": "link"
+        },
+        {
+          "target": "#plugin-development",
+          "kind": "link"
+        },
+        {
+          "target": "#paths-and-databases",
+          "kind": "link"
+        },
+        {
+          "target": "#verification-before-commit",
+          "kind": "link"
+        },
+        {
+          "target": "#branch-protection-recommendation",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/EMOTES.md",
+      "sha256": "eecedbc515f016fb604499abc7152af14ff9daddae8017b2fdbd8fb83b752801",
+      "bytes": 2949,
+      "anchors": [
+        "tiktok-live-emotes-",
+        "pipeline-",
+        "rendering-behavior-",
+        "tts-behavior-",
+        "remaining-verification-"
+      ],
+      "links": [
+        {
+          "target": "#tiktok-live-emotes",
+          "kind": "link"
+        },
+        {
+          "target": "#pipeline",
+          "kind": "link"
+        },
+        {
+          "target": "#rendering-behavior",
+          "kind": "link"
+        },
+        {
+          "target": "#tts-behavior",
+          "kind": "link"
+        },
+        {
+          "target": "#remaining-verification",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/GETTING_STARTED.md",
+      "sha256": "3b88cf98d9b67bf412c4e6860af543a634001d827bd9a5c326732534937b0c15",
+      "bytes": 6499,
+      "anchors": [
+        "getting-started-",
+        "requirements-",
+        "windows-build-environment-",
+        "install-and-run-",
+        "first-connection-",
+        "rust-commands-",
+        "frontend-commands-",
+        "runtime-data-",
+        "installing-a-plugin-",
+        "release-package-layout-"
+      ],
+      "links": [
+        {
+          "target": "#getting-started",
+          "kind": "link"
+        },
+        {
+          "target": "#requirements",
+          "kind": "link"
+        },
+        {
+          "target": "#windows-build-environment",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/openssl/openssl/blob/master/NOTES-PERL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#install-and-run",
+          "kind": "link"
+        },
+        {
+          "target": "#first-connection",
+          "kind": "link"
+        },
+        {
+          "target": "#rust-commands",
+          "kind": "link"
+        },
+        {
+          "target": "#frontend-commands",
+          "kind": "link"
+        },
+        {
+          "target": "#runtime-data",
+          "kind": "link"
+        },
+        {
+          "target": "DEVELOPMENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "#installing-a-plugin",
+          "kind": "link"
+        },
+        {
+          "target": "#release-package-layout",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/HOTKEYS_LINUX.md",
+      "sha256": "e2b772ea9bcc2a01f2762bcc424d68092a03c1b565663cab4ca58c293706036e",
+      "bytes": 7911,
+      "anchors": [
+        "linux-hotkeys-x11-wayland-permissions-",
+        "architecture-",
+        "what-the-retired-process-plugin-did-differently-",
+        "security-analysis-",
+        "diagnostics-",
+        "troubleshooting-",
+        "known-limitations-"
+      ],
+      "links": [
+        {
+          "target": "#linux-hotkeys-x11-wayland-permissions",
+          "kind": "link"
+        },
+        {
+          "target": "#architecture",
+          "kind": "link"
+        },
+        {
+          "target": "#what-the-retired-process-plugin-did-differently",
+          "kind": "link"
+        },
+        {
+          "target": "#security-analysis",
+          "kind": "link"
+        },
+        {
+          "target": "#diagnostics",
+          "kind": "link"
+        },
+        {
+          "target": "#troubleshooting",
+          "kind": "link"
+        },
+        {
+          "target": "#known-limitations",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-APPROVAL.md",
+      "sha256": "f9f511b5924940242f8261dc72dd5725ebdf3fe2d43d3987addc7f2f9e1532ba",
+      "bytes": 43675,
+      "anchors": [
+        "delegated-execution-approval-and-activation-contract-",
+        "target-one-time-delegated-automation-authority-",
+        "existing-boundary-",
+        "invariants-",
+        "review-approval-and-activation-",
+        "owner-ui-and-native-recovery-",
+        "implemented-core-execution-policy-",
+        "avoiding-the-disabled-approval-trap-",
+        "minimal-host-owned-persistence-",
+        "plugin-and-settings-prerequisites-",
+        "locking-and-transaction-checklist-",
+        "durable-identity-replay-and-revocation-",
+        "implemented-external-effect-grants-and-handoff-",
+        "runtime-and-external-effect-requirements-",
+        "required-proof-before-release-"
+      ],
+      "links": [
+        {
+          "target": "#delegated-execution-approval-and-activation-contract",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "#target-one-time-delegated-automation-authority",
+          "kind": "link"
+        },
+        {
+          "target": "#existing-boundary",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/services/automation/manifest.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/behavior/review.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/behavior/versions.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/behavior/provenance.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/behavior/commands.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/commands.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-collaboration/src/authority/execution.rs",
+          "kind": "link"
+        },
+        {
+          "target": "#invariants",
+          "kind": "link"
+        },
+        {
+          "target": "#review-approval-and-activation",
+          "kind": "link"
+        },
+        {
+          "target": "#owner-ui-and-native-recovery",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-core-execution-policy",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/services/automation_approval_policy.rs",
+          "kind": "link"
+        },
+        {
+          "target": "#avoiding-the-disabled-approval-trap",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/behavior/versions.rs",
+          "kind": "link"
+        },
+        {
+          "target": "#minimal-host-owned-persistence",
+          "kind": "link"
+        },
+        {
+          "target": "#plugin-and-settings-prerequisites",
+          "kind": "link"
+        },
+        {
+          "target": "#locking-and-transaction-checklist",
+          "kind": "link"
+        },
+        {
+          "target": "#durable-identity-replay-and-revocation",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-external-effect-grants-and-handoff",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-collaboration/src/effects.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/automation_runtime/external_effects.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/automation_runtime/approved_effects.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/automation_runtime/approved_flow.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/services/script/scoped.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/effects.rs",
+          "kind": "link"
+        },
+        {
+          "target": "#runtime-and-external-effect-requirements",
+          "kind": "link"
+        },
+        {
+          "target": "#required-proof-before-release",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-AUTOMATION.md",
+      "sha256": "591ad9f73e57e96c2a49c1b90d68f97aeea6b1d04c2b3573d87909bae900a42d",
+      "bytes": 65193,
+      "anchors": [
+        "collaborative-automation-and-delegated-execution-",
+        "actual-execution-paths-",
+        "implemented-consistency-contract-",
+        "implemented-remote-status-disabled-drafts-and-event-deactivation-",
+        "implemented-provenance-and-disabled-authoring-",
+        "owner-review-and-native-adoption-recovery-",
+        "atomic-owner-library-transitions-",
+        "implemented-execution-admission-",
+        "execution-subject-resolution-and-manifest-preview-",
+        "trusted-runtime-context-and-event-envelopes-",
+        "implemented-owner-editor-",
+        "native-owner-definition-intents-",
+        "implemented-native-controller-contract-",
+        "required-next-implementation-",
+        "owner-editor-integration-contract-"
+      ],
+      "links": [
+        {
+          "target": "#collaborative-automation-and-delegated-execution",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#actual-execution-paths",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-consistency-contract",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-remote-status-disabled-drafts-and-event-deactivation",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-provenance-and-disabled-authoring",
+          "kind": "link"
+        },
+        {
+          "target": "#owner-review-and-native-adoption-recovery",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md#native-automation-proposal-editor",
+          "kind": "link"
+        },
+        {
+          "target": "#atomic-owner-library-transitions",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/control/owner_library/runtime.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/automation_library.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/behavior/library.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/owner_library.rs",
+          "kind": "link"
+        },
+        {
+          "target": "CONTROL_API.md#native-owner-library-api",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-execution-admission",
+          "kind": "link"
+        },
+        {
+          "target": "#execution-subject-resolution-and-manifest-preview",
+          "kind": "link"
+        },
+        {
+          "target": "#trusted-runtime-context-and-event-envelopes",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-owner-editor",
+          "kind": "link"
+        },
+        {
+          "target": "#native-owner-definition-intents",
+          "kind": "link"
+        },
+        {
+          "target": "#atomic-owner-library-transitions",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-native-controller-contract",
+          "kind": "link"
+        },
+        {
+          "target": "#required-next-implementation",
+          "kind": "link"
+        },
+        {
+          "target": "#owner-editor-integration-contract",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+      "sha256": "ad39f861e7ce30441b7d10c96b21ec3df03558c6041cbf27ae75fc904fa6f03a",
+      "bytes": 29406,
+      "anchors": [
+        "desktop-commands-and-durable-client-recovery-",
+        "browser-journal-foundation-",
+        "automation-events-",
+        "native-automation-proposal-editor-",
+        "automation-proposals-through-the-sdkapi-",
+        "use-the-controller-",
+        "local-drafts-and-conflict-comparison-",
+        "native-boundary-",
+        "storage-and-bounds-"
+      ],
+      "links": [
+        {
+          "target": "#desktop-commands-and-durable-client-recovery",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#browser-journal-foundation",
+          "kind": "link"
+        },
+        {
+          "target": "#automation-events",
+          "kind": "link"
+        },
+        {
+          "target": "#native-automation-proposal-editor",
+          "kind": "link"
+        },
+        {
+          "target": "#automation-proposals-through-the-sdk-api",
+          "kind": "link"
+        },
+        {
+          "target": "CONTROL_API.md#version-metadata",
+          "kind": "link"
+        },
+        {
+          "target": "AGENT_API.md#typed-rust-sdk-tiktools-client",
+          "kind": "link"
+        },
+        {
+          "target": "#use-the-controller",
+          "kind": "link"
+        },
+        {
+          "target": "#local-drafts-and-conflict-comparison",
+          "kind": "link"
+        },
+        {
+          "target": "#native-boundary",
+          "kind": "link"
+        },
+        {
+          "target": "#storage-and-bounds",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-CLIENT.md",
+      "sha256": "f440392a7a8588d8beaf040151278842a5c8bbd4b15df57bed41d2423f7a4831",
+      "bytes": 25121,
+      "anchors": [
+        "native-remote-client-and-cli-profiles-",
+        "build-and-connect-",
+        "remote-workflow-commands-",
+        "desktop-controller-",
+        "trust-and-host-binding-",
+        "profile-and-credential-persistence-",
+        "sdk-calls-events-and-recovery-"
+      ],
+      "links": [
+        {
+          "target": "#native-remote-client-and-cli-profiles",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-TRANSPORT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md#native-automation-proposal-editor",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md#automation-proposals-through-the-sdkapi",
+          "kind": "link"
+        },
+        {
+          "target": "#build-and-connect",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-OWNER.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-TRANSPORT.md",
+          "kind": "link"
+        },
+        {
+          "target": "#remote-workflow-commands",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-POINTS.md",
+          "kind": "link"
+        },
+        {
+          "target": "#desktop-controller",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md#local-drafts-and-conflict-comparison",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#trust-and-host-binding",
+          "kind": "link"
+        },
+        {
+          "target": "#profile-and-credential-persistence",
+          "kind": "link"
+        },
+        {
+          "target": "#sdk-calls-events-and-recovery",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-client/src/remote/",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-cli/src/remote.rs",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "https://docs.rs/rustls/0.23.46/rustls/client/danger/trait.ServerCertVerifier.html",
+          "kind": "link"
+        },
+        {
+          "target": "https://docs.rs/keyring/3.6.3/keyring/",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-OWNER.md",
+      "sha256": "e95df5986a5c821a49cae1adebd51b7cc37ceae7407d1dcb5b901756b9e94896",
+      "bytes": 17146,
+      "anchors": [
+        "owner-collaboration-settings-",
+        "enable-a-host-",
+        "invite-and-approve-",
+        "review-delegated-definitions-",
+        "approve-delegated-execution-",
+        "manage-profiles-and-templates-",
+        "manage-access-",
+        "failures-and-history-"
+      ],
+      "links": [
+        {
+          "target": "#owner-collaboration-settings",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-TRANSPORT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#enable-a-host",
+          "kind": "link"
+        },
+        {
+          "target": "#invite-and-approve",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md#remote-workflow-commands",
+          "kind": "link"
+        },
+        {
+          "target": "#review-delegated-definitions",
+          "kind": "link"
+        },
+        {
+          "target": "#approve-delegated-execution",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#manage-profiles-and-templates",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions",
+          "kind": "link"
+        },
+        {
+          "target": "#manage-access",
+          "kind": "link"
+        },
+        {
+          "target": "#failures-and-history",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-POINTS.md",
+      "sha256": "7f2860b4bf4bd95389d668baeaa798ddd614074a416ba6cefd7c6d1a58102778",
+      "bytes": 21733,
+      "anchors": [
+        "collaborative-points-implementation-",
+        "available-api-and-agent-use-",
+        "checked-unit-confirmation-",
+        "existing-behavior-to-preserve-",
+        "implemented-consistency-boundary-",
+        "implementation-sequence-",
+        "transactional-reads-",
+        "additive-command-contract-",
+        "recovery-and-controller-",
+        "bounded-native-display-"
+      ],
+      "links": [
+        {
+          "target": "#collaborative-points-implementation",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#available-api-and-agent-use",
+          "kind": "link"
+        },
+        {
+          "target": "#checked-unit-confirmation",
+          "kind": "link"
+        },
+        {
+          "target": "#existing-behavior-to-preserve",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-consistency-boundary",
+          "kind": "link"
+        },
+        {
+          "target": "#implementation-sequence",
+          "kind": "link"
+        },
+        {
+          "target": "#transactional-reads",
+          "kind": "link"
+        },
+        {
+          "target": "#additive-command-contract",
+          "kind": "link"
+        },
+        {
+          "target": "#recovery-and-controller",
+          "kind": "link"
+        },
+        {
+          "target": "#bounded-native-display",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-SPEC.md",
+      "sha256": "d3b94f634f8ab6dea430dc3fa2c68d51e8ff05243d3aa0debadb3b0b7b81f1e9",
+      "bytes": 54657,
+      "anchors": [
+        "collaborative-live-implementation-specification-",
+        "1-normative-language-and-boundary-",
+        "2-invariants-",
+        "3-identities-session-lifecycle-and-storage-",
+        "31-identifiers-",
+        "32-pairing-state-machine-",
+        "33-credentials-and-revocation-",
+        "4-host-transport-and-trust-",
+        "41-listener-",
+        "42-proposed-http-endpoints-",
+        "43-wire-handshake-",
+        "5-authorization-",
+        "51-trusted-execution-context-",
+        "52-capability-families-",
+        "53-plugin-frames-and-presentation-",
+        "6-commands-revisions-and-side-effects-",
+        "61-resource-versions-",
+        "62-mutation-metadata-",
+        "63-durable-outcomes-",
+        "64-database-boundaries-and-audit-",
+        "7-events-snapshots-and-reconnection-",
+        "71-subscribe-before-snapshot-",
+        "72-event-envelope-and-retention-",
+        "73-recovery-and-failure-behavior-",
+        "8-proposed-control-api-additions-",
+        "9-sdk-cli-and-frontend-contracts-",
+        "10-stable-error-codes-",
+        "11-performance-and-observability-",
+        "12-acceptance-and-verification-matrix-"
+      ],
+      "links": [
+        {
+          "target": "#collaborative-live-implementation-specification",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#_1-normative-language-and-boundary",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-TRANSPORT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#_2-invariants",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-identities-session-lifecycle-and-storage",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-1-identifiers",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-2-pairing-state-machine",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-3-credentials-and-revocation",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-host-transport-and-trust",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-1-listener",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-2-proposed-http-endpoints",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-3-wire-handshake",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-authorization",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-1-trusted-execution-context",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-2-capability-families",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#execution-subject-resolution-and-manifest-preview",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-3-plugin-frames-and-presentation",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-commands-revisions-and-side-effects",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-1-resource-versions",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md#native-automation-proposal-editor",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-2-mutation-metadata",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-3-durable-outcomes",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-4-database-boundaries-and-audit",
+          "kind": "link"
+        },
+        {
+          "target": "#_7-events-snapshots-and-reconnection",
+          "kind": "link"
+        },
+        {
+          "target": "#_7-1-subscribe-before-snapshot",
+          "kind": "link"
+        },
+        {
+          "target": "#_7-2-event-envelope-and-retention",
+          "kind": "link"
+        },
+        {
+          "target": "#_7-3-recovery-and-failure-behavior",
+          "kind": "link"
+        },
+        {
+          "target": "#_8-proposed-control-api-additions",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md#remote-workflow-commands",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-OWNER.md",
+          "kind": "link"
+        },
+        {
+          "target": "#_9-sdk-cli-and-frontend-contracts",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "#_10-stable-error-codes",
+          "kind": "link"
+        },
+        {
+          "target": "#_11-performance-and-observability",
+          "kind": "link"
+        },
+        {
+          "target": "#_12-acceptance-and-verification-matrix",
+          "kind": "link"
+        },
+        {
+          "target": "../CONTRIBUTING.md",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-TRANSPORT.md",
+      "sha256": "0da497e20040a6d2f51cf71993b8a08236b5ed9b2e4f0a15ffae05634e68b34c",
+      "bytes": 21673,
+      "anchors": [
+        "experimental-collaboration-gateway-",
+        "available-behavior-",
+        "subscription-and-recovery-",
+        "configure-a-reachable-https-host-",
+        "pair-and-approve-a-browser-",
+        "native-and-browser-wire-contracts-",
+        "storage-and-scope-"
+      ],
+      "links": [
+        {
+          "target": "#experimental-collaboration-gateway",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-OWNER.md",
+          "kind": "link"
+        },
+        {
+          "target": "#available-behavior",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md#remote-workflow-commands",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+          "kind": "link"
+        },
+        {
+          "target": "CONTROL_API.md#version-metadata",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-POINTS.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "#subscription-and-recovery",
+          "kind": "link"
+        },
+        {
+          "target": "#configure-a-reachable-https-host",
+          "kind": "link"
+        },
+        {
+          "target": "#pair-and-approve-a-browser",
+          "kind": "link"
+        },
+        {
+          "target": "#native-and-browser-wire-contracts",
+          "kind": "link"
+        },
+        {
+          "target": "#storage-and-scope",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION.md",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION-VALIDATION.md",
+      "sha256": "9028d9d2919f564d072e4bac8f08a8c4619de3bda7055265d67489f4250fccae",
+      "bytes": 169364,
+      "anchors": [
+        "live-collaboration-implementation-evidence-",
+        "competition-updates-and-winner-actions-",
+        "shared-source-response-revalidation-",
+        "recovery-of-activation-results-",
+        "explicit-edits-to-owner-automations-",
+        "reusable-grant-native-ingress-and-two-controllers-",
+        "embedded-browser-workflow-controller-",
+        "scoped-competition-status-",
+        "creator-scoped-live-feed-",
+        "remote-heartbeat-cancellation-",
+        "independent-controllers-over-tls-",
+        "atomic-owner-library-transitions--latest-extension-",
+        "native-owner-definition-intents--previous-extension-",
+        "atomic-approved-points-execution-identity--previous-extension-",
+        "scoped-scripts-and-emitted-rules--previous-extension-",
+        "scoped-httpaudio-and-external-effect-recovery--previous-extension-",
+        "owner-approval-ui-and-native-recovery--current-extension-",
+        "durable-delegated-core-approval--preceding-extension-",
+        "runtime-authority-and-private-event-contexts--preceding-foundation-",
+        "persisted-execution-subjects-and-owner-manifest-preview--current-extension-",
+        "native-private-proposals--current-extension-",
+        "owner-source-review-and-native-adoption-recovery--current-extension-",
+        "trusted-automation-provenance-and-disabled-drafts--prior-extension-",
+        "native-automation-board-and-event-command-recovery--prior-extension-",
+        "scoped-automation-status-and-event-deactivation--prior-extension-",
+        "checked-owner-automation-editor--prior-extension-",
+        "executable-behavior-consistency-and-admission--preceding-extension-",
+        "explicit-local-drafts-and-conflict-comparison--preceding-extension-",
+        "bounded-points-display-and-confirmation--preceding-extension-",
+        "implemented-foundation-and-transport-",
+        "owner-settings-evidence-",
+        "remote-workflow-command-evidence-",
+        "desktop-durable-command-evidence-",
+        "points-persistence-evidence-",
+        "points-api-and-command-evidence-",
+        "points-stream-evidence-",
+        "native-points-intent-and-migration-evidence-",
+        "executed-checks-",
+        "remaining-acceptance-"
+      ],
+      "links": [
+        {
+          "target": "#live-collaboration-implementation-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#competition-updates-and-winner-actions",
+          "kind": "link"
+        },
+        {
+          "target": "#shared-source-response-revalidation",
+          "kind": "link"
+        },
+        {
+          "target": "#recovery-of-activation-results",
+          "kind": "link"
+        },
+        {
+          "target": "#explicit-edits-to-owner-automations",
+          "kind": "link"
+        },
+        {
+          "target": "#reusable-grant-native-ingress-and-two-controllers",
+          "kind": "link"
+        },
+        {
+          "target": "#embedded-browser-workflow-controller",
+          "kind": "link"
+        },
+        {
+          "target": "#scoped-competition-status",
+          "kind": "link"
+        },
+        {
+          "target": "#creator-scoped-live-feed",
+          "kind": "link"
+        },
+        {
+          "target": "#remote-heartbeat-cancellation",
+          "kind": "link"
+        },
+        {
+          "target": "#independent-controllers-over-tls",
+          "kind": "link"
+        },
+        {
+          "target": "#atomic-owner-library-transitions-—-latest-extension",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-SYNC.md#backend-v2-handoff-reviewed-on-2026-11-08",
+          "kind": "link"
+        },
+        {
+          "target": "#native-owner-definition-intents-—-previous-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#atomic-approved-points-execution-identity-—-previous-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#scoped-scripts-and-emitted-rules-—-previous-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#scoped-http-audio-and-external-effect-recovery-—-previous-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#owner-approval-ui-and-native-recovery-—-current-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#durable-delegated-core-approval-—-preceding-extension",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#runtime-authority-and-private-event-contexts-—-preceding-foundation",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#persisted-execution-subjects-and-owner-manifest-preview-—-current-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#native-private-proposals-—-current-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#owner-source-review-and-native-adoption-recovery-—-current-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#trusted-automation-provenance-and-disabled-drafts-—-prior-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#native-automation-board-and-event-command-recovery-—-prior-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#scoped-automation-status-and-event-deactivation-—-prior-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#checked-owner-automation-editor-—-prior-extension",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#executable-behavior-consistency-and-admission-—-preceding-extension",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#explicit-local-drafts-and-conflict-comparison-—-preceding-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#bounded-points-display-and-confirmation-—-preceding-extension",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented-foundation-and-transport",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-TRANSPORT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-OWNER.md",
+          "kind": "link"
+        },
+        {
+          "target": "#owner-settings-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#remote-workflow-command-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#desktop-durable-command-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#points-persistence-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-POINTS.md",
+          "kind": "link"
+        },
+        {
+          "target": "#points-api-and-command-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-POINTS.md",
+          "kind": "link"
+        },
+        {
+          "target": "#points-stream-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#native-points-intent-and-migration-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#executed-checks",
+          "kind": "link"
+        },
+        {
+          "target": "#remaining-acceptance",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-COLLABORATION.md",
+      "sha256": "bc6db41c84cd94326604acfe31ff19d6d60883dc85b389de08725a872a37b515",
+      "bytes": 24639,
+      "anchors": [
+        "collaborative-live-management-",
+        "outcome-",
+        "current-implementation-and-gaps-",
+        "architecture-decision-",
+        "user-journeys-",
+        "owner-enables-collaboration-",
+        "moderator-joins-from-the-same-desktop-app-",
+        "browser-joins-",
+        "agent-helps-with-the-live-",
+        "connection-drops-or-permissions-change-",
+        "initial-access-profiles-",
+        "supported-collaborative-areas-",
+        "implementation-roadmap-",
+        "intended-code-ownership-",
+        "rollout-and-operations-",
+        "completion-evidence-"
+      ],
+      "links": [
+        {
+          "target": "#collaborative-live-management",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT-COMMANDS.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-OWNER.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-TRANSPORT.md",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-SYNC.md#backend-v2-handoff-reviewed-on-2026-11-08",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-POINTS.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-APPROVAL.md",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-AUTOMATION.md#atomic-owner-library-transitions",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-SPEC.md",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-SYNC.md",
+          "kind": "link"
+        },
+        {
+          "target": "#outcome",
+          "kind": "link"
+        },
+        {
+          "target": "#current-implementation-and-gaps",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-control-api/src/lib.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-client/src/lib.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-cli/src/web.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../src/web/app/main.ts",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-cloud-sync/src/lib.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/control/cloud_sync.rs",
+          "kind": "link"
+        },
+        {
+          "target": "../crates/tiktools-core/src/db/sqlite/workflows.rs",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE_WEBVIEW_PROJECTION.md",
+          "kind": "link"
+        },
+        {
+          "target": "LOCAL_BROWSER_ADAPTER_VALIDATION.md",
+          "kind": "link"
+        },
+        {
+          "target": "#architecture-decision",
+          "kind": "link"
+        },
+        {
+          "target": "#user-journeys",
+          "kind": "link"
+        },
+        {
+          "target": "#owner-enables-collaboration",
+          "kind": "link"
+        },
+        {
+          "target": "#moderator-joins-from-the-same-desktop-app",
+          "kind": "link"
+        },
+        {
+          "target": "#browser-joins",
+          "kind": "link"
+        },
+        {
+          "target": "#agent-helps-with-the-live",
+          "kind": "link"
+        },
+        {
+          "target": "#connection-drops-or-permissions-change",
+          "kind": "link"
+        },
+        {
+          "target": "#initial-access-profiles",
+          "kind": "link"
+        },
+        {
+          "target": "#supported-collaborative-areas",
+          "kind": "link"
+        },
+        {
+          "target": "#implementation-roadmap",
+          "kind": "link"
+        },
+        {
+          "target": "#intended-code-ownership",
+          "kind": "link"
+        },
+        {
+          "target": "#rollout-and-operations",
+          "kind": "link"
+        },
+        {
+          "target": "#completion-evidence",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-EVENT-RELIABILITY.md",
+      "sha256": "ce1c87fa6134b636e1006d0a9ac82a62b78d772bceaf5bc994886f791411ee02",
+      "bytes": 8877,
+      "anchors": [
+        "live-event-reliability-",
+        "delivery-accounting-and-recovery-",
+        "upstream-decoder-migration-",
+        "connection-retry-policy-",
+        "validation-and-limits-"
+      ],
+      "links": [
+        {
+          "target": "#live-event-reliability",
+          "kind": "link"
+        },
+        {
+          "target": "#delivery-accounting-and-recovery",
+          "kind": "link"
+        },
+        {
+          "target": "#upstream-decoder-migration",
+          "kind": "link"
+        },
+        {
+          "target": "#connection-retry-policy",
+          "kind": "link"
+        },
+        {
+          "target": "#validation-and-limits",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE-EVENTS.md",
+      "sha256": "b3abb32d74139f27934bbfd2682394ad4c62b2ed161451e6be1efe3047597bf4",
+      "bytes": 7723,
+      "anchors": [
+        "live-event-delivery-and-creator-monitoring-",
+        "event-paths-and-fixes-",
+        "emotes-and-image-policy-",
+        "native-live-monitor-",
+        "diagnostics-and-verification-"
+      ],
+      "links": [
+        {
+          "target": "#live-event-delivery-and-creator-monitoring",
+          "kind": "link"
+        },
+        {
+          "target": "#event-paths-and-fixes",
+          "kind": "link"
+        },
+        {
+          "target": "#emotes-and-image-policy",
+          "kind": "link"
+        },
+        {
+          "target": "#native-live-monitor",
+          "kind": "link"
+        },
+        {
+          "target": "#diagnostics-and-verification",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE_PERFORMANCE.md",
+      "sha256": "5635648a32fcdb13ad4f5c3e9f31cdc7aeb92a8423a46c8cec7f1281374fdc11",
+      "bytes": 8428,
+      "anchors": [
+        "tiktools-live-performance-",
+        "test-environment-",
+        "before--after-award-throughput-",
+        "sustained-workload-rates-refactored-",
+        "runtime-limits-and-overload-policies-",
+        "what-was-verified-",
+        "known-limitations-not-fixed-documented-",
+        "2026-10-13-reliability-branch-observations-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-live-performance",
+          "kind": "link"
+        },
+        {
+          "target": "PERFORMANCE_REFACTOR_PROGRESS.md",
+          "kind": "link"
+        },
+        {
+          "target": "#test-environment",
+          "kind": "link"
+        },
+        {
+          "target": "#before-after-award-throughput",
+          "kind": "link"
+        },
+        {
+          "target": "#sustained-workload-rates-refactored",
+          "kind": "link"
+        },
+        {
+          "target": "#runtime-limits-and-overload-policies",
+          "kind": "link"
+        },
+        {
+          "target": "#what-was-verified",
+          "kind": "link"
+        },
+        {
+          "target": "#known-limitations-not-fixed-documented",
+          "kind": "link"
+        },
+        {
+          "target": "#_2026-10-13-reliability-branch-observations",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LIVE_WEBVIEW_PROJECTION.md",
+      "sha256": "5bf8a51744eb952bebbf840142e68ffa2d111fbb3cbc5cd3424b18de4589692d",
+      "bytes": 8725,
+      "anchors": [
+        "main-webview-presentation-contract-and-validation-",
+        "renderer-filter-ab-",
+        "pinned-rendering-and-paused-scrolling-",
+        "frame-scheduling-",
+        "reproducible-native-workload-",
+        "latest-native-lifecycle-evidence-",
+        "outstanding-gates-"
+      ],
+      "links": [
+        {
+          "target": "#main-webview-presentation-contract-and-validation",
+          "kind": "link"
+        },
+        {
+          "target": "#renderer-filter-a-b",
+          "kind": "link"
+        },
+        {
+          "target": "#pinned-rendering-and-paused-scrolling",
+          "kind": "link"
+        },
+        {
+          "target": "#frame-scheduling",
+          "kind": "link"
+        },
+        {
+          "target": "#reproducible-native-workload",
+          "kind": "link"
+        },
+        {
+          "target": "#latest-native-lifecycle-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#outstanding-gates",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LOCAL_BROWSER_ADAPTER_PLAN.md",
+      "sha256": "8ca69e45dbf397e90aa30711ceb98eca6c6ce7039480e6b35f4284497559f2a8",
+      "bytes": 10859,
+      "anchors": [
+        "local-browser-adapter-implementation-plan-",
+        "outcome-and-scope-",
+        "source-findings-",
+        "1-verify-contracts-before-introducing-a-server-",
+        "2-add-the-optional-local-adapter-to-the-existing-cli-",
+        "3-authenticate-local-access-and-serve-assets-safely-",
+        "4-connect-and-stabilize-the-existing-vue-ui-",
+        "5-validate-and-document-",
+        "delivery-order-"
+      ],
+      "links": [
+        {
+          "target": "#local-browser-adapter-implementation-plan",
+          "kind": "link"
+        },
+        {
+          "target": "#outcome-and-scope",
+          "kind": "link"
+        },
+        {
+          "target": "#source-findings",
+          "kind": "link"
+        },
+        {
+          "target": "#_1-verify-contracts-before-introducing-a-server",
+          "kind": "link"
+        },
+        {
+          "target": "#_2-add-the-optional-local-adapter-to-the-existing-cli",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-authenticate-local-access-and-serve-assets-safely",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-connect-and-stabilize-the-existing-vue-ui",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-validate-and-document",
+          "kind": "link"
+        },
+        {
+          "target": "#delivery-order",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md",
+      "sha256": "7f03f633ad5fd08f6744667de2708953d1ebe92b8c967b89439aad0e2081e4e6",
+      "bytes": 9537,
+      "anchors": [
+        "local-browser-adapter-implementation-record-",
+        "source-inventory-and-boundaries-",
+        "completed-native-android-checks-",
+        "browser-connection-lifecycle-follow-up-",
+        "checks-unavailable-in-this-environment-",
+        "six-digit-pairing-follow-up-",
+        "pairing-code-renewal-follow-up-",
+        "remaining-acceptance-work-"
+      ],
+      "links": [
+        {
+          "target": "#local-browser-adapter-implementation-record",
+          "kind": "link"
+        },
+        {
+          "target": "#source-inventory-and-boundaries",
+          "kind": "link"
+        },
+        {
+          "target": "#completed-native-android-checks",
+          "kind": "link"
+        },
+        {
+          "target": "#browser-connection-lifecycle-follow-up",
+          "kind": "link"
+        },
+        {
+          "target": "#checks-unavailable-in-this-environment",
+          "kind": "link"
+        },
+        {
+          "target": "#six-digit-pairing-follow-up",
+          "kind": "link"
+        },
+        {
+          "target": "#pairing-code-renewal-follow-up",
+          "kind": "link"
+        },
+        {
+          "target": "#remaining-acceptance-work",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/MEDIA.md",
+      "sha256": "61200732d927f77634070a2272ee8c5c73c96b202877f87d207d1a6189f7dd2f",
+      "bytes": 2934,
+      "anchors": [
+        "media-host-api-",
+        "rust-core-api-",
+        "frontend-api-",
+        "runtime-boundaries-"
+      ],
+      "links": [
+        {
+          "target": "#media-host-api",
+          "kind": "link"
+        },
+        {
+          "target": "#rust-core-api",
+          "kind": "link"
+        },
+        {
+          "target": "#frontend-api",
+          "kind": "link"
+        },
+        {
+          "target": "#runtime-boundaries",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/NAPI-VM-MIGRATION-PLAN.md",
+      "sha256": "ec7df3b7da6cdfb9f0e07eb776cdf3a9f2b15c7562fd705decca28c0f39a7ebd",
+      "bytes": 7166,
+      "anchors": [
+        "napi-vm-migration-plan-",
+        "baseline-and-target-",
+        "implementation-sequence-",
+        "acceptance-gates-",
+        "rollout-and-rollback-"
+      ],
+      "links": [
+        {
+          "target": "#napi-vm-migration-plan",
+          "kind": "link"
+        },
+        {
+          "target": "#baseline-and-target",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/nglmercer/napi-vm/blob/3816dcfec05c0d4d5d2e05d20e8cff71e98ac1ee/docs/crate-architecture.md",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/nglmercer/napi-vm/blob/3816dcfec05c0d4d5d2e05d20e8cff71e98ac1ee/docs/utf16-extraction-validation.md",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/nglmercer/napi-vm/blob/3816dcfec05c0d4d5d2e05d20e8cff71e98ac1ee/src/plugin_host.rs",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/nglmercer/napi-vm/compare/881cc8f1cec262049b6d31fa499b0d601ba673c5...3816dcfec05c0d4d5d2e05d20e8cff71e98ac1ee",
+          "kind": "link"
+        },
+        {
+          "target": "#implementation-sequence",
+          "kind": "link"
+        },
+        {
+          "target": "#acceptance-gates",
+          "kind": "link"
+        },
+        {
+          "target": "#rollout-and-rollback",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/NAPI_VM_PLUGINS.md",
+      "sha256": "007ac1969246e54516fe0afdcde2926df11f986459d2e30a7e8566c6f0e3a5bf",
+      "bytes": 20632,
+      "anchors": [
+        "napi-vm-plugins-runtime-napi-vm-",
+        "rust-runtime-api-migration-",
+        "pending-bounded-startup-delivery-and-lifecycle-admission-",
+        "package-layout-",
+        "minimal-manifest-",
+        "guest-interface-",
+        "threading-and-security-",
+        "bundled-native-addons-napi-rs-node-",
+        "manifest-",
+        "authorization-",
+        "guest-environment-",
+        "declarative-native-libraries-nativelibs-",
+        "staging-native-packages-",
+        "packaging-",
+        "event-loop-and-shutdown-",
+        "real-world-example-",
+        "reference-fixture-",
+        "follow-ups-"
+      ],
+      "links": [
+        {
+          "target": "#napi-vm-plugins-runtime-napi-vm",
+          "kind": "link"
+        },
+        {
+          "target": "#rust-runtime-api-migration",
+          "kind": "link"
+        },
+        {
+          "target": "#pending-bounded-startup-delivery-and-lifecycle-admission",
+          "kind": "link"
+        },
+        {
+          "target": "#package-layout",
+          "kind": "link"
+        },
+        {
+          "target": "#minimal-manifest",
+          "kind": "link"
+        },
+        {
+          "target": "#guest-interface",
+          "kind": "link"
+        },
+        {
+          "target": "#threading-and-security",
+          "kind": "link"
+        },
+        {
+          "target": "#bundled-native-addons-napi-rs-node",
+          "kind": "link"
+        },
+        {
+          "target": "#manifest",
+          "kind": "link"
+        },
+        {
+          "target": "#authorization",
+          "kind": "link"
+        },
+        {
+          "target": "#guest-environment",
+          "kind": "link"
+        },
+        {
+          "target": "#declarative-native-libraries-nativelibs",
+          "kind": "link"
+        },
+        {
+          "target": "#staging-native-packages",
+          "kind": "link"
+        },
+        {
+          "target": "#packaging",
+          "kind": "link"
+        },
+        {
+          "target": "#event-loop-and-shutdown",
+          "kind": "link"
+        },
+        {
+          "target": "#real-world-example",
+          "kind": "link"
+        },
+        {
+          "target": "#reference-fixture",
+          "kind": "link"
+        },
+        {
+          "target": "#follow-ups",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/P2P-COLLABORATION-PLAN.md",
+      "sha256": "d9814d74d44804b3c4cb816299645569921018a18eee13a2eb638c2c4d2b607c",
+      "bytes": 40828,
+      "anchors": [
+        "plan-colaboración-rust-con-webrtc-y-señalización-en-el-backend-",
+        "decisión-vigente-sustituir-iroh-",
+        "señalización-wss-implementada-en-remakebackend-",
+        "adaptador-webrtc-rust-validación-inicial-",
+        "descubrimiento-stun-y-base-cifrada-del-respaldo-",
+        "enrutamiento-del-respaldo-en-el-backend-existente-",
+        "implementación-anterior-y-evidencia-conservada-",
+        "objetivo-y-decisión-propuesta-",
+        "alternativas-revisadas-",
+        "arquitectura-",
+        "reutilizar-el-contrato-de-colaboración-",
+        "protocolo-inicial-acotado-",
+        "qué-significa-seguir-funcionando-si-cloud-cae-",
+        "implementación-por-entregas-",
+        "1-prueba-rust-de-conectividad-y-decisión-de-dependencia-",
+        "2-una-identidad-y-un-motor-de-permisos-",
+        "3-primer-recorrido-completo-headless-",
+        "4-desktop-y-automatizaciones-existentes-",
+        "5-despliegue-de-respaldo-y-observabilidad-",
+        "6-aceptación-física-y-live-",
+        "alcance-para-mantenerlo-simple-",
+        "evidencia-actual-y-trabajo-pendiente-"
+      ],
+      "links": [
+        {
+          "target": "#plan-colaboracion-rust-con-webrtc-y-senalizacion-en-el-backend",
+          "kind": "link"
+        },
+        {
+          "target": "#decision-vigente-sustituir-iroh",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/webrtc-rs/webrtc",
+          "kind": "link"
+        },
+        {
+          "target": "https://docs.rs/turn/latest/turn/server/config/struct.ServerConfig.html",
+          "kind": "link"
+        },
+        {
+          "target": "https://docs.railway.com/networking/public-networking/specs-and-limits",
+          "kind": "link"
+        },
+        {
+          "target": "https://docs.railway.com/networking/tcp-proxy",
+          "kind": "link"
+        },
+        {
+          "target": "#senalizacion-wss-implementada-en-remakebackend",
+          "kind": "link"
+        },
+        {
+          "target": "#adaptador-webrtc-rust-validacion-inicial",
+          "kind": "link"
+        },
+        {
+          "target": "#descubrimiento-stun-y-base-cifrada-del-respaldo",
+          "kind": "link"
+        },
+        {
+          "target": "#enrutamiento-del-respaldo-en-el-backend-existente",
+          "kind": "link"
+        },
+        {
+          "target": "#implementacion-anterior-y-evidencia-conservada",
+          "kind": "link"
+        },
+        {
+          "target": "TWO-PC-ACCEPTANCE.md",
+          "kind": "link"
+        },
+        {
+          "target": "#objetivo-y-decision-propuesta",
+          "kind": "link"
+        },
+        {
+          "target": "https://docs.rs/iroh/1.4.1/iroh/",
+          "kind": "link"
+        },
+        {
+          "target": "#alternativas-revisadas",
+          "kind": "link"
+        },
+        {
+          "target": "https://libp2p.github.io/rust-libp2p/dcutr_example/index.html",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/webrtc-rs/webrtc",
+          "kind": "link"
+        },
+        {
+          "target": "https://webrtc.org/getting-started/peer-connections",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/quinn-rs/quinn",
+          "kind": "link"
+        },
+        {
+          "target": "#arquitectura",
+          "kind": "link"
+        },
+        {
+          "target": "https://docs.rs/iroh-relay/1.4.1/iroh_relay/",
+          "kind": "link"
+        },
+        {
+          "target": "#reutilizar-el-contrato-de-colaboracion",
+          "kind": "link"
+        },
+        {
+          "target": "#protocolo-inicial-acotado",
+          "kind": "link"
+        },
+        {
+          "target": "#que-significa-seguir-funcionando-si-cloud-cae",
+          "kind": "link"
+        },
+        {
+          "target": "https://man7.org/linux/man-pages/man2/clock_gettime.2.html",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/apple/darwin-xnu/blob/main/osfmk/mach/mach_time.h",
+          "kind": "link"
+        },
+        {
+          "target": "https://learn.microsoft.com/windows/win32/sysinfo/windows-time",
+          "kind": "link"
+        },
+        {
+          "target": "https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regcreatekeyexw",
+          "kind": "link"
+        },
+        {
+          "target": "#implementacion-por-entregas",
+          "kind": "link"
+        },
+        {
+          "target": "#_1-prueba-rust-de-conectividad-y-decision-de-dependencia",
+          "kind": "link"
+        },
+        {
+          "target": "#_2-una-identidad-y-un-motor-de-permisos",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-primer-recorrido-completo-headless",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-desktop-y-automatizaciones-existentes",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-despliegue-de-respaldo-y-observabilidad",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-aceptacion-fisica-y-live",
+          "kind": "link"
+        },
+        {
+          "target": "#alcance-para-mantenerlo-simple",
+          "kind": "link"
+        },
+        {
+          "target": "#evidencia-actual-y-trabajo-pendiente",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/PERFORMANCE_REFACTOR_PROGRESS.md",
+      "sha256": "ff59098ba2322dc5b313f7350838e289fe086fb7bb1104dba4ff72986aa3dc98",
+      "bytes": 22780,
+      "anchors": [
+        "live-reliability-refactor-progress-",
+        "current-implementation-audit-",
+        "evidence-and-validation-",
+        "completed-batches-",
+        "batch-1-transport-ownership-and-ingress-generationaccounting-",
+        "batch-2-fan-out-and-polling-isolation-",
+        "batch-3-frontend-admission-and-disposal-",
+        "batch-4-connection-task-failure-guard-",
+        "batch-5-owned-bounded-live-points-execution-",
+        "batch-6-plugin-queue-accounting-",
+        "batch-7-measurement-and-verification-record-",
+        "additional-frontend-regressions-",
+        "final-rust-rerun-on-the-implemented-batches-",
+        "phase-1--loss-aware-graceful-ingress-shutdown-prompt-phase-1-",
+        "phase-2--durable-points-fifo-ordering-and-sqlite-correctness-",
+        "phase-3--plugin-worker-lifecycle-and-isolation-",
+        "reviewable-commit-sequence-",
+        "october-2026-desktop-transport-follow-up-"
+      ],
+      "links": [
+        {
+          "target": "#live-reliability-refactor-progress",
+          "kind": "link"
+        },
+        {
+          "target": "#current-implementation-audit",
+          "kind": "link"
+        },
+        {
+          "target": "#evidence-and-validation",
+          "kind": "link"
+        },
+        {
+          "target": "#completed-batches",
+          "kind": "link"
+        },
+        {
+          "target": "#batch-1-transport-ownership-and-ingress-generation-accounting",
+          "kind": "link"
+        },
+        {
+          "target": "#batch-2-fan-out-and-polling-isolation",
+          "kind": "link"
+        },
+        {
+          "target": "#batch-3-frontend-admission-and-disposal",
+          "kind": "link"
+        },
+        {
+          "target": "#batch-4-connection-task-failure-guard",
+          "kind": "link"
+        },
+        {
+          "target": "#batch-5-owned-bounded-live-points-execution",
+          "kind": "link"
+        },
+        {
+          "target": "#batch-6-plugin-queue-accounting",
+          "kind": "link"
+        },
+        {
+          "target": "#batch-7-measurement-and-verification-record",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/nglmercer/TikTools-app/pull/19",
+          "kind": "link"
+        },
+        {
+          "target": "#additional-frontend-regressions",
+          "kind": "link"
+        },
+        {
+          "target": "#final-rust-rerun-on-the-implemented-batches",
+          "kind": "link"
+        },
+        {
+          "target": "#phase-1-—-loss-aware-graceful-ingress-shutdown-prompt-phase-1",
+          "kind": "link"
+        },
+        {
+          "target": "#phase-2-—-durable-points-fifo-ordering-and-sqlite-correctness",
+          "kind": "link"
+        },
+        {
+          "target": "#phase-3-—-plugin-worker-lifecycle-and-isolation",
+          "kind": "link"
+        },
+        {
+          "target": "#reviewable-commit-sequence",
+          "kind": "link"
+        },
+        {
+          "target": "#october-2026-desktop-transport-follow-up",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/PLAYWRIGHT.md",
+      "sha256": "674cd6f6e61004b578b8c1b765d94650dbff68015dba74e982780176ff6fd6ed",
+      "bytes": 7033,
+      "anchors": [
+        "playwright-e2e-",
+        "run-",
+        "fake-host-main-suite-",
+        "specs-main-suite-",
+        "plugin-ui-suite-",
+        "screenshots-",
+        "adding-a-test-"
+      ],
+      "links": [
+        {
+          "target": "#playwright-e2e",
+          "kind": "link"
+        },
+        {
+          "target": "#run",
+          "kind": "link"
+        },
+        {
+          "target": "#fake-host-main-suite",
+          "kind": "link"
+        },
+        {
+          "target": "#specs-main-suite",
+          "kind": "link"
+        },
+        {
+          "target": "#plugin-ui-suite",
+          "kind": "link"
+        },
+        {
+          "target": "#screenshots",
+          "kind": "link"
+        },
+        {
+          "target": "#adding-a-test",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/PLUGINS.md",
+      "sha256": "000c3ddfb2249a0ce6d3ea235a926d88b675ddfc70715fd108a482fdfcc1e630",
+      "bytes": 27579,
+      "anchors": [
+        "plugins-",
+        "package-layout-",
+        "runtime-kinds-",
+        "native-",
+        "process-",
+        "wasm-",
+        "napi-vm-",
+        "capabilities-and-permissions-",
+        "media-and-audio-",
+        "actions-and-settings-",
+        "card-display-icon-tags-and-descriptions-",
+        "event-triggers-",
+        "long-running-preparation-progress-",
+        "generic-domain-event-observers-",
+        "event-processors-",
+        "installation-",
+        "publishing-metadata-",
+        "sdk-guidance-",
+        "target-aware-builds-"
+      ],
+      "links": [
+        {
+          "target": "#plugins",
+          "kind": "link"
+        },
+        {
+          "target": "#package-layout",
+          "kind": "link"
+        },
+        {
+          "target": "#runtime-kinds",
+          "kind": "link"
+        },
+        {
+          "target": "#native",
+          "kind": "link"
+        },
+        {
+          "target": "#process",
+          "kind": "link"
+        },
+        {
+          "target": "#wasm",
+          "kind": "link"
+        },
+        {
+          "target": "#napi-vm",
+          "kind": "link"
+        },
+        {
+          "target": "#capabilities-and-permissions",
+          "kind": "link"
+        },
+        {
+          "target": "#media-and-audio",
+          "kind": "link"
+        },
+        {
+          "target": "#actions-and-settings",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_UI_ARCHITECTURE.md",
+          "kind": "link"
+        },
+        {
+          "target": "#card-display-icon-tags-and-descriptions",
+          "kind": "link"
+        },
+        {
+          "target": "#event-triggers",
+          "kind": "link"
+        },
+        {
+          "target": "#long-running-preparation-progress",
+          "kind": "link"
+        },
+        {
+          "target": "#generic-domain-event-observers",
+          "kind": "link"
+        },
+        {
+          "target": "#event-processors",
+          "kind": "link"
+        },
+        {
+          "target": "#installation",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_REGISTRY_PROTOCOL.md",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_AUTHORING.md",
+          "kind": "link"
+        },
+        {
+          "target": "#publishing-metadata",
+          "kind": "link"
+        },
+        {
+          "target": "#sdk-guidance",
+          "kind": "link"
+        },
+        {
+          "target": "#target-aware-builds",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/PLUGIN_AUTHORING.md",
+      "sha256": "37f4f9969fbeb392a070a3d4e16ff677e2469f4bc9dcfb8dc2587734494d3197",
+      "bytes": 6347,
+      "anchors": [
+        "plugin-authoring-",
+        "1-create-a-package-",
+        "2-validate-",
+        "3-build-and-pack-",
+        "4-try-it-locally-",
+        "5-sign-",
+        "6-publish-",
+        "typescript-guests-napi-vm-",
+        "webview-pages-",
+        "manifest-schema-"
+      ],
+      "links": [
+        {
+          "target": "#plugin-authoring",
+          "kind": "link"
+        },
+        {
+          "target": "#_1-create-a-package",
+          "kind": "link"
+        },
+        {
+          "target": "#_2-validate",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-build-and-pack",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-try-it-locally",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-sign",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-publish",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_REGISTRY_PROTOCOL.md",
+          "kind": "link"
+        },
+        {
+          "target": "#typescript-guests-napi-vm",
+          "kind": "link"
+        },
+        {
+          "target": "NAPI_VM_PLUGINS.md",
+          "kind": "link"
+        },
+        {
+          "target": "#webview-pages",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_UI_ARCHITECTURE.md",
+          "kind": "link"
+        },
+        {
+          "target": "#manifest-schema",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/PLUGIN_PACKAGE_MANAGER_PLAN.md",
+      "sha256": "2734ff945b902776f5527fdd62446f33f789b1a6f4af0b2db1530c874da510dd",
+      "bytes": 38115,
+      "anchors": [
+        "plugin-package-manager--sdk-plan-",
+        "1-context-",
+        "2-current-state-",
+        "3-target-architecture-",
+        "4-core-vocabulary-",
+        "5-manifest-additions-",
+        "6-package-format-v2-and-trust-model-",
+        "7-registry-protocol-v1-",
+        "8-resolver-",
+        "9-install-transaction-pipeline-",
+        "10-receipts-store-layout-updates-rollback-",
+        "11-jobs-progress-typed-errors-",
+        "12-control-api-client-cli-",
+        "13-desktop-integration-",
+        "14-ui-srcweb-fsd-",
+        "15-author-sdk-and-devkit-",
+        "16-migration-and-compatibility-",
+        "17-security-checklist-",
+        "18-roadmap-",
+        "m0--foundations-no-behavior-change-",
+        "m1--local-package-management-",
+        "m2--signatures-and-trust-",
+        "m3--registry-",
+        "m4--cloud-ux-and-updates-",
+        "m5--author-experience-",
+        "m6--scale-and-ecosystem-later-",
+        "19-verification-",
+        "20-decisions-to-confirm-recommended-defaults-"
+      ],
+      "links": [
+        {
+          "target": "#plugin-package-manager-sdk-plan",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGINS.md",
+          "kind": "link"
+        },
+        {
+          "target": "PLUGIN_UI_ARCHITECTURE.md",
+          "kind": "link"
+        },
+        {
+          "target": "#_1-context",
+          "kind": "link"
+        },
+        {
+          "target": "#_2-current-state",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-target-architecture",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-core-vocabulary",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-manifest-additions",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-package-format-v2-and-trust-model",
+          "kind": "link"
+        },
+        {
+          "target": "#_7-registry-protocol-v1",
+          "kind": "link"
+        },
+        {
+          "target": "#_8-resolver",
+          "kind": "link"
+        },
+        {
+          "target": "#_9-install-transaction-pipeline",
+          "kind": "link"
+        },
+        {
+          "target": "#_10-receipts-store-layout-updates-rollback",
+          "kind": "link"
+        },
+        {
+          "target": "#_11-jobs-progress-typed-errors",
+          "kind": "link"
+        },
+        {
+          "target": "#_12-control-api-client-cli",
+          "kind": "link"
+        },
+        {
+          "target": "#_13-desktop-integration",
+          "kind": "link"
+        },
+        {
+          "target": "#_14-ui-src-web-fsd",
+          "kind": "link"
+        },
+        {
+          "target": "#_15-author-sdk-and-devkit",
+          "kind": "link"
+        },
+        {
+          "target": "#_16-migration-and-compatibility",
+          "kind": "link"
+        },
+        {
+          "target": "#_17-security-checklist",
+          "kind": "link"
+        },
+        {
+          "target": "#_18-roadmap",
+          "kind": "link"
+        },
+        {
+          "target": "#m0-—-foundations-no-behavior-change",
+          "kind": "link"
+        },
+        {
+          "target": "#m1-—-local-package-management",
+          "kind": "link"
+        },
+        {
+          "target": "#m2-—-signatures-and-trust",
+          "kind": "link"
+        },
+        {
+          "target": "#m3-—-registry",
+          "kind": "link"
+        },
+        {
+          "target": "#m4-—-cloud-ux-and-updates",
+          "kind": "link"
+        },
+        {
+          "target": "#m5-—-author-experience",
+          "kind": "link"
+        },
+        {
+          "target": "#m6-—-scale-and-ecosystem-later",
+          "kind": "link"
+        },
+        {
+          "target": "#_19-verification",
+          "kind": "link"
+        },
+        {
+          "target": "#_20-decisions-to-confirm-recommended-defaults",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/PLUGIN_REGISTRY_PROTOCOL.md",
+      "sha256": "efa6d7c5159c6b1d3df51cd134ec8944d26932389cc0cf5177edd0c6293f793f",
+      "bytes": 7163,
+      "anchors": [
+        "plugin-registry-protocol-v1-",
+        "layout-",
+        "trust-model-",
+        "packages-",
+        "configjson-",
+        "package-document-",
+        "resolution-",
+        "updates-and-advisories-",
+        "operating-a-static-registry-"
+      ],
+      "links": [
+        {
+          "target": "#plugin-registry-protocol-v1",
+          "kind": "link"
+        },
+        {
+          "target": "#layout",
+          "kind": "link"
+        },
+        {
+          "target": "#trust-model",
+          "kind": "link"
+        },
+        {
+          "target": "#packages",
+          "kind": "link"
+        },
+        {
+          "target": "#config-json",
+          "kind": "link"
+        },
+        {
+          "target": "#package-document",
+          "kind": "link"
+        },
+        {
+          "target": "#resolution",
+          "kind": "link"
+        },
+        {
+          "target": "#updates-and-advisories",
+          "kind": "link"
+        },
+        {
+          "target": "#operating-a-static-registry",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/PLUGIN_UI_ARCHITECTURE.md",
+      "sha256": "24e313e617c811157feb163b90cbcac0c76883249dd47d9e5a9847dac2cdbf18",
+      "bytes": 13499,
+      "anchors": [
+        "plugin-ui-architecture-",
+        "layers-",
+        "ui-modes-",
+        "broker-protocol-",
+        "backend-process-plugin-",
+        "node-set-uiversion-1-",
+        "bindings-",
+        "ui-actions-allowlist-",
+        "backward-compatibility-",
+        "lifecycle-",
+        "layout-contract-",
+        "security-properties-",
+        "windows-webview2-protocol-rewrite-",
+        "known-gaps-"
+      ],
+      "links": [
+        {
+          "target": "#plugin-ui-architecture",
+          "kind": "link"
+        },
+        {
+          "target": "#layers",
+          "kind": "link"
+        },
+        {
+          "target": "#ui-modes",
+          "kind": "link"
+        },
+        {
+          "target": "#broker-protocol",
+          "kind": "link"
+        },
+        {
+          "target": "#backend-process-plugin",
+          "kind": "link"
+        },
+        {
+          "target": "#node-set-uiversion-1",
+          "kind": "link"
+        },
+        {
+          "target": "#bindings",
+          "kind": "link"
+        },
+        {
+          "target": "#ui-actions-allowlist",
+          "kind": "link"
+        },
+        {
+          "target": "#backward-compatibility",
+          "kind": "link"
+        },
+        {
+          "target": "#lifecycle",
+          "kind": "link"
+        },
+        {
+          "target": "#layout-contract",
+          "kind": "link"
+        },
+        {
+          "target": "#security-properties",
+          "kind": "link"
+        },
+        {
+          "target": "#windows-webview2-protocol-rewrite",
+          "kind": "link"
+        },
+        {
+          "target": "#known-gaps",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/RELEASE-4.2.1-rc.1.md",
+      "sha256": "557b7b0dceb291396c1164533d13603c1b06ea99c30d627e15ffe55de67bac28",
+      "bytes": 3788,
+      "anchors": [
+        "tiktools-421-rc1-",
+        "changes-to-verify-",
+        "backend-dependency-",
+        "reproduction-record-",
+        "scope-still-in-progress-",
+        "validation-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-4-2-1-rc-1",
+          "kind": "link"
+        },
+        {
+          "target": "#changes-to-verify",
+          "kind": "link"
+        },
+        {
+          "target": "#backend-dependency",
+          "kind": "link"
+        },
+        {
+          "target": "#reproduction-record",
+          "kind": "link"
+        },
+        {
+          "target": "#scope-still-in-progress",
+          "kind": "link"
+        },
+        {
+          "target": "#validation",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/RELEASE-4.2.1-rc.2.md",
+      "sha256": "3d96e3bdb75f7f499387ebf213801c212a24d9194b64c8a02f75571725d05d95",
+      "bytes": 2832,
+      "anchors": [
+        "tiktools-421-rc2-",
+        "correction-",
+        "verification-",
+        "remaining-scope-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-4-2-1-rc-2",
+          "kind": "link"
+        },
+        {
+          "target": "#correction",
+          "kind": "link"
+        },
+        {
+          "target": "#verification",
+          "kind": "link"
+        },
+        {
+          "target": "#remaining-scope",
+          "kind": "link"
+        },
+        {
+          "target": "SYNC-CHANGES-PLAN.md#421-rc1-reproduction",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/RELEASE-4.2.1-rc.3.md",
+      "sha256": "d507bd8785ffdc265115d9f03139873a484f26e494021f2feab77e5350d935ab",
+      "bytes": 3713,
+      "anchors": [
+        "tiktools-421-rc3-",
+        "changes-",
+        "verification-",
+        "testing-and-remaining-scope-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-4-2-1-rc-3",
+          "kind": "link"
+        },
+        {
+          "target": "#changes",
+          "kind": "link"
+        },
+        {
+          "target": "#verification",
+          "kind": "link"
+        },
+        {
+          "target": "#testing-and-remaining-scope",
+          "kind": "link"
+        },
+        {
+          "target": "SYNC-CHANGES-PLAN.md#421-rc1-reproduction",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/RELEASE-4.2.2.md",
+      "sha256": "c72d6a2ffe2e610e3984516d5bd5348361a0cd0bfd263d89df1a60986ba03d08",
+      "bytes": 3796,
+      "anchors": [
+        "tiktools-422-",
+        "variables-",
+        "ci-corrections-",
+        "validation-gates-",
+        "remaining-scope-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-4-2-2",
+          "kind": "link"
+        },
+        {
+          "target": "#variables",
+          "kind": "link"
+        },
+        {
+          "target": "#ci-corrections",
+          "kind": "link"
+        },
+        {
+          "target": "#validation-gates",
+          "kind": "link"
+        },
+        {
+          "target": "#remaining-scope",
+          "kind": "link"
+        },
+        {
+          "target": "SYNC-CHANGES-PLAN.md#421-rc1-reproduction",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/SONICBOOM-LIVE-TTS-VALIDATION.md",
+      "sha256": "0b12a02ec33ca1b41f311968752dedd6d1cf65881b493add8b06a50c1c9cb782",
+      "bytes": 12859,
+      "anchors": [
+        "sonicboom-live-tts-integration-validation-",
+        "confirmed-defects-and-changes-",
+        "bounded-scheduling-and-observable-outcomes-",
+        "automated-checks-",
+        "http-integration-coverage-",
+        "real-model-verification-",
+        "limits-and-follow-up-",
+        "related-commits-",
+        "files-",
+        "follow-up-per-user-providers-and-minimal-controls-"
+      ],
+      "links": [
+        {
+          "target": "#sonicboom-live-tts-integration-validation",
+          "kind": "link"
+        },
+        {
+          "target": "#confirmed-defects-and-changes",
+          "kind": "link"
+        },
+        {
+          "target": "#bounded-scheduling-and-observable-outcomes",
+          "kind": "link"
+        },
+        {
+          "target": "#automated-checks",
+          "kind": "link"
+        },
+        {
+          "target": "#http-integration-coverage",
+          "kind": "link"
+        },
+        {
+          "target": "#real-model-verification",
+          "kind": "link"
+        },
+        {
+          "target": "#limits-and-follow-up",
+          "kind": "link"
+        },
+        {
+          "target": "#related-commits",
+          "kind": "link"
+        },
+        {
+          "target": "#files",
+          "kind": "link"
+        },
+        {
+          "target": "#follow-up-per-user-providers-and-minimal-controls",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/SYNC-CHANGES-PLAN.md",
+      "sha256": "1f2fc9c9ee3371ee4d36305debc4f5bcba5bdf742103523e18699c3d94c8a989",
+      "bytes": 18813,
+      "anchors": [
+        "sync-and-the-changes-panel-plan-",
+        "implemented-",
+        "desktop-simplification-and-diagnostics-2026-11-13-",
+        "verification-and-remaining-work-",
+        "421-rc1-reproduction-",
+        "read-contention-correction-rc2-",
+        "typed-local-variables-foundation-",
+        "native-variables-comparison-and-explicit-cached-application-",
+        "reviewed-variables-actions-and-changes-panel-422-",
+        "goal-",
+        "shape-",
+        "per-section-",
+        "phases-",
+        "completion-checklist-"
+      ],
+      "links": [
+        {
+          "target": "#sync-and-the-changes-panel-plan",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-V2-DESKTOP.md",
+          "kind": "link"
+        },
+        {
+          "target": "#implemented",
+          "kind": "link"
+        },
+        {
+          "target": "#desktop-simplification-and-diagnostics-2026-11-13",
+          "kind": "link"
+        },
+        {
+          "target": "#verification-and-remaining-work",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-2-1-rc-1-reproduction",
+          "kind": "link"
+        },
+        {
+          "target": "https://github.com/nglmercer/TikTools-app/releases/tag/v4.2.1-rc.1",
+          "kind": "link"
+        },
+        {
+          "target": "#read-contention-correction-rc2",
+          "kind": "link"
+        },
+        {
+          "target": "#typed-local-variables-foundation",
+          "kind": "link"
+        },
+        {
+          "target": "#native-variables-comparison-and-explicit-cached-application",
+          "kind": "link"
+        },
+        {
+          "target": "#reviewed-variables-actions-and-changes-panel-4-2-2",
+          "kind": "link"
+        },
+        {
+          "target": "#goal",
+          "kind": "link"
+        },
+        {
+          "target": "#shape",
+          "kind": "link"
+        },
+        {
+          "target": "#per-section",
+          "kind": "link"
+        },
+        {
+          "target": "#phases",
+          "kind": "link"
+        },
+        {
+          "target": "#completion-checklist",
+          "kind": "link"
+        },
+        {
+          "target": "CLOUD-V2-DESKTOP.md#reviewed-variables-actions-422",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/TEMPLATES.md",
+      "sha256": "74b70ac7b0a1f8109d5e78ebed58f4db0b63e1ef87044a22211e96428c3ae369",
+      "bytes": 8623,
+      "anchors": [
+        "rule-templates-and-profiles-",
+        "template-document-v1-",
+        "params-substitution-",
+        "runtime-globals-",
+        "profile-document-v1-",
+        "active-profile-desktop-",
+        "cli-",
+        "minecraft-example-"
+      ],
+      "links": [
+        {
+          "target": "#rule-templates-and-profiles",
+          "kind": "link"
+        },
+        {
+          "target": "#template-document-v1",
+          "kind": "link"
+        },
+        {
+          "target": "#params-substitution",
+          "kind": "link"
+        },
+        {
+          "target": "#runtime-globals",
+          "kind": "link"
+        },
+        {
+          "target": "#profile-document-v1",
+          "kind": "link"
+        },
+        {
+          "target": "#active-profile-desktop",
+          "kind": "link"
+        },
+        {
+          "target": "#cli",
+          "kind": "link"
+        },
+        {
+          "target": "#minecraft-example",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/TERMUX.md",
+      "sha256": "71a49f6792dc86ef2fa2b402f4692f80c74a0cdf50ae5e101db5ab13854aa9f1",
+      "bytes": 14402,
+      "anchors": [
+        "native-termux-development-",
+        "setup-",
+        "build-and-run-",
+        "live-and-event-debugging-",
+        "plugin-capabilities-",
+        "validate-changes-on-the-phone-",
+        "edit-inspect-and-commit-",
+        "resource-limits-and-interrupted-work-",
+        "local-browser-adapter-development-preview-"
+      ],
+      "links": [
+        {
+          "target": "#native-termux-development",
+          "kind": "link"
+        },
+        {
+          "target": "#setup",
+          "kind": "link"
+        },
+        {
+          "target": "#build-and-run",
+          "kind": "link"
+        },
+        {
+          "target": "LIVE-COLLABORATION-CLIENT.md",
+          "kind": "link"
+        },
+        {
+          "target": "#live-and-event-debugging",
+          "kind": "link"
+        },
+        {
+          "target": "#plugin-capabilities",
+          "kind": "link"
+        },
+        {
+          "target": "#validate-changes-on-the-phone",
+          "kind": "link"
+        },
+        {
+          "target": "TERMUX_AGENT_WORKFLOW.md",
+          "kind": "link"
+        },
+        {
+          "target": "#edit-inspect-and-commit",
+          "kind": "link"
+        },
+        {
+          "target": "#resource-limits-and-interrupted-work",
+          "kind": "link"
+        },
+        {
+          "target": "#local-browser-adapter-development-preview",
+          "kind": "link"
+        },
+        {
+          "target": "LOCAL_BROWSER_ADAPTER_VALIDATION.md",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/TERMUX_AGENT_WORKFLOW.md",
+      "sha256": "5890c1a3b4ee4963d72f7bb28d41f41b00b011399f268fd3f026b1d1a15a5872",
+      "bytes": 2717,
+      "anchors": [
+        "agent-workflow-on-android-"
+      ],
+      "links": [
+        {
+          "target": "#agent-workflow-on-android",
+          "kind": "link"
+        },
+        {
+          "target": "TERMUX.md",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/TERMUX_VALIDATION.md",
+      "sha256": "c8e38d5413ac39747758c631d11dbc6994970634250108a48348d21ee6e17884",
+      "bytes": 11151,
+      "anchors": [
+        "android--termux-validation-record-",
+        "dependency-audit-and-fixes-",
+        "checks-",
+        "capability-and-verification-limits-",
+        "files-changed-"
+      ],
+      "links": [
+        {
+          "target": "#android-termux-validation-record",
+          "kind": "link"
+        },
+        {
+          "target": "#dependency-audit-and-fixes",
+          "kind": "link"
+        },
+        {
+          "target": "#checks",
+          "kind": "link"
+        },
+        {
+          "target": "#capability-and-verification-limits",
+          "kind": "link"
+        },
+        {
+          "target": "TERMUX.md",
+          "kind": "link"
+        },
+        {
+          "target": "TERMUX_AGENT_WORKFLOW.md",
+          "kind": "link"
+        },
+        {
+          "target": "#files-changed",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/TROUBLESHOOTING.md",
+      "sha256": "e3c99baa1545981903e75d509a9a2c3a1956abf3d33cb8016a606f6354f826e0",
+      "bytes": 7179,
+      "anchors": [
+        "troubleshooting-",
+        "the-rust-host-does-not-start-",
+        "linux-webview-errors-",
+        "the-packaged-web-application-did-not-become-ready-",
+        "the-page-loads-but-does-not-respond-",
+        "plugin-pop-out-shows-a-broker-error-",
+        "closing-a-plugin-window-crashes-the-app-linuxx11-",
+        "tiktok-connection-errors-",
+        "database-or-missing-data-",
+        "plugin-is-not-listed-",
+        "native-plugin-failed-to-load-",
+        "automation-script-errors-",
+        "useful-checks-"
+      ],
+      "links": [
+        {
+          "target": "#troubleshooting",
+          "kind": "link"
+        },
+        {
+          "target": "#the-rust-host-does-not-start",
+          "kind": "link"
+        },
+        {
+          "target": "#linux-webview-errors",
+          "kind": "link"
+        },
+        {
+          "target": "#the-packaged-web-application-did-not-become-ready",
+          "kind": "link"
+        },
+        {
+          "target": "#the-page-loads-but-does-not-respond",
+          "kind": "link"
+        },
+        {
+          "target": "#plugin-pop-out-shows-a-broker-error",
+          "kind": "link"
+        },
+        {
+          "target": "#closing-a-plugin-window-crashes-the-app-linux-x11",
+          "kind": "link"
+        },
+        {
+          "target": "#tiktok-connection-errors",
+          "kind": "link"
+        },
+        {
+          "target": "#database-or-missing-data",
+          "kind": "link"
+        },
+        {
+          "target": "#plugin-is-not-listed",
+          "kind": "link"
+        },
+        {
+          "target": "#native-plugin-failed-to-load",
+          "kind": "link"
+        },
+        {
+          "target": "#automation-script-errors",
+          "kind": "link"
+        },
+        {
+          "target": "#useful-checks",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/TWO-PC-ACCEPTANCE.md",
+      "sha256": "182a397b65012f9458feea3bccd6bca483fb9d685c352201bd4003394fe99170",
+      "bytes": 15820,
+      "anchors": [
+        "two-pc-webrtc-collaboration-acceptance-",
+        "current-procedure-",
+        "verified-automated-evidence-",
+        "historical-httpswss-regression-checks-",
+        "verified-locally-on-2026-11-12-",
+        "legacy-lab-prepare-pc-a-",
+        "legacy-lab-pair-pc-b-",
+        "legacy-lab-acceptance-checklist-",
+        "legacy-lab-stop-and-repeat-"
+      ],
+      "links": [
+        {
+          "target": "#two-pc-webrtc-collaboration-acceptance",
+          "kind": "link"
+        },
+        {
+          "target": "#current-procedure",
+          "kind": "link"
+        },
+        {
+          "target": "#verified-automated-evidence",
+          "kind": "link"
+        },
+        {
+          "target": "#historical-https-wss-regression-checks",
+          "kind": "link"
+        },
+        {
+          "target": "#verified-locally-on-2026-11-12",
+          "kind": "link"
+        },
+        {
+          "target": "#legacy-lab-prepare-pc-a",
+          "kind": "link"
+        },
+        {
+          "target": "#legacy-lab-pair-pc-b",
+          "kind": "link"
+        },
+        {
+          "target": "#legacy-lab-acceptance-checklist",
+          "kind": "link"
+        },
+        {
+          "target": "#legacy-lab-stop-and-repeat",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/UI_DIAGNOSTICS.md",
+      "sha256": "de73f9cd0135c75cbd5bc8d1bca40d93038c0d5c631ace409df2e1a6951df621",
+      "bytes": 2457,
+      "anchors": [
+        "ui-diagnostics-"
+      ],
+      "links": [
+        {
+          "target": "#ui-diagnostics",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/UI_KIT_USAGE.md",
+      "sha256": "e3963dc4d94b15a5ce3dee988a34d90d88beff0707a530380d5b002cea8bf865",
+      "bytes": 18077,
+      "anchors": [
+        "ui-kit-and-layout-patterns-",
+        "visual-language-and-density-",
+        "existing-primitives-extend-rather-than-duplicate-",
+        "shared-compositions-",
+        "ownership-and-migration-",
+        "verification-for-each-change-",
+        "overlay-library-",
+        "file-selection-and-image-uploads-",
+        "collaboration-settings-and-grants-",
+        "composition-boundaries-for-complex-views-"
+      ],
+      "links": [
+        {
+          "target": "#ui-kit-and-layout-patterns",
+          "kind": "link"
+        },
+        {
+          "target": "#visual-language-and-density",
+          "kind": "link"
+        },
+        {
+          "target": "#existing-primitives-extend-rather-than-duplicate",
+          "kind": "link"
+        },
+        {
+          "target": "#shared-compositions",
+          "kind": "link"
+        },
+        {
+          "target": "#ownership-and-migration",
+          "kind": "link"
+        },
+        {
+          "target": "#verification-for-each-change",
+          "kind": "link"
+        },
+        {
+          "target": "#overlay-library",
+          "kind": "link"
+        },
+        {
+          "target": "#file-selection-and-image-uploads",
+          "kind": "link"
+        },
+        {
+          "target": "#collaboration-settings-and-grants",
+          "kind": "link"
+        },
+        {
+          "target": "#composition-boundaries-for-complex-views",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/USER_GUIDE.md",
+      "sha256": "efb00acec595ca0795d2649eff2911c6904bd164db24554a62ee387fe86c56ab",
+      "bytes": 6699,
+      "anchors": [
+        "user-guide-",
+        "connect-to-tiktok-live-",
+        "guest-mode-",
+        "authenticated-mode-",
+        "automatic-live-selection-",
+        "dashboard-tabs-",
+        "feed-",
+        "explore-live-",
+        "connection-status-",
+        "points-",
+        "analytics-",
+        "behavior-",
+        "plugins-",
+        "widgets-",
+        "settings-",
+        "tray-behavior-",
+        "what-persists-"
+      ],
+      "links": [
+        {
+          "target": "#user-guide",
+          "kind": "link"
+        },
+        {
+          "target": "#connect-to-tiktok-live",
+          "kind": "link"
+        },
+        {
+          "target": "#guest-mode",
+          "kind": "link"
+        },
+        {
+          "target": "#authenticated-mode",
+          "kind": "link"
+        },
+        {
+          "target": "#automatic-live-selection",
+          "kind": "link"
+        },
+        {
+          "target": "#dashboard-tabs",
+          "kind": "link"
+        },
+        {
+          "target": "#feed",
+          "kind": "link"
+        },
+        {
+          "target": "#explore-live",
+          "kind": "link"
+        },
+        {
+          "target": "#connection-status",
+          "kind": "link"
+        },
+        {
+          "target": "#points",
+          "kind": "link"
+        },
+        {
+          "target": "#analytics",
+          "kind": "link"
+        },
+        {
+          "target": "#behavior",
+          "kind": "link"
+        },
+        {
+          "target": "AUTOMATIONS.md",
+          "kind": "link"
+        },
+        {
+          "target": "#plugins",
+          "kind": "link"
+        },
+        {
+          "target": "#widgets",
+          "kind": "link"
+        },
+        {
+          "target": "#settings",
+          "kind": "link"
+        },
+        {
+          "target": "#tray-behavior",
+          "kind": "link"
+        },
+        {
+          "target": "#what-persists",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/V2_PRODUCT_OUTBOX_STAGING.md",
+      "sha256": "c4d50c7d3adda3d24fbeb04ef879b3dad4bc177ead2d104834dbffd07cbe46ee",
+      "bytes": 24599,
+      "anchors": [
+        "v2-product-outbox-staging-"
+      ],
+      "links": [
+        {
+          "target": "#v2-product-outbox-staging",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/WIDGET_SDK.md",
+      "sha256": "772eda68aab8b56d17c2b69a4a3f29a96ff3481afcc8ec353639cb84d3a81257",
+      "bytes": 4263,
+      "anchors": [
+        "widget-templates-",
+        "add-a-widget-",
+        "editor-integration-",
+        "why-the-previous-preview-was-blank-"
+      ],
+      "links": [
+        {
+          "target": "#widget-templates",
+          "kind": "link"
+        },
+        {
+          "target": "#add-a-widget",
+          "kind": "link"
+        },
+        {
+          "target": "#editor-integration",
+          "kind": "link"
+        },
+        {
+          "target": "#why-the-previous-preview-was-blank",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/aggregation/README.md",
+      "sha256": "f1cca8bdf4e84868dc446034eb1ce3857fd164bce3c2876233741a5c6a66c10b",
+      "bytes": 18060,
+      "anchors": [
+        "rankings-and-competitions-"
+      ],
+      "links": [
+        {
+          "target": "#rankings-and-competitions",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/perf-phase4.md",
+      "sha256": "8e7cb99ed016be1d7afea7b89cc4efe2e587735c817e542b34284b8217eab715",
+      "bytes": 4160,
+      "anchors": [
+        "phase-4-profiling-notes-",
+        "environment-",
+        "baselines-and-decisions-",
+        "reproduce-"
+      ],
+      "links": [
+        {
+          "target": "#phase-4-profiling-notes",
+          "kind": "link"
+        },
+        {
+          "target": "#environment",
+          "kind": "link"
+        },
+        {
+          "target": "#baselines-and-decisions",
+          "kind": "link"
+        },
+        {
+          "target": "#reproduce",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/release_plan.md",
+      "sha256": "38d352ff29779a3a064fa838b8d5fe34b6c83feb65077d30cd1c18185d12ba3c",
+      "bytes": 24527,
+      "anchors": [
+        "tiktools--ci-security-release--code-hardening-task-",
+        "objective-",
+        "1-fix-native-plugin-ffi-zero-length-buffer-handling-",
+        "add-tests-",
+        "2-standardize-bun-as-the-frontend-package-manager-",
+        "required-changes-",
+        "3-add-frontend-eslint-",
+        "packagejson-",
+        "4-preserve-typescript-strictness-",
+        "5-add-rust-formatting-and-lint-validation-",
+        "6-add-main-ci-workflow-",
+        "frontend-job-",
+        "rust-job-",
+        "7-add-desktop-cross-platform-compilation-checks-",
+        "8-add-github-codeql-",
+        "9-add-dependency-review-",
+        "10-add-dependabot-",
+        "11-pin-github-actions-safely-",
+        "12-add-ci-friendly-project-scripts-",
+        "13-establish-version-consistency-",
+        "14-decide-how-packagejson-version-is-handled-",
+        "15-add-release-workflow-",
+        "16-package-frontend-assets-with-the-desktop-executable-",
+        "17-release-build-matrix-",
+        "18-generate-sha-256-checksums-",
+        "19-use-github-release-generation-",
+        "20-do-not-reuse-legacy-electronsquirrel-release-files-",
+        "21-add-release-packaging-script-",
+        "22-add-license-file-if-missing-",
+        "23-audit-secrets-and-generated-files-",
+        "24-preserve-webview-security-behavior-",
+        "25-preserve-plugin-installer-security-",
+        "26-review-process-plugin-timeout-behavior-",
+        "27-add-readme-ci-documentation-",
+        "28-update-development-documentation-",
+        "29-add-contributingmd-if-missing-",
+        "30-github-branch-protection-documentation-",
+        "31-validate-lockfiles-",
+        "32-required-local-validation-",
+        "33-inspect-generated-desktop-package-",
+        "34-avoid-unrelated-refactors-",
+        "35-commit-structure-",
+        "36-final-report-required-",
+        "changed-files-",
+        "bug-fixes-",
+        "ci-",
+        "security-",
+        "release-",
+        "verification-",
+        "definition-of-done-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-—-ci-security-release-code-hardening-task",
+          "kind": "link"
+        },
+        {
+          "target": "#objective",
+          "kind": "link"
+        },
+        {
+          "target": "#_1-fix-native-plugin-ffi-zero-length-buffer-handling",
+          "kind": "link"
+        },
+        {
+          "target": "#add-tests",
+          "kind": "link"
+        },
+        {
+          "target": "#_2-standardize-bun-as-the-frontend-package-manager",
+          "kind": "link"
+        },
+        {
+          "target": "#required-changes",
+          "kind": "link"
+        },
+        {
+          "target": "#_3-add-frontend-eslint",
+          "kind": "link"
+        },
+        {
+          "target": "#package-json",
+          "kind": "link"
+        },
+        {
+          "target": "#_4-preserve-typescript-strictness",
+          "kind": "link"
+        },
+        {
+          "target": "#_5-add-rust-formatting-and-lint-validation",
+          "kind": "link"
+        },
+        {
+          "target": "#_6-add-main-ci-workflow",
+          "kind": "link"
+        },
+        {
+          "target": "#frontend-job",
+          "kind": "link"
+        },
+        {
+          "target": "#rust-job",
+          "kind": "link"
+        },
+        {
+          "target": "#_7-add-desktop-cross-platform-compilation-checks",
+          "kind": "link"
+        },
+        {
+          "target": "#_8-add-github-codeql",
+          "kind": "link"
+        },
+        {
+          "target": "#_9-add-dependency-review",
+          "kind": "link"
+        },
+        {
+          "target": "#_10-add-dependabot",
+          "kind": "link"
+        },
+        {
+          "target": "#_11-pin-github-actions-safely",
+          "kind": "link"
+        },
+        {
+          "target": "#_12-add-ci-friendly-project-scripts",
+          "kind": "link"
+        },
+        {
+          "target": "#_13-establish-version-consistency",
+          "kind": "link"
+        },
+        {
+          "target": "#_14-decide-how-package-json-version-is-handled",
+          "kind": "link"
+        },
+        {
+          "target": "#_15-add-release-workflow",
+          "kind": "link"
+        },
+        {
+          "target": "#_16-package-frontend-assets-with-the-desktop-executable",
+          "kind": "link"
+        },
+        {
+          "target": "#_17-release-build-matrix",
+          "kind": "link"
+        },
+        {
+          "target": "#_18-generate-sha-256-checksums",
+          "kind": "link"
+        },
+        {
+          "target": "#_19-use-github-release-generation",
+          "kind": "link"
+        },
+        {
+          "target": "#_20-do-not-reuse-legacy-electron-squirrel-release-files",
+          "kind": "link"
+        },
+        {
+          "target": "#_21-add-release-packaging-script",
+          "kind": "link"
+        },
+        {
+          "target": "#_22-add-license-file-if-missing",
+          "kind": "link"
+        },
+        {
+          "target": "#_23-audit-secrets-and-generated-files",
+          "kind": "link"
+        },
+        {
+          "target": "#_24-preserve-webview-security-behavior",
+          "kind": "link"
+        },
+        {
+          "target": "#_25-preserve-plugin-installer-security",
+          "kind": "link"
+        },
+        {
+          "target": "#_26-review-process-plugin-timeout-behavior",
+          "kind": "link"
+        },
+        {
+          "target": "#_27-add-readme-ci-documentation",
+          "kind": "link"
+        },
+        {
+          "target": "#_28-update-development-documentation",
+          "kind": "link"
+        },
+        {
+          "target": "#_29-add-contributing-md-if-missing",
+          "kind": "link"
+        },
+        {
+          "target": "#_30-github-branch-protection-documentation",
+          "kind": "link"
+        },
+        {
+          "target": "#_31-validate-lockfiles",
+          "kind": "link"
+        },
+        {
+          "target": "#_32-required-local-validation",
+          "kind": "link"
+        },
+        {
+          "target": "#_33-inspect-generated-desktop-package",
+          "kind": "link"
+        },
+        {
+          "target": "#_34-avoid-unrelated-refactors",
+          "kind": "link"
+        },
+        {
+          "target": "#_35-commit-structure",
+          "kind": "link"
+        },
+        {
+          "target": "#_36-final-report-required",
+          "kind": "link"
+        },
+        {
+          "target": "#changed-files",
+          "kind": "link"
+        },
+        {
+          "target": "#bug-fixes",
+          "kind": "link"
+        },
+        {
+          "target": "#ci",
+          "kind": "link"
+        },
+        {
+          "target": "#security",
+          "kind": "link"
+        },
+        {
+          "target": "#release",
+          "kind": "link"
+        },
+        {
+          "target": "#verification",
+          "kind": "link"
+        },
+        {
+          "target": "#definition-of-done",
+          "kind": "link"
+        }
+      ]
+    },
+    {
+      "source": "docs/ui/tts-minimal/README.md",
+      "sha256": "3c0f2c65d794aea12ab6b0d08d4cfc7ed75403a2fe42f0ae89a663d751b6ecc0",
+      "bytes": 909,
+      "anchors": [
+        "compact-server-audio-bar-"
+      ],
+      "links": [
+        {
+          "target": "#compact-server-audio-bar",
+          "kind": "link"
+        },
+        {
+          "target": "before-desktop.png",
+          "kind": "image"
+        },
+        {
+          "target": "after-desktop.png",
+          "kind": "image"
+        },
+        {
+          "target": "audio-bar.png",
+          "kind": "image"
+        },
+        {
+          "target": "after-mobile.png",
+          "kind": "image"
+        }
+      ]
+    },
+    {
+      "source": "docs/ui/tts-playback/README.md",
+      "sha256": "edf8c94d035f9c9c7803f598025731b9c2adaa4c152a5024018c227cb5edc2fc",
+      "bytes": 2125,
+      "anchors": [
+        "tiktools-tts-playback-and-token-connection-",
+        "screenshots-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-tts-playback-and-token-connection",
+          "kind": "link"
+        },
+        {
+          "target": "#screenshots",
+          "kind": "link"
+        },
+        {
+          "target": "before.png",
+          "kind": "image"
+        },
+        {
+          "target": "after.png",
+          "kind": "image"
+        },
+        {
+          "target": "after-unknown-duration.png",
+          "kind": "image"
+        }
+      ]
+    },
+    {
+      "source": "docs/ui/tts-redesign/README.md",
+      "sha256": "0ae49dd45a0de678c03ac0f01a2dec0d8e89191cffb375c4e5fee771d2f06353",
+      "bytes": 1620,
+      "anchors": [
+        "tiktools-tts-redesign-",
+        "review-captures-"
+      ],
+      "links": [
+        {
+          "target": "#tiktools-tts-redesign",
+          "kind": "link"
+        },
+        {
+          "target": "#review-captures",
+          "kind": "link"
+        },
+        {
+          "target": "before-desktop.png",
+          "kind": "image"
+        },
+        {
+          "target": "after-desktop.png",
+          "kind": "image"
+        },
+        {
+          "target": "after-fields-tooltip.png",
+          "kind": "image"
+        },
+        {
+          "target": "after-mobile.png",
+          "kind": "image"
+        }
+      ]
+    },
+    {
+      "source": "docs/universal-widgets.md",
+      "sha256": "a3b145d387f77d0e2923ddff7b3714f3ab4f20d6b830c497108c9f9cba49e631",
+      "bytes": 2625,
+      "anchors": [
+        "universal-widgets-and-the-optional-obs-bridge-"
+      ],
+      "links": [
+        {
+          "target": "#universal-widgets-and-the-optional-obs-bridge",
+          "kind": "link"
+        }
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "source": "docs/ui/tts-minimal/after-desktop.png",
+      "sha256": "bc1ffd57f0b31da136b9974678850e763499c82f3f635f9aca74fa88f5af9840",
+      "bytes": 188630
+    },
+    {
+      "source": "docs/ui/tts-minimal/after-mobile.png",
+      "sha256": "f843064f80d0e19e3850add1ff7357f6fc64e043e2326c62b7f182bcdb6afa62",
+      "bytes": 71885
+    },
+    {
+      "source": "docs/ui/tts-minimal/audio-bar.png",
+      "sha256": "d1014a6cadd2f90d470fe39d819089f4fb8d8f27d29199cd23c41e52ec635b07",
+      "bytes": 5746
+    },
+    {
+      "source": "docs/ui/tts-minimal/before-desktop.png",
+      "sha256": "62cbe346139168c0f82256a9b0f5f8cc1523fcc45b0bb144b269311be716960b",
+      "bytes": 167653
+    },
+    {
+      "source": "docs/ui/tts-playback/after-unknown-duration.png",
+      "sha256": "50cd0e1c9052d13c1ae77e6dfc8172978710d9aeee0b539414f30f2e449e4fb9",
+      "bytes": 145517
+    },
+    {
+      "source": "docs/ui/tts-playback/after.png",
+      "sha256": "a23d10f1b4dd52718e332a16fb67777040987907ca21c72c4a0c85cd0e1211a6",
+      "bytes": 147298
+    },
+    {
+      "source": "docs/ui/tts-playback/before.png",
+      "sha256": "9357c69a4d57324c3f0e1e650237a360f82f402ddd5b3071495a6993c255d702",
+      "bytes": 217435
+    },
+    {
+      "source": "docs/ui/tts-redesign/after-desktop.png",
+      "sha256": "62cbe346139168c0f82256a9b0f5f8cc1523fcc45b0bb144b269311be716960b",
+      "bytes": 167653
+    },
+    {
+      "source": "docs/ui/tts-redesign/after-fields-tooltip.png",
+      "sha256": "108e3b1d641d9aef54bd18c4247293bd04a5a3dca134013cba4d1b371ab569f8",
+      "bytes": 145708
+    },
+    {
+      "source": "docs/ui/tts-redesign/after-mobile.png",
+      "sha256": "ff8276a4b2badff1d2fd0c58a30150250ae5b79510b5c8acca09342bc013d546",
+      "bytes": 77776
+    },
+    {
+      "source": "docs/ui/tts-redesign/before-desktop.png",
+      "sha256": "d9d78af75e252afe7b6ea5c5bc010dfe657baf640ab3c4399bf28778a54c67f3",
+      "bytes": 197060
+    }
+  ]
+}

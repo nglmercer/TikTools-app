@@ -4,8 +4,11 @@ import type { AppTab } from '@/types.ts';
 import { legacySettingsRedirect } from './legacy-settings.ts';
 import { pluginPageRouteName, tabLocation } from './tab-routes.ts';
 
-const developmentRoutes: RouteRecordRaw[] = import.meta.env.DEV
-  ? [{ path: '/ui-kit', name: 'ui-kit', component: () => import('@/pages/ui-kit/ui/UiKitPage.vue') }]
+const developmentRoutes: RouteRecordRaw[] = import.meta.env.DEV || import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1'
+  ? [
+    { path: '/ui-kit', name: 'ui-kit', component: () => import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1' ? import('@/demo/catalog/ComponentCatalog.vue') : import('@/pages/ui-kit/ui/UiKitPage.vue') },
+    ...(import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1' ? [{ path: '/components/:family?', name: 'component-catalog', component: () => import('@/demo/catalog/ComponentCatalog.vue') }] : []),
+  ]
   : [];
 
 export const routes: RouteRecordRaw[] = [
@@ -13,6 +16,9 @@ export const routes: RouteRecordRaw[] = [
     path: '/',
     component: () => import('../layout/AppShell.vue'),
     children: [
+      // Public examples keep the same runtime owner as the workspace. Leaving
+      // AppShell would detach its client and dispose stores still used by the demo.
+      ...(import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1' ? developmentRoutes : []),
       { path: 'debug', name: 'debug', component: () => import('@/pages/debug/ui/DebugPage.vue') },
       { path: '', name: 'home', redirect: () => tabLocation((loadViewState().tab as AppTab | undefined) ?? 'feed') },
       { path: 'feed', name: 'feed', meta: { tab: 'feed' }, component: () => import('@/pages/feed/ui/FeedPage.vue') },
@@ -57,6 +63,6 @@ export const routes: RouteRecordRaw[] = [
       },
     ],
   },
-  ...developmentRoutes,
+  ...(import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1' ? [] : developmentRoutes),
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];

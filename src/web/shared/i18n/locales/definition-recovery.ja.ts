@@ -1,0 +1,15 @@
+export default {
+  history: "定義の変更", pendingButton: "定義の変更を解決", title: "オーナーの定義変更",
+  lead: "ホストは各保存、削除、有効状態の変更を送信前に記録します。復旧では元の結果を確認し、変更を再送信しません。",
+  host: "ホスト{id}・インスタンス{instance}", pending: "未確認の{operation}・{kind} {id}・基準リビジョン{revision}",
+  command: "元の操作：{id}", resolve: "元の結果を確認", refresh: "履歴を更新",
+  base: "確認済みの基準リビジョン：{revision}", originalInstance: "元のホストインスタンス：{instance}",
+  unknown: "元の操作を確認し、結果が依然として不明であることを理解しました。", archive: "不確定記録をアーカイブ",
+  compare: "復旧した履歴で下書きは置き換えられません。次に書き込む前に、現在の保存済みソースと比較してください。",
+  noPending: "未確認の定義変更はありません。", empty: "最近の定義変更はありません。",
+  succeeded: "成功", rejected: "拒否", 'reviewed-unknown': "不明な結果を確認済み",
+  create: "作成", update: "保存", delete: "削除", enable: "有効化", disable: "無効化", action: "アクション", event: "イベント",
+  revision: "リビジョン{revision}・影響する記録：{count}件", otherPending: "定義変更の復旧が必要です。次の実行権限の変更前に「定義の変更」を開いてください。",
+  unavailable: "ネイティブの定義操作記録を利用できません。永続的な変更は引き続きブロックされます。",
+  profileFailed: "定義は保存しましたが、プロファイルの割り当てに失敗しました：{reason}",
+};

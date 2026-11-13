@@ -26,6 +26,14 @@
   min-width: 0;
 }
 
+.sync-panel__read-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
 .sync-panel__auto {
   margin-right: var(--space-3);
 }
@@ -402,3 +410,10 @@
     border-bottom: var(--border-width) solid var(--color-border-subtle);
   }
 }
+
+.sync-panel__preparation { padding: var(--space-5); overflow-y: auto; height: 100%; }
+
+.sync-panel--preparing { height: fit-content; max-height: calc(100vh - var(--space-7) * 2); }
+
+.sync-panel--preparing .base-dialog__body { flex: 0 1 auto; overflow-y: auto; }
+.sync-panel--preparing .sync-panel__preparation { height: auto; }

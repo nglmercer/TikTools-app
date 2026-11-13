@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { routeLocationKey, routerKey } from 'vue-router';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
 import InstallPluginDialog from '@/features/install-plugin/ui/InstallPluginDialog.vue';
@@ -165,7 +165,7 @@ watch(
   },
 );
 
-const persist = debounce(() => {
+function persistView(): void {
   saveViewState('plugins', {
     view: view.value ?? undefined,
     catalog: catalog.value,
@@ -173,14 +173,22 @@ const persist = debounce(() => {
     selected: selected.value ?? undefined,
     details: detailsTab.value,
   });
-});
+}
+const persist = debounce(persistView);
 watch([view, catalog, query, selected, detailsTab], persist);
+onBeforeUnmount(() => {
+  persist.cancel();
+  persistView();
+});
 // The list the processor was opened from may no longer hold it.
 watch(activeView, () => { processorSelected.value = null; });
 </script>
 
 <template>
-  <div class="plugins-page">
+  <div
+    class="plugins-page"
+    data-guide-scope="plugins"
+  >
     <p
       v-if="plugins.behaviorError.value"
       class="plugins-page__banner plugins-page__banner--error"
@@ -229,6 +237,7 @@ watch(activeView, () => { processorSelected.value = null; });
       v-model:query="query"
       v-model:remote-query="packages.searchQuery"
       v-model:processor-query="processorQuery"
+      data-guide="plugin-catalog"
       :plugins="behavior.plugins"
       :action-types="behavior.actionTypes"
       :remote="remoteEntries"

@@ -290,7 +290,7 @@ function main() {
   } else if (perl.status === 'unavailable') {
     console.error('[cargo-with-linker] native Windows Perl not found; cloud-auth builds require it for vendored OpenSSL');
     console.error('[cargo-with-linker] install once: winget install --id StrawberryPerl.StrawberryPerl --exact');
-    console.error('[cargo-with-linker] then retry, or set OPENSSL_SRC_PERL to a native Windows perl.exe (see docs/GETTING_STARTED.md)');
+    console.error('[cargo-with-linker] then retry, or set OPENSSL_SRC_PERL to a native Windows perl.exe (see docs/content/en/developer/setup.md)');
   }
 
   // Detect optional tools using the same environment Cargo will receive.

@@ -53,6 +53,12 @@ pub async fn create_invitation(
     valid_uuid(&params.host_id)?;
     one_of(&params.requested_role, PRESET_ROLES, "role")?;
     let mut body = json!({"requestedRole": params.requested_role});
+    if let Some(id) = params.recipient_id {
+        if id.is_empty() || id.len() > 256 || id.chars().any(char::is_control) {
+            return Err(OperationError::invalid("invalid invitation recipient"));
+        }
+        body["recipientId"] = json!(id);
+    }
     if let Some(ttl) = params.ttl_seconds {
         if !(60..=900).contains(&ttl) {
             return Err(OperationError::invalid(

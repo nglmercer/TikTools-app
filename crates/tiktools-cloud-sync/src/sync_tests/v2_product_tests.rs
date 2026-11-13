@@ -1113,10 +1113,22 @@ async fn product_worker_deadline_releases_v2_protocol_lease() {
         task.await.unwrap(),
         Err(crate::WorkspaceCoordError::TimedOut)
     ));
-    assert!(
-        sync.protocol.try_cutover().is_ok(),
-        "deadline must release the protocol lease once no native operation is blocked"
-    );
+    // The caller's deadline and worker cleanup run on different executor
+    // threads. Timeout can win before the worker is scheduled to drop its
+    // future; native calls deliberately retain the lease until they return.
+    tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        loop {
+            match sync.protocol.try_cutover() {
+                Ok(_) => break,
+                Err(crate::ProtocolFenceError::Busy) => {
+                    tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+                }
+                Err(error) => panic!("unexpected protocol error: {error}"),
+            }
+        }
+    })
+    .await
+    .expect("deadline must release the protocol lease once no native operation is blocked");
     mock.stop();
 }
 

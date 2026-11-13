@@ -15,6 +15,20 @@ pub enum WorkspaceV2DiscoveryState {
     BackendCompatible,
 }
 
+/// Reviewed local-only reconciliation of install flags for absent packages.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceInventoryReview {
+    pub review: String,
+    pub plugins: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceInventoryRepairParams {
+    pub review: String,
+}
+
 /// Compatibility is informational, not permission to write or apply data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -65,6 +79,29 @@ fn changed() -> OperationError {
 }
 
 impl AppCore {
+    pub async fn workspace_inventory_review(
+        self: &std::sync::Arc<Self>,
+        expected: Option<String>,
+    ) -> Result<WorkspaceInventoryReview, OperationError> {
+        #[cfg(all(feature = "persistence", feature = "plugin-install"))]
+        {
+            let session = self.cloud.auth().session().await.ok_or_else(changed)?;
+            let core = self.clone();
+            tokio::task::spawn_blocking(move || {
+                core.review_missing_plugin_inventory(session, expected.as_deref())
+            })
+            .await
+            .map_err(|_| OperationError::unavailable("inventory review worker unavailable"))?
+        }
+        #[cfg(not(all(feature = "persistence", feature = "plugin-install")))]
+        {
+            let _ = expected;
+            Err(OperationError::unavailable(
+                "inventory review requires package support",
+            ))
+        }
+    }
+
     /// Review local inputs without changing either protocol or contacting Cloud.
     pub async fn workspace_v2_preview(
         self: &std::sync::Arc<Self>,
@@ -231,38 +268,30 @@ impl AppCore {
     /// Read the selected protocol locally, without contacting Cloud. A v2
     /// selection is reported only for the current account and consent.
     pub async fn workspace_v2_selected(&self) -> Result<bool, OperationError> {
+        let session = self.cloud.auth().session().await;
         let coordinator = self.sync.coordinator().map_err(|_| changed())?.clone();
-        let selected = tokio::task::spawn_blocking(move || {
-            coordinator.with_product_local_edit(|context| context)
+        let captured = session.clone();
+        let (selected, lease) = tokio::task::spawn_blocking(move || {
+            let lease = coordinator.product_read().map_err(|_| changed())?;
+            let selected = lease
+                .v2_selected(captured.as_deref())
+                .map_err(|_| changed())?;
+            lease.check_current().map_err(|_| changed())?;
+            Ok::<_, OperationError>((selected, lease))
         })
         .await
-        .map_err(|_| changed())?
-        .map_err(|_| changed())?;
-        match selected {
-            tiktools_cloud_sync::ProductLocalEditContext::Legacy
-            | tiktools_cloud_sync::ProductLocalEditContext::OptedOut => Ok(false),
-            tiktools_cloud_sync::ProductLocalEditContext::V2(None) => Err(changed()),
-            tiktools_cloud_sync::ProductLocalEditContext::V2(Some(identity)) => {
-                let session = self.cloud.auth().session().await.ok_or_else(changed)?;
-                let coordinator = self.sync.coordinator().map_err(|_| changed())?;
-                let epoch = coordinator
-                    .capture_v2_config_epoch(&session)
-                    .ok_or_else(changed)?;
-                if identity.origin != session.instance_origin()
-                    || identity.account_id != session.account_id()
-                {
-                    return Err(changed());
-                }
-                self.cloud
-                    .auth()
-                    .with_current_session(&session, || {
-                        coordinator.is_v2_config_epoch_current(&epoch, &session)
-                    })
-                    .map_err(|_| changed())?
-                    .then_some(true)
-                    .ok_or_else(changed)
-            }
-        }
+        .map_err(|_| changed())??;
+        let result = if let Some(session) = session {
+            self.cloud
+                .auth()
+                .with_current_session_read(&session, || selected)
+                .await
+                .map_err(|_| changed())
+        } else {
+            Ok(selected)
+        };
+        drop(lease);
+        result
     }
 
     /// Only this explicitly invoked check contacts the fixed capabilities URL.
@@ -284,29 +313,12 @@ impl AppCore {
             {
                 return Err(changed());
             }
-            let selected = coordinator
-                .with_product_local_edit(|context| context)
+            result.selected = self.workspace_v2_selected().await?;
+            self.cloud
+                .auth()
+                .with_current_session_read(&session, || ())
+                .await
                 .map_err(|_| changed())?;
-            if let tiktools_cloud_sync::ProductLocalEditContext::V2(Some(identity)) = selected {
-                let epoch = coordinator
-                    .capture_v2_config_epoch(&session)
-                    .ok_or_else(changed)?;
-                if identity.origin != session.instance_origin()
-                    || identity.account_id != session.account_id()
-                {
-                    return Err(changed());
-                }
-                result.selected = self
-                    .cloud
-                    .auth()
-                    .with_current_session(&session, || {
-                        coordinator.is_v2_config_epoch_current(&epoch, &session)
-                    })
-                    .map_err(|_| changed())?;
-                if !result.selected {
-                    return Err(changed());
-                }
-            }
         }
         Ok(result)
     }

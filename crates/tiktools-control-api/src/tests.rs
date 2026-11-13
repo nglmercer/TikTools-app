@@ -1,6 +1,131 @@
 use super::*;
 use serde_json::Value;
 
+#[tokio::test]
+async fn typed_runtime_variables_are_atomic_owner_only_operations() {
+    use serde_json::json;
+    struct Emitter;
+    impl tiktools_core::HostEmitter for Emitter {
+        fn emit(&self, _: tiktools_core::ipc::messages::HostMessage) {}
+    }
+    let root = std::env::temp_dir().join(format!(
+        "tt-typed-variables-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let paths = tiktools_core::paths::AppPaths {
+        data: root.join("data"),
+        plugins: root.join("plugins"),
+        plugin_data: root.join("plugin-data"),
+        builtin_plugins: root.join("builtins"),
+        development_plugins: None,
+        logs: root.join("logs"),
+        temp: root.join("temp"),
+        root: root.clone(),
+    };
+    paths.ensure_directories().unwrap();
+    let core = Arc::new(AppCore::with_paths(
+        Arc::new(Emitter),
+        Arc::new(tiktools_core::NoopMediaHost),
+        paths,
+    ));
+    let mut router = ControlRouter::new();
+    ControlApi::register_all(&mut router);
+    let api = ControlApi {
+        core: core.clone(),
+        router,
+    };
+    let list = api
+        .execute(RpcRequest::new(
+            RpcId::Number(1),
+            "globals.typed.list",
+            json!({}),
+        ))
+        .await
+        .result
+        .unwrap();
+    let params = json!({"expectedRevision":list["revision"],"variables":{"port":{"type":"number","value":46665},"ordinary":{"type":"secret","value":"rpc-local-private"}}});
+    let saved = api
+        .execute(RpcRequest::new(
+            RpcId::Number(2),
+            "globals.typed.replace",
+            params.clone(),
+        ))
+        .await
+        .result
+        .unwrap();
+    assert_eq!(saved["variables"]["port"]["value"], 46665);
+    assert_eq!(saved["variables"]["ordinary"]["type"], "secret");
+    let stale = api
+        .execute(RpcRequest::new(
+            RpcId::Number(3),
+            "globals.typed.replace",
+            params.clone(),
+        ))
+        .await
+        .error
+        .unwrap();
+    assert_eq!(stale.code, "conflict");
+    let session = RemoteSession::new(
+        "peer",
+        "peer-session",
+        [
+            RemoteCapability::AutomationRead,
+            RemoteCapability::AutomationEdit,
+            RemoteCapability::WorkflowsRead,
+            RemoteCapability::WorkflowsEdit,
+        ],
+        Duration::from_secs(60),
+    )
+    .unwrap();
+    let operations = vec![
+        ("globals.typed.list", json!({})),
+        ("globals.typed.replace", params),
+    ];
+    #[cfg(feature = "cloud-auth")]
+    let operations = {
+        let mut operations = operations;
+        operations.extend([
+            ("sync.v2.variables.review", json!({})),
+            ("sync.v2.variables.fetch", json!({})),
+            (
+                "sync.v2.variables.send",
+                json!({"review":"ordinary-comparison-reference"}),
+            ),
+            (
+                "sync.v2.variables.withdraw",
+                json!({"review":"ordinary-comparison-reference"}),
+            ),
+            (
+                "sync.v2.variables.apply",
+                json!({"review":"ordinary-comparison-reference"}),
+            ),
+        ]);
+        operations
+    };
+    for (method, params) in operations {
+        let denied = api
+            .execute_with_context(
+                &RequestContext::Remote(session.clone()),
+                RpcRequest::new(RpcId::Number(4), method, params),
+            )
+            .await;
+        assert!(denied.result.is_none());
+        assert_eq!(denied.error.unwrap().code, "forbidden");
+    }
+    assert_eq!(
+        core.runtime_variables_list().unwrap().revision,
+        saved["revision"].as_str().unwrap()
+    );
+    core.shutdown().await;
+    drop(api);
+    drop(core);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
 #[test]
 fn cloud_login_deadlines_leave_time_for_callback_and_server_response() {
     assert_eq!(

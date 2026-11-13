@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useGlobalsStore } from '@/entities/runtime-global/model/globals-store.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
@@ -11,20 +11,27 @@ import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
-import { globalsFromRows, useGlobalsDraft } from '../model/globals-draft.ts';
+import { globalsFromRows, variablesFromRows, useGlobalsDraft } from '../model/globals-draft.ts';
+import { variableKinds, type RuntimeVariableKind } from '@/entities/runtime-global/lib/runtime-variable.ts';
 
 const { t } = useI18n();
 const store = useGlobalsStore();
-const { globals, loading, error } = storeToRefs(store);
-const draft = useGlobalsDraft(globals);
-const { rows, dirty, errors, blocked } = draft;
+const { globals, variables, revision, typedSupported, loading, error } = storeToRefs(store);
+const draft = useGlobalsDraft(globals, computed(() => ({ variables: variables.value, revision: revision.value })));
+const { rows, dirty, baseRevision, errors, blocked } = draft;
 const saving = ref(false);
+const incompatibleDraft = computed(() => !typedSupported.value && baseRevision.value !== null);
 
 async function save(): Promise<void> {
-  if (blocked.value || saving.value) return;
+  if (blocked.value || saving.value || incompatibleDraft.value) return;
   saving.value = true;
   try {
-    await store.save(globalsFromRows(rows.value));
+    if (typedSupported.value) {
+      if (!baseRevision.value) return;
+      await store.saveTyped(baseRevision.value, variablesFromRows(rows.value));
+    } else {
+      await store.save(globalsFromRows(rows.value));
+    }
     draft.markSaved();
   } catch {
   } finally {
@@ -33,12 +40,16 @@ async function save(): Promise<void> {
 }
 
 onMounted(() => {
-  void store.load();
+  void store.loadTyped();
 });
+watch(typedSupported, () => { void store.loadTyped(); });
 </script>
 
 <template>
-  <div class="globals-editor">
+  <div
+    class="globals-editor"
+    :class="{ 'globals-editor--typed': typedSupported }"
+  >
     <!-- The tab already names the area: the bar holds the explanation (as a tooltip) and the icon actions. -->
     <header class="globals-editor__bar">
       <span
@@ -50,9 +61,14 @@ onMounted(() => {
         <IconInfo :size="16" />
       </span>
       <span class="globals-editor__spacer" />
+      <slot
+        name="sync"
+        :dirty="dirty || saving || loading || incompatibleDraft"
+      />
       <BaseIconButton
         :label="t('globals.add')"
         variant="default"
+        :disabled="loading || saving"
         @click="draft.add()"
       >
         <IconPlus />
@@ -60,26 +76,26 @@ onMounted(() => {
       <BaseIconButton
         :label="t('globals.discard')"
         variant="default"
-        :disabled="!dirty || saving"
-        @click="draft.discard()"
+        :disabled="(!dirty && !incompatibleDraft) || saving"
+        @click="draft.discard(); store.loadTyped()"
       >
         <IconUndo />
       </BaseIconButton>
       <BaseIconButton
         :label="saving ? t('globals.saving') : t('globals.save')"
         variant="primary"
-        :disabled="blocked || saving || loading || !dirty"
+        :disabled="blocked || saving || loading || !dirty || incompatibleDraft || (typedSupported && !baseRevision)"
         @click="save"
       >
         <IconCheck />
       </BaseIconButton>
     </header>
     <p
-      v-if="error"
+      v-if="error || incompatibleDraft"
       class="globals-editor__failure"
       role="alert"
     >
-      {{ error }}
+      {{ error ?? t('globals.typedUnavailable') }}
     </p>
     <div
       class="globals-editor__table"
@@ -91,6 +107,10 @@ onMounted(() => {
         role="row"
       >
         <span role="columnheader">{{ t('globals.key') }}</span>
+        <span
+          v-if="typedSupported"
+          role="columnheader"
+        >{{ t('globals.type') }}</span>
         <span role="columnheader">{{ t('globals.value') }}</span>
         <span role="columnheader" />
       </div>
@@ -113,16 +133,55 @@ onMounted(() => {
             :aria-label="t('globals.key')"
             placeholder="commandPort"
             :invalid="errors.has(row.id)"
+            :disabled="loading || saving"
             spellcheck="false"
             @update:model-value="(key) => draft.update(row.id, { key })"
           />
         </span>
+        <span
+          v-if="typedSupported"
+          role="cell"
+        >
+          <select
+            class="globals-editor__select"
+            :value="row.kind ?? 'text'"
+            :aria-label="t('globals.type')"
+            :disabled="loading || saving"
+            @change="draft.update(row.id, { kind: ($event.target as HTMLSelectElement).value as RuntimeVariableKind })"
+          >
+            <option
+              v-for="kind in variableKinds"
+              :key="kind"
+              :value="kind"
+            >{{ t(`globals.types.${kind}`) }}</option>
+          </select>
+        </span>
         <span role="cell">
+          <select
+            v-if="row.kind === 'boolean'"
+            class="globals-editor__select"
+            :value="row.value"
+            :aria-label="t('globals.value')"
+            :disabled="loading || saving"
+            @change="draft.update(row.id, { value: ($event.target as HTMLSelectElement).value })"
+          >
+            <option
+              value=""
+              disabled
+            >{{ t('globals.value') }}</option>
+            <option value="true">{{ t('globals.true') }}</option>
+            <option value="false">{{ t('globals.false') }}</option>
+          </select>
           <BaseTextField
+            v-else
             class="globals-editor__field"
+            :type="row.kind === 'secret' ? 'password' : 'text'"
             :model-value="row.value"
             :aria-label="t('globals.value')"
-            placeholder="8080"
+            :placeholder="row.kind === 'list' ? '[&quot;a&quot;, &quot;b&quot;]' : '8080'"
+            :disabled="loading || saving"
+            :invalid="errors.has(row.id)"
+            autocomplete="off"
             spellcheck="false"
             @update:model-value="(value) => draft.update(row.id, { value })"
           />
@@ -131,6 +190,7 @@ onMounted(() => {
           <BaseIconButton
             variant="danger"
             :label="t('globals.remove')"
+            :disabled="loading || saving"
             @click="draft.remove(row.id)"
           >
             <IconTrash />
@@ -188,6 +248,22 @@ onMounted(() => {
 
 .globals-editor__row + .globals-editor__row {
   border-top: var(--border-width) solid var(--color-border-subtle);
+}
+
+.globals-editor--typed .globals-editor__row {
+  grid-template-columns: minmax(0, 2fr) minmax(100px, 1fr) minmax(0, 3fr) var(--control-height-md);
+}
+
+.globals-editor__select {
+  width: 100%;
+  min-width: 0;
+  height: var(--control-height-md);
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-field);
+  color: var(--color-text);
+  font: inherit;
 }
 
 .globals-editor__row--header {

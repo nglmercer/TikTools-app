@@ -112,12 +112,38 @@ export async function verifyAppImageWebKit(appDir: string): Promise<void> {
       }
     }
   }
+  const requiredPlugins = (await readFile(resolve(import.meta.dir, '../appimage/gstreamer-plugins.txt'), 'utf8')).trim().split(/\s+/);
+  for (const plugin of requiredPlugins) {
+    const path = join(libDir, 'gstreamer-1.0', `libgst${plugin}.so`);
+    if (!await isElf(path).catch(() => false)) throw new Error(`AppImage is missing GStreamer plugin ${plugin}`);
+  }
+  if (!await isElf(join(appDir, 'usr/libexec/gstreamer-1.0/gst-plugin-scanner')).catch(() => false)) {
+    throw new Error('AppImage is missing GStreamer plugin scanner');
+  }
   // The host's Wayland client stack must win over any bundled copy: a pinned
   // build-host version shadows the host libraries and makes Mesa's EGL fail
   // inside WebKitWebProcess on rolling distributions (EGL_BAD_PARAMETER).
   for (const name of await readdir(libDir)) {
     if (/^libwayland-(?:client|cursor|egl|server)\.so/.test(name)) {
       throw new Error(`AppImage must not bundle ${name}; the host Wayland client stack is required`);
+    }
+  }
+}
+
+/** dlopen-only X11 keyboard libraries must resolve from the AppImage itself. */
+export async function verifyAppImageXkb(appDir: string): Promise<void> {
+  const libDir = join(appDir, 'usr', 'lib');
+  for (const name of ['libxkbcommon-x11.so.0', 'libxkbcommon.so.0', 'libxcb-xkb.so.1']) {
+    const path = join(libDir, name);
+    // Require packaged files: a symlink to a host library would hide this gap.
+    if (!await lstat(path).then((stat) => stat.isFile(), () => false) || !await isElf(path)) {
+      throw new Error(`AppImage is missing bundled XKB runtime ${name}`);
+    }
+    const dynamic = await run(['readelf', '-d', path], appDir, 15_000);
+    const paths = [...dynamic.matchAll(/\((?:RPATH|RUNPATH)\)[^\n]*\[([^\]]*)\]/g)]
+      .flatMap((match) => match[1]!.split(':'));
+    if (!paths.some((entry) => entry === '$ORIGIN' || entry === '$ORIGIN/.')) {
+      throw new Error(`AppImage XKB runtime ${name} has no sibling-library RPATH`);
     }
   }
 }
@@ -151,6 +177,7 @@ export async function verifyInstaller(staging: string, installer: string, format
       await run([installer, '--appimage-extract'], temp);
       await verifyLinuxDesktop(join(temp, 'squashfs-root'));
       await verifyAppImageWebKit(join(temp, 'squashfs-root'));
+      await verifyAppImageXkb(join(temp, 'squashfs-root'));
       const root = join(temp, 'squashfs-root', 'usr');
       // linuxdeploy patches the ELF RPATH, so compare its reported version.
       await checkContents(staging, join(root, 'lib', 'tiktools-desktop'), join(root, 'bin', 'tiktools-desktop'), version, true);

@@ -1,16 +1,25 @@
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
+import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
+import { useGlobalsStore } from '@/entities/runtime-global/model/globals-store.ts';
+import { ControlCallError } from '@/shared/api/control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import RuntimeGlobalsEditor from './RuntimeGlobalsEditor.vue';
 
 enableAutoUnmount(afterEach);
 
-async function mountEditor(handler: Parameters<typeof createFakeControlClient>[0]) {
-  const { client, calls } = createFakeControlClient(handler);
-  const wrapper = mountWithPlugins(RuntimeGlobalsEditor, { global: { plugins: storePlugins(client) } });
+async function mountEditor(handler: Parameters<typeof createFakeControlClient>[0], typed = false) {
+  const { client, calls } = createFakeControlClient((method, params, options) => method === 'rpc.discover'
+    ? { methods: (typed ? ['globals.typed.list', 'globals.typed.replace'] : []).map((name) => ({ name })) }
+    : handler(method, params, options));
+  const harness = createStoreHarness(client);
+  const capabilities = harness.use(() => useCapabilityStore());
+  if (typed) await capabilities.refresh('typed-test');
+  const store = harness.use(() => useGlobalsStore());
+  const wrapper = mountWithPlugins(RuntimeGlobalsEditor, { global: { plugins: harness.plugins } });
   await flushPromises();
-  return { wrapper, calls };
+  return { wrapper, calls, store, capabilities };
 }
 
 type Wrapper = Awaited<ReturnType<typeof mountEditor>>['wrapper'];
@@ -70,5 +79,77 @@ describe('RuntimeGlobalsEditor', () => {
     expect(wrapper.findAll('input').map((input) => input.element.value)).toEqual(['commandPort', '46665']);
     expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
     expect(calls.some((call) => call.method === 'globals.set')).toBe(false);
+  });
+
+  it('edits explicit types and masks secrets while saving only through the local typed API', async () => {
+    const secret = 'local-editor-private-value';
+    const revision = 'a'.repeat(64);
+    const { wrapper, calls } = await mountEditor((method, params) => {
+      if (method === 'globals.typed.list') return { revision, variables: { port: { type: 'text', value: '8080' }, token: { type: 'secret', value: secret } } };
+      if (method === 'globals.typed.replace') return { revision: 'b'.repeat(64), variables: params?.variables };
+      throw new Error(`unexpected method ${method}`);
+    }, true);
+    const rows = wrapper.findAll('[role="row"]').slice(1);
+    expect(rows[1]!.get('input[aria-label="Value"]').attributes('type')).toBe('password');
+    await rows[0]!.get('select[aria-label="Type"]').setValue('number');
+    await rows[0]!.get('input[aria-label="Value"]').setValue('46665');
+    await saveButton(wrapper).trigger('click');
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'globals.typed.replace')).toEqual({ method: 'globals.typed.replace', params: {
+      expectedRevision: revision,
+      variables: { port: { type: 'number', value: 46665 }, token: { type: 'secret', value: secret } },
+    } });
+    expect(calls.some((call) => call.method.startsWith('sync.') || call.method === 'globals.set')).toBe(false);
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(JSON.stringify(localStorage)).not.toContain(secret);
+  });
+
+  it('retains a dirty draft and its original revision after a conflicting save and a fresh host read', async () => {
+    let revision = 'a'.repeat(64);
+    const { wrapper, calls, store } = await mountEditor((method) => {
+      if (method === 'globals.typed.list') return { revision, variables: { port: { type: 'number', value: revision.startsWith('a') ? 1 : 3 } } };
+      if (method === 'globals.typed.replace') { revision = 'b'.repeat(64); throw new ControlCallError('conflict', 'runtime variables changed; reload before saving'); }
+      throw new Error(`unexpected method ${method}`);
+    }, true);
+    await wrapper.get('input[aria-label="Value"]').setValue('2');
+    await saveButton(wrapper).trigger('click');
+    await flushPromises();
+    await store.loadTyped();
+    await flushPromises();
+    expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('2');
+    await saveButton(wrapper).trigger('click');
+    await flushPromises();
+    expect(calls.filter((call) => call.method === 'globals.typed.replace').map((call) => call.params?.expectedRevision)).toEqual(['a'.repeat(64), 'a'.repeat(64)]);
+    await discardButton(wrapper).trigger('click');
+    await flushPromises();
+    expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('3');
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+  });
+
+  it('blocks a wrong typed value before calling the host', async () => {
+    const { wrapper, calls } = await mountEditor(() => ({ revision: 'a'.repeat(64), variables: { port: { type: 'text', value: 'not-number' } } }), true);
+    await wrapper.get('select[aria-label="Type"]').setValue('number');
+    expect(wrapper.get('[role="alert"]').text()).toContain('Enter a finite number');
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(calls.some((call) => call.method === 'globals.typed.replace')).toBe(false);
+  });
+
+  it('keeps a secret masked and blocks legacy saving when host capabilities change', async () => {
+    const { wrapper, calls, capabilities } = await mountEditor((method) => {
+      if (method === 'globals.typed.list') return { revision: 'a'.repeat(64), variables: { ordinary: { type: 'secret', value: 'private-draft' } } };
+      if (method === 'globals.list') return { globals: { otherHost: 'public' } };
+      throw new Error(`unexpected method ${method}`);
+    }, true);
+    await wrapper.get('input[aria-label="Value"]').setValue('unsaved-private-draft');
+    capabilities.invalidate();
+    await flushPromises();
+    expect(wrapper.get('input[aria-label="Value"]').attributes('type')).toBe('password');
+    expect((wrapper.get('input[aria-label="Value"]').element as HTMLInputElement).value).toBe('unsaved-private-draft');
+    expect(saveButton(wrapper).attributes('disabled')).toBeDefined();
+    expect(wrapper.get('[role="alert"]').text()).toContain('This host does not support these variable types');
+    expect(calls.some((call) => call.method === 'globals.set' || call.method === 'globals.typed.replace')).toBe(false);
+    await discardButton(wrapper).trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('input').map((input) => input.element.value)).toEqual(['otherHost', 'public']);
   });
 });

@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "types": ["bun", "vite/client"] },
+  "include": [".vitepress/**/*.ts", ".vitepress/**/*.vue", "scripts/**/*.ts", "examples/**/*.ts", "examples/**/*.vue"]
+}

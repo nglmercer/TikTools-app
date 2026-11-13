@@ -83,6 +83,7 @@ async fn run(relay_only: bool) {
             host_id: host.id.clone(),
             requested_role: "moderator".into(),
             ttl_seconds: Some(300),
+            recipient_id: None,
         })
         .await
         .unwrap();

@@ -15,7 +15,7 @@ function setup(entries: WorkspaceEntry[], plugins: PluginStatus[], overrides: { 
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'sync.v2.selected') return overrides.selected ?? true;
     if (method === 'sync.v2.changes.list') return entries;
-    if (method === 'sync.v2.now') return { pushed: 1 };
+    if (method === 'sync.v2.section') return { pushed: 1 };
     if (method === 'sync.v2.conflict.review') return { handle: 'h'.repeat(64) };
     if (method === 'sync.v2.conflict.resolve') return 'resolved';
     throw new Error(`unexpected ${method}`);
@@ -31,7 +31,7 @@ function setup(entries: WorkspaceEntry[], plugins: PluginStatus[], overrides: { 
 const entry = (partial: Partial<WorkspaceEntry>): WorkspaceEntry => ({ collection: 'plugin-selections', key: 'alpha', remote: absent, pending: null, hasNewer: false, ...partial });
 
 describe('plugin sync adapter', () => {
-  it('declares whole-pass sync and conflict resolution, and nothing it cannot do', () => {
+  it('declares section sync and conflict resolution, and nothing it cannot do', () => {
     const { adapter } = setup([], []);
     expect(adapter.capabilities).toMatchObject({ sync: true, resolve: true, push: false, fetch: false, merge: false, force: false, reset: false, history: false, fork: false });
   });
@@ -106,11 +106,17 @@ describe('plugin sync adapter', () => {
     expect(calls).toEqual([]);
   });
 
-  it('syncs with one v2 pass and refreshes the status', async () => {
+  it('syncs only plugins and refreshes the status', async () => {
     const { adapter, calls, refreshed } = setup([], []);
     await adapter.sync!();
-    expect(calls.map((call) => call.method)).toEqual(['sync.v2.now']);
+    expect(calls.map((call) => [call.method, call.params])).toEqual([['sync.v2.section', { section: 'plugins' }]]);
     expect(refreshed()).toBe(1);
+  });
+
+  it('never falls back to a whole workspace send on older hosts', async () => {
+    const { adapter, calls } = setup([], [], { supports: false });
+    await expect(adapter.sync!()).rejects.toThrow('syncChanges.unsupported');
+    expect(calls).toEqual([]);
   });
 
   it('resolves a conflict by reviewing it first, mapping the choice to the v2 resolution', async () => {

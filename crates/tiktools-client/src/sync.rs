@@ -1,19 +1,26 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::sync::{
     CloudLibraryDocument, CloudLibraryPage, CloudLibraryQuery, CloudLibraryRead, SyncNowResult,
-    SyncRecoveryOutcome, SyncRecoveryReview, SyncResolveParams, SyncStatusResult,
-    SyncUncertainResolveParams, SyncUncertainReviewParams, WorkspaceV2Discovery,
+    SyncRecoveryOutcome, SyncRecoveryReview, SyncResolveParams, SyncSectionParams,
+    SyncStatusResult, SyncUncertainResolveParams, SyncUncertainReviewParams,
+    WorkspaceInventoryRepairParams, WorkspaceInventoryReview, WorkspaceV2Discovery,
     WorkspaceV2Preview, WorkspaceV2SyncResult,
 };
 use tiktools_control_api::modules::sync::{
     SyncV2ConflictResolveParams, SyncV2ConflictReviewParams, SyncV2StagePluginSettingsParams,
     SyncV2StageVariablesParams, SyncV2StageVariablesResult, V2ChangeEntry, V2ConflictOutcome,
-    V2ConflictReview, V2ConflictTarget, WorkspaceV2Migration,
+    V2ConflictReview, V2ConflictTarget, VariableSyncApply, VariableSyncReview,
+    WorkspaceV2Migration,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
 
 pub(crate) const METHODS: &[&str] = &[
+    "sync.v2.variables.review",
+    "sync.v2.variables.apply",
+    "sync.v2.variables.send",
+    "sync.v2.variables.withdraw",
+    "sync.v2.variables.fetch",
     SYNC_STATUS,
     SYNC_ENABLE,
     SYNC_DISABLE,
@@ -26,6 +33,9 @@ pub(crate) const METHODS: &[&str] = &[
     "sync.v2.selected",
     "sync.v2.preview",
     "sync.v2.now",
+    "sync.v2.section",
+    "sync.v2.inventory.review",
+    "sync.v2.inventory.repair",
     "sync.v2.migrate",
     "sync.v2.rebuild",
     "sync.v2.stagePreferences",
@@ -46,6 +56,50 @@ const SYNC_NOW: &str = "sync.now";
 const SYNC_RESOLVE: &str = "sync.resolve";
 
 impl TikToolsClient {
+    pub async fn sync_v2_variables_send(
+        &self,
+        params: VariableSyncApply,
+    ) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.variables.send", params).await
+    }
+    pub async fn sync_v2_variables_withdraw(
+        &self,
+        params: VariableSyncApply,
+    ) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.variables.withdraw", params).await
+    }
+    pub async fn sync_v2_variables_review(&self) -> Result<VariableSyncReview, ClientError> {
+        self.call("sync.v2.variables.review", Empty::default())
+            .await
+    }
+    pub async fn sync_v2_variables_apply(
+        &self,
+        params: VariableSyncApply,
+    ) -> Result<(), ClientError> {
+        self.call("sync.v2.variables.apply", params).await
+    }
+    pub async fn sync_v2_variables_fetch(&self) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.variables.fetch", Empty::default()).await
+    }
+    pub async fn sync_v2_section(
+        &self,
+        params: SyncSectionParams,
+    ) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.section", params).await
+    }
+
+    pub async fn sync_v2_inventory_review(&self) -> Result<WorkspaceInventoryReview, ClientError> {
+        self.call("sync.v2.inventory.review", Empty::default())
+            .await
+    }
+
+    pub async fn sync_v2_inventory_repair(
+        &self,
+        params: WorkspaceInventoryRepairParams,
+    ) -> Result<WorkspaceInventoryReview, ClientError> {
+        self.call("sync.v2.inventory.repair", params).await
+    }
+
     pub async fn sync_v2_preview(&self) -> Result<WorkspaceV2Preview, ClientError> {
         self.call("sync.v2.preview", Empty::default()).await
     }

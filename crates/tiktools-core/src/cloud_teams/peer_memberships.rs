@@ -5,6 +5,8 @@ use super::*;
 pub struct PeerMembership {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub owner_nickname: String,
     pub role: String,
     pub client_kind: String,
 }
@@ -26,7 +28,7 @@ impl CloudTeams {
                 Method::GET,
                 &origin,
                 &token,
-                &format!("/api/v3/remote/devices/{device}/peer-hosts"),
+                &format!("/api/v3/remote/devices/{device}/peer-hosts?includeNickname=true"),
                 None,
             )
             .await?,
@@ -40,6 +42,9 @@ impl CloudTeams {
             if !seen.insert(&item.id)
                 || item.name.chars().count() > 80
                 || item.name.chars().any(char::is_control)
+                || item.owner_nickname.chars().count() > 128
+                || item.owner_nickname.chars().any(char::is_control)
+                || item.owner_nickname.contains('@')
                 || !["desktop", "agent"].contains(&item.client_kind.as_str())
                 || !PRESET_ROLES.contains(&item.role.as_str())
             {

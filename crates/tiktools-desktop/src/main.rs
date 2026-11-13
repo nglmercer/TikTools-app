@@ -4,6 +4,8 @@
 )]
 
 mod app;
+#[cfg(target_os = "linux")]
+mod bundled_media;
 #[cfg(feature = "remote-client")]
 mod controller;
 mod event;
@@ -41,6 +43,11 @@ fn main() {
             serde_json::to_string(&installation).expect("installation type serializes")
         );
         return;
+    }
+    #[cfg(target_os = "linux")]
+    if let Err(error) = bundled_media::configure() {
+        eprintln!("{error}");
+        std::process::exit(1);
     }
     // rustls 0.23 cannot choose a provider when multiple TLS stacks are unified
     // by the workspace. Install the provider before any async client is created.

@@ -82,6 +82,35 @@ pub struct WorkspaceOutcome {
     pub more_queued: bool,
 }
 
+/// Limits publication and returned application candidates. Downloads still
+/// cache every collection before advancing the account's shared cursor.
+#[derive(Clone, Default)]
+pub enum WorkspaceSyncScope {
+    #[default]
+    All,
+    Collections(std::collections::BTreeSet<String>),
+    Records(std::collections::BTreeSet<cloud_client::WorkspaceKey>),
+}
+
+impl WorkspaceSyncScope {
+    pub fn includes(&self, collection: &str) -> bool {
+        match self {
+            Self::All => true,
+            Self::Collections(collections) => collections.contains(collection),
+            Self::Records(records) => records.iter().any(|key| key.collection == collection),
+        }
+    }
+
+    pub fn includes_target(&self, collection: &str, key: &str) -> bool {
+        match self {
+            Self::Records(records) => records
+                .iter()
+                .any(|target| target.collection == collection && target.key == key),
+            _ => self.includes(collection),
+        }
+    }
+}
+
 /// Native, non-deserializable comparison captured by a real authenticated GET.
 /// A UI adapter must retain this object behind its own review identity rather
 /// than reconstructing consent from a key and a bare boolean.

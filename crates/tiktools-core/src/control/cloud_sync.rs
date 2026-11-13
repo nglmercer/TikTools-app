@@ -52,6 +52,14 @@ pub struct WorkspaceV2SyncResult {
     pub more_queued: bool,
 }
 
+/// Sections with native publication and application adapters.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncSection {
+    Plugins,
+    Variables,
+}
+
 /// A nonsecret projection of a single selection shown during explicit review.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

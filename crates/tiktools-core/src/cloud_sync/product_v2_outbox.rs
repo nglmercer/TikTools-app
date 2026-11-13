@@ -463,7 +463,70 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
     }
 }
 
+impl SqliteV2ProductSource<'_> {
+    fn with_fenced_variable(
+        &self,
+        target: &cloud_client::WorkspaceKey,
+        edit: &cloud_client::WorkspaceEdit,
+        emission: bool,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        if target.collection != "variables"
+            || self
+                .core
+                .shutdown_started
+                .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let _emission = tiktools_cloud_sync::ProductEmissionFence::open(
+            self.core.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| WorkspaceCoordError::Ineligible)?
+        .try_emission()
+        .map_err(|_| WorkspaceCoordError::Ineligible)?;
+        if emission
+            && matches!(edit, cloud_client::WorkspaceEdit::Put(_))
+            && self
+                .core
+                .runtime_variable_secret_names()
+                .map_err(|_| WorkspaceCoordError::Ineligible)?
+                .contains(&target.key)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        // Keep the emission fence, but release the PointsDB read transaction
+        // before workspace serialization/fsync or any other admission work.
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        admit()
+    }
+}
+
 impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
+    fn with_fenced_owned_edit(
+        &self,
+        target: &cloud_client::WorkspaceKey,
+        edit: &cloud_client::WorkspaceEdit,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        self.with_fenced_variable(target, edit, true, admit)
+    }
+
+    fn with_fenced_owned_discard(
+        &self,
+        target: &cloud_client::WorkspaceKey,
+        edit: &cloud_client::WorkspaceEdit,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        self.with_fenced_variable(target, edit, false, admit)
+    }
+
     fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
         if self
             .core
@@ -564,6 +627,7 @@ pub(crate) struct OwnedSqliteV2UploadSource {
     core: std::sync::Arc<AppCore>,
     origin: String,
     account: String,
+    include_plugins: bool,
 }
 
 impl OwnedSqliteV2UploadSource {
@@ -572,12 +636,69 @@ impl OwnedSqliteV2UploadSource {
             core,
             origin,
             account,
+            include_plugins: true,
+        }
+    }
+
+    pub(crate) fn variables_only(
+        core: std::sync::Arc<AppCore>,
+        origin: String,
+        account: String,
+    ) -> Self {
+        Self {
+            core,
+            origin,
+            account,
+            include_plugins: false,
         }
     }
 }
 
 impl V2ProductUploadSource for OwnedSqliteV2UploadSource {
+    fn with_fenced_owned_discard(
+        &self,
+        target: &cloud_client::WorkspaceKey,
+        edit: &cloud_client::WorkspaceEdit,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        SqliteV2ProductSource::new(&self.core, &self.origin, &self.account)
+            .with_fenced_owned_discard(target, edit, admit)
+    }
+
+    fn with_fenced_owned_edit(
+        &self,
+        target: &cloud_client::WorkspaceKey,
+        edit: &cloud_client::WorkspaceEdit,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        SqliteV2ProductSource::new(&self.core, &self.origin, &self.account)
+            .with_fenced_owned_edit(target, edit, admit)
+    }
+
     fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
+        if !self.include_plugins {
+            if self
+                .core
+                .shutdown_started
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            let lease = tiktools_cloud_sync::ProductEmissionFence::open(
+                self.core.db.paths().data.join("plugin-sync-emission"),
+            )
+            .map_err(|_| WorkspaceCoordError::Ineligible)?
+            .try_emission()
+            .map_err(|_| WorkspaceCoordError::Ineligible)?;
+            if self
+                .core
+                .shutdown_started
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                return Err(WorkspaceCoordError::Ineligible);
+            }
+            return Ok(Box::new(lease));
+        }
         SqliteV2ProductSource::new(&self.core, &self.origin, &self.account).acquire_emission_guard()
     }
 
@@ -586,6 +707,9 @@ impl V2ProductUploadSource for OwnedSqliteV2UploadSource {
         decision: &V2ProductDecision,
         admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
     ) -> Result<(), WorkspaceCoordError> {
+        if !self.include_plugins {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
         SqliteV2ProductSource::new(&self.core, &self.origin, &self.account)
             .with_fenced_upload(decision, admit)
     }

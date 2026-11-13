@@ -8,6 +8,17 @@ on:
     branches:
       - remake
   workflow_call:
+    inputs:
+      force_full:
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Run only the required validation domain; full preserves every gate'
+        type: choice
+        options: [frontend, native, full]
+        default: full
 
 permissions:
   contents: read
@@ -20,9 +31,39 @@ env:
   BUN_VERSION: 1.4.4
   RUSTUP_TOOLCHAIN: 1.99.1
   MSRV_TOOLCHAIN: 1.95.0
+  # CI does not reuse incremental compiler sessions. Line tables preserve
+  # useful backtraces without storing full debug information in every cache.
+  CARGO_INCREMENTAL: '0'
+  CARGO_PROFILE_DEV_DEBUG: '1'
+  CARGO_PROFILE_TEST_DEBUG: '1'
 
 jobs:
+  changes:
+    name: Select relevant checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      frontend: ${{ steps.scope.outputs.frontend }}
+      rust: ${{ steps.scope.outputs.rust }}
+      msrv: ${{ steps.scope.outputs.msrv }}
+      desktop: ${{ steps.scope.outputs.desktop }}
+      pluginRuntime: ${{ steps.scope.outputs.pluginRuntime }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - name: Check conservative change selection
+        run: node --test scripts/ci-scope.test.mjs
+      - name: Select validation domains
+        id: scope
+        env:
+          CI_FORCE_FULL: ${{ inputs.force_full || false }}
+          CI_SUITE: ${{ inputs.suite || 'auto' }}
+        run: node scripts/ci-scope.mjs
+
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     name: frontend
     runs-on: ubuntu-24.04
     steps:
@@ -62,6 +103,8 @@ jobs:
         run: bun scripts/task.ts frontend-build
 
   rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     name: rust
     runs-on: ubuntu-24.04
     steps:
@@ -132,9 +175,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          key: cargo-v2-rust-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('crates/**', 'src/automation/**', 'src/shared/**') }}
           restore-keys: |
-            cargo-${{ runner.os }}-${{ runner.arch }}-
+            cargo-v2-rust-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}-
 
       - name: Check generated contracts and dependencies
         run: |
@@ -172,6 +215,8 @@ jobs:
           ./target/debug/tiktools api verify --sandbox
 
   msrv:
+    needs: changes
+    if: needs.changes.outputs.msrv == 'true'
     name: msrv
     runs-on: ubuntu-24.04
     steps:
@@ -215,9 +260,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: cargo-msrv-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          key: cargo-v2-msrv-${{ runner.os }}-${{ runner.arch }}-${{ env.MSRV_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('crates/**', 'src/automation/**', 'src/shared/**') }}
           restore-keys: |
-            cargo-msrv-${{ runner.os }}-${{ runner.arch }}-
+            cargo-v2-msrv-${{ runner.os }}-${{ runner.arch }}-${{ env.MSRV_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}-
 
       - name: Check workspace on MSRV
         run: node scripts/cargo-with-linker.mjs +${{ env.MSRV_TOOLCHAIN }} check --workspace --locked
@@ -226,6 +271,8 @@ jobs:
         run: node scripts/cargo-with-linker.mjs +${{ env.MSRV_TOOLCHAIN }} test -p tiktools-client -p tiktools-cli --locked
 
   plugin-runtime:
+    needs: changes
+    if: needs.changes.outputs.pluginRuntime == 'true'
     # The QuickJS plugin runtime and its in-process Node-API host (native
     # `.node` addons) ship C and platform-specific code, so run the loader's
     # tests, including the napi-rs addon integration tests, on Linux and Windows.
@@ -251,10 +298,23 @@ jobs:
         with:
           arch: x64
 
+      - name: Cache plugin runtime build output
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-v2-plugin-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('crates/**') }}
+          restore-keys: |
+            cargo-v2-plugin-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}-
+
       - name: Test plugin loader and Node-API host
         run: cargo +${{ env.RUSTUP_TOOLCHAIN }} test -p tiktools-plugin-loader --locked -- --test-threads=1
 
   desktop:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
     name: desktop (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
@@ -328,9 +388,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: cargo-desktop-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          key: cargo-v2-desktop-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}-${{ hashFiles('crates/**', 'src/automation/**', 'src/shared/**') }}
           restore-keys: |
-            cargo-desktop-${{ runner.os }}-${{ runner.arch }}-
+            cargo-v2-desktop-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-${{ hashFiles('Cargo.lock') }}-
 
       - name: Check desktop crate
         run: node scripts/cargo-with-linker.mjs check -p tiktools-desktop --locked
@@ -344,3 +404,16 @@ jobs:
         run: |
           node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked
           pwsh -NoProfile -File scripts/check-windows-pe.ps1 target/release/tiktools-desktop.exe
+
+  result:
+    name: CI checks
+    if: always()
+    needs: [changes, frontend, rust, msrv, plugin-runtime, desktop]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Require success from every selected domain
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const jobs = JSON.parse(process.env.RESULTS); for (const [name, job] of Object.entries(jobs)) { if (!["success", "skipped"].includes(job.result) || (name === "changes" && job.result !== "success")) throw new Error(`${name}: ${job.result}`); }'

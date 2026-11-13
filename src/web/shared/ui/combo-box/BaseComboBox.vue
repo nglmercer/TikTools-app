@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends string | number">
-import { computed, nextTick, ref, shallowRef, useId, useTemplateRef } from 'vue';
+import { computed, nextTick, onScopeDispose, ref, shallowRef, useId, useTemplateRef } from 'vue';
 import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
 import { useAnchoredPosition } from '@/shared/lib/use-anchored-position.ts';
 import { useOutsidePointer } from '@/shared/lib/use-outside-pointer.ts';
@@ -70,6 +70,7 @@ function select(index: number): void {
 
 let typeahead = '';
 let typeaheadTimer: ReturnType<typeof setTimeout> | undefined;
+onScopeDispose(() => clearTimeout(typeaheadTimer));
 
 function onTypeahead(key: string): void {
   clearTimeout(typeaheadTimer);

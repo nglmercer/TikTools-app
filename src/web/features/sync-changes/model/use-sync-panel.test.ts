@@ -80,3 +80,39 @@ describe('useSyncPanel', () => {
     expect(state.busy.value).toBe(false);
   });
 });
+
+describe('reviewed native record actions', () => {
+  it('hides send/apply/resolve for a blocked value, while requiring confirmation for withdrawal', async () => {
+    const { adapter, spies } = fakeAdapter({ push: true, apply: true, withdraw: true, resolve: true }, [{ id: 'secret-review', name: 'ordinary', kind: 'variable', status: 'conflict', side: 'conflict', canSend: false, canApply: false, canWithdraw: true, canResolveLocal: false, canResolveCloud: false, valuesHidden: true }]);
+    const scope = effectScope();
+    const state = scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter)))!;
+    await flushPromises();
+    expect(state.sendable.value).toEqual([]);
+    state.ask({ kind: 'apply', id: 'secret-review', name: 'ordinary' });
+    expect(state.confirmation.value).toBeNull();
+    await state.resolve('secret-review', { choice: 'local' });
+    await state.resolve('secret-review', { choice: 'cloud' });
+    expect(spies.resolve).not.toHaveBeenCalled();
+    state.ask({ kind: 'withdraw', id: 'secret-review', name: 'ordinary' });
+    expect(spies.withdraw).not.toHaveBeenCalled();
+    state.cancel();
+    await state.confirm();
+    expect(spies.withdraw).not.toHaveBeenCalled();
+    state.ask({ kind: 'withdraw', id: 'secret-review', name: 'ordinary' });
+    await state.confirm();
+    expect(spies.withdraw).toHaveBeenCalledExactlyOnceWith('secret-review');
+    scope.stop();
+  });
+  it('does not adopt a comparison that disappeared before confirmation', async () => {
+    const { adapter, spies } = fakeAdapter({ apply: true }, [{ id: 'cloud-review', name: 'port', kind: 'variable', status: 'added', side: 'remote', canApply: true }]);
+    const scope = effectScope();
+    const state = scope.run(() => useSyncPanel(adapter, useSyncChanges(adapter)))!;
+    await flushPromises();
+    state.ask({ kind: 'apply', id: 'cloud-review', name: 'port' });
+    expect(spies.apply).not.toHaveBeenCalled();
+    state.changes.value = [];
+    await state.confirm();
+    expect(spies.apply).not.toHaveBeenCalled();
+    scope.stop();
+  });
+});

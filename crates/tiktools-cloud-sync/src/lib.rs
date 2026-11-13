@@ -17,7 +17,7 @@ mod coordinator;
 mod workspace;
 pub use workspace::{
     WorkspaceCoordError, WorkspaceCoordinator, WorkspaceEligibility, WorkspaceOutcome,
-    WorkspaceReview,
+    WorkspaceReview, WorkspaceSyncScope,
 };
 mod cutover_preview;
 pub use cutover_preview::CutoverPreview;
@@ -34,6 +34,8 @@ mod v1_recovery;
 pub use v1_recovery::{V1RecoveryChoice, V1RecoveryOutcome, V1UncertainReview};
 mod local_edit;
 pub use local_edit::{ProductLocalEditContext, V1LocalEditContext, V2LocalEditContext};
+mod product_read;
+pub use product_read::ProductReadLease;
 mod v2_product_outbox;
 pub use v2_product_outbox::{
     V2ProductConflictSnapshot, V2ProductDecision, V2ProductSource, V2ProductUploadSource,

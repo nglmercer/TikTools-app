@@ -16,6 +16,7 @@ import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
  * box, one toggle per kind (pressing the active kind shows everything again) and the owner's
  * own library. Text applies after a short pause; the filters apply at once.
  */
+const props = defineProps<{ pluginsOnly?: boolean }>();
 const SEARCH_DEBOUNCE_MS = 250;
 const { t } = useI18n();
 const catalog = useCatalogStore();
@@ -30,7 +31,7 @@ const kinds = computed(() => [
 
 function applyText(): void {
   clearTimeout(timer);
-  if (draft.value !== catalog.filters.text) void catalog.setFilters({ ...catalog.filters, text: draft.value });
+  if (draft.value !== catalog.filters.text) void catalog.setFilters({ ...catalog.filters, text: draft.value, ...(props.pluginsOnly ? { type: 'plugin', view: 'all' } as const : {}) });
 }
 
 watch(draft, () => {
@@ -60,10 +61,11 @@ onBeforeUnmount(() => clearTimeout(timer));
     >
       <BaseTextField
         v-model="draft"
+        data-guide="plugins-search"
         type="search"
         size="sm"
-        :placeholder="t('exploreCatalog.search')"
-        :aria-label="t('exploreCatalog.search')"
+        :placeholder="pluginsOnly ? t('plugins.catalog.search') : t('exploreCatalog.search')"
+        :aria-label="pluginsOnly ? t('plugins.catalog.search') : t('exploreCatalog.search')"
       >
         <template #prefix>
           <IconSearch />
@@ -71,6 +73,7 @@ onBeforeUnmount(() => clearTimeout(timer));
       </BaseTextField>
     </form>
     <div
+      v-if="!pluginsOnly"
       class="explore-toolbar__filters"
       role="group"
       :aria-label="t('exploreCatalog.kinds')"
@@ -104,7 +107,7 @@ onBeforeUnmount(() => clearTimeout(timer));
   flex: 1;
   align-items: center;
   gap: var(--space-3);
-  min-width: 0;
+  min-width: 170px;
 }
 
 .explore-toolbar__search {

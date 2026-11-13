@@ -2,7 +2,8 @@
 import { useI18n } from 'vue-i18n';
 import BaseFloatingPanel from '@/shared/ui/floating-panel/BaseFloatingPanel.vue';
 import DiagnosticsLog from './DiagnosticsLog.vue';
-import { diagnosticView, type DiagnosticSource } from './log.ts';
+import { diagnosticLog, diagnosticView, type DiagnosticSource } from './log.ts';
+import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
 import { useDiagnosticNavigation } from './navigation.ts';
 const { t } = useI18n();
 const navigation = useDiagnosticNavigation();
@@ -15,6 +16,7 @@ function onViewportChange(width: number): void {
   <BaseFloatingPanel
     :open="open"
     class="diagnostic-panel"
+    data-guide-scope="diagnostics"
     :activation-key="request"
     :title="t('diagnostics.title')"
     :move-label="t('diagnostics.move')"
@@ -26,7 +28,17 @@ function onViewportChange(width: number): void {
     @viewport-change="onViewportChange"
   >
     <template #default>
-      <DiagnosticsLog v-if="open" />
+      <DiagnosticsLog
+        v-if="open"
+        data-guide="diagnostics-log"
+      >
+        <template #guide>
+          <GuideButton
+            tour="diagnostics"
+            :task-state="() => ({ 'diagnostics.inspected': diagnosticLog.entries.value.some(entry => entry.id === diagnosticView.selectedId.value) })"
+          />
+        </template>
+      </DiagnosticsLog>
     </template>
   </BaseFloatingPanel>
 </template>

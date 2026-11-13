@@ -1,3 +1,4 @@
+import { appStorage } from '@/shared/lib/app-storage.ts';
 import { shallowRef } from 'vue';
 import type { JsonValue } from '../api/sync-adapter.ts';
 
@@ -11,7 +12,7 @@ export type SectionSnapshot = Record<string, JsonValue>;
 
 export function readSnapshot(scope: string): SectionSnapshot | null {
   try {
-    const raw = localStorage.getItem(PREFIX + scope);
+    const raw = appStorage().getItem(PREFIX + scope);
     if (raw === null) return null;
     const parsed: unknown = JSON.parse(raw);
     return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as SectionSnapshot) : null;
@@ -22,7 +23,7 @@ export function readSnapshot(scope: string): SectionSnapshot | null {
 
 export function writeSnapshot(scope: string, snapshot: SectionSnapshot): void {
   try {
-    localStorage.setItem(PREFIX + scope, JSON.stringify(snapshot));
+    appStorage().setItem(PREFIX + scope, JSON.stringify(snapshot));
   } catch {
     // Storage can be blocked or full; the section then starts a fresh snapshot next time.
   }

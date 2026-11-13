@@ -32,25 +32,55 @@ impl AppCore {
     pub fn globals_set(&self, key: &str, raw: &str) -> Result<(String, String), OperationError> {
         validate_key(key)?;
         let value = normalize_value(raw)?;
-        let snapshot = self.globals_snapshot();
-        if !snapshot.contains_key(key) && snapshot.len() >= MAX_GLOBAL_KEYS {
-            return Err(OperationError::invalid("at most 128 globals"));
-        }
-        self.app_state_set(&storage_key(key), &value)?;
-        Ok((key.to_owned(), value))
+        self.with_runtime_variables(true, |state| {
+            use crate::services::runtime_variables::{REVISION_KEY, TYPE_PREFIX};
+            let storage = storage_key(key);
+            if !state.contains_key(&storage)
+                && state
+                    .keys()
+                    .filter(|key| key.starts_with(crate::services::globals::GLOBALS_KEY_PREFIX))
+                    .count()
+                    >= MAX_GLOBAL_KEYS
+            {
+                return Err(OperationError::invalid("at most 128 globals"));
+            }
+            let type_key = format!("{TYPE_PREFIX}{key}");
+            // A client using the legacy API cannot accidentally make a local
+            // secret shareable by replacing its textual value.
+            let kind = if state.get(&type_key).map(String::as_str) == Some("secret") {
+                "secret"
+            } else {
+                "text"
+            };
+            if state.get(&storage) != Some(&value)
+                || state.get(&type_key).map(String::as_str) != Some(kind)
+            {
+                state.insert(storage, value.clone());
+                state.insert(type_key, kind.to_owned());
+                state.insert(
+                    REVISION_KEY.to_owned(),
+                    format!("{:032x}", fastrand::u128(..)),
+                );
+            }
+            Ok((key.to_owned(), value))
+        })
     }
 
     /// Deletes one global; `Ok(false)` when the key did not exist.
     pub fn globals_delete(&self, key: &str) -> Result<bool, OperationError> {
         validate_key(key)?;
-        let storage = storage_key(key);
-        let existed = self.globals_snapshot().contains_key(key);
-        self.app_state.remove(&storage);
-        #[cfg(feature = "persistence")]
-        if let Err(error) = self.db.delete_app_state(&storage) {
-            tracing::warn!(%error, "could not delete persisted global");
-        }
-        Ok(existed)
+        self.with_runtime_variables(true, |state| {
+            use crate::services::runtime_variables::{REVISION_KEY, TYPE_PREFIX};
+            let existed = state.remove(&storage_key(key)).is_some();
+            let metadata = state.remove(&format!("{TYPE_PREFIX}{key}")).is_some();
+            if existed || metadata {
+                state.insert(
+                    REVISION_KEY.to_owned(),
+                    format!("{:032x}", fastrand::u128(..)),
+                );
+            }
+            Ok(existed)
+        })
     }
 
     /// Authority is checked at the read boundary, including plugin-intent and

@@ -13,6 +13,8 @@ export type SyncConfirmation =
   | { kind: 'resetAll' }
   | { kind: 'markReviewed' }
   | { kind: 'reset'; id: string; name: string }
+  | { kind: 'apply'; id: string; name: string }
+  | { kind: 'withdraw'; id: string; name: string }
   | { kind: 'restore'; operationId: string; id: string; name: string }
   | { kind: 'revert'; operationId: string };
 
@@ -33,7 +35,7 @@ export function useSyncPanel(adapter: SyncAdapter, source: SyncChanges) {
 
   const changes = source.changes;
   const groups = computed(() => groupChanges(changes.value));
-  const sendable = computed(() => (caps.push ? changes.value.filter((change) => change.side === 'local') : []));
+  const sendable = computed(() => (caps.push ? changes.value.filter((change) => change.side === 'local' && change.canSend !== false) : []));
   const checkedIds = computed(() => sendable.value.filter((change) => !unchecked.value.has(change.id)).map((change) => change.id));
   const allChecked = computed(() => sendable.value.length > 0 && checkedIds.value.length === sendable.value.length);
   const current = computed<SyncChange | null>(() => changes.value.find((change) => change.id === currentId.value) ?? changes.value[0] ?? null);
@@ -75,7 +77,11 @@ export function useSyncPanel(adapter: SyncAdapter, source: SyncChanges) {
   const fetchChanges = () => run(caps.fetch ? () => adapter.fetch!() : undefined);
   const syncAll = () => run(caps.sync ? () => adapter.sync!() : undefined);
   const push = () => run(caps.push && checkedIds.value.length ? () => adapter.push!(checkedIds.value) : undefined);
-  const resolve = (id: string, resolution: SyncResolution) => run(caps.resolve ? () => adapter.resolve!(id, resolution) : undefined);
+  const resolve = (id: string, resolution: SyncResolution) => {
+    const change = changes.value.find((entry) => entry.id === id);
+    const allowed = change && (resolution.choice === 'local' ? change.canResolveLocal !== false : resolution.choice === 'cloud' ? change.canResolveCloud !== false : caps.merge);
+    return run(caps.resolve && allowed ? () => adapter.resolve!(id, resolution) : undefined);
+  };
   const fork = () => run(caps.fork ? () => adapter.fork!() : undefined);
 
   /** Destructive operations never run directly: they wait here until confirmed. */
@@ -89,6 +95,8 @@ export function useSyncPanel(adapter: SyncAdapter, source: SyncChanges) {
       reset: caps.reset && !!adapter.reset,
       restore: caps.history && !!adapter.restore,
       revert: caps.history && !!adapter.restore,
+      apply: caps.apply && !!adapter.apply && 'id' in next && changes.value.some((change) => change.id === next.id && change.canApply !== false),
+      withdraw: caps.withdraw && !!adapter.withdraw && 'id' in next && changes.value.some((change) => change.id === next.id && change.canWithdraw !== false),
     };
     if (allowed[next.kind]) confirmation.value = next;
   }
@@ -111,6 +119,12 @@ export function useSyncPanel(adapter: SyncAdapter, source: SyncChanges) {
         break;
       case 'markReviewed': await run(() => adapter.markReviewed!()); break;
       case 'reset': await run(() => adapter.reset!(pending.id)); break;
+      case 'apply':
+        if (changes.value.some((change) => change.id === pending.id && change.canApply !== false)) await run(() => adapter.apply!(pending.id));
+        break;
+      case 'withdraw':
+        if (changes.value.some((change) => change.id === pending.id && change.canWithdraw !== false)) await run(() => adapter.withdraw!(pending.id));
+        break;
       case 'restore': await run(() => adapter.restore!(pending.operationId, pending.id)); break;
       case 'revert': await run(() => adapter.restore!(pending.operationId)); break;
     }

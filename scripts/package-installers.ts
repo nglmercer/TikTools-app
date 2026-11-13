@@ -43,6 +43,7 @@ if (platform === 'linux-x86_64') {
   await rm(plugin, { force: true });
   await copyFile(join(root, 'scripts', 'appimage', 'linuxdeploy-plugin-tiktoolswebkit.sh'), plugin);
   await chmod(plugin, 0o755);
+  await copyFile(join(root, 'scripts', 'appimage', 'gstreamer-plugins.txt'), join(tools, 'gstreamer-plugins.txt'));
   appImageTools = tools;
 }
 await mkdir(releaseDir, { recursive: true });

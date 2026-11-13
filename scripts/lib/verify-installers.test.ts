@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { readFile, chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'bun:test';
@@ -80,6 +80,14 @@ describe('Linux installer metadata', () => {
       for (const helper of ['WebKitNetworkProcess', 'WebKitWebProcess', 'injected-bundle/libwebkit2gtkinjectedbundle.so']) {
         await writeFile(join(helpers, helper), elf);
       }
+      await expect(verifyAppImageWebKit(root)).rejects.toThrow('missing GStreamer plugin');
+      const gst = join(root, 'usr/lib/gstreamer-1.0');
+      await mkdir(gst, { recursive: true });
+      const plugins = (await readFile(resolve(import.meta.dir, '../appimage/gstreamer-plugins.txt'), 'utf8')).trim().split(/\s+/);
+      for (const plugin of plugins) await writeFile(join(gst, `libgst${plugin}.so`), elf);
+      await expect(verifyAppImageWebKit(root)).rejects.toThrow('missing GStreamer plugin scanner');
+      await mkdir(join(root, 'usr/libexec/gstreamer-1.0'), { recursive: true });
+      await writeFile(join(root, 'usr/libexec/gstreamer-1.0/gst-plugin-scanner'), elf);
       await expect(verifyAppImageWebKit(root)).resolves.toBeUndefined();
       await writeFile(join(root, 'usr/lib/libwayland-client.so.0'), '');
       await expect(verifyAppImageWebKit(root)).rejects.toThrow('must not bundle libwayland-client.so.0');

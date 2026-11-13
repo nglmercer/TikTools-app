@@ -3,6 +3,28 @@ import type { ControlClient } from '@/shared/api/control-client.ts';
 export const PRESET_ROLES = ['observer', 'moderator', 'automationEditor', 'custom'] as const;
 export type TeamRole = (typeof PRESET_ROLES)[number];
 
+export interface AccessibleTeam {
+  readonly id: string;
+  readonly name: string;
+  readonly ownerNickname: string;
+  readonly role: string;
+}
+
+export interface TeamPerson { readonly id: string; readonly nickname: string; readonly ambiguous: boolean }
+export const parsePeople = (value: unknown): TeamPerson[] => items(value).map(entry => {
+  const person = record(entry);
+  const accountId = text(person.id);
+  const nickname = text(person.nickname);
+  if (!accountId || accountId.length > 256 || !nickname || nickname.includes('@') || nickname.length > 128 || Array.from(nickname).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) throw new InvalidTeamResponse();
+  return { id: accountId, nickname, ambiguous: person.ambiguous !== false };
+});
+export const parseAccessibleTeams = (value: unknown): AccessibleTeam[] => items(value).map(entry => {
+  const host = record(entry);
+  const nickname = host.ownerNickname == null || host.ownerNickname === '' ? text(host.name).split('@')[0]!.slice(0, 128) : text(host.ownerNickname);
+  if (nickname.includes('@') || nickname.length > 128 || Array.from(nickname).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)) throw new InvalidTeamResponse();
+  return { id: id(host.id), name: text(host.name), ownerNickname: nickname, role: text(host.role) };
+});
+
 export interface TeamHost {
   readonly id: string;
   readonly name: string;
@@ -13,6 +35,7 @@ export interface TeamHost {
 }
 
 export interface TeamDevice {
+  readonly isThisDevice: boolean;
   readonly id: string;
   readonly label: string;
   readonly kind: string;
@@ -168,6 +191,7 @@ export function parseDevice(value: unknown): TeamDevice {
     id: id(device.id),
     label: text(device.label),
     kind: text(device.kind),
+    isThisDevice: device.isThisDevice === true,
     hostId: optionalText(device.hostId),
     status: text(device.status),
     createdAt: typeof device.createdAt === 'string' ? device.createdAt : '',
@@ -240,6 +264,8 @@ export type Call = (method: string, params?: Record<string, unknown>) => Promise
 
 /** Thin wrappers over the host methods. Each reply is parsed before it reaches the store. */
 export function teamApi(client: ControlClient): {
+  people: (query: string) => Promise<TeamPerson[]>;
+  accessible: () => Promise<AccessibleTeam[]>;
   hosts: () => Promise<TeamHost[]>;
   createHost: (name: string) => Promise<TeamHost>;
   updateHost: (hostId: string, patch: { name?: string; status?: string; expectedRevision: number }) => Promise<TeamHost>;
@@ -247,7 +273,7 @@ export function teamApi(client: ControlClient): {
   enroll: (kind: 'controller' | 'host', label: string, hostId?: string) => Promise<TeamDevice>;
   revokeDevice: (deviceId: string) => Promise<void>;
   invitations: (hostId: string) => Promise<TeamInvitation[]>;
-  createInvitation: (hostId: string, requestedRole: TeamRole, ttlSeconds?: number) => Promise<IssuedInvitation>;
+  createInvitation: (hostId: string, requestedRole: TeamRole, ttlSeconds?: number, recipientId?: string) => Promise<IssuedInvitation>;
   revokeInvitation: (hostId: string, invitationId: string) => Promise<void>;
   requests: (hostId: string) => Promise<TeamRequest[]>;
   decide: (hostId: string, requestId: string, decision: 'approve' | 'deny', role?: TeamRole) => Promise<void>;
@@ -264,6 +290,8 @@ export function teamApi(client: ControlClient): {
 } {
   const call = client.call.bind(client) as Call;
   return {
+    people: async (query) => parsePeople(await call('teams.people.search', { query })),
+    accessible: async () => parseAccessibleTeams(await call('teams.accessible.list', {})),
     hosts: async () => parseHosts(await call('teams.hosts.list', {})),
     createHost: async (name) => parseHost(await call('teams.hosts.create', { name })),
     updateHost: async (hostId, patch) => parseHost(await call('teams.hosts.update', { hostId, ...patch })),
@@ -272,9 +300,9 @@ export function teamApi(client: ControlClient): {
       parseDevice(await call('teams.devices.enroll', { kind, label, ...(hostId ? { hostId } : {}) })),
     revokeDevice: async (deviceId) => void (await call('teams.devices.revoke', { deviceId })),
     invitations: async (hostId) => parseInvitations(await call('teams.invitations.list', { hostId })),
-    createInvitation: async (hostId, requestedRole, ttlSeconds) =>
+    createInvitation: async (hostId, requestedRole, ttlSeconds, recipientId) =>
       parseIssuedInvitation(await call('teams.invitations.create', {
-        hostId, requestedRole, ...(ttlSeconds ? { ttlSeconds } : {}),
+        hostId, requestedRole, ...(ttlSeconds ? { ttlSeconds } : {}), ...(recipientId ? { recipientId } : {}),
       })),
     revokeInvitation: async (hostId, invitationId) => void (await call('teams.invitations.revoke', { hostId, invitationId })),
     requests: async (hostId) => parseRequests(await call('teams.requests.list', { hostId })),

@@ -13,12 +13,16 @@ impl WorkspaceCoordinator {
         session: &Session,
         eligibility: Option<&WorkspaceEligibility>,
         product: Option<&ProductUploadAdmission<'_>>,
+        scope: &super::super::WorkspaceSyncScope,
     ) -> Result<(usize, usize), WorkspaceCoordError> {
         let keys = self.snapshot()?.state.pending_keys();
         let mut pushed = 0;
         let mut absent_deletes = 0;
         let mut attempts = 0;
         for key in keys {
+            if !scope.includes_target(&key.collection, &key.key) {
+                continue;
+            }
             check_eligibility(eligibility, session)?;
             if attempts >= MAX_WRITES {
                 break;

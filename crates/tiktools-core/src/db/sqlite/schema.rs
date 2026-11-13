@@ -403,6 +403,15 @@ CREATE TABLE IF NOT EXISTS behavior_plugins (
 );
 -- The source revision remains after deletion, so remove/recreate and ABA
 -- changes cannot make a stale Cloud review valid again.
+CREATE TABLE IF NOT EXISTS plugin_inventory_recovery (
+  review TEXT NOT NULL,
+  plugin_id TEXT NOT NULL,
+  installed INTEGER NOT NULL,
+  enabled INTEGER NOT NULL,
+  source_generation INTEGER,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY(review,plugin_id)
+);
 CREATE TABLE IF NOT EXISTS plugin_sync_source_versions (
   plugin_id TEXT PRIMARY KEY,
   generation INTEGER NOT NULL CHECK(generation > 0)

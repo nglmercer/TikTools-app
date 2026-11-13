@@ -8,7 +8,7 @@ description = "The TikTools .plugin package format: safe extraction, packing, ch
 publish = false
 
 [dependencies]
-tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.2.0" }
+tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.2.2" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

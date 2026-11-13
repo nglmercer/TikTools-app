@@ -40,15 +40,15 @@ function statusOf(base: WorkspaceValue, local: WorkspaceValue): SyncChange['stat
  *
  * Both sides come from `sync.v2.changes.list`, a local read of the v2 workspace: `before` is the
  * last Cloud value the store fetched (the base of a pending edit), `after` the staged local edit.
- * A Cloud selection that differs from the installed plugin is listed as something to fetch. The
- * v2 engine syncs whole passes, so there is no selective send, no fetch-only and no field merge.
+ * A Cloud selection that differs from the installed plugin is listed as something to fetch. Only this section is published; other downloaded collections remain cached. There is
+ * no per-record send, fetch-only or field merge.
  *
  * Plugin settings are different: their values never reach the page. A settings change is listed
  * by name and the keys that changed, with no diff and no merge; a conflict can only be resolved
  * by keeping the local version or taking Cloud's (both run on the host).
  */
 export function createPluginSyncAdapter(deps: PluginSyncDeps): SyncAdapter {
-  const supported = (): boolean => deps.supports('sync.v2.changes.list') !== false;
+  const supported = (): boolean => deps.supports('sync.v2.changes.list') !== false && deps.supports('sync.v2.section') !== false;
 
   const pluginName = (key: string): string => {
     const plugin = deps.plugins().find((entry) => entry.descriptor.id === key);
@@ -124,7 +124,8 @@ export function createPluginSyncAdapter(deps: PluginSyncDeps): SyncAdapter {
     status: () => ({ lastSyncedAt: deps.status()?.lastSyncedAt ?? null }),
     list,
     async sync() {
-      await deps.client.call('sync.v2.now', {});
+      if (!supported()) throw new Error(deps.t('syncChanges.unsupported'));
+      await deps.client.call('sync.v2.section', { section: 'plugins' });
       await deps.refreshStatus();
     },
     resolve,

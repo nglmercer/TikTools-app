@@ -56,7 +56,7 @@ impl CloudTeams {
             })),
         )
         .await?;
-        let device: TeamDevice = decode(device)?;
+        let mut device: TeamDevice = decode(device)?;
         // The enrollment is already complete in Cloud. A local failure must not
         // be read as "not enrolled" and answered with a second enrollment.
         let saved = if params.kind == "host" {
@@ -71,6 +71,7 @@ impl CloudTeams {
                 device.id, error.message
             ))
         })?;
+        device.is_this_device = device.kind == "host";
         Ok(device)
     }
 }

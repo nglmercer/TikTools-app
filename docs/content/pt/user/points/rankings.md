@@ -1,0 +1,41 @@
+---
+title: "Entenda rankings e competições"
+docId: "user.points.rankings"
+translationKey: "user.points.rankings"
+locale: "pt"
+audience: "user"
+featureStatus: "experimental"
+contentStatus: "reviewed"
+sourceLocale: "en"
+sourceRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
+translationRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
+order: 30
+---
+
+# Entenda rankings e competições {#understand-rankings-and-competitions}
+
+## Objetivo e pré-requisitos {#goal-and-prerequisites}
+
+Escolha a visualização classificada adequada e reconheça os limites da área de rankings em desenvolvimento. Você precisa de atividade recebida para ter pontuações significativas. Comece pela classificação comum de [Points](rules.md) ou pelos painéis dos principais espectadores no [Live feed](../live/feed.md) quando precisar apenas inspecionar os espectadores atuais.
+
+## Use a visualização correta {#use-the-right-view}
+
+1. Em **Points**, pesquise um espectador e ordene por pontos, nível ou identidade do espectador. Atualize antes de comparar um ajuste manual com uma atribuição.
+2. Em **Live feed**, inspecione os painéis disponíveis de espectadores classificados. Eles podem receber instantâneos do mecanismo de ranking independentemente da tabela de saldos de pontos.
+3. Para um overlay, abra [Overlays](../overlays/index.md), selecione o tipo ranking e inspecione as opções de fonte. Uma fonte de ranking configurada precisa existir antes de sua saída aparecer.
+
+A área dedicada **Rankings & competitions** é experimental. Sua rota de frontend é `#/rankings`, mas ela está deliberadamente oculta na navegação principal e não é restaurada como aba inicial. A ausência de um item na barra lateral não significa que a rota ou o mecanismo de ranking tenha sido removido.
+
+## Configure um ranking experimental {#configure-an-experimental-ranking}
+
+Se seu ambiente expuser essa área, comece com um criador, uma sala, agrupamento por usuário e uma janela de sessão. Adicione uma métrica anunciada, como `tiktok.like` / `like.count`, com peso `1`. Defina um limite modesto de resultados e crie a definição. O formulário também aceita janelas móveis e diárias, com limites explícitos de duração/eventos ou deslocamento de fuso horário.
+
+Leia o instantâneo resultante antes de introduzir fontes adicionais. Pausar e retomar afetam a coleta do ranking; redefinir limpa intencionalmente o estado do ranking. Opções de competição e fontes relacionadas a votos têm suas próprias regras de agrupamento. Não presuma que redefinir pontos também redefina uma competição nem que todo agrupamento personalizado funcione com toda métrica.
+
+## Resultado esperado e status {#expected-result-and-status}
+
+As classificações comuns estão disponíveis; a página dedicada de gerenciamento permanece experimental. As pontuações vêm do host, não da contagem de linhas exibidas no feed. A aceitação em transmissão real/OBS e todas as combinações de competição não são comprovadas por este guia.
+
+## Recuperação {#recovery}
+
+Confira criador, sala, ativação de fontes, janela e estado de pausa quando as pontuações continuarem vazias. Remova combinações de fonte/grupo incompatíveis em vez de inventar nomes de campos. Preserve dados importantes por meio de [backups](../preferences/backups.md) antes das redefinições e inclua o ID da definição e o código de diagnóstico em um relatório.

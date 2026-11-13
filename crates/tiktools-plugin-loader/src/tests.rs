@@ -1997,9 +1997,21 @@ async fn napi_vm_startup_handshake_is_bounded_by_the_manager_deadline() {
 fn repo_example_is_discovered_loaded_and_unloaded() {
     let root = temp_root();
     fs::create_dir_all(root.join("repo.game")).unwrap();
+    let mut manifest: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../tests/fixtures/plugins/repo-game.plugin.json"
+    ))
+    .unwrap();
+    let host = semver::Version::parse(env!("CARGO_PKG_VERSION")).unwrap();
+    if !host.pre.is_empty() {
+        // SemVer stable ranges exclude prereleases unless they explicitly
+        // name this base version. This lifecycle fixture opts into the host
+        // candidate, retaining its real lower/upper compatibility bounds.
+        let requirement = manifest["engines"]["tiktools"].as_str().unwrap();
+        manifest["engines"]["tiktools"] = serde_json::json!(format!("{requirement}, >={host}"));
+    }
     fs::write(
         root.join("repo.game/plugin.json"),
-        include_str!("../../../tests/fixtures/plugins/repo-game.plugin.json"),
+        serde_json::to_vec(&manifest).unwrap(),
     )
     .unwrap();
     let manager = PluginManager::with_runtimes(
@@ -2008,7 +2020,11 @@ fn repo_example_is_discovered_loaded_and_unloaded() {
     );
     let plugins = manager.scan().unwrap();
     assert_eq!(plugins.len(), 1);
-    assert!(plugins[0].available);
+    assert!(
+        plugins[0].available,
+        "plugin unavailable: {:?}",
+        plugins[0].reason
+    );
     manager.start("repo.game").unwrap();
     assert!(manager.get("repo.game").unwrap().running);
     manager.stop("repo.game").unwrap();

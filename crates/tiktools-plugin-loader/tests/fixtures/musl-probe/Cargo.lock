@@ -210,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-plugin-api"
-version = "4.2.0"
+version = "4.2.2"
 dependencies = [
  "schemars",
  "semver",

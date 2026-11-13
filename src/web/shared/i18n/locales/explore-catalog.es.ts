@@ -1,4 +1,5 @@
 export default {
+  pluginsPublishedHint: 'Aquí aparecerán los plugins publicados.',
   search: 'Buscar en el catálogo Cloud…', kinds: 'Mostrar', mine: 'Mi biblioteca', mineHint: 'Solo tus plantillas y perfiles. Los plugins no forman parte de tu biblioteca.',
   kind: { plugin: 'Plugins', template: 'Plantillas', profile: 'Perfiles' },
   retry: 'Reintentar', signIn: 'Iniciar sesión en Cloud', loadMore: 'Cargar más', list: 'Catálogo Cloud',

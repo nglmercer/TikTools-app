@@ -35,6 +35,14 @@ export interface SyncChange {
    * settings). The panel then lists the names instead of a JSON diff, and offers no field merge.
    */
   changedKeys?: readonly string[];
+  /** Host policy for a single comparison; false hides an unavailable action. */
+  canSend?: boolean;
+  canApply?: boolean;
+  canWithdraw?: boolean;
+  canResolveLocal?: boolean;
+  canResolveCloud?: boolean;
+  valuesHidden?: boolean;
+  notice?: string;
 }
 
 /** What the person chose for a conflict. `merged` carries the field-level result. */
@@ -81,6 +89,10 @@ export interface SyncCapabilities {
    * not declare it.
    */
   markReviewed: boolean;
+  /** Adopt one reviewed cached Cloud record into this device. */
+  apply: boolean;
+  /** Remove one reviewed Cloud copy while preserving its local value. */
+  withdraw: boolean;
 }
 
 export const noSyncCapabilities: Readonly<SyncCapabilities> = Object.freeze({
@@ -96,6 +108,8 @@ export const noSyncCapabilities: Readonly<SyncCapabilities> = Object.freeze({
   branches: false,
   autoSync: false,
   markReviewed: false,
+  apply: false,
+  withdraw: false,
 });
 
 export interface SyncScope {
@@ -128,9 +142,12 @@ export interface SyncAdapter {
   unavailableReason?(): string | null;
   /** Short explanation shown in the status strip, e.g. what the list is compared with. */
   notice?(): string | undefined;
+  resolveLabels?: { local: string; cloud: string };
   status?(): SyncStatusInfo;
   push?(ids: readonly string[]): Promise<void>;
   fetch?(): Promise<void>;
+  apply?(id: string): Promise<void>;
+  withdraw?(id: string): Promise<void>;
   sync?(): Promise<void>;
   reset?(id: string): Promise<void>;
   resetAll?(): Promise<void>;

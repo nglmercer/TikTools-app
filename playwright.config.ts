@@ -11,7 +11,7 @@ const baseURL = `http://127.0.0.1:${webPort}`;
  * installed at the exact `window.ipc` boundary
  * (`tests/e2e/fixtures/tiktools-host.ts`).
  *
- * Docs: `docs/PLAYWRIGHT.md`.
+ * Docs: `docs/content/en/developer/testing.md`.
  */
 export default defineConfig({
   testDir: './tests/e2e',

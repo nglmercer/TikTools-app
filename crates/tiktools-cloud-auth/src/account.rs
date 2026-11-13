@@ -477,6 +477,76 @@ mod session_snapshot_tests {
     }
 
     #[tokio::test]
+    async fn local_read_waits_for_mutex_but_rejects_pending_transition_and_same_account_replacement(
+    ) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let origin = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            while let Ok((mut socket, _)) = listener.accept().await {
+                let mut request = Vec::new();
+                while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                    let mut chunk = [0; 1024];
+                    let read = socket.read(&mut chunk).await.unwrap();
+                    assert!(read > 0, "test request ended before its headers");
+                    request.extend_from_slice(&chunk[..read]);
+                    assert!(
+                        request.len() <= 8192,
+                        "test request headers exceed the limit"
+                    );
+                }
+                let body = r#"{"id":"alice"}"#;
+                socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+            }
+        });
+        let session = Arc::new(
+            Session::connect_secret(&origin, "fake-token".to_owned().into())
+                .await
+                .unwrap(),
+        );
+        let auth = configured();
+        auth.inner.lock().await.session = Some(session.clone());
+        let locked = auth.inner.lock().await;
+        let read = auth.with_current_session_read(&session, || 7);
+        tokio::pin!(read);
+        assert!(tokio::time::timeout(Duration::from_millis(10), &mut read)
+            .await
+            .is_err());
+        drop(locked);
+        assert_eq!(read.await.unwrap(), 7);
+        let pending = TransitionGuard::begin(&auth.transitions);
+        assert!(auth
+            .with_current_session_read(&session, || panic!("transition exposed cached values"))
+            .await
+            .is_err());
+        drop(pending);
+        let replacement = Arc::new(
+            Session::connect_secret(&origin, "fake-token".to_owned().into())
+                .await
+                .unwrap(),
+        );
+        auth.inner.lock().await.session = Some(replacement.clone());
+        assert!(auth
+            .with_current_session_read(&session, || panic!("old session exposed cached values"))
+            .await
+            .is_err());
+        assert_eq!(
+            auth.with_current_session_read(&replacement, || 9)
+                .await
+                .unwrap(),
+            9
+        );
+        auth.inner.lock().await.session = None;
+        assert!(auth
+            .with_current_session_read(&replacement, || panic!(
+                "signed-out read exposed cached values"
+            ))
+            .await
+            .is_err());
+        server.abort();
+    }
+
+    #[tokio::test]
     async fn observer_follows_restore_and_aborted_completion_across_clones() {
         let auth = configured();
         let transitions = auth.transitions.clone();
@@ -960,6 +1030,32 @@ impl CloudAuth {
             return Err(SessionBusy);
         }
         let inner = self.inner.try_lock().map_err(|_| SessionBusy)?;
+        if login_waiting(&inner)
+            || !inner
+                .session
+                .as_ref()
+                .is_some_and(|live| Arc::ptr_eq(live, captured))
+            || self.transitions.load(Ordering::SeqCst) != 0
+        {
+            return Err(SessionBusy);
+        }
+        Ok(operation())
+    }
+
+    /// Return an already-read local value while this exact session is still
+    /// installed. Unlike write admission, a simultaneous reader briefly
+    /// holding the account mutex is awaited rather than reported as a conflict.
+    /// The callback must only return in-memory data: no I/O, await or reentry.
+    /// Pending transitions fail closed, including replacement by the same account.
+    pub async fn with_current_session_read<R>(
+        &self,
+        captured: &Arc<Session>,
+        operation: impl FnOnce() -> R,
+    ) -> Result<R, SessionBusy> {
+        if self.transitions.load(Ordering::SeqCst) != 0 {
+            return Err(SessionBusy);
+        }
+        let inner = self.inner.lock().await;
         if login_waiting(&inner)
             || !inner
                 .session

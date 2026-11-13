@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import { useTeamsStore } from '@/entities/cloud-teams/model/teams-store.ts';
 import { computed } from 'vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseSearchSelect from '@/shared/ui/search-select/BaseSearchSelect.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
@@ -11,6 +12,11 @@ const { t } = useI18n();
 const teams = useTeamsStore();
 const joinToken = ref('');
 const askTeam = ref('');
+const teamOptions = computed(() => teams.accessible.map(team => ({ value: team.id, label: team.ownerNickname, detail: team.name })));
+async function loadAccessible(): Promise<void> {
+  askTeam.value = '';
+  await teams.refreshAccessible();
+}
 const askOperation = ref('live.status');
 const controllerLabel = ref('');
 /** Read-only operations a host answers today; the host still checks the grant at execution. */
@@ -21,7 +27,7 @@ const askOptions = computed(() =>
 );
 async function askLiveStatus(): Promise<void> {
   const hostId = askTeam.value.trim();
-  if (hostId) await teams.runCommand(hostId, askOperation.value);
+  if (teams.accessible.some(team => team.id === hostId)) await teams.runCommand(hostId, askOperation.value);
 }
 
 async function joinWithToken(): Promise<void> {
@@ -74,12 +80,21 @@ async function joinWithToken(): Promise<void> {
         {{ t('cloudTeams.askHint') }}
       </p>
       <div class="cloud-teams__row">
-        <BaseTextField
+        <BaseSearchSelect
           v-model="askTeam"
           class="cloud-teams__grow"
-          :placeholder="t('cloudTeams.askTeam')"
-          :aria-label="t('cloudTeams.askTeam')"
+          :options="teamOptions"
+          :placeholder="t('cloudTeams.searchNickname')"
+          :aria-label="t('cloudTeams.searchNickname')"
+          :allow-custom="false"
+          :disabled="teams.working"
         />
+        <BaseButton
+          :disabled="teams.working"
+          @click="loadAccessible"
+        >
+          {{ t('cloudTeams.loadAccessible') }}
+        </BaseButton>
         <BaseComboBox
           v-model="askOperation"
           :options="askOptions"
@@ -87,7 +102,7 @@ async function joinWithToken(): Promise<void> {
         />
         <BaseButton
           type="submit"
-          :disabled="askTeam.trim().length === 0 || teams.working"
+          :disabled="!teams.accessible.some(team => team.id === askTeam) || teams.working"
         >
           {{ t('cloudTeams.send') }}
         </BaseButton>

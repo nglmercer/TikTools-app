@@ -9,6 +9,8 @@ use tiktools_cloud_sync::SyncCoordinator;
 
 use crate::paths::AppPaths;
 
+#[cfg(all(feature = "persistence", feature = "plugin-install"))]
+mod inventory_recovery;
 #[cfg(feature = "persistence")]
 mod product_apply;
 #[cfg(all(feature = "persistence", feature = "plugin-install"))]
@@ -30,6 +32,11 @@ pub(crate) struct CloudSync {
     pub(crate) recovery: tokio::sync::Mutex<Option<crate::control::cloud_sync::RecoveryHandle>>,
     pub(crate) v2_conflict:
         tokio::sync::Mutex<Option<crate::control::cloud_sync::V2ConflictHandle>>,
+    #[cfg(feature = "persistence")]
+    pub(crate) variable_reviews:
+        std::sync::Mutex<crate::control::cloud_variable_review::VariableReviewCache>,
+    #[cfg(all(test, feature = "persistence"))]
+    pub(crate) v2_read_started: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     /// Only this host lifetime may acknowledge an observed runtime state.
     /// Lazy initialization preserves local operation when Cloud is unused.
     #[cfg(feature = "persistence")]
@@ -60,6 +67,10 @@ impl CloudSync {
             coordinator,
             recovery: tokio::sync::Mutex::new(None),
             v2_conflict: tokio::sync::Mutex::new(None),
+            #[cfg(feature = "persistence")]
+            variable_reviews: std::sync::Mutex::new(Default::default()),
+            #[cfg(all(test, feature = "persistence"))]
+            v2_read_started: std::sync::Mutex::new(None),
             #[cfg(feature = "persistence")]
             runtime_epoch: OnceLock::new(),
             #[cfg(feature = "persistence")]

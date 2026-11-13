@@ -1,0 +1,40 @@
+---
+title: "阅读与检查直播事件流"
+docId: "user.live.feed"
+translationKey: "user.live.feed"
+locale: "zh"
+audience: "user"
+featureStatus: "available"
+contentStatus: "reviewed"
+sourceLocale: "en"
+sourceRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
+translationRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
+order: 20
+---
+
+# 阅读与检查直播事件流 {#read-and-inspect-the-live-feed}
+
+## 目标与前置条件 {#goal-and-prerequisites}
+
+查找事件、检查其字段，并区分显示暂停与直播间断线。先建立[直播连接](connections.md)，或使用当前事件流中已有的事件。事件流是容量有限的工作视图，并非整场直播的完整记录。
+
+## 查看活动 {#inspect-activity}
+
+1. 打开 **实时动态**，在连接状态中确认当前主播。
+2. 选择事件筛选条件：全部事件、聊天、礼物、点赞、关注、加入或其他社交活动。结合搜索，可查找作者、消息、礼物名称或精确的礼物 ID。
+3. 选择 **暂停自动滚动**，在阅读时停止自动滚动。事件仍可继续到达，未读计数也可能增加。该控件不会断开 TikTok 或暂停自动化。
+4. 选择事件，打开检查器。选择自动化字段前，先阅读事件类型和可用详情。并非每个事件都带有聊天文本、礼物信息或观众身份。
+5. 选择观众姓名或头像，查看其已跟踪的资料。详情面板隐藏时，可使用检查器切换控件。
+6. 选择 **恢复自动滚动** 或跳转到未读事件的按钮，返回实时活动。检查事件是否正常到达时，请清空搜索并选择全部事件。
+
+尽可能通过键盘焦点操作带标签的控件。动态滚动影响阅读时，可暂停滚动。缺少头像时会用姓名首字母代替；识别观众并不需要图片。
+
+## 预期结果与状态 {#expected-result-and-status}
+
+筛选与检查功能均可使用。流量较大时，界面可能只渲染有限窗口，并报告被丢弃的 UI 事件。这些提示描述的是显示情况；不要把可见行数当作账目总数。[统计分析](../points/statistics.md)会另行查询已持久化的聚合数据。
+
+## 恢复方法 {#recovery}
+
+事件流为空时，请移除筛选、恢复滚动，并检查连接状态。安静的直播间也可能运行正常。重新连接同一主播会保留上下文，切换主播则会更换上下文。**清空动态** 仅清空工作事件流，不会重置积分或统计。通过[诊断](../preferences/troubleshooting.md)调查丢失提示，不要假定所有未显示的行都意味着上游事件丢失。
+
+<DemoFrame scenario="feed" locale="zh" title="演示：直播事件流" />

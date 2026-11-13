@@ -12,10 +12,10 @@ default = ["native-providers"]
 native-providers = ["tiktools-plugin-sdk/providers"]
 
 [dependencies]
-tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.2.0" }
-tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "4.2.0" }
-tiktools-plugin-registry = { path = "../tiktools-plugin-registry", version = "4.2.0" }
-tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "4.2.0", optional = true }
+tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.2.2" }
+tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "4.2.2" }
+tiktools-plugin-registry = { path = "../tiktools-plugin-registry", version = "4.2.2" }
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "4.2.2", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true

@@ -23,6 +23,7 @@ const props = withDefaults(
 );
 
 const model = defineModel<string>({ default: '' });
+const emit = defineEmits<{ search: [query: string] }>();
 const { t } = useI18n();
 const { rootAttrs, controlAttrs } = useSplitAttrs();
 const id = useId();
@@ -69,6 +70,7 @@ function setActive(index: number): void {
 
 function onInput(event: Event): void {
   query.value = (event.target as HTMLInputElement).value;
+  emit('search', query.value);
   show();
   activeIndex.value = firstEnabledIndex(filtered.value);
 }

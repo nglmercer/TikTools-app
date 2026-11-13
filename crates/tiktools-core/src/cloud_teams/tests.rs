@@ -190,3 +190,27 @@ fn teams_failures_use_teams_wording_and_keep_only_allowed_diagnostics() {
     );
     assert_eq!(map_failure(StatusCode::CONFLICT, b"").code, "conflict");
 }
+
+#[test]
+fn local_host_identity_requires_both_binding_ids_and_ignores_server_flags() {
+    let device = json!({"id": "local-device", "hostId": "local-host", "kind": "host", "status": "active", "label": "PC", "isThisDevice": true});
+    let mut list: TeamDeviceList = serde_json::from_value(json!({"items": [device]})).unwrap();
+    mark_local_host_devices(&mut list, None);
+    assert!(!list.items[0].is_this_device);
+    mark_local_host_devices(
+        &mut list,
+        Some(&("other-host".into(), "local-device".into())),
+    );
+    assert!(!list.items[0].is_this_device);
+    mark_local_host_devices(
+        &mut list,
+        Some(&("local-host".into(), "local-device".into())),
+    );
+    assert!(list.items[0].is_this_device);
+    list.items[0].kind = "controller".into();
+    mark_local_host_devices(
+        &mut list,
+        Some(&("local-host".into(), "local-device".into())),
+    );
+    assert!(!list.items[0].is_this_device);
+}

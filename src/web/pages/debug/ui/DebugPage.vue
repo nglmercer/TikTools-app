@@ -5,23 +5,32 @@ import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import DiagnosticsLog from '@/shared/diagnostics/DiagnosticsLog.vue';
-import { diagnosticView } from '@/shared/diagnostics/log.ts';
+import { diagnosticLog, diagnosticView } from '@/shared/diagnostics/log.ts';
+import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
 const route = useRoute(); const router = useRouter(); const { t } = useI18n();
 watch(() => route.query, query => { diagnosticView.open.value = false; diagnosticView.source.value = String(query.source ?? ''); diagnosticView.entityId.value = String(query.entity ?? ''); diagnosticView.selectedId.value = String(query.entry ?? ''); }, { immediate:true });
 function back(): void { const target = String(route.query.returnTo ?? '/connections'); void router.push(target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/debug') ? target : '/connections'); }
 </script>
 <template>
-  <section class="debug-page">
+  <section
+    class="debug-page"
+    data-guide-scope="diagnostics"
+  >
     <header class="debug-page__header">
       <BaseIconButton
         :label="t('diagnostics.back')"
+        data-guide="diagnostics-back"
         @click="back"
       >
         <IconChevronLeft />
       </BaseIconButton>
       <h1>{{ t('diagnostics.title') }}</h1>
+      <GuideButton
+        tour="diagnostics"
+        :task-state="() => ({ 'diagnostics.inspected': diagnosticLog.entries.value.some(entry => entry.id === diagnosticView.selectedId.value) })"
+      />
     </header>
-    <DiagnosticsLog />
+    <DiagnosticsLog data-guide="diagnostics-log" />
   </section>
 </template>
 

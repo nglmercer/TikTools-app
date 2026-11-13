@@ -32,6 +32,13 @@ fn unavailable() -> OperationError {
     OperationError::unavailable("local plugin source is unavailable for Cloud migration review")
 }
 
+fn unavailable_at(reason: &'static str) -> OperationError {
+    let mut error = unavailable();
+    error.message = format!("Cloud migration review blocked: {reason}");
+    error.data = Some(serde_json::json!({ "reason": reason }));
+    error
+}
+
 fn source_error() -> SyncCoordError {
     SyncCoordError::Local("native plugin source is unavailable for Cloud migration".into())
 }
@@ -52,7 +59,7 @@ fn local_source_from_catalog(
     for plugin in plugins {
         let id = plugin.manifest.id;
         if !catalog.insert(id.clone()) {
-            return Err(unavailable());
+            return Err(unavailable_at("catalog_state_mismatch"));
         }
         let (installed, enabled) = states
             .get(id.as_str())
@@ -64,7 +71,7 @@ fn local_source_from_catalog(
             .map(|state| (state.installed, state.enabled))
             .unwrap_or((true, true));
         if (installed, enabled) != runtime {
-            return Err(unavailable());
+            return Err(unavailable_at("runtime_state_mismatch"));
         }
         if installed {
             selections.push(PluginSelection {
@@ -82,7 +89,7 @@ fn local_source_from_catalog(
             row.state.is_some_and(|(installed, _)| installed) && !catalog.contains(&row.id)
         })
     {
-        return Err(unavailable());
+        return Err(unavailable_at("installed_plugin_missing"));
     }
     Ok(LocalSource {
         sqlite,
@@ -102,27 +109,27 @@ impl AppCore {
             .plugin_state
             .apply_quarantine
             .read()
-            .map_err(|_| unavailable())?;
+            .map_err(|_| unavailable_at("plugin_state_locked"))?;
         if !quarantine
             .as_ref()
             .is_some_and(|blocked| blocked.is_empty())
         {
-            return Err(unavailable());
+            return Err(unavailable_at("plugin_recovery_required"));
         }
         drop(quarantine);
         let sqlite = self
             .db
             .plugin_cutover_source(origin, account)
-            .map_err(|_| unavailable())?;
+            .map_err(|_| unavailable_at("plugin_database_review_required"))?;
         let (revision, plugins) = self
             .plugins
             .list_complete_for_cutover()
-            .map_err(|_| unavailable())?;
+            .map_err(|_| unavailable_at("plugin_inventory_incomplete"))?;
         let activation = self
             .plugin_state
             .activation
             .read()
-            .map_err(|_| unavailable())?;
+            .map_err(|_| unavailable_at("plugin_state_locked"))?;
         let source = local_source_from_catalog(sqlite, revision, plugins, &activation)?;
         if self.plugins.registry_revision() != revision
             || self
@@ -140,10 +147,13 @@ impl AppCore {
         &self,
         session: Arc<Session>,
     ) -> Result<NativeCutoverPreview, OperationError> {
-        let coordinator = self.sync.coordinator().map_err(|_| unavailable())?;
+        let coordinator = self
+            .sync
+            .coordinator()
+            .map_err(|_| unavailable_at("sync_storage_unavailable"))?;
         let consent = coordinator
             .capture_config_epoch(&session)
-            .ok_or_else(unavailable)?;
+            .ok_or_else(|| unavailable_at("sync_consent_changed"))?;
         let origin = session.instance_origin();
         let account = session.account_id();
         let source = self.cutover_local_source(&origin, account)?;
@@ -153,7 +163,7 @@ impl AppCore {
                 .or_else(|_| {
                     coordinator.guarded_marked_cutover_review(&session, &source.selections, &[])
                 })
-                .map_err(|_| unavailable())?
+                .map_err(|_| unavailable_at("legacy_pending_review_required"))?
         } else {
             coordinator
                 .guarded_marked_cutover_review(
@@ -161,7 +171,7 @@ impl AppCore {
                     &source.selections,
                     &source.sqlite.receipts,
                 )
-                .map_err(|_| unavailable())?
+                .map_err(|_| unavailable_at("local_receipt_review_required"))?
         };
         if self.cutover_local_source(&origin, account)? != source {
             return Err(unavailable());
@@ -439,6 +449,79 @@ mod tests {
         assert_eq!(result.selections, 1);
         assert_eq!(result.pending, 1);
         assert!(result.migration_available);
+        #[cfg(feature = "plugin-install")]
+        {
+            core.db
+                .set_plugin_state("missing.plugin", true, true)
+                .unwrap();
+            assert!(core
+                .sync
+                .coordinator()
+                .unwrap()
+                .record_local_change("missing.plugin", "1.0.0", true)
+                .unwrap());
+            let before = core.sync_status().await.unwrap();
+            assert!(before.pending > 0);
+            assert!(core.workspace_v2_preview().await.is_err());
+            let review = core.workspace_inventory_review(None).await.unwrap();
+            assert_eq!(review.plugins, vec!["missing.plugin"]);
+            // An intervening write, even to the same apparent state, fences the review.
+            core.db
+                .set_plugin_state("missing.plugin", true, true)
+                .unwrap();
+            assert_eq!(
+                core.workspace_inventory_review(Some(review.review))
+                    .await
+                    .unwrap_err()
+                    .code,
+                "conflict"
+            );
+            let review = core.workspace_inventory_review(None).await.unwrap();
+            let repaired = core
+                .workspace_inventory_review(Some(review.review.clone()))
+                .await
+                .unwrap();
+            assert_eq!(repaired.plugins, vec!["missing.plugin"]);
+            assert!(core.workspace_v2_preview().await.is_ok());
+            let after = core.sync_status().await.unwrap();
+            assert_eq!(before.pending, after.pending);
+            assert_eq!(before.conflicts, after.conflicts);
+            let connection = rusqlite::Connection::open(core.db.automation_path()).unwrap();
+            let archived: (i64, i64) = connection.query_row("SELECT installed,enabled FROM plugin_inventory_recovery WHERE review=?1 AND plugin_id='missing.plugin'", [&review.review], |row| Ok((row.get(0)?,row.get(1)?))).unwrap();
+            assert_eq!(archived, (1, 1));
+            assert!(core
+                .workspace_inventory_review(None)
+                .await
+                .unwrap()
+                .plugins
+                .is_empty());
+            core.db.set_plugin_state("missing.a", true, true).unwrap();
+            core.db.set_plugin_state("missing.b", true, false).unwrap();
+            let connection = rusqlite::Connection::open(core.db.automation_path()).unwrap();
+            connection.execute_batch("CREATE TRIGGER reject_inventory_b BEFORE INSERT ON plugin_inventory_recovery WHEN NEW.plugin_id='missing.b' BEGIN SELECT RAISE(ABORT,'fixture rollback'); END;").unwrap();
+            let review = core.workspace_inventory_review(None).await.unwrap();
+            assert!(core
+                .workspace_inventory_review(Some(review.review.clone()))
+                .await
+                .is_err());
+            let archived: i64 = connection
+                .query_row(
+                    "SELECT count(*) FROM plugin_inventory_recovery WHERE review=?1",
+                    [&review.review],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(archived, 0);
+            let installed: i64 = connection.query_row("SELECT count(*) FROM behavior_plugins WHERE id IN ('missing.a','missing.b') AND installed=1", [], |row| row.get(0)).unwrap();
+            assert_eq!(installed, 2);
+            connection
+                .execute_batch("DROP TRIGGER reject_inventory_b")
+                .unwrap();
+            let review = core.workspace_inventory_review(None).await.unwrap();
+            core.workspace_inventory_review(Some(review.review))
+                .await
+                .unwrap();
+        }
         // An unreviewed local source must block preview even without the installer.
         core.db
             .set_plugin_state_with_untracked_sync("demo", true, false)

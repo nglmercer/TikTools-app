@@ -143,7 +143,18 @@ export const useRuleProfilesStore = defineStore('rule-profiles', () => {
     loading,
     error: profiles.error,
     notice: profiles.notice,
-    loadProfiles: async () => { if (memory.value) await profiles.loadProfiles(); else { profiles.setError(null); try { await library.refreshSnapshot(); await library.refresh(); } catch (failure) { profiles.setError(errorMessage(failure)); } } },
+    loadProfiles: async () => {
+      // Startup loads profiles alongside discovery. Do not select the persistent
+      // Owner journal before the host's persistence capability has been read.
+      let memoryHost = memory.value;
+      if (automation.persistent === null) {
+        const info = await client.call<{ features?: { persistence?: boolean } }>('system.info', {}).catch(() => null);
+        memoryHost = info?.features?.persistence === false;
+        if (memoryHost) await automation.refresh();
+      }
+      if (memoryHost) await profiles.loadProfiles();
+      else { profiles.setError(null); try { await library.refreshSnapshot(); await library.refresh(); } catch (failure) { profiles.setError(errorMessage(failure)); } }
+    },
     applyProfile,
     switchProfile,
     createProfile,

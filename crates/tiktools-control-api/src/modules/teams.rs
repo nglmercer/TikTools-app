@@ -7,11 +7,12 @@ use serde_json::Value;
 pub use tiktools_core::cloud_remote_controller::{CommandOutcome, CommandRunParams};
 pub use tiktools_core::cloud_remote_host::RemoteHostStatus;
 pub use tiktools_core::cloud_teams::{
-    TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList, TeamDeviceParams,
-    TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost,
-    TeamHostList, TeamHostParams, TeamInvitationCreateParams, TeamInvitationCreated,
-    TeamInvitationList, TeamInvitationParams, TeamRedeemParams, TeamRedeemResult, TeamRequest,
-    TeamRequestList, TeamSession, TeamSessionList, TeamSessionParams, TeamUpdateParams,
+    PeerMemberships, TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList,
+    TeamDeviceParams, TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams,
+    TeamGrantUpdateParams, TeamHost, TeamHostList, TeamHostParams, TeamInvitationCreateParams,
+    TeamInvitationCreated, TeamInvitationList, TeamInvitationParams, TeamPeople,
+    TeamPeopleSearchParams, TeamRedeemParams, TeamRedeemResult, TeamRequest, TeamRequestList,
+    TeamSession, TeamSessionList, TeamSessionParams, TeamUpdateParams,
 };
 use tiktools_core::AppCore;
 
@@ -19,6 +20,24 @@ use super::Empty;
 use crate::{error::ApiError, router::ControlRouter};
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<TeamPeopleSearchParams, TeamPeople, _, _>(
+        "teams.people.search",
+        "Finds invitation recipients by nickname without returning email addresses",
+        false,
+        |core: Arc<AppCore>, params| async move {
+            core.teams_people_search(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<Empty, tiktools_core::cloud_teams::PeerMemberships, _, _>(
+        "teams.accessible.list",
+        "Lists only teams approved for this PC, with owner nicknames instead of email addresses",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            core.teams_accessible().await.map_err(ApiError::from)
+        },
+    );
     router.register_typed::<CommandRunParams, CommandOutcome, _, _>(
         "teams.commands.run",
         "Sends one command to a team as this PC's viewer and waits for the host's result",

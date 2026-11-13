@@ -28,6 +28,7 @@ pub(crate) use competitions::{CompetitionExecutionAdmission, CompetitionExecutio
 mod meta;
 mod owner_adoption;
 mod owner_approval;
+mod runtime_variables;
 pub(crate) use owner_approval::validate_owner_approval_input;
 mod owner_definition;
 mod owner_journal_values;
@@ -115,4 +116,15 @@ pub enum DatabaseError {
     CommandAuthorization(#[source] crate::collaboration::Error),
     #[error("workflow snapshot exceeds its bounded budget")]
     SnapshotTooLarge,
+}
+
+impl DatabaseError {
+    /// Preserve SQLite's extended reason for diagnostics (BUSY, LOCKED,
+    /// BUSY_SNAPSHOT, IOERR, etc.) without logging SQL or row contents.
+    pub(crate) fn sqlite_extended_code(&self) -> Option<i32> {
+        match self {
+            Self::Sql(rusqlite::Error::SqliteFailure(error, _)) => Some(error.extended_code),
+            _ => None,
+        }
+    }
 }
