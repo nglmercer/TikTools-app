@@ -1,14 +1,14 @@
 {
-  "version": "4.0.2",
+  "version": "4.2.0",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.0.2/TikTools-4.0.2-windows-x86_64-installer.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMVVWTVI4Rm9XTm9tZmFHdmN4dFZWL1ZmNXd0c2FRd28xaWU2LzVWVllXS3N6SENXRVhvaFZFbksvMlFxMm5ReHJrT2R4MFU2WG90Z05pWUxTOVYwbFEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MDAwNTI4CWZpbGU6VGlrVG9vbHMtNC4wLjItd2luZG93cy14ODZfNjQtaW5zdGFsbGVyLmV4ZQpHSUc0UWhqUHFvdExqZ3hDNkNScUFpVFR5NEk4MUpnNGdyRE54U3BYT2JWczk1SzlieGZpYjdOS1MzdldRYkUxb0RTWGRGZElWQnFJSWhhbFlKSGFBdz09Cg==",
+      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.0/TikTools-4.2.0-windows-x86_64-installer.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMVI4ZU5pbWxwU1hUYkVKWTA1WWtDVVJxRlo0UVdFOGxXMjlyOGtZdVBFem5LV3ZWcDZaWFpaY0xDUStkRkw5Vi84dUc4KzFtT1M1QktwZExId2lGeFFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTMzNTU4CWZpbGU6VGlrVG9vbHMtNC4yLjAtd2luZG93cy14ODZfNjQtaW5zdGFsbGVyLmV4ZQphTnZVbWp1MCtONHVGQ2ROMHpFcG16dXdLdDZQVjlLK3JNdEx4bUJ1ZHVtT0E1RzM5dlgrdlY5Y2IzVVVpU2F6bE9CZWtuemQ4SXVOc0FGZ2xGSE9BUT09Cg==",
       "format": "nsis"
     },
     "linux-x86_64": {
-      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.0.2/TikTools-4.0.2-linux-x86_64-installer.AppImage",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMVZsK3FUaFlCajNpR0c0aStseUl1Q2NXVlBrR3RCREM4bE1tUng5aDlLM1M0M2xkeHk1MlMvU0Q0TG44OEk5dktJZFh3SXJoTjFMMGdSY2dacDQ2MWd3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MDAwNTI4CWZpbGU6VGlrVG9vbHMtNC4wLjItbGludXgteDg2XzY0LWluc3RhbGxlci5BcHBJbWFnZQp2VGI5TE5VQ2wxOG1LMEgvY2ZRMWhKMGxXaEd1VWFlN3ZsbHp4L1lkOTk4cWxnMXlFV2NLL0hDL2lYQ1VGclpxNVFHUEh4Q1dtNm5yOXROTjExUjNDQT09Cg==",
+      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.0/TikTools-4.2.0-linux-x86_64-installer.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMVlkSUlvdU9iZ0paenRXcUZSR0QxdXZieEM4NU1rM2ZOMUVwSXQ2VDFKSlZPcmJGTFh6ckpobmljbDhTVFlIY0hHYkFlbzJyQ3RucXNuNEl4U1NoaHdNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTMzNTU5CWZpbGU6VGlrVG9vbHMtNC4yLjAtbGludXgteDg2XzY0LWluc3RhbGxlci5BcHBJbWFnZQpxWHl6M1pUaGIxcTZ4TkFXSW1yQ3IvblFJbnBZemhqakNwZ05RbFdTcldpV0Iwb09Hb0xLNFAwcXp2b09aSUw0L2lkUTNlR2M5VHl6QXlBb0VSdG9Edz09Cg==",
       "format": "appimage"
     }
   }
