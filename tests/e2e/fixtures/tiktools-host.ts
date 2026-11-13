@@ -46,6 +46,8 @@ export interface E2EHostState {
   };
   /** Runtime globals served by `globals.list` and written by `globals.set`. */
   globals?: Record<string, string>;
+  typedGlobals?: Record<string, { type: 'text' | 'number' | 'boolean' | 'list' | 'secret'; value: string | number | boolean | string[] }>;
+  typedGlobalsRevision?: string;
   /** Behavior snapshot served for `automation.snapshot`. */
   automationSnapshot: Record<string, unknown>;
   automationVersions?: Record<string, string>;
@@ -331,6 +333,14 @@ const INIT_SCRIPT = `
     'creators.recent': () => ({ creators: state.recentCreators }),
     'gifts.list': () => ({ gifts: state.gifts }),
     'globals.list': () => ({ globals: { ...(state.globals ?? {}) } }),
+    'globals.typed.list': () => ({ revision: state.typedGlobalsRevision ?? 'a'.repeat(64), variables: state.typedGlobals ?? Object.fromEntries(Object.entries(state.globals ?? {}).map(([name, value]) => [name, { type: 'text', value }])) }),
+    'globals.typed.replace': (params) => {
+      if (params.expectedRevision !== (state.typedGlobalsRevision ?? 'a'.repeat(64))) throw { code: 'conflict', message: 'runtime variables changed; reload before saving' };
+      state.typedGlobals = structuredClone(params.variables);
+      state.typedGlobalsRevision = (BigInt('0x' + params.expectedRevision) + 1n).toString(16).padStart(64, '0');
+      state.globals = Object.fromEntries(Object.entries(state.typedGlobals).map(([name, variable]) => [name, typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)]));
+      return { revision: state.typedGlobalsRevision, variables: state.typedGlobals };
+    },
     'globals.set': (params) => {
       (state.globals ||= {})[params.key] = params.value;
       return { ok: true };

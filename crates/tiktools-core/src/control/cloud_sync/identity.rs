@@ -25,12 +25,18 @@ impl AppCore {
             .ok_or_else(|| OperationError::unavailable("Cloud sign-in is required"))?;
         let coordinator = self.sync_coordinator()?.clone();
         let captured = session.clone();
+        #[cfg(test)]
+        let core = self.clone();
         let (value, lease) = tokio::task::spawn_blocking(move || {
             let lease = coordinator.product_read().map_err(sync_error)?;
             if !lease.v2_selected(Some(&captured)).map_err(sync_error)? {
                 return Err(OperationError::unavailable(
                     "Cloud v2 is not enabled for the current account",
                 ));
+            }
+            #[cfg(test)]
+            if let Some(started) = core.sync.v2_read_started.lock().unwrap().take() {
+                let _ = started.send(());
             }
             let value = read(&coordinator, &captured)
                 .map_err(|_| OperationError::unavailable("Cloud v2 changes are unavailable"))?;

@@ -132,9 +132,9 @@ where
 }
 
 /// Collections whose staged edit is its own source of truth: there is no
-/// native source row to recheck, so the staged proof (bound to the account's
-/// consent generation by its digest) is the whole admission. Only credential-
-/// free collections belong here.
+/// native outbox row to recheck. The proof is bound to the account's consent
+/// generation; native owned-edit admission must additionally recheck local
+/// restrictions such as a variable's current secret classification.
 pub(crate) const OWNED_EDIT_COLLECTIONS: &[&str] = &["variables"];
 
 /// Digest `stage_v2_product_edit` binds to a staged owner-owned edit.
@@ -220,6 +220,18 @@ impl V2ProductDecision {
 /// Trusted native source. It must recheck the exact decision under the
 /// runtime/source fence and call `admit` once, without holding it over HTTP.
 pub trait V2ProductUploadSource: Send + Sync {
+    /// Recheck local restrictions on an owner-owned record while retaining
+    /// its native source fence through admission. A host with typed local
+    /// variables must reject a put for a variable now marked secret.
+    fn with_fenced_owned_edit(
+        &self,
+        _target: &cloud_client::WorkspaceKey,
+        _edit: &cloud_client::WorkspaceEdit,
+        _admit: &mut dyn FnMut() -> Result<(), crate::WorkspaceCoordError>,
+    ) -> Result<(), crate::WorkspaceCoordError> {
+        Err(crate::WorkspaceCoordError::Ineligible)
+    }
+
     /// Acquire the native product emission fence and verify that no
     /// untracked local changes require review. The returned lease is held
     /// only for this bounded request and must be owned/Send. Implementations
@@ -237,6 +249,36 @@ pub trait V2ProductUploadSource: Send + Sync {
         decision: &V2ProductDecision,
         admit: &mut dyn FnMut() -> Result<(), crate::WorkspaceCoordError>,
     ) -> Result<(), crate::WorkspaceCoordError>;
+}
+
+#[cfg(test)]
+mod owned_edit_admission_tests {
+    use super::*;
+
+    #[test]
+    fn a_source_without_owned_record_integration_cannot_admit_an_upload() {
+        struct OldSource;
+        impl V2ProductUploadSource for OldSource {
+            fn with_fenced_upload(
+                &self,
+                _: &V2ProductDecision,
+                _: &mut dyn FnMut() -> Result<(), crate::WorkspaceCoordError>,
+            ) -> Result<(), crate::WorkspaceCoordError> {
+                panic!("owned edits must not use plugin source admission");
+            }
+        }
+        let mut emitted = false;
+        let result = OldSource.with_fenced_owned_edit(
+            &WorkspaceKey::new("variables", "ordinary").unwrap(),
+            &WorkspaceEdit::Put(serde_json::json!({"schemaVersion":1,"name":"ordinary","type":"text","value":"public"})),
+            &mut || { emitted = true; Ok(()) },
+        );
+        assert!(matches!(
+            result,
+            Err(crate::WorkspaceCoordError::Ineligible)
+        ));
+        assert!(!emitted);
+    }
 }
 
 /// Trusted native adapter: hold the source mutation fence while loading the

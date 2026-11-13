@@ -139,6 +139,41 @@ while the new `/api/v3/remote/people` route responds `404`. The existing remote
 hosts route responds `401` without credentials. Nickname search therefore still
 requires deployment of backend commit `6a69c99` and its additive migration.
 
+### Typed local Variables foundation
+
+The Variables editor now uses native type metadata and an atomic reviewed
+replacement (`globals.typed.list/replace`). Text, number, boolean, list and
+local-secret types persist while legacy textual rendering stays compatible.
+No SQLite schema migration is required: the existing `app_state` rows retain
+the text values, separate metadata stores only type tags and a revision nonce,
+and one transaction commits the complete replacement. Public revisions are
+bound to the exact native host lifetime as well as the stored state.
+
+A dirty draft retains its original revision after a conflicting save. Losing
+typed-method support does not convert a secret draft to legacy writes or
+unmask its old value. The operator must discard/reload before changing hosts.
+Legacy writes preserve an existing secret classification on the native host.
+
+Native staging overrides a client's claimed nonsecret type when local metadata
+says secret. Upload admission rechecks that policy, including previously queued
+puts, and native edits cannot overtake an admitted emission. Changes/conflict
+projections redact values for those names. Policy checks load only type tags;
+SQLite is released before workspace preparation. A host without owned-edit
+source integration fails closed. Previously published Cloud values are not
+automatically erased by this local classification change.
+
+Verification: 22 native Variables/read tests, three memory-only variable tests,
+170 sync-engine tests, one owner/remote RPC test, 17 Cloud-enabled client parity
+tests, one CLI typed-secret redaction test, 52 frontend tests and two browser
+tests pass. The default CLI sandbox verifies 286 registered/typed methods and
+23 read-only smoke calls. TypeScript/ESLint and Rust formatting pass. Five
+previously missing Teams/sync typed wrappers and validators were added while
+closing registry parity. The browser rendering was inspected with test data.
+
+This is source work after RC2; published RC2 assets remain unchanged. Saving
+variables remains local. Section publication, explicit withdrawal, reviewed
+application and the Variables Changes adapter are still the next integration.
+
 ## Goal
 
 A git-like but simplified way to see what differs from Cloud and to push, fetch, reset and merge it,
@@ -184,15 +219,20 @@ Cloud has a public overlay gallery.
 
 ## TODO (not implemented)
 
-- [ ] **Variables sync.** Host done, UI pending. The `variables` collection exists in `cloud-contracts` and
+- [ ] **Variables sync.** Typed local editor and native secret enforcement are implemented;
+  section transport/application and the Changes adapter remain pending. The `variables` collection exists in `cloud-contracts` and
   RemakeBackend (types text, number, boolean, list; **secret never syncs**), is announced in
   `sync.optionalCollections`, and the host stages it with `sync.v2.stageVariables` (secrets are excluded in the
   host, contract violations are reported by name, an instance without the capability gets
   `capability_unavailable`). `sync.v2.changes.list` projects variable values (credential-free by contract).
-  Details: [Desktop Cloud v2](CLOUD-V2-DESKTOP.md#optional-collection-variables-host-done-ui-pending).
-  Still to do: the Variables tab adapter in `AutomationsPage.vue` (typed local variables, a secret type that
-  is never offered to the host as a value), applying pulled variables to the runtime globals (today globals
-  are text-only and the host does not apply them), conflict behaviour per type in the UI, and a test of the
+  Details: [Desktop Cloud v2](CLOUD-V2-DESKTOP.md#optional-collection-variables-typed-local-editor-cloud-adapter-pending).
+  The local editor uses `globals.typed.list/replace`, saves a reviewed revision atomically,
+  masks secret fields and preserves dirty drafts on conflict. A client cannot bypass
+  local secret classification by offering a different type to staging; queued puts
+  are blocked and their values omitted from Changes when classification becomes secret.
+  Existing textual rendering remains compatible. No local variable is uploaded by saving.
+  Still to do: the Variables tab adapter in `AutomationsPage.vue`, reviewed application
+  of pulled variables, explicit Cloud withdrawal for variables made secret, conflict behaviour per type in the UI, and a test of the
   generic conflict review/resolve on a `variables` key. Until the adapter exists the Variables tab shows no
   sync button.
 - [x] Three-way conflict view in the panel (per-field Base/Local/Cloud choice, all local / all Cloud, apply

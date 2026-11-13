@@ -4,6 +4,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use tiktools_core::control::{RuntimeVariablesReplace, RuntimeVariablesSnapshot};
 use tiktools_core::AppCore;
 
 use crate::{error::ApiError, modules::Empty, router::ControlRouter};
@@ -48,6 +49,27 @@ pub struct GlobalsDeleteResult {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<Empty, tiktools_core::control::RuntimeVariablesSnapshot, _, _>(
+        "globals.typed.list",
+        "Reads local variable types, values and the revision required for saving",
+        false,
+        |core: Arc<AppCore>, _: Empty| async move {
+            crate::modules::blocking_task("globals.typed.list", move || {
+                core.runtime_variables_list()
+            })
+            .await?
+            .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<tiktools_core::control::RuntimeVariablesReplace, tiktools_core::control::RuntimeVariablesSnapshot, _, _>(
+        "globals.typed.replace",
+        "Atomically saves the reviewed local variable revision; never syncs values",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            crate::modules::blocking_task("globals.typed.replace", move || core.runtime_variables_replace(params))
+                .await?.map_err(ApiError::from)
+        },
+    );
     router.register_typed::<Empty, GlobalsListResult, _, _>(
         "globals.list",
         "Lists every runtime global (bare key to text value)",

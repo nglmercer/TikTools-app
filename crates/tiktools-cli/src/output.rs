@@ -338,18 +338,21 @@ fn is_secret_key(key: &str) -> bool {
 /// nested objects) are replaced wholesale.
 pub fn redact_secrets(value: Value) -> Value {
     match value {
-        Value::Object(object) => Value::Object(
-            object
-                .into_iter()
-                .map(|(key, val)| {
-                    if is_secret_key(&key) {
-                        (key, Value::String(REDACTED.to_owned()))
-                    } else {
-                        (key, redact_secrets(val))
-                    }
-                })
-                .collect(),
-        ),
+        Value::Object(object) => {
+            let local_secret = object.get("type").and_then(Value::as_str) == Some("secret");
+            Value::Object(
+                object
+                    .into_iter()
+                    .map(|(key, val)| {
+                        if is_secret_key(&key) || (local_secret && key == "value") {
+                            (key, Value::String(REDACTED.to_owned()))
+                        } else {
+                            (key, redact_secrets(val))
+                        }
+                    })
+                    .collect(),
+            )
+        }
         Value::Array(items) => Value::Array(items.into_iter().map(redact_secrets).collect()),
         scalar => scalar,
     }
@@ -359,6 +362,15 @@ pub fn redact_secrets(value: Value) -> Value {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn typed_local_secrets_are_redacted_even_with_an_ordinary_variable_name() {
+        let value = json!({"variables":{"ordinary":{"type":"secret","value":"local-private-test"},"public":{"type":"text","value":"hello"}}});
+        let redacted = redact_secrets(value);
+        assert_eq!(redacted["variables"]["ordinary"]["type"], "secret");
+        assert_eq!(redacted["variables"]["ordinary"]["value"], REDACTED);
+        assert_eq!(redacted["variables"]["public"]["value"], "hello");
+    }
 
     #[test]
     fn redacts_top_level_and_nested_secrets() {

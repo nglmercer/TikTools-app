@@ -77,6 +77,10 @@ mod cloud_integrations;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 mod cloud_teams;
 mod globals;
+mod runtime_variables;
+pub use runtime_variables::{
+    RuntimeVariable, RuntimeVariableKind, RuntimeVariablesReplace, RuntimeVariablesSnapshot,
+};
 mod helpers;
 mod live;
 mod media;

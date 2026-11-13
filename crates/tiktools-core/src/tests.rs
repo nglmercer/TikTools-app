@@ -7,6 +7,7 @@ use std::{
 use super::*;
 #[cfg(feature = "persistence")]
 mod approved_observer;
+mod runtime_variables;
 #[cfg(all(
     feature = "cloud-auth",
     feature = "persistence",

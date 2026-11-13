@@ -208,6 +208,103 @@ fn requests_to(log: &Log, prefix: &str) -> Vec<(String, String, String)> {
         .collect()
 }
 
+#[tokio::test]
+async fn local_secret_classification_overrides_a_clients_shareable_type() {
+    use crate::control::{RuntimeVariable, RuntimeVariableKind, RuntimeVariablesReplace};
+    let (core, log, root) = fixture(true).await;
+    let snapshot = core.runtime_variables_list().unwrap();
+    core.runtime_variables_replace(RuntimeVariablesReplace {
+        expected_revision: snapshot.revision,
+        variables: [(
+            "privateValue".into(),
+            RuntimeVariable {
+                kind: RuntimeVariableKind::Secret,
+                value: json!(SECRET),
+            },
+        )]
+        .into(),
+    })
+    .unwrap();
+    let before = log.lock().unwrap().len();
+    let result = core
+        .sync_v2_stage_variables(SyncV2StageVariablesParams {
+            variables: vec![variable("privateValue", VariableKind::Text, json!(SECRET))],
+            remove: vec![],
+        })
+        .await
+        .unwrap();
+    assert_eq!(result.staged, 0);
+    assert_eq!(result.excluded_secrets, vec!["privateValue"]);
+    assert_eq!(
+        log.lock().unwrap().len(),
+        before,
+        "no capability or upload request for a local secret"
+    );
+    assert!(core.sync_v2_changes_list().await.unwrap().is_empty());
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn variables_type_damage_does_not_block_a_workspace_without_variable_records() {
+    let (core, log, root) = fixture(true).await;
+    core.globals_set("ordinary", "local").unwrap();
+    core.db
+        .save_app_state("runtime.variable.type.ordinary", "invalid")
+        .unwrap();
+    assert!(core.runtime_variables_list().is_err());
+    let before = log.lock().unwrap().len();
+    assert!(core.sync_v2_changes_list().await.unwrap().is_empty());
+    assert_eq!(log.lock().unwrap().len(), before);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn marking_an_already_queued_variable_secret_blocks_upload_and_redacts_its_projection() {
+    use crate::control::{RuntimeVariable, RuntimeVariableKind, RuntimeVariablesReplace};
+    let (core, log, root) = fixture(true).await;
+    let formerly_public = "value-was-public-now-local-only";
+    core.sync_v2_stage_variables(SyncV2StageVariablesParams {
+        variables: vec![variable(
+            "privateValue",
+            VariableKind::Text,
+            json!(formerly_public),
+        )],
+        remove: vec![],
+    })
+    .await
+    .unwrap();
+    let snapshot = core.runtime_variables_list().unwrap();
+    core.runtime_variables_replace(RuntimeVariablesReplace {
+        expected_revision: snapshot.revision,
+        variables: [(
+            "privateValue".into(),
+            RuntimeVariable {
+                kind: RuntimeVariableKind::Secret,
+                value: json!(formerly_public),
+            },
+        )]
+        .into(),
+    })
+    .unwrap();
+    let changes = core.sync_v2_changes_list().await.unwrap();
+    assert_eq!(changes.len(), 1);
+    assert!(changes[0].pending.as_ref().unwrap().local.value.is_none());
+    assert!(!serde_json::to_string(&changes)
+        .unwrap()
+        .contains(formerly_public));
+    assert!(core.sync_v2_now().await.is_err());
+    assert!(requests_to(&log, "/api/v2/sync/collections/variables/").is_empty());
+    assert!(!log
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(_, _, body)| body.contains(formerly_public)));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn concurrent_workspace_reads_do_not_need_product_mutation_admission() {
     let (core, log, root) = fixture(true).await;
@@ -347,25 +444,18 @@ async fn workspace_read_discards_snapshot_after_same_account_session_replacement
             .unwrap();
     });
     entered_rx.await.unwrap();
+    let (read_started_tx, read_started_rx) = tokio::sync::oneshot::channel();
+    *core.sync.v2_read_started.lock().unwrap() = Some(read_started_tx);
     let read = {
         let core = core.clone();
         tokio::spawn(async move { core.sync_v2_changes_list().await })
     };
-    // Wait for this reader to hold the shared protocol lease and block on
-    // the snapshot. Trying a cutover lease itself changes no files or consent.
-    let protocol = tiktools_cloud_sync::ProtocolFence::open(&sync_dir).unwrap();
-    tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        loop {
-            match protocol.try_cutover() {
-                Err(tiktools_cloud_sync::ProtocolFenceError::Busy) => break,
-                Ok(lease) => drop(lease),
-                Err(error) => panic!("{error}"),
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .unwrap();
+    // Observe admission directly: probing with an exclusive cutover lease
+    // could itself make the nonblocking reader fail before reaching disk.
+    tokio::time::timeout(std::time::Duration::from_secs(5), read_started_rx)
+        .await
+        .unwrap()
+        .unwrap();
     // Reading files does not hold the account gate or delay logout.
     tokio::time::timeout(std::time::Duration::from_secs(2), auth.logout())
         .await

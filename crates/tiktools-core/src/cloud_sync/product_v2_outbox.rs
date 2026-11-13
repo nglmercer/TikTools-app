@@ -464,6 +464,47 @@ impl V2ProductSource for SqliteV2ProductSource<'_> {
 }
 
 impl V2ProductUploadSource for SqliteV2ProductSource<'_> {
+    fn with_fenced_owned_edit(
+        &self,
+        target: &cloud_client::WorkspaceKey,
+        edit: &cloud_client::WorkspaceEdit,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        if target.collection != "variables"
+            || self
+                .core
+                .shutdown_started
+                .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        let _emission = tiktools_cloud_sync::ProductEmissionFence::open(
+            self.core.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| WorkspaceCoordError::Ineligible)?
+        .try_emission()
+        .map_err(|_| WorkspaceCoordError::Ineligible)?;
+        if matches!(edit, cloud_client::WorkspaceEdit::Put(_))
+            && self
+                .core
+                .runtime_variable_secret_names()
+                .map_err(|_| WorkspaceCoordError::Ineligible)?
+                .contains(&target.key)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        // Keep the emission fence, but release the PointsDB read transaction
+        // before workspace serialization/fsync or any other admission work.
+        if self
+            .core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(WorkspaceCoordError::Ineligible);
+        }
+        admit()
+    }
+
     fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
         if self
             .core
@@ -577,6 +618,16 @@ impl OwnedSqliteV2UploadSource {
 }
 
 impl V2ProductUploadSource for OwnedSqliteV2UploadSource {
+    fn with_fenced_owned_edit(
+        &self,
+        target: &cloud_client::WorkspaceKey,
+        edit: &cloud_client::WorkspaceEdit,
+        admit: &mut dyn FnMut() -> Result<(), WorkspaceCoordError>,
+    ) -> Result<(), WorkspaceCoordError> {
+        SqliteV2ProductSource::new(&self.core, &self.origin, &self.account)
+            .with_fenced_owned_edit(target, edit, admit)
+    }
+
     fn acquire_emission_guard(&self) -> Result<Box<dyn Send>, WorkspaceCoordError> {
         SqliteV2ProductSource::new(&self.core, &self.origin, &self.account).acquire_emission_guard()
     }

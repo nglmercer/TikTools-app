@@ -42,8 +42,17 @@ impl WorkspaceCoordinator {
             if expected.as_deref() != Some(proof.decision_digest()) {
                 return Err(WorkspaceStateError::StaleReview.into());
             }
-            eligibility.check()?;
-            return operation(proof);
+            let mut operation = Some(operation);
+            let mut result = None;
+            admission
+                .source
+                .with_fenced_owned_edit(proof.target(), proof.edit(), &mut || {
+                    let operation = operation.take().ok_or(WorkspaceStateError::StaleReview)?;
+                    eligibility.check()?;
+                    result = Some(operation(proof)?);
+                    Ok(())
+                })?;
+            return result.ok_or_else(|| WorkspaceStateError::StaleReview.into());
         }
         let decision = crate::V2ProductDecision::from_proof(
             &self.origin,

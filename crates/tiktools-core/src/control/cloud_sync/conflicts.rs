@@ -46,10 +46,32 @@ impl AppCore {
     ) -> Result<Vec<V2ChangeEntry>, OperationError> {
         #[cfg(feature = "persistence")]
         {
-            self.v2_workspace_read(|coordinator, session| {
-                coordinator
-                    .v2_product_entries(session)
-                    .map(|entries| entries.iter().map(v2_change_entry).collect())
+            let core = self.clone();
+            self.v2_workspace_read(move |coordinator, session| {
+                let entries = coordinator.v2_product_entries(session)?;
+                let secrets = if entries
+                    .iter()
+                    .any(|entry| entry.target.collection == "variables")
+                {
+                    core.runtime_variable_secret_names()
+                        .map_err(|_| tiktools_cloud_sync::WorkspaceCoordError::Ineligible)?
+                } else {
+                    std::collections::BTreeSet::new()
+                };
+                Ok(entries
+                    .iter()
+                    .map(|entry| {
+                        let mut projected = v2_change_entry(entry);
+                        if projected.collection == "variables" && secrets.contains(&projected.key) {
+                            projected.remote.value = None;
+                            if let Some(pending) = &mut projected.pending {
+                                pending.base.value = None;
+                                pending.local.value = None;
+                            }
+                        }
+                        projected
+                    })
+                    .collect())
             })
             .await
         }
@@ -79,6 +101,20 @@ impl AppCore {
                 .review_v2_product(session.clone(), target)
                 .await
                 .map_err(|_| OperationError::conflict("Cloud conflict changed; review again"))?;
+            let redact = if collection == "variables" {
+                let core = self.clone();
+                let name = key.to_owned();
+                tokio::task::spawn_blocking(move || {
+                    core.runtime_variable_secret_names()
+                        .map(|names| names.contains(&name))
+                })
+                .await
+                .map_err(|_| {
+                    OperationError::unavailable("variable review worker is unavailable")
+                })??
+            } else {
+                false
+            };
             self.cloud
                 .auth()
                 .with_current_session(&session, || {
@@ -88,15 +124,20 @@ impl AppCore {
                 .then_some(())
                 .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
             let entry = &snapshot.entry;
-            let base = match entry.pending.as_ref() {
+            let mut base = match entry.pending.as_ref() {
                 Some(pending) => v2_value_from_record(pending.base_record.as_ref()),
                 None => v2_value_from_record(entry.remote.as_ref()),
             };
-            let local = match entry.pending.as_ref() {
+            let mut local = match entry.pending.as_ref() {
                 Some(pending) => v2_value_from_edit(&pending.edit),
                 None => v2_value_from_record(entry.remote.as_ref()),
             };
-            let cloud = v2_value_from_record(snapshot.cloud_record.as_ref());
+            let mut cloud = v2_value_from_record(snapshot.cloud_record.as_ref());
+            if redact {
+                base.value = None;
+                local.value = None;
+                cloud.value = None;
+            }
             let has_newer = entry.next.is_some();
             let mut bytes = [0u8; 32];
             getrandom::fill(&mut bytes)

@@ -1,4 +1,22 @@
 import type { ControlClient } from '@/shared/api/control-client.ts';
+import { isRuntimeVariable, type RuntimeVariable, type RuntimeVariablesSnapshot } from '../lib/runtime-variable.ts';
+
+function typedSnapshot(result: unknown): RuntimeVariablesSnapshot {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('Invalid local variable response');
+  const value = result as Record<string, unknown>;
+  if (typeof value.revision !== 'string' || !/^[a-f0-9]{64}$/.test(value.revision) || !value.variables || typeof value.variables !== 'object' || Array.isArray(value.variables) || !Object.values(value.variables).every(isRuntimeVariable)) {
+    throw new Error('Invalid local variable response');
+  }
+  return { revision: value.revision, variables: value.variables as Record<string, RuntimeVariable> };
+}
+
+export async function listTypedGlobals(client: ControlClient): Promise<RuntimeVariablesSnapshot> {
+  return typedSnapshot(await client.call('globals.typed.list', {}));
+}
+
+export async function replaceTypedGlobals(client: ControlClient, expectedRevision: string, variables: Record<string, RuntimeVariable>): Promise<RuntimeVariablesSnapshot> {
+  return typedSnapshot(await client.call('globals.typed.replace', { expectedRevision, variables }));
+}
 
 function asGlobalsMap(result: unknown): Record<string, string> {
   if (!result || typeof result !== 'object' || Array.isArray(result)) return {};

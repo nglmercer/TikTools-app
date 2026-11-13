@@ -28,6 +28,7 @@ pub(crate) use competitions::{CompetitionExecutionAdmission, CompetitionExecutio
 mod meta;
 mod owner_adoption;
 mod owner_approval;
+mod runtime_variables;
 pub(crate) use owner_approval::validate_owner_approval_input;
 mod owner_definition;
 mod owner_journal_values;

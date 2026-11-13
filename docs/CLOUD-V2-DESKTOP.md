@@ -495,7 +495,7 @@ motion or update-channel application. All advertised fields need a concrete
 native/local consumer, or must be reported as supported cloud data awaiting
 local application. Do not silently replace an unsupported locale or setting.
 
-### Optional collection: variables (host done, UI pending)
+### Optional collection: variables (typed local editor, Cloud adapter pending)
 
 `variables` is a sixth, credential-free collection announced in `sync.optionalCollections`
 of `GET /api/v2/capabilities` (the legacy `sync.collections` list stays the five above, because
@@ -523,11 +523,31 @@ Host behaviour (crates/tiktools-core `control/cloud_variables.rs`):
   upload admission accepts it when its digest still matches the account's consent generation
   (`OWNED_EDIT_COLLECTIONS` in crates/tiktools-cloud-sync). Writes use the same fenced PUT, epoch,
   `If-Match` / `If-None-Match` and conflict machinery as every other collection.
+- Local editor: `globals.typed.list` returns a typed map and an opaque revision;
+  `globals.typed.replace {expectedRevision, variables}` validates the whole map
+  and commits values/type metadata in one SQLite transaction. Stale revisions
+  fail without replacing any row. Revisions are also bound to this native host
+  lifetime, so restarting or switching hosts invalidates an old draft even if
+  the variable data happens to match. Existing textual globals remain text; there
+  is no inference or automatic upload. Text/number/boolean/list/secret types
+  persist natively; the existing `{{ globals.key }}` render path stays textual.
+  The editor masks local secret fields and retains dirty drafts and their
+  reviewed revision after a conflicting save. Older hosts keep the text editor;
+  a dirty typed draft cannot fall back to legacy writes after a host change.
+- Secret policy is authoritative on the host. Staging ignores a client's
+  nonsecret type when that local variable is secret. Upload admission rechecks
+  native classification, including records queued before the type changed;
+  native edits cannot overtake an admitted emission. Changes/conflict projections
+  omit values for those names. Type metadata cannot be written through generic
+  `app.state.set`. CLI typed-variable output redacts secret values by default.
+  This does not erase a value that was already published before classification;
+  Cloud withdrawal/application belongs to the pending section adapter.
 - Pull: the change feed is account-wide, so variables written by another device are cached in the
   workspace and listed by `sync.v2.changes.list` (values are projected for `variables`, like
   `plugin-selections` and `preferences`; they are credential-free by contract). The host does
-  **not** apply them to the local runtime globals: applying remote variables, typed local storage
-  and secret handling in the UI are the pending step. Local runtime globals are still text-only.
+  **not** apply them to the local runtime globals. Reviewed application, section
+  publication and the Variables Changes adapter are still pending. No Variables
+  sync button is shown until that transport is wired.
 - Older clients: a client built before the contracts change rejects `variables` records with a
   protocol error. Do not write variables from an account until every device that syncs it has the
   new contracts.

@@ -20,6 +20,7 @@ mod live;
 mod media;
 pub(crate) mod option_sources;
 mod points;
+pub(crate) mod runtime_variables;
 pub(crate) use points::valid_viewer_id;
 #[cfg(all(test, feature = "persistence"))]
 pub(crate) use points::AdmissionPause;

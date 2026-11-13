@@ -56,6 +56,7 @@ impl ControlApi {
             "plugins.settings.reset",
             "automation.delete",
             "globals.delete",
+            "globals.typed.replace",
             "workflows.delete",
             "points.reset",
             "competitions.delete",

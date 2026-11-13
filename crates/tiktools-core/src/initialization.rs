@@ -215,6 +215,7 @@ impl AppCore {
             #[cfg(all(feature = "persistence", feature = "native-tiktok"))]
             last_analytics_emit_at: AtomicU64::new(0),
             hotkey_sync_revision: AtomicU64::new(1),
+            variable_revision_binding: fastrand::u128(..),
             hotkey_synced_revision: AtomicU64::new(0),
             last_leaderboard_emit_at: AtomicU64::new(0),
             #[cfg(feature = "http")]

@@ -7,12 +7,12 @@ use serde_json::Value;
 pub use tiktools_core::cloud_remote_controller::{CommandOutcome, CommandRunParams};
 pub use tiktools_core::cloud_remote_host::RemoteHostStatus;
 pub use tiktools_core::cloud_teams::{
-    TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList, TeamDeviceParams,
-    TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHost,
-    TeamHostList, TeamHostParams, TeamInvitationCreateParams, TeamInvitationCreated,
-    TeamInvitationList, TeamInvitationParams, TeamPeople, TeamPeopleSearchParams, TeamRedeemParams,
-    TeamRedeemResult, TeamRequest, TeamRequestList, TeamSession, TeamSessionList,
-    TeamSessionParams, TeamUpdateParams,
+    PeerMemberships, TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList,
+    TeamDeviceParams, TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams,
+    TeamGrantUpdateParams, TeamHost, TeamHostList, TeamHostParams, TeamInvitationCreateParams,
+    TeamInvitationCreated, TeamInvitationList, TeamInvitationParams, TeamPeople,
+    TeamPeopleSearchParams, TeamRedeemParams, TeamRedeemResult, TeamRequest, TeamRequestList,
+    TeamSession, TeamSessionList, TeamSessionParams, TeamUpdateParams,
 };
 use tiktools_core::AppCore;
 

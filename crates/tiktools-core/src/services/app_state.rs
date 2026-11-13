@@ -8,6 +8,12 @@ pub struct AppStateService {
 }
 
 impl AppStateService {
+    pub(crate) fn with_values<R>(
+        &self,
+        operation: impl FnOnce(&mut BTreeMap<String, String>) -> R,
+    ) -> R {
+        operation(&mut recover_rwlock_write(&self.values, "app state"))
+    }
     pub fn read(&self, keys: Option<&[String]>) -> BTreeMap<String, String> {
         let values = recover_rwlock_read(&self.values, "app state");
         match keys {

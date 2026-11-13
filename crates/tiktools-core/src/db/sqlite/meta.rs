@@ -32,11 +32,6 @@ impl DatabaseManager {
         )?;
         Ok(())
     }
-    pub(crate) fn delete_app_state(&self, key: &str) -> Result<(), DatabaseError> {
-        let connection = self.open(&self.points_path())?;
-        connection.execute("DELETE FROM app_state WHERE key = ?", [key])?;
-        Ok(())
-    }
     pub(crate) fn load_app_state_prefix(
         &self,
         prefix: &str,

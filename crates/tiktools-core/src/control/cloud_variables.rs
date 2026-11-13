@@ -187,6 +187,18 @@ impl AppCore {
     ) -> Result<SyncV2StageVariablesResult, OperationError> {
         #[cfg(feature = "persistence")]
         {
+            let mut params = params;
+            let core = self.clone();
+            let secrets = tokio::task::spawn_blocking(move || core.runtime_variable_secret_names())
+                .await
+                .map_err(|_| {
+                    OperationError::unavailable("variable review worker is unavailable")
+                })??;
+            for variable in &mut params.variables {
+                if secrets.contains(&variable.name) {
+                    variable.kind = VariableKind::Secret;
+                }
+            }
             let plan = plan(params)?;
             let mut result = SyncV2StageVariablesResult {
                 staged: 0,
@@ -223,6 +235,23 @@ impl AppCore {
                 let coordinator = core.sync.coordinator().map_err(|_| {
                     OperationError::unavailable("Cloud sync storage is unavailable")
                 })?;
+                let _emission = tiktools_cloud_sync::ProductEmissionFence::open(
+                    core.db.paths().data.join("plugin-sync-emission"),
+                )
+                .map_err(|_| OperationError::unavailable("variable sync fence is unavailable"))?
+                .try_emission()
+                .map_err(|_| {
+                    OperationError::conflict("variables are being edited; retry syncing")
+                })?;
+                let secrets = core.runtime_variable_secret_names()?;
+                if edits.iter().any(|(key, edit)| {
+                    matches!(edit, cloud_client::WorkspaceEdit::Put(_))
+                        && secrets.contains(&key.key)
+                }) {
+                    return Err(OperationError::conflict(
+                        "local variable became secret; review before syncing",
+                    ));
+                }
                 for (key, edit) in edits {
                     coordinator
                         .stage_v2_product_edit(core_session.clone(), key, edit)
