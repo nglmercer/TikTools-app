@@ -1,0 +1,348 @@
+name: Recover immutable release
+
+on:
+  push:
+    branches:
+      - fix/release-appimage-environment
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing immutable release tag to build and verify'
+        required: true
+        type: string
+        default: v4.2.2
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-refs/tags/${{ inputs.tag || 'v4.2.2' }}
+  cancel-in-progress: false
+
+env:
+  BUN_VERSION: 1.4.4
+  RUSTUP_TOOLCHAIN: 1.99.1
+  RELEASE_TAG: ${{ inputs.tag || 'v4.2.2' }}
+
+jobs:
+  version:
+    name: validate release version
+    runs-on: ubuntu-24.04
+    outputs:
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || 'v4.2.2' }}
+
+      - name: Record immutable source
+        id: source
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install frontend dependencies from the lockfile
+        run: bun ci
+
+      - name: Validate release tag and manifest versions
+        env:
+          RELEASE_TAG: ${{ inputs.tag || 'v4.2.2' }}
+        run: bun scripts/task.ts version check
+
+      - name: Classify release channel
+        id: tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag || 'v4.2.2' }}
+        run: |
+          bun -e 'const version = process.env.RELEASE_TAG.slice(1).split("+")[0]; console.log(`prerelease=${version.includes("-")}`)' >> "$GITHUB_OUTPUT"
+
+  build:
+    name: package (${{ matrix.platform }})
+    needs: version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: linux-x86_64
+          - os: windows-latest
+            platform: windows-x86_64
+    # Job-wide so every cargo invocation (build and package) embeds the same
+    # update trust anchor; option_env! changes force a rebuild otherwise.
+    # Without the repository variable the updater stays disabled.
+    env:
+      TIKTOOLS_APP_UPDATE_PUBLIC_KEY: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY }}
+      TIKTOOLS_APP_UPDATE_FEED_ENABLED: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY != '' && '1' || '' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || 'v4.2.2' }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install frontend dependencies from the lockfile
+        run: bun ci
+
+      - name: Build frontend assets
+        run: bun scripts/task.ts frontend-build
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev \
+            libappindicator3-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
+            libxdo-dev \
+            xvfb xauth \
+            mold \
+            pkg-config
+
+      - name: Install current Rust
+        run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
+
+      - name: Set up MSVC developer environment
+        if: runner.os == 'Windows'
+        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
+        with:
+          arch: x64
+
+      - name: Install native Perl for vendored OpenSSL
+        if: runner.os == 'Windows'
+        run: choco install strawberryperl --no-progress -y
+
+      - name: Cache Cargo dependencies and build output
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-release-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Build release desktop binary
+        run: node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked
+
+      - name: Install pinned cargo-packager
+        run: cargo install cargo-packager --version 0.11.8 --locked
+
+      - name: Validate compiled desktop version before packaging
+        env:
+          RELEASE_TAG: ${{ inputs.tag || 'v4.2.2' }}
+        run: bun scripts/check-version.ts --binary
+
+      - name: Verify Windows release uses the GUI subsystem
+        if: runner.os == 'Windows'
+        run: pwsh -NoProfile -File scripts/check-windows-pe.ps1 target/release/tiktools-desktop.exe
+
+      - name: Assemble and validate portable package
+        env:
+          RELEASE_TAG: ${{ inputs.tag || 'v4.2.2' }}
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: bun scripts/task.ts package
+
+      - name: Package and verify desktop installers
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          RELEASE_TAG: ${{ inputs.tag || 'v4.2.2' }}
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: bun scripts/package-installers.ts
+
+      - name: Start the packaged Linux AppImage with an isolated profile
+        if: runner.os == 'Linux'
+        timeout-minutes: 2
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          GDK_BACKEND: x11
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+        run: |
+          version="${RELEASE_TAG#v}"
+          dbus-run-session -- xvfb-run -a bun scripts/smoke-appimage.ts \
+            "release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version"
+
+      - name: Upload release archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-${{ matrix.platform }}
+          path: release/TikTools-*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: publish GitHub release
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || 'v4.2.2' }}
+      # Releases and the update feed may live in another repository (repository
+      # variable RELEASE_REPO); that requires a RELEASE_REPO_TOKEN secret with
+      # Contents read/write on it. Default: this repository and its own token.
+      RELEASE_SOURCE_SHA: ${{ needs.version.outputs.source_sha }}
+      RELEASE_REPO: ${{ vars.RELEASE_REPO || github.repository }}
+      GH_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN || github.token }}
+      HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN != '' }}
+      # The update feed is signed and published only when a public key is set.
+      UPDATE_FEED: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY != '' && '1' || '' }}
+      TIKTOOLS_UPDATE_PUBLIC_KEY: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY }}
+    steps:
+      - name: Check publication configuration
+        run: |
+          if [ "$RELEASE_REPO" != "$GITHUB_REPOSITORY" ] && [ "$HAS_RELEASE_TOKEN" != "true" ]; then
+            echo "::error::RELEASE_REPO=$RELEASE_REPO requires the RELEASE_REPO_TOKEN secret"
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || 'v4.2.2' }}
+
+      - name: Download release archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA-256 checksums
+        working-directory: release-assets
+        run: sha256sum TikTools-* > SHA256SUMS.txt
+
+      - name: Set up Bun
+        if: env.UPDATE_FEED == '1'
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install current Rust
+        if: env.UPDATE_FEED == '1'
+        run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
+
+      - name: Cache Cargo dependencies and build output
+        if: env.UPDATE_FEED == '1'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-packager
+            target
+          key: cargo-update-feed-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-update-feed-${{ runner.os }}-
+
+      - name: Install pinned cargo-packager
+        if: env.UPDATE_FEED == '1'
+        run: |
+          if [ "$(cargo packager --version 2>/dev/null)" != "cargo-packager 0.11.8" ]; then
+            cargo install cargo-packager --version 0.11.8 --locked --force
+          fi
+
+      # Sign before anything is published, so a signing failure never leaves a
+      # public release without a matching feed entry.
+      - name: Sign update artifacts and metadata
+        if: env.UPDATE_FEED == '1'
+        env:
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          mkdir update-candidate
+          cp "release-assets/TikTools-${version}-linux-x86_64-installer.AppImage" \
+             "release-assets/TikTools-${version}-windows-x86_64-installer.exe" update-candidate/
+          bun scripts/generate-update-manifest.ts --sign update-candidate
+
+      - name: Create draft release with immutable assets
+        env:
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          # An existing tag in the release repository must be this exact commit.
+          # A missing tag makes `gh api` print a 4xx JSON body on stdout, so only
+          # a real 40-hex commit SHA counts as an existing tag.
+          existing="$(gh api "repos/$RELEASE_REPO/commits/$RELEASE_TAG" -q .sha 2>/dev/null || true)"
+          if [[ "$existing" =~ ^[0-9a-f]{40}$ ]] && [ "$existing" != "$RELEASE_SOURCE_SHA" ]; then
+            echo "::error::$RELEASE_REPO tag $RELEASE_TAG points to $existing, expected $RELEASE_SOURCE_SHA"
+            exit 1
+          fi
+          args=(--draft --target "$RELEASE_SOURCE_SHA" --generate-notes)
+          if [ "$PRERELEASE" = "true" ]; then
+            args+=(--prerelease)
+          fi
+          # Creating an existing release must fail: never overwrite historical assets.
+          gh release create "$RELEASE_TAG" -R "$RELEASE_REPO" release-assets/TikTools-* release-assets/SHA256SUMS.txt "${args[@]}"
+
+      - name: Verify uploaded release assets
+        run: |
+          mkdir uploaded-assets
+          gh release download "$RELEASE_TAG" -R "$RELEASE_REPO" --dir uploaded-assets
+          cmp release-assets/SHA256SUMS.txt uploaded-assets/SHA256SUMS.txt
+          (cd uploaded-assets && sha256sum --check SHA256SUMS.txt)
+          # Reject missing or unexpected assets before exposing the release.
+          diff -u <(cd release-assets && find . -maxdepth 1 -type f -printf '%f\n' | sort) \
+                  <(cd uploaded-assets && find . -maxdepth 1 -type f -printf '%f\n' | sort)
+
+      - name: Publish verified draft
+        run: gh release edit "$RELEASE_TAG" -R "$RELEASE_REPO" --draft=false
+
+      # The feed is updated last: it must never reference unpublished assets.
+      - name: Publish update feed
+        if: env.UPDATE_FEED == '1'
+        run: |
+          gh auth setup-git
+          git clone --quiet --depth 1 --branch gh-pages "https://github.com/$RELEASE_REPO.git" feed
+          mode=()
+          if [ ! -e feed/updates/stable.json ] && [ ! -e feed/updates/beta.json ]; then
+            mode=(--bootstrap)
+          elif [ ! -e feed/updates/stable.json ]; then
+            mode=(--allow-missing-stable)
+          fi
+          mkdir -p feed/updates
+          bun scripts/stage-update-channels.ts update-candidate feed/updates feed-snapshot "${mode[@]}"
+          cp -f feed-snapshot/* feed/updates/
+          cd feed
+          git add updates
+          if git diff --cached --quiet; then
+            echo "Update feed unchanged"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet -m "update feed: $RELEASE_TAG"
+          git push --quiet origin gh-pages
+
+      - name: Wait for the live update feed
+        if: env.UPDATE_FEED == '1'
+        run: |
+          base="$(gh api "repos/$RELEASE_REPO/pages" -q .html_url)"
+          version="${RELEASE_TAG#v}"
+          channel=stable
+          case "$version" in *-*) channel=beta ;; esac
+          for _ in $(seq 1 60); do
+            if curl -fsS "${base%/}/updates/$channel.json" 2>/dev/null | grep -q "\"version\": \"$version\""; then
+              echo "Live $channel feed serves $version"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${base%/}/updates/$channel.json did not serve $version within 10 minutes"
+          exit 1
