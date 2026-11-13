@@ -2,9 +2,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
-const source = readFileSync(resolve(process.cwd(), 'crates/tiktools-cli/src/web.rs'), 'utf8');
-const page = source.match(/const PAIR_PAGE: &str = r#"([\s\S]*?)"#;/)![1]!;
-const script = source.match(/const PAIR_SCRIPT: &str = r#"([\s\S]*?)"#;/)![1]!;
+const page = readFileSync(resolve(process.cwd(), 'crates/tiktools-cli/src/web/pairing.html'), 'utf8');
+const script = readFileSync(resolve(process.cwd(), 'crates/tiktools-cli/src/web/pairing.js'), 'utf8');
 let request: ReturnType<typeof vi.fn>;
 
 function mount() {

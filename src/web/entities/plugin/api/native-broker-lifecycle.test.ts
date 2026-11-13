@@ -4,9 +4,7 @@ import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 function harness() {
-  const source = readFileSync(join(process.cwd(), 'crates', 'tiktools-desktop', 'src', 'plugin_webview', 'mod.rs'), 'utf8');
-  const script = source.split('const INIT_SCRIPT: &str = r#"')[1]?.split('"#;')[0];
-  if (!script) throw new Error('native broker initialization script missing');
+  const script = readFileSync(join(process.cwd(), 'crates', 'tiktools-desktop', 'src', 'plugin_webview', 'init.js'), 'utf8');
   const timers = new Map<number, () => void>();
   const listeners = new Map<string, () => void>();
   const requests: Array<{ id: string }> = [];
