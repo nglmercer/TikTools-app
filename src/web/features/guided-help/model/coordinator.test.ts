@@ -398,12 +398,12 @@ it('replaces the previous guide and tolerates unavailable storage', async () => 
 });
 
 describe('versioned registry and localized copy', () => {
-  it('publishes seven versioned tours with complete four-locale step catalogs', () => {
+  it('publishes seven versioned tours with complete catalogs for every supported locale', () => {
     expect(Object.keys(tourRegistry)).toHaveLength(7);
     for (const tour of Object.values(tourRegistry)) {
       expect(tour.version).toBeGreaterThan(0);
       expect(tour.route.startsWith('/')).toBe(true);
-      for (const catalog of Object.values(tourCatalogs)) {
+      for (const [locale, catalog] of Object.entries(tourCatalogs)) {
         const copy = catalog[tour.id] as Record<string, { title: string; description: string }>;
         expect(Object.keys(copy)).toEqual(tour.steps.map((step) => step.id));
         for (const step of tour.steps) {
@@ -412,8 +412,9 @@ describe('versioned registry and localized copy', () => {
           expect(step.descriptionKey).toBe(`${tour.id}.${step.id}.description`);
           expect(Array.isArray(step.requiredCapabilities)).toBe(true);
           expect(['skip', 'cancel']).toContain(step.missingTargetPolicy);
-          expect(copy[step.id]!.title.length).toBeGreaterThan(5);
-          expect(copy[step.id]!.description.length).toBeGreaterThan(25);
+          const cjk = locale === 'zh' || locale === 'ja';
+          expect(copy[step.id]!.title.trim().length).toBeGreaterThan(cjk ? 1 : 5);
+          expect(copy[step.id]!.description.trim().length).toBeGreaterThan(cjk ? 15 : 25);
         }
       }
     }

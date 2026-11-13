@@ -2,6 +2,8 @@ import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import GuideButton from './GuideButton.vue';
+import { activateLocale } from '@/shared/i18n/i18n.ts';
+import { tourCatalogs } from '../catalogs/index.ts';
 
 type TestConfig = Record<string, unknown> & { onDestroyed?: () => void; allowKeyboardControl?: boolean };
 const fake = vi.hoisted(() => {
@@ -18,6 +20,20 @@ beforeEach(() => {
   });
 });
 afterEach(() => { document.querySelectorAll('[data-test-guide]').forEach(element => element.remove()); });
+afterEach(async () => { await activateLocale('en'); });
+
+for (const locale of ['zh', 'ja'] as const) it(`uses the ${locale} catalog for native guide labels and Driver controls`, async () => {
+  await activateLocale(locale);
+  const root = document.createElement('section');
+  root.setAttribute('data-guide-scope', 'points'); root.setAttribute('data-test-guide', '');
+  root.innerHTML = '<section data-guide="points-rules"></section><section data-guide="points-leaderboard"></section>';
+  document.body.append(root);
+  const wrapper = mountWithPlugins(GuideButton, { attachTo: root, props: { tour: 'points', taskState: { 'points.reviewed': false } } });
+  expect(wrapper.get('button').attributes('aria-label')).toContain(tourCatalogs[locale].points.rules.title);
+  await wrapper.get('button').trigger('click'); await vi.dynamicImportSettled(); await flushPromises();
+  expect(fake.config().nextBtnText).toBe(tourCatalogs[locale].controls.next);
+  wrapper.unmount();
+});
 
 async function mountGuide() {
   const root = document.createElement('section');

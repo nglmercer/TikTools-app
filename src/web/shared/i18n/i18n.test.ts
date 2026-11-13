@@ -17,6 +17,15 @@ describe('activateLocale', () => {
     await activateLocale('en');
     expect(i18n.global.t('common.cancel')).toBe('Cancel');
   });
+
+  it('loads the complete Chinese and Japanese catalogs with canonical document languages', async () => {
+    await activateLocale('zh');
+    expect(i18n.global.t('common.cancel')).toBe('取消');
+    expect(document.documentElement.lang).toBe('zh');
+    await activateLocale('ja');
+    expect(i18n.global.t('common.cancel')).toBe('キャンセル');
+    expect(document.documentElement.lang).toBe('ja');
+  });
 });
 
 describe('isLocale', () => {

@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { scenarios } from '../../src/web/demo/scenarios.ts';
+import { demoLocales, scenarios } from '../../src/web/demo/scenarios.ts';
 import { componentFamilies } from '../../docs/scripts/component-families.ts';
+
+test('the jp URL alias selects Japanese and is rewritten to the canonical ja locale', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=jp');
+  await expect(page.getByTestId('demo-play')).toBeEnabled();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
+  expect(new URL(page.url()).searchParams.get('locale')).toBe('ja');
+});
 
 test('every public scenario loads real pages without external or native requests', async ({ page, baseURL }) => {
   const failures: string[] = []; const outbound: string[] = [];
@@ -52,7 +59,7 @@ test('Play connects the first scenario, shows events, and pause/step/reset remai
 
 test('component previews and every locale work at a narrow width', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const locale of ['en', 'es', 'pt', 'fr']) {
+  for (const locale of demoLocales) {
     await page.goto(`demo/?scenario=settings&locale=${locale}&route=/components/buttons`);
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await expect(page.getByTestId('demo-play')).toBeEnabled();

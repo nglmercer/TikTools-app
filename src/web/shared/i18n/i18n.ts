@@ -1,11 +1,11 @@
 import { createI18n } from 'vue-i18n';
 import type { TranslationCatalog } from '../../../shared/localized.ts';
 import en from './locales/en.ts';
+import { isLocale, type Locale } from './supported-locales.ts';
+export { supportedLocales, isLocale, normalizeLocale, type Locale } from './supported-locales.ts';
 
 export type MessageSchema = typeof en;
 
-export const supportedLocales = ['en', 'es', 'pt', 'fr'] as const;
-export type Locale = (typeof supportedLocales)[number];
 
 const fallbackLocale = 'en' satisfies Locale;
 
@@ -13,6 +13,8 @@ const loaders: Record<Exclude<Locale, typeof fallbackLocale>, () => Promise<{ de
   es: () => import('./locales/es.ts'),
   pt: () => import('./locales/pt.ts'),
   fr: () => import('./locales/fr.ts'),
+  zh: () => import('./locales/zh.ts'),
+  ja: () => import('./locales/ja.ts'),
 };
 
 declare module 'vue-i18n' {
@@ -28,9 +30,6 @@ export const i18n = createI18n<[MessageSchema], Locale, false>({
 
 const loaded = new Set<Locale>();
 
-export function isLocale(value: unknown): value is Locale {
-  return supportedLocales.includes(value as Locale);
-}
 
 export async function activateLocale(locale: Locale): Promise<void> {
   if (locale !== fallbackLocale && !loaded.has(locale)) {

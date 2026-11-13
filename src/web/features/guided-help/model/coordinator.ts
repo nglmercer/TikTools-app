@@ -1,6 +1,7 @@
 import { watch } from 'vue';
 import { appStorage } from '@/shared/lib/app-storage.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
+import { isLocale } from '@/shared/i18n/supported-locales.ts';
 import type { Config, Driver } from 'driver.js';
 import { tourCatalogs, type TourCatalog } from '../catalogs/index.ts';
 import { isTourId, tourRegistry } from './registry.ts';
@@ -119,7 +120,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
   };
   const locale = (): TourLocale => {
     const value = dependencies.locale?.() ?? i18n.global.locale.value;
-    return value === 'es' || value === 'pt' || value === 'fr' ? value : 'en';
+    return isLocale(value) ? value : 'en';
   };
 
   function run(options: RunOptions): GuideSession {

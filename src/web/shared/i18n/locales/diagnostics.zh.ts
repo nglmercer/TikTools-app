@@ -1,0 +1,18 @@
+export default {
+  emptyHistory: "暂无条目。",
+  filters: "筛选", actions: "日志操作", searchShort: "搜索日志", sourceLabel: "来源", levelLabel: "级别", activeFilters: "当前筛选", removeFilter: "移除筛选：{value}", results: "共 {total} 条，显示 {count} 条", sessionShort: "仅当前会话 · 敏感数据已遮蔽", selectionFiltered: "所选条目被筛选条件隐藏。", loadMore: "再加载 100 条",
+  title: "诊断", viewLogs: "查看日志", session: "仅限本次界面会话。敏感字段已遮蔽；重新加载后历史将重置。",
+  search: "搜索诊断", allSources: "所有来源", allLevels: "所有级别",
+  info: "信息", warning: "警告", error: "错误", empty: "无匹配条目。",
+  copyAll: "复制全部", copyFiltered: "复制筛选结果", copyEntry: "复制条目", export: "导出 TXT", clear: "清空历史",
+  copied: "已复制。", copyFailed: "剪贴板不可用。请选中并复制下方文本。",
+  exportFailed: "无法导出。你仍可复制文本。", exported: "已请求导出。",
+  cleared: "历史已清空。", dropped: "因保留限制已移除 {count} 条较早条目。",
+  missing: "此条目已不再保留。下方显示相关历史。",
+  repeated: "重复 {count} 次", last: "最后发生", back: "返回", close: "关闭诊断",
+  minimize: "最小化", restore: "还原", move: "移动面板（拖动或使用方向键）", reset: "重置位置", fullPage: "打开完整页面",
+  newEntries: "{count} 条新条目", filterEntity: "实体筛选：{entity}", resetFilters: "清除筛选",
+  connectionFailed: "连接失败", monitorFailed: "监控需要处理", accountFailed: "登录需要处理",
+  syncFailed: "同步需要处理", updateFailed: "更新需要处理", updaterUnavailable: "此处无法自动更新",
+  discoveryFailed: "无法加载直播间", sources: { live: "TikTok LIVE", monitor: "直播监控", discovery: "直播间探索器", plugins: "插件", account: "云端账户", sync: "云端同步", updates: "更新", transport: "主机连接", catalog: "目录", install: "安装与注册表", collaboration: "协作", relay: "云端中继", integrations: "集成" },
+};

@@ -1959,6 +1959,8 @@ export default {
       es: 'Español',
       pt: 'Português (Brasil)',
       fr: 'Français',
+      zh: '简体中文',
+      ja: '日本語',
     },
   },
 };

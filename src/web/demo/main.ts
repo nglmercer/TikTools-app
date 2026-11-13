@@ -8,7 +8,7 @@ try {
   const options = parseDemoOptions(location.search);
   options.instance = contextInstance(options.instance, window.name, () => crypto.randomUUID());
   window.name = contextName(options.instance);
-  const url = new URL(location.href); url.searchParams.set('instance', options.instance);
+  const url = new URL(location.href); url.searchParams.set('instance', options.instance); url.searchParams.set('locale', options.locale);
   history.replaceState(history.state, '', url);
   let backing: { local: Storage; session: Storage };
   try { backing = { local: localStorage, session: sessionStorage }; backing.session.setItem(`tiktools.demo.${options.instance}.probe`, '1'); backing.session.removeItem(`tiktools.demo.${options.instance}.probe`); }

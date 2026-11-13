@@ -3,4 +3,6 @@ export const catalogCopy = {
   es: { title: 'Referencia de componentes', family: 'Familia de componentes', state: 'Estado del ejemplo', preview: 'Ejemplo interactivo', source: 'Código del ejemplo', guide: 'Leer la referencia', mobile: 'Móvil', description: 'Prueba los controles Vue compartidos y consulta el código exacto de cada ejemplo.' },
   pt: { title: 'Referência de componentes', family: 'Família de componentes', state: 'Estado do exemplo', preview: 'Exemplo interativo', source: 'Código do exemplo', guide: 'Ler a referência', mobile: 'Celular', description: 'Teste os controles Vue compartilhados e consulte o código exato de cada exemplo.' },
   fr: { title: 'Référence des composants', family: 'Famille de composants', state: 'État de l’exemple', preview: 'Exemple interactif', source: 'Code de l’exemple', guide: 'Lire la référence', mobile: 'Mobile', description: 'Testez les contrôles Vue partagés et consultez le code exact de chaque exemple.' },
+  zh: { title: '组件参考', family: '组件类别', state: '预览状态', preview: '交互式示例', source: '示例源代码', guide: '阅读参考文档', mobile: '移动端', description: '试用共享 Vue 控件，并查看各示例实际使用的源代码。' },
+  ja: { title: 'コンポーネントリファレンス', family: 'コンポーネントの種類', state: 'プレビューの状態', preview: '操作できる例', source: 'サンプルのソースコード', guide: 'リファレンスを読む', mobile: 'モバイル', description: '共通の Vue コントロールを試し、各サンプルで実際に使われているソースコードを確認できます。' },
 } as const;

@@ -11,12 +11,13 @@ import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import { demoLocales, scenarios, type ScenarioId, type DemoLocale } from './scenarios.ts';
 import type { PlaybackStatus } from './playback.ts';
+import { localeNames } from '@/shared/i18n/supported-locales.ts';
 import { toolbarCopy } from './toolbar-copy.ts';
 const props = defineProps<{ scenario: ScenarioId; locale: DemoLocale; paused: boolean; busy: boolean; events: number; status: PlaybackStatus; guideState: string; failure: boolean; ready: boolean; tours: Array<{ value: string; label: string }>; initialTour: string; docsUrl: string; metrics: string }>();
 const emit = defineEmits<{ scenario: [value: ScenarioId]; locale: [value: DemoLocale]; play: []; step: []; reset: []; failure: []; guide: [id: string, trigger: HTMLElement]; catalog: []; cancelGuide: [] }>();
 const t = computed(() => toolbarCopy[props.locale]);
 const scenarioOptions = computed(() => Object.entries(scenarios).map(([value, scenario]) => ({ value, label: scenario[props.locale] })));
-const languageOptions = computed(() => demoLocales.map((value) => ({ value, label: ({ en: 'English', es: 'Español', pt: 'Português', fr: 'Français' })[value] })));
+const languageOptions = computed(() => demoLocales.map((value) => ({ value, label: localeNames[value] })));
 const selectedTour = ref(props.initialTour);
 watch(selectedTour, () => emit('cancelGuide'));
 const playbackLabel = computed(() => {

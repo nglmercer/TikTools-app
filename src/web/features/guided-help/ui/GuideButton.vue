@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { isLocale } from '@/shared/i18n/supported-locales.ts';
 import { routerKey } from 'vue-router';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import { startInlineGuide, startTour } from '../model/coordinator.ts';
@@ -18,7 +19,7 @@ const props = withDefaults(defineProps<{
 }>(), { steps: () => [], id: undefined, tour: undefined, capabilities: undefined, taskState: undefined });
 const { t, locale } = useI18n();
 const router = inject(routerKey, null);
-const guideLocale = computed<TourLocale>(() => locale.value === 'es' || locale.value === 'pt' || locale.value === 'fr' ? locale.value : 'en');
+const guideLocale = computed<TourLocale>(() => isLocale(locale.value) ? locale.value : 'en');
 const label = computed(() => {
   if (!props.tour) return t('guides.help');
   const tour = tourRegistry[props.tour];

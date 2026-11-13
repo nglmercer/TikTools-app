@@ -1,6 +1,23 @@
 import { expect, test } from '@playwright/test';
 import { toolbarCopy } from '../../src/web/demo/toolbar-copy.ts';
 import { demoTourScenarios } from '../../src/web/demo/tours.ts';
+import { tourCatalogs } from '../../src/web/features/guided-help/catalogs/index.ts';
+
+for (const locale of ['zh', 'ja'] as const) test(`${locale}: playback and a selected walkthrough use the localized real interface`, async ({ page }) => {
+  await page.goto(`demo/?scenario=connection&locale=${locale}&instance=cjk-tour-${locale}`);
+  await expect(page.locator('html')).toHaveAttribute('lang', locale);
+  await page.getByTestId('demo-play').click();
+  await expect(page.getByTestId('demo-playback-status')).toHaveAttribute('data-status', 'playing');
+  await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
+  await page.getByTestId('demo-play').click();
+  await page.getByRole('combobox', { name: toolbarCopy[locale].chooseGuide, exact: true }).click();
+  await page.getByRole('option', { name: toolbarCopy[locale].tourTitles.overlay, exact: true }).click();
+  await page.getByTestId('demo-guide').click();
+  await expect(page.locator('.driver-popover-title')).toHaveText(tourCatalogs[locale].overlay.gateway.title);
+  await expect(page.locator('.driver-popover-next-btn')).toHaveText(tourCatalogs[locale].controls.next);
+  await page.locator('.driver-popover-close-btn').click();
+  await expect(page.getByTestId('demo-guide-status')).toHaveAttribute('data-status', 'dismissed');
+});
 
 test('tutorial selection prepares each matching scenario and reports dismissal without completion', async ({ page }) => {
   for (const id of Object.keys(demoTourScenarios) as Array<keyof typeof demoTourScenarios>) {

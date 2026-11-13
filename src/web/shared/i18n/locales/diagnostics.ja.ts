@@ -1,0 +1,18 @@
+export default {
+  emptyHistory: "記録はまだありません。",
+  filters: "フィルター", actions: "ログの操作", searchShort: "ログを検索", sourceLabel: "ソース", levelLabel: "レベル", activeFilters: "適用中のフィルター", removeFilter: "フィルターを削除：{value}", results: "全{total}件中{count}件", sessionShort: "このセッションのみ・機密データはマスク済み", selectionFiltered: "選択した記録はフィルターにより非表示です。", loadMore: "さらに100件読み込む",
+  title: "診断", viewLogs: "ログを表示", session: "このUIセッションのみの履歴です。機密フィールドはマスクされ、再読み込みすると履歴はリセットされます。",
+  search: "診断情報を検索", allSources: "すべてのソース", allLevels: "すべてのレベル",
+  info: "情報", warning: "警告", error: "エラー", empty: "一致する記録はありません。",
+  copyAll: "すべてコピー", copyFiltered: "絞り込み結果をコピー", copyEntry: "記録をコピー", export: "TXTでエクスポート", clear: "履歴を消去",
+  copied: "コピーしました。", copyFailed: "クリップボードを利用できません。下のテキストを選択してコピーしてください。",
+  exportFailed: "エクスポートできませんでした。テキストのコピーは利用できます。", exported: "エクスポートを要求しました。",
+  cleared: "履歴を消去しました。", dropped: "保持上限により、古い記録を{count}件削除しました。",
+  missing: "この記録は保持されていません。一致する履歴を下に表示しています。",
+  repeated: "{count}回繰り返し", last: "最終発生", back: "戻る", close: "診断を閉じる",
+  minimize: "最小化", restore: "元に戻す", move: "パネルを移動（ドラッグまたは矢印キー）", reset: "位置をリセット", fullPage: "ページ全体で開く",
+  newEntries: "新しい記録{count}件", filterEntity: "エンティティのフィルター：{entity}", resetFilters: "フィルターを解除",
+  connectionFailed: "接続に失敗", monitorFailed: "監視の確認が必要", accountFailed: "ログインの確認が必要",
+  syncFailed: "同期の確認が必要", updateFailed: "更新の確認が必要", updaterUnavailable: "ここでは自動更新を利用できません",
+  discoveryFailed: "ルームを読み込めませんでした", sources: { live: "TikTok LIVE", monitor: "LIVE監視", discovery: "ルームエクスプローラー", plugins: "プラグイン", account: "クラウドアカウント", sync: "クラウド同期", updates: "アップデート", transport: "ホスト接続", catalog: "カタログ", install: "インストールとレジストリ", collaboration: "共同作業", relay: "クラウドリレー", integrations: "連携" },
+};

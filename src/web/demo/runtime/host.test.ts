@@ -72,6 +72,8 @@ describe('public demo host', () => {
   });
   it('validates public parameters without promoting hidden screens', () => {
     expect(parseDemoOptions('?scenario=feed&locale=fr').locale).toBe('fr');
+    expect(parseDemoOptions('?scenario=feed&locale=zh-CN').locale).toBe('zh');
+    expect(parseDemoOptions('?scenario=feed&locale=jp').locale).toBe('ja');
     for (const params of ['?route=//evil.test', '?route=/rankings', '?tour=unknown', '?scenario=unknown', '?instance=../other', '?locale=xx']) expect(() => parseDemoOptions(params)).toThrow();
   });
 });
