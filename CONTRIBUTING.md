@@ -107,6 +107,11 @@ Do not wait for a check this checkout does not configure.
 
 ## Documentation and demo maintenance
 
+Temporary agent plans, handoff notes, audit results and benchmark logs belong
+under the ignored `dist/reports/` directory, not in tracked documentation.
+Move lasting instructions into the maintained guides and remove temporary
+reports when their work is finished.
+
 Public articles live under `docs/content/{en,es,pt,fr,zh,ja}/`, separated
 into user and developer audiences. Read current source before updating a
 guide, especially when an old design contains future requirements. Update
