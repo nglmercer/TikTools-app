@@ -2,7 +2,9 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
-import { createOverlay, readOverlay, reviseOverlay } from '../api/cloud-overlays-api.ts';
+import { useCloudContext } from '@/entities/cloud-account/model/cloud-context.ts';
+import { jsonEqual } from '@/shared/ui/json/json-diff.ts';
+import { createOverlay, readOverlay, reviseOverlay, type OverlayRecord } from '../api/cloud-overlays-api.ts';
 import { encodeOverlayFragment } from '../../../../shared/cloud-overlay-fragment.ts';
 import {
   addElement,
@@ -16,6 +18,18 @@ import {
   type OverlayKind,
 } from '../../../../shared/cloud-overlay-schema.ts';
 
+export interface OverlayComparison {
+  id: string;
+  local: OverlayDocument;
+  base: OverlayDocument | null;
+  cloud: OverlayDocument | null;
+  conflict: boolean;
+  canSend: boolean;
+}
+
+const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const same = jsonEqual;
+
 /**
  * One overlay being edited. The draft lives in memory until saved. A save is refused
  * while the schema reports problems; a saved overlay is revised with the revision the
@@ -27,49 +41,158 @@ export const useCloudOverlayStore = defineStore('overlay', () => {
   const overlayId = ref<string | null>(null);
   const revision = ref<number | null>(null);
   const saving = ref(false);
+  const loading = ref(false);
   const error = ref<string | null>(null);
   const copied = ref(false);
   const problems = computed(() => validateOverlay(draft.value));
+  const base = ref<OverlayRecord | null>(null);
+  const cached = ref<OverlayRecord | null>(null);
+  const identity = ref(0);
+  let reviewSequence = 0;
+  let lastReview: { key: string; comparison: OverlayComparison } | null = null;
+  const cloud = useCloudContext(() => {
+    // A new local document has no account-owned data. Loaded/saved documents do.
+    if (overlayId.value !== null) startNew('gift', 'New overlay');
+    else { identity.value += 1; saving.value = false; loading.value = false; lastReview = null; }
+  });
+
+  const comparisonSource = computed(() => JSON.stringify([cloud.stamp(), identity.value, overlayId.value, toWire(draft.value), base.value, cached.value]));
 
   function startNew(kind: OverlayKind, title: string): void {
+    identity.value += 1;
     draft.value = emptyOverlay(kind, title);
     overlayId.value = null;
     revision.value = null;
     error.value = null;
+    base.value = null;
+    cached.value = null;
+    lastReview = null;
+    saving.value = false;
+    loading.value = false;
+    copied.value = false;
   }
 
   async function load(id: string): Promise<boolean> {
+    if (saving.value || loading.value) return false;
+    const mine = identity.value;
+    const context = cloud.stamp();
+    const original = copy(draft.value);
+    loading.value = true;
     try {
       const record = await readOverlay(client, id);
-      draft.value = record.document;
+      if (mine !== identity.value || !cloud.isCurrent(context)) return false;
+      if (!same(draft.value, original)) throw new Error('overlay-draft-changed');
+      identity.value += 1;
+      draft.value = copy(record.document);
       overlayId.value = record.id;
       revision.value = record.revision;
+      base.value = copy(record);
+      cached.value = copy(record);
+      lastReview = null;
       error.value = null;
+      loading.value = false;
       return true;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (mine === identity.value && cloud.isCurrent(context)) error.value = errorMessage(failure);
       return false;
+    } finally {
+      if (mine === identity.value && cloud.isCurrent(context)) loading.value = false;
     }
   }
 
   async function save(): Promise<boolean> {
-    if (problems.value.length > 0 || saving.value) return false;
+    if (problems.value.length > 0 || saving.value || loading.value) return false;
+    if (base.value?.revision !== cached.value?.revision) { error.value = 'overlay-cloud-changed'; return false; }
+    const mine = identity.value;
+    const context = cloud.stamp();
     saving.value = true;
     error.value = null;
     try {
-      const document = toWire(draft.value) as OverlayDocument;
+      const document = copy(toWire(draft.value));
       const written = overlayId.value && revision.value !== null
         ? await reviseOverlay(client, overlayId.value, document, revision.value)
         : await createOverlay(client, document);
+      if (mine !== identity.value || !cloud.isCurrent(context)) return false;
       overlayId.value = written.id;
       revision.value = written.revision;
+      // A save acknowledges the submitted snapshot, not newer edits made while awaiting it.
+      base.value = { ...written, document };
+      cached.value = copy(base.value);
+      lastReview = null;
       return true;
     } catch (failure) {
-      error.value = errorMessage(failure);
+      if (mine === identity.value && cloud.isCurrent(context)) error.value = errorMessage(failure);
       return false;
     } finally {
-      saving.value = false;
+      if (mine === identity.value && cloud.isCurrent(context)) saving.value = false;
     }
+  }
+
+  /** Download only the latest revision into the comparison cache; never replace a draft. */
+  async function fetchRevision(): Promise<boolean> {
+    if (!overlayId.value) { error.value = 'overlay-not-saved'; return false; }
+    if (saving.value || loading.value) return false;
+    const id = overlayId.value;
+    const mine = identity.value;
+    const context = cloud.stamp();
+    loading.value = true;
+    error.value = null;
+    try {
+      const record = await readOverlay(client, id);
+      if (mine !== identity.value || !cloud.isCurrent(context)) return false;
+      if (revision.value !== null && record.revision < Math.max(revision.value, cached.value?.revision ?? 0)) throw new Error('overlay-review-changed');
+      cached.value = copy(record);
+      return true;
+    } catch (failure) {
+      if (mine === identity.value && cloud.isCurrent(context)) error.value = errorMessage(failure);
+      return false;
+    } finally {
+      if (mine === identity.value && cloud.isCurrent(context)) loading.value = false;
+    }
+  }
+
+  /** Stable IDs bind actions to both documents, their revisions and this account context. */
+  function review(): OverlayComparison | null {
+    const local = copy(toWire(draft.value));
+    const remote = cached.value?.document ?? null;
+    if (remote !== null && base.value?.revision === cached.value?.revision && same(local, toWire(remote))) { lastReview = null; return null; }
+    const key = comparisonSource.value;
+    if (lastReview?.key === key) return copy(lastReview.comparison);
+    const localChanged = base.value === null || !same(local, toWire(base.value.document));
+    const remoteChanged = base.value?.revision !== cached.value?.revision;
+    const comparison: OverlayComparison = {
+      id: `overlay-review-${++reviewSequence}`,
+      local,
+      base: base.value ? copy(toWire(base.value.document)) : null,
+      cloud: remote ? copy(toWire(remote)) : null,
+      conflict: localChanged && remoteChanged,
+      canSend: localChanged && !remoteChanged && problems.value.length === 0,
+    };
+    lastReview = { key, comparison };
+    return copy(comparison);
+  }
+
+  function requireReview(id: string): OverlayComparison {
+    const current = review();
+    if (!current || current.id !== id || saving.value || loading.value) throw new Error('overlay-review-changed');
+    return current;
+  }
+
+  async function saveReview(id: string): Promise<boolean> {
+    if (!requireReview(id).canSend) throw new Error('overlay-cloud-changed');
+    return save();
+  }
+
+  /** Local adoption of the reviewed cache; no network request or new Cloud revision. */
+  function applyReview(id: string): void {
+    const current = requireReview(id);
+    if (!current.cloud || !cached.value) throw new Error('overlay-not-saved');
+    draft.value = copy(current.cloud);
+    base.value = copy(cached.value);
+    revision.value = cached.value.revision;
+    error.value = null;
+    copied.value = false;
+    lastReview = null;
   }
 
   /**
@@ -128,6 +251,8 @@ export const useCloudOverlayStore = defineStore('overlay', () => {
     overlayId,
     revision,
     saving,
+    loading,
+    comparisonSource,
     error,
     copied,
     problems,
@@ -135,6 +260,10 @@ export const useCloudOverlayStore = defineStore('overlay', () => {
     startNew,
     load,
     save,
+    fetchRevision,
+    review,
+    saveReview,
+    applyReview,
     setCanvas,
     setTitle,
     setKind,

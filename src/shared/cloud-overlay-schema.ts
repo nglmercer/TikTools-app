@@ -149,11 +149,26 @@ export function toWire(document: OverlayDocument): OverlayDocument {
  * fails `validateOverlay`; a partial layout is never returned.
  */
 export function readOverlayDocument(value: unknown): OverlayDocument | null {
-  if (value === null || typeof value !== 'object') return null;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const candidate = value as Partial<OverlayDocument>;
-  if (typeof candidate.title !== 'string'
+  if (candidate.overlayVersion !== 1 || !(OVERLAY_KINDS as readonly unknown[]).includes(candidate.kind)
+    || typeof candidate.title !== 'string'
     || !candidate.canvas || typeof candidate.canvas !== 'object' || !Array.isArray(candidate.elements)) {
     return null;
+  }
+  if (candidate.capabilities !== undefined && (!Array.isArray(candidate.capabilities)
+    || candidate.capabilities.length > 1 || candidate.capabilities.some((capability) => capability !== 'live.read'))) return null;
+  for (const element of candidate.elements) {
+    if (!element || typeof element !== 'object' || typeof element.id !== 'string'
+      || !['text', 'avatar', 'art'].includes(element.type)
+      || element.opacity !== undefined && (typeof element.opacity !== 'number' || !Number.isFinite(element.opacity))) return null;
+    if (element.type === 'text') {
+      if (!element.source || typeof element.source !== 'object'
+        || (element.source.kind !== 'static' && element.source.kind !== 'field')
+        || element.source.kind === 'static' && typeof element.source.text !== 'string'
+        || element.source.kind === 'field' && typeof element.source.field !== 'string') return null;
+    }
+    if (element.type === 'art' && typeof element.assetId !== 'string') return null;
   }
   try {
     return validateOverlay(candidate as OverlayDocument).length === 0 ? (candidate as OverlayDocument) : null;

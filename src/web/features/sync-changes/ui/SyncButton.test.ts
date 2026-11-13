@@ -94,4 +94,21 @@ describe('SyncButton', () => {
     await flushPromises();
     expect(wrapper.find('[role="dialog"], dialog').exists()).toBe(true);
   });
+
+  it('opens revision-based Cloud documents without calling or preparing v2 sync', async () => {
+    const { adapter } = fakeAdapter({ fetch: true });
+    adapter.requiresCloud = true;
+    adapter.requiresSyncOptIn = false;
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'cloud.status') return account('signed-in');
+      throw new Error(`unexpected ${method}`);
+    });
+    const wrapper = mountWithPlugins(SyncButton, { attachTo: document.body, props: { adapter }, global: { plugins: storePlugins(client) } });
+    await flushPromises();
+    await wrapper.get('button').trigger('click');
+    await flushPromises();
+    expect(wrapper.get('dialog').attributes('open')).toBeDefined();
+    expect(wrapper.text()).not.toContain('Prepare Cloud sync');
+    expect(calls.some((call) => call.method.startsWith('sync.'))).toBe(false);
+  });
 });

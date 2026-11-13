@@ -13,10 +13,16 @@ import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import IconInfo from '@/shared/ui/icon/icons/IconInfo.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
+import SyncButton from '@/features/sync-changes/ui/SyncButton.vue';
+import { createOverlaySyncAdapter, overlayFailureText, OVERLAY_SYNC_METHODS } from '../model/overlay-sync-adapter.ts';
 
 const { t, te } = useI18n();
 const overlay = useCloudOverlayStore();
 const bundles = useBundlesStore();
+const capabilities = useCapabilityStore();
+const syncAvailable = computed(() => OVERLAY_SYNC_METHODS.every((method) => capabilities.supports(method) === true));
+const syncAdapter = createOverlaySyncAdapter({ overlay, supports: (method) => capabilities.supports(method), t });
 const loadId = ref('');
 
 const kindOptions = computed(() => OVERLAY_KINDS.map((kind) => ({ value: kind, label: t(`cloudOverlays.kinds.${kind}`) })));
@@ -85,6 +91,11 @@ function setKind(value: string): void {
       >
         <IconInfo :size="14" />
       </span>
+      <SyncButton
+        v-if="syncAvailable"
+        :adapter="syncAdapter"
+        :blocked-reason="overlay.saving || overlay.loading ? t('syncChanges.overlayBusy') : undefined"
+      />
     </h3>
 
     <form
@@ -99,7 +110,7 @@ function setKind(value: string): void {
       />
       <BaseButton
         type="submit"
-        :disabled="loadId.trim().length === 0 || overlay.saving"
+        :disabled="loadId.trim().length === 0 || overlay.saving || overlay.loading"
       >
         {{ t('cloudOverlays.open') }}
       </BaseButton>
@@ -268,14 +279,14 @@ function setKind(value: string): void {
     <BaseAlert
       v-if="overlay.error"
       tone="error"
-      :title="overlay.error === 'too-large' ? t('cloudOverlays.tooLarge') : overlay.error"
+      :title="overlay.error === 'too-large' ? t('cloudOverlays.tooLarge') : overlayFailureText(t, overlay.error)"
       compact
     />
 
     <div class="cloud-overlays__row">
       <BaseButton
         variant="primary"
-        :disabled="overlay.problems.length > 0 || overlay.saving"
+        :disabled="overlay.problems.length > 0 || overlay.saving || overlay.loading"
         @click="overlay.save()"
       >
         {{ overlay.overlayId ? t('cloudOverlays.saveRevision') : t('cloudOverlays.create') }}
@@ -304,7 +315,8 @@ function setKind(value: string): void {
 
 <style scoped>
 .cloud-overlays { display:grid; gap:var(--space-3); min-width:0; }
-.cloud-overlays__title { margin:0; }
+.cloud-overlays__title { display:flex; align-items:center; gap:var(--space-2); margin:0; }
+.cloud-overlays__title .sync-button { margin-left:auto; font-weight:normal; }
 .cloud-overlays__info { display:inline-flex; margin-left:var(--space-2); vertical-align:middle; color:var(--color-text-muted); font-weight:normal; }
 .cloud-overlays__note { margin:0; color:var(--color-text-muted); }
 .cloud-overlays__row { display:flex; flex-wrap:wrap; gap:var(--space-2); align-items:center; min-width:0; }

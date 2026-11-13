@@ -1,5 +1,6 @@
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import type { OverlayDocument } from '../../../../shared/cloud-overlay-schema.ts';
+import { readOverlayDocument } from '../../../../shared/cloud-overlay-schema.ts';
 
 export interface OverlayRecord {
   readonly id: string;
@@ -31,7 +32,7 @@ function record(value: unknown): Json {
 
 function write(value: unknown): OverlayWrite {
   const reply = record(value);
-  if (typeof reply.id !== 'string' || !UUID.test(reply.id) || typeof reply.revision !== 'number' || typeof reply.status !== 'string') {
+  if (typeof reply.id !== 'string' || !UUID.test(reply.id) || typeof reply.revision !== 'number' || !Number.isSafeInteger(reply.revision) || reply.revision < 1 || typeof reply.status !== 'string') {
     throw new InvalidOverlayResponse();
   }
   return { id: reply.id, revision: reply.revision, status: reply.status };
@@ -39,11 +40,10 @@ function write(value: unknown): OverlayWrite {
 
 export function parseOverlayRecord(value: unknown): OverlayRecord {
   const reply = record(value);
-  if (typeof reply.id !== 'string' || !UUID.test(reply.id) || typeof reply.revision !== 'number' || typeof reply.status !== 'string') {
-    throw new InvalidOverlayResponse();
-  }
-  // The document is the Cloud's own copy; the editor validates it before use.
-  return { id: reply.id, revision: reply.revision, status: reply.status, document: record(reply.document) as unknown as OverlayDocument };
+  const metadata = write(value);
+  const document = readOverlayDocument(reply.document);
+  if (!document) throw new InvalidOverlayResponse();
+  return { ...metadata, document };
 }
 
 export async function createOverlay(client: ControlClient, document: OverlayDocument): Promise<OverlayWrite> {
@@ -51,7 +51,9 @@ export async function createOverlay(client: ControlClient, document: OverlayDocu
 }
 
 export async function readOverlay(client: ControlClient, id: string): Promise<OverlayRecord> {
-  return parseOverlayRecord(await client.call<unknown>('bundles.overlays.read', { id }));
+  const result = parseOverlayRecord(await client.call<unknown>('bundles.overlays.read', { id }));
+  if (result.id.toLowerCase() !== id.toLowerCase()) throw new InvalidOverlayResponse();
+  return result;
 }
 
 export async function reviseOverlay(
@@ -60,5 +62,7 @@ export async function reviseOverlay(
   document: OverlayDocument,
   expectedRevision: number,
 ): Promise<OverlayWrite> {
-  return write(await client.call<unknown>('bundles.overlays.revise', { id, document, expectedRevision }));
+  const result = write(await client.call<unknown>('bundles.overlays.revise', { id, document, expectedRevision }));
+  if (result.id.toLowerCase() !== id.toLowerCase() || result.revision <= expectedRevision) throw new InvalidOverlayResponse();
+  return result;
 }

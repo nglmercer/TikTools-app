@@ -15,6 +15,7 @@
 import type { Page } from '@playwright/test';
 import type { VariableComparison } from '../../../src/web/features/edit-runtime-globals/model/variable-sync-adapter.ts';
 import type { RuntimeVariable } from '../../../src/web/entities/runtime-global/lib/runtime-variable.ts';
+import type { OverlayRecord } from '../../../src/web/entities/overlay/api/cloud-overlays-api.ts';
 import type { CollaborationStatus, Invitation, InvitationSecret, PairingRequest, Principal, Session, AuditEntry } from '../../../src/web/entities/collaboration/api/types.ts';
 
 export interface E2EHostState {
@@ -51,6 +52,7 @@ export interface E2EHostState {
   typedGlobals?: Record<string, RuntimeVariable>;
   typedGlobalsRevision?: string;
   variableComparisons?: VariableComparison[];
+  overlay?: OverlayRecord;
   /** Behavior snapshot served for `automation.snapshot`. */
   automationSnapshot: Record<string, unknown>;
   automationVersions?: Record<string, string>;
@@ -245,6 +247,21 @@ const INIT_SCRIPT = `
       throw { code: 'capability_unavailable', message: 'The fake host has no Owner library.' };
     },
     'cloud.status': () => ({ origin: 'http://127.0.0.1:3000', state: state.sync?.signedIn ? 'signed-in' : 'signed-out', accountId: 'tester', persistence: 'memory-only', error: null }),
+    'bundles.overlays.read': (params) => {
+      if (!state.overlay || params.id !== state.overlay.id) throw { code: 'not_found', message: 'Overlay not found' };
+      return state.overlay;
+    },
+    'bundles.overlays.create': (params) => {
+      state.overlay = { id: '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c', revision: 1, status: 'draft', document: structuredClone(params.document) };
+      const { id, revision, status } = state.overlay;
+      return { id, revision, status };
+    },
+    'bundles.overlays.revise': (params) => {
+      if (!state.overlay || params.id !== state.overlay.id || params.expectedRevision !== state.overlay.revision) throw { code: 'conflict', message: 'Overlay revision changed' };
+      state.overlay = { ...state.overlay, revision: state.overlay.revision + 1, document: structuredClone(params.document) };
+      const { id, revision, status } = state.overlay;
+      return { id, revision, status };
+    },
     'sync.status': () => ({ enabled: state.sync?.enabled ?? false, signedIn: state.sync?.signedIn ?? false, syncing: false, pending: state.sync?.entries.filter((entry) => entry.pending).length ?? 0, conflicts: [], lastError: null, lastSyncedAt: state.sync?.lastSyncedAt ?? null }),
     'sync.v2.stagePluginSettings': () => null,
     'sync.v2.selected': () => true,

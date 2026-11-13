@@ -22,6 +22,7 @@ const client = useControlClient();
 async function show(): Promise<void> {
   if (props.adapter.requiresCloud === false) { open.value = true; return; }
   await account.ensureRestored();
+  if (props.adapter.requiresSyncOptIn === false) { open.value = true; return; }
   await sync.refresh();
   try {
     preparing.value = sync.status?.enabled !== true || await client.call('sync.v2.selected', {}) !== true;
@@ -33,7 +34,7 @@ async function show(): Promise<void> {
 onMounted(() => {
   if (props.adapter.requiresCloud === false) return;
   void account.ensureRestored();
-  if (sync.status === null) void sync.refresh();
+  if (props.adapter.requiresSyncOptIn !== false && sync.status === null) void sync.refresh();
 });
 
 /** Why the panel cannot open, or null when it can. Sections that do not need Cloud are never blocked. */
@@ -42,7 +43,7 @@ const reason = computed<string | null>(() => {
   if (props.adapter.requiresCloud === false) return null;
   const own = props.adapter.unavailableReason?.();
   if (own) return own;
-  if (capabilities.supports('sync.status') === false) return t('syncChanges.unsupported');
+  if (props.adapter.requiresSyncOptIn !== false && capabilities.supports('sync.status') === false) return t('syncChanges.unsupported');
   if (account.status?.state !== 'signed-in') return t('syncChanges.signedOut');
   return null;
 });

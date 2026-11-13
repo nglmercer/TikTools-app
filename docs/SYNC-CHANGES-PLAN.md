@@ -1,7 +1,7 @@
 # Sync and the Changes panel (plan)
 
-Status: **shared panel, Plugins and reviewed Variables implemented; Automations Cloud,
-history and Overlay revisions still pending** (see the completion checklist). It builds on
+Status: **shared panel, Plugins, reviewed Variables and Overlay revision comparison implemented;
+Automations Cloud and operation history still pending** (see the completion checklist). It builds on
 [Desktop Cloud v2](CLOUD-V2-DESKTOP.md), which already provides the sync collections, the stored
 base version, conflict review (base, local, Cloud) and the background worker.
 
@@ -83,8 +83,8 @@ requires host approval. Backend migration: RemakeBackend
   a competing-writer test proves a failed batch is preserved and retried once the
   write lock is released. This does not establish the historical lock's cause.
 - Automations still uses a local comparison snapshot. Reviewed application of
-  downloaded settings/other section records and Variables/Overlays adapters remain
-  separate implementation work; the section-scoped publication change does not
+  downloaded settings/other section records remained separate work at this point;
+  reviewed Variables and Overlay revision comparison are described below. The section-scoped publication change does not
   claim those transports exist.
 - Backend code/migration has not been deployed. The initial 4.2.0 validation did
   not activate Cloud v2. During the later RC1 GUI test, v2 activation executed on
@@ -222,6 +222,33 @@ as do the plugin runtime suite and focused frontend/browser tests. Workspace
 Clippy passes with Rust 1.99.1, all targets/features and `-D warnings`. Full CI and
 release results are recorded with the 4.2.2 release evidence after completion.
 
+### Overlay revision comparison (source after the 4.2.2 candidate)
+
+The Cloud overlay editor uses the shared Changes panel over the existing
+`bundles.overlays.create/read/revise` API. It does not use the account's v2
+workspace, cursor, consent or migration. Opening Changes still requires Cloud
+sign-in and the host's announcement of all three methods.
+
+The panel compares the draft, its last saved/read revision and the downloaded
+revision. Download updates only the comparison cache. Send writes exactly the
+reviewed document with its original `expectedRevision`; a known concurrent edit
+cannot be forced over Cloud. Use Cloud on this device restores the reviewed
+cached copy locally without a save or upload. Replacing a draft, editing it,
+fetching a different revision or changing account invalidates old action IDs.
+
+An acknowledged save records the submitted snapshot while preserving edits made
+during that request. Late load/save/download replies are dropped after a document
+or account transition. Invalid Cloud documents never become editable drafts.
+Comparison uses structural JSON equality, independent of object key order.
+The existing Overlay library remains the revision-history surface; this adapter
+does not advertise merge, force, autosync, whole-workspace reset or operation history.
+
+Validation: 1,508 Vue tests, including revision/context/schema regressions, pass. The
+production frontend builds, TypeScript/ESLint passes, and a Chromium test verifies
+reviewed save and local restoration without any sync preparation/migration.
+The screenshot was inspected. This browser test uses fake data and does not
+validate OBS, a native WebView or production Cloud.
+
 ## Goal
 
 A git-like but simplified way to see what differs from Cloud and to push, fetch, reset and merge it,
@@ -279,5 +306,6 @@ Cloud has a public overlay gallery.
   merge). Only adapters that declare `merge` show it; no current adapter can stage a merged value.
 - [ ] Per-record history and restore (phase 2).
 - [ ] Branch provenance and a public-template fork action (phase 2).
-- [ ] Overlay revisions adapter (phase 3).
+- [x] Overlay revisions adapter (phase 3): reviewed draft/revision comparison,
+  conditional save, cache-only download and local restoration through Use Cloud.
 - [ ] Decide whether auto-sync is stored locally or in the `preferences` collection.

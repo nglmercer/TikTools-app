@@ -46,7 +46,8 @@ test('the old plugin updates link opens the plugin preferences and goes back', a
   await expect(page.getByText('Allow local package installation')).toBeVisible();
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(page.getByRole('tab', { name: /Installed/ })).toBeVisible();
-  await page.getByRole('button', { name: 'Preferences' }).click();
+  await page.getByRole('button', { name: 'More actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Preferences', exact: true }).click();
   await expect(page.getByText('Allow local package installation')).toBeVisible();
   consoleCapture.assertClean();
 });
@@ -58,8 +59,9 @@ test('Cloud areas appear in their own page only when the host announces them', a
   await page.goto('/#/overlays');
   await waitForFrontend(page);
   await page.getByRole('button', { name: 'Cloud' }).click();
-  await expect(page.getByRole('heading', { name: 'Cloud', level: 2 })).toBeVisible();
-  await page.getByRole('button', { name: 'Back' }).click();
+  const cloud = page.getByRole('dialog', { name: 'Cloud overlays', exact: true });
+  await expect(cloud).toBeVisible();
+  await cloud.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Widgets' })).toBeVisible();
   await page.goto('/#/connections');
   await expect(page.getByRole('button', { name: 'Webhooks' })).toBeVisible();
@@ -69,7 +71,8 @@ test('without announcements the Cloud areas stay hidden', async ({ page }) => {
   await installFakeHost(page, emptyState());
   await page.goto('/#/overlays');
   await waitForFrontend(page);
-  await expect(page.getByRole('button', { name: 'Portable packages' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Overlays', level: 1 })).toBeVisible();
+  await expect(page.getByRole('listbox', { name: 'Widgets', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cloud', exact: true })).toHaveCount(0);
   await page.goto('/#/connections');
   await expect(page.getByRole('button', { name: 'Webhooks' })).toHaveCount(0);

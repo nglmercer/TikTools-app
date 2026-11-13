@@ -19,9 +19,9 @@ unknown as absent. Older hosts keep the legacy Cloud views.
 | Surface | Methods | Where |
 | --- | --- | --- |
 | Catalog | `catalog.items`, `catalog.item`, `catalog.mine` | Plugins page, Explore tab |
-| Connections | `integrations.connections`, `integrations.connect`, `integrations.events`, `integrations.disconnect` | Settings, account section |
-| Teams | `teams.hosts.*`, `teams.devices.*`, `teams.invitations.*`, `teams.requests.*`, `teams.grants.*`, `teams.sessions.*`, `teams.host.status`, `teams.host.start`, `teams.host.stop` | Settings, account section |
-| Images and packages | `bundles.assets.upload`, `bundles.packages.preflight`, `bundles.packages.read`, `bundles.overlays.*`, `bundles.packages.create` | Settings, account section |
+| Connections | `integrations.connections`, `integrations.connect`, `integrations.events`, `integrations.disconnect` | Connections page |
+| Teams | `teams.hosts.*`, `teams.devices.*`, `teams.invitations.*`, `teams.requests.*`, `teams.grants.*`, `teams.sessions.*`, `teams.host.status`, `teams.host.start`, `teams.host.stop` | Settings, Teams tab |
+| Images and packages | `bundles.assets.upload`, `bundles.packages.preflight`, `bundles.packages.read`, `bundles.overlays.*`, `bundles.packages.create` | Overlays, Cloud library/editor |
 
 ### Lifecycle methods and the Cloud capability gate
 
@@ -57,9 +57,8 @@ endpoint is never contacted. Input is validated before any network use.
 ## Catalog
 
 - **Plugins, Explore.** On a host that announces `catalog.items` (or before discovery has
-  answered), the *Explore* tab of the Plugins page lists the Cloud catalog as rows in the same
-  list style as *Installed*. The tools row has a search box, one icon toggle per kind (plugins,
-  templates, profiles; pressing the active kind shows everything again) and *My library*. A host
+  answered), the *Explore* tab of the Plugins page requests plugins only and lists them as rows in
+  the same list style as *Installed*. Templates and profiles belong to Automations. A host
   that announces methods without `catalog.items` keeps the registry-based Explore. The old
   standalone catalog pages and their toolbar are gone; there is no registry or source to add.
 - **Replies apply only for the newest query**; a slow older reply is dropped. Paging is by
@@ -137,6 +136,11 @@ view says when older events were not shown.
   checks each change against the Cloud's rules and refuses a save while a problem
   remains. The preview is drawn by the editor; the live stream does not render
   overlays yet.
+- **Overlay Changes** compares the draft with its saved and downloaded revisions.
+  Download never applies the document. Send uses the reviewed original revision;
+  concurrent changes require another review. Use Cloud restores one reviewed
+  cached document locally. These revision APIs do not activate account sync v2.
+  See [the comparison and recovery contract](SYNC-CHANGES-PLAN.md#overlay-revision-comparison-source-after-the-422-candidate).
 
 ## Errors and diagnostics
 

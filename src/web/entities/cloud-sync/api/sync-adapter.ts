@@ -138,6 +138,8 @@ export interface SyncAdapter {
   watchSource?(): unknown;
   /** True when the section needs a signed-in, opted-in Cloud account (default true). */
   requiresCloud?: boolean;
+  /** Revision-based Cloud documents do not use the account's v2 sync workspace. */
+  requiresSyncOptIn?: boolean;
   /** Why the section cannot sync on this host right now (translated), or null. */
   unavailableReason?(): string | null;
   /** Short explanation shown in the status strip, e.g. what the list is compared with. */
