@@ -1,4 +1,5 @@
 export default {
+  variableNumericHost: "Mettez à jour cet hôte pour vérifier les nombres hors de la plage exacte du navigateur.",
   applyCloud: "Utiliser Cloud sur cet appareil",
   sendSavedValue: "Envoyer la valeur enregistrée",
   withdraw: "Supprimer de Cloud",

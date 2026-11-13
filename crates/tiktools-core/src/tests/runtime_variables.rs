@@ -245,3 +245,65 @@ async fn sqlite_failure_rolls_back_the_whole_variable_replacement_and_cache() {
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[test]
+fn typed_numeric_wire_preserves_large_integers_and_refuses_unprotected_legacy_roundtrips() {
+    let exact = variable(Kind::Number, serde_json::json!(i64::MAX));
+    let mut wire = serde_json::to_value(&exact).unwrap();
+    assert_eq!(wire["numberText"], i64::MAX.to_string());
+    wire["value"] = serde_json::json!(9_223_372_036_854_776_000.0);
+    let parsed: RuntimeVariable = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(parsed.value, serde_json::json!(i64::MAX));
+    wire.as_object_mut().unwrap().remove("numberText");
+    assert!(serde_json::from_value::<RuntimeVariable>(wire).is_err());
+    let ordinary = serde_json::to_value(variable(Kind::Number, serde_json::json!(46665))).unwrap();
+    assert_eq!(ordinary, serde_json::json!({"type":"number","value":46665}));
+    let secret =
+        serde_json::to_value(variable(Kind::Secret, serde_json::json!("local-private"))).unwrap();
+    assert!(secret.get("numberText").is_none());
+    for invalid in [
+        serde_json::json!({"type":"secret","value":"local-private","numberText":"1"}),
+        serde_json::json!({"type":"number","value":12,"numberText":"13"}),
+        serde_json::json!({"type":"number","value":12,"numberText":"true"}),
+        serde_json::json!({"type":"number","value":12,"numberText":"1e400"}),
+    ] {
+        assert!(serde_json::from_value::<RuntimeVariable>(invalid).is_err());
+    }
+    let schema = serde_json::to_value(schemars::schema_for!(RuntimeVariable)).unwrap();
+    assert!(schema["properties"].get("numberText").is_some());
+}
+
+#[tokio::test]
+async fn saving_another_variable_after_a_browser_roundtrip_does_not_round_the_native_integer() {
+    let (core, _, root) = core_with_fake_plugins(Arc::new(FakePluginState::default()), &[]);
+    let snapshot = core.runtime_variables_list().unwrap();
+    let saved = core
+        .runtime_variables_replace(RuntimeVariablesReplace {
+            expected_revision: snapshot.revision,
+            variables: [
+                (
+                    "counter".into(),
+                    variable(Kind::Number, serde_json::json!(i64::MAX)),
+                ),
+                (
+                    "label".into(),
+                    variable(Kind::Text, serde_json::json!("before")),
+                ),
+            ]
+            .into(),
+        })
+        .unwrap();
+    let mut browser = serde_json::to_value(&saved).unwrap();
+    browser["variables"]["counter"]["value"] = serde_json::json!(9_223_372_036_854_776_000.0);
+    browser["variables"]["label"]["value"] = serde_json::json!("after");
+    let variables = serde_json::from_value(browser["variables"].clone()).unwrap();
+    core.runtime_variables_replace(RuntimeVariablesReplace {
+        expected_revision: saved.revision,
+        variables,
+    })
+    .unwrap();
+    assert_eq!(core.globals_get("counter").unwrap(), i64::MAX.to_string());
+    assert_eq!(core.globals_get("label").unwrap(), "after");
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}

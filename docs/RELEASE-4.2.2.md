@@ -20,6 +20,11 @@ its previous value. Decision generations now advance after acknowledgement, so
 a later edit does not fail by reusing generation one. Unchecked Variables and
 other sections' pending queues remain outside the selected send operation.
 
+Large integer values keep their exact native text through browser edits and
+Cloud comparison/adoption. Editing an unrelated variable no longer rounds an
+untouched integer; unsafe legacy representations are rejected before a save.
+The ordinary numeric API format is unchanged.
+
 Types remain explicit: text, number, boolean, list and local secret. Saving locally
 does not upload. Secret or blocked values have no diff, publish or adopt control.
 There is no field merge, force, history or autosync control for this adapter.

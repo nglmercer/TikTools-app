@@ -68,3 +68,25 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
   expect(await countCalls(page, 'globals.typed.replace')).toBe(0);
   capture.assertClean();
 });
+
+test('editing another variable retains the exact native integer', async ({ page }) => {
+  const state = emptyState();
+  state.announcedMethods = ['globals.typed.list', 'globals.typed.replace'];
+  state.typedGlobals = {
+    counter: { type: 'number', value: JSON.parse('9223372036854775807') as number, numberText: '9223372036854775807' },
+    label: { type: 'text', value: 'before' },
+  };
+  const capture = await installFakeHost(page, state);
+  await page.goto('/#/automations?view=variables');
+  await waitForFrontend(page);
+  const rows = page.getByRole('table', { name: 'Runtime globals' }).getByRole('row');
+  await expect(rows.nth(1).getByRole('textbox', { name: 'Value' })).toHaveValue('9223372036854775807');
+  await rows.nth(2).getByRole('textbox', { name: 'Value' }).fill('after');
+  await page.getByRole('button', { name: 'Save globals' }).click();
+  await expect.poll(async () => (await readHostState(page)).typedGlobals?.label.value).toBe('after');
+  expect((await readHostState(page)).typedGlobals?.counter).toMatchObject({ type: 'number', numberText: '9223372036854775807' });
+  expect((await readHostState(page)).globals?.counter).toBe('9223372036854775807');
+  await expect(rows.nth(1).getByRole('textbox', { name: 'Value' })).toHaveValue('9223372036854775807');
+  expect(await countCalls(page, 'globals.set')).toBe(0);
+  capture.assertClean();
+});

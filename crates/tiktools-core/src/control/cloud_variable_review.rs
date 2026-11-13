@@ -223,9 +223,13 @@ mod native {
         if !WorkspaceEdit::Put(doc.clone()).valid(&key) {
             return Err(stale());
         }
-        serde_json::from_value(serde_json::json!({"type":doc["type"],"value":doc["value"]}))
-            .map(Some)
-            .map_err(|_| stale())
+        // The validated native cache has not crossed JavaScript. Preserve its
+        // exact number directly; the local RPC codec adds browser metadata.
+        let kind = serde_json::from_value(doc["type"].clone()).map_err(|_| stale())?;
+        Ok(Some(RuntimeVariable {
+            kind,
+            value: doc["value"].clone(),
+        }))
     }
 
     impl AppCore {

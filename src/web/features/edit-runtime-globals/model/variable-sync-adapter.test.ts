@@ -75,3 +75,15 @@ describe('native Variables Changes adapter', () => {
     expect(calls.map((call) => call.method)).toEqual(['sync.v2.variables.send', 'sync.v2.variables.apply']);
   });
 });
+
+it('shows distinct exact integer values even when JavaScript rounds both numeric fields alike', async () => {
+  const value = JSON.parse('9223372036854775807') as number;
+  const { adapter } = setup([row({
+    local: { type: 'number', value, numberText: '9223372036854775807' },
+    cloud: { type: 'number', value, numberText: '9223372036854775806' },
+    canApply: true,
+  })]);
+  const [change] = await adapter.list();
+  expect(change?.after).toEqual({ type: 'number', value: '9223372036854775807' });
+  expect(change?.remote).toEqual({ type: 'number', value: '9223372036854775806' });
+});

@@ -27,7 +27,9 @@ export function variableFromRow(row: GlobalRow): RuntimeVariable {
       let value: unknown;
       try { value = JSON.parse(row.value); } catch { throw new Error('invalidNumber'); }
       if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('invalidNumber');
-      return { type: 'number', value };
+      return Number.isInteger(value) && !Number.isSafeInteger(value)
+        ? { type: 'number', value, numberText: row.value.trim() }
+        : { type: 'number', value };
     }
     case 'boolean':
       if (row.value !== 'true' && row.value !== 'false') throw new Error('invalidBoolean');

@@ -531,6 +531,14 @@ Host behaviour (crates/tiktools-core `control/cloud_variables.rs`):
   the variable data happens to match. Existing textual globals remain text; there
   is no inference or automatic upload. Text/number/boolean/list/secret types
   persist natively; the existing `{{ globals.key }}` render path stays textual.
+  Integers beyond JavaScript's safe range carry an additional native-only
+  `numberText` field. The numeric `value` remains compatible, while exact text
+  is authoritative for the same browser numeric value. A missing/invalid exact
+  representation is rejected before replacement, so older browser clients cannot
+  silently round another variable. Ordinary numbers retain their existing shape;
+  secret values never receive this extra field. This metadata is not part of a
+  portable Cloud record. Cached Cloud numbers are handled natively without first
+  passing through JavaScript.
   The editor masks local secret fields and retains dirty drafts and their
   reviewed revision after a conflicting save. Older hosts keep the text editor;
   a dirty typed draft cannot fall back to legacy writes after a host change.

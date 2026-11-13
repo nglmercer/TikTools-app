@@ -1,4 +1,5 @@
 export default {
+  variableNumericHost: "Atualize este host para revisar números fora do intervalo exato do navegador.",
   applyCloud: "Usar Cloud neste dispositivo",
   sendSavedValue: "Enviar valor salvo",
   withdraw: "Remover da Cloud",

@@ -1,5 +1,5 @@
 import { defineSyncAdapter, type SyncChange } from '@/entities/cloud-sync/api/sync-adapter.ts';
-import type { RuntimeVariable } from '@/entities/runtime-global/lib/runtime-variable.ts';
+import { isRuntimeVariable, type RuntimeVariable } from '@/entities/runtime-global/lib/runtime-variable.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 
 export const VARIABLE_SYNC_METHODS = ['globals.typed.list', 'globals.typed.replace', 'sync.v2.variables.review', 'sync.v2.variables.send', 'sync.v2.variables.fetch', 'sync.v2.variables.apply', 'sync.v2.variables.withdraw'] as const;
@@ -35,14 +35,18 @@ export function createVariableSyncAdapter(deps: VariableSyncDeps) {
     const hidden = row.localSecret || row.blockedLocal || row.local?.type === 'secret' || row.cloud?.type === 'secret';
     const local = hidden ? undefined : row.local ?? undefined;
     const cloud = hidden ? undefined : row.cloud ?? undefined;
+    if ((local && !isRuntimeVariable(local)) || (cloud && !isRuntimeVariable(cloud))) throw new Error(deps.t('syncChanges.variableNumericHost'));
+    const display = (variable: RuntimeVariable | undefined) => variable?.type === 'number' && variable.numberText !== undefined
+      ? { type: 'number', value: variable.numberText }
+      : variable;
     const side = hidden || (row.pendingStatus && row.pendingStatus !== 'queued') || (local && (cloud || row.cloudDeleted))
       ? 'conflict' : local ? 'local' : 'remote';
     return {
       id: row.review, name: row.name, kind: 'variable', side,
       status: side === 'conflict' ? 'conflict' : row.cloudDeleted ? 'deleted' : local && cloud ? 'modified' : 'added',
-      before: side === 'remote' ? local : cloud,
-      after: side === 'remote' ? cloud : local,
-      remote: cloud,
+      before: display(side === 'remote' ? local : cloud),
+      after: display(side === 'remote' ? cloud : local),
+      remote: display(cloud),
       canSend: row.canSend && !hidden,
       canApply: row.canApply && !hidden,
       canWithdraw: row.canWithdraw,

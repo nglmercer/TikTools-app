@@ -1221,3 +1221,30 @@ async fn reviewed_variables_reject_changed_local_or_target_and_missing_capabilit
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }
+
+#[tokio::test]
+async fn reviewed_variables_adopt_an_exact_cached_integer_without_javascript_rounding() {
+    let (core, log, root) = fixture(true).await;
+    core.globals_set("counter", "local text").unwrap();
+    cache_variable(
+        &core,
+        "counter",
+        Some(variable_document("counter", "number", json!(u64::MAX))),
+        1,
+    )
+    .await;
+    let before = log.lock().unwrap().len();
+    let review = core.sync_v2_variables_review().await.unwrap();
+    let wire = serde_json::to_value(&review).unwrap();
+    assert_eq!(
+        wire["changes"][0]["cloud"]["numberText"],
+        u64::MAX.to_string()
+    );
+    core.sync_v2_variables_apply(variable_review(&core, "counter").await)
+        .await
+        .unwrap();
+    assert_eq!(core.globals_get("counter").unwrap(), u64::MAX.to_string());
+    assert_eq!(log.lock().unwrap().len(), before);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}

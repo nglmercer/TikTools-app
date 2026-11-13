@@ -1,4 +1,5 @@
 export default {
+  variableNumericHost: "Update this host to review numbers outside the safe browser range.",
   applyCloud: "Use Cloud on this device",
   sendSavedValue: "Send saved value",
   withdraw: "Remove from Cloud",

@@ -14,6 +14,7 @@
 
 import type { Page } from '@playwright/test';
 import type { VariableComparison } from '../../../src/web/features/edit-runtime-globals/model/variable-sync-adapter.ts';
+import type { RuntimeVariable } from '../../../src/web/entities/runtime-global/lib/runtime-variable.ts';
 import type { CollaborationStatus, Invitation, InvitationSecret, PairingRequest, Principal, Session, AuditEntry } from '../../../src/web/entities/collaboration/api/types.ts';
 
 export interface E2EHostState {
@@ -47,7 +48,7 @@ export interface E2EHostState {
   };
   /** Runtime globals served by `globals.list` and written by `globals.set`. */
   globals?: Record<string, string>;
-  typedGlobals?: Record<string, { type: 'text' | 'number' | 'boolean' | 'list' | 'secret'; value: string | number | boolean | string[] }>;
+  typedGlobals?: Record<string, RuntimeVariable>;
   typedGlobalsRevision?: string;
   variableComparisons?: VariableComparison[];
   /** Behavior snapshot served for `automation.snapshot`. */
@@ -362,7 +363,7 @@ const INIT_SCRIPT = `
       if (params.expectedRevision !== (state.typedGlobalsRevision ?? 'a'.repeat(64))) throw { code: 'conflict', message: 'runtime variables changed; reload before saving' };
       state.typedGlobals = structuredClone(params.variables);
       state.typedGlobalsRevision = (BigInt('0x' + params.expectedRevision) + 1n).toString(16).padStart(64, '0');
-      state.globals = Object.fromEntries(Object.entries(state.typedGlobals).map(([name, variable]) => [name, typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)]));
+      state.globals = Object.fromEntries(Object.entries(state.typedGlobals).map(([name, variable]) => [name, variable.type === 'number' && variable.numberText !== undefined ? variable.numberText : typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)]));
       return { revision: state.typedGlobalsRevision, variables: state.typedGlobals };
     },
     'globals.set': (params) => {

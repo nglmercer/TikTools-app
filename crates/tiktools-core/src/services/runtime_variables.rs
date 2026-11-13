@@ -36,12 +36,90 @@ impl RuntimeVariableKind {
     }
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "RuntimeVariableWire", into = "RuntimeVariableWire")]
 pub struct RuntimeVariable {
-    #[serde(rename = "type")]
     pub kind: RuntimeVariableKind,
     pub value: Value,
+}
+
+/// `value` retains the existing numeric API. Exact text accompanies integers
+/// outside JavaScript's safe range so a browser can edit another row without
+/// rounding an untouched native number. It is never emitted for a secret.
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RuntimeVariableWire {
+    #[serde(rename = "type")]
+    kind: RuntimeVariableKind,
+    value: Value,
+    /// Required for integers outside JavaScript's exact range. The numeric
+    /// `value` stays for compatibility; this text preserves the native value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(length(max = 4096))]
+    number_text: Option<String>,
+}
+
+fn outside_js_integer_range(value: &Value) -> bool {
+    value.as_f64().is_some_and(|number| {
+        number.is_finite() && number.fract() == 0.0 && number.abs() > 9_007_199_254_740_991.0
+    })
+}
+
+impl From<RuntimeVariable> for RuntimeVariableWire {
+    fn from(variable: RuntimeVariable) -> Self {
+        let number_text = (variable.kind == RuntimeVariableKind::Number
+            && outside_js_integer_range(&variable.value))
+        .then(|| variable.value.to_string());
+        Self {
+            kind: variable.kind,
+            value: variable.value,
+            number_text,
+        }
+    }
+}
+
+impl TryFrom<RuntimeVariableWire> for RuntimeVariable {
+    type Error = &'static str;
+
+    fn try_from(wire: RuntimeVariableWire) -> Result<Self, Self::Error> {
+        let mut value = wire.value;
+        if wire.kind == RuntimeVariableKind::Number
+            && outside_js_integer_range(&value)
+            && wire.number_text.is_none()
+        {
+            return Err("exact numeric text is required outside the safe integer range");
+        }
+        if let Some(text) = wire.number_text {
+            if wire.kind != RuntimeVariableKind::Number || text.len() > 4096 {
+                return Err("invalid exact numeric representation");
+            }
+            let exact: Value =
+                serde_json::from_str(&text).map_err(|_| "invalid exact numeric representation")?;
+            let number = exact
+                .as_f64()
+                .filter(|number| number.is_finite())
+                .ok_or("invalid exact numeric representation")?;
+            // The browser's numeric field may have rounded an integer. The
+            // exact text is authoritative only for the same JS numeric value.
+            if value.as_f64() != Some(number) {
+                return Err("inconsistent exact numeric representation");
+            }
+            value = exact;
+        }
+        Ok(Self {
+            kind: wire.kind,
+            value,
+        })
+    }
+}
+
+impl JsonSchema for RuntimeVariable {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "RuntimeVariable".into()
+    }
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        RuntimeVariableWire::json_schema(generator)
+    }
 }
 
 impl std::fmt::Debug for RuntimeVariable {
@@ -59,7 +137,7 @@ impl RuntimeVariable {
             RuntimeVariableKind::Text | RuntimeVariableKind::Secret => {
                 self.value.as_str().is_some_and(|s| s.len() <= 4096)
             }
-            RuntimeVariableKind::Number => self.value.is_number(),
+            RuntimeVariableKind::Number => self.value.as_f64().is_some_and(f64::is_finite),
             RuntimeVariableKind::Boolean => self.value.is_boolean(),
             RuntimeVariableKind::List => self.value.as_array().is_some_and(|items| {
                 items.len() <= 100
