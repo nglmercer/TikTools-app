@@ -20,10 +20,10 @@ name = "tiktools-plugin-stage-native"
 path = "src/bin/tiktools-plugin-stage-native.rs"
 
 [dependencies]
-tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.2.0" }
-tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "4.2.0" }
-tiktools-plugin-registry = { path = "../tiktools-plugin-registry", version = "4.2.0" }
-tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "4.2.0", features = ["providers"] }
+tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.2.1-rc.1" }
+tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "4.2.1-rc.1" }
+tiktools-plugin-registry = { path = "../tiktools-plugin-registry", version = "4.2.1-rc.1" }
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "4.2.1-rc.1", features = ["providers"] }
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true
