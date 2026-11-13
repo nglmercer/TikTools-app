@@ -1,24 +1,6 @@
 name: Documentation and demo
 
 on:
-  push:
-    branches: [remake, feat/docs-site-demo]
-  pull_request:
-    branches: [remake]
-    paths:
-      - 'docs/**'
-      - 'src/**'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'packages/**'
-      - 'vite*.ts'
-      - 'playwright*.ts'
-      - 'tsconfig*.json'
-      - 'package.json'
-      - 'bun.lock'
-      - 'README.md'
-      - 'CONTRIBUTING.md'
-      - '.github/workflows/site.yml'
   workflow_dispatch:
     inputs:
       publish:
@@ -42,6 +24,7 @@ jobs:
   build:
     name: Check and assemble static site
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     concurrency:
       group: site-check-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
@@ -102,6 +85,7 @@ jobs:
   publish:
     name: Publish manifest-owned paths with CAS
     needs: build
+    timeout-minutes: 20
     # Both site and release-feed writers use current-tree CAS/reapply. Site
     # publication is explicit, manual and restricted to the remake branch.
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/remake' }}

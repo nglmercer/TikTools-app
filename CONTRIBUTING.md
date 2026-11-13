@@ -80,6 +80,15 @@ bun scripts/task.ts rust-lint
 bun scripts/task.ts rust test --workspace --locked -- --test-threads=1
 ```
 
+Use the narrow test runner or `bun run test --changed` while editing. The CI
+scope selector omits native jobs for reviewed docs/frontend paths, retains all
+gates for native/infrastructure/unknown changes, and fails closed when Git
+comparison is unavailable. Reusable callers default to full validation; manual
+CI accepts frontend/native/full. Keep SQLite/profile tests serial until their
+shared resources are isolated. Site and release recovery run only manually;
+recovery defaults to Linux verification without publication. Avoid dispatching
+remote workflows for checks already established locally.
+
 `frontend-lint` includes Vue type checking and package SDK/UI checks.
 `bun run ci` also checks the signer revision, universal widget contracts,
 native batched-like regression, optional local-browser adapter, sandbox API

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b6fb9821daf697d22fa7d043ea7383317e9a010e0a7c579fe3be77297976dcee"
-translationRevision: "b6fb9821daf697d22fa7d043ea7383317e9a010e0a7c579fe3be77297976dcee"
+sourceRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
+translationRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
 order: 210
 ---
 
@@ -36,6 +36,16 @@ The default fast suite combines Bun units and web/widget Vitest suites. The targ
 Vue component tests use the shared fake control client. Main Playwright tests exercise the same SPA against a fake `window.ipc` host installed before navigation. Unknown RPCs fail loudly and console/page errors are checked. They run Chromium, not Wry. Plugin UI browser suites live with the external plugin repository. Widget gateway suites test the shared wire/client and built assets.
 
 For authorized browser work after building assets, use `bun scripts/task.ts test e2e`. This launches a browser, so it is intentionally separate from documentation editing and headless source review. Native-shell, OBS Browser Source, phone, OS credential-store, updater replacement and two-PC tests need their real environments and explicit evidence.
+
+## Execution time and CI cost {#execution-time-and-ci-cost}
+
+Start with a file/name filter or `bun scripts/task.ts test --changed` locally. A full frontend run keeps all files isolated; Vitest uses `vmThreads` to reuse the DOM runtime per worker rather than sharing application state across files.
+
+CI compares the complete push or pull-request range. Reviewed documentation paths omit native jobs; Vue/demo changes run the frontend gate. Native sources, build infrastructure, dependency manifests, unknown paths or an unavailable comparison retain every existing gate. `scripts/ci-scope.mjs` is the tested selection policy. Manual CI offers `frontend`, `native` or `full`; reusable callers default to full validation. The final CI status rejects failed or cancelled selected jobs.
+
+Rust caches are separated by role, OS, toolchain, lockfile and source revision. CI retains line-table debug information and disables incremental sessions to reduce cache volume. Serial SQLite/profile tests remain serial until their shared resources are independently isolated. Do not remove that guard to obtain a faster timing.
+
+The site workflow is manual, so editing or pushing documentation does not start a second remote build. Release recovery is also manual: its default checks only Linux and does not publish. Both platform gates and an explicit publish choice are required for release publication. Never dispatch or repeat paid-runner work merely to confirm a Markdown edit.
 
 ## Expected result and status {#expected-result-and-status}
 

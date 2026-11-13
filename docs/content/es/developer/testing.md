@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b6fb9821daf697d22fa7d043ea7383317e9a010e0a7c579fe3be77297976dcee"
-translationRevision: "b6fb9821daf697d22fa7d043ea7383317e9a010e0a7c579fe3be77297976dcee"
+sourceRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
+translationRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
 order: 210
 ---
 
@@ -36,6 +36,16 @@ La suite rápida combina unidades Bun y Vitest de aplicación/widgets. El ejecut
 Las pruebas Vue utilizan el cliente de control falso compartido. Playwright principal ejecuta la misma SPA contra un host `window.ipc` falso instalado antes de navegar. Las llamadas RPC desconocidas fallan y se comprueban errores de consola/página. Ejecuta Chromium, no Wry. Las suites de interfaz de plugins viven en su repositorio externo. Las pruebas de gateway de widgets verifican cliente, protocolo y recursos compilados.
 
 Para trabajo de navegador autorizado, tras compilar recursos utiliza `bun scripts/task.ts test e2e`. Lanza un navegador y por eso se separa de la edición documental y revisión de código sin interfaz. Shell nativo, OBS Browser Source, teléfono, almacén seguro del sistema, sustitución del actualizador y dos equipos necesitan sus entornos reales y evidencia explícita.
+
+## Tiempo de ejecución y coste CI {#execution-time-and-ci-cost}
+
+Empieza localmente por un filtro de archivo/nombre o `bun scripts/task.ts test --changed`. La suite completa conserva el aislamiento de archivos; Vitest usa `vmThreads` para reutilizar el entorno DOM por worker sin compartir el estado de la aplicación entre archivos.
+
+CI compara el rango completo del push o pull request. Las rutas documentales revisadas omiten jobs nativos; los cambios de Vue/demo ejecutan la puerta frontend. Código nativo, infraestructura de compilación, manifiestos de dependencias, rutas desconocidas o una comparación no disponible conservan todas las puertas existentes. `scripts/ci-scope.mjs` contiene la política probada de selección. CI manual ofrece `frontend`, `native` o `full`; las llamadas reutilizables validan todo por defecto. El estado final CI rechaza jobs seleccionados fallidos o cancelados.
+
+Las cachés Rust se separan por función, sistema operativo, toolchain, lockfile y revisión de fuentes. CI conserva tablas de líneas para depuración y desactiva sesiones incrementales para reducir el volumen de caché. Las pruebas seriales de SQLite/perfiles siguen siendo seriales hasta aislar sus recursos compartidos. No elimines esa protección para obtener un tiempo menor.
+
+El workflow del sitio es manual: editar o subir documentación no inicia otra compilación remota. La recuperación de releases también es manual: por defecto comprueba solo Linux y no publica. Publicar requiere las puertas de ambas plataformas y una elección explícita. No inicies ni repitas trabajo en runners de pago solo para confirmar una edición Markdown.
 
 ## Resultado esperado y estado {#expected-result-and-status}
 
