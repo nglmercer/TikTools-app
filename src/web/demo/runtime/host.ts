@@ -98,7 +98,7 @@ export function createDemoHost(scenario: ScenarioId) {
       if (!path.startsWith('globals.')) return renderTemplate(placeholder, event);
       const name = path.slice(8); const value = Object.hasOwn(state.typedGlobals ?? {}, name) ? state.typedGlobals![name] : undefined;
       return value ? value.type === 'secret' ? '••••••••' : variableText(value) : '';
-    }) : 'Demo: external effects and scripts are unavailable.';
+    }) : logError && action.typeId === 'core.log' ? 'Demo: simulated action failure. Disable the failure simulation to retry.' : 'Demo: external effects and scripts are unavailable.';
     const run: BehaviorRun = { id: `demo-run-${++runSequence}`, at: DEMO_AT + ticks * 1000, status: ok ? 'ok' : 'error', actionId: action.id, actionName: action.name, eventId, summary, durationMs: 1, test, logs: [summary], ...(ok ? {} : { error: summary }), eventSource: test ? 'sample' : 'live' };
     state.automationRuns.push(run as unknown as Record<string, unknown>); if (state.automationRuns.length > 60) state.automationRuns.shift(); return run;
   }

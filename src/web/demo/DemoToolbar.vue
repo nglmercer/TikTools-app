@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
@@ -10,13 +10,20 @@ import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import { demoLocales, scenarios, type ScenarioId, type DemoLocale } from './scenarios.ts';
+import type { PlaybackStatus } from './playback.ts';
 import { toolbarCopy } from './toolbar-copy.ts';
-const props = defineProps<{ scenario: ScenarioId; locale: DemoLocale; paused: boolean; failure: boolean; ready: boolean; tours: Array<{ value: string; label: string }>; initialTour: string; docsUrl: string; metrics: string }>();
-const emit = defineEmits<{ scenario: [value: ScenarioId]; locale: [value: DemoLocale]; play: []; step: []; reset: []; failure: []; guide: [id: string, trigger: HTMLElement]; catalog: [] }>();
+const props = defineProps<{ scenario: ScenarioId; locale: DemoLocale; paused: boolean; busy: boolean; events: number; status: PlaybackStatus; guideState: string; failure: boolean; ready: boolean; tours: Array<{ value: string; label: string }>; initialTour: string; docsUrl: string; metrics: string }>();
+const emit = defineEmits<{ scenario: [value: ScenarioId]; locale: [value: DemoLocale]; play: []; step: []; reset: []; failure: []; guide: [id: string, trigger: HTMLElement]; catalog: []; cancelGuide: [] }>();
 const t = computed(() => toolbarCopy[props.locale]);
 const scenarioOptions = computed(() => Object.entries(scenarios).map(([value, scenario]) => ({ value, label: scenario[props.locale] })));
 const languageOptions = computed(() => demoLocales.map((value) => ({ value, label: ({ en: 'English', es: 'Español', pt: 'Português', fr: 'Français' })[value] })));
 const selectedTour = ref(props.initialTour);
+watch(selectedTour, () => emit('cancelGuide'));
+const playbackLabel = computed(() => {
+  const labels = { ready: t.value.ready, connecting: t.value.connecting, playing: t.value.playing, paused: t.value.paused, disconnected: t.value.disconnected, limit: t.value.limitReached, error: t.value.playbackError };
+  return labels[props.status];
+});
+const guideLabel = computed(() => ({ preparing: t.value.preparingGuide, active: t.value.activeGuide, completed: t.value.guideComplete, dismissed: t.value.guideDismissed, unavailable: t.value.guideUnavailable })[props.guideState]);
 const moreOpen = ref(false);
 const menuAnchor = shallowRef<HTMLElement | null>(null);
 const menuItems = computed<MenuEntry[]>(() => [{ id: 'components', label: t.value.catalog }, { id: 'failure', label: t.value.error, checked: props.failure }]);
@@ -86,6 +93,7 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         <BaseButton
           variant="primary"
           data-testid="demo-play"
+          :disabled="!ready || busy || status === 'limit' || ['preparing', 'active'].includes(guideState)"
           :pressed="!paused"
           @click="emit('play')"
         >
@@ -95,6 +103,7 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         </BaseButton>
         <BaseButton
           data-testid="demo-step"
+          :disabled="!ready || busy || status === 'limit' || ['preparing', 'active'].includes(guideState)"
           @click="emit('step')"
         >
           <template #icon>
@@ -118,17 +127,35 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
           v-model="selectedTour"
           :aria-label="t.chooseGuide"
           :options="tours"
+          :disabled="!ready || ['preparing', 'active'].includes(guideState)"
         /></label>
         <BaseButton
           data-testid="demo-guide"
-          :disabled="!ready"
+          :disabled="!ready || busy || ['preparing', 'active'].includes(guideState)"
           @click="guide"
         >
-          {{ t.guide }}<template #icon>
-            <span aria-hidden="true">?</span>
-          </template>
+          {{ guideState === 'active' ? t.activeGuide : t.guide }}
         </BaseButton>
       </div>
+    </div>
+    <div
+      class="demo-toolbar__status"
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        data-testid="demo-playback-status"
+        :data-status="status"
+      >{{ playbackLabel }}</span>
+      <span
+        class="demo-toolbar__event-count"
+        data-testid="demo-event-count"
+      >{{ t.events }}: {{ events }} / 300</span>
+      <span
+        v-if="guideLabel"
+        data-testid="demo-guide-status"
+        :data-status="guideState"
+      >{{ guideLabel }}</span>
     </div>
     <output
       data-testid="demo-metrics"

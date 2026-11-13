@@ -7,6 +7,17 @@ import { flushPromises } from '@vue/test-utils';
 import { parseHosts, parseDevices, parseAccessibleTeams } from '@/entities/cloud-teams/api/teams-api.ts';
 
 describe('public demo host', () => {
+  it('simulates reversible action errors without claiming that the LIVE connection failed', () => {
+    const host = createDemoHost('feed');
+    host.simulateError(true);
+    host.step();
+    expect(host.state.automationRuns.at(-1)).toMatchObject({ status: 'error', error: expect.stringContaining('simulated action failure') });
+    expect(host.state.liveStatus.connected).toBe(true);
+    host.simulateError(false);
+    host.step(); host.step(); host.step();
+    expect(host.state.automationRuns.at(-1)).toMatchObject({ status: 'ok' });
+    host.dispose();
+  });
   it('keeps experimental Teams readable and states the native boundary explicitly', async () => {
     const host = createDemoHost('collaboration'); const client = createControlClient({ transport: host.transport }); client.attach();
     expect(parseHosts(await client.call('teams.hosts.list'))).toEqual([]);

@@ -1,0 +1,6 @@
+export const catalogCopy = {
+  en: { title: 'Component reference', family: 'Component family', state: 'Preview state', preview: 'Interactive example', source: 'Example source', guide: 'Read the reference', mobile: 'Mobile', description: 'Try the shared Vue controls and inspect the exact source used by each example.' },
+  es: { title: 'Referencia de componentes', family: 'Familia de componentes', state: 'Estado del ejemplo', preview: 'Ejemplo interactivo', source: 'Código del ejemplo', guide: 'Leer la referencia', mobile: 'Móvil', description: 'Prueba los controles Vue compartidos y consulta el código exacto de cada ejemplo.' },
+  pt: { title: 'Referência de componentes', family: 'Família de componentes', state: 'Estado do exemplo', preview: 'Exemplo interativo', source: 'Código do exemplo', guide: 'Ler a referência', mobile: 'Celular', description: 'Teste os controles Vue compartilhados e consulte o código exato de cada exemplo.' },
+  fr: { title: 'Référence des composants', family: 'Famille de composants', state: 'État de l’exemple', preview: 'Exemple interactif', source: 'Code de l’exemple', guide: 'Lire la référence', mobile: 'Mobile', description: 'Testez les contrôles Vue partagés et consultez le code exact de chaque exemple.' },
+} as const;

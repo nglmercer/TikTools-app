@@ -9,7 +9,7 @@ html[data-demo] #app { flex:1 1 0; width:100%; height:auto; min-height:0; }
 .demo-toolbar__brand-divider { color:var(--color-border-strong); }
 .demo-toolbar__badge { display:inline-flex; align-items:center; gap:6px; padding:2px 8px; border:1px solid var(--color-border-subtle); border-radius:4px; font-size:11px; color:var(--color-text-muted); white-space:nowrap; }
 .demo-toolbar__badge > span { width:5px; height:5px; border-radius:50%; background:var(--color-success); }
-.demo-toolbar__description { margin:5px 0 16px; color:var(--color-text-muted); font-size:12px; }
+.demo-toolbar__description { margin:5px 0 12px; color:var(--color-text-muted); font-size:12px; }
 .demo-toolbar__docs { display:inline-flex; gap:6px; color:var(--color-text-muted); text-decoration:none; white-space:nowrap; }
 .demo-toolbar__docs:hover { color:var(--color-text); }
 .demo-toolbar__language { width:112px; }
@@ -28,9 +28,16 @@ html[data-demo] #app { flex:1 1 0; width:100%; height:auto; min-height:0; }
  .demo-toolbar__identity { gap:6px; } .demo-toolbar__brand { gap:7px; }
  .demo-toolbar__brand > span:last-child { max-width:110px; overflow:hidden; text-overflow:ellipsis; }
  .demo-toolbar__docs { display:none; }
- .demo-toolbar__utilities { gap:4px; } .demo-toolbar__language { width:98px; }
+ .demo-toolbar__utilities { gap:4px; } .demo-toolbar__language { width:128px; }
  .demo-toolbar__description { font-size:11px; margin-bottom:10px; }
  .demo-toolbar__controls { display:grid; grid-template-columns:minmax(0,1fr); gap:10px; }
- .demo-toolbar__playback { width:100%; } .demo-toolbar__playback > :first-child,.demo-toolbar__playback > :nth-child(2) { flex:1; }
+ .demo-toolbar__playback { width:100%; } .demo-toolbar__playback > :first-child { flex:0 0 auto; min-width:106px; } .demo-toolbar__playback > :nth-child(2) { flex:1; }
  .demo-toolbar__guides { width:100%; } .demo-toolbar__field > span { font-size:11px; }
 }
+
+.demo-toolbar__status { display:flex; flex-wrap:wrap; gap:6px 18px; align-items:center; margin-top:10px; font-size:11px; color:var(--color-text-muted); }
+.demo-toolbar__event-count { font-variant-numeric:tabular-nums; }
+.demo-toolbar__status [data-status="error"],.demo-toolbar__status [data-status="unavailable"] { color:var(--color-danger); }
+.demo-toolbar__status [data-status="playing"] { color:var(--color-success); }
+
+@media(max-width:360px) { .demo-toolbar__brand > span:last-child,.demo-toolbar__brand-divider { display:none; } }

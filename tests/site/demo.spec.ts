@@ -29,6 +29,27 @@ test('connect → event → automation → result, then reset and direct refresh
   await expect(page.locator('body')).toContainText('No runs yet');
 });
 
+test('Play connects the first scenario, shows events, and pause/step/reset remain coherent', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=en&instance=playback-controls');
+  const status = page.getByTestId('demo-playback-status');
+  await expect(page.getByTestId('demo-play')).toBeEnabled();
+  await page.getByTestId('demo-play').click();
+  await expect(status).toHaveAttribute('data-status', 'playing');
+  await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
+  await page.getByTestId('demo-play').click();
+  await expect(status).toHaveAttribute('data-status', 'paused');
+  const count = await page.getByTestId('demo-event-count').innerText();
+  await page.waitForTimeout(2100); // Cross the actual autoplay interval: pause must stop delivery.
+  await expect(page.getByTestId('demo-event-count')).toHaveText(count);
+  await page.getByTestId('demo-step').click();
+  await expect(page.getByTestId('demo-event-count')).toContainText('2 / 300');
+  await page.getByRole('link', { name: 'Automations', exact: true }).click();
+  await expect(page.locator('body')).toContainText('Hello Luna');
+  await page.getByTestId('demo-reset').click();
+  await expect(page.getByTestId('demo-event-count')).toContainText('0 / 300');
+  await expect(status).toHaveAttribute('data-status', 'ready');
+});
+
 test('component previews and every locale work at a narrow width', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const locale of ['en', 'es', 'pt', 'fr']) {
@@ -46,7 +67,7 @@ test('all executable component examples render and survive state changes', async
     await page.goto(`demo/?scenario=settings&locale=en&route=/components/${family}`);
     await expect(page.locator('.component-example')).toBeVisible();
     for (const state of ['Disabled', 'No items', 'Loading']) {
-      await page.getByRole('combobox', { name: 'Enabled', exact: true }).click();
+      await page.getByRole('combobox', { name: 'Preview state', exact: true }).click();
       await page.getByRole('option', { name: state, exact: true }).click();
     }
   }

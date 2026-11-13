@@ -42,7 +42,7 @@ export const tourRegistry = {
     ],
   },
   changes: {
-    id: 'changes', version: 1, route: '/automations', scope: 'automations', task: 'changes.reviewed',
+    id: 'changes', version: 2, route: '/automations?view=variables', scope: 'automations', task: 'changes.reviewed',
     steps: [
       { id: 'library', version: 1, target: 'automation-library', titleKey: 'changes.library.title', descriptionKey: 'changes.library.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
       { id: 'review', version: 1, target: 'changes', titleKey: 'changes.review.title', descriptionKey: 'changes.review.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },

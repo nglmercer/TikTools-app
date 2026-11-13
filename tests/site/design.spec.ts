@@ -11,13 +11,13 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await expect(page.getByTestId('demo-play')).toHaveAttribute('aria-pressed', 'false');
   await page.getByTestId('demo-more').click();
   await page.getByRole('menuitem', { name: 'Component reference', exact: true }).click();
-  await expect(page).toHaveURL(/#\/ui-kit$/);
+  await expect(page).toHaveURL(/#\/components\/buttons$/);
   await expect(page.locator('.component-catalog')).toBeVisible();
   await page.getByTestId('demo-more').click();
-  await page.getByRole('menuitemcheckbox', { name: 'Simulate a connection failure' }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' }).click();
   await page.getByTestId('demo-more').click();
-  await expect(page.getByRole('menuitemcheckbox', { name: 'Simulate a connection failure' })).toHaveAttribute('aria-checked', 'true');
-  await page.getByRole('menuitemcheckbox', { name: 'Simulate a connection failure' }).click();
+  await expect(page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('menuitemcheckbox', { name: 'Simulate an action failure' }).click();
   for (const width of [1440, 1058, 390]) {
     await page.setViewportSize({ width, height: 960 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -38,7 +38,7 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
 });
 
 test('landing pages have a readable hero and useful links without loading the demo', async ({ page }) => {
-  for (const route of ['', 'en/', 'es/']) {
+  for (const route of ['', 'en/', 'es/', 'pt/', 'fr/']) {
     await page.goto(route);
     const title = page.locator('h1'); await expect(title).toHaveCount(1);
     expect(await title.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(32);
