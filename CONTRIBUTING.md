@@ -160,11 +160,16 @@ demo-only business rules into the production core.
 
 `docs/inventory.json` is the migration baseline. Every original document and heading must retain a recorded destination in
 `docs/migration-map.json`. Retired Markdown stubs and duplicate images have
-been removed from the active tree; use current guides or versioned originals. Preserve the exact originals and images in
-`docs/internal/archive/<original-repository-path>`; update migration notes
-rather than historical bytes. Normative plans and dated evidence belong in
-the internal archive. The archive remains outside public content and search. Do not recreate retired
-legacy copies beside the new guides.
+been removed from the active tree; use current guides or versioned originals.
+Preserve retained reference documents and images byte-for-byte in
+`docs/internal/archive/<original-repository-path>`. Obsolete implementation plans,
+agent progress logs and dated test reports may be removed from that archive:
+record an explicit `archiveRetention` of `git-only`, a reason and an immutable
+source-commit URL in the migration map, and record the same retirement in archive
+provenance. Keep the baseline inventory and current topic destinations intact.
+Historical links from retained originals resolve through that map; do not edit
+the original bytes or recreate retired copies. The archive remains outside
+public content and search.
 
 The site and release-feed workflows share the exported `reapplyWithCas`
 contract in `scripts/publish-site.ts`: fetch the current head on every attempt,

@@ -83,10 +83,11 @@ The default preview serves [English docs](http://127.0.0.1:4173/TikTools-app/en/
 development loops, build paths and configuration. Site publication is tracked
 separately from this local preview.
 
-Retired documents remain in the versioned historical archive. The
+Retained historical references remain in the versioned archive. Obsolete
+implementation plans and agent reports are retained only in Git history. The
 [migration map](docs/migration-map.json) records every original document,
 heading and image; [archive provenance](docs/internal/archive/PROVENANCE.json)
-identifies the unchanged historical sources and their hashes. The
+identifies the historical sources, their hashes and explicit Git-only retirements. The
 [original README](docs/internal/archive/README.md) remains available verbatim.
 
 <span id="development--quality-"></span>
@@ -181,7 +182,7 @@ src/shared/messages.ts       Host-push message contract
 src/automation/              Automation contracts and frontend helpers
 src/widgets/                 TikTools widget renderers and shared SDK
 docs/content/{en,es,pt,fr,zh,ja}/  Localized public user and developer guides
-docs/internal/archive/       Unchanged historical sources and provenance
+docs/internal/archive/       Retained historical references and provenance
 ```
 
 <span id="runtime-plugin-model-"></span>

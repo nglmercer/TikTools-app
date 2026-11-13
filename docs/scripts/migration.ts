@@ -3,9 +3,9 @@ import { createHash } from 'node:crypto';
 import { resolve, relative } from 'node:path';
 import { createMarkdownRenderer } from 'vitepress';
 interface Original { source: string; sha256: string; anchors?: string[] }
-interface Entry { source: string; destinations: string[]; archive: string; sourceSha256: string; audience: string; status: string; migrationStatus: string; linkTreatment: { kind: string; legacyPathPreserved?: boolean; anchors?: string[]; anchorDestinations?: Record<string, string[]> } }
+interface Entry { source: string; destinations: string[]; archive: string; archiveRetention?: { kind: 'git-only'; reason: string }; sourceSha256: string; audience: string; status: string; migrationStatus: string; linkTreatment: { kind: string; legacyPathPreserved?: boolean; anchors?: string[]; anchorDestinations?: Record<string, string[]> } }
 interface Migration { sourceCommit: string; entries: Entry[]; assets: Array<{ source: string; archive: string; sourceSha256: string; linkTreatment: { kind: string; legacySourceRemoved?: boolean } }> }
-/** Validate coverage and the historical bytes, not merely the number of rows. */
+/** Validate coverage, retained historical bytes and explicit Git-only retirements. */
 export async function migrationErrors(root: string): Promise<string[]> {
   const errors: string[] = [];
   const markdown = await createMarkdownRenderer(resolve(root, 'docs/content'));
@@ -27,8 +27,16 @@ export async function migrationErrors(root: string): Promise<string[]> {
   for (const document of inventory.documents) {
     const entry = entries.get(document.source);
     if (!entry) { errors.push(`Missing migration: ${document.source}`); continue; }
-    if (entry.sourceSha256 !== document.sha256 || !entry.archive.startsWith('docs/internal/archive/')) errors.push(`Invalid provenance: ${document.source}`);
-    try { const bytes = await readFile(safePath(entry.archive)); if (createHash('sha256').update(bytes).digest('hex') !== document.sha256) errors.push(`Changed historical bytes: ${entry.archive}`); } catch { errors.push(`Missing archive: ${entry.archive}`); }
+    if (entry.sourceSha256 !== document.sha256) errors.push(`Invalid provenance: ${document.source}`);
+    if (entry.archiveRetention) {
+      // Immutable history keeps obsolete plans recoverable without requiring deep CI clones.
+      const historicalUrl = `https://github.com/nglmercer/TikTools-app/blob/${inventory.sourceCommit}/${document.source}`;
+      if (entry.archiveRetention.kind !== 'git-only' || !entry.archiveRetention.reason?.trim() || entry.archive !== historicalUrl || !document.source.startsWith('docs/') || entry.linkTreatment.kind !== 'archived-source-removed') errors.push(`Invalid Git-only retirement: ${document.source}`);
+      try { await access(safePath(`docs/internal/archive/${document.source}`)); errors.push(`Retired archive was restored: ${document.source}`); } catch { /* The original is retained at the immutable source commit. */ }
+    } else {
+      if (entry.archive !== `docs/internal/archive/${document.source}`) errors.push(`Invalid provenance: ${document.source}`);
+      try { const bytes = await readFile(safePath(entry.archive)); if (createHash('sha256').update(bytes).digest('hex') !== document.sha256) errors.push(`Changed historical bytes: ${entry.archive}`); } catch { errors.push(`Missing archive: ${entry.archive}`); }
+    }
     if (!['user', 'developer', 'mixed', 'internal'].includes(entry.audience) || !['available', 'experimental', 'historical', 'mixed'].includes(entry.status) || !['migrated', 'archived'].includes(entry.migrationStatus)) errors.push(`Invalid migration state: ${entry.source}`);
     if (!entry.destinations.length) errors.push(`Missing destination: ${entry.source}`);
     for (const anchor of document.anchors ?? []) {
@@ -51,7 +59,7 @@ export async function migrationErrors(root: string): Promise<string[]> {
     }
     if (entry.linkTreatment.kind === 'archived-source-removed') {
       if (!entry.source.startsWith('docs/') || entry.linkTreatment.legacyPathPreserved !== false) errors.push(`Invalid removed-source policy: ${entry.source}`);
-      try { await access(safePath(entry.source)); errors.push(`Retired legacy document was restored: ${entry.source}`); } catch { /* The exact original remains in the validated archive. */ }
+      try { await access(safePath(entry.source)); errors.push(`Retired legacy document was restored: ${entry.source}`); } catch { /* The original remains in the local archive or immutable Git history. */ }
       continue;
     }
     if (!['maintained-root', 'bilingual-compatibility-stub'].includes(entry.linkTreatment.kind)) errors.push(`Invalid link treatment: ${entry.source}`);
