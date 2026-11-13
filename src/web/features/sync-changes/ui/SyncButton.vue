@@ -11,7 +11,7 @@ import SyncSetup from './SyncSetup.vue';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import SyncPanel from './SyncPanel.vue';
 
-const props = withDefaults(defineProps<{ adapter: SyncAdapter; size?: 'sm' | 'md' }>(), { size: 'md' });
+const props = withDefaults(defineProps<{ adapter: SyncAdapter; size?: 'sm' | 'md'; blockedReason?: string }>(), { size: 'md', blockedReason: undefined });
 const { t } = useI18n();
 const account = useAccountStore();
 const sync = useSyncStore();
@@ -38,6 +38,7 @@ onMounted(() => {
 
 /** Why the panel cannot open, or null when it can. Sections that do not need Cloud are never blocked. */
 const reason = computed<string | null>(() => {
+  if (props.blockedReason) return props.blockedReason;
   if (props.adapter.requiresCloud === false) return null;
   const own = props.adapter.unavailableReason?.();
   if (own) return own;

@@ -20,7 +20,7 @@ impl WorkspaceCoordinator {
         let mut absent_deletes = 0;
         let mut attempts = 0;
         for key in keys {
-            if !scope.includes(&key.collection) {
+            if !scope.includes_target(&key.collection, &key.key) {
                 continue;
             }
             check_eligibility(eligibility, session)?;

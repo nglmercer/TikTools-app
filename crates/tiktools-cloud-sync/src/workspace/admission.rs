@@ -29,6 +29,27 @@ impl WorkspaceCoordinator {
         admission: &ProductUploadAdmission<'_>,
         operation: impl FnOnce(&WorkspaceProductProof) -> Result<T, WorkspaceCoordError>,
     ) -> Result<T, WorkspaceCoordError> {
+        self.admit_product_proof_mode(proof, eligibility, admission, false, operation)
+    }
+
+    pub(super) fn discard_product_proof<T>(
+        &self,
+        proof: &WorkspaceProductProof,
+        eligibility: &WorkspaceEligibility,
+        admission: &ProductUploadAdmission<'_>,
+        operation: impl FnOnce(&WorkspaceProductProof) -> Result<T, WorkspaceCoordError>,
+    ) -> Result<T, WorkspaceCoordError> {
+        self.admit_product_proof_mode(proof, eligibility, admission, true, operation)
+    }
+
+    fn admit_product_proof_mode<T>(
+        &self,
+        proof: &WorkspaceProductProof,
+        eligibility: &WorkspaceEligibility,
+        admission: &ProductUploadAdmission<'_>,
+        discard: bool,
+        operation: impl FnOnce(&WorkspaceProductProof) -> Result<T, WorkspaceCoordError>,
+    ) -> Result<T, WorkspaceCoordError> {
         if crate::v2_product_outbox::OWNED_EDIT_COLLECTIONS
             .contains(&proof.target().collection.as_str())
         {
@@ -44,14 +65,25 @@ impl WorkspaceCoordinator {
             }
             let mut operation = Some(operation);
             let mut result = None;
-            admission
-                .source
-                .with_fenced_owned_edit(proof.target(), proof.edit(), &mut || {
-                    let operation = operation.take().ok_or(WorkspaceStateError::StaleReview)?;
-                    eligibility.check()?;
-                    result = Some(operation(proof)?);
-                    Ok(())
-                })?;
+            let mut admit = || {
+                let operation = operation.take().ok_or(WorkspaceStateError::StaleReview)?;
+                eligibility.check()?;
+                result = Some(operation(proof)?);
+                Ok(())
+            };
+            if discard {
+                admission.source.with_fenced_owned_discard(
+                    proof.target(),
+                    proof.edit(),
+                    &mut admit,
+                )?;
+            } else {
+                admission.source.with_fenced_owned_edit(
+                    proof.target(),
+                    proof.edit(),
+                    &mut admit,
+                )?;
+            }
             return result.ok_or_else(|| WorkspaceStateError::StaleReview.into());
         }
         let decision = crate::V2ProductDecision::from_proof(

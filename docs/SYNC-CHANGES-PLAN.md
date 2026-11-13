@@ -1,6 +1,7 @@
 # Sync and the Changes panel (plan)
 
-Status: **phase 1 frontend implemented in part** (see "Implemented" below). Everything else is planned. It builds on
+Status: **shared panel, Plugins and reviewed Variables implemented; Automations Cloud,
+history and Overlay revisions still pending** (see the completion checklist). It builds on
 [Desktop Cloud v2](CLOUD-V2-DESKTOP.md), which already provides the sync collections, the stored
 base version, conflict review (base, local, Cloud) and the background worker.
 
@@ -197,6 +198,30 @@ pass. Owner-only RPC checks cover review/fetch/apply. These are source changes a
 RC2; a Variables section adapter and reviewed send/withdraw/conflict handling are
 still required before exposing a sync control in that tab.
 
+### Reviewed Variables actions and Changes panel (4.2.2)
+
+The Variables tab now uses the shared Changes panel. Native comparison references
+bind send/adopt/withdraw to the displayed local revision, cache entry, session and
+consent. Send publishes that one saved native variable; withdrawal removes only
+its Cloud copy. A second edit after acknowledgement advances the durable receipt
+counter. Other pending Variables and section queues are not published by that action.
+
+Queued changes may be cancelled before adoption or replaced by a reviewed send.
+Uncertain/conflicted originals use the existing epoch barrier and fresh comparison;
+a dedicated discard admission allows cancelling a now-secret put without permitting
+its value to be emitted. A changed Cloud comparison requires review again. Local
+adoption remains a separate atomic save and preserves unrelated local variables.
+
+The panel now supports per-record action eligibility and confirmed adoption/
+withdrawal. Secret/blocked values have metadata only and no send/adopt buttons.
+A dirty editor blocks the Changes button. Old hosts without the full native
+bridge keep the local editor and do not fall back to broad synchronization.
+
+Validation so far: 32 native Variables/read tests and 170 sync-engine tests pass,
+as do the plugin runtime suite and focused frontend/browser tests. Workspace
+Clippy passes with Rust 1.99.1, all targets/features and `-D warnings`. Full CI and
+release results are recorded with the 4.2.2 release evidence after completion.
+
 ## Goal
 
 A git-like but simplified way to see what differs from Cloud and to push, fetch, reset and merge it,
@@ -240,25 +265,16 @@ Cloud has a public overlay gallery.
    changes the portable contract here and in RemakeBackend.
 3. Overlays adapter on top of the Cloud overlay revisions.
 
-## TODO (not implemented)
+## Completion checklist
 
-- [ ] **Variables sync.** Typed local editor, native secret enforcement and the native
-  cached review/application/scoped transport bridge are implemented; reviewed
-  send/withdraw/conflict handling and the Changes adapter remain pending. The `variables` collection exists in `cloud-contracts` and
-  RemakeBackend (types text, number, boolean, list; **secret never syncs**), is announced in
-  `sync.optionalCollections`, and the host stages it with `sync.v2.stageVariables` (secrets are excluded in the
-  host, contract violations are reported by name, an instance without the capability gets
-  `capability_unavailable`). `sync.v2.changes.list` projects variable values (credential-free by contract).
-  Details: [Desktop Cloud v2](CLOUD-V2-DESKTOP.md#optional-collection-variables-typed-local-editor-cloud-adapter-pending).
-  The local editor uses `globals.typed.list/replace`, saves a reviewed revision atomically,
-  masks secret fields and preserves dirty drafts on conflict. A client cannot bypass
-  local secret classification by offering a different type to staging; queued puts
-  are blocked and their values omitted from Changes when classification becomes secret.
-  Existing textual rendering remains compatible. No local variable is uploaded by saving.
-  Still to do: the Variables tab adapter in `AutomationsPage.vue`, reviewed application
-  of pulled variables, explicit Cloud withdrawal for variables made secret, conflict behaviour per type in the UI, and a test of the
-  generic conflict review/resolve on a `variables` key. Until the adapter exists the Variables tab shows no
-  sync button.
+- [x] **Variables sync.** Typed local editor, native secret policy, exact reviewed
+  send/adopt/withdraw, queued/uncertain recovery and the shared Changes adapter.
+  Per-record publication preserves unchecked Variables and other section queues.
+  A dirty local draft blocks Changes until saved/discarded. Missing host methods
+  hide the control; unsupported backend capability rejects network actions before
+  staging. Text, number, boolean and list retain their types; secrets expose only
+  metadata and explicit Cloud withdrawal. No variable uploads through local Save.
+  Details: [Desktop Cloud v2](CLOUD-V2-DESKTOP.md#reviewed-variables-actions-422).
 - [x] Three-way conflict view in the panel (per-field Base/Local/Cloud choice, all local / all Cloud, apply
   merge). Only adapters that declare `merge` show it; no current adapter can stage a merged value.
 - [ ] Per-record history and restore (phase 2).

@@ -117,20 +117,20 @@ impl WorkspaceCoordinator {
             pending: state
                 .pending_keys()
                 .iter()
-                .filter(|key| scope.includes(&key.collection))
+                .filter(|key| scope.includes_target(&key.collection, &key.key))
                 .count(),
             conflicts: state
                 .conflict_keys()
                 .into_iter()
-                .filter(|key| scope.includes(&key.collection))
+                .filter(|key| scope.includes_target(&key.collection, &key.key))
                 .collect(),
             remote: state
                 .ready_remote()
                 .into_iter()
-                .filter(|record| scope.includes(&record.collection))
+                .filter(|record| scope.includes_target(&record.collection, &record.key))
                 .collect(),
             more_queued: state.entries.iter().any(|entry| {
-                scope.includes(&entry.target.collection)
+                scope.includes_target(&entry.target.collection, &entry.target.key)
                     && entry
                         .pending
                         .as_ref()

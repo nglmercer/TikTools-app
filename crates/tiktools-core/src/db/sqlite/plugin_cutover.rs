@@ -263,6 +263,16 @@ fn read_source(
     Ok(PluginCutoverSource { rows, receipts })
 }
 
+fn inventory_db_error(error: DatabaseError) -> crate::control::OperationError {
+    tracing::warn!(
+        sqlite_extended_code = error.sqlite_extended_code(),
+        "plugin inventory database review failed"
+    );
+    crate::control::OperationError::unavailable(
+        "plugin database has unfinished work or is busy; retry after recovery",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -440,14 +450,4 @@ mod tests {
         .unwrap();
         assert!(db.plugin_cutover_source(origin, "alice").is_err());
     }
-}
-
-fn inventory_db_error(error: DatabaseError) -> crate::control::OperationError {
-    tracing::warn!(
-        sqlite_extended_code = error.sqlite_extended_code(),
-        "plugin inventory database review failed"
-    );
-    crate::control::OperationError::unavailable(
-        "plugin database has unfinished work or is busy; retry after recovery",
-    )
 }

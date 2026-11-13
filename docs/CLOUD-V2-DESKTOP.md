@@ -495,7 +495,7 @@ motion or update-channel application. All advertised fields need a concrete
 native/local consumer, or must be reported as supported cloud data awaiting
 local application. Do not silently replace an unsupported locale or setting.
 
-### Optional collection: variables (typed local editor, Cloud adapter pending)
+### Optional collection: variables (reviewed section sync)
 
 `variables` is a sixth, credential-free collection announced in `sync.optionalCollections`
 of `GET /api/v2/capabilities` (the legacy `sync.collections` list stays the five above, because
@@ -541,19 +541,22 @@ Host behaviour (crates/tiktools-core `control/cloud_variables.rs`):
   omit values for those names. Type metadata cannot be written through generic
   `app.state.set`. CLI typed-variable output redacts secret values by default.
   This does not erase a value that was already published before classification;
-  Cloud withdrawal/application belongs to the pending section adapter.
+  Cloud withdrawal is an explicit action in the Variables Changes panel.
 - Pull: the change feed is account-wide, so variables written by another device are cached in the
   workspace and listed by `sync.v2.changes.list` (values are projected for `variables`, like
   `plugin-selections` and `preferences`; they are credential-free by contract). The host does
   **not** apply them automatically to the local runtime globals. The native bridge below
-  supports explicit cached application and scoped publication. The Variables Changes
-  adapter, reviewed send/withdraw actions and pending-conflict application are still
-  pending. No Variables sync button is shown until that adapter is wired.
+  supports explicit cached application, reviewed send/withdraw and per-record
+  publication. The Variables tab uses the shared Changes panel. Download never
+  applies a value automatically; saving the local editor never uploads it.
 - Older clients: a client built before the contracts change rejects `variables` records with a
   protocol error. Do not write variables from an account until every device that syncs it has the
   new contracts.
-- Not verified here: conflict review/resolve for a `variables` key reuses the generic v2 conflict
-  RPCs but is not covered by a test in this repository.
+- Recovery: a queued decision can be cancelled locally. An uncertain original
+  uses the existing epoch barrier and fresh Cloud comparison before discarding
+  its queue entry. Native source admission distinguishes discard from emission: a
+  now-secret put can be discarded, while upload still fails closed. The running
+  local revision, exact session and consent must still match at publication.
 
 #### Native Variables review bridge (source after RC2)
 
@@ -572,14 +575,49 @@ unrelated plugin intents, application candidates and queues are not processed.
 `sync.v2.variables.apply {review}` is an explicit local adoption of one cached value
 or tombstone. Its one-time reference binds the exact live session, consent generation,
 host-bound local revision and target workspace entry. Any change invalidates the
-comparison; unrelated local variables are preserved. Pending records, local secrets
-and blocked local values cannot be applied through this operation. The cache is
-held stable through the atomic SQLite save. All three RPCs are Owner-only.
+comparison; unrelated local variables are preserved. Pending records first require
+reviewed cancellation/recovery; local secrets and blocked values cannot be applied.
+The cache is held stable through the atomic SQLite save. These RPCs are Owner-only.
 
 Validation includes native secret projection, stable comparison references, no-network
 review/application, numeric equivalence, one-time application/deletion, local/cache/
 consent/session invalidation, scoped publication and unsupported-backend rejection.
 These source changes are not included in the immutable RC2 artifacts.
+
+#### Reviewed Variables actions (4.2.2)
+
+`sync.v2.variables.send {review}` re-reads the saved native variable under its
+source fence and stages that exact typed value against the reviewed cache entry.
+It does not accept a page-supplied value. The subsequent dispatcher is bound to
+the original exact session/consent and to that one record. Other Variables and
+section queues are retained, although the complete shared download cursor is cached.
+Decision receipts advance monotonically after acknowledgement and recovery; a
+second edit is not incorrectly assigned the original source generation.
+
+`sync.v2.variables.withdraw {review}` stages a conditional Cloud deletion while
+preserving the local value and its type, including `secret`. Previously queued
+puts are replaced only while still unprepared. An uncertain original first uses
+fenced recovery against the exact displayed Cloud baseline. If Cloud changed,
+recovery retains the original intent for a fresh comparison. Adopting Cloud is a
+separate local save; a failed adoption never triggers an upload or loses the
+current local variable.
+
+The Variables editor exposes Changes only when the host announces every required
+native method. Dirty drafts must be saved/discarded first. Each row has native
+send/adopt/withdraw eligibility; secret and blocked values have no diff or publish/
+adopt action. Adoption and withdrawal are explicitly confirmed. Public differences
+retain the declared type and choose a whole local/Cloud value, with no fabricated
+field merge, base, history or autosync control. The panel carries the displayed
+native reference through the action, so a toolbar count refresh cannot replace
+what the person reviewed.
+
+Tests cover a second send after acknowledgement, untouched unchecked Variables
+and other section queues, queued adoption without network, stale local/cache
+rejection and unsupported capabilities. A server fixture commits a put and drops
+its reply, then verifies that converting the local variable to secret and
+withdrawing it uses epoch-fenced discard plus DELETE, with no replay of the value.
+Browser coverage adopts a reviewed number and withdraws a secret without replacing
+its local copy. RC1/RC2/RC3 assets remain unchanged.
 
 Runtime globals, TikTok/OAuth credentials, cookies, session tokens, signing
 material, native binaries and ephemeral LIVE state are not additional sync

@@ -119,7 +119,7 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
           <IconDownload />
         </BaseIconButton>
         <BaseIconButton
-          v-if="caps.push"
+          v-if="caps.push && panel.sendable.value.length"
           :label="t('syncChanges.push')"
           variant="default"
           :disabled="panel.busy.value || !panel.checkedIds.value.length"

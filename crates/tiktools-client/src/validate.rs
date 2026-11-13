@@ -531,7 +531,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         #[cfg(feature = "cloud-auth")]
         "sync.v2.variables.review" | "sync.v2.variables.fetch" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
-        "sync.v2.variables.apply" => {
+        "sync.v2.variables.apply" | "sync.v2.variables.send" | "sync.v2.variables.withdraw" => {
             validate::<tiktools_control_api::modules::sync::VariableSyncApply>(params)
         }
         #[cfg(feature = "cloud-auth")]

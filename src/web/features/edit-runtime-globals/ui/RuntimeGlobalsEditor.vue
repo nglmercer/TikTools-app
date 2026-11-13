@@ -61,6 +61,10 @@ watch(typedSupported, () => { void store.loadTyped(); });
         <IconInfo :size="16" />
       </span>
       <span class="globals-editor__spacer" />
+      <slot
+        name="sync"
+        :dirty="dirty || saving || loading || incompatibleDraft"
+      />
       <BaseIconButton
         :label="t('globals.add')"
         variant="default"

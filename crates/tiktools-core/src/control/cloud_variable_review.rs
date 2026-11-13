@@ -52,6 +52,7 @@ mod native {
     const MAX_REVIEWS: usize = 4096;
     const REVIEW_TTL: Duration = Duration::from_secs(300);
 
+    #[derive(Clone)]
     pub(crate) struct Review {
         token: String,
         until: Instant,
@@ -69,6 +70,69 @@ mod native {
 
     fn stale() -> OperationError {
         OperationError::conflict("variable comparison changed or expired; reload changes")
+    }
+
+    fn with_reviewed_local<R>(
+        core: &AppCore,
+        review: &Review,
+        operation: impl FnOnce(
+            &super::super::RuntimeVariablesSnapshot,
+            &tiktools_cloud_sync::SyncCoordinator,
+        ) -> Result<R, OperationError>,
+    ) -> Result<R, OperationError> {
+        let _emission = tiktools_cloud_sync::ProductEmissionFence::open(
+            core.db.paths().data.join("plugin-sync-emission"),
+        )
+        .map_err(|_| stale())?
+        .try_emission()
+        .map_err(|_| stale())?;
+        if core
+            .shutdown_started
+            .load(std::sync::atomic::Ordering::Acquire)
+        {
+            return Err(stale());
+        }
+        let coordinator = core.sync.coordinator().map_err(|_| stale())?;
+        let lease = coordinator.product_read().map_err(|_| stale())?;
+        if lease.v2_context(&review.session).map_err(|_| stale())? != review.context {
+            return Err(stale());
+        }
+        let local = core.runtime_variables_list()?;
+        if local.revision != review.local_revision {
+            return Err(stale());
+        }
+        lease.check_current().map_err(|_| stale())?;
+        operation(&local, coordinator)
+    }
+
+    /// Only authorizes cancelling the compared queue entry. It has no upload
+    /// implementation, including when that entry now belongs to a local secret.
+    struct ReviewedDiscardSource {
+        core: Arc<AppCore>,
+        review: Review,
+    }
+    impl tiktools_cloud_sync::V2ProductUploadSource for ReviewedDiscardSource {
+        fn with_fenced_owned_discard(
+            &self,
+            target: &WorkspaceKey,
+            _: &WorkspaceEdit,
+            admit: &mut dyn FnMut() -> Result<(), tiktools_cloud_sync::WorkspaceCoordError>,
+        ) -> Result<(), tiktools_cloud_sync::WorkspaceCoordError> {
+            if target.collection != "variables" || target.key != self.review.name {
+                return Err(tiktools_cloud_sync::WorkspaceCoordError::Ineligible);
+            }
+            with_reviewed_local(&self.core, &self.review, |_, _| {
+                admit().map_err(|_| stale())
+            })
+            .map_err(|_| tiktools_cloud_sync::WorkspaceCoordError::Ineligible)
+        }
+        fn with_fenced_upload(
+            &self,
+            _: &tiktools_cloud_sync::V2ProductDecision,
+            _: &mut dyn FnMut() -> Result<(), tiktools_cloud_sync::WorkspaceCoordError>,
+        ) -> Result<(), tiktools_cloud_sync::WorkspaceCoordError> {
+            Err(tiktools_cloud_sync::WorkspaceCoordError::Ineligible)
+        }
     }
 
     impl VariableReviewCache {
@@ -165,6 +229,218 @@ mod native {
     }
 
     impl AppCore {
+        fn take_variable_review(
+            &self,
+            params: VariableSyncApply,
+        ) -> Result<Review, OperationError> {
+            self.sync
+                .variable_reviews
+                .lock()
+                .map_err(|_| stale())?
+                .take(&params.review)
+        }
+
+        async fn clear_reviewed_variable_pending(
+            self: &Arc<Self>,
+            review: &mut Review,
+            clear_queued: bool,
+        ) -> Result<(), OperationError> {
+            let core = self.clone();
+            let checked = review.clone();
+            tokio::task::spawn_blocking(move || {
+                with_reviewed_local(&core, &checked, |_, _| {
+                    core.cloud
+                        .auth()
+                        .with_current_session_permit(&checked.session, || ())
+                        .map_err(|_| stale())
+                })
+            })
+            .await
+            .map_err(|_| stale())??;
+            let Some(pending) = review
+                .entry
+                .as_ref()
+                .and_then(|entry| entry.pending.as_ref())
+            else {
+                return Ok(());
+            };
+            let target = WorkspaceKey::new("variables", &review.name).map_err(|_| stale())?;
+            if pending.status == cloud_client::WorkspacePendingStatus::Queued {
+                if !clear_queued {
+                    return Ok(());
+                }
+                let core = self.clone();
+                let checked = review.clone();
+                let entry = tokio::task::spawn_blocking(move || {
+                    with_reviewed_local(&core, &checked, |_, _| {
+                        let store = WorkspaceStore::open(
+                            core.db.paths().data.join("cloud-sync"),
+                            &checked.context.origin,
+                            &checked.context.account_id,
+                        )
+                        .map_err(|_| stale())?;
+                        let _operation = store
+                            .try_operation_lock()
+                            .map_err(|_| stale())?
+                            .ok_or_else(stale)?;
+                        let mut snapshot = store.load().map_err(|_| stale())?.ok_or_else(stale)?;
+                        if !snapshot.state.bootstrap_complete
+                            || snapshot.state.needs_rebuild
+                            || snapshot.state.entry(&target) != checked.entry.as_ref()
+                        {
+                            return Err(stale());
+                        }
+                        let proof = snapshot
+                            .state
+                            .product_queued_proof(&target)
+                            .ok_or_else(stale)?;
+                        snapshot
+                            .state
+                            .discard_product_queued(&proof)
+                            .map_err(|_| stale())?;
+                        core.cloud
+                            .auth()
+                            .with_current_session_permit(&checked.session, || {
+                                store
+                                    .save(Some(snapshot.generation), &snapshot.state)
+                                    .map_err(|_| stale())?;
+                                Ok(snapshot.state.entry(&target).cloned())
+                            })
+                            .map_err(|_| stale())?
+                    })
+                })
+                .await
+                .map_err(|_| stale())??;
+                review.entry = entry;
+            } else {
+                crate::control::cloud_variables::require_variables(&review.context.origin).await?;
+                let coordinator = self.sync_coordinator()?.clone();
+                let snapshot = coordinator
+                    .review_v2_product(review.session.clone(), target.clone())
+                    .await
+                    .map_err(|_| stale())?;
+                if Some(&snapshot.entry) != review.entry.as_ref()
+                    || snapshot.cloud_record.as_ref()
+                        != review
+                            .entry
+                            .as_ref()
+                            .and_then(|entry| entry.remote.as_ref())
+                {
+                    return Err(stale());
+                }
+                let remote = snapshot.cloud_record.clone();
+                coordinator
+                    .resolve_v2_product(
+                        review.session.clone(),
+                        Arc::new(ReviewedDiscardSource {
+                            core: self.clone(),
+                            review: review.clone(),
+                        }),
+                        target.clone(),
+                        snapshot,
+                        false,
+                    )
+                    .await
+                    .map_err(|_| stale())?;
+                review.entry = remote.map(|remote| WorkspaceEntry {
+                    target,
+                    remote: Some(remote),
+                    pending: None,
+                    next: None,
+                });
+            }
+            Ok(())
+        }
+
+        /// The native variable is re-read, never accepted from a page's value.
+        pub async fn sync_v2_variables_send(
+            self: &Arc<Self>,
+            params: VariableSyncApply,
+        ) -> Result<super::super::WorkspaceV2SyncResult, OperationError> {
+            self.publish_reviewed_variable(params, false).await
+        }
+
+        /// Withdraws only the Cloud copy; the local value and secret type stay.
+        pub async fn sync_v2_variables_withdraw(
+            self: &Arc<Self>,
+            params: VariableSyncApply,
+        ) -> Result<super::super::WorkspaceV2SyncResult, OperationError> {
+            self.publish_reviewed_variable(params, true).await
+        }
+
+        async fn publish_reviewed_variable(
+            self: &Arc<Self>,
+            params: VariableSyncApply,
+            withdraw: bool,
+        ) -> Result<super::super::WorkspaceV2SyncResult, OperationError> {
+            let mut review = self.take_variable_review(params)?;
+            // Reject stale identity/local state before capability requests or recovery barriers.
+            let core = self.clone();
+            let checked = review.clone();
+            tokio::task::spawn_blocking(move || {
+                with_reviewed_local(&core, &checked, |local, _| {
+                    if !withdraw
+                        && local
+                            .variables
+                            .get(&checked.name)
+                            .and_then(|value| portable(&checked.name, value))
+                            .is_none()
+                    {
+                        return Err(OperationError::invalid(
+                            "local variable cannot be published",
+                        ));
+                    }
+                    core.cloud
+                        .auth()
+                        .with_current_session_permit(&checked.session, || ())
+                        .map_err(|_| stale())
+                })
+            })
+            .await
+            .map_err(|_| stale())??;
+            if withdraw
+                && !review.entry.as_ref().is_some_and(|entry| {
+                    entry.pending.is_some()
+                        || entry.remote.as_ref().is_some_and(|record| !record.deleted)
+                })
+            {
+                return Err(stale());
+            }
+            crate::control::cloud_variables::require_variables(&review.context.origin).await?;
+            self.clear_reviewed_variable_pending(&mut review, false)
+                .await?;
+            let target = WorkspaceKey::new("variables", &review.name).map_err(|_| stale())?;
+            let scope = tiktools_cloud_sync::WorkspaceSyncScope::Records([target.clone()].into());
+            let binding = (review.session.clone(), review.context.clone());
+            let core = self.clone();
+            tokio::task::spawn_blocking(move || {
+                with_reviewed_local(&core, &review, |local, coordinator| {
+                    let edit = if withdraw {
+                        WorkspaceEdit::Delete
+                    } else {
+                        local
+                            .variables
+                            .get(&review.name)
+                            .and_then(|value| portable(&review.name, value))
+                            .ok_or_else(stale)?
+                    };
+                    coordinator
+                        .stage_v2_product_edit_reviewed(
+                            review.session.clone(),
+                            &review.context,
+                            target,
+                            edit,
+                            review.entry.as_ref(),
+                        )
+                        .map_err(|_| stale())?;
+                    Ok(())
+                })
+            })
+            .await
+            .map_err(|_| stale())??;
+            self.sync_v2_scoped_bound(false, scope, Some(binding)).await
+        }
+
         pub async fn sync_v2_variables_review(
             self: &Arc<Self>,
         ) -> Result<VariableSyncReview, OperationError> {
@@ -233,7 +509,7 @@ mod native {
                     } else {
                         None
                     };
-                    let can_apply = remote.is_some() && pending.is_none() && !secret && !blocked;
+                    let can_apply = remote.is_some() && !secret && !blocked;
                     let change = VariableSyncChange {
                         review: String::new(),
                         name: name.clone(),
@@ -289,17 +565,14 @@ mod native {
             self: &Arc<Self>,
             params: VariableSyncApply,
         ) -> Result<(), OperationError> {
-            let review = self
-                .sync
-                .variable_reviews
-                .lock()
-                .map_err(|_| stale())?
-                .take(&params.review)?;
+            let mut review = self.take_variable_review(params)?;
             if !review.can_apply {
                 return Err(OperationError::invalid(
                     "this comparison cannot be applied; review its pending change or local secret",
                 ));
             }
+            self.clear_reviewed_variable_pending(&mut review, true)
+                .await?;
             let core = self.clone();
             tokio::task::spawn_blocking(move || {
                 let coordinator = core.sync.coordinator().map_err(|_| stale())?;
@@ -375,6 +648,22 @@ pub(crate) use native::VariableReviewCache;
 
 #[cfg(not(feature = "persistence"))]
 impl AppCore {
+    pub async fn sync_v2_variables_send(
+        self: &std::sync::Arc<Self>,
+        _: VariableSyncApply,
+    ) -> Result<super::WorkspaceV2SyncResult, OperationError> {
+        Err(OperationError::unavailable(
+            "variable sync requires persistence",
+        ))
+    }
+    pub async fn sync_v2_variables_withdraw(
+        self: &std::sync::Arc<Self>,
+        _: VariableSyncApply,
+    ) -> Result<super::WorkspaceV2SyncResult, OperationError> {
+        Err(OperationError::unavailable(
+            "variable sync requires persistence",
+        ))
+    }
     pub async fn sync_v2_variables_review(
         self: &std::sync::Arc<Self>,
     ) -> Result<VariableSyncReview, OperationError> {

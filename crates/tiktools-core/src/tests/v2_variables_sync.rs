@@ -51,13 +51,31 @@ fn capability_document(announce_variables: bool) -> Value {
 type Log = Arc<Mutex<Vec<(String, String, String)>>>;
 
 async fn fixture(announce_variables: bool) -> (Arc<AppCore>, Log, PathBuf) {
+    let (core, log, root, _) = fixture_server(announce_variables).await;
+    (core, log, root)
+}
+
+#[derive(Default)]
+struct VariablesServer {
+    records: Mutex<std::collections::BTreeMap<String, Value>>,
+    epoch: std::sync::atomic::AtomicU64,
+    drop_next_write: std::sync::atomic::AtomicBool,
+}
+
+async fn fixture_server(
+    announce_variables: bool,
+) -> (Arc<AppCore>, Log, PathBuf, Arc<VariablesServer>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let origin = format!("http://{}", listener.local_addr().unwrap());
     let log: Log = Arc::default();
     let seen = log.clone();
+    let server = Arc::new(VariablesServer::default());
+    server.epoch.store(7, std::sync::atomic::Ordering::SeqCst);
+    let data = server.clone();
     tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
             let seen = seen.clone();
+            let data = data.clone();
             tokio::spawn(async move {
                 let mut bytes = Vec::new();
                 let (head_end, length) = loop {
@@ -99,23 +117,61 @@ async fn fixture(announce_variables: bool) -> (Arc<AppCore>, Log, PathBuf) {
                     ("GET", "/api/v2/capabilities") => {
                         ("200 OK", capability_document(announce_variables))
                     }
-                    ("GET", "/api/v2/sync/write-epoch") => {
-                        ("200 OK", json!({"writeEpoch": "7", "epochRequired": true}))
-                    }
+                    ("GET", "/api/v2/sync/write-epoch") => (
+                        "200 OK",
+                        json!({"writeEpoch": data.epoch.load(std::sync::atomic::Ordering::SeqCst).to_string(), "epochRequired": true}),
+                    ),
+                    ("POST", "/api/v2/sync/write-barrier") => (
+                        "200 OK",
+                        json!({"writeEpoch": (data.epoch.fetch_add(1, std::sync::atomic::Ordering::SeqCst)+1).to_string(), "epochRequired": true}),
+                    ),
                     ("GET", t) if t.starts_with("/api/v2/sync/changes?") => (
                         "200 OK",
                         json!({"changes": [], "cursor": 0, "has_more": false}),
                     ),
-                    ("PUT", t) if t.starts_with("/api/v2/sync/collections/variables/") => {
+                    (method @ ("GET" | "PUT" | "DELETE"), t)
+                        if t.starts_with("/api/v2/sync/collections/variables/") =>
+                    {
                         let key = t.rsplit('/').next().unwrap_or_default();
-                        let value: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
-                        (
-                            "200 OK",
-                            json!({"collection":"variables","key":key,"revision":1,"deleted":false,"value":value}),
-                        )
+                        let mut records = data.records.lock().unwrap();
+                        if method == "GET" {
+                            match records.get(key) {
+                                Some(record) => ("200 OK", record.clone()),
+                                None => ("404 Not Found", json!({})),
+                            }
+                        } else {
+                            let value: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
+                            let revision = records
+                                .get(key)
+                                .and_then(|record| record["revision"].as_u64())
+                                .unwrap_or(0)
+                                + 1;
+                            let headers = text[..head_end].to_ascii_lowercase();
+                            let expected = format!("if-match: \"{}\"", revision - 1);
+                            if (revision > 1
+                                && !headers.lines().any(|line| line.trim() == expected))
+                                || (revision == 1 && !headers.contains("if-none-match: *"))
+                            {
+                                (
+                                    "409 Conflict",
+                                    records.get(key).cloned().unwrap_or(json!({})),
+                                )
+                            } else {
+                                let record = json!({"collection":"variables","key":key,"revision":revision,"deleted":method == "DELETE","value": if method == "DELETE" {Value::Null} else {value}});
+                                records.insert(key.into(), record.clone());
+                                ("200 OK", record)
+                            }
+                        }
                     }
                     _ => ("404 Not Found", json!({})),
                 };
+                if (method == "PUT" || method == "DELETE")
+                    && data
+                        .drop_next_write
+                        .swap(false, std::sync::atomic::Ordering::SeqCst)
+                {
+                    return;
+                }
                 let payload = serde_json::to_vec(&value).unwrap();
                 let head = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", payload.len());
                 let _ = socket.write_all(head.as_bytes()).await;
@@ -177,7 +233,7 @@ async fn fixture(announce_variables: bool) -> (Arc<AppCore>, Log, PathBuf) {
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).unwrap();
         }
     }
-    (core, log, root)
+    (core, log, root, server)
 }
 
 fn variable(name: &str, kind: VariableKind, value: Value) -> VariableInput {
@@ -938,6 +994,230 @@ async fn an_instance_that_does_not_announce_variables_stages_nothing() {
     for (_, _, body) in log.lock().unwrap().iter() {
         assert!(!body.contains(SECRET));
     }
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+async fn variable_review(core: &Arc<AppCore>, name: &str) -> crate::control::VariableSyncApply {
+    crate::control::VariableSyncApply {
+        review: core
+            .sync_v2_variables_review()
+            .await
+            .unwrap()
+            .changes
+            .into_iter()
+            .find(|change| change.name == name)
+            .unwrap()
+            .review,
+    }
+}
+
+#[tokio::test]
+async fn reviewed_variables_send_again_after_ack_and_leave_other_queues_untouched() {
+    let (core, log, root) = fixture(true).await;
+    core.globals_set("port", "first").unwrap();
+    core.sync_v2_stage_variables(SyncV2StageVariablesParams {
+        variables: vec![variable("unticked", VariableKind::Number, json!(2))],
+        remove: vec![],
+    })
+    .await
+    .unwrap();
+    core.sync_v2_stage_preferences(json!({"theme":"dark"}))
+        .await
+        .unwrap();
+    let before = core.sync_v2_changes_list().await.unwrap();
+    let action = variable_review(&core, "port").await;
+    let reused = action.clone();
+    assert_eq!(core.sync_v2_variables_send(action).await.unwrap().pushed, 1);
+    let count = log.lock().unwrap().len();
+    assert!(core.sync_v2_variables_send(reused).await.is_err());
+    assert_eq!(log.lock().unwrap().len(), count);
+    core.globals_set("port", "second").unwrap();
+    assert_eq!(
+        core.sync_v2_variables_send(variable_review(&core, "port").await)
+            .await
+            .unwrap()
+            .pushed,
+        1
+    );
+    let after = core.sync_v2_changes_list().await.unwrap();
+    for entry in before {
+        assert_eq!(
+            after
+                .iter()
+                .find(|candidate| candidate.collection == entry.collection
+                    && candidate.key == entry.key),
+            Some(&entry)
+        );
+    }
+    let writes: Vec<_> = log
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(method, _, _)| method == "PUT" || method == "DELETE")
+        .cloned()
+        .collect();
+    assert_eq!(writes.len(), 2);
+    assert!(writes
+        .iter()
+        .all(|(_, path, _)| path.ends_with("/variables/port")));
+    assert!(writes[1].2.contains("second"));
+    assert_eq!(core.globals_get("port").unwrap(), "second");
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn reviewed_variables_withdraw_secret_after_uncertain_upload_without_replaying_its_value() {
+    use crate::control::{RuntimeVariable, RuntimeVariableKind, RuntimeVariablesReplace};
+    let (core, log, root, server) = fixture_server(true).await;
+    let formerly_public = "formerly-public-variable";
+    core.globals_set("privateValue", formerly_public).unwrap();
+    server
+        .drop_next_write
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    assert!(core
+        .sync_v2_variables_send(variable_review(&core, "privateValue").await)
+        .await
+        .is_err());
+    let remote = server.records.lock().unwrap()["privateValue"].clone();
+    cache_variable(&core, "privateValue", Some(remote["value"].clone()), 1).await;
+    let local = core.runtime_variables_list().unwrap();
+    core.runtime_variables_replace(RuntimeVariablesReplace {
+        expected_revision: local.revision,
+        variables: [(
+            "privateValue".into(),
+            RuntimeVariable {
+                kind: RuntimeVariableKind::Secret,
+                value: json!(formerly_public),
+            },
+        )]
+        .into(),
+    })
+    .unwrap();
+    let before = log.lock().unwrap().len();
+    assert!(core
+        .sync_v2_variables_send(variable_review(&core, "privateValue").await)
+        .await
+        .is_err());
+    assert_eq!(
+        log.lock().unwrap().len(),
+        before,
+        "a secret send must fail before network"
+    );
+    let review = core.sync_v2_variables_review().await.unwrap();
+    assert!(!serde_json::to_string(&review)
+        .unwrap()
+        .contains(formerly_public));
+    let result = core
+        .sync_v2_variables_withdraw(variable_review(&core, "privateValue").await)
+        .await
+        .unwrap();
+    assert_eq!(result.pushed, 1);
+    assert_eq!(core.globals_get("privateValue").unwrap(), formerly_public);
+    assert_eq!(
+        core.runtime_variables_list().unwrap().variables["privateValue"].kind,
+        RuntimeVariableKind::Secret
+    );
+    assert!(server.records.lock().unwrap()["privateValue"]["deleted"]
+        .as_bool()
+        .unwrap());
+    assert!(core
+        .sync_v2_variables_review()
+        .await
+        .unwrap()
+        .changes
+        .is_empty());
+    let requests = log.lock().unwrap()[before..].to_vec();
+    assert!(requests
+        .iter()
+        .any(|(method, path, _)| method == "POST" && path.ends_with("write-barrier")));
+    assert!(requests.iter().any(|(method, _, _)| method == "DELETE"));
+    assert!(requests
+        .iter()
+        .all(|(method, _, body)| method != "PUT" && !body.contains(formerly_public)));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn reviewed_variables_apply_cancels_a_queued_edit_without_publishing() {
+    let (core, log, root, server) = fixture_server(true).await;
+    core.globals_set("port", "cloud-value").unwrap();
+    core.sync_v2_variables_send(variable_review(&core, "port").await)
+        .await
+        .unwrap();
+    core.globals_set("port", "local-value").unwrap();
+    core.sync_v2_stage_variables(SyncV2StageVariablesParams {
+        variables: vec![variable(
+            "port",
+            VariableKind::Text,
+            json!("old-queued-value"),
+        )],
+        remove: vec![],
+    })
+    .await
+    .unwrap();
+    let before = log.lock().unwrap().len();
+    core.sync_v2_variables_apply(variable_review(&core, "port").await)
+        .await
+        .unwrap();
+    assert_eq!(log.lock().unwrap().len(), before);
+    assert_eq!(core.globals_get("port").unwrap(), "cloud-value");
+    assert!(core
+        .sync_v2_variables_review()
+        .await
+        .unwrap()
+        .changes
+        .is_empty());
+    assert!(core.sync_v2_changes_list().await.unwrap()[0]
+        .pending
+        .is_none());
+    assert_eq!(server.records.lock().unwrap()["port"]["revision"], 1);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn reviewed_variables_reject_changed_local_or_target_and_missing_capability() {
+    let (core, log, root) = fixture(true).await;
+    core.globals_set("port", "first").unwrap();
+    let old = variable_review(&core, "port").await;
+    core.globals_set("port", "second").unwrap();
+    let before = log.lock().unwrap().len();
+    assert!(core.sync_v2_variables_send(old).await.is_err());
+    assert_eq!(log.lock().unwrap().len(), before);
+    let old = variable_review(&core, "port").await;
+    cache_variable(
+        &core,
+        "port",
+        Some(variable_document("port", "text", json!("remote"))),
+        1,
+    )
+    .await;
+    assert!(core.sync_v2_variables_send(old).await.is_err());
+    assert!(!log
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(method, _, _)| method == "PUT" || method == "DELETE"));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+    let (core, log, root) = fixture(false).await;
+    core.globals_set("port", "first").unwrap();
+    assert_eq!(
+        core.sync_v2_variables_send(variable_review(&core, "port").await)
+            .await
+            .unwrap_err()
+            .code,
+        "capability_unavailable"
+    );
+    assert!(core.sync_v2_changes_list().await.unwrap().is_empty());
+    assert!(!log
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(_, path, _)| path.starts_with("/api/v2/sync/")));
     core.shutdown().await;
     let _ = std::fs::remove_dir_all(root);
 }

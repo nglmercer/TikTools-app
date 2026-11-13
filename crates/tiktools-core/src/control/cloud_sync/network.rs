@@ -72,14 +72,23 @@ impl AppCore {
         restore: bool,
         scope: tiktools_cloud_sync::WorkspaceSyncScope,
     ) -> Result<WorkspaceV2SyncResult, OperationError> {
+        self.sync_v2_scoped_bound(restore, scope, None).await
+    }
+
+    pub(crate) async fn sync_v2_scoped_bound(
+        self: &std::sync::Arc<Self>,
+        restore: bool,
+        scope: tiktools_cloud_sync::WorkspaceSyncScope,
+        binding: Option<(
+            std::sync::Arc<cloud_client::Session>,
+            tiktools_cloud_sync::V2LocalEditContext,
+        )>,
+    ) -> Result<WorkspaceV2SyncResult, OperationError> {
         #[cfg(feature = "persistence")]
         {
             let include_plugins = match &scope {
                 tiktools_cloud_sync::WorkspaceSyncScope::All => true,
-                tiktools_cloud_sync::WorkspaceSyncScope::Collections(collections) => {
-                    collections.contains("plugin-selections")
-                        || collections.contains("plugin-settings")
-                }
+                _ => scope.includes("plugin-selections") || scope.includes("plugin-settings"),
             };
             use tiktools_cloud_sync::ProductLocalEditContext;
             let core = self.clone();
@@ -110,6 +119,17 @@ impl AppCore {
                 || session.account_id() != identity.account_id
             {
                 return Err(OperationError::conflict("Cloud account changed; try again"));
+            }
+            if binding
+                .as_ref()
+                .is_some_and(|(expected_session, expected_context)| {
+                    !std::sync::Arc::ptr_eq(&session, expected_session)
+                        || &identity != expected_context
+                })
+            {
+                return Err(OperationError::conflict(
+                    "Cloud comparison changed; reload changes",
+                ));
             }
             let coordinator = self.sync_coordinator()?.clone();
             let epoch = coordinator
@@ -211,7 +231,7 @@ impl AppCore {
         }
         #[cfg(not(feature = "persistence"))]
         {
-            let _ = (restore, scope);
+            let _ = (restore, scope, binding);
             Err(OperationError::unavailable(
                 "Cloud v2 sync requires persistence",
             ))

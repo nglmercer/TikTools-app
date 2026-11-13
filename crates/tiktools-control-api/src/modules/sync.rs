@@ -84,6 +84,24 @@ fn map_error(error: OperationError) -> ApiError {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<VariableSyncApply, WorkspaceV2SyncResult, _, _>(
+        "sync.v2.variables.send",
+        "Publish only the native variable in an exact reviewed comparison",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            core.sync_v2_variables_send(params).await.map_err(map_error)
+        },
+    );
+    router.register_typed::<VariableSyncApply, WorkspaceV2SyncResult, _, _>(
+        "sync.v2.variables.withdraw",
+        "Withdraw one reviewed Cloud variable without changing its local value",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            core.sync_v2_variables_withdraw(params)
+                .await
+                .map_err(map_error)
+        },
+    );
     router.register_typed::<Empty, VariableSyncReview, _, _>(
         "sync.v2.variables.review", "Compare local variables with the current account cache without network or application", false,
         |core: Arc<AppCore>, _| async move { core.sync_v2_variables_review().await.map_err(map_error) },

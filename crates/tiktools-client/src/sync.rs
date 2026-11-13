@@ -18,6 +18,8 @@ use tiktools_control_api::ClientError;
 pub(crate) const METHODS: &[&str] = &[
     "sync.v2.variables.review",
     "sync.v2.variables.apply",
+    "sync.v2.variables.send",
+    "sync.v2.variables.withdraw",
     "sync.v2.variables.fetch",
     SYNC_STATUS,
     SYNC_ENABLE,
@@ -54,6 +56,18 @@ const SYNC_NOW: &str = "sync.now";
 const SYNC_RESOLVE: &str = "sync.resolve";
 
 impl TikToolsClient {
+    pub async fn sync_v2_variables_send(
+        &self,
+        params: VariableSyncApply,
+    ) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.variables.send", params).await
+    }
+    pub async fn sync_v2_variables_withdraw(
+        &self,
+        params: VariableSyncApply,
+    ) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.variables.withdraw", params).await
+    }
     pub async fn sync_v2_variables_review(&self) -> Result<VariableSyncReview, ClientError> {
         self.call("sync.v2.variables.review", Empty::default())
             .await

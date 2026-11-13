@@ -82,7 +82,7 @@ const viewOptions = computed(() => [
             role="listitem"
           >
             <BaseCheckbox
-              v-if="caps.push && change.side === 'local'"
+              v-if="caps.push && change.side === 'local' && change.canSend !== false"
               :model-value="panel.checkedIds.value.includes(change.id)"
               :aria-label="t('syncChanges.sendElement', { name: change.name })"
               @update:model-value="panel.toggle(change.id)"
@@ -117,7 +117,7 @@ const viewOptions = computed(() => [
         </BaseEmptyState>
       </div>
       <div
-        v-if="caps.push"
+        v-if="caps.push && panel.sendable.value.length"
         class="sync-panel__send"
       >
         <BaseButton

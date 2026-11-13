@@ -17,6 +17,7 @@ import AutomationEditNotice from '@/features/edit-automation-record/ui/Automatio
 import AutomationProposalReview from '@/features/review-automation-proposal/ui/AutomationProposalReview.vue';
 import AutomationApprovalReview from '@/features/review-automation-approval/ui/AutomationApprovalReview.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
+import { useVariableSyncAdapter } from '@/features/edit-runtime-globals/model/use-variable-sync-adapter.ts';
 import OwnerLibraryChanges from '@/features/recover-owner-library/ui/OwnerLibraryChanges.vue';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
@@ -50,6 +51,7 @@ const { t } = useAutomationText();
 const automation = useAutomationControls();
 // Variables sync is a TODO (docs/SYNC-CHANGES-PLAN.md): register its adapter here and add a button to that tab once a Cloud collection carries it.
 const syncAdapters = useAutomationSyncAdapters();
+const variableSync = useVariableSyncAdapter();
 const library = libraryJournal(useControlClient());
 const { leaderboard } = storeToRefs(usePointsStore());
 const saved = loadViewState().behavior;
@@ -285,7 +287,15 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
             />
           </template>
           <template #variables>
-            <RuntimeGlobalsEditor />
+            <RuntimeGlobalsEditor>
+              <template #sync="{ dirty }">
+                <SyncButton
+                  v-if="variableSync.supported.value"
+                  :adapter="variableSync.adapter"
+                  :blocked-reason="dirty ? t('syncChanges.variablesSaveFirst') : undefined"
+                />
+              </template>
+            </RuntimeGlobalsEditor>
           </template>
         </AutomationLibrary>
         <div

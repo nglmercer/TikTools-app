@@ -130,15 +130,19 @@ impl WorkspaceCoordinator {
         };
         if let Some(product) = product {
             let eligibility = eligibility.ok_or(WorkspaceCoordError::Ineligible)?;
-            self.admit_product_proof(
-                review
-                    .product_proof
-                    .as_ref()
-                    .ok_or(WorkspaceStateError::StaleReview)?,
-                eligibility,
-                product,
-                |_| self.update_product(eligibility, change),
-            )
+            let proof = review
+                .product_proof
+                .as_ref()
+                .ok_or(WorkspaceStateError::StaleReview)?;
+            if keep_local {
+                self.admit_product_proof(proof, eligibility, product, |_| {
+                    self.update_product(eligibility, change)
+                })
+            } else {
+                self.discard_product_proof(proof, eligibility, product, |_| {
+                    self.update_product(eligibility, change)
+                })
+            }
         } else {
             self.update(change)
         }

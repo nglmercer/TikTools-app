@@ -89,6 +89,7 @@ pub enum WorkspaceSyncScope {
     #[default]
     All,
     Collections(std::collections::BTreeSet<String>),
+    Records(std::collections::BTreeSet<cloud_client::WorkspaceKey>),
 }
 
 impl WorkspaceSyncScope {
@@ -96,6 +97,16 @@ impl WorkspaceSyncScope {
         match self {
             Self::All => true,
             Self::Collections(collections) => collections.contains(collection),
+            Self::Records(records) => records.iter().any(|key| key.collection == collection),
+        }
+    }
+
+    pub fn includes_target(&self, collection: &str, key: &str) -> bool {
+        match self {
+            Self::Records(records) => records
+                .iter()
+                .any(|target| target.collection == collection && target.key == key),
+            _ => self.includes(collection),
         }
     }
 }

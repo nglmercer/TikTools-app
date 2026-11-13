@@ -220,6 +220,17 @@ impl V2ProductDecision {
 /// Trusted native source. It must recheck the exact decision under the
 /// runtime/source fence and call `admit` once, without holding it over HTTP.
 pub trait V2ProductUploadSource: Send + Sync {
+    /// Queue-only discard of a reviewed owned decision. This must not grant
+    /// emission permission; a now-secret put can be discarded but never sent.
+    fn with_fenced_owned_discard(
+        &self,
+        _target: &cloud_client::WorkspaceKey,
+        _edit: &cloud_client::WorkspaceEdit,
+        _admit: &mut dyn FnMut() -> Result<(), crate::WorkspaceCoordError>,
+    ) -> Result<(), crate::WorkspaceCoordError> {
+        Err(crate::WorkspaceCoordError::Ineligible)
+    }
+
     /// Recheck local restrictions on an owner-owned record while retaining
     /// its native source fence through admission. A host with typed local
     /// variables must reject a put for a variable now marked secret.
@@ -251,36 +262,6 @@ pub trait V2ProductUploadSource: Send + Sync {
     ) -> Result<(), crate::WorkspaceCoordError>;
 }
 
-#[cfg(test)]
-mod owned_edit_admission_tests {
-    use super::*;
-
-    #[test]
-    fn a_source_without_owned_record_integration_cannot_admit_an_upload() {
-        struct OldSource;
-        impl V2ProductUploadSource for OldSource {
-            fn with_fenced_upload(
-                &self,
-                _: &V2ProductDecision,
-                _: &mut dyn FnMut() -> Result<(), crate::WorkspaceCoordError>,
-            ) -> Result<(), crate::WorkspaceCoordError> {
-                panic!("owned edits must not use plugin source admission");
-            }
-        }
-        let mut emitted = false;
-        let result = OldSource.with_fenced_owned_edit(
-            &WorkspaceKey::new("variables", "ordinary").unwrap(),
-            &WorkspaceEdit::Put(serde_json::json!({"schemaVersion":1,"name":"ordinary","type":"text","value":"public"})),
-            &mut || { emitted = true; Ok(()) },
-        );
-        assert!(matches!(
-            result,
-            Err(crate::WorkspaceCoordError::Ineligible)
-        ));
-        assert!(!emitted);
-    }
-}
-
 /// Trusted native adapter: hold the source mutation fence while loading the
 /// durable confirmed candidate, running `stage`, and acknowledging the same
 /// source revision. Never acknowledge an error or perform network work here.
@@ -303,6 +284,41 @@ struct ProductOperation {
 }
 
 impl SyncCoordinator {
+    /// Native-only staging of an owned edit against one exact UI comparison.
+    /// The caller must retain its source fence and validate local data first.
+    pub fn stage_v2_product_edit_reviewed(
+        &self,
+        session: Arc<cloud_client::Session>,
+        context: &crate::V2LocalEditContext,
+        target: WorkspaceKey,
+        edit: WorkspaceEdit,
+        entry: Option<&cloud_client::WorkspaceEntry>,
+    ) -> Result<(u64, bool), SyncCoordError> {
+        if !OWNED_EDIT_COLLECTIONS.contains(&target.collection.as_str()) {
+            return Err(SyncCoordError::StaleReview);
+        }
+        let lease = self.product_read()?;
+        if lease.v2_context(&session)? != *context {
+            return Err(SyncCoordError::StaleReview);
+        }
+        let digest = owned_edit_digest(&target, &edit, context.config_generation)
+            .ok_or(SyncCoordError::StaleReview)?;
+        let root = self
+            .config_path
+            .parent()
+            .ok_or(SyncCoordError::StaleReview)?;
+        let workspace =
+            WorkspaceCoordinator::open(root, context.origin.clone(), context.account_id.clone())
+                .map_err(|_| SyncCoordError::StaleReview)?;
+        self.auth
+            .with_current_session_permit(&session, || {
+                lease.check_current()?;
+                workspace
+                    .stage_owned_reviewed(target, edit, &digest, entry)
+                    .map_err(|_| SyncCoordError::StaleReview)
+            })
+            .map_err(|_| SyncCoordError::StaleReview)?
+    }
     /// Shared preflight for every product-cloud operation: refuses cancelled or
     /// expired work, then holds the v2 and v1 leases and opens the workspace.
     fn admit_product_operation(
@@ -751,15 +767,16 @@ impl SyncCoordinator {
                     .snapshot()
                     .map_err(|_| SyncCoordError::StaleReview)?
                     .state;
-                if let Some(proof) = state.product_queued_proof(&target) {
+                if let Some(proof) = state.product_latest_decision(&target) {
                     if proof.decision_digest() == digest && proof.edit() == &edit {
                         return Ok((proof.local_generation(), false));
                     }
                 }
                 let next_generation = state
-                    .product_queued_proof(&target)
-                    .map(|proof| proof.source_generation().saturating_add(1))
-                    .unwrap_or(1);
+                    .product_latest_decision(&target)
+                    .map(|proof| proof.source_generation().checked_add(1))
+                    .unwrap_or(Some(1))
+                    .ok_or(SyncCoordError::StaleReview)?;
                 workspace
                     .stage_product_decision_with_base(
                         target.clone(),
@@ -771,5 +788,35 @@ impl SyncCoordinator {
                     .map_err(|_| SyncCoordError::StaleReview)
             })
             .map_err(|_| SyncCoordError::Protocol(ProtocolFenceError::Busy))?
+    }
+}
+
+#[cfg(test)]
+mod owned_edit_admission_tests {
+    use super::*;
+
+    #[test]
+    fn a_source_without_owned_record_integration_cannot_admit_an_upload() {
+        struct OldSource;
+        impl V2ProductUploadSource for OldSource {
+            fn with_fenced_upload(
+                &self,
+                _: &V2ProductDecision,
+                _: &mut dyn FnMut() -> Result<(), crate::WorkspaceCoordError>,
+            ) -> Result<(), crate::WorkspaceCoordError> {
+                panic!("owned edits must not use plugin source admission");
+            }
+        }
+        let mut emitted = false;
+        let result = OldSource.with_fenced_owned_edit(
+            &WorkspaceKey::new("variables", "ordinary").unwrap(),
+            &WorkspaceEdit::Put(serde_json::json!({"schemaVersion":1,"name":"ordinary","type":"text","value":"public"})),
+            &mut || { emitted = true; Ok(()) },
+        );
+        assert!(matches!(
+            result,
+            Err(crate::WorkspaceCoordError::Ineligible)
+        ));
+        assert!(!emitted);
     }
 }

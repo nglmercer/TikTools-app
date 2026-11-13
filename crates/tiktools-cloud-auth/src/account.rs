@@ -484,8 +484,17 @@ mod session_snapshot_tests {
         let origin = format!("http://{}", listener.local_addr().unwrap());
         let server = tokio::spawn(async move {
             while let Ok((mut socket, _)) = listener.accept().await {
-                let mut request = [0; 4096];
-                socket.read(&mut request).await.unwrap();
+                let mut request = Vec::new();
+                while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                    let mut chunk = [0; 1024];
+                    let read = socket.read(&mut chunk).await.unwrap();
+                    assert!(read > 0, "test request ended before its headers");
+                    request.extend_from_slice(&chunk[..read]);
+                    assert!(
+                        request.len() <= 8192,
+                        "test request headers exceed the limit"
+                    );
+                }
                 let body = r#"{"id":"alice"}"#;
                 socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
             }

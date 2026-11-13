@@ -92,6 +92,14 @@ async fn typed_runtime_variables_are_atomic_owner_only_operations() {
             ("sync.v2.variables.review", json!({})),
             ("sync.v2.variables.fetch", json!({})),
             (
+                "sync.v2.variables.send",
+                json!({"review":"ordinary-comparison-reference"}),
+            ),
+            (
+                "sync.v2.variables.withdraw",
+                json!({"review":"ordinary-comparison-reference"}),
+            ),
+            (
                 "sync.v2.variables.apply",
                 json!({"review":"ordinary-comparison-reference"}),
             ),

@@ -13,6 +13,7 @@
  */
 
 import type { Page } from '@playwright/test';
+import type { VariableComparison } from '../../../src/web/features/edit-runtime-globals/model/variable-sync-adapter.ts';
 import type { CollaborationStatus, Invitation, InvitationSecret, PairingRequest, Principal, Session, AuditEntry } from '../../../src/web/entities/collaboration/api/types.ts';
 
 export interface E2EHostState {
@@ -48,6 +49,7 @@ export interface E2EHostState {
   globals?: Record<string, string>;
   typedGlobals?: Record<string, { type: 'text' | 'number' | 'boolean' | 'list' | 'secret'; value: string | number | boolean | string[] }>;
   typedGlobalsRevision?: string;
+  variableComparisons?: VariableComparison[];
   /** Behavior snapshot served for `automation.snapshot`. */
   automationSnapshot: Record<string, unknown>;
   automationVersions?: Record<string, string>;
@@ -246,6 +248,28 @@ const INIT_SCRIPT = `
     'sync.v2.stagePluginSettings': () => null,
     'sync.v2.selected': () => true,
     'sync.v2.changes.list': () => state.sync?.entries ?? [],
+    'sync.v2.variables.review': () => ({ changes: state.variableComparisons ?? [] }),
+    'sync.v2.variables.fetch': () => ({ conflicts: [] }),
+    'sync.v2.variables.send': (params) => {
+      if (!state.variableComparisons?.some((row) => row.review === params.review)) throw { code: 'conflict', message: 'comparison changed' };
+      state.variableComparisons = state.variableComparisons.filter((row) => row.review !== params.review);
+      return { conflicts: [] };
+    },
+    'sync.v2.variables.withdraw': (params) => {
+      if (!state.variableComparisons?.some((row) => row.review === params.review)) throw { code: 'conflict', message: 'comparison changed' };
+      state.variableComparisons = state.variableComparisons.filter((row) => row.review !== params.review);
+      return { conflicts: [] };
+    },
+    'sync.v2.variables.apply': (params) => {
+      const row = state.variableComparisons?.find((candidate) => candidate.review === params.review);
+      if (!row) throw { code: 'conflict', message: 'comparison changed' };
+      state.typedGlobals ??= {};
+      if (row.cloud) state.typedGlobals[row.name] = structuredClone(row.cloud);
+      else delete state.typedGlobals[row.name];
+      state.typedGlobalsRevision = (BigInt('0x' + (state.typedGlobalsRevision ?? 'a'.repeat(64))) + 1n).toString(16).padStart(64, '0');
+      state.variableComparisons = state.variableComparisons?.filter((candidate) => candidate.review !== params.review);
+      return null;
+    },
     'sync.v2.now': () => {
       if (state.sync) state.sync.lastSyncedAt = 1_700_000_000;
       return { pushed: 0, pulled: 0, workspacePending: 0, availableRecords: 0, conflicts: [], moreQueued: false };

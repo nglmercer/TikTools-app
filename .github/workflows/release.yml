@@ -90,6 +90,7 @@ jobs:
             libwebkit2gtk-4.1-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
             libxdo-dev \
+            xvfb xauth \
             mold \
             pkg-config
 
@@ -143,6 +144,19 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_PLATFORM: ${{ matrix.platform }}
         run: bun scripts/package-installers.ts
+
+      - name: Start the packaged Linux AppImage with an isolated profile
+        if: runner.os == 'Linux'
+        timeout-minutes: 2
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          GDK_BACKEND: x11
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          dbus-run-session -- xvfb-run -a bun scripts/smoke-appimage.ts \
+            "release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version"
 
       - name: Upload release archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

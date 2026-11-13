@@ -33,3 +33,38 @@ test('Variables preserves explicit types and keeps local secrets masked', async 
   await page.screenshot({ path: testInfo.outputPath('runtime-variables.png') });
   consoleCapture.assertClean();
 });
+
+test('Variables Changes adopts a reviewed value and withdraws a secret without replacing its local copy', async ({ page }, testInfo) => {
+  const state = emptyState();
+  state.announcedMethods = ['cloud.status', 'globals.typed.list', 'globals.typed.replace', 'sync.status', 'sync.v2.selected', 'sync.v2.variables.review', 'sync.v2.variables.send', 'sync.v2.variables.fetch', 'sync.v2.variables.apply', 'sync.v2.variables.withdraw'];
+  state.sync = { signedIn: true, enabled: true, entries: [], resolved: [] };
+  state.typedGlobals = { ordinary: { type: 'secret', value: 'local-browser-private-value' } };
+  state.variableComparisons = [
+    { review: 'cloud-port-review', name: 'port', local: null, cloud: { type: 'number', value: 46665 }, cloudDeleted: false, localSecret: false, blockedLocal: false, pendingStatus: null, canSend: false, canApply: true, canWithdraw: true },
+    { review: 'secret-withdraw-review', name: 'ordinary', local: null, cloud: null, cloudDeleted: false, localSecret: true, blockedLocal: false, pendingStatus: 'unconfirmed', canSend: false, canApply: false, canWithdraw: true },
+  ];
+  const capture = await installFakeHost(page, state);
+  await page.goto('/#/automations?view=variables');
+  await waitForFrontend(page);
+  await page.getByRole('button', { name: /Sync changes/ }).click();
+  const panel = page.getByRole('dialog', { name: 'Changes · Variables', exact: true });
+  await expect(panel).toBeVisible();
+  await panel.getByRole('button', { name: 'View port', exact: true }).click();
+  await panel.getByRole('button', { name: 'Use Cloud on this device', exact: true }).click();
+  await expect.poll(() => countCalls(page, 'sync.v2.variables.apply')).toBe(0);
+  await panel.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect.poll(async () => (await readHostState(page)).typedGlobals?.port).toEqual({ type: 'number', value: 46665 });
+  await panel.getByRole('button', { name: 'View ordinary', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Use Cloud on this device', exact: true })).toHaveCount(0);
+  await expect(panel).not.toContainText('local-browser-private-value');
+  await expect(panel.getByRole('checkbox')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('variables-changes-secret.png') });
+  await panel.getByRole('button', { name: 'Remove from Cloud', exact: true }).click();
+  expect(await countCalls(page, 'sync.v2.variables.withdraw')).toBe(0);
+  await panel.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click();
+  await expect.poll(() => countCalls(page, 'sync.v2.variables.withdraw')).toBe(1);
+  expect((await readHostState(page)).typedGlobals?.ordinary).toEqual({ type: 'secret', value: 'local-browser-private-value' });
+  expect(await countCalls(page, 'sync.v2.now')).toBe(0);
+  expect(await countCalls(page, 'globals.typed.replace')).toBe(0);
+  capture.assertClean();
+});

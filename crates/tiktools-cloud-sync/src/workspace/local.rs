@@ -4,6 +4,66 @@ use super::{WorkspaceCoordError, WorkspaceCoordinator};
 use cloud_client::{StoreError, WorkspaceEdit, WorkspaceKey, WorkspaceRecord, WorkspaceStateError};
 
 impl WorkspaceCoordinator {
+    /// Replace only an exact reviewed, unprepared owned decision. The caller
+    /// retains the native source, consent and exact-session fences.
+    pub(crate) fn stage_owned_reviewed(
+        &self,
+        key: WorkspaceKey,
+        edit: WorkspaceEdit,
+        digest: &str,
+        entry: Option<&cloud_client::WorkspaceEntry>,
+    ) -> Result<(u64, bool), WorkspaceCoordError> {
+        let _operation = self
+            .store
+            .try_operation_lock()?
+            .ok_or(WorkspaceCoordError::Busy)?;
+        for _ in 0..MAX_LOCAL_RETRIES {
+            let mut snapshot = self.snapshot()?;
+            if !snapshot.state.bootstrap_complete
+                || !snapshot.state.is_product_guarded()
+                || snapshot.state.needs_rebuild
+                || snapshot.state.entry(&key) != entry
+                || entry.is_some_and(|entry| {
+                    entry.next.is_some()
+                        || entry.pending.as_ref().is_some_and(|pending| {
+                            pending.status != cloud_client::WorkspacePendingStatus::Queued
+                                || pending.write_epoch.is_some()
+                        })
+                })
+            {
+                return Err(WorkspaceStateError::StaleReview.into());
+            }
+            if entry.is_some_and(|entry| entry.pending.is_some()) {
+                let proof = snapshot
+                    .state
+                    .product_queued_proof(&key)
+                    .ok_or(WorkspaceStateError::StaleReview)?;
+                if proof.decision_digest() == digest && proof.edit() == &edit {
+                    return Ok((proof.local_generation(), false));
+                }
+            }
+            let generation = match snapshot.state.product_latest_decision(&key) {
+                Some(proof) => proof
+                    .source_generation()
+                    .checked_add(1)
+                    .ok_or(WorkspaceStateError::Invalid)?,
+                None => 1,
+            };
+            let result = snapshot.state.stage_product_decision(
+                key.clone(),
+                edit.clone(),
+                generation,
+                digest,
+            )?;
+            match self.store.save(Some(snapshot.generation), &snapshot.state) {
+                Ok(_) => return Ok(result),
+                Err(StoreError::ConcurrentChange) => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(StoreError::ConcurrentChange.into())
+    }
+
     /// An offline local decision is queued only after its private atomic save.
     pub fn stage(
         &self,

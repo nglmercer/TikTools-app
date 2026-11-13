@@ -58,6 +58,8 @@ impl ControlApi {
             "globals.delete",
             "globals.typed.replace",
             "sync.v2.variables.apply",
+            "sync.v2.variables.send",
+            "sync.v2.variables.withdraw",
             "workflows.delete",
             "points.reset",
             "competitions.delete",

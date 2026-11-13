@@ -48,7 +48,13 @@ try {
     if (child.exitCode === null) child.kill('SIGINT');
     const killer = setTimeout(() => { if (child.exitCode === null) child.kill('SIGKILL'); }, 5000);
     await child.exited.finally(() => clearTimeout(killer));
-    await output;
+    const [stdout, stderr] = await output;
+    if (!ready) {
+      console.error(stdout.slice(-3000));
+      console.error(stderr.slice(-3000));
+      const log = await readFile(join(env.TIKTOOLS_HOME, 'logs/tiktools.log'), 'utf8').catch(() => '');
+      console.error(log.slice(-6000));
+    }
   }
   console.log(`AppImage ${expectedVersion} reached frontend-ready with an isolated profile`);
 } finally {
