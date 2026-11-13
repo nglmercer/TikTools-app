@@ -163,6 +163,13 @@ jobs:
       - name: Package and verify desktop installers
         env:
           APPIMAGE_EXTRACT_AND_RUN: '1'
+          # The WebKit plugin re-enters the same linuxdeploy AppImage. Its
+          # hash-based extraction cache is shared with the parent runtime;
+          # child cleanup makes the parent's successful run exit 127.
+          # Leave extraction cleanup to the disposable runner instead.
+          NO_CLEANUP: '1'
+          # Stream cargo-packager's child stdout/stderr while packaging.
+          RUST_LOG: cargo_packager=debug
           RELEASE_TAG: ${{ inputs.tag || 'v4.2.2' }}
           RELEASE_PLATFORM: ${{ matrix.platform }}
         run: bun scripts/package-installers.ts
