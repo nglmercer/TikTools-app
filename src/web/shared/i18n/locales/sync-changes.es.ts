@@ -33,6 +33,7 @@ export default {
   historyEmpty: 'Aún no hay operaciones registradas', operations: 'Operaciones', operation: 'Operación {id}', elements: '{count} elementos',
   operationKinds: { push: 'Envío', fetch: 'Traída', merge: 'Fusión', reset: 'Restablecer', restore: 'Restaurar', sync: 'Sincronización' },
   restore: 'Restaurar esta versión', revert: 'Revertir esta operación', revertHint: 'Revertir esta operación (crea un cambio local)',
+  retryRead: 'Reintentar lectura',
   loadFailed: 'No se pudieron cargar los cambios.', actionFailed: 'La operación falló.',
   kinds: { event: 'Evento', action: 'Acción', template: 'Plantilla', plugin: 'Plugin', pluginSettings: 'Ajustes', preferences: 'Preferencias', record: 'Registro' },
   scopes: { events: 'Eventos', actions: 'Acciones', plugins: 'Plugins' },

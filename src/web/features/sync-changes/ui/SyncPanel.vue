@@ -242,7 +242,21 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
         tone="error"
         compact
         :title="panel.failure.value ?? t('syncChanges.loadFailed')"
-      />
+      >
+        <div
+          v-if="panel.loadError.value"
+          class="sync-panel__read-error"
+        >
+          <span>{{ panel.loadError.value }}</span>
+          <BaseButton
+            size="sm"
+            :disabled="panel.loading.value || panel.busy.value"
+            @click="panel.refresh()"
+          >
+            {{ t('syncChanges.retryRead') }}
+          </BaseButton>
+        </div>
+      </BaseAlert>
 
       <div class="sync-panel__main">
         <SyncSidebar

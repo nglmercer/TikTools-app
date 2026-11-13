@@ -17,25 +17,11 @@ impl AppCore {
     ) -> Result<Vec<V2ConflictTarget>, OperationError> {
         #[cfg(feature = "persistence")]
         {
-            let (session, _) = self.v2_identity().await?;
-            let coordinator = self.sync_coordinator()?.clone();
-            let epoch = self.v2_epoch(&coordinator, &session)?;
-            let core_session = session.clone();
-            let keys = tokio::task::spawn_blocking({
-                let list_coordinator = coordinator.clone();
-                move || list_coordinator.v2_product_conflict_keys(&core_session)
-            })
-            .await
-            .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))?
-            .map_err(|_| OperationError::unavailable("Cloud v2 conflict list is unavailable"))?;
-            self.cloud
-                .auth()
-                .with_current_session(&session, || {
-                    coordinator.is_v2_config_epoch_current(&epoch, &session)
+            let keys = self
+                .v2_workspace_read(|coordinator, session| {
+                    coordinator.v2_product_conflict_keys(session)
                 })
-                .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
-                .then_some(())
-                .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
+                .await?;
             Ok(keys
                 .into_iter()
                 .map(|target| V2ConflictTarget {
@@ -60,26 +46,12 @@ impl AppCore {
     ) -> Result<Vec<V2ChangeEntry>, OperationError> {
         #[cfg(feature = "persistence")]
         {
-            let (session, _) = self.v2_identity().await?;
-            let coordinator = self.sync_coordinator()?.clone();
-            let epoch = self.v2_epoch(&coordinator, &session)?;
-            let core_session = session.clone();
-            let entries = tokio::task::spawn_blocking({
-                let list_coordinator = coordinator.clone();
-                move || list_coordinator.v2_product_entries(&core_session)
+            self.v2_workspace_read(|coordinator, session| {
+                coordinator
+                    .v2_product_entries(session)
+                    .map(|entries| entries.iter().map(v2_change_entry).collect())
             })
             .await
-            .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))?
-            .map_err(|_| OperationError::unavailable("Cloud v2 changes are unavailable"))?;
-            self.cloud
-                .auth()
-                .with_current_session(&session, || {
-                    coordinator.is_v2_config_epoch_current(&epoch, &session)
-                })
-                .map_err(|_| OperationError::conflict("Cloud account changed; try again"))?
-                .then_some(())
-                .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
-            Ok(entries.iter().map(v2_change_entry).collect())
         }
         #[cfg(not(feature = "persistence"))]
         {

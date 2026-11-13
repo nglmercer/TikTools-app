@@ -33,6 +33,7 @@ export default {
   historyEmpty: 'No operations recorded yet', operations: 'Operations', operation: 'Operation {id}', elements: '{count} elements',
   operationKinds: { push: 'Send', fetch: 'Fetch', merge: 'Merge', reset: 'Reset', restore: 'Restore', sync: 'Sync' },
   restore: 'Restore this version', revert: 'Revert this operation', revertHint: 'Revert this operation (creates a local change)',
+  retryRead: 'Retry reading changes',
   loadFailed: 'The changes could not be loaded.', actionFailed: 'The operation failed.',
   kinds: { event: 'Event', action: 'Action', template: 'Template', plugin: 'Plugin', pluginSettings: 'Settings', preferences: 'Preferences', record: 'Record' },
   scopes: { events: 'Events', actions: 'Actions', plugins: 'Plugins' },

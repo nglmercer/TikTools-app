@@ -348,6 +348,25 @@ describe('SyncPanel load failures', () => {
     const { adapter } = fakeAdapter({}, []);
     const { wrapper } = await openAdapter({ ...adapter, list: async () => { throw new Error('workspace unavailable'); } });
     expect(wrapper.text()).toContain('The changes could not be loaded.');
+    expect(wrapper.text()).toContain('workspace unavailable');
     expect(wrapper.text()).not.toContain('Everything is synced');
+  });
+
+  it('retries only the local read and clears its error after recovery', async () => {
+    const { adapter, spies } = fakeAdapter(allCapabilities, []);
+    spies.list.mockRejectedValue(new Error('another sync or cutover operation is active'));
+    const { wrapper } = await openAdapter(adapter);
+    expect(wrapper.text()).toContain('another sync or cutover operation is active');
+    const before = spies.list.mock.calls.length;
+    spies.list.mockResolvedValue([]);
+    await byText(wrapper, 'Retry reading changes')!.trigger('click');
+    await flushPromises();
+    expect(spies.list).toHaveBeenCalledTimes(before + 1);
+    expect(wrapper.text()).toContain('Everything is synced');
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+    expect(byText(wrapper, 'Retry reading changes')).toBeUndefined();
+    for (const [name, operation] of Object.entries(spies)) {
+      if (name !== 'list') expect(operation).not.toHaveBeenCalled();
+    }
   });
 });

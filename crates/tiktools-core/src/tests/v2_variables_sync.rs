@@ -208,6 +208,193 @@ fn requests_to(log: &Log, prefix: &str) -> Vec<(String, String, String)> {
         .collect()
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_workspace_reads_do_not_need_product_mutation_admission() {
+    let (core, log, root) = fixture(true).await;
+    core.sync_v2_stage_variables(mixed()).await.unwrap();
+    let requests_before = log.lock().unwrap().len();
+    let sync = core.sync.coordinator().unwrap().clone();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let writer = tokio::task::spawn_blocking(move || {
+        sync.with_package_journal_admission(|| {
+            entered_tx.send(()).unwrap();
+            release_rx
+                .recv_timeout(std::time::Duration::from_secs(15))
+                .unwrap();
+        })
+        .unwrap();
+    });
+    entered_rx.await.unwrap();
+    let mut readers = tokio::task::JoinSet::new();
+    for _ in 0..32 {
+        let core = core.clone();
+        readers.spawn(async move {
+            let changes = core.sync_v2_changes_list().await?;
+            let conflicts = core.sync_v2_conflict_list().await?;
+            let selected = core.workspace_v2_selected().await?;
+            Ok::<_, crate::control::OperationError>((changes.len(), conflicts.len(), selected))
+        });
+    }
+    let mut results = Vec::new();
+    while let Some(result) = readers.join_next().await {
+        results.push(result.unwrap());
+    }
+    release_tx.send(()).unwrap();
+    writer.await.unwrap();
+    for result in results {
+        assert_eq!(result.unwrap(), (2, 0, true));
+    }
+    assert_eq!(
+        log.lock().unwrap().len(),
+        requests_before,
+        "lists must remain local-only"
+    );
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn workspace_reads_reject_disabled_or_damaged_consent_without_network() {
+    let (core, log, root) = fixture(true).await;
+    core.sync_v2_stage_variables(mixed()).await.unwrap();
+    let requests_before = log.lock().unwrap().len();
+    let config_path = core.db.paths().data.join("cloud-sync/cloud-sync.json");
+    let config = std::fs::read(&config_path).unwrap();
+    core.sync.coordinator().unwrap().set_enabled(false).unwrap();
+    assert!(!core.workspace_v2_selected().await.unwrap());
+    assert!(core.sync_v2_changes_list().await.is_err());
+    assert!(core.sync_v2_conflict_list().await.is_err());
+    // Restore this fixture's consent, then simulate file loss/corruption.
+    std::fs::write(&config_path, config).unwrap();
+    assert_eq!(core.sync_v2_changes_list().await.unwrap().len(), 2);
+    std::fs::write(&config_path, b"invalid").unwrap();
+    assert!(core.workspace_v2_selected().await.is_err());
+    assert!(core.sync_v2_changes_list().await.is_err());
+    std::fs::remove_file(config_path).unwrap();
+    assert!(core.sync_v2_conflict_list().await.is_err());
+    assert_eq!(log.lock().unwrap().len(), requests_before);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn workspace_reads_never_return_another_origins_cached_values() {
+    let (mut core, log, root) = fixture(true).await;
+    core.sync_v2_stage_variables(mixed()).await.unwrap();
+    let (other, other_log, other_root) = fixture(true).await;
+    let requests_before = log.lock().unwrap().len();
+    let other_requests_before = other_log.lock().unwrap().len();
+    // A stale coordinator is still scoped to the first origin's workspace.
+    Arc::get_mut(&mut core).unwrap().cloud = other.cloud.clone();
+    assert!(core.workspace_v2_selected().await.is_err());
+    assert!(core.sync_v2_changes_list().await.is_err());
+    assert!(core.sync_v2_conflict_list().await.is_err());
+    assert_eq!(log.lock().unwrap().len(), requests_before);
+    assert_eq!(other_log.lock().unwrap().len(), other_requests_before);
+    core.shutdown().await;
+    other.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+    let _ = std::fs::remove_dir_all(other_root);
+}
+
+#[tokio::test]
+async fn workspace_reads_never_restore_saved_credentials_implicitly() {
+    let (mut core, log, root) = fixture(true).await;
+    let origin = core.cloud.auth().session().await.unwrap().instance_origin();
+    let saved_auth = CloudAuth::new(
+        Some(origin),
+        core.db.paths().data.join("variables-account.json"),
+        Arc::new(Store),
+    );
+    Arc::get_mut(&mut core).unwrap().cloud = Arc::new(
+        crate::cloud_account::CloudAccount::with_test_auth(saved_auth),
+    );
+    let before = log.lock().unwrap().len();
+    assert!(core.sync_v2_changes_list().await.is_err());
+    assert!(core.sync_v2_conflict_list().await.is_err());
+    assert!(core.cloud.auth().session().await.is_none());
+    assert_eq!(log.lock().unwrap().len(), before);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn workspace_read_discards_snapshot_after_same_account_session_replacement() {
+    let (core, _, root) = fixture(true).await;
+    core.sync_v2_stage_variables(mixed()).await.unwrap();
+    let auth = core.cloud.auth();
+    let original_session = auth.session().await.unwrap();
+    let sync_dir = core.db.paths().data.join("cloud-sync");
+    let store = cloud_client::WorkspaceStore::open(
+        &sync_dir,
+        original_session.instance_origin(),
+        original_session.account_id(),
+    )
+    .unwrap();
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let writer = tokio::task::spawn_blocking(move || {
+        store
+            .try_with_locked_snapshot::<_, cloud_client::StoreError>(|_| {
+                entered_tx.send(()).unwrap();
+                release_rx
+                    .recv_timeout(std::time::Duration::from_secs(15))
+                    .unwrap();
+                Ok(())
+            })
+            .unwrap()
+            .unwrap();
+    });
+    entered_rx.await.unwrap();
+    let read = {
+        let core = core.clone();
+        tokio::spawn(async move { core.sync_v2_changes_list().await })
+    };
+    // Wait for this reader to hold the shared protocol lease and block on
+    // the snapshot. Trying a cutover lease itself changes no files or consent.
+    let protocol = tiktools_cloud_sync::ProtocolFence::open(&sync_dir).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            match protocol.try_cutover() {
+                Err(tiktools_cloud_sync::ProtocolFenceError::Busy) => break,
+                Ok(lease) => drop(lease),
+                Err(error) => panic!("{error}"),
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    // Reading files does not hold the account gate or delay logout.
+    tokio::time::timeout(std::time::Duration::from_secs(2), auth.logout())
+        .await
+        .unwrap()
+        .unwrap();
+    std::fs::write(
+        core.db.paths().data.join("variables-account.json"),
+        serde_json::to_vec(
+            &json!({"origin":original_session.instance_origin(),"account_id":"alice"}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    auth.restore().await.unwrap();
+    assert!(!Arc::ptr_eq(
+        &original_session,
+        &auth.session().await.unwrap()
+    ));
+    release_tx.send(()).unwrap();
+    writer.await.unwrap();
+    let result = read.await.unwrap();
+    assert!(
+        result.is_err(),
+        "old login must never expose its snapshot to a new session"
+    );
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
 #[tokio::test]
 async fn announced_variables_sync_but_a_secret_never_reaches_a_request_or_the_changes_list() {
     let (core, log, root) = fixture(true).await;

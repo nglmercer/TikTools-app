@@ -111,6 +111,29 @@ independently. Fix the read admission and retain exact session/consent revalidat
 do not remove write fences or hide the failure behind an empty successful list.
 The panel should also expose the native error and offer a local-read retry.
 
+### Read contention correction (RC2)
+
+Local Changes/conflict lists and protocol selection now hold a shared protocol
+read lease instead of exclusive product mutation admission. Strict consent,
+account scope and both v2 markers are checked on blocking threads. The final
+exact-session check awaits the short account mutex; it rejects logout, pending
+transitions and a new login to the same account. Reading files does not hold the
+account gate, so logout is not delayed. Write admission is unchanged.
+
+The deterministic reproduction failed before this correction and now passes all
+32 concurrent readers while package mutation admission is occupied. Additional
+tests reject damaged/disabled consent and another origin, and discard a snapshot
+when the same account logs in again while its disk read is blocked. No network
+requests are issued by the list tests. The panel shows the native read reason
+and a local-read retry; its recovery test verifies that it calls no sync,
+upload, fetch or conflict operation. Lists also reject a signed-out host with
+saved credentials without initiating an implicit session restore.
+
+Validation: 37 CloudAuth tests, 169 sync-engine tests, 21 native v2 tests
+(including eight variables/read tests) and 64 frontend sync tests pass.
+Frontend TypeScript/ESLint passes.
+RC1 assets remain unchanged and still contain the read-contention bug.
+
 The production backend responds `200` at `/api/v2/capabilities` and announces v2,
 while the new `/api/v3/remote/people` route responds `404`. The existing remote
 hosts route responds `401` without credentials. Nickname search therefore still

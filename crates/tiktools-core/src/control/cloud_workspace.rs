@@ -268,38 +268,30 @@ impl AppCore {
     /// Read the selected protocol locally, without contacting Cloud. A v2
     /// selection is reported only for the current account and consent.
     pub async fn workspace_v2_selected(&self) -> Result<bool, OperationError> {
+        let session = self.cloud.auth().session().await;
         let coordinator = self.sync.coordinator().map_err(|_| changed())?.clone();
-        let selected = tokio::task::spawn_blocking(move || {
-            coordinator.with_product_local_edit(|context| context)
+        let captured = session.clone();
+        let (selected, lease) = tokio::task::spawn_blocking(move || {
+            let lease = coordinator.product_read().map_err(|_| changed())?;
+            let selected = lease
+                .v2_selected(captured.as_deref())
+                .map_err(|_| changed())?;
+            lease.check_current().map_err(|_| changed())?;
+            Ok::<_, OperationError>((selected, lease))
         })
         .await
-        .map_err(|_| changed())?
-        .map_err(|_| changed())?;
-        match selected {
-            tiktools_cloud_sync::ProductLocalEditContext::Legacy
-            | tiktools_cloud_sync::ProductLocalEditContext::OptedOut => Ok(false),
-            tiktools_cloud_sync::ProductLocalEditContext::V2(None) => Err(changed()),
-            tiktools_cloud_sync::ProductLocalEditContext::V2(Some(identity)) => {
-                let session = self.cloud.auth().session().await.ok_or_else(changed)?;
-                let coordinator = self.sync.coordinator().map_err(|_| changed())?;
-                let epoch = coordinator
-                    .capture_v2_config_epoch(&session)
-                    .ok_or_else(changed)?;
-                if identity.origin != session.instance_origin()
-                    || identity.account_id != session.account_id()
-                {
-                    return Err(changed());
-                }
-                self.cloud
-                    .auth()
-                    .with_current_session(&session, || {
-                        coordinator.is_v2_config_epoch_current(&epoch, &session)
-                    })
-                    .map_err(|_| changed())?
-                    .then_some(true)
-                    .ok_or_else(changed)
-            }
-        }
+        .map_err(|_| changed())??;
+        let result = if let Some(session) = session {
+            self.cloud
+                .auth()
+                .with_current_session_read(&session, || selected)
+                .await
+                .map_err(|_| changed())
+        } else {
+            Ok(selected)
+        };
+        drop(lease);
+        result
     }
 
     /// Only this explicitly invoked check contacts the fixed capabilities URL.
@@ -321,29 +313,12 @@ impl AppCore {
             {
                 return Err(changed());
             }
-            let selected = coordinator
-                .with_product_local_edit(|context| context)
+            result.selected = self.workspace_v2_selected().await?;
+            self.cloud
+                .auth()
+                .with_current_session_read(&session, || ())
+                .await
                 .map_err(|_| changed())?;
-            if let tiktools_cloud_sync::ProductLocalEditContext::V2(Some(identity)) = selected {
-                let epoch = coordinator
-                    .capture_v2_config_epoch(&session)
-                    .ok_or_else(changed)?;
-                if identity.origin != session.instance_origin()
-                    || identity.account_id != session.account_id()
-                {
-                    return Err(changed());
-                }
-                result.selected = self
-                    .cloud
-                    .auth()
-                    .with_current_session(&session, || {
-                        coordinator.is_v2_config_epoch_current(&epoch, &session)
-                    })
-                    .map_err(|_| changed())?;
-                if !result.selected {
-                    return Err(changed());
-                }
-            }
         }
         Ok(result)
     }

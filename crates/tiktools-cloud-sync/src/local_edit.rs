@@ -51,10 +51,23 @@ impl SyncCoordinator {
     /// A missing or damaged preference after initialization is not opt-out.
     /// Both staging paths use this strict reader before reporting no queue.
     pub(crate) fn read_staging_config(&self) -> Result<SyncConfig, SyncCoordError> {
+        self.read_checked_config(true)
+    }
+
+    pub(crate) fn read_checked_config(
+        &self,
+        mark_consent: bool,
+    ) -> Result<SyncConfig, SyncCoordError> {
         let config = match std::fs::symlink_metadata(&self.config_path) {
             Ok(_) => {
                 let bytes = self.read_config_bytes()?;
-                self.ensure_consent_marker()?;
+                if mark_consent {
+                    self.ensure_consent_marker()?;
+                } else if !self.consent_marker_present()? {
+                    return Err(SyncCoordError::Io(
+                        "sync consent marker is missing; review required".into(),
+                    ));
+                }
                 serde_json::from_slice::<SyncConfig>(&bytes)
                     .map_err(|_| SyncCoordError::Io("invalid sync config".into()))?
             }

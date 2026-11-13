@@ -26,6 +26,14 @@
   min-width: 0;
 }
 
+.sync-panel__read-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
 .sync-panel__auto {
   margin-right: var(--space-3);
 }
