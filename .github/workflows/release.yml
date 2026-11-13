@@ -158,14 +158,13 @@ jobs:
         if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
-          APPIMAGE_EXTRACT_AND_RUN: '1'
           GDK_BACKEND: x11
           LIBGL_ALWAYS_SOFTWARE: '1'
           WEBKIT_DISABLE_DMABUF_RENDERER: '1'
         run: |
           version="${GITHUB_REF_NAME#v}"
           dbus-run-session -- xvfb-run -a bun scripts/smoke-appimage.ts \
-            "release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version"
+            "release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version" --extracted-mode
 
       - name: Upload release archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

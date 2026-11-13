@@ -174,18 +174,31 @@ jobs:
           RELEASE_PLATFORM: ${{ matrix.platform }}
         run: bun scripts/package-installers.ts
 
+      - name: Check out recovery validation tooling separately from immutable source
+        if: runner.os == 'Linux'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_TOOLING_SHA: ${{ github.sha }}
+        run: |
+          tooling="$RUNNER_TEMP/tiktools-recovery-tooling"
+          git init "$tooling"
+          git -C "$tooling" -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+            fetch --depth=1 "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$RECOVERY_TOOLING_SHA"
+          git -C "$tooling" checkout --detach FETCH_HEAD
+          test "$(git -C "$tooling" rev-parse HEAD)" = "$RECOVERY_TOOLING_SHA"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "$RELEASE_TAG^{commit}")"
+
       - name: Start the packaged Linux AppImage with an isolated profile
         if: runner.os == 'Linux'
         timeout-minutes: 2
         env:
-          APPIMAGE_EXTRACT_AND_RUN: '1'
           GDK_BACKEND: x11
           LIBGL_ALWAYS_SOFTWARE: '1'
           WEBKIT_DISABLE_DMABUF_RENDERER: '1'
         run: |
           version="${RELEASE_TAG#v}"
-          dbus-run-session -- xvfb-run -a bun scripts/smoke-appimage.ts \
-            "release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version"
+          dbus-run-session -- xvfb-run -a bun "$RUNNER_TEMP/tiktools-recovery-tooling/scripts/smoke-appimage.ts" \
+            "$GITHUB_WORKSPACE/release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version" --extracted-mode
 
       - name: Upload release archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
