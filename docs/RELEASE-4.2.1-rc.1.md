@@ -4,6 +4,10 @@ Candidate for reproducing the reported sync, Teams and Linux AppImage problems.
 The application and backend changes are committed separately: app `338495a9`,
 RemakeBackend `6a69c99` (`fix/teams-nickname-invitations`).
 
+GitHub Actions is disabled in the repository. This candidate uses locally
+compiled Linux artifacts (AppImage, DEB and portable archive), verified before
+publication. It does not include a newly compiled Windows installer.
+
 ## Changes to verify
 
 | Area | Expected behavior |
