@@ -20,10 +20,15 @@ const states = computed(() => ['normal', 'loading', 'empty', 'error', 'disabled'
 const guideUrl = computed(() => new URL(`../${locale.value}/developer/components/${selected.value}.html`, location.href).href);
 </script>
 <template>
-  <main class="component-catalog">
+  <section
+    class="component-catalog"
+    aria-labelledby="component-catalog-title"
+  >
     <header class="component-catalog__header">
       <div>
-        <h1>{{ copy.title }}</h1>
+        <h1 id="component-catalog-title">
+          {{ copy.title }}
+        </h1>
         <p>{{ copy.description }}</p>
       </div>
       <BaseButton @click="router.push('/feed')">
@@ -56,10 +61,10 @@ const guideUrl = computed(() => new URL(`../${locale.value}/developer/components
       />
     </section>
     <details><summary>{{ copy.source }}</summary><pre><code>{{ text }}</code></pre></details>
-  </main>
+  </section>
 </template>
 <style scoped>
-.component-catalog { height:100%; overflow:auto; padding:24px; background:var(--color-bg-app); color:var(--color-text); }
+.component-catalog { flex:1; width:100%; min-width:0; height:100%; overflow:auto; padding:24px; background:var(--color-bg-app); color:var(--color-text); }
 .component-catalog__header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:24px; }
 .component-catalog h1 { font-size:22px; margin:0 0 6px; font-weight:600; }
 .component-catalog p { font-size:13px; color:var(--color-text-muted); margin:0; max-width:64ch; }

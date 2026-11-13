@@ -16,6 +16,9 @@ export const routes: RouteRecordRaw[] = [
     path: '/',
     component: () => import('../layout/AppShell.vue'),
     children: [
+      // Public examples keep the same runtime owner as the workspace. Leaving
+      // AppShell would detach its client and dispose stores still used by the demo.
+      ...(import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1' ? developmentRoutes : []),
       { path: 'debug', name: 'debug', component: () => import('@/pages/debug/ui/DebugPage.vue') },
       { path: '', name: 'home', redirect: () => tabLocation((loadViewState().tab as AppTab | undefined) ?? 'feed') },
       { path: 'feed', name: 'feed', meta: { tab: 'feed' }, component: () => import('@/pages/feed/ui/FeedPage.vue') },
@@ -60,6 +63,6 @@ export const routes: RouteRecordRaw[] = [
       },
     ],
   },
-  ...developmentRoutes,
+  ...(import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1' ? [] : developmentRoutes),
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ];

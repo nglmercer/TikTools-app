@@ -55,10 +55,29 @@ test('component previews and every locale work at a narrow width', async ({ page
   for (const locale of ['en', 'es', 'pt', 'fr']) {
     await page.goto(`demo/?scenario=settings&locale=${locale}&route=/components/buttons`);
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    await expect(page.getByTestId('demo-play')).toBeEnabled();
     await expect(page.locator('.component-example button')).toBeVisible();
     await page.locator('.component-example button').click();
     await expect(page.locator('.component-example button')).toContainText('1');
   }
+});
+
+test('direct component entry owns a working runtime across catalog and workspace navigation', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('demo/?scenario=feed&locale=en&route=/components/buttons&instance=catalog-runtime');
+  await expect(page.getByTestId('demo-step')).toBeEnabled();
+  await page.getByTestId('demo-step').click();
+  await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
+  await page.getByRole('link', { name: 'Live feed', exact: true }).click();
+  await expect(page.locator('.live-feed')).toContainText('Hello TikTools!');
+  await page.getByTestId('demo-more').click();
+  await page.getByRole('menuitem', { name: 'Component reference', exact: true }).click();
+  await expect(page.locator('.component-catalog')).toBeVisible();
+  await page.getByTestId('demo-step').click();
+  await expect(page.getByTestId('demo-event-count')).toContainText('2 / 300');
+  await page.getByRole('link', { name: 'Automations', exact: true }).click();
+  await expect(page.locator('body')).toContainText('Hello Luna');
+  expect(errors).toEqual([]);
 });
 
 test('all executable component examples render and survive state changes', async ({ page }) => {
