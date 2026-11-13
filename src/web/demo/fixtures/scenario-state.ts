@@ -7,9 +7,11 @@ import type { ScenarioId } from '../scenarios.ts';
 export const DEMO_AT = 1_760_000_000_000;
 const text = (value: string) => ({ default: value, i18key: `demo.${value.replaceAll(/[^a-zA-Z]/g, '').slice(0, 40)}` });
 export const logType = {
-  id: 'core.log', version: 1, title: text('Log'), description: text('Record a message without external effects.'),
+  id: 'core.log', version: 1,
+  title: { default: 'Write to the log', i18key: 'automation.action.core.log.title' },
+  description: { default: 'Leave a line in the automation log.', i18key: 'automation.action.core.log.description' },
   tag: 'log', source: { kind: 'builtin' }, requiredCapabilities: [],
-  fields: [{ key: 'message', kind: 'textarea', label: text('Message'), value: 'Hello {{ user.nickname }}', template: true }],
+  fields: [{ key: 'message', kind: 'textarea', label: { default: 'Message', i18key: 'automation.action.core.log.field.message.label' }, value: 'Hello {{ user.nickname }}', template: true }],
 } satisfies BehaviorSnapshot['actionTypes'][number];
 export function demoCollaborationStatus(): CollaborationStatus {
   return {

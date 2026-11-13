@@ -17,6 +17,13 @@ const loaders: Record<Exclude<Locale, typeof fallbackLocale>, () => Promise<{ de
   ja: () => import('./locales/ja.ts'),
 };
 
+// Only display strings for host-owned keys. Native descriptors, capabilities,
+// field paths and executable behavior continue to come from the host.
+const hostLoaders: Partial<Record<Locale, () => Promise<{ default: Record<string, string> }>>> = {
+  zh: () => import('./host-messages/zh.ts'),
+  ja: () => import('./host-messages/ja.ts'),
+};
+
 declare module 'vue-i18n' {
   export interface DefineLocaleMessage extends MessageSchema {}
 }
@@ -33,8 +40,9 @@ const loaded = new Set<Locale>();
 
 export async function activateLocale(locale: Locale): Promise<void> {
   if (locale !== fallbackLocale && !loaded.has(locale)) {
-    const messages = await loaders[locale]();
+    const [messages, host] = await Promise.all([loaders[locale](), hostLoaders[locale]?.()]);
     i18n.global.setLocaleMessage(locale, messages.default);
+    if (host) i18n.global.mergeLocaleMessage(locale, nestMessages(host.default));
     loaded.add(locale);
   }
   i18n.global.locale.value = locale;

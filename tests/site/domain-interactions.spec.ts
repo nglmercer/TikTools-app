@@ -67,6 +67,25 @@ async function variableChanges(page: Page): Promise<Locator> {
   return dialog;
 }
 
+for (const copy of [
+  { locale: 'zh', actions: '操作', create: '新建操作…', picker: '新建操作', title: '写入日志', message: '消息' },
+  { locale: 'ja', actions: 'アクション', create: '新規アクション…', picker: '新規アクション', title: 'メッセージをログに記録', message: 'メッセージ' },
+]) {
+  test(`${copy.locale}: native action metadata is translated in the real picker and editor`, async ({ page }) => {
+    await page.goto(`demo/?scenario=automation&locale=${copy.locale}&instance=domain-native-${copy.locale}`);
+    await expect(page.getByTestId('demo-step')).toBeVisible();
+    await page.getByRole('tab', { name: new RegExp(`^${copy.actions} \\(`) }).click();
+    await page.getByRole('button', { name: copy.create, exact: true }).click();
+    const picker = page.getByRole('dialog', { name: copy.picker, exact: true });
+    await picker.locator('.type-picker__card').filter({ hasText: copy.title }).click();
+    await expect(picker).not.toBeVisible();
+    const editor = page.locator('.action-editor');
+    await expect(editor).toContainText(copy.title);
+    await expect(editor.getByRole('textbox', { name: copy.message, exact: true })).toHaveValue('Hello {{ user.nickname }}');
+    await settled(page);
+  });
+}
+
 test('plugin settings discard, save and reopen preserve the saved values', async ({ page }) => {
   await openDemo(page, 'plugins', 'plugin-settings');
   const details = await audioDetails(page);

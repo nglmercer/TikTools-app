@@ -1,5 +1,7 @@
 import { contributionFieldsForTrigger } from '../../../../automation/autocomplete-registry.ts';
 import { allRegistryFields, fieldsForEventType } from '../../../../automation/event-registry.ts';
+import { i18n } from '@/shared/i18n/i18n.ts';
+import { normalizeLocale } from '@/shared/i18n/supported-locales.ts';
 
 export interface TemplateVariable {
   value: string;
@@ -37,7 +39,12 @@ export function templateVariables(options: {
   locale: string;
   globals?: Readonly<Record<string, string>>;
 }): TemplateVariable[] {
-  const lang = options.locale.startsWith('es') ? 'es' : 'en';
+  const locale = normalizeLocale(options.locale) ?? 'en';
+  const lang = locale === 'es' ? 'es' : 'en';
+  const label = (field: { path: string; label: { en: string; es: string }; i18key?: string }) => {
+    const key = field.i18key ?? `automation.event.field.${field.path}.label`;
+    return i18n.global.te(key, locale) ? i18n.global.t(key, {}, { locale }) : field.label[lang];
+  };
   const fields = options.trigger ? fieldsForEventType(options.trigger) : allRegistryFields();
   const seen = new Set<string>();
   const variables: TemplateVariable[] = [];
@@ -48,10 +55,10 @@ export function templateVariables(options: {
   };
   for (const field of fields) {
     if (field.path.includes('.0.') || !inScope(field.path, options.scope)) continue;
-    push({ value: field.path, label: field.label[lang], detail: field.path });
+    push({ value: field.path, label: label(field), detail: field.path });
   }
   for (const field of contributionFieldsForTrigger(options.trigger)) {
-    if (inScope(field.path, options.scope)) push({ value: field.path, label: field.label[lang], detail: field.path });
+    if (inScope(field.path, options.scope)) push({ value: field.path, label: label(field), detail: field.path });
   }
   for (const key of Object.keys(options.globals ?? {}).sort((left, right) => left.localeCompare(right))) {
     push({ value: `globals.${key}`, label: key, detail: `globals.${key}` });

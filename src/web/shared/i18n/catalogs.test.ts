@@ -23,27 +23,25 @@ function flatten(tree: Tree, prefix = ''): Map<string, string> {
   return leaves;
 }
 
-const placeholders = (message: string): string[] => [...new Set([...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1]!))].sort();
+const placeholders = (message: string): string[] => [...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1]!).sort();
 
 afterEach(async () => {
   await activateLocale('en');
 });
 
 describe('message catalogs', () => {
-  it('ships every supported locale with the english keys, placeholders and plural forms', async () => {
+  it.each(supportedLocales)('%s ships the English keys, placeholder occurrences and plural forms', async (locale) => {
     const reference = flatten(english as Tree);
-    for (const locale of supportedLocales) {
-      const catalog = flatten((await catalogs[locale]()).default);
-      expect([...catalog.keys()].sort(), `${locale} catalog keys`).toEqual([...reference.keys()].sort());
-      for (const [key, source] of reference) {
-        const translated = catalog.get(key)!;
-        expect(placeholders(translated), `${locale}: ${key}`).toEqual(placeholders(source));
-        expect(translated.split('|').length, `${locale} plural forms: ${key}`).toBe(source.split('|').length);
-      }
+    const catalog = flatten((await catalogs[locale]()).default);
+    expect([...catalog.keys()].sort(), `${locale} catalog keys`).toEqual([...reference.keys()].sort());
+    for (const [key, source] of reference) {
+      const translated = catalog.get(key)!;
+      expect(placeholders(translated), `${locale}: ${key}`).toEqual(placeholders(source));
+      expect(translated.split('|').length, `${locale} plural forms: ${key}`).toBe(source.split('|').length);
     }
   });
 
-  it('compiles every message in every locale', async () => {
+  it.each(supportedLocales)('%s compiles every message', async (locale) => {
     const keys = [...flatten(english as Tree).keys()];
     const errors: string[] = [];
     let current = '';
@@ -51,12 +49,10 @@ describe('message catalogs', () => {
     // throwing. Catch that failure as well, especially unescaped @ and braces.
     const logger = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => errors.push(`${current}: ${args.map(String).join(' ')}`));
     try {
-      for (const locale of supportedLocales) {
-        await activateLocale(locale);
-        for (const key of keys) {
-          current = `${locale}:${key}`;
-          expect(() => i18n.global.t(key, { count: 1, ms: 1, attempt: 1, max: 5 })).not.toThrow();
-        }
+      await activateLocale(locale);
+      for (const key of keys) {
+        current = `${locale}:${key}`;
+        expect(() => i18n.global.t(key, { count: 1, ms: 1, attempt: 1, max: 5 })).not.toThrow();
       }
       expect(errors).toEqual([]);
     } finally { logger.mockRestore(); }
