@@ -6,6 +6,19 @@ use super::WorkspaceV2SyncResult;
 use crate::AppCore;
 
 impl AppCore {
+    async fn require_variable_sync(self: &std::sync::Arc<Self>) -> Result<(), OperationError> {
+        #[cfg(feature = "persistence")]
+        {
+            let (session, _) = self.v2_identity().await?;
+            crate::control::cloud_variables::require_variables(&session.instance_origin()).await
+        }
+        #[cfg(not(feature = "persistence"))]
+        {
+            Err(OperationError::unavailable(
+                "Cloud v2 variables require persistence",
+            ))
+        }
+    }
     /// Explicit v2 pass for an already selected, account-scoped protocol.
     /// Supported downloaded plugin state changes are applied when eligible.
     pub async fn sync_v2_now(
@@ -26,14 +39,30 @@ impl AppCore {
         self: &std::sync::Arc<Self>,
         section: super::SyncSection,
     ) -> Result<WorkspaceV2SyncResult, OperationError> {
-        let collections = match section {
-            super::SyncSection::Plugins => ["plugin-selections", "plugin-settings"],
+        let collections: &[&str] = match section {
+            super::SyncSection::Plugins => &["plugin-selections", "plugin-settings"],
+            super::SyncSection::Variables => {
+                self.require_variable_sync().await?;
+                &["variables"]
+            }
         };
         self.sync_v2_scoped(
             true,
             tiktools_cloud_sync::WorkspaceSyncScope::Collections(
-                collections.into_iter().map(str::to_owned).collect(),
+                collections.iter().map(|name| (*name).to_owned()).collect(),
             ),
+        )
+        .await
+    }
+
+    /// Refresh the shared cache without publishing or applying any section.
+    pub async fn sync_v2_variables_fetch(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<WorkspaceV2SyncResult, OperationError> {
+        self.require_variable_sync().await?;
+        self.sync_v2_scoped(
+            false,
+            tiktools_cloud_sync::WorkspaceSyncScope::Collections(Default::default()),
         )
         .await
     }
@@ -45,6 +74,13 @@ impl AppCore {
     ) -> Result<WorkspaceV2SyncResult, OperationError> {
         #[cfg(feature = "persistence")]
         {
+            let include_plugins = match &scope {
+                tiktools_cloud_sync::WorkspaceSyncScope::All => true,
+                tiktools_cloud_sync::WorkspaceSyncScope::Collections(collections) => {
+                    collections.contains("plugin-selections")
+                        || collections.contains("plugin-settings")
+                }
+            };
             use tiktools_cloud_sync::ProductLocalEditContext;
             let core = self.clone();
             let selected = tokio::task::spawn_blocking(move || {
@@ -84,6 +120,9 @@ impl AppCore {
             let account = identity.account_id.clone();
             let outbox_more =
                 tokio::task::spawn_blocking(move || -> Result<bool, OperationError> {
+                    if !include_plugins {
+                        return Ok(false);
+                    }
                     let coordinator = core.sync.coordinator().map_err(|_| {
                         OperationError::unavailable("Cloud sync storage is unavailable")
                     })?;
@@ -115,13 +154,19 @@ impl AppCore {
                 })
                 .await
                 .map_err(|_| OperationError::unavailable("Cloud sync worker is unavailable"))??;
-            let source = std::sync::Arc::new(
+            let source = std::sync::Arc::new(if include_plugins {
                 crate::cloud_sync::product_v2_outbox::OwnedSqliteV2UploadSource::new(
                     self.clone(),
                     identity.origin.clone(),
                     identity.account_id.clone(),
-                ),
-            );
+                )
+            } else {
+                crate::cloud_sync::product_v2_outbox::OwnedSqliteV2UploadSource::variables_only(
+                    self.clone(),
+                    identity.origin.clone(),
+                    identity.account_id.clone(),
+                )
+            });
             let outcome = coordinator
                 .sync_v2_product_scoped(session.clone(), source, scope)
                 .await
@@ -139,8 +184,10 @@ impl AppCore {
                 .then_some(())
                 .ok_or_else(|| OperationError::conflict("Cloud account changed; try again"))?;
             #[cfg(feature = "plugin-install")]
-            self.apply_cached_v2_selections(session.clone(), identity, outcome.remote.clone())
-                .await;
+            if include_plugins {
+                self.apply_cached_v2_selections(session.clone(), identity, outcome.remote.clone())
+                    .await;
+            }
             self.cloud
                 .auth()
                 .with_current_session(&session, || {

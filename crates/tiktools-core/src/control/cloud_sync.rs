@@ -57,6 +57,7 @@ pub struct WorkspaceV2SyncResult {
 #[serde(rename_all = "camelCase")]
 pub enum SyncSection {
     Plugins,
+    Variables,
 }
 
 /// A nonsecret projection of a single selection shown during explicit review.

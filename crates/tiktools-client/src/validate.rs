@@ -529,6 +529,12 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         | "sync.v2.changes.list"
         | "sync.v2.conflict.list" => validate::<Empty>(params),
         #[cfg(feature = "cloud-auth")]
+        "sync.v2.variables.review" | "sync.v2.variables.fetch" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "sync.v2.variables.apply" => {
+            validate::<tiktools_control_api::modules::sync::VariableSyncApply>(params)
+        }
+        #[cfg(feature = "cloud-auth")]
         "sync.v2.inventory.repair" => {
             validate::<tiktools_control_api::modules::sync::WorkspaceInventoryRepairParams>(params)
         }

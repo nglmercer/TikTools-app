@@ -208,6 +208,360 @@ fn requests_to(log: &Log, prefix: &str) -> Vec<(String, String, String)> {
         .collect()
 }
 
+async fn cache_variable(core: &Arc<AppCore>, name: &str, value: Option<Value>, revision: u64) {
+    let session = core.cloud.auth().session().await.unwrap();
+    let store = cloud_client::WorkspaceStore::open(
+        core.db.paths().data.join("cloud-sync"),
+        session.instance_origin(),
+        session.account_id(),
+    )
+    .unwrap();
+    let mut snapshot = store.load().unwrap().unwrap();
+    let target = WorkspaceKey::new("variables", name).unwrap();
+    let record: cloud_client::WorkspaceRecord = serde_json::from_value(json!({"collection":"variables","key":name,"revision":revision,"deleted":value.is_none(),"value":value})).unwrap();
+    if let Some(entry) = snapshot
+        .state
+        .entries
+        .iter_mut()
+        .find(|entry| entry.target == target)
+    {
+        entry.remote = Some(record);
+    } else {
+        snapshot.state.entries.push(cloud_client::WorkspaceEntry {
+            target,
+            remote: Some(record),
+            pending: None,
+            next: None,
+        });
+    }
+    store
+        .save(Some(snapshot.generation), &snapshot.state)
+        .unwrap();
+}
+
+fn variable_document(name: &str, kind: &str, value: Value) -> Value {
+    json!({"schemaVersion":1,"name":name,"type":kind,"value":value})
+}
+
+#[tokio::test]
+async fn variables_review_is_local_stable_and_never_projects_local_secrets_or_credentials() {
+    use crate::control::{RuntimeVariable, RuntimeVariableKind as Kind, RuntimeVariablesReplace};
+    let (core, log, root) = fixture(true).await;
+    let initial = core.runtime_variables_list().unwrap();
+    core.runtime_variables_replace(RuntimeVariablesReplace {
+        expected_revision: initial.revision,
+        variables: [
+            (
+                "port".into(),
+                RuntimeVariable {
+                    kind: Kind::Number,
+                    value: json!(1.0),
+                },
+            ),
+            (
+                "privateValue".into(),
+                RuntimeVariable {
+                    kind: Kind::Secret,
+                    value: json!(SECRET),
+                },
+            ),
+            (
+                "credentialLooking".into(),
+                RuntimeVariable {
+                    kind: Kind::Text,
+                    value: json!("Bearer private-review-test"),
+                },
+            ),
+            (
+                "localOnly".into(),
+                RuntimeVariable {
+                    kind: Kind::Boolean,
+                    value: json!(true),
+                },
+            ),
+        ]
+        .into(),
+    })
+    .unwrap();
+    cache_variable(
+        &core,
+        "port",
+        Some(variable_document("port", "number", json!(1))),
+        1,
+    )
+    .await;
+    cache_variable(
+        &core,
+        "privateValue",
+        Some(variable_document("privateValue", "text", json!(SECRET))),
+        1,
+    )
+    .await;
+    let before = log.lock().unwrap().len();
+    let first = core.sync_v2_variables_review().await.unwrap();
+    let again = core.sync_v2_variables_review().await.unwrap();
+    assert_eq!(
+        serde_json::to_value(&first).unwrap(),
+        serde_json::to_value(&again).unwrap()
+    );
+    assert_eq!(
+        first.changes.len(),
+        3,
+        "JSONB number equivalence must not create a difference"
+    );
+    let secret = first
+        .changes
+        .iter()
+        .find(|change| change.name == "privateValue")
+        .unwrap();
+    assert!(secret.local_secret && secret.can_withdraw);
+    assert!(
+        !secret.can_send && !secret.can_apply && secret.local.is_none() && secret.cloud.is_none()
+    );
+    let blocked = first
+        .changes
+        .iter()
+        .find(|change| change.name == "credentialLooking")
+        .unwrap();
+    assert!(blocked.blocked_local && blocked.local.is_none());
+    let wire = serde_json::to_string(&first).unwrap();
+    assert!(!wire.contains(SECRET) && !wire.contains("Bearer private-review-test"));
+    assert_eq!(log.lock().unwrap().len(), before);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn variables_apply_adopts_only_the_reviewed_cached_value_and_is_one_time() {
+    use crate::control::VariableSyncApply;
+    let (core, log, root) = fixture(true).await;
+    core.globals_set("port", "7").unwrap();
+    core.globals_set("untouched", "keep").unwrap();
+    cache_variable(
+        &core,
+        "port",
+        Some(variable_document("port", "number", json!(9))),
+        1,
+    )
+    .await;
+    let changes = core.sync_v2_variables_review().await.unwrap().changes;
+    let change = changes.iter().find(|change| change.name == "port").unwrap();
+    assert!(change.can_apply);
+    let before = log.lock().unwrap().len();
+    core.sync_v2_variables_apply(VariableSyncApply {
+        review: change.review.clone(),
+    })
+    .await
+    .unwrap();
+    assert_eq!(core.globals_get("port").unwrap(), "9");
+    assert_eq!(
+        core.runtime_variables_list().unwrap().variables["port"].kind,
+        crate::control::RuntimeVariableKind::Number
+    );
+    assert_eq!(core.globals_get("untouched").unwrap(), "keep");
+    assert!(core
+        .sync_v2_variables_apply(VariableSyncApply {
+            review: change.review.clone()
+        })
+        .await
+        .is_err());
+    assert!(!core
+        .sync_v2_variables_review()
+        .await
+        .unwrap()
+        .changes
+        .iter()
+        .any(|change| change.name == "port"));
+    assert_eq!(
+        log.lock().unwrap().len(),
+        before,
+        "application must not publish or fetch data"
+    );
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn variables_apply_rejects_local_cache_consent_and_secret_changes() {
+    use crate::control::{
+        RuntimeVariable, RuntimeVariableKind, RuntimeVariablesReplace, VariableSyncApply,
+    };
+    let (core, _, root) = fixture(true).await;
+    core.globals_set("port", "7").unwrap();
+    cache_variable(
+        &core,
+        "port",
+        Some(variable_document("port", "number", json!(9))),
+        1,
+    )
+    .await;
+    let token = core.sync_v2_variables_review().await.unwrap().changes[0]
+        .review
+        .clone();
+    core.globals_set("port", "8").unwrap();
+    assert!(core
+        .sync_v2_variables_apply(VariableSyncApply { review: token })
+        .await
+        .is_err());
+    let token = core.sync_v2_variables_review().await.unwrap().changes[0]
+        .review
+        .clone();
+    cache_variable(
+        &core,
+        "port",
+        Some(variable_document("port", "number", json!(10))),
+        2,
+    )
+    .await;
+    assert!(core
+        .sync_v2_variables_apply(VariableSyncApply { review: token })
+        .await
+        .is_err());
+    let token = core.sync_v2_variables_review().await.unwrap().changes[0]
+        .review
+        .clone();
+    let local = core.runtime_variables_list().unwrap();
+    core.runtime_variables_replace(RuntimeVariablesReplace {
+        expected_revision: local.revision,
+        variables: [(
+            "port".into(),
+            RuntimeVariable {
+                kind: RuntimeVariableKind::Secret,
+                value: json!(SECRET),
+            },
+        )]
+        .into(),
+    })
+    .unwrap();
+    assert!(core
+        .sync_v2_variables_apply(VariableSyncApply { review: token })
+        .await
+        .is_err());
+    assert_eq!(core.globals_get("port").unwrap(), SECRET);
+    let review = core.sync_v2_variables_review().await.unwrap().changes[0]
+        .review
+        .clone();
+    core.sync.coordinator().unwrap().set_enabled(false).unwrap();
+    assert!(core
+        .sync_v2_variables_apply(VariableSyncApply { review })
+        .await
+        .is_err());
+    assert_eq!(core.globals_get("port").unwrap(), SECRET);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn variables_apply_rejects_same_account_relogin_and_accepts_reviewed_deletion() {
+    use crate::control::VariableSyncApply;
+    let (core, log, root) = fixture(true).await;
+    core.globals_set("obsolete", "local").unwrap();
+    cache_variable(&core, "obsolete", None, 1).await;
+    let token = core.sync_v2_variables_review().await.unwrap().changes[0]
+        .review
+        .clone();
+    let auth = core.cloud.auth();
+    let origin = auth.session().await.unwrap().instance_origin();
+    auth.logout().await.unwrap();
+    std::fs::write(
+        core.db.paths().data.join("variables-account.json"),
+        serde_json::to_vec(&json!({"origin":origin,"account_id":"alice"})).unwrap(),
+    )
+    .unwrap();
+    auth.restore().await.unwrap();
+    let before = log.lock().unwrap().len();
+    assert!(core
+        .sync_v2_variables_apply(VariableSyncApply { review: token })
+        .await
+        .is_err());
+    assert_eq!(core.globals_get("obsolete").unwrap(), "local");
+    let token = core.sync_v2_variables_review().await.unwrap().changes[0]
+        .review
+        .clone();
+    core.sync_v2_variables_apply(VariableSyncApply { review: token })
+        .await
+        .unwrap();
+    assert!(core.globals_get("obsolete").is_err());
+    assert_eq!(log.lock().unwrap().len(), before);
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn variables_fetch_never_uploads_and_section_publication_retains_other_queues() {
+    use crate::control::SyncSection;
+    let (core, log, root) = fixture(true).await;
+    core.sync_v2_stage_preferences(json!({"theme":"dark"}))
+        .await
+        .unwrap();
+    core.sync_v2_stage_variables(SyncV2StageVariablesParams {
+        variables: vec![variable("port", VariableKind::Number, json!(46665))],
+        remove: vec![],
+    })
+    .await
+    .unwrap();
+    let before = core.sync_v2_changes_list().await.unwrap();
+    let preferences = before
+        .iter()
+        .find(|entry| entry.collection == "preferences")
+        .unwrap()
+        .clone();
+    core.sync_v2_variables_fetch().await.unwrap();
+    assert!(!log
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(method, _, _)| method == "PUT" || method == "DELETE"));
+    let pending = core.sync_v2_variables_review().await.unwrap().changes;
+    assert!(
+        !pending
+            .iter()
+            .find(|change| change.name == "port")
+            .unwrap()
+            .can_apply
+    );
+    let result = core.sync_v2_section(SyncSection::Variables).await.unwrap();
+    assert_eq!(result.pushed, 1);
+    assert!(!log
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(_, path, _)| path.contains("collections/preferences/")));
+    let after = core.sync_v2_changes_list().await.unwrap();
+    assert_eq!(
+        after
+            .iter()
+            .find(|entry| entry.collection == "preferences")
+            .unwrap(),
+        &preferences
+    );
+    assert!(
+        core.globals_get("port").is_err(),
+        "publishing and downloading must not apply a value"
+    );
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[tokio::test]
+async fn variables_network_actions_require_the_optional_backend_collection() {
+    let (core, log, root) = fixture(false).await;
+    let fetch = core.sync_v2_variables_fetch().await.unwrap_err();
+    assert_eq!(fetch.code, "capability_unavailable");
+    let publish = core
+        .sync_v2_section(crate::control::SyncSection::Variables)
+        .await
+        .unwrap_err();
+    assert_eq!(publish.code, "capability_unavailable");
+    assert!(!log
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(_, path, _)| path.starts_with("/api/v2/sync/")));
+    core.shutdown().await;
+    let _ = std::fs::remove_dir_all(root);
+}
+
 #[tokio::test]
 async fn local_secret_classification_overrides_a_clients_shareable_type() {
     use crate::control::{RuntimeVariable, RuntimeVariableKind, RuntimeVariablesReplace};

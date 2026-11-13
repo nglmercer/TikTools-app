@@ -545,14 +545,41 @@ Host behaviour (crates/tiktools-core `control/cloud_variables.rs`):
 - Pull: the change feed is account-wide, so variables written by another device are cached in the
   workspace and listed by `sync.v2.changes.list` (values are projected for `variables`, like
   `plugin-selections` and `preferences`; they are credential-free by contract). The host does
-  **not** apply them to the local runtime globals. Reviewed application, section
-  publication and the Variables Changes adapter are still pending. No Variables
-  sync button is shown until that transport is wired.
+  **not** apply them automatically to the local runtime globals. The native bridge below
+  supports explicit cached application and scoped publication. The Variables Changes
+  adapter, reviewed send/withdraw actions and pending-conflict application are still
+  pending. No Variables sync button is shown until that adapter is wired.
 - Older clients: a client built before the contracts change rejects `variables` records with a
   protocol error. Do not write variables from an account until every device that syncs it has the
   new contracts.
 - Not verified here: conflict review/resolve for a `variables` key reuses the generic v2 conflict
   RPCs but is not covered by a test in this repository.
+
+#### Native Variables review bridge (source after RC2)
+
+`sync.v2.variables.review` compares the typed native variables with this account's
+cached workspace. It is local-only and uses the shared read admission. Equal typed
+values are omitted, including JSONB-equivalent numeric representations. Secret and
+credential-like local variables expose only names/status, with neither local nor
+cached values. This bridge requires a complete product workspace and active v2
+consent, but it does not restore a saved session or contact Cloud.
+
+`sync.v2.variables.fetch` downloads the account feed into the cache without publishing
+any queue or applying any collection. `sync.v2.section {section:"variables"}` publishes
+only already-staged Variables decisions. Both require the optional backend capability;
+unrelated plugin intents, application candidates and queues are not processed.
+
+`sync.v2.variables.apply {review}` is an explicit local adoption of one cached value
+or tombstone. Its one-time reference binds the exact live session, consent generation,
+host-bound local revision and target workspace entry. Any change invalidates the
+comparison; unrelated local variables are preserved. Pending records, local secrets
+and blocked local values cannot be applied through this operation. The cache is
+held stable through the atomic SQLite save. All three RPCs are Owner-only.
+
+Validation includes native secret projection, stable comparison references, no-network
+review/application, numeric equivalence, one-time application/deletion, local/cache/
+consent/session invalidation, scoped publication and unsupported-backend rejection.
+These source changes are not included in the immutable RC2 artifacts.
 
 Runtime globals, TikTok/OAuth credentials, cookies, session tokens, signing
 material, native binaries and ephemeral LIVE state are not additional sync

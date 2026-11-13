@@ -13,9 +13,10 @@ pub use tiktools_core::control::{
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus, SyncNowResult,
     SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncSection,
     SyncV2StageVariablesParams, SyncV2StageVariablesResult, V2ChangeEntry, V2ConflictChoice,
-    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, V2PendingChange,
-    WorkspaceInventoryRepairParams, WorkspaceInventoryReview, WorkspaceV2Discovery,
-    WorkspaceV2Migration, WorkspaceV2Preview, WorkspaceV2SyncResult,
+    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, V2PendingChange, VariableSyncApply,
+    VariableSyncChange, VariableSyncReview, WorkspaceInventoryRepairParams,
+    WorkspaceInventoryReview, WorkspaceV2Discovery, WorkspaceV2Migration, WorkspaceV2Preview,
+    WorkspaceV2SyncResult,
 };
 use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
 
@@ -83,6 +84,24 @@ fn map_error(error: OperationError) -> ApiError {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<Empty, VariableSyncReview, _, _>(
+        "sync.v2.variables.review", "Compare local variables with the current account cache without network or application", false,
+        |core: Arc<AppCore>, _| async move { core.sync_v2_variables_review().await.map_err(map_error) },
+    );
+    router.register_typed::<VariableSyncApply, (), _, _>(
+        "sync.v2.variables.apply",
+        "Apply one exact reviewed cached record; rejects changed local, account or Cloud state",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            core.sync_v2_variables_apply(params)
+                .await
+                .map_err(map_error)
+        },
+    );
+    router.register_typed::<Empty, WorkspaceV2SyncResult, _, _>(
+        "sync.v2.variables.fetch", "Refresh the account cache without publishing queues or applying records", false,
+        |core: Arc<AppCore>, _| async move { core.sync_v2_variables_fetch().await.map_err(map_error) },
+    );
     router.register_typed::<Empty, WorkspaceInventoryReview, _, _>(
         "sync.v2.inventory.review",
         "Reviews absent local packages without changing sync queues",

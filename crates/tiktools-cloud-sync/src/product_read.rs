@@ -24,6 +24,22 @@ impl SyncCoordinator {
 }
 
 impl ProductReadLease {
+    /// Capture nonsecret consent identity from this shared read lease. Exact
+    /// live-session validation remains the caller's responsibility.
+    pub fn v2_context(
+        &self,
+        session: &cloud_client::Session,
+    ) -> Result<crate::V2LocalEditContext, SyncCoordError> {
+        if !self.v2_selected(Some(session))? {
+            return Err(SyncCoordError::Disabled);
+        }
+        Ok(crate::V2LocalEditContext {
+            origin: session.instance_origin(),
+            account_id: session.account_id().to_owned(),
+            config_generation: self.config.generation,
+        })
+    }
+
     /// Validate scope and both durable v2 markers using the captured live
     /// session, rather than a remembered identity or the account mutex.
     pub fn v2_selected(

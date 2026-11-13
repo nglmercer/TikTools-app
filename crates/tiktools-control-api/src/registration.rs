@@ -57,6 +57,7 @@ impl ControlApi {
             "automation.delete",
             "globals.delete",
             "globals.typed.replace",
+            "sync.v2.variables.apply",
             "workflows.delete",
             "points.reset",
             "competitions.delete",

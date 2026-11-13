@@ -9,12 +9,16 @@ use tiktools_control_api::modules::sync::{
 use tiktools_control_api::modules::sync::{
     SyncV2ConflictResolveParams, SyncV2ConflictReviewParams, SyncV2StagePluginSettingsParams,
     SyncV2StageVariablesParams, SyncV2StageVariablesResult, V2ChangeEntry, V2ConflictOutcome,
-    V2ConflictReview, V2ConflictTarget, WorkspaceV2Migration,
+    V2ConflictReview, V2ConflictTarget, VariableSyncApply, VariableSyncReview,
+    WorkspaceV2Migration,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
 
 pub(crate) const METHODS: &[&str] = &[
+    "sync.v2.variables.review",
+    "sync.v2.variables.apply",
+    "sync.v2.variables.fetch",
     SYNC_STATUS,
     SYNC_ENABLE,
     SYNC_DISABLE,
@@ -50,6 +54,19 @@ const SYNC_NOW: &str = "sync.now";
 const SYNC_RESOLVE: &str = "sync.resolve";
 
 impl TikToolsClient {
+    pub async fn sync_v2_variables_review(&self) -> Result<VariableSyncReview, ClientError> {
+        self.call("sync.v2.variables.review", Empty::default())
+            .await
+    }
+    pub async fn sync_v2_variables_apply(
+        &self,
+        params: VariableSyncApply,
+    ) -> Result<(), ClientError> {
+        self.call("sync.v2.variables.apply", params).await
+    }
+    pub async fn sync_v2_variables_fetch(&self) -> Result<WorkspaceV2SyncResult, ClientError> {
+        self.call("sync.v2.variables.fetch", Empty::default()).await
+    }
     pub async fn sync_v2_section(
         &self,
         params: SyncSectionParams,

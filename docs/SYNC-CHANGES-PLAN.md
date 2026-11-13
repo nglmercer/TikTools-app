@@ -52,8 +52,8 @@ Migration diagnostics distinguish an incomplete inventory from missing packages.
 Only an absent automatically derived bundled-plugin root may be omitted. Explicit
 roots remain strict. Inventory recovery previews exact missing package IDs and
 archives their install flags in SQLite before a reviewed local repair. It preserves
-Cloud queues, plugin data and conflicts. Tested on a copy of the affected profile;
-no migration was run against the production account.
+Cloud queues, plugin data and conflicts. The initial 4.2.0 validation used a copy
+without migration; the later RC1 account-policy event is documented below.
 
 The AppImage bundles the GStreamer plugins and scanner used by its media libraries;
 packaging verification checks every required plugin. Host-specific helper paths
@@ -171,8 +171,31 @@ previously missing Teams/sync typed wrappers and validators were added while
 closing registry parity. The browser rendering was inspected with test data.
 
 This is source work after RC2; published RC2 assets remain unchanged. Saving
-variables remains local. Section publication, explicit withdrawal, reviewed
-application and the Variables Changes adapter are still the next integration.
+variables remains local. The native review bridge described below is the next
+increment; the Variables Changes adapter and explicit send/withdraw remain pending.
+
+### Native Variables comparison and explicit cached application
+
+The local-only `sync.v2.variables.review` returns account-bound comparisons between
+typed native values and the cached workspace. It omits equal values, masks both
+sides of local-secret/credential-like entries, and issues stable, bounded, expiring
+references per comparison. It requires the same session/consent checks as Changes.
+
+`sync.v2.variables.apply {review}` applies only the reviewed target, including a
+cached deletion, through the atomic local Variables replacement. The reference is
+one-time and invalidated by a new session (even the same account), changed consent,
+local edit, host restart or a changed target cache entry. Pending records cannot
+be adopted through this bridge. Saving still never uploads.
+
+`sync.v2.variables.fetch` caches the account-wide feed with no publication or local
+application. Variables-scoped `sync.v2.section` publishes already-staged Variables
+only; it does not drain plugin intents or apply downloaded plugin state. Both check
+the optional collection before dispatch. Other section queues remain intact.
+
+Validation: 28 native Variables/read tests and 17 Cloud-enabled client parity tests
+pass. Owner-only RPC checks cover review/fetch/apply. These are source changes after
+RC2; a Variables section adapter and reviewed send/withdraw/conflict handling are
+still required before exposing a sync control in that tab.
 
 ## Goal
 
@@ -219,8 +242,9 @@ Cloud has a public overlay gallery.
 
 ## TODO (not implemented)
 
-- [ ] **Variables sync.** Typed local editor and native secret enforcement are implemented;
-  section transport/application and the Changes adapter remain pending. The `variables` collection exists in `cloud-contracts` and
+- [ ] **Variables sync.** Typed local editor, native secret enforcement and the native
+  cached review/application/scoped transport bridge are implemented; reviewed
+  send/withdraw/conflict handling and the Changes adapter remain pending. The `variables` collection exists in `cloud-contracts` and
   RemakeBackend (types text, number, boolean, list; **secret never syncs**), is announced in
   `sync.optionalCollections`, and the host stages it with `sync.v2.stageVariables` (secrets are excluded in the
   host, contract violations are reported by name, an instance without the capability gets

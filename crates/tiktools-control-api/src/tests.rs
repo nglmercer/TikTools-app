@@ -81,10 +81,24 @@ async fn typed_runtime_variables_are_atomic_owner_only_operations() {
         Duration::from_secs(60),
     )
     .unwrap();
-    for (method, params) in [
+    let operations = vec![
         ("globals.typed.list", json!({})),
         ("globals.typed.replace", params),
-    ] {
+    ];
+    #[cfg(feature = "cloud-auth")]
+    let operations = {
+        let mut operations = operations;
+        operations.extend([
+            ("sync.v2.variables.review", json!({})),
+            ("sync.v2.variables.fetch", json!({})),
+            (
+                "sync.v2.variables.apply",
+                json!({"review":"ordinary-comparison-reference"}),
+            ),
+        ]);
+        operations
+    };
+    for (method, params) in operations {
         let denied = api
             .execute_with_context(
                 &RequestContext::Remote(session.clone()),

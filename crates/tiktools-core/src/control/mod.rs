@@ -53,7 +53,11 @@ mod cloud_publisher;
 #[cfg(feature = "cloud-auth")]
 pub(crate) mod cloud_sync;
 #[cfg(feature = "cloud-auth")]
+pub(crate) mod cloud_variable_review;
+#[cfg(feature = "cloud-auth")]
 mod cloud_variables;
+#[cfg(feature = "cloud-auth")]
+pub use cloud_variable_review::{VariableSyncApply, VariableSyncChange, VariableSyncReview};
 #[cfg(feature = "cloud-auth")]
 mod cloud_workspace;
 mod commands;
