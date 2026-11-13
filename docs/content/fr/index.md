@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "15b3ee03a70b6fe83e5be90c719f1ee0840de689b7d51e44414d75dc1bc4d59b"
+sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
+translationRevision: "2b499416d56fe7c0f57af76955293598365918abc54b09e3185de4b495c6e9d3"
 layout: page
 order: 0
 ---
@@ -26,7 +26,7 @@ TikTools / Documentation
 
 # Votre guide pour<br />un meilleur LIVE. {#tiktools-documentation}
 
-Connectez votre TikTok LIVE, exploitez les événements de votre audience et créez avec TikTools. Une documentation pratique, de votre première connexion à votre prochain plugin.
+Connectez votre LIVE, découvrez les événements de votre audience et transformez-les en actions. Apprenez avec des exemples de l’interface réelle, puis appliquez chaque parcours à votre prochaine diffusion.
 
 </template>
 
@@ -41,7 +41,7 @@ Connectez votre TikTok LIVE, exploitez les événements de votre audience et cr�
 
 ## Votre premier LIVE, étape par étape {#start-here}
 
-Commencez avec une version publiée de l’application. Aucun outil de développement nécessaire.
+Installez une version publiée, connectez un créateur et vérifiez votre premier événement. Essayez les commandes avec des données fictives à chaque étape.
 
 1. [**Vérifier les prérequis** <span>Trouvez la configuration adaptée à votre système.</span>](./user/requirements.md)
 2. [**Installer TikTools** <span>Téléchargez et ouvrez un binaire publié.</span>](./user/installation.md)
@@ -53,7 +53,7 @@ Commencez avec une version publiée de l’application. Aucun outil de développ
 
 ## Trouvez votre point de départ {#explore-the-guides}
 
-Deux parcours. Les mêmes outils.
+Choisissez un parcours pour utiliser l’application, ou découvrez les outils qui permettent de l’étendre.
 
 </template>
 
@@ -85,7 +85,7 @@ Travaillez avec l’hôte Rust, l’interface Vue et l’API de contrôle typée
 
 ## Ressources utiles en chemin {#resources}
 
-- [**Référence des composants d’interface** <span>17 familles avec exemples et code source.</span>](./developer/components/index.md)
+- [**Référence des composants d’interface** <span>17 familles avec exemples interactifs, états et code source.</span>](./developer/components/index.md)
 - [**Dépannage** <span>Consultez les diagnostics et résolvez les problèmes courants.</span>](./user/preferences/troubleshooting.md)
 - [**Notes de version** <span>Consultez les changements avant la mise à jour.</span>](./releases/index.md)
 

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "695a2bf30a1a5bd78d0ad8e235b5f1289c913fc1ead020c882f343e8c42ab317"
-translationRevision: "96305040b850859ff33509813879e3474253dc04a1aca2993f96e3896e46eff3"
+sourceRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
+translationRevision: "b874d7bbdae72627d4394ee473ceb799d092b6b784a007e058c2774e5d21a97c"
 order: 140
 ---
 
@@ -38,6 +38,8 @@ Para previsualizar cambios sin commit usa `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scrip
 
 Reiniciar limpia únicamente el prefijo `tiktools.demo.<instance>.*` y recarga el iframe. Recargar reinicializa singletons, journals, i18n y diagnósticos. Cada iframe recibe un identificador distinto. Al salir se desmonta Vue, se liberan stores, cliente y transporte, y se detienen ambos temporizadores. La demo no instala `window.ipc` ni realiza HTTP arbitrario, shell, RCON, ejecución de código visitante o actualización nativa. Su CSP rechaza conexiones de red. Las plantillas de log y filtros simulados usan funciones puras compartidas: representan el contrato del frontend y no sustituyen la ejecución Rust.
 
+El parámetro `embed=connection|feed|automation|points|overlays` selecciona una vista incrustada enfocada. Oculta la navegación general y conserva las páginas y el runtime reales; utiliza la ruta correspondiente al panel, sin iniciar un recorrido guiado. La vista de conexión permite practicar los controles sin ocupar el artículo con todo el espacio de trabajo. El modo incrustado mantiene el mismo límite de transporte simulado y el aislamiento de almacenamiento de la demo completa.
+
 La entrada `startTour(id, {router, capabilities, taskState})` y el registro `tourRegistry` están en `src/web/features/guided-help/index.ts`. Siete recorridos versionados utilizan objetivos estables y catálogos separados para cada idioma admitido. Driver.js carga bajo demanda, limita objetivos al workspace, respeta movimiento reducido, restaura foco y cancela esperas acotadas al navegar. Cerrar una guía nunca completa tareas ni ejecuta acciones de la aplicación. El selector nombra la tarea completa, prepara su escenario y pausa la reproducción antes de iniciar. El cierre de Driver descarta la guía y la barra muestra el resultado. Reiniciar limpia el progreso versionado de esta instancia.
 
 ## Resultado esperado y estado {#expected-result-and-status}
@@ -47,6 +49,14 @@ La demo muestra navegación, edición local, eventos y recuperación que admite 
 ## Componentes y Markdown {#components-and-markdown}
 
 `docs/examples/*.vue` aporta el catálogo ejecutable y sus snippets. Los botones pequeños se montan directamente en Markdown sin estilos globales del escritorio. Los diálogos, layouts y páginas completas usan `DemoFrame`, que valida parámetros, respeta el base y carga un iframe solo bajo demanda. La opción pública `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` expone el catálogo sin activar todas las herramientas de desarrollo del escritorio.
+
+Para insertar un panel real junto a una instrucción, declara el escenario, idioma, panel y un título descriptivo:
+
+```vue
+<DemoFrame scenario="connection" locale="es" panel="connection" title="Practica tu primera conexión LIVE" />
+```
+
+`panel` admite `connection`, `feed`, `automation`, `points` y `overlays` y selecciona el modo `embed` correspondiente. Antes de interactuar se muestra una vista previa sin cargar el iframe. El botón para probar el ejemplo carga su instancia aislada; reiniciar descarta únicamente el estado de esa instancia. **Abrir demo completa** sale del modo incrustado y recupera la navegación general. Coloca cada ejemplo junto al paso que explica y conserva el texto necesario para comprender la tarea sin cargarlo.
 
 ## Recuperación y verificación {#recovery-and-verification}
 

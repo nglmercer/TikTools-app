@@ -1,4 +1,4 @@
-import { createApp, h, reactive } from 'vue';
+import { createApp, h, reactive, watch } from 'vue';
 import DemoToolbar from './DemoToolbar.vue';
 import { createControlClient } from '@/shared/api/control-client.ts';
 import { mountWorkspace } from '@/app/mount-workspace.ts';
@@ -16,15 +16,18 @@ import { createDemoPlayback, type PlaybackState } from './playback.ts';
 import { demoTourScenarios, demoTourUrl, scenarioTour } from './tours.ts';
 import { isTourId } from '@/features/guided-help/model/registry.ts';
 import type { GuideOutcome } from '@/features/guided-help/model/types.ts';
+import { experienceCopy } from '../../../docs/experience/copy.ts';
+import { useNavigationStore } from '@/shared/model/navigation-store.ts';
+import type { BuiltinAppTab } from '@/types.ts';
 export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, storage: { clear(): void }) {
   const host = createDemoHost(options.scenario);
   configureAppClock(() => DEMO_AT + host.diagnostics().ticks * 1000);
   const client = createControlClient({ transport: host.transport });
-  if (!validDemoRoute(location.hash.slice(1))) location.hash = options.route;
+  if (options.embed || !validDemoRoute(location.hash.slice(1))) location.hash = options.route;
   const recordFailure = () => diagnosticLog.record({ source: 'integrations', level: 'error', code: 'demo.simulated_action_failure', message: ({ en: 'Simulated action failed. Inspect the run result, then retry or reset.', es: 'Falló una acción simulada. Revisa el resultado y reintenta o reinicia.', pt: 'Uma ação simulada falhou. Confira o resultado e tente novamente ou reinicie.', fr: 'Une action simulée a échoué. Consultez le résultat, puis réessayez ou réinitialisez.', zh: '模拟操作失败。请检查执行结果，然后重试或重置。', ja: 'サンプルのアクションが失敗しました。実行結果を確認し、再試行するかリセットしてください。' })[options.locale], requestId: 'demo-request' });
   if (options.scenario === 'diagnostics') recordFailure();
   const toolbar = document.querySelector('#demo-controls')!;
-  const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '' });
+  const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as 'normal' | 'offline' | 'auth' });
   const playback = createDemoPlayback(host, client, (state) => Object.assign(toolbarState, state));
   const tours = (Object.keys(tourRegistry) as Array<keyof typeof tourRegistry>).map((value) => ({ value, label: toolbarCopy[options.locale].tourTitles[value] }));
   const initialTour = options.tour ?? scenarioTour(options.scenario);
@@ -32,7 +35,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   const onScenario = (scenario: string) => { const url = new URL(location.href); url.searchParams.set('scenario', scenario); url.searchParams.delete('route'); url.searchParams.delete('tour'); url.hash = ''; location.assign(url.href); };
   const onLocale = (locale: DemoLocale) => { const url = new URL(location.href); url.searchParams.set('locale', locale); location.assign(url.href); };
   const toolbarApp = createApp({ setup: () => () => h(DemoToolbar, {
-    ...toolbarState, scenario: options.scenario, locale: options.locale, initialTour, tours,
+    ...toolbarState, scenario: options.scenario, locale: options.locale, initialTour, tours, embed: options.embed,
     docsUrl: new URL(`../${options.locale}/`, location.href).href,
     onScenario, onLocale,
     onPlay: () => { void playback.play(); },
@@ -41,12 +44,29 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     onCatalog: () => { location.hash = '/components/buttons'; },
     onGuide: (id: string, trigger: HTMLElement) => tourActions.start?.(id, trigger),
     onCancelGuide: () => tourActions.stop?.(),
+    onConnectionCase: async (kind: 'normal' | 'offline' | 'auth') => {
+      playback.pause();
+      await client.call('live.disconnect', {});
+      toolbarState.connectionCase = kind;
+      const copy = experienceCopy[options.locale].connectionStates;
+      host.setConnectionExample(kind, kind === 'offline' ? copy.offlineHelp : kind === 'auth' ? copy.authHelp : '');
+    },
   }) });
   toolbarApp.config.idPrefix = 'demo-tools';
   toolbarApp.mount(toolbar);
   const app = await mountWorkspace({ client, locale: options.locale, configure(app) {
     const router = app.config.globalProperties.$router;
-    router.beforeEach((to) => validDemoRoute(to.fullPath) ? true : '/feed');
+    router.beforeEach((to) => options.embed && to.path !== options.route && to.path !== '/debug' ? false : validDemoRoute(to.fullPath) ? true : '/feed');
+    if (options.embed) {
+      // Real connection actions normally open the feed. A focused lesson keeps
+      // its panel visible so successes and failures can be inspected in place.
+      const tabs: Record<NonNullable<typeof options.embed>, BuiltinAppTab> = { connection: 'connect', feed: 'feed', automation: 'behavior', points: 'points', overlays: 'widgets' };
+      const target = tabs[options.embed];
+      const navigation = app.runWithContext(() => useNavigationStore());
+      navigation.open(target);
+      const stop = watch(() => navigation.activeTab, (tab) => { if (tab !== target) navigation.open(target); }, { flush: 'sync' });
+      app.onUnmount(stop);
+    }
   } }).catch((error: unknown) => { playback.dispose(); toolbarApp.unmount(); client.detach(); host.dispose(); configureAppClock(undefined); throw error; });
   const discovery = await client.call<{ methods: Array<{ name: string }> }>('rpc.discover', {});
   let tour: GuideSession | undefined;
@@ -81,6 +101,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   tourActions.stop = () => { tour?.stop('dismissed'); tour = undefined; toolbarState.guideState = 'idle'; };
 
   toolbarState.ready = true;
+  if (options.embed === 'feed') await playback.step();
   if (options.tour) launchTour(options.tour);
   const timer = setInterval(() => playback.tick(), 2000);
   // Observable state has no mutators or test-only globals, and is useful for support diagnostics.

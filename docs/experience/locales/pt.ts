@@ -1,0 +1,107 @@
+import type { ExperienceCopy } from '../types.ts';
+
+export default {
+  interactive: 'Exemplo interativo',
+  fictional: 'Dados fictícios',
+  tryIt: 'Experimentar',
+  reset: 'Reiniciar exemplo',
+  openFull: 'Abrir demonstração completa',
+  close: 'Fechar exemplo',
+  preview: 'Prévia da interface',
+  loading: 'Carregando a interface…',
+  task: 'Sua tarefa',
+  success: 'Resultado esperado',
+  topicsTitle: 'Aprenda com a aplicação em ação',
+  topicsDescription: 'Escolha uma tarefa, explore os controles reais e siga o guia para aplicar o que aprendeu.',
+  readGuide: 'Ler o guia',
+  topics: {
+    connection: {
+      title: 'Conecte uma LIVE',
+      description: 'Encontre um criador e acompanhe os primeiros eventos da transmissão.',
+      task: 'Digite demo_creator e selecione Conectar. Depois confira os eventos na atividade ao vivo.',
+      result: 'A conexão fica ativa e os eventos fictícios aparecem no feed.',
+    },
+    automation: {
+      title: 'Crie uma automação',
+      description: 'Transforme mensagens e presentes em ações com regras que você controla.',
+      task: 'Explore a ação de registro, confira seu evento vinculado e execute um teste com dados de exemplo.',
+      result: 'O histórico mostra a execução da ação e a mensagem produzida pelo teste.',
+    },
+    overlays: {
+      title: 'Prepare seu OBS',
+      description: 'Edite sobreposições, confira a prévia e prepare uma fonte de navegador.',
+      task: 'Escolha uma sobreposição e altere seu design. Confira o resultado na prévia.',
+      result: 'O design atualizado aparece na prévia; a conexão real ao OBS é configurada no aplicativo.',
+    },
+    points: {
+      title: 'Configure os pontos',
+      description: 'Defina como a participação do público contribui para os saldos locais.',
+      task: 'Explore as regras de pontuação e compare os saldos dos espectadores de exemplo.',
+      result: 'Você identifica as fontes de pontos, as taxas configuradas e os saldos de cada espectador.',
+    },
+  },
+  otherTasks: {
+    feed: {
+      task: 'Avance um evento de exemplo e selecione uma mensagem ou o nome de um espectador para inspecionar seus detalhes.',
+      result: 'O feed recebe o evento fictício e exibe os detalhes do evento ou o perfil do espectador selecionado.',
+    },
+    analytics: {
+      task: 'Confira os totais, avance um evento de exemplo e compare os indicadores novamente.',
+      result: 'Os indicadores refletem a atividade simulada recebida; eles não representam uma transmissão real.',
+    },
+    plugins: {
+      task: 'Abra os detalhes do plugin de exemplo, revise suas informações e experimente a instalação simulada.',
+      result: 'O estado do plugin muda apenas nesta demonstração; nenhum pacote nativo é instalado.',
+    },
+    cloud: {
+      task: 'Compare os valores local e da Cloud para greeting, revise a diferença e escolha a alteração que deseja manter.',
+      result: 'A decisão revisada atualiza o estado de exemplo sem acessar uma conta real da Cloud.',
+    },
+    collaboration: {
+      task: 'Revise a solicitação fictícia de acesso e conceda somente as permissões limitadas que deseja demonstrar.',
+      result: 'A solicitação e as permissões são atualizadas localmente; nenhum dispositivo externo entra na sessão.',
+    },
+    settings: {
+      task: 'Altere uma preferência local, confira seu efeito e reinicie a demonstração para restaurar o estado inicial.',
+      result: 'A preferência muda apenas nesta instância e o reinício remove suas alterações de exemplo.',
+    },
+    diagnostics: {
+      task: 'Selecione uma entrada de falha, inspecione seus detalhes e tente novamente a ação simulada após revisar a condição.',
+      result: 'Os detalhes ajudam a identificar a falha de exemplo e o resultado da nova tentativa fica visível na demonstração.',
+    },
+  },
+  previewLabels: {
+    creator: 'Criador',
+    event: 'Evento',
+    action: 'Ação',
+    output: 'Resultado',
+    chat: 'Mensagem de chat',
+    gift: 'Presente',
+    connected: 'Conectado',
+    disconnected: 'Desconectado',
+    message: 'Olá, TikTools!',
+  },
+  connectionStates: {
+    label: 'Estado da conexão',
+    normal: 'Conexão normal',
+    offline: 'Criador offline',
+    auth: 'Sessão necessária',
+    offlineHelp: 'O criador não está transmitindo. Confira se a LIVE começou antes de tentar novamente ou use o monitoramento na aplicação.',
+    authHelp: 'A sala exige uma sessão autorizada. Na aplicação, use o campo mascarado de cookie e confira os diagnósticos. A demonstração não precisa de uma credencial real.',
+  },
+  releases: {
+    stable: 'Estável',
+    prerelease: 'Prévia',
+    notes: 'Notas da versão',
+    source: 'Código-fonte',
+    downloads: 'Downloads disponíveis',
+    noDownloads: 'Nenhum download publicado para este sistema nesta versão.',
+    checksums: 'Verificar checksums',
+    published: 'Publicada em',
+    snapshot: 'Dados das versões verificados em',
+    refresh: 'Confira no GitHub as publicações mais recentes.',
+    all: 'Todos',
+    highlights: 'Destaques',
+    unavailable: 'Os dados das versões não estão disponíveis. Consulte as publicações no GitHub.',
+  },
+} satisfies ExperienceCopy;

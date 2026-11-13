@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e28f094fd59897eee4cc337e63a565849b521c329842e96dddaf891e521d0378"
-translationRevision: "cd13e4a3d756594163dbf99e6d11a184c70649d84bf82bd1b1fc731b67e1428c"
+sourceRevision: "a0c1a45f5279fec0b2fae29f40f47090d0600237815b293e9600e28221ec969b"
+translationRevision: "8024be8c674ec65d279e9f1240138821dfbf0e7cdbb9cf2ee5de0a8e5020c86d"
 order: 220
 ---
 
@@ -29,6 +29,14 @@ bun scripts/task.ts rust build -p tiktools-desktop --release --locked
 ```
 
 维护者有意更改版本时，使用 `bun scripts/task.ts version bump v4.2.3`，并替换为选定的下一版本。完整构建还会创建小组件资源。发布打包将原生可执行文件放在 `web/index.html` 旁，并发布校验和。安装器流程还会构建 NSIS、DEB 和 AppImage，并对照便携式暂存验证资源。插件包仍作为独立运行时安装。
+
+公开文档从 `docs/experience/releases.json` 渲染发行版卡片。发布后请明确刷新该快照：
+
+```sh
+bun scripts/refresh-docs-releases.ts
+```
+
+此命令通过 GitHub API 读取已发布发行版，只保留实际上传完成的附件，并记录卡片上显示的验证日期。构建离线使用仓库中已提交的快照，不会获取 GitHub 发行数据。提交前请审查快照变化，包括平台文件名、发行通道和下载 URL。仅有源码标签不能生成安装器链接；此快照也不会启用或验证更新器安装。
 
 ## 审查更新器信任 {#review-updater-trust}
 

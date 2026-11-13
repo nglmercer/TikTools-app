@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6f8673490bebb3447474a70d914d06102de87a9ef2f3f3c51da897d0d2cc8c1c"
-translationRevision: "81969544c0608f5cd6ad8eefe9bfd27613057a8a94d93fd15f1b9f3999a4cd78"
+sourceRevision: "ed9e7c1bcb88d991ed3d8ea8a399aa5b5e9ca8cfa58de580f8ca757344d26ca2"
+translationRevision: "1de85ad61053bb9109fd85b0ece0b2b925ec7745ebf6a7617d143ac89d37160b"
 order: 20
 ---
 
@@ -16,32 +16,66 @@ order: 20
 
 ## 目的と前提条件 {#goal-and-prerequisites}
 
-コンパイラーを設定せずに公開デスクトップパッケージをインストールします。[動作要件](requirements.md) を確認し、起動中の TikTools を終了して、プロジェクトの [GitHub リリース](https://github.com/nglmercer/TikTools-app/releases) からダウンロードします。
+コンパイラーを設定せずに、公開済みのデスクトップパッケージをインストールします。プロジェクトの [GitHub リリース](https://github.com/nglmercer/TikTools-app/releases) から取得し、使用する OS の手順に従ってください。
+
+<DocRequirements title="始める前に">
+
+- [動作要件](requirements.md) を確認し、使用する PC に対応したパッケージを選びます。
+- アプリを置き換える前に、起動中の TikTools を終了します。
+- リリースノートを読み、ダウンロードの検証に使う `SHA256SUMS.txt` を用意します。
+- 別のバージョンを試す前に、アプリを停止してデータディレクトリをバックアップします。
+
+</DocRequirements>
 
 ## パッケージを選ぶ {#choose-a-package}
 
-| パッケージ | 用途 |
-| --- | --- |
-| Windows `installer.exe` | ユーザーごとの NSIS インストール。WebView2 が必要です。 |
-| Linux `installer.AppImage` | 互換 Linux デスクトップ用の可搬型実行イメージ。 |
-| Linux `installer.deb` | Debian/Ubuntu のパッケージマネージャーでインストール。 |
-| Windows ZIP / Linux TAR.GZ | 実行ファイルとリソースを含む可搬型ディレクトリ。 |
+<DocTabs label="使用する OS を選ぶ">
+
+<template #windows>
+
+ユーザーごとに NSIS でインストールする場合は、x86_64 の **`installer.exe`** を選びます。デスクトップアプリには **WebView2** が必要です。インストーラーに求められたら導入してください。
+
+可搬型ディレクトリとして使う場合は **ZIP** パッケージを選びます。アーカイブ全体を展開し、実行ファイル、`web/`、その他の同梱リソースを一緒に保ってください。
+
+[Windows の手順に進む](#windows)
+
+</template>
+
+<template #linux>
+
+互換 Linux デスクトップで実行する可搬型イメージには **`installer.AppImage`**、Debian/Ubuntu のパッケージマネージャーで導入する場合は **`installer.deb`**、実行ファイルとリソースを含む可搬型ディレクトリには **TAR.GZ** を選びます。
+
+AppImage には実行権限が必要です。DEB はパッケージマネージャーで実行時依存関係を解決します。TAR.GZ はディレクトリ全体を展開し、同梱リソースを一緒に保ってください。
+
+[Linux の手順に進む](#linux)
+
+</template>
+
+</DocTabs>
 
 安定版かプレリリースかを確認します。プレリリースは検証用候補で、本番互換性を自動的に保証するものではありません。既存環境を置き換える前に、リリースの `SHA256SUMS.txt` でダウンロードしたバイト列を確認します。
 
 ## Windows {#windows}
+
+<DocSteps>
 
 1. x86_64 インストーラーを取得し、チェックサムを確認します。
 2. TikTools を使うユーザーで実行し、求められたら WebView2 をインストールします。
 3. TikTools を起動し、**設定 → 一般** で表示言語を選びます。
 4. 可搬型 ZIP はディレクトリ全体を展開します。`web/` などの同梱リソースを実行ファイルの隣に保ち、コピーした EXE だけを実行しないでください。
 
+</DocSteps>
+
 ## Linux {#linux}
+
+<DocSteps>
 
 1. 対応する AppImage、DEB、可搬型アーカイブを取得し、チェックサムを確認します。
 2. AppImage はファイルマネージャーで実行を許可するか、取得ファイルに `chmod +x` を実行してから開きます。
 3. DEB は実行時依存関係が解決されるよう、システムのパッケージマネージャーでインストールします。
 4. TAR.GZ は全体を展開し、同梱リソースを保ったままデスクトップ実行ファイルを起動します。
+
+</DocSteps>
 
 ## 期待される結果 {#expected-result}
 

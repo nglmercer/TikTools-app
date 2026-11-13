@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "85abf8a8186a38e1fbe4e4370697faef85910fb240a48611c448c7e3e40e21a7"
+sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
+translationRevision: "5e092a7f3965fb3dfeabc15a7c69aaaadaad9a73fe89c38b5aaaccdcab9a86c6"
 layout: page
 order: 0
 ---
@@ -25,7 +25,7 @@ TikTools / 文档
 
 # 让每一场直播<br />更出色的实用指南。 {#tiktools-documentation}
 
-连接 TikTok LIVE，让观众事件发挥作用，并基于 TikTools 构建新功能。从首次连接到下一个插件，都有实用文档伴你前行。
+连接直播，接收观众事件，再将事件转为操作。通过真实界面示例边学边试，把每项流程应用到下一场直播。
 
 </template>
 
@@ -40,7 +40,7 @@ TikTools / 文档
 
 ## 一步步开启首次直播 {#start-here}
 
-从已发布的应用开始，无需开发工具。
+安装已发布的应用，连接主播，再检查第一个事件。学习过程中可使用虚构数据练习控件。
 
 1. [**查看系统要求** <span>找到适合你的系统环境。</span>](./user/requirements.md)
 2. [**安装 TikTools** <span>下载并打开已发布的程序。</span>](./user/installation.md)
@@ -52,7 +52,7 @@ TikTools / 文档
 
 ## 找到适合你的起点 {#explore-the-guides}
 
-两条学习路径，共用一套工具。
+选择使用应用的操作流程，或探索扩展应用的开发工具。
 
 </template>
 
@@ -84,7 +84,7 @@ TikTools / 文档
 
 ## 开发与使用中的实用资源 {#resources}
 
-- [**UI 组件参考** <span>17 个组件族，附示例与源码。</span>](./developer/components/index.md)
+- [**UI 组件参考** <span>17 个组件族，附交互示例、状态与源码。</span>](./developer/components/index.md)
 - [**故障排查** <span>查找诊断信息，恢复常见故障。</span>](./user/preferences/troubleshooting.md)
 - [**发行说明** <span>更新前先了解变化。</span>](./releases/index.md)
 

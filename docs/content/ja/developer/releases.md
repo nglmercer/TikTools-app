@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e28f094fd59897eee4cc337e63a565849b521c329842e96dddaf891e521d0378"
-translationRevision: "e65a4276e28177aa883be5e6c4988f2abc106d3116eed2c587a2b7922ea2bc94"
+sourceRevision: "a0c1a45f5279fec0b2fae29f40f47090d0600237815b293e9600e28221ec969b"
+translationRevision: "1192751ac0d2e98a3509ff936f5306b52962fae7a1a4a96be946ec0ce8e1c64c"
 order: 220
 ---
 
@@ -29,6 +29,15 @@ bun scripts/task.ts rust build -p tiktools-desktop --release --locked
 ```
 
 意図した版変更は、選んだ次版で `bun scripts/task.ts version bump v4.2.3` を使います。完全ビルドはウィジェットも生成します。梱包はネイティブ実行ファイルを `web/index.html` の隣に置き、チェックサムを公開します。インストーラー処理は NSIS、DEB、AppImage も作り、可搬型の準備内容とリソースを比較します。プラグインは別途インストールします。
+
+
+公開ドキュメントのリリースカードは `docs/experience/releases.json` を読み込みます。公開後は、次のコマンドでスナップショットを明示的に更新してください。
+
+```sh
+bun scripts/refresh-docs-releases.ts
+```
+
+このコマンドは GitHub API から公開済みリリースを取得し、実際にアップロードされたアセットだけを保持して、カードに表示する確認日を記録します。ビルドはコミット済みスナップショットをオフラインで使用し、GitHub のリリース情報を取得しません。コミット前に、対象 OS のファイル名、リリースチャンネル、ダウンロード URL などの差分を確認してください。ソースのタグだけを根拠にインストーラーのリンクを生成してはいけません。このスナップショットは更新機能のインストールを有効にするものでも、その動作を検証するものでもありません。
 
 ## 更新の信頼を確認する {#review-updater-trust}
 

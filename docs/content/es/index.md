@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "75ffbf5f21dd2927d557b485e6b1dd532de175126e161af8102cde9ef07a991f"
+sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
+translationRevision: "0900980b0881c328c8d072aabf7a7526eae33e8cfe2ec9c42f1be4efd039a818"
 layout: page
 order: 0
 ---
@@ -26,7 +26,7 @@ TikTools / Documentación
 
 # Tu guía para<br />un mejor LIVE. {#tiktools-documentation}
 
-Conecta tu TikTok LIVE, aprovecha los eventos de tu audiencia y crea con TikTools. Documentación práctica, desde tu primera conexión hasta tu próximo plugin.
+Conecta tu TikTok LIVE, convierte la actividad de tu audiencia en acciones y prepara tu emisión. Aprende con guías paso a paso y controles reales que puedes probar con datos de ejemplo.
 
 </template>
 
@@ -41,7 +41,7 @@ Conecta tu TikTok LIVE, aprovecha los eventos de tu audiencia y crea con TikTool
 
 ## Tu primer LIVE, paso a paso {#start-here}
 
-Empieza con la app publicada. No necesitas herramientas de desarrollo.
+Prueba primero los controles o empieza con la aplicación publicada. No necesitas herramientas de desarrollo.
 
 1. [**Revisa los requisitos** <span>Encuentra la configuración para tu sistema.</span>](./user/requirements.md)
 2. [**Instala TikTools** <span>Descarga y abre un binario publicado.</span>](./user/installation.md)
@@ -53,7 +53,7 @@ Empieza con la app publicada. No necesitas herramientas de desarrollo.
 
 ## Encuentra tu punto de partida {#explore-the-guides}
 
-Dos caminos. Las mismas herramientas.
+Guías para usar TikTools y referencias para ampliarlo.
 
 </template>
 
@@ -93,7 +93,7 @@ Trabaja con el host Rust, la interfaz Vue y la API de control tipada. Empieza aq
 
 <template #footer>
 
-La demo utiliza datos ficticios. Cada guía indica las funciones experimentales y sus requisitos.
+Los ejemplos usan datos ficticios y guardan sus cambios dentro de la demo. Cada guía indica los requisitos y las funciones experimentales.
 
 [Código en GitHub](https://github.com/nglmercer/TikTools-app)
 

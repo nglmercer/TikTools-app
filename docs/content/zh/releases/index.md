@@ -7,13 +7,21 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "b063a84f44d6bfcdec8143cd88d520bd375a52192c6073389920843d53016ffb"
-translationRevision: "777c13c641298597f22a41d8ec377cbe5cd7097cbae58f294471466695bd7c4f"
+sourceRevision: "a83f631ac194896a0f6dfbaf25a1623c4ec51452904b8fac6b32939cd93101e8"
+translationRevision: "3ef6663f397d4d1d235df3f74f7ab43d57e52aaec16ef823e98cefb08df6bb86"
 ---
 
 # 发行版与通道 {#releases-and-channels}
 
-更换版本前请阅读说明。GitHub 区分已发布的稳定版与预发行版。源码标签不能证明对应安装器已经发布。
+选择适合操作系统的已发布安装包，更新前请先阅读发行说明。下方卡片区分稳定版与预发行版，并显示发行快照中记录的可下载文件。
+
+<ReleaseList />
+
+<DocCallout title="源码标签不等于安装器" tone="info">
+
+源码标签不能证明对应安装器已经发布。下载前请核对可用附件及其平台。快照标明了验证日期；如需当前发行列表及验证日期之后的变化，请打开 GitHub 查看。
+
+</DocCallout>
 
 - [已发布发行版](https://github.com/nglmercer/TikTools-app/releases)
 - [更新与安装](../user/updates.md)

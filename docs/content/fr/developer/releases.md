@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e28f094fd59897eee4cc337e63a565849b521c329842e96dddaf891e521d0378"
-translationRevision: "11e7a291e1d93ce58eb1121f55faa3a0cf3d4d477d91270ac1263e44f9d0d14a"
+sourceRevision: "a0c1a45f5279fec0b2fae29f40f47090d0600237815b293e9600e28221ec969b"
+translationRevision: "b9fa808f309db16f85065938bab674cfe15e9b6a5bc1ab88b612e746e509b9e4"
 order: 220
 ---
 
@@ -29,6 +29,15 @@ bun scripts/task.ts rust build -p tiktools-desktop --release --locked
 ```
 
 Un changement de version intentionnel du mainteneur utilise `bun scripts/task.ts version bump v4.2.3` avec la prochaine version sélectionnée. La compilation complète crée aussi les ressources des widgets. L’empaquetage de publication place l’exécutable natif à côté de `web/index.html` et publie des sommes de contrôle. Les processus d’installateurs construisent en plus NSIS, DEB et AppImage et vérifient leurs ressources contre la préparation portable. Les paquets de plugins restent des installations distinctes à l’exécution.
+
+
+La documentation publique affiche les cartes de version à partir de `docs/experience/releases.json`. Actualisez explicitement cet instantané après une publication :
+
+```sh
+bun scripts/refresh-docs-releases.ts
+```
+
+Cette commande lit les versions publiées via l’API GitHub, conserve les fichiers effectivement téléversés et enregistre la date de vérification affichée sur les cartes. Les compilations utilisent l’instantané versionné hors ligne ; elles ne récupèrent pas les données de version sur GitHub. Examinez les modifications de l’instantané, notamment les noms de fichiers par plateforme, les canaux et les URL de téléchargement, avant de le commiter. Une étiquette de code source seule ne doit pas créer de lien d’installateur, et l’instantané n’active ni ne valide l’installation par le système de mise à jour.
 
 ## Examiner la confiance du système de mise à jour {#review-updater-trust}
 

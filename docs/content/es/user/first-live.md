@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "fb7101f2010cd57478f9f6b2ea9cbb8c0a6401975fe4b29b311c41b13c1a5185"
-translationRevision: "14537243209506218dba0cb19004a15688e84c5af2a3c7c15c03f5fcf0ec85a4"
+sourceRevision: "fff247a8ec59baa1ebf6f4ad0019f456f1f48cfdd95ab624007bda0f7f208c96"
+translationRevision: "3d6c85904c001b4b8187be7d6593c55514dd3cf068237ce640bdbc7f67549e2d"
 order: 30
 ---
 
@@ -16,29 +16,49 @@ order: 30
 
 ## Objetivo y requisitos {#goal-and-prerequisites}
 
-Recibir eventos de un creador antes de activar automatizaciones. Necesitas una instalación funcional, acceso a internet y un creador que esté transmitiendo. Iniciar sesión en Cloud es una conexión distinta y no autentica TikTok.
+El objetivo es recibir los primeros eventos de un creador y reconocer una conexión correcta antes de activar automatizaciones. Puedes practicar primero con los ejemplos de esta página y después repetir los pasos en la aplicación instalada.
+
+<DocCallout title="Antes de conectar" tone="info">
+
+Para una conexión real necesitas TikTools funcionando, acceso a internet y un creador que esté transmitiendo. Iniciar sesión en Cloud es una conexión distinta y no autentica TikTok. Los ejemplos utilizan datos ficticios y no necesitan una sesión de TikTok.
+
+</DocCallout>
 
 ## Conectar {#connect}
 
-1. Abre **Connections** o la acción **Connect** de la barra inferior.
-2. Escribe el handle del creador. El `@` inicial es opcional. Comprueba el identificador, no el nombre visible.
-3. Empieza con **Use Cookie** desactivado cuando sea posible acceder como invitado. Si la sala requiere una sesión autorizada, activa el control e introduce la cookie sólo en su campo enmascarado.
-4. Deja el monitoreo apagado durante esta primera conexión directa. Pulsa **Connect** y espera a que se estabilice el estado.
-5. Abre **Live feed**. Espera un evento real o pide un mensaje de chat inocuo. Comprueba su creador y hora.
-6. Selecciona un evento para ver sus detalles. Selecciona el nombre o avatar de un espectador para consultar su perfil registrado.
+<DocSteps>
+
+1. **Abre Conexiones.** También puedes utilizar **Conectar** en la barra inferior.
+2. **Introduce el usuario del creador.** El `@` inicial es opcional. Usa su identificador, no su nombre visible. En el ejemplo puedes escribir `demo_creator`.
+3. **Empieza con las opciones desactivadas.** Deja **Usar una cookie de sesión** apagado si puedes entrar como invitado. Si la sala requiere una sesión autorizada, activa el control e introduce la cookie solo en su campo enmascarado.
+4. **Conecta directamente.** Mantén **Vigilar y conectar automáticamente** desactivado durante esta primera prueba. Pulsa **Conectar** y espera a que se estabilice el estado.
+
+</DocSteps>
+
+<DemoFrame scenario="connection" locale="es" panel="connection" title="Practica tu primera conexión LIVE" />
 
 ## Resultado esperado {#expected-result}
 
-El estado pasa a conectado y aparecen los eventos entrantes. Una sala sin actividad puede no producir eventos nuevos. Los puntos dependen de las reglas habilitadas y los resultados de automatización dependen de las acciones y eventos configurados.
+Una conexión correcta pasa al estado **En vivo**. Para comprobar la recepción, abre **Feed en vivo**, espera un evento real o pide un mensaje de chat inocuo y verifica su creador y hora. Selecciona un evento para ver sus detalles; el nombre o avatar de un espectador abre su perfil registrado.
+
+<DemoFrame scenario="feed" locale="es" panel="feed" title="Reconoce los primeros eventos en el feed" />
+
+<DocCallout title="Conexión y actividad son comprobaciones distintas" tone="tip">
+
+Una sala conectada pero sin actividad puede no producir eventos nuevos. Los puntos dependen de las reglas habilitadas; los resultados de automatización, de las acciones y eventos configurados. La demo permite reconocer estos resultados con eventos ficticios, pero no valida una sesión real de TikTok.
+
+</DocCallout>
 
 ## Monitoreo y reconexión {#monitoring-and-reconnecting}
 
-Tras comprobar una conexión directa, **Monitor and auto-connect** puede esperar a que el creador inicie su LIVE. Su estado diferencia espera, comprobación y conexión. Detén el monitoreo para editar un creador bloqueado. Reconectar al mismo creador conserva el feed actual; cambiar de creador inicia otro contexto.
+Tras comprobar la conexión directa, activa **Vigilar y conectar automáticamente** si quieres esperar a que el creador inicie su LIVE. El monitor distingue espera, comprobación y conexión. Detén el monitor para editar un creador bloqueado. Reconectar al mismo creador conserva el feed actual; cambiar de creador inicia otro contexto.
 
 ## Recuperación {#recovery}
 
-Si el creador está desconectado, confirma que transmite antes de reintentar. Ante errores de autenticación o límites del servicio, abre **Diagnostics** y sigue la condición indicada; repetir clics no corrige una sesión caducada. Si necesitas cookie, obtén una sesión autorizada reciente y no incluyas su valor en capturas, registros o solicitudes de soporte. Permanece en memoria y no es una credencial reutilizable de Cloud.
+Si el creador está desconectado, confirma que transmite y revisa el identificador antes de reintentar. Ante errores de autenticación o límites del servicio, abre los diagnósticos y sigue la condición indicada; repetir clics no corrige una sesión caducada.
 
-Desconecta antes de probar otro creador. La demo permite aprender estos controles con eventos ficticios, pero su resultado no valida una sesión de TikTok.
+<DocCallout title="La cookie permanece privada" tone="warning">
 
-<DemoFrame scenario="connection" locale="es" tour="connection" title="Demo de connection" />
+Si necesitas una cookie, obtén una sesión autorizada reciente. No incluyas su valor en capturas, registros ni solicitudes de soporte. Permanece en memoria y no es una credencial reutilizable de Cloud. Desconecta antes de probar otro creador.
+
+</DocCallout>

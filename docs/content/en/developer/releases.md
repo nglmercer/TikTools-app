@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e28f094fd59897eee4cc337e63a565849b521c329842e96dddaf891e521d0378"
-translationRevision: "e28f094fd59897eee4cc337e63a565849b521c329842e96dddaf891e521d0378"
+sourceRevision: "a0c1a45f5279fec0b2fae29f40f47090d0600237815b293e9600e28221ec969b"
+translationRevision: "a0c1a45f5279fec0b2fae29f40f47090d0600237815b293e9600e28221ec969b"
 order: 220
 ---
 
@@ -29,6 +29,14 @@ bun scripts/task.ts rust build -p tiktools-desktop --release --locked
 ```
 
 A maintainer's intentional version change uses `bun scripts/task.ts version bump v4.2.3` with the selected next version. The full build also creates widget assets. Release packaging places the native executable beside `web/index.html` and publishes checksums. Installer workflows additionally build NSIS, DEB and AppImage and verify their resources against portable staging. Plugin packages remain separate runtime installations.
+
+The public documentation renders release cards from `docs/experience/releases.json`. Refresh that snapshot explicitly after publishing:
+
+```sh
+bun scripts/refresh-docs-releases.ts
+```
+
+This command reads published releases from the GitHub API, retains actual uploaded assets and records the verification date shown on the cards. Builds use the checked-in snapshot offline; they do not fetch GitHub release data. Review the changed snapshot, including platform filenames, release channels and download URLs, before committing it. A source tag alone must not create an installer link, and the snapshot does not enable or verify updater installation.
 
 ## Review updater trust {#review-updater-trust}
 

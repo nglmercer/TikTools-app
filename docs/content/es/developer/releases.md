@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e28f094fd59897eee4cc337e63a565849b521c329842e96dddaf891e521d0378"
-translationRevision: "9fd7b4f886ef1e2c170a5977751928386f3e95bc096a5f33a2f9416a3d3ad44f"
+sourceRevision: "a0c1a45f5279fec0b2fae29f40f47090d0600237815b293e9600e28221ec969b"
+translationRevision: "4e57958118e2b25139828d748812d10f37b19809958071dbcdaf40d8b3e7660f"
 order: 220
 ---
 
@@ -29,6 +29,14 @@ bun scripts/task.ts rust build -p tiktools-desktop --release --locked
 ```
 
 Un cambio intencional de mantenimiento utiliza `bun scripts/task.ts version bump v4.2.3` con la versión elegida. La compilación completa también genera widgets. El empaquetado coloca el ejecutable junto a `web/index.html` y publica sumas de comprobación. Los flujos de instalación generan además NSIS, DEB y AppImage y comparan sus recursos con la preparación portable. Los plugins siguen siendo instalaciones independientes.
+
+Las tarjetas de versiones de la documentación utilizan una instantánea de las publicaciones de GitHub. Actualízala explícitamente cuando quieras incorporar publicaciones nuevas:
+
+```sh
+bun scripts/refresh-docs-releases.ts
+```
+
+Este paso consulta GitHub y conserva únicamente publicaciones y archivos publicados cuya carga haya terminado. Revisa los datos resultantes antes de incluirlos en el sitio. La compilación consume la instantánea local y funciona sin consultar GitHub; las tarjetas muestran su fecha de consulta y enlazan las publicaciones actuales para que el lector compruebe cambios posteriores. Una etiqueta de código sin instaladores publicados no debe convertirse en un botón de descarga inventado.
 
 ## Revisar la confianza del actualizador {#review-updater-trust}
 

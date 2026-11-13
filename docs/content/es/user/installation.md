@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6f8673490bebb3447474a70d914d06102de87a9ef2f3f3c51da897d0d2cc8c1c"
-translationRevision: "600e415b4e68fb14a427711469f321a76ba73aad666f9a7485ac21fed1113fe2"
+sourceRevision: "ed9e7c1bcb88d991ed3d8ea8a399aa5b5e9ca8cfa58de580f8ca757344d26ca2"
+translationRevision: "9325f8a51f451729696a51599313316cb5ebb70a6021cfd1efad6dde62de0f2c"
 order: 20
 ---
 
@@ -18,30 +18,66 @@ order: 20
 
 Instalar un paquete de escritorio publicado sin preparar compiladores. Revisa los [requisitos](requirements.md), cierra las instancias abiertas de TikTools y descarga desde las [versiones de GitHub](https://github.com/nglmercer/TikTools-app/releases).
 
+<DocRequirements title="Antes de empezar">
+
+- **Equipo compatible.** Comprueba el sistema operativo y la arquitectura en los [requisitos](requirements.md) y en el nombre del paquete.
+- **Aplicación cerrada.** Cierra las instancias abiertas de TikTools antes de instalar o sustituir archivos.
+- **Descarga publicada.** Elige el archivo de una versión de GitHub y conserva su `SHA256SUMS.txt` para verificarlo.
+- **Copia de tus datos.** Si ya utilizas TikTools, cierra la aplicación y respalda el directorio de datos antes de cambiar de versión.
+
+</DocRequirements>
+
 ## Elige un paquete {#choose-a-package}
 
-| Paquete | Uso |
-| --- | --- |
-| Windows `installer.exe` | Instalación NSIS por usuario; necesita WebView2. |
-| Linux `installer.AppImage` | Imagen ejecutable portátil para un escritorio Linux compatible. |
-| Linux `installer.deb` | Instalación mediante el gestor de paquetes Debian/Ubuntu. |
-| ZIP de Windows / TAR.GZ de Linux | Directorio portátil con el ejecutable y sus recursos. |
+<DocTabs label="Elige tu sistema">
+
+<template #windows>
+
+**Instalador `installer.exe`.** Instala TikTools mediante NSIS para la cuenta de usuario actual. Necesita WebView2.
+
+**ZIP portátil.** Incluye el ejecutable y sus recursos en un directorio. Extrae todos los archivos y conserva `web/` junto al ejecutable.
+
+[Instrucciones para Windows](#windows)
+
+</template>
+
+<template #linux>
+
+**`installer.AppImage`.** Imagen ejecutable portátil para un escritorio Linux compatible.
+
+**`installer.deb`.** Instalación mediante el gestor de paquetes de Debian o Ubuntu.
+
+**TAR.GZ portátil.** Directorio con el ejecutable y sus recursos; extrae y conserva el paquete completo.
+
+[Instrucciones para Linux](#linux)
+
+</template>
+
+</DocTabs>
 
 Comprueba si la versión es estable o preliminar. Los prereleases son candidatos de depuración, no una garantía automática de compatibilidad en producción. Verifica los archivos descargados con el `SHA256SUMS.txt` de la versión antes de sustituir una instalación.
 
 ## Windows {#windows}
 
+<DocSteps>
+
 1. Descarga el instalador x86_64 y verifica su checksum.
 2. Ejecuta el instalador con la cuenta que utilizará TikTools. Instala WebView2 si se solicita.
-3. Abre TikTools. Entra en **Settings → General** para elegir el idioma.
+3. Abre TikTools. Entra en **Ajustes → General** para elegir el idioma.
 4. Si usas un ZIP portátil, extrae todo el directorio. Conserva `web/` y los demás recursos junto al ejecutable; no ejecutes un EXE copiado por separado.
 
+</DocSteps>
+
 ## Linux {#linux}
+
+<DocSteps>
 
 1. Descarga el AppImage, DEB o archivo portátil correspondiente y verifica su checksum.
 2. Para AppImage, permite su ejecución desde el gestor de archivos o aplica `chmod +x` al archivo descargado y ábrelo.
 3. Para DEB, utiliza el gestor de paquetes del sistema para resolver las dependencias de ejecución.
 4. Para TAR.GZ, extrae el directorio completo y ejecuta el escritorio conservando los recursos empaquetados.
+
+</DocSteps>
 
 ## Resultado esperado {#expected-result}
 

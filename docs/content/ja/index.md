@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: "en"
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "c0d0f5bed2657d88f8feff300ff4ecbc1997973510ea00e20fb058171a1d5516"
+sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
+translationRevision: "1653dabe6ae22b50e22a47b0c0551df4bfd484cef897708392a9e83667aa4626"
 layout: page
 order: 0
 ---
@@ -25,7 +25,7 @@ TikTools / ドキュメント
 
 # より良い LIVE への<br />ガイド。 {#tiktools-documentation}
 
-TikTok LIVE に接続し、視聴者のイベントを活用して、TikTools を拡張しましょう。最初の接続から次のプラグイン開発までを支える実用的なドキュメントです。
+実際の画面を操作しながら、TikTok LIVE への接続、チャットの自動化、OBS の設定を学べます。架空のデータで試し、結果を確かめてから、自分の配信に取り入れましょう。
 
 </template>
 

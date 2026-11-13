@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "695a2bf30a1a5bd78d0ad8e235b5f1289c913fc1ead020c882f343e8c42ab317"
-translationRevision: "d637041ca34b702fba2415c886587c702e0ed3089aa4a18d2c11f2cb14e39da1"
+sourceRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
+translationRevision: "63613f0cb5d06c5d19809eda7edf66f326f99d5a29ed3f438f8fabef6f6885cb"
 order: 140
 ---
 
@@ -36,6 +36,8 @@ Para uma prévia local sem commit, use `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/
 
 `demo/scenarios.ts` valida 11 IDs de cenário e as rotas/idiomas/tutoriais permitidos. `runtime/host.ts` registra manipuladores explícitos de métodos; a descoberta lista esses manipuladores, IDs de requisição são repetidos em `rpc-response` e efeitos incompatíveis retornam erro imediatamente. O host inicializa registros fictícios e avança um relógio fixo um passo por Next event. Play e Next event primeiro conectam o criador fictício pelo RPC simulado quando necessário e depois entregam um evento imediato. Play continua a cada dois segundos; Pause para a produção. A barra de ferramentas exibe o estado da reprodução e a contagem de eventos. O fluxo para em 300 passos e mantém no máximo 60 eventos de feed e 60 execuções. Filas de resposta e registros armazenados têm limites separados.
 
+O parâmetro de consulta `embed=connection|feed|automation|points|overlays` seleciona um exemplo focado para incorporação. Ele omite a navegação geral e a barra completa da demonstração, mantendo os componentes, as páginas e o runtime reais. Use a rota correspondente ao painel escolhido e não combine esse modo com um tutorial. A demonstração completa continua disponível pelo link de abertura, que remove o parâmetro de incorporação.
+
 Reset limpa apenas o prefixo atual `tiktools.demo.<instance>.*` e recarrega o quadro. Recarregar redefine singletons de módulos, diários, i18n e diagnósticos. Quadros incorporados diferentes recebem IDs distintos de instância. Sair da página desmonta Vue, descarta stores, desconecta cliente/transporte e limpa os dois temporizadores. A demonstração não instala uma ponte `window.ipc` nem realiza HTTP arbitrário, shell, RCON, execução de scripts de visitantes ou instalação nativa de atualizações. Sua CSP rejeita conexões de rede. Modelos de registro e simulação de filtros usam funções compartilhadas puras; são exemplos do contrato de frontend, não substitutos da execução Rust.
 
 A entrada compartilhada `startTour(id, {router, capabilities, taskState})` e o `tourRegistry` exportado ficam em `src/web/features/guided-help/index.ts`. Sete tutoriais versionados usam alvos estáveis de página e catálogos separados para cada idioma compatível. Eles carregam Driver.js apenas sob solicitação, restringem alvos ao workspace, respeitam movimento reduzido, restauram o foco e cancelam esperas limitadas na navegação. Dispensar nunca conclui uma tarefa nem executa uma ação do aplicativo. A seleção de tutorial nomeia a tarefa completa, prepara o cenário correspondente e pausa a reprodução antes de iniciar. O controle de fechar do Driver dispensa o guia; a barra de ferramentas informa o resultado. Reset limpa o progresso versionado desta instância.
@@ -47,6 +49,14 @@ A demonstração apresenta navegação, edição local, apresentação de evento
 ## Componentes e Markdown {#components-and-markdown}
 
 `docs/examples/*.vue` fornece tanto o catálogo renderizado quanto os trechos de código-fonte. Botões pequenos renderizam diretamente no Markdown sem estilos globais de desktop. Diálogos com estado, exemplos de layout e páginas do aplicativo usam `DemoFrame`, que constrói URLs validadas e compatíveis com a base e carrega um iframe apenas sob solicitação. A opção pública `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` expõe o catálogo de componentes sem habilitar todas as ferramentas de desenvolvimento do desktop.
+
+Para colocar um painel de conexão junto às instruções de uma página em português, use:
+
+```vue
+<DemoFrame scenario="connection" locale="pt" panel="connection" title="Pratique sua primeira conexão" />
+```
+
+A propriedade `panel` aceita `connection`, `feed`, `automation`, `points` ou `overlays`. Uma prévia aparece antes da interação; o iframe só é carregado quando o leitor escolhe experimentar. Cada exemplo possui uma instância de armazenamento isolada, e o controle de reinício limpa somente essa instância. O link para abrir a demonstração completa sai do modo incorporado e permite explorar o workspace. Mantenha as instruções e o resultado esperado próximos ao exemplo, usando `DocSteps` para sequências e `DocCallout` para orientações contextuais.
 
 ## Recuperação e verificação {#recovery-and-verification}
 

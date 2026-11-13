@@ -15,6 +15,7 @@ try {
   catch { backing = { local: memoryStorage(), session: memoryStorage() }; }
   const storage = installDemoStorage(options.instance, backing);
   document.documentElement.lang = options.locale;
+  if (options.embed) document.documentElement.dataset.demoPanel = options.embed;
   const { bootDemo } = await import('./mount-demo.ts');
   await bootDemo(options, storage);
 } catch (error) {

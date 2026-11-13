@@ -7,13 +7,21 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "b063a84f44d6bfcdec8143cd88d520bd375a52192c6073389920843d53016ffb"
-translationRevision: "367696ca539869f88c750d7e79350ed902728ee5ad27c7c4bdfe2ce83025f36a"
+sourceRevision: "a83f631ac194896a0f6dfbaf25a1623c4ec51452904b8fac6b32939cd93101e8"
+translationRevision: "34c34b423f773b673828f4f5fe21082efdefae7ace4cb13d5437cc8adfe0868c"
 ---
 
 # Versions et canaux {#releases-and-channels}
 
-Lisez les notes avant de changer de version. GitHub distingue les versions stables publiées des préversions. Une étiquette de code source ne prouve pas que ses installateurs ont déjà été publiés.
+Choisissez un paquet publié pour votre système d’exploitation et lisez ses notes avant la mise à jour. Les cartes ci-dessous distinguent les versions stables des préversions et présentent les fichiers téléchargeables relevés dans l’instantané des versions.
+
+<ReleaseList />
+
+<DocCallout title="Une étiquette de code source n’est pas un installateur" tone="info">
+
+Une étiquette de code source ne prouve pas que ses installateurs ont déjà été publiés. Vérifiez les fichiers disponibles et leur plateforme avant de télécharger. L’instantané porte une date de vérification ; ouvrez GitHub pour consulter la liste actuelle et les changements intervenus depuis cette date.
+
+</DocCallout>
 
 - [Versions publiées](https://github.com/nglmercer/TikTools-app/releases)
 - [Mise à jour et installation](../user/updates.md)

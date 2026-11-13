@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
+sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
+translationRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
 layout: page
 order: 0
 ---
@@ -26,7 +26,7 @@ TikTools / Documentation
 
 # Your guide to<br />a better LIVE. {#tiktools-documentation}
 
-Connect your TikTok LIVE, make viewer events work for you, and build on TikTools. Practical documentation, from your first connection to your next plugin.
+Connect your LIVE, watch audience events arrive, and turn them into actions. Learn with real interface examples, then take each workflow into your next broadcast.
 
 </template>
 
@@ -41,7 +41,7 @@ Connect your TikTok LIVE, make viewer events work for you, and build on TikTools
 
 ## Your first LIVE, step by step {#start-here}
 
-Start with a released app. No development tools needed.
+Install a published app, connect a creator, and check your first event. Try the controls with fictional data as you learn.
 
 1. [**Check the requirements** <span>Find the right setup for your system.</span>](./user/requirements.md)
 2. [**Install TikTools** <span>Download and open a released binary.</span>](./user/installation.md)
@@ -53,7 +53,7 @@ Start with a released app. No development tools needed.
 
 ## Find your starting point {#explore-the-guides}
 
-Two paths. One shared toolkit.
+Choose a workflow to use the app, or explore the tools to extend it.
 
 </template>
 
@@ -85,7 +85,7 @@ Work with the Rust host, Vue frontend, and typed control API. Start here if you 
 
 ## Useful along the way {#resources}
 
-- [**UI component reference** <span>17 families with examples and source.</span>](./developer/components/index.md)
+- [**UI component reference** <span>17 families with interactive examples, states and source.</span>](./developer/components/index.md)
 - [**Troubleshooting** <span>Find diagnostics and recover from common issues.</span>](./user/preferences/troubleshooting.md)
 - [**Release notes** <span>See what changed before you update.</span>](./releases/index.md)
 

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e28f094fd59897eee4cc337e63a565849b521c329842e96dddaf891e521d0378"
-translationRevision: "e53cf57dd6a004a1c723d33749a97d6f0c86eb72d4a4a7f9b7146eaf3fd3cb34"
+sourceRevision: "a0c1a45f5279fec0b2fae29f40f47090d0600237815b293e9600e28221ec969b"
+translationRevision: "73f85def4b74b35d2a1665bd2e664b50b2cc66c85e5b810a7b642c1b373ddb7f"
 order: 220
 ---
 
@@ -29,6 +29,8 @@ bun scripts/task.ts rust build -p tiktools-desktop --release --locked
 ```
 
 Uma mudança intencional de versão por um mantenedor usa `bun scripts/task.ts version bump v4.2.3` com a próxima versão selecionada. A compilação completa também cria recursos de widgets. O empacotamento de lançamento coloca o executável nativo ao lado de `web/index.html` e publica somas de verificação. Fluxos de instalador também compilam NSIS, DEB e AppImage e verificam seus recursos contra a preparação portátil. Pacotes de plugins continuam como instalações separadas de runtime.
+
+Os cartões da página pública de versões usam uma captura dos metadados de lançamento, com a data em que os dados foram verificados. Para atualizá-la explicitamente pela API do GitHub, execute `bun scripts/refresh-docs-releases.ts` e revise a alteração antes de publicar a documentação. Essa atualização é separada da compilação: as compilações usam a captura local e podem funcionar sem acesso à rede. Os links de download representam apenas os arquivos que realmente foram enviados à versão; uma tag de código-fonte sozinha não cria um instalador nem um download disponível.
 
 ## Revise a confiança do atualizador {#review-updater-trust}
 

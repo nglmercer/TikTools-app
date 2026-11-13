@@ -42,3 +42,32 @@ html[data-demo] #app > .app-layout { height:100%; min-height:0; }
 .demo-toolbar__status [data-status="playing"] { color:var(--color-success); }
 
 @media(max-width:360px) { .demo-toolbar__brand > span:last-child,.demo-toolbar__brand-divider { display:none; } }
+
+/* Embedded documentation keeps the same runtime and real pages, with focused chrome. */
+html[data-demo-panel] .app-menu-bar,
+html[data-demo-panel] .app-status-bar,
+html[data-demo-panel] .app-layout__navigation,
+html[data-demo-panel] [data-guide-tour] { display:none !important; }
+html[data-demo-panel] .app-layout__content { margin:0; padding:0; min-width:0; width:100%; }
+html[data-demo-panel="connection"] .connections-page__explorer,
+html[data-demo-panel="connection"] .connections-page__servers { display:none; }
+html[data-demo-panel="connection"] .connections-page__top { grid-template-columns:minmax(0,1fr); min-height:0; }
+html[data-demo-panel="connection"] .connections-page__live { min-height:190px; }
+html[data-demo-panel="connection"] .demo-toolbar__playback > :not([data-testid="demo-reset"]) { display:none; }
+.demo-toolbar--embedded { padding:10px 14px; --control-height-md:32px; }
+.demo-toolbar--embedded .demo-toolbar__controls { display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px; }
+.demo-toolbar--embedded .demo-toolbar__playback { margin-left:auto; width:auto; }
+.demo-toolbar--embedded .demo-toolbar__playback > :first-child { min-width:0; }
+.demo-toolbar--embedded .demo-toolbar__status { margin-top:6px; }
+html[data-demo-panel="connection"] .demo-toolbar__status { display:none; }
+.demo-toolbar__case { max-width:340px; }
+.demo-toolbar__recovery { margin:8px 0 0; padding:8px 10px; border-left:2px solid var(--color-warning); background:var(--color-bg-panel); color:var(--color-text-muted); font-size:11px; line-height:1.6; }
+.demo-toolbar__limit { display:none; }
+.demo-toolbar__expected { margin-top:4px; color:var(--color-text-muted); font-size:11px; }
+.demo-toolbar__expected summary { cursor:pointer; width:max-content; max-width:100%; }
+.demo-toolbar__expected p { margin:4px 0 0; max-width:100ch; line-height:1.6; }
+@media(min-width:851px) {
+ .demo-toolbar { padding:10px 20px; }
+ .demo-toolbar__description { margin:4px 0 8px; }
+ .demo-toolbar__status { margin-top:6px; }
+}

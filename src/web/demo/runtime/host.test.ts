@@ -7,6 +7,20 @@ import { flushPromises } from '@vue/test-utils';
 import { parseHosts, parseDevices, parseAccessibleTeams } from '@/entities/cloud-teams/api/teams-api.ts';
 
 describe('public demo host', () => {
+  it('keeps offline and session examples disconnected, then permits recovery without credentials', async () => {
+    const host = createDemoHost('connection'); const client = createControlClient({ transport: host.transport }); client.attach();
+    for (const [kind, code] of [['offline', 'creator_offline'], ['auth', 'authentication_required']] as const) {
+      host.setConnectionExample(kind, `Example: ${kind}`);
+      await expect(client.call('live.connect', { uniqueId: 'demo_creator' })).rejects.toMatchObject({ code, message: `Example: ${kind}` });
+      expect(host.state.liveStatus.connected).toBe(false);
+      expect(host.step()).toBe(false);
+    }
+    host.setConnectionExample('normal');
+    await client.call('live.connect', { uniqueId: 'demo_creator' });
+    expect(host.state.liveStatus.connected).toBe(true);
+    expect(host.step()).toBe(true);
+    client.detach(); host.dispose();
+  });
   it('simulates reversible action errors without claiming that the LIVE connection failed', () => {
     const host = createDemoHost('feed');
     host.simulateError(true);
@@ -71,6 +85,9 @@ describe('public demo host', () => {
     }
   });
   it('validates public parameters without promoting hidden screens', () => {
+    expect(parseDemoOptions('?embed=feed').route).toBe('/feed');
+    expect(parseDemoOptions('?embed=connection').embed).toBe('connection');
+    for (const params of ['?embed=unknown', '?embed=connection&route=/feed', '?embed=connection&tour=connection']) expect(() => parseDemoOptions(params)).toThrow();
     expect(parseDemoOptions('?scenario=feed&locale=fr').locale).toBe('fr');
     expect(parseDemoOptions('?scenario=feed&locale=zh-CN').locale).toBe('zh');
     expect(parseDemoOptions('?scenario=feed&locale=jp').locale).toBe('ja');
