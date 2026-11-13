@@ -142,11 +142,12 @@ the bilingual legacy stubs. Preserve the exact originals and images in
 rather than historical bytes. Normative plans and dated evidence belong in
 the internal archive. Legacy stubs remain outside public search.
 
-The additive site workflow keeps publication disabled while the release feed
-writer still pushes directly to `gh-pages`. Before enabling publication, adapt
-that writer to the exported `reapplyWithCas` contract in
-`scripts/publish-site.ts`: fetch the current head on every attempt, reconstruct
-only its authorized changes, and use a normal fast-forward push. GitHub
+The site and release-feed workflows share the exported `reapplyWithCas`
+contract in `scripts/publish-site.ts`: fetch the current head on every attempt,
+reconstruct only authorized changes, and use a normal fast-forward push. Site
+publication requires the manual publish input on `remake` and credentials for
+the selected target. The feed writer reauthenticates and selects channels from
+current signed heads on every retry; it never restores an old snapshot. GitHub
 concurrency groups do not serialize writers running in different repositories.
 `RELEASE_REPO` selects the actual target, including when a fork builds for the
 canonical repository.

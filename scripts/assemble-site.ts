@@ -11,6 +11,10 @@ const sourceCommit = git('rev-parse', 'HEAD');
 const dirty = git('status', '--porcelain') !== '';
 if (dirty && process.env.TIKTOOLS_SITE_ALLOW_DIRTY !== '1') throw new Error('Commit the site source before assembling an artifact, or set TIKTOOLS_SITE_ALLOW_DIRTY=1 for a local preview.');
 for (const path of ['dist/docs/index.html', 'dist/demo/index.html']) await readFile(resolve(root, path));
+for (const kind of ['docs', 'demo']) {
+  const info = JSON.parse(await readFile(resolve(root, `dist/${kind}/.build-info.json`), 'utf8')) as { sourceCommit: string; base: string; dirty: boolean; kind: string };
+  if (info.sourceCommit !== sourceCommit || info.base !== siteConfig().base || info.kind !== kind || (!dirty && info.dirty)) throw new Error(`Rebuild ${kind}: its source revision or deployment base differs from this assembly.`);
+}
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 await cp(resolve(root, 'dist/docs'), output, { recursive: true });

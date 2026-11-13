@@ -52,3 +52,22 @@ test('all executable component examples render and survive state changes', async
   }
   expect(errors).toEqual([]);
 });
+
+test('copying a demo URL into another tab isolates preferences and reset', async ({ page, context }) => {
+  await page.goto('demo/?scenario=settings&locale=en&route=/components/buttons&instance=copied');
+  await expect(page.locator('.component-example button')).toBeVisible();
+  const firstInstance = new URL(page.url()).searchParams.get('instance');
+  const second = await context.newPage();
+  try {
+    await second.goto(page.url());
+    await expect(second.locator('.component-example button')).toBeVisible();
+    expect(new URL(second.url()).searchParams.get('instance')).not.toBe(firstInstance);
+    await page.evaluate(() => localStorage.setItem(`tiktools.demo.${new URL(location.href).searchParams.get('instance')}.isolation`, 'first'));
+    await second.evaluate(() => localStorage.setItem(`tiktools.demo.${new URL(location.href).searchParams.get('instance')}.isolation`, 'second'));
+    await page.getByTestId('demo-reset').click();
+    await expect(page.locator('.component-example button')).toBeVisible();
+    expect(new URL(page.url()).searchParams.get('instance')).toBe(firstInstance);
+    expect(await page.evaluate(() => localStorage.getItem(`tiktools.demo.${new URL(location.href).searchParams.get('instance')}.isolation`))).toBeNull();
+    expect(await second.evaluate(() => localStorage.getItem(`tiktools.demo.${new URL(location.href).searchParams.get('instance')}.isolation`))).toBe('second');
+  } finally { await second.close(); }
+});

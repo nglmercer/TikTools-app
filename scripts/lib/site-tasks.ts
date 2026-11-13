@@ -17,6 +17,9 @@ export async function runSiteTask(namespace: 'docs' | 'demo' | 'site', args: str
     } else if (action === 'test') {
       await runner.run(runner.bun, 'test', './docs/scripts');
       await runner.tool('vitest', 'run', 'src/web/demo', 'src/web/features/guided-help');
+      // The native-bridge absence regression serves the production frontend,
+      // so build its independent output instead of relying on a stale dist/web.
+      await runner.tool('vite', 'build');
       await runner.tool('playwright', 'test', '--config', 'playwright.site.config.ts');
     }
     else if (action === 'dev' || action === 'preview') await runner.run(runner.bun, 'run', '--cwd', 'docs', action);
@@ -37,6 +40,7 @@ export async function runSiteTask(namespace: 'docs' | 'demo' | 'site', args: str
     await runSiteTask('docs', ['build'], runner);
     await runSiteTask('demo', ['build'], runner);
     await runner.script('assemble-site.ts');
+    await runner.script('check-site.ts');
   } else if (action === 'preview') await runner.script('preview-site.ts');
   else throw new Error('Expected site build|preview.');
 }

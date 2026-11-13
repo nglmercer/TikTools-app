@@ -1,7 +1,16 @@
 {
-  "reviewedAt": "2026-11-13T17:01:38.019Z",
+  "reviewedAt": "2026-11-13T17:53:22.012Z",
   "scope": "Current public Markdown links. Immutable archive links remain inventoried as historical evidence.",
   "results": [
+    {
+      "url": "https://github.com/hernan-lc/TikTools-app/actions/runs/43469055839",
+      "status": 200,
+      "state": "available",
+      "pages": [
+        "en/releases/4.2.2.md",
+        "es/releases/4.2.2.md"
+      ]
+    },
     {
       "url": "https://github.com/nglmercer/plugins-example-tiktools",
       "status": 200,
