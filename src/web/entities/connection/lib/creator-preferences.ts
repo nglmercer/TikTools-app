@@ -1,10 +1,11 @@
+import { appStorage } from '@/shared/lib/app-storage.ts';
 const USERNAME_KEY = 'tiktok-live-username';
 const RECENT_KEY = 'tiktok-live-recents';
 const MAX_RECENTS = 5;
 
 function readPreference(key: string): string | null {
   try {
-    return localStorage.getItem(key);
+    return appStorage().getItem(key);
   } catch {
     return null;
   }
@@ -12,7 +13,7 @@ function readPreference(key: string): string | null {
 
 function writePreference(key: string, value: string): void {
   try {
-    localStorage.setItem(key, value);
+    appStorage().setItem(key, value);
   } catch {
     return;
   }

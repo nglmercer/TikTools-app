@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { PointsConfig } from '../../../../shared/messages.ts';
 import { usePointsStore } from '@/entities/points/model/points-store.ts';
+import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import BaseFormGrid from '@/shared/ui/form/BaseFormGrid.vue';
@@ -52,6 +53,12 @@ async function save(): Promise<void> {
     class="points-rules"
     :title="t('points.rules.title')"
   >
+    <template #actions>
+      <GuideButton
+        tour="points"
+        :task-state="() => ({ 'points.reviewed': saved })"
+      />
+    </template>
     <form
       class="points-rules__form"
       @submit.prevent="save"

@@ -61,6 +61,6 @@ it('restores the session before loading teams and offers a contextual setup guid
   const wrapper = mountWithPlugins(CloudTeams, { global: { plugins: storePlugins(client) } });
   await flushPromises();
   expect(calls.findIndex(call => call.method === 'cloud.restore')).toBeLessThan(calls.findIndex(call => call.method === 'teams.hosts.list'));
-  expect(wrapper.getComponent(GuideButton).props('steps')[0]?.description).toBe('Create or select a team below.');
+  expect(wrapper.getComponent(GuideButton).props('steps')?.[0]?.description).toBe('Create or select a team below.');
   expect(wrapper.get('[aria-label="Show guide"]').text()).toBe('?');
 });

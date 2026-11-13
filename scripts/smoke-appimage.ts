@@ -2,11 +2,9 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { checkAppImageSmokeInstallation, parseAppImageSmokeArgs } from './lib/appimage-smoke.ts';
 
-const [imageArg, expectedVersion, ...extra] = process.argv.slice(2);
-if (process.platform !== 'linux' || !imageArg || !expectedVersion || extra.length) {
-  throw new Error('usage on Linux: bun scripts/smoke-appimage.ts <AppImage> <expected-version>');
-}
+const { imageArg, expectedVersion, mode } = parseAppImageSmokeArgs(process.argv.slice(2), process.platform);
 const image = resolve(imageArg);
 const root = await mkdtemp(join(tmpdir(), 'tiktools-appimage-smoke-'));
 const env = {
@@ -17,12 +15,17 @@ const env = {
   XDG_DATA_HOME: join(root, 'data'),
   XDG_CACHE_HOME: join(root, 'cache'),
   XDG_STATE_HOME: join(root, 'state'),
+  // Mounted mode must never silently become extraction because of an inherited
+  // CI setting. Extracted mode verifies startup, not FUSE/updater acceptance.
+  APPIMAGE_EXTRACT_AND_RUN: mode === 'extracted' ? '1' : undefined,
 };
 async function probe(argument: string): Promise<string> {
   const child = Bun.spawn([image, argument], { env, stdout: 'pipe', stderr: 'pipe' });
   const timer = setTimeout(() => child.kill('SIGKILL'), 20_000);
-  const [out, , code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]).finally(() => clearTimeout(timer));
-  if (code !== 0) throw new Error(`AppImage ${argument} probe failed`);
+  const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]).finally(() => clearTimeout(timer));
+  if (code !== 0) throw new Error(`AppImage ${argument} probe failed (exit ${code})\nstdout: ${out.slice(-3000)}\nstderr: ${err.slice(-3000)}`);
+  console.log(`AppImage ${argument} (${mode}): ${JSON.stringify(out.trim())}`);
+  if (err.trim()) console.error(err.slice(-3000));
   return out.trim();
 }
 try {
@@ -31,7 +34,7 @@ try {
   const marker = join(env.TIKTOOLS_HOME, 'user-data-marker');
   await writeFile(marker, 'preserve this data');
   if (await probe('--version') !== expectedVersion) throw new Error('AppImage version mismatch');
-  if (await probe('--update-installation-type') !== '"appImage"') throw new Error('AppImage installation detection failed');
+  checkAppImageSmokeInstallation(await probe('--update-installation-type'), mode);
   const child = Bun.spawn([image], { env, stdout: 'pipe', stderr: 'pipe' });
   const output = Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
   let ready = false;
@@ -56,7 +59,7 @@ try {
       console.error(log.slice(-6000));
     }
   }
-  console.log(`AppImage ${expectedVersion} reached frontend-ready with an isolated profile`);
+  console.log(`AppImage ${expectedVersion} reached frontend-ready with an isolated profile (${mode} mode${mode === 'extracted' ? '; FUSE/updater acceptance not tested' : ''})`);
 } finally {
   await rm(root, { recursive: true, force: true });
 }

@@ -1,0 +1,8 @@
+.tiktools-guide.driver-popover { background: var(--color-bg-panel); color: var(--color-text); font-family: inherit; }
+.tiktools-guide .driver-popover-title, .tiktools-guide .driver-popover-description { color: inherit; }
+.tiktools-guide .driver-popover-progress-text { color: var(--color-text-muted); }
+.tiktools-guide .driver-popover-footer button { background: var(--color-bg-panel-header); color: var(--color-text); border: 1px solid var(--color-border); text-shadow: none; }
+.tiktools-guide .driver-popover-arrow-side-top { border-top-color: var(--color-bg-panel); }
+.tiktools-guide .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-bg-panel); }
+.tiktools-guide .driver-popover-arrow-side-left { border-left-color: var(--color-bg-panel); }
+.tiktools-guide .driver-popover-arrow-side-right { border-right-color: var(--color-bg-panel); }

@@ -1,241 +1,198 @@
+<span id="tiktools-"></span>
+
 # TikTools
 
-TikTools is a Rust desktop and headless host for TikTok LIVE. The desktop
-client uses a Vue WebView; Android/Termux uses the native `tiktools` CLI. It
-connects to live rooms, displays chat and engagement telemetry, awards viewer
-points, and runs local automations. Tauri is not used.
+TikTools connects to TikTok LIVE, displays chat and engagement events, keeps
+viewer points and runs local automation rules. Use it on Windows or Linux;
+the optional native CLI also supports a Termux workflow on Android.
 
-For native phone development, see [Termux setup and execution](docs/TERMUX.md).
-That workflow builds the Rust CLI directly. Frontend tools are optional.
+[Download published binaries and checksums](https://github.com/nglmercer/TikTools-app/releases)
+· [Latest stable release](https://github.com/nglmercer/TikTools-app/releases/latest)
+· [English user documentation](docs/content/en/user/index.md)
+· [Documentación de usuario en español](docs/content/es/user/index.md)
 
-## What it includes
-
-- Desktop Winit/Wry window and WebView lifecycle, plus a `tray-icon` tray.
-- Native Rust TikTok discovery, signing, WebSocket transport, and event decode.
-- One `AppCore` behind a typed JSON-RPC control API shared by the Vue UI,
-  the `tiktools` CLI, local IPC, and agents, with `DomainEvent` streaming
-  to every client.
-- Experimental authenticated HTTPS/WSS host, native remote CLI profiles and
-  separate desktop controller with scoped workflows, closed automation status,
-  confirmed whole-event disable/delete and a bounded live points
-  board and viewer lookup. Desktop and SDK/CLI can disable/delete permitted
-  workflows and adjust points through durable commands with outcome recovery.
-  The controller also provides explicit private draft saves and host/draft
-  comparison. See the
-  [native client guide](docs/LIVE-COLLABORATION-CLIENT.md) for setup and limits.
-- Owner-reviewed delegated automations with current permission checks, scoped
-  HTTP/audio, exact-topic emitted rules and bounded scripts. Runtime receipts
-  prevent retained script/emission intents from being repeated; see the
-  [approval policy and remaining gates](docs/LIVE-COLLABORATION-APPROVAL.md).
-- Rust-owned SQLite persistence for points, creators, gifts, workflows, and
-  behavior records.
-- Bounded JavaScript automation and plugins through the embedded QuickJS (`rquickjs`) runtime.
-- Runtime-discovered native, process, and optional WASM plugins.
-- English and Spanish UI translations, themes, points, analytics, and
-  automation editors.
+<span id="quick-start-"></span>
 
 ## Quick start
 
-Requirements:
+1. Open the releases page and choose a published asset for your system:
+   Windows x86_64 installer or portable ZIP, or Linux x86_64 AppImage, DEB or
+   portable TAR.GZ. Compare its hash with that release's `SHA256SUMS.txt`.
+2. Follow the [installation guide](docs/content/en/user/installation.md)
+   ([español](docs/content/es/user/installation.md)). Portable packages need
+   their `web/` directory beside the executable. Windows needs WebView2;
+   Linux requirements depend on the package and distribution.
+3. Open **Connect**, enter a creator who is currently LIVE, and start with
+   guest access when the room allows it. Follow
+   [your first LIVE](docs/content/en/user/first-live.md)
+   ([primer LIVE](docs/content/es/user/first-live.md)) for connection recovery.
 
-- Rust 1.95 or newer and Cargo.
-- Bun 1.4.4 for the Vue/Vite development toolchain and frontend asset build.
-- Platform WebView dependencies. Linux uses WebKitGTK; see
-  [Getting Started](docs/GETTING_STARTED.md).
+Released desktop binaries do not require Rust, Cargo or Bun. Optional plugins
+are installed separately. Use the [updates guide](docs/content/en/user/updates.md)
+for manual updates and the limits of experimental installer handoffs. Version
+numbers in source and candidate release notes do not establish publication;
+use the assets actually attached to a published release.
 
-From a checkout:
+<span id="what-it-includes-"></span>
 
-```bash
-bun ci
-bun run lint
-bun x vue-tsc --noEmit
-bun scripts/task.ts frontend-test
-bun run start
+## What it includes
+
+- LIVE connection and creator monitoring, a bounded event feed, viewer points
+  and statistics.
+- Saved automation events, reusable actions, workflows, templates and profiles.
+- Runtime plugin packages, including native, process, declarative HTTP and
+  QuickJS integrations. The compatible manifest name `napi-vm` uses QuickJS.
+  WASM execution is currently unavailable.
+- Local overlay previews and widgets for OBS; live gateway delivery requires
+  the separately installed integration.
+- English, Spanish, Portuguese and French UI translations (`en`, `es`, `pt`,
+  `fr`), with English and Spanish documentation.
+- Optional Cloud account and section-specific Changes controls. Remote
+  collaboration and transports remain experimental; grants, host capabilities
+  and the current guide determine the operations available to a client.
+
+Rankings and competitions have a native engine and a direct route; their
+management page is currently hidden from normal navigation. The
+[user guide](docs/content/en/user/index.md) explains other feature limits.
+
+<span id="documentation"></span>
+<span id="documentation-"></span>
+
+## Documentation and demo
+
+Start with [English guides](docs/content/en/user/index.md) or
+[guías en español](docs/content/es/user/index.md). Source contributors use the
+separate [developer documentation](docs/content/en/developer/index.md)
+([desarrollo en español](docs/content/es/developer/index.md)).
+
+The repository includes a VitePress site and an interactive demo with fictional
+data. After the development dependency setup below, build a local preview:
+
+```sh
+TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build
+bun scripts/task.ts site preview
 ```
 
-`start` builds `dist/web` and launches the Rust desktop binary. Example and
-first-party plugins live in the separate
-[`plugins-example-tiktools`](https://github.com/nglmercer/plugins-example-tiktools)
-repository and are never bundled with the app; when a checkout sits next to
-this one (or `TIKTOOLS_PLUGINS_REPO` points at it), `start` builds its packages
-into the ignored `.dev-plugins` directory and loads them as development
-plugins. Use `TIKTOOLS_SKIP_DEV_PLUGINS=1 bun run start` to skip that step. For fast UI-only iteration, run
-the frontend server and point the Rust host at it:
+The default preview serves [English docs](http://127.0.0.1:4173/TikTools-app/en/user/),
+[Spanish docs](http://127.0.0.1:4173/TikTools-app/es/user/) and the
+[interactive demo](http://127.0.0.1:4173/TikTools-app/demo/). See
+[docs and demo development](docs/content/en/developer/demo.md) for separate
+development loops, build paths and configuration. Site publication is tracked
+separately from this local preview.
 
-```bash
-bun scripts/task.ts serve
-TIKTOOLS_DEV_URL=http://localhost:3000 cargo run -p tiktools-desktop --locked
-```
+Old documentation URLs remain as bilingual topic links. The
+[migration map](docs/migration-map.json) records every original document,
+heading and image; [archive provenance](docs/internal/archive/PROVENANCE.json)
+identifies the unchanged historical sources and their hashes. The
+[original README](docs/internal/archive/README.md) remains available verbatim.
 
-Release assets are served through the `tiktools://app/...` custom Wry protocol.
-Portable packages contain the executable beside a `web/` directory:
-
-```bash
-bun scripts/task.ts frontend-build
-cargo build -p tiktools-desktop --release --locked
-RELEASE_TAG=v0.1.0 RELEASE_PLATFORM=windows-x86_64 bun scripts/task.ts package
-```
-
-## Commands
-
-```bash
-bun run start  # Launch the desktop development application
-bun run dev    # Launch the headless development environment
-bun run build  # Build frontend, widgets, plugins, and desktop
-bun run lint   # Check frontend, plugin and Rust code
-bun run test   # Run fast unit tests (Bun + Vitest)
-bun run ci     # Run checks, tests and production builds
-```
-
-Targeted tests (no full-suite run needed):
-
-```bash
-bun run test rust tiktools-core batched_likes --features native-tiktok
-bun run test web live-batch
-bun run test bun automation
-bun run test plugin sonicboom
-bun run test e2e
-```
-
-Specialized tasks are available via `bun scripts/task.ts`, for example
-`bun scripts/task.ts rust test --workspace --locked`,
-`bun scripts/task.ts e2e test`, and `bun scripts/task.ts version bump 0.3.4`.
-Run `bun ci` after changing dependencies before starting development.
+<span id="development--quality-"></span>
+<span id="development-quality"></span>
 
 ## Development / Quality
 
-Use Bun 1.4.4, as pinned in `package.json`. `bun ci` installs exactly from
-`bun.lock`; use `bun install` only when intentionally changing dependencies.
-Before opening a pull request, run:
+Use Bun 1.4.4, Rust 1.95 or newer, and Node.js compatible with the locked Vite
+toolchain. Windows source builds need MSVC Build Tools and native Strawberry
+Perl; Linux desktop builds need GTK/WebKitGTK and audio development packages.
+Follow [development setup](docs/content/en/developer/setup.md) for your platform.
 
-```bash
+```sh
 bun ci
-bun run lint
-bun x vue-tsc --noEmit
-bun scripts/task.ts frontend-test
-bun scripts/task.ts frontend-build
-
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-cargo test --workspace --locked
+bun run start
 ```
 
-Pull requests targeting `remake` are expected to pass these checks and the
-desktop cross-platform compilation matrix in CI. See
-[Contributing](CONTRIBUTING.md) for the maintainer release and branch policy.
+`start` allocates and owns a loopback Vite development server, waits until it
+is ready, then runs the Winit/Wry desktop host against that URL. Stop an existing
+desktop or control host cleanly before starting another development owner.
 
-Install a validated plugin package after the executable has been compiled:
+Example plugins live in the separate
+[`plugins-example-tiktools`](https://github.com/nglmercer/plugins-example-tiktools)
+repository. When that checkout is a sibling, or `TIKTOOLS_PLUGINS_REPO` points
+to it, `start` can prepare its packages in the ignored `.dev-plugins` directory.
+Use `TIKTOOLS_SKIP_DEV_PLUGINS=1 bun run start` to skip preparation.
+`bun run dev` starts the headless host, local browser adapter and Vite without
+automatic development-plugin preparation.
 
-```bash
-cargo run -p tiktools-desktop --locked -- --install-plugin ./example.plugin
-cargo run -p tiktools-desktop --locked -- --install-plugin ./example.plugin --replace
-cargo run -p tiktools-desktop --locked -- --install-plugin acme.tts
-```
+Use an isolated `TIKTOOLS_HOME` for native experiments. Follow
+[CONTRIBUTING.md](CONTRIBUTING.md) for focused checks, full CI requirements,
+documentation maintenance and release policy.
+
+<span id="commands-"></span>
+
+## Commands
+
+| Command | Result |
+| --- | --- |
+| `bun run start` | Owned Vite server and Wry desktop development host |
+| `bun run dev` | Headless host, loopback browser adapter and Vite |
+| `bun run build` | Widgets, frontend assets and release desktop binary; external plugins install separately |
+| `bun run lint` | Frontend/SDK lint and type checks plus Rust formatting and Clippy |
+| `bun run test` | Fast Bun and Vitest unit suites |
+| `bun run ci` | Contract checks, lint, tests, native verification and application build |
+| `bun scripts/task.ts docs check` | Public article metadata, translations and links |
+| `bun scripts/task.ts docs dev` | VitePress development server |
+| `bun scripts/task.ts demo dev` | Fictional-data browser demo development server |
+| `bun scripts/task.ts site build` | Build and assemble docs plus demo into `dist/site` |
+
+`bun ci` installs from the committed lockfile. Run targeted tests through the
+task runner, for example `bun run test web live-batch` or
+`bun run test rust tiktools-core batched_likes --features native-tiktok`.
+Native Termux instructions are in [English](docs/content/en/user/termux.md)
+and [español](docs/content/es/user/termux.md).
+
+<span id="project-layout-"></span>
 
 ## Project layout
 
 ```text
-crates/tiktools-desktop/       Winit, Wry, tray, UI-thread bridge, control IPC
-crates/tiktools-control-api/   JSON-RPC router, transports, client, discovery
-crates/tiktools-collaboration/ Private host invitations, sessions, grants, audit
-crates/tiktools-remote/        Optional authenticated HTTPS/WSS host gateway
-crates/tiktools-client/        Typed direct/IPC SDK and optional native remote client
-crates/tiktools-cli/           IPC-first CLI with explicit remote profiles
-crates/tiktools-core/          Control operations, services, SQLite, points, events
-crates/tiktools-plugin-api/    Versioned manifest, protocol, capabilities, ABI
-crates/tiktools-plugin-sdk/    Typed plugin trait, adapters, result compatibility
-crates/tiktools-plugin-macros/ Small process/native entry-point macros
-crates/tiktools-plugin-loader/ Runtime discovery and plugin runtimes
-crates/tiktools-tiktok/        Native signer, discovery, WebSocket, event model
-src/web/                       Vue application and styles
-src/web/platform/              JSON-RPC control-client bridge (owns window.ipc)
-src/web/features/              One domain composable per feature
-src/shared/messages.ts         Host-push shape contract
-src/automation/                Generated contracts, registry, and event types
-docs/                          Architecture and development documentation
+crates/tiktools-desktop/       Winit/Wry shell, tray and UI-thread lifecycle
+crates/tiktools-core/          AppCore, services, SQLite, events and automations
+crates/tiktools-control-api/   Typed JSON-RPC registry and local transports
+crates/tiktools-client/        Typed SDK and optional remote transports
+crates/tiktools-cli/           IPC-first native CLI and optional browser adapter
+crates/tiktools-collaboration/ Grants, sessions, execution authority and receipts
+crates/tiktools-remote/        Optional HTTPS/WSS host gateway
+crates/tiktools-rtc/           Native WebRTC transport and signaling contracts
+crates/tiktools-plugin-*/      Plugin contracts, runtimes, installer and tooling
+src/web/shared/api/           Frontend control client and transport contracts
+src/web/shared/ui/            Shared Vue components
+src/web/shared/i18n/          Four UI locale catalogs
+src/web/entities/             Domain state and reusable business models
+src/web/features/             User operations
+src/shared/messages.ts       Host-push message contract
+src/automation/              Automation contracts and frontend helpers
+src/widgets/                 TikTools widget renderers and shared SDK
+docs/content/en/, es/        Paired public user and developer guides
+docs/internal/archive/       Unchanged historical sources and provenance
 ```
 
-`tiktools-core` deliberately has no Winit, Wry, or `tray-icon` dependency. The
-desktop crate translates `HostMessage` values into UI-thread commands through
-`EventLoopProxy`; the core can therefore be tested without a WebView.
+<span id="runtime-plugin-model-"></span>
 
 ## Runtime plugin model
 
-Plugins are discovered from runtime directories, never from a compile-time
-list. The usual locations are:
+Plugins are discovered from runtime directories. Adding an integration does
+not require rebuilding the application, and the application build does not
+bundle the external example plugins. Use the
+[plugin installation guide](docs/content/en/user/plugins/index.md) or
+[authoring guide](docs/content/en/developer/plugins/quickstart.md).
 
-```text
-Windows  %LOCALAPPDATA%/TikTools/plugins
-Linux    ~/.local/share/TikTools/plugins
-macOS    ~/Library/Application Support/TikTools/plugins
-```
+Native libraries and trusted `.node` addons run inside the host process.
+Process isolation is not an OS sandbox. Manifest permissions and capabilities
+govern the host APIs exposed to a package; they do not make arbitrary native
+code safe. See [runtime boundaries](docs/content/en/developer/plugins/runtimes.md).
 
-Each package contains a `plugin.json` with schema version 2, a runtime kind,
-and an entry path. Native libraries use a small serialized-message C ABI and
-remain loaded until application shutdown. Process plugins use length-delimited
-JSON over stdin/stdout. WASM support is intentionally optional.
-
-Example native manifest:
-
-```json
-{
-  "schemaVersion": 2,
-  "id": "miniaudio",
-  "name": "MiniAudio",
-  "version": "1.2.0",
-  "runtime": "native",
-  "entry": "miniaudio.dll",
-  "protocolVersion": 1,
-  "abiVersion": 1,
-  "permissions": ["audio.output"]
-}
-```
-
-Native plugins are trusted code. Manifest permissions limit the host API for
-process/WASM plugins and document the expected access of native plugins.
-
-Plugins contribute actions, event sources, and pre-filter event processors
-(`processorTypes` + the `events.enrich` capability); processors enrich host
-events under the optional `event.intel` namespace before automation filters
-run, fail open on any error, and are previewed over IPC with
-`processors.test`/`processors.status`. See `docs/PLUGINS.md` and the
-`plugins-example-tiktools/plugins/textintel/` reference implementation.
+<span id="data-and-privacy-"></span>
 
 ## Data and privacy
 
-Rust resolves writable paths from platform app-data directories, not the
-process working directory. Override them for development with
-`TIKTOOLS_HOME`, `TIKTOOLS_DATA_DIR`, `TIKTOOLS_PLUGINS_DIR`,
-`TIKTOOLS_PLUGIN_DATA_DIR`, `TIKTOOLS_LOG_DIR`, or `TIKTOOLS_TEMP_DIR`.
+Rust resolves writable state under platform app-data directories. Development
+overrides include `TIKTOOLS_HOME`, `TIKTOOLS_DATA_DIR`, `TIKTOOLS_PLUGINS_DIR`,
+`TIKTOOLS_PLUGIN_DATA_DIR`, `TIKTOOLS_LOG_DIR` and `TIKTOOLS_TEMP_DIR`.
+See [storage](docs/content/en/developer/storage.md) and
+[backup guidance](docs/content/en/user/preferences/backups.md) before moving
+or restoring a profile.
 
-Existing `data/tiktok-points.db` and `data/tiktok-automation.db` files are
-copied to the platform data directory only when the destination is missing;
-the Rust host preserves the existing table names and JSON records.
-
-Session cookies stay in memory and must never be committed or logged.
-
-## Documentation
-
-- [Getting Started](docs/GETTING_STARTED.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Control API](docs/CONTROL_API.md)
-- [Collaborative LIVE design and roadmap](docs/LIVE-COLLABORATION.md)
-- [Collaborative LIVE implementation specification](docs/LIVE-COLLABORATION-SPEC.md)
-- [Experimental HTTPS/WSS gateway setup](docs/LIVE-COLLABORATION-TRANSPORT.md)
-- [Owner collaboration settings and access management](docs/LIVE-COLLABORATION-OWNER.md)
-- [Desktop command journal and recovery](docs/LIVE-COLLABORATION-CLIENT-COMMANDS.md)
-- [Automation consistency and delegated execution](docs/LIVE-COLLABORATION-AUTOMATION.md)
-- [Development Guide](docs/DEVELOPMENT.md)
-- [Native Termux / Android development](docs/TERMUX.md)
-- [Termux agent workflow](docs/TERMUX_AGENT_WORKFLOW.md)
-- [On-device Termux validation](docs/TERMUX_VALIDATION.md)
-- [Contributing](CONTRIBUTING.md)
-- [Automations](docs/AUTOMATIONS.md)
-- [Plugins](docs/PLUGINS.md)
-- [Plugin authoring](docs/PLUGIN_AUTHORING.md)
-- [Plugin registry protocol](docs/PLUGIN_REGISTRY_PROTOCOL.md)
-- [Plugin UI architecture](docs/PLUGIN_UI_ARCHITECTURE.md)
-- [Playwright E2E](docs/PLAYWRIGHT.md)
-- [Troubleshooting](docs/TROUBLESHOOTING.md)
-- [User Guide](docs/USER_GUIDE.md)
-- [UI Kit Usage](docs/UI_KIT_USAGE.md)
+Keep TikTok cookies, Cloud credentials, invitation tokens and secret Variables
+out of logs, issues and screenshots. TikTok session cookies stay in memory.
+Cloud login is separate from the TikTok LIVE connection. Review diagnostic
+exports before sharing them.

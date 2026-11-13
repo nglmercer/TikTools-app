@@ -1,0 +1,46 @@
+
+### BaseJsonDiff.vue
+
+[Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/json/BaseJsonDiff.vue)
+
+| Propiedad | Tipo | Presencia | Default |
+| --- | --- | --- | --- |
+| `before` | `unknown` | Opcional | `undefined` |
+| `after` | `unknown` | Opcional | `undefined` |
+| `beforeLabel` | `string` | Opcional | `undefined` |
+| `afterLabel` | `string` | Opcional | `undefined` |
+| `label` | `string` | Opcional | `undefined` |
+| `switchable` | `boolean` | Opcional | `false` |
+| `context` | `number` | Opcional | `3` |
+| `maxHeight` | `string &#124; number` | Opcional | `undefined` |
+| `maxLines` | `number` | Opcional | `DEFAULT_MAX_LINES` |
+| `sortKeys` | `boolean` | Opcional | `false` |
+
+Eventos propios (los atributos de control nativo se reenvían según el componente):
+
+Sin eventos propios declarados.
+
+Modelos:
+
+- `layout`: `'unified' &#124; 'side-by-side'`, `{ default: 'unified' }`
+
+Slots: —.
+
+### SyncPanel.vue
+
+[Código fuente](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/features/sync-changes/ui/SyncPanel.vue)
+
+| Propiedad | Tipo | Presencia | Default |
+| --- | --- | --- | --- |
+| `adapter` | `SyncAdapter` | Obligatoria | `—` |
+| `preparing` | `boolean` | Opcional | `false` |
+
+Eventos propios (los atributos de control nativo se reenvían según el componente):
+
+Sin eventos propios declarados.
+
+Modelos:
+
+- `open`: `boolean`, `{ default: false }`
+
+Slots: `preparation`.

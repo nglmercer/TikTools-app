@@ -1,0 +1,195 @@
+name: Documentation and demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the verified site to the authorized RELEASE_REPO target'
+        type: boolean
+        default: false
+      ownership_seed:
+        description: 'Optional reviewed ownership manifest path for first migration of legacy gh-pages'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: 1.4.4
+  TIKTOOLS_SITE_BASE: /TikTools-app/
+  TIKTOOLS_SITE_ORIGIN: https://nglmercer.github.io
+
+jobs:
+  build:
+    name: Check and assemble static site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: site-check-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install locked workspace dependencies
+        run: bun ci
+
+      - name: Check public content and translations
+        run: bun scripts/task.ts docs check
+
+      - name: Check Vue and demo types
+        run: bun x --no-install vue-tsc --noEmit
+
+      - name: Check publisher types
+        run: >-
+          bun x --no-install tsc --ignoreConfig --noEmit --strict --skipLibCheck --types bun
+          --module preserve --moduleResolution bundler --target esnext
+          --allowImportingTsExtensions scripts/publish-site.ts scripts/publish-site.test.ts
+
+      - name: Verify ownership and concurrent-writer recovery
+        run: bun test ./scripts/publish-site.test.ts
+
+      # This task builds only the VitePress and demo bundles and assembles them.
+      # It never starts the desktop, a native host or a real account connection.
+      - name: Build docs and fictional-data demo
+        run: bun scripts/task.ts site build
+
+      - name: Install focused browser-test runtime
+        run: bun x --no-install playwright install --with-deps chromium
+
+      # Run metadata/link regressions, demo/help units and the focused
+      # Playwright suite through the shared task boundary.
+      - name: Run focused docs and demo checks
+        run: bun scripts/task.ts docs test
+
+      - name: Verify dependency manifests stayed unchanged
+        run: git diff --exit-code -- package.json bun.lock docs/package.json
+
+      - name: Retain assembled review artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tiktools-site-${{ github.sha }}
+          path: dist/site/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish manifest-owned paths with CAS
+    needs: build
+    timeout-minutes: 20
+    # Both site and release-feed writers use current-tree CAS/reapply. Site
+    # publication is explicit, manual and restricted to the remake branch.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/remake' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pages: write
+    concurrency:
+      # GitHub concurrency is scoped to the workflow repository, even when a
+      # fork targets RELEASE_REPO. Cross-repository safety comes from CAS, not
+      # from assuming this group serializes the canonical release workflow.
+      group: gh-pages-${{ vars.RELEASE_REPO || github.repository }}
+      cancel-in-progress: false
+    env:
+      RELEASE_REPO: ${{ vars.RELEASE_REPO || github.repository }}
+      GH_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN || github.token }}
+      HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN != '' }}
+      OWNERSHIP_SEED: ${{ inputs.ownership_seed }}
+    steps:
+      - name: Check cross-repository authentication
+        run: |
+          if [ "$RELEASE_REPO" != "$GITHUB_REPOSITORY" ] && [ "$HAS_RELEASE_TOKEN" != "true" ]; then
+            echo "::error::Cross-repository site publication requires RELEASE_REPO_TOKEN with Contents read/write and Pages read/write on the target."
+            exit 1
+          fi
+
+      - name: Check out the artifact's source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Download the verified site artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tiktools-site-${{ github.sha }}
+          path: site-artifact
+
+      - name: Configure token-backed Git authentication
+        run: gh auth setup-git --hostname github.com
+
+      - name: Verify the existing legacy Pages destination
+        id: pages
+        run: |
+          set -euo pipefail
+          expected_url="$(bun -e 'import { siteConfig } from "./scripts/lib/site-config.ts"; console.log(siteConfig().url)')"
+          gh api "repos/$RELEASE_REPO/pages" > "$RUNNER_TEMP/tiktools-pages-settings.json"
+          if ! jq -e --arg expected "$expected_url" '
+            .build_type == "legacy"
+            and .source.branch == "gh-pages"
+            and .source.path == "/"
+            and (.cname == null or .cname == "")
+            and (.html_url | type == "string")
+            and (.html_url | rtrimstr("/")) == ($expected | rtrimstr("/"))
+          ' "$RUNNER_TEMP/tiktools-pages-settings.json" > /dev/null; then
+            echo "::error::Pages must already use legacy gh-pages:/, no custom domain, and the configured site URL. No branch publication was attempted."
+            exit 1
+          fi
+          echo "url=$expected_url" >> "$GITHUB_OUTPUT"
+
+      - name: Reapply site files to the current target branch
+        run: |
+          seed=()
+          if [ -n "$OWNERSHIP_SEED" ]; then
+            seed=(--ownership-seed "$OWNERSHIP_SEED")
+          fi
+          bun scripts/publish-site.ts --artifact site-artifact \
+            --repository "$RELEASE_REPO" --source-commit "$GITHUB_SHA" "${seed[@]}" --publish
+
+      # A push authenticated with GITHUB_TOKEN does not start a Pages build.
+      # Request it explicitly for the verified legacy source; this endpoint
+      # changes no gh-pages files or update-feed bytes.
+      - name: Request the legacy GitHub Pages build
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$RELEASE_REPO/pages/builds" --jq '.status'
+
+      - name: Verify the published site manifest
+        timeout-minutes: 12
+        env:
+          PAGES_URL: ${{ steps.pages.outputs.url }}
+        run: |
+          set -euo pipefail
+          pages_deadline=$((SECONDS + 600))
+          pages_attempt=0
+          live_manifest="$RUNNER_TEMP/tiktools-live-site-manifest.json"
+          while (( SECONDS < pages_deadline )); do
+            pages_attempt=$((pages_attempt + 1))
+            if curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+              --header 'Cache-Control: no-cache' \
+              "${PAGES_URL}site-manifest.json?deployment=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${pages_attempt}" \
+              --output "$live_manifest" \
+              && jq -e --arg source "$GITHUB_SHA" --arg base "$TIKTOOLS_SITE_BASE" '
+                .version == 1 and .sourceCommit == $source and .dirty == false and .base == $base
+              ' "$live_manifest" > /dev/null \
+              && cmp --silent site-artifact/site-manifest.json "$live_manifest"; then
+              echo "Verified live Pages artifact from $GITHUB_SHA at $PAGES_URL"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Pages did not serve the exact verified artifact for $GITHUB_SHA within ten minutes. No files or feeds were rolled back."
+          exit 1

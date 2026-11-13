@@ -1,10 +1,11 @@
 import { isLocale, supportedLocales, type Locale } from './i18n.ts';
+import { appStorage } from '../lib/app-storage.ts';
 
 const STORAGE_KEY = 'tiktok-live-locale';
 
 export function storedLocale(): Locale | null {
   try {
-    const value = localStorage.getItem(STORAGE_KEY);
+    const value = appStorage().getItem(STORAGE_KEY);
     return isLocale(value) ? value : null;
   } catch {
     return null;
@@ -13,7 +14,7 @@ export function storedLocale(): Locale | null {
 
 export function storeLocale(locale: Locale): void {
   try {
-    localStorage.setItem(STORAGE_KEY, locale);
+    appStorage().setItem(STORAGE_KEY, locale);
   } catch {}
 }
 

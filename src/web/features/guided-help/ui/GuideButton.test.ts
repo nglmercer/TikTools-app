@@ -11,7 +11,12 @@ const fake = vi.hoisted(() => {
 });
 vi.mock('driver.js', () => ({ driver: fake.driver }));
 enableAutoUnmount(afterEach);
-beforeEach(() => { vi.clearAllMocks(); sessionStorage.clear(); });
+beforeEach(() => {
+  vi.clearAllMocks(); sessionStorage.clear();
+  vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function (this: HTMLElement) {
+    return (this.isConnected ? [new DOMRect(0, 0, 120, 30)] : []) as unknown as DOMRectList;
+  });
+});
 afterEach(() => { document.querySelectorAll('[data-test-guide]').forEach(element => element.remove()); });
 
 async function mountGuide() {
@@ -50,4 +55,21 @@ it('closes the tour when a native dialog opens so it cannot trap focus behind th
   const dialog = document.createElement('dialog'); root.append(dialog); dialog.setAttribute('open', '');
   await flushPromises();
   expect(fake.engine.destroy).toHaveBeenCalled();
+});
+it('starts an explicit versioned tour without requiring legacy steps and completes only from task state', async () => {
+  const root = document.createElement('section');
+  root.setAttribute('data-guide-scope', 'points'); root.setAttribute('data-test-guide', '');
+  root.innerHTML = '<section data-guide="points-rules"></section><section data-guide="points-leaderboard"></section>';
+  document.body.append(root);
+  const wrapper = mountWithPlugins(GuideButton, { attachTo: root, props: { tour: 'points', taskState: { 'points.reviewed': false } } });
+  expect(fake.driver).not.toHaveBeenCalled();
+  expect(wrapper.get('button').attributes('data-guide-tour')).toBe('points');
+  await wrapper.get('button').trigger('click'); await vi.dynamicImportSettled(); await flushPromises();
+  expect(fake.engine.setSteps).toHaveBeenCalled();
+  expect(wrapper.get('button').attributes('aria-label')).toContain('Review earning rules');
+  await wrapper.setProps({ taskState: { 'points.reviewed': true } });
+  await flushPromises();
+  expect(fake.engine.destroy).toHaveBeenCalled();
+  expect(JSON.parse(sessionStorage.getItem('tiktools.guide.tour.points.v1') ?? 'null').status).toBe('completed');
+  expect(sessionStorage.getItem('tiktools.guide.inline')).toBeNull();
 });

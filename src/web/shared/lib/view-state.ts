@@ -1,5 +1,6 @@
 
 import { parsePluginNavId } from '../../../automation/plugins/declarative.ts';
+import { appStorage } from './app-storage.ts';
 import type { BuiltinAppTab, EventFilter } from '@/types.ts';
 
 const STORAGE_KEY = 'tiktok-live-view-state';
@@ -93,7 +94,7 @@ export interface ViewState {
 
 function readRaw(): string | null {
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    return appStorage().getItem(STORAGE_KEY);
   } catch {
     return null;
   }
@@ -101,7 +102,7 @@ function readRaw(): string | null {
 
 function writeRaw(value: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, value);
+    appStorage().setItem(STORAGE_KEY, value);
   } catch {
   }
 }

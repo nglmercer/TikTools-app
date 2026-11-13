@@ -1,0 +1,11 @@
+:root { --vp-c-brand-1:#365bd6; --vp-c-brand-2:#2947ae; --vp-c-brand-3:#365bd6; --vp-c-brand-soft:#365bd612; --vp-shadow-1:none; --vp-shadow-2:none; --vp-shadow-3:none; --vp-shadow-4:none; --vp-shadow-5:none; }
+.dark { --vp-c-brand-1:#9cafff; --vp-c-brand-2:#bbcbff; --vp-c-brand-3:#365bd6; }
+.VPDoc { --vp-layout-max-width:1440px; }
+.vp-doc { line-height:1.75; }
+.vp-doc h1 { line-height:1.25; }
+.vp-doc a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid var(--vp-c-brand-1); outline-offset:3px; }
+.VPNavBar, .VPSidebar { box-shadow:none!important; }
+.vp-doc img { max-width:100%; height:auto; }
+@media (max-width:640px) { .vp-doc table { font-size:.875rem; } }
+/* Presentational inline examples map only the tokens they consume. Desktop CSS stays in its iframe. */
+.docs-control-scope { --space-3:6px; --space-5:12px; --control-height-md:32px; --border-width:1px; --radius-md:3px; --color-border:var(--vp-c-divider); --color-border-strong:var(--vp-c-text-2); --color-bg-control:var(--vp-c-bg); --color-bg-control-hover:var(--vp-c-bg-soft); --color-bg-control-active:var(--vp-c-bg-alt); --color-text:var(--vp-c-text-1); --font-family:var(--vp-font-family-base); --font-size-md:14px; --font-weight-regular:400; --line-height-tight:1.3; --duration-fast:0ms; --focus-ring:0 0 0 2px var(--vp-c-brand-1); }

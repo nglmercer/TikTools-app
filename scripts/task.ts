@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { assertWidgetBundle } from './lib/gateway-widgets.ts';
 import { ProcessCancelled, createProcessRunner, exitCodeForSignal, forwardTerminationSignals } from './lib/process-runner.ts';
 import { fastSuiteCommands, runTargetedTests, verifyRustFilter } from './lib/test-runner.ts';
+import { runSiteTask } from './lib/site-tasks.ts';
 
 const root = join(import.meta.dir, '..');
 const bun = process.execPath;
@@ -19,7 +20,8 @@ const USAGE =
   '`test plugin <name> [filter]`, `test e2e [filter]`, `test --changed`.\n' +
   'Internal steps used by CI and guides: frontend-lint, frontend-test, frontend-build,\n' +
   'rust-lint, rust <cargo args>, widgets, plugins <args>, e2e [args], package,\n' +
-  'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins.';
+  'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins.\n' +
+  'Site tasks: docs dev|check|build|test|preview, demo dev|build, site build|preview.';
 
 // Every spawned child is tracked by the shared runner so SIGINT/SIGTERM stop
 // the whole launcher tree (Vite, the desktop host, cargo) instead of orphaning
@@ -154,6 +156,11 @@ async function versionCommand(args: string[]): Promise<void> {
 const [command, ...args] = process.argv.slice(2);
 try {
   switch (command) {
+    case 'docs':
+    case 'demo':
+    case 'site':
+      await runSiteTask(command, args, { run, script, tool, bun });
+      break;
     case 'start':
       needNoArgs('start', args);
       await script('start-dev.ts');

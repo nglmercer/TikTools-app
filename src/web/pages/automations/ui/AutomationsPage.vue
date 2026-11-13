@@ -21,6 +21,8 @@ import { useVariableSyncAdapter } from '@/features/edit-runtime-globals/model/us
 import OwnerLibraryChanges from '@/features/recover-owner-library/ui/OwnerLibraryChanges.vue';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
+import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
 import OwnerDefinitionRecovery from '@/features/recover-owner-definition/ui/OwnerDefinitionRecovery.vue';
 import {
   isRecordSort,
@@ -48,8 +50,8 @@ import AutomationLibrary from '@/widgets/automation-library/ui/AutomationLibrary
 import AutomationRunsPanel from '@/widgets/automation-runs/ui/AutomationRunsPanel.vue';
 
 const { t } = useAutomationText();
+const guideCapabilities = useCapabilityStore();
 const automation = useAutomationControls();
-// Variables sync is a TODO (docs/SYNC-CHANGES-PLAN.md): register its adapter here and add a button to that tab once a Cloud collection carries it.
 const syncAdapters = useAutomationSyncAdapters();
 const variableSync = useVariableSyncAdapter();
 const library = libraryJournal(useControlClient());
@@ -103,6 +105,18 @@ const {
 const history = useAutomationHistory(automation, () => proposalTarget.value);
 const { historyItems, historyAttention, openHistory } = history;
 const snapshot = computed(() => automation.snapshot.value);
+const guideTaskState = () => {
+  const owner = automation.sourceHost.value;
+  const definition = observedDefinitionState.value;
+  const libraryState = library.state.value;
+  return {
+    'automation.saved': Boolean(owner && definition && owner.hostId === definition.hostId && owner.hostInstanceId === definition.hostInstanceId &&
+      definition.pending === null && definition.recent.some(record => record.outcome === 'succeeded' && record.receipt !== null &&
+        (record.intent.operation === 'create' || record.intent.operation === 'update'))),
+    'changes.reviewed': Boolean(owner && libraryState && owner.hostId === libraryState.hostId && owner.hostInstanceId === libraryState.hostInstanceId &&
+      libraryState.pending === null && libraryState.recent.some(record => record.outcome === 'succeeded' && record.receipt !== null)),
+  };
+};
 
 const { packs, events, actions, eventTypes, availableTypes, gifts, viewers } = useAutomationLibraryData(automation, leaderboard);
 function onSheetKeydown(event: KeyboardEvent): void {
@@ -157,9 +171,23 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
 </script>
 
 <template>
-  <div class="automations-page">
+  <div
+    class="automations-page"
+    data-guide-scope="automations"
+  >
     <header class="automations-page__toolbar">
+      <GuideButton
+        tour="automation"
+        :capabilities="guideCapabilities"
+        :task-state="guideTaskState"
+      />
+      <GuideButton
+        tour="changes"
+        :capabilities="guideCapabilities"
+        :task-state="guideTaskState"
+      />
       <ProfileToolbar
+        data-guide="automation-profiles"
         :packs="packs"
         :active-id="automation.activeProfileId.value"
         :disabled="automation.profileLoading.value"
@@ -175,6 +203,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
       />
       <BaseIconButton
         :label="t('automations.templates.open')"
+        data-guide="automation-templates"
         variant="default"
         :disabled="automation.profileLoading.value"
         @click="openTemplates()"
@@ -269,6 +298,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
           v-model:action-query="actionQuery"
           v-model:event-sort="eventSort"
           v-model:action-sort="actionSort"
+          data-guide="automation-library"
           :events="events"
           :actions="actions"
           :action-types="snapshot.actionTypes"
