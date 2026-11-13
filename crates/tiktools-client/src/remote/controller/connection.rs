@@ -7,6 +7,10 @@ impl Controller {
             worker.abort();
         }
         lifecycle.pairing = None;
+        #[cfg(feature = "cloud-peer")]
+        {
+            lifecycle.cloud_pairing = None;
+        }
         let mut v = self.shared.view.write().unwrap_or_else(|p| p.into_inner());
         if let Some(remote) = v.remote.take() {
             remote.close();
@@ -25,6 +29,8 @@ impl Controller {
         v.journal = None;
         v.status = ControllerStatus {
             drafts_supported: true,
+            cloud_supported: false,
+            cloud_pairing: None,
             proposals_supported: true,
             epoch: epoch.clone(),
             view_revision: "0".into(),
@@ -34,6 +40,7 @@ impl Controller {
             points_loading: true,
             points_error_code: None,
             phase: "idle".into(),
+            transport_route: None,
             profile: None,
             origin: None,
             hello: None,
@@ -48,11 +55,15 @@ impl Controller {
     }
 
     pub async fn disconnect(&self) {
+        #[cfg(feature = "cloud-peer")]
+        cloud::cancel_network(&self.cloud_network);
         let mut l = self.lifecycle.lock().await;
         self.reset(&mut l);
     }
 
     pub async fn connect(&self, profile: &str) -> Result<(), ClientError> {
+        #[cfg(feature = "cloud-peer")]
+        cloud::cancel_network(&self.cloud_network);
         let mut l = self.lifecycle.lock().await;
         let epoch = self.reset(&mut l);
         self.shared.change(&epoch, |v| {

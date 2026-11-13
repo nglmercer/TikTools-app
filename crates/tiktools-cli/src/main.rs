@@ -24,9 +24,10 @@ const USAGE: &str = "\
 usage: tiktools [--json] [--standalone | --remote-profile NAME] <command> [args]
 
 commands:
-  remote pair --url https://host --profile NAME [--fingerprint SHA256] [--invite-stdin]
-         | inspect --url https://host | list | show NAME | forget NAME
-         | trust NAME --fingerprint SHA256 --confirm
+  remote cloud status | login | logout | enroll [--label NAME] | join [--invite-stdin]
+         | connect --profile NAME --host ID [--kind desktop|agent]
+         | pair --profile NAME [--kind desktop|agent] [--label NAME] [--invite-stdin]
+  remote list | show NAME | check NAME | forget NAME
   plugin list | get <id> | install <file.plugin> [--replace] | uninstall <id> [--purge]
          | install <id[@version]> [--yes] [--no-wait]
          | search <query> [--category c] [--page N] | inspect <spec>
@@ -71,6 +72,11 @@ commands:
     | verify [--coverage|--smoke] [--sandbox] [--timeout SEC]
   rpc <method> [params-json]
   rpc --stdio [--events]        NDJSON request/response loop on stdio
+  remote cloud status | login | logout
+         cloud enroll [--label NAME] | join [--invite-stdin]
+         cloud connect --host ID --profile NAME [--kind desktop|agent]
+         cloud pair --profile NAME [--label NAME] [--kind desktop|agent] [--invite-stdin]
+                                Native Cloud P2P onboarding; no local host runtime
   cloud status | login | logout | restore
                                 Cloud account (official Cloud; override with TIKTOOLS_CLOUD_ORIGIN)
   publisher list | create <namespace> | delete <namespace-or-publisher-id> | keys <publisher-id>
@@ -87,7 +93,7 @@ commands run against the running host over local IPC by default; when no
 host is running they fail with host_unavailable instead of starting a
 second runtime. --standalone runs the command against an isolated
 in-process runtime instead. json values may use @path to read from a file.
---remote-profile NAME selects an approved HTTPS/WSS profile and never falls
+--remote-profile NAME selects an approved remote profile and never falls
 back to a local runtime. It cannot be combined with --standalone, serving,
 the local web adapter or local api verify. remote pair reads invitations
 privately; no invitation or credential secret is accepted as a process argument.

@@ -12,14 +12,15 @@ path = "src/main.rs"
 
 [features]
 default = ["cloud-auth", "remote-client"]
-remote-client = ["tiktools-client/remote-profiles", "dep:rpassword", "dep:zeroize", "dep:url"]
+remote-client = ["tiktools-client/remote-profiles", "tiktools-client/peer", "dep:rpassword", "dep:zeroize", "dep:url"]
 local-web = ["dep:axum", "dep:rand"]
 remote-control = ["dep:tiktools-remote"]
 remote-browser-app = ["remote-control", "tiktools-remote/browser-app"]
 cloud-auth = [
+    "tiktools-remote?/cloud-peer",
     "tiktools-core/cloud-auth",
     "tiktools-control-api/cloud-auth",
-    "tiktools-client/cloud-auth",
+    "tiktools-client/cloud-peer",
 ]
 
 [dependencies]

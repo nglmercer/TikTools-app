@@ -32,14 +32,18 @@ export interface RemoteLimits {
   pendingCalls: number; requestsPerSecond: number; requestBurst: number; commandIdsPerPrincipal: number;
 }
 export interface Configuration {
+  peer?: { relayUrls: string[] } | null;
   enabled: boolean; bindAddress: string; advertisedOrigin: string | null; allowedOrigins: string[];
   tlsCertificate: string | null; tlsPrivateKey: string | null; tlsProxy: boolean; limits: RemoteLimits;
 }
 export interface CollaborationStatus {
   hostId: string; hostInstanceId: string; configuration: Configuration; configurationRevision: string;
   activeSessions: number; pendingRequests: number;
-  gateway: { available: boolean; running: boolean; connections: number; configurationRevision: string | null;
-    address: string | null; lastError: string | null; certificateFingerprint?: string | null; sessionConnections?: Record<string, number> };
+  gateway: GatewayStatus;
+  peerGateway?: GatewayStatus & { endpointId?: string | null; addresses?: string[]; relayUrls?: string[] };
+}
+export interface GatewayStatus { available: boolean; running: boolean; connections: number; configurationRevision: string | null;
+    address: string | null; lastError: string | null; certificateFingerprint?: string | null; sessionConnections?: Record<string, number>;
 }
 export interface Invitation { inviteId: string; grant: Grant; expiresAt: number; state: string }
 export interface InvitationSecret { inviteId: string; secret: string; expiresAt: number }

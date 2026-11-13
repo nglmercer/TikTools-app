@@ -1,6 +1,33 @@
 // Controller UI copy (French). Every locale must mirror these keys.
 export default {
+  cloud: {
+    "title": "Connexion via Cloud",
+    "signOut": "Se déconnecter",
+    "signingIn": "Terminez la connexion dans votre navigateur.",
+    "openBrowser": "Ouvrir le navigateur",
+    "cancel": "Annuler",
+    "loginLink": "Lien de connexion",
+    "signInHelp": "Connectez-vous pour voir vos équipes approuvées ou utiliser une invitation.",
+    "signIn": "Se connecter",
+    "pending": "En attente de l’accord du propriétaire et de l’hôte :",
+    "teams": "Mes équipes",
+    "join": "Rejoindre une équipe",
+    "refresh": "Actualiser les équipes",
+    "noTeams": "Cet appareil n’a pas encore d’équipe approuvée.",
+    "device": "Nom de l’appareil",
+    "invitation": "Invitation privée",
+    "profile": "Nom du profil",
+    "request": "Demander l’accès",
+    "connect": "Connecter",
+    "roles": {
+        "observer": "Observateur",
+        "moderator": "Modérateur",
+        "automationEditor": "Éditeur d’automatisations",
+        "custom": "Autorisations personnalisées"
+    }
+},
   root: {
+    transportRoute: { direct: 'Directe', relay: 'Relais', reconnecting: 'Reconnexion' },
     snapshotBudgetHelp: 'L’état autorisé est trop volumineux pour être récupéré avec la limite de requêtes actuelle. Demandez au propriétaire de réduire les ressources autorisées ou d’augmenter la limite de requêtes ou la taille des messages, puis reconnectez-vous.',
     viewing: 'Consultation',
     reviewCommandStorage: 'Examiner le stockage des commandes',
@@ -45,6 +72,7 @@ export default {
       rights: 'Autorisations effectives',
       noProfiles: 'Créez un profil pour vous connecter à l’hôte.',
       idle: 'Déconnecté',
+      'cloud-pairing': "En attente d’approbation Cloud",
       pairing: 'En attente d’approbation',
       connecting: 'Connexion',
       ready: 'Connecté',

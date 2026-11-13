@@ -99,7 +99,7 @@ async fn pair() -> (RemoteClient, WebSocketStream<TcpStream>, NativeCredentials)
         subscription_domains: Vec::new(),
     };
     (
-        RemoteClient::from_negotiated(socket, hello, &creds),
+        RemoteClient::from_negotiated(socket, hello, &creds, ClientKind::Agent),
         server,
         creds,
     )

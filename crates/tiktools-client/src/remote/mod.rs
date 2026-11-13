@@ -1,4 +1,8 @@
-//! Native HTTPS/WSS client. No host runtime is created by this module.
+//! Native collaboration transports. No host runtime is created by this module.
+#[cfg(feature = "peer")]
+pub use tiktools_peer::Route as PeerRoute;
+#[cfg(feature = "cloud-peer")]
+pub mod cloud_peer;
 #[cfg(feature = "remote-profiles")]
 pub mod controller;
 mod credentials;

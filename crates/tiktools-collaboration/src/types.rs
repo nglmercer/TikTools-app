@@ -392,6 +392,8 @@ impl RemoteLimits {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Configuration {
     pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer: Option<PeerConfiguration>,
     #[serde(default = "default_bind")]
     pub bind_address: String,
     #[serde(default)]
@@ -412,6 +414,7 @@ impl Default for Configuration {
     fn default() -> Self {
         Self {
             enabled: false,
+            peer: None,
             bind_address: default_bind(),
             advertised_origin: None,
             allowed_origins: BTreeSet::new(),
@@ -421,6 +424,13 @@ impl Default for Configuration {
             limits: RemoteLimits::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PeerConfiguration {
+    #[serde(default)]
+    pub relay_urls: Vec<String>,
 }
 
 fn default_bind() -> String {
@@ -437,6 +447,18 @@ pub struct Status {
     pub active_sessions: u32,
     pub pending_requests: u32,
     pub gateway: GatewayStatus,
+    #[serde(default)]
+    pub peer_gateway: PeerGatewayStatus,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerGatewayStatus {
+    #[serde(flatten)]
+    pub gateway: GatewayStatus,
+    pub endpoint_id: Option<String>,
+    pub addresses: Vec<String>,
+    pub relay_urls: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]

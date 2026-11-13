@@ -1,6 +1,33 @@
 // Controller UI copy (Portuguese). Every locale must mirror these keys.
 export default {
+  cloud: {
+    "title": "Conectar pelo Cloud",
+    "signOut": "Sair",
+    "signingIn": "Conclua o acesso no navegador.",
+    "openBrowser": "Abrir navegador",
+    "cancel": "Cancelar",
+    "loginLink": "Link de acesso",
+    "signInHelp": "Entre para ver suas equipes aprovadas ou usar um convite.",
+    "signIn": "Entrar",
+    "pending": "Aguardando aprovação do proprietário e do anfitrião:",
+    "teams": "Minhas equipes",
+    "join": "Entrar em uma equipe",
+    "refresh": "Atualizar equipes",
+    "noTeams": "Este dispositivo ainda não tem equipes aprovadas.",
+    "device": "Nome do dispositivo",
+    "invitation": "Convite privado",
+    "profile": "Nome do perfil",
+    "request": "Solicitar acesso",
+    "connect": "Conectar",
+    "roles": {
+        "observer": "Observador",
+        "moderator": "Moderador",
+        "automationEditor": "Editor de automações",
+        "custom": "Permissões personalizadas"
+    }
+},
   root: {
+    transportRoute: { direct: 'Direta', relay: 'Relay', reconnecting: 'Reconectando' },
     snapshotBudgetHelp: 'O estado autorizado é grande demais para ser recuperado com o limite de solicitações atual. Peça ao proprietário para reduzir os recursos permitidos ou aumentar o limite de solicitações ou o tamanho da mensagem e depois reconecte.',
     viewing: 'Visualizando',
     reviewCommandStorage: 'Revisar armazenamento de comandos',
@@ -45,6 +72,7 @@ export default {
       rights: 'Permissões efetivas',
       noProfiles: 'Crie um perfil para se conectar ao host.',
       idle: 'Desconectado',
+      'cloud-pairing': "Aguardando aprovação Cloud",
       pairing: 'Aguardando aprovação',
       connecting: 'Conectando',
       ready: 'Conectado',

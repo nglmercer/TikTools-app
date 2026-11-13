@@ -66,6 +66,28 @@ fn device_key_is_created_once_and_reused() {
 }
 
 #[test]
+fn signed_peer_operations_do_not_replace_a_missing_or_corrupt_enrolled_key() {
+    let (teams, dir) = scratch_teams("enrolled-key");
+    assert!(teams.enrolled_device_key().is_err());
+    assert!(!teams.key_path.exists());
+    let public = teams.device_key().unwrap().public_key().as_ref().to_vec();
+    assert_eq!(
+        teams.enrolled_device_key().unwrap().public_key().as_ref(),
+        public
+    );
+    fs::remove_file(&teams.key_path).unwrap();
+    assert!(teams.enrolled_device_key().is_err());
+    assert!(!teams.key_path.exists());
+    fs::write(&teams.key_path, b"corrupt enrolled identity").unwrap();
+    assert!(teams.enrolled_device_key().is_err());
+    assert_eq!(
+        fs::read(&teams.key_path).unwrap(),
+        b"corrupt enrolled identity"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_losing_concurrent_creation_loads_the_winning_key() {
     let (teams, dir) = scratch_teams("race");
     let winner = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).unwrap();

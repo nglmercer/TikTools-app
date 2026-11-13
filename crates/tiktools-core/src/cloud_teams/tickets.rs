@@ -23,7 +23,7 @@ impl CloudTeams {
         valid_uuid(host_id)?;
         valid_uuid(device_id)?;
         let binding = json!({"deviceId": device_id, "hostId": host_id, "role": role});
-        let key = self.device_key()?;
+        let key = self.enrolled_device_key()?;
         let (origin, token) = credentials(auth).await?;
         let challenge = send(
             Method::POST,

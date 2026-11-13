@@ -4,7 +4,7 @@ use crate::{
 };
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
+        ws::{Message, WebSocketUpgrade},
         State as ExtractState,
     },
     http::HeaderMap,
@@ -19,6 +19,8 @@ use tiktools_control_api::{ApiError, RemoteSession, RequestContext, RpcId, RpcRe
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 use tokio_util::sync::CancellationToken;
+pub(crate) mod wire;
+use wire::Wire;
 
 // A cancelled or timed-out blocking check may still be running. Keep its
 // permit until the blocking job actually exits, across gateway restarts.
@@ -62,11 +64,11 @@ pub(crate) async fn upgrade(
         .max_message_size(state.configuration.limits.frame_bytes)
         .on_upgrade(move |socket| async move {
             let _permit = permit;
-            run(socket, state, authentication).await;
+            run(socket.into(), state, authentication).await;
         }))
 }
 
-async fn run(mut socket: WebSocket, state: Arc<State>, authentication: Authentication) {
+pub(crate) async fn run(mut socket: Wire, state: Arc<State>, authentication: Authentication) {
     let max_frame = state.configuration.limits.frame_bytes;
     let session = match RemoteSession::from_authorization(authentication.authority.clone()) {
         Ok(session) => session.with_connection(
@@ -103,7 +105,13 @@ async fn run(mut socket: WebSocket, state: Arc<State>, authentication: Authentic
             },
             _=heartbeat.tick()=>{
                 let service=Arc::clone(&state.service);let token=authentication.token.clone();let browser=authentication.browser;
-                if !heartbeat_check(&state.stopping, heartbeat_slots(), Duration::from_secs(5), move || service.authenticate_live(&token,browser,true).is_ok()).await {break;}
+                #[cfg(feature="peer")]
+                let peer_id=authentication.peer_id.clone();
+                if !heartbeat_check(&state.stopping, heartbeat_slots(), Duration::from_secs(5), move || {
+                    #[cfg(feature="peer")]
+                    if let Some(peer_id)=peer_id { return service.authenticate_peer(&peer_id).is_ok(); }
+                    service.authenticate_live(&token,browser,true).is_ok()
+                }).await {break;}
                 if !matches!(tokio::time::timeout(Duration::from_secs(5),socket.send(Message::Ping(Vec::new().into()))).await,Ok(Ok(()))){break;}
                 continue;
             },
@@ -128,7 +136,8 @@ async fn run(mut socket: WebSocket, state: Arc<State>, authentication: Authentic
             message=socket.recv()=>{
                 let raw=match message{
                     Some(Ok(Message::Text(raw)))=>{last_received=Instant::now();raw},
-                    Some(Ok(Message::Ping(_)|Message::Pong(_)))=>{last_received=Instant::now();continue;},
+                    Some(Ok(Message::Ping(bytes)))=>{last_received=Instant::now();if !matches!(tokio::time::timeout(Duration::from_secs(5),socket.send(Message::Pong(bytes))).await,Ok(Ok(()))){break;}continue;},
+                    Some(Ok(Message::Pong(_)))=>{last_received=Instant::now();continue;},
                     _=>break,
                 };
                 let value:Value=match serde_json::from_str(&raw){Ok(value)=>value,Err(_)=>break};
@@ -200,7 +209,7 @@ impl Drop for StreamCleanup {
 }
 
 async fn send(
-    socket: &mut WebSocket,
+    socket: &mut Wire,
     response: &impl serde::Serialize,
     max_frame: usize,
 ) -> Result<(), ()> {

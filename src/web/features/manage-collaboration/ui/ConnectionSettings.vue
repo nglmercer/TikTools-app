@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { CollaborationStatus, Configuration } from '@/entities/collaboration/api/types.ts';
+import { activeGateway } from '@/entities/collaboration/lib/gateway.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
@@ -11,8 +12,9 @@ import CollabSection from './CollabSection.vue';
 const props = defineProps<{ status: CollaborationStatus; blocked: boolean; changed: boolean; working: boolean; available: boolean; dirty: boolean }>();
 const draft = defineModel<Configuration>({ required: true });
 const allowedOrigins = defineModel<string>('allowedOrigins', { required: true });
-const emit = defineEmits<{ apply: []; reset: [] }>();
+const emit = defineEmits<{ apply: []; reset: []; teams: [] }>();
 const { t } = useI18n();
+const native = computed(() => !!props.status.peerGateway?.available);
 
 function setText(key: 'bindAddress' | 'advertisedOrigin' | 'tlsCertificate' | 'tlsPrivateKey', value: string): void {
   if (key === 'bindAddress') draft.value.bindAddress = value;
@@ -24,10 +26,11 @@ type Tone = 'success' | 'warning' | 'error';
 // Only checks the browser can honestly derive from the draft and the host's reported state: nothing here reads the file system.
 const checks = computed<Array<{ key: string; tone: Tone; text: string }>>(() => {
   const list: Array<{ key: string; tone: Tone; text: string }> = [];
-  const gateway = props.status.gateway;
+  const gateway = activeGateway(props.status);
   if (gateway.lastError) list.push({ key: 'error', tone: 'error', text: gateway.lastError });
   else if (gateway.running) list.push({ key: 'listener', tone: 'success', text: t('collaboration.checkListening') });
   else list.push({ key: 'listener', tone: 'warning', text: t('collaboration.checkStopped') });
+  if (native.value) return list;
   const origin = draft.value.advertisedOrigin ?? '';
   list.push(origin.startsWith('https://') ? { key: 'https', tone: 'success', text: t('collaboration.checkHttps') } : { key: 'https', tone: 'warning', text: t('collaboration.checkNoPublic') });
   if (draft.value.tlsProxy) list.push({ key: 'tls', tone: 'success', text: t('collaboration.checkProxy') });
@@ -51,16 +54,25 @@ const preview = computed(() => `${draft.value.advertisedOrigin || 'https://…'}
       <label class="connection__toggle">
         <span class="connection__toggle-text">
           <strong>{{ t('collaboration.enabled') }}</strong>
-          <span class="collaboration-editor__muted">{{ available ? t('collaboration.enabledHint') : t('collaboration.unavailableDetail') }}</span>
+          <span class="collaboration-editor__muted">{{ native ? t('cloudTeams.hint') : available ? t('collaboration.enabledHint') : t('collaboration.unavailableDetail') }}</span>
         </span>
         <BaseSwitch
           :model-value="draft.enabled"
-          :disabled="blocked || !available"
+          :disabled="blocked || !available || (native && !draft.peer)"
           :aria-label="t('collaboration.enabled')"
           @update:model-value="draft.enabled = $event"
         />
       </label>
-      <CollabSection :title="t('collaboration.whereConnect')">
+      <BaseButton
+        v-if="native"
+        @click="emit('teams')"
+      >
+        {{ t('cloudTeams.title') }}
+      </BaseButton>
+      <CollabSection
+        v-if="!native"
+        :title="t('collaboration.whereConnect')"
+      >
         <div class="connection__pair">
           <div class="connection__field">
             <label for="collaboration-bind">{{ t('collaboration.bind') }}</label>
@@ -87,7 +99,10 @@ const preview = computed(() => `${draft.value.advertisedOrigin || 'https://…'}
           </div>
         </div>
       </CollabSection>
-      <CollabSection :title="t('collaboration.tlsTitle')">
+      <CollabSection
+        v-if="!native"
+        :title="t('collaboration.tlsTitle')"
+      >
         <div
           class="connection__modes"
           role="radiogroup"
@@ -147,7 +162,10 @@ const preview = computed(() => `${draft.value.advertisedOrigin || 'https://…'}
           <span class="collaboration-editor__muted connection__wide">{{ t('collaboration.pathsHint') }}</span>
         </div>
       </CollabSection>
-      <CollabSection :title="t('collaboration.originsTitle')">
+      <CollabSection
+        v-if="!native"
+        :title="t('collaboration.originsTitle')"
+      >
         <label
           class="visually-hidden"
           for="collaboration-origins"
@@ -208,7 +226,10 @@ const preview = computed(() => `${draft.value.advertisedOrigin || 'https://…'}
           </li>
         </ul>
       </CollabSection>
-      <CollabSection :title="t('collaboration.linkPreview')">
+      <CollabSection
+        v-if="!native"
+        :title="t('collaboration.linkPreview')"
+      >
         <code class="connection__preview">{{ preview }}</code>
         <p
           v-if="status.gateway.running && status.gateway.certificateFingerprint"

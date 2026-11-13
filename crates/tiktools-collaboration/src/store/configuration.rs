@@ -10,6 +10,7 @@ impl CollaborationService {
             active_sessions: db.query_row("SELECT count(*) FROM sessions s JOIN principals p ON p.id=s.principal_id WHERE s.revoked=0 AND p.revoked=0 AND s.absolute_expires>?1 AND s.last_activity>?2", params![now(), now().saturating_sub(IDLE_TTL)], |row| row.get(0))?,
             pending_requests: db.query_row("SELECT count(*) FROM pairing_requests WHERE state='pending' AND expires_at>?1", [now()], |row| row.get(0))?,
             gateway:self.gateway_status()?,
+            peer_gateway:self.peer_gateway_status()?,
         })
     }
 
@@ -78,6 +79,25 @@ impl CollaborationService {
             .map_err(|_| Error::Invalid("gateway state is unavailable"))
     }
 
+    pub fn peer_gateway_status(&self) -> Result<PeerGatewayStatus, Error> {
+        self.peer_gateway
+            .lock()
+            .map(|status| status.clone())
+            .map_err(|_| Error::Invalid("peer gateway state is unavailable"))
+    }
+
+    pub fn update_peer_gateway_status(
+        &self,
+        update: impl FnOnce(&mut PeerGatewayStatus),
+    ) -> Result<(), Error> {
+        let mut status = self
+            .peer_gateway
+            .lock()
+            .map_err(|_| Error::Invalid("peer gateway state is unavailable"))?;
+        update(&mut status);
+        Ok(())
+    }
+
     pub fn set_gateway_status(&self, status: GatewayStatus) -> Result<(), Error> {
         *self
             .gateway
@@ -99,7 +119,7 @@ impl CollaborationService {
     }
 }
 
-fn config(db: &Connection) -> Result<Configuration, Error> {
+pub(super) fn config(db: &Connection) -> Result<Configuration, Error> {
     let value: String = db.query_row(
         "SELECT value FROM metadata WHERE key='configuration'",
         [],
@@ -133,6 +153,25 @@ pub(super) fn enabled(db: &Connection) -> Result<(), Error> {
 
 fn validate_configuration(value: &Configuration) -> Result<(), Error> {
     value.limits.validate()?;
+    if let Some(peer) = &value.peer {
+        if peer.relay_urls.len() > 4 {
+            return Err(Error::Invalid("too many peer relays"));
+        }
+        for raw in &peer.relay_urls {
+            let url = url::Url::parse(raw).map_err(|_| Error::Invalid("invalid peer relay"))?;
+            if raw.len() > 2048
+                || url.scheme() != "https"
+                || url.host().is_none()
+                || !url.username().is_empty()
+                || url.password().is_some()
+                || url.query().is_some()
+                || url.fragment().is_some()
+                || url.path() != "/"
+            {
+                return Err(Error::Invalid("peer relays must be HTTPS origins"));
+            }
+        }
+    }
     let bind: std::net::SocketAddr = value
         .bind_address
         .parse()
@@ -184,7 +223,7 @@ fn validate_configuration(value: &Configuration) -> Result<(), Error> {
                 "HTTPS collaboration requires TLS configuration",
             ));
         }
-    } else if value.enabled {
+    } else if value.enabled && value.peer.is_none() {
         return Err(Error::Invalid(
             "an advertised origin is required before enabling collaboration",
         ));

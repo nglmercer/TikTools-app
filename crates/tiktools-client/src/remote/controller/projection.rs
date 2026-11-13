@@ -93,12 +93,35 @@ impl Controller {
         let v = self.shared.view.read().unwrap_or_else(|p| p.into_inner());
         let mut status = v.status.clone();
         status.command_journal = journal_projection(&v);
+        #[cfg(feature = "cloud-peer")]
+        {
+            status.cloud_supported = self.cloud.is_some();
+        }
         if status.phase == "ready"
             && v.remote
                 .as_ref()
                 .is_some_and(|r| r.is_closed() || r.requires_resync())
         {
             status.phase = "reconnecting".into();
+        }
+        #[cfg(feature = "peer")]
+        if let Some(remote) = v
+            .remote
+            .as_ref()
+            .filter(|remote| remote.peer_endpoint_id().is_some())
+        {
+            status.transport_route = Some(
+                if status.phase == "reconnecting" || remote.is_closed() {
+                    "reconnecting"
+                } else {
+                    match remote.peer_route() {
+                        Some(tiktools_peer::Route::Direct) => "direct",
+                        Some(tiktools_peer::Route::Relay) => "relay",
+                        _ => "reconnecting",
+                    }
+                }
+                .into(),
+            );
         }
         status
     }

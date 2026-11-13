@@ -11,6 +11,7 @@ use tokio_util::sync::CancellationToken;
 
 pub(crate) struct State {
     pub generation: String,
+    pub peer: bool,
     pub api: Arc<ControlApi>,
     pub service: Arc<CollaborationService>,
     pub configuration: Configuration,
@@ -44,14 +45,34 @@ impl State {
         fingerprint: Option<String>,
         stopping: CancellationToken,
     ) -> Result<Arc<Self>, Error> {
+        Self::build(api, service, configuration, fingerprint, stopping, false)
+    }
+
+    #[cfg(feature = "peer")]
+    pub fn new_peer(
+        api: Arc<ControlApi>,
+        service: Arc<CollaborationService>,
+        configuration: Configuration,
+        stopping: CancellationToken,
+    ) -> Result<Arc<Self>, Error> {
+        Self::build(api, service, configuration, None, stopping, true)
+    }
+
+    fn build(
+        api: Arc<ControlApi>,
+        service: Arc<CollaborationService>,
+        configuration: Configuration,
+        fingerprint: Option<String>,
+        stopping: CancellationToken,
+        peer: bool,
+    ) -> Result<Arc<Self>, Error> {
         configuration.limits.validate()?;
         let mut origins = configuration.allowed_origins.clone();
-        origins.insert(
-            configuration
-                .advertised_origin
-                .clone()
-                .ok_or(Error::Configuration)?,
-        );
+        if let Some(origin) = &configuration.advertised_origin {
+            origins.insert(origin.clone());
+        } else if !peer {
+            return Err(Error::Configuration);
+        }
         let mut authorities = std::collections::BTreeSet::new();
         for origin in &origins {
             let parsed = url::Url::parse(origin).map_err(|_| Error::Configuration)?;
@@ -65,6 +86,7 @@ impl State {
         let capacity = configuration.limits.connections as usize;
         Ok(Arc::new(Self {
             generation: uuid::Uuid::new_v4().to_string(),
+            peer,
             api,
             service,
             configuration,
@@ -77,6 +99,18 @@ impl State {
             connections: Arc::new(Semaphore::new(capacity)),
             principals: Mutex::new(BTreeMap::new()),
         }))
+    }
+
+    pub fn update_status(
+        &self,
+        update: impl FnOnce(&mut tiktools_collaboration::GatewayStatus),
+    ) -> Result<(), tiktools_collaboration::Error> {
+        if self.peer {
+            self.service
+                .update_peer_gateway_status(|status| update(&mut status.gateway))
+        } else {
+            self.service.update_gateway_status(update)
+        }
     }
 
     pub fn admit(
@@ -98,22 +132,21 @@ impl State {
             return Err(HttpError::overloaded());
         }
         let mut current = false;
-        self.service
-            .update_gateway_status(|status| {
-                if status.generation != self.generation
-                    || !status.running
-                    || self.stopping.is_cancelled()
-                {
-                    return;
-                }
-                current = true;
-                status.connections += 1;
-                *status
-                    .session_connections
-                    .entry(session.into())
-                    .or_default() += 1;
-            })
-            .map_err(HttpError::from)?;
+        self.update_status(|status| {
+            if status.generation != self.generation
+                || !status.running
+                || self.stopping.is_cancelled()
+            {
+                return;
+            }
+            current = true;
+            status.connections += 1;
+            *status
+                .session_connections
+                .entry(session.into())
+                .or_default() += 1;
+        })
+        .map_err(HttpError::from)?;
         if !current {
             return Err(HttpError::unauthorized());
         }
@@ -180,7 +213,7 @@ impl Drop for ConnectionPermit {
                 }
             }
         }
-        let _ = self.state.service.update_gateway_status(|status| {
+        let _ = self.state.update_status(|status| {
             if status.generation != self.state.generation {
                 return;
             }

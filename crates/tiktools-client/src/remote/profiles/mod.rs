@@ -3,10 +3,16 @@ pub(super) mod commands;
 mod directory;
 pub(super) mod drafts;
 mod keychain;
+#[cfg(feature = "peer")]
+mod peer;
 pub(super) mod proposals;
+#[cfg(feature = "cloud-peer")]
+mod rtc;
 mod sealed;
 use super::*;
 pub use keychain::{CredentialStore, OsCredentialStore};
+#[cfg(feature = "peer")]
+pub use peer::PeerProfile;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc};
 use uuid::Uuid;
@@ -26,10 +32,18 @@ pub struct RemoteProfile {
     pub credential_key: String,
     #[serde(default)]
     pub refresh_attempt: Option<String>,
+    #[cfg(feature = "peer")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub peer: Option<PeerProfile>,
 }
 impl RemoteProfile {
     fn validate(&self) -> Result<(), ClientError> {
-        if self.version != 1
+        #[cfg(feature = "peer")]
+        let valid_version = self.version == 1 && self.peer.is_none()
+            || matches!(self.version, 2 | 3) && self.peer.is_some();
+        #[cfg(not(feature = "peer"))]
+        let valid_version = self.version == 1;
+        if !valid_version
             || !valid_name(&self.name)
             || !valid_id(&self.profile_id)
             || !valid_id(&self.host_id)
@@ -45,6 +59,19 @@ impl RemoteProfile {
             return Err(fail("profile_invalid", "remote profile is invalid"));
         }
         self.trust.validate()?;
+        #[cfg(feature = "peer")]
+        if let Some(peer) = &self.peer {
+            peer.validate()?;
+            if (self.version == 3) != peer.host_device_id.is_some()
+                || self.version == 3
+                    && (!peer.remote_address.addrs.is_empty()
+                        || !peer.relay_urls.is_empty()
+                        || self.refresh_attempt.is_some()
+                        || !matches!(self.trust, TlsTrust::System))
+            {
+                return Err(fail("profile_invalid", "invalid WebRTC profile binding"));
+            }
+        }
         if self.credential_key != credential_key(self) {
             return Err(fail(
                 "profile_invalid",
@@ -77,6 +104,10 @@ fn credential_key(profile: &RemoteProfile) -> String {
 pub struct ProfileManager {
     directory: PathBuf,
     store: Arc<dyn CredentialStore>,
+    #[cfg(feature = "peer")]
+    peer_endpoints: Arc<tokio::sync::Mutex<peer::EndpointCache>>,
+    #[cfg(feature = "cloud-peer")]
+    pub(super) cloud_context: Arc<std::sync::Mutex<Option<super::cloud_peer::MaintenanceContext>>>,
 }
 impl ProfileManager {
     pub async fn check_store(&self) -> Result<(), ClientError> {
@@ -93,7 +124,14 @@ impl ProfileManager {
                 "profile directory must be absolute",
             ));
         }
-        Ok(Self { directory, store })
+        Ok(Self {
+            directory,
+            store,
+            #[cfg(feature = "peer")]
+            peer_endpoints: Arc::new(tokio::sync::Mutex::new(std::collections::BTreeMap::new())),
+            #[cfg(feature = "cloud-peer")]
+            cloud_context: Arc::new(std::sync::Mutex::new(None)),
+        })
     }
     pub fn system() -> Result<Self, ClientError> {
         Self::new(default_directory()?, Arc::new(OsCredentialStore))
@@ -157,6 +195,8 @@ impl ProfileManager {
             trust: endpoint.trust.clone(),
             credential_key: String::new(),
             refresh_attempt: None,
+            #[cfg(feature = "peer")]
+            peer: None,
         };
         profile.credential_key = credential_key(&profile);
         profile.validate()?;
@@ -181,6 +221,19 @@ impl ProfileManager {
     /// The nonsecret durable intent fences ambiguous one-use refreshes. A
     /// saved new keychain generation repairs a crash before clearing intent.
     pub async fn open(&self, name: &str) -> Result<RemoteClient, ClientError> {
+        #[cfg(feature = "cloud-peer")]
+        {
+            let lease = self.lease(name, false).await?;
+            if lease
+                .profile
+                .as_ref()
+                .is_some_and(|profile| profile.peer.is_some())
+            {
+                // No bearer rotation exists here: cancellation should drop the
+                // live WebRTC negotiation, not leave a background connection.
+                return self.open_rtc_leased(lease).await;
+            }
+        }
         let manager = self.clone();
         let name = name.to_owned();
         // A cancelled caller must not abandon a known successful refresh
@@ -195,6 +248,20 @@ impl ProfileManager {
             .profile
             .clone()
             .ok_or_else(|| fail("profile_not_found", "remote profile does not exist"))?;
+        #[cfg(feature = "cloud-peer")]
+        if profile.peer.is_some() {
+            return self.open_rtc_leased(lease).await;
+        }
+        #[cfg(all(feature = "peer", not(feature = "cloud-peer")))]
+        if profile.peer.is_some() {
+            if profile.version != 2 {
+                return Err(fail(
+                    "cloud_unavailable",
+                    "WebRTC profiles require Cloud support",
+                ));
+            }
+            return self.open_peer_profile(&profile).await;
+        }
         let endpoint = RemoteEndpoint::new(&profile.origin, profile.trust.clone()).await?;
         if endpoint.info().await?.host_id != profile.host_id {
             return Err(fail(
@@ -308,16 +375,37 @@ impl ProfileManager {
             ));
         }
         let store = self.store.clone();
+        #[cfg(feature = "peer")]
+        let peer_key = profile.peer.as_ref().map(|peer| peer.key_path.clone());
         let key = profile.credential_key;
-        tokio::task::spawn_blocking(move || store.delete(&key))
-            .await
-            .map_err(|_| credential_error())??;
+        #[cfg(feature = "peer")]
+        let has_bearer = profile.peer.is_none();
+        #[cfg(not(feature = "peer"))]
+        let has_bearer = true;
+        if has_bearer {
+            tokio::task::spawn_blocking(move || store.delete(&key))
+                .await
+                .map_err(|_| credential_error())??;
+        }
         tokio::task::spawn_blocking(move || {
             journal.remove_resolved()?;
             lease.remove()
         })
         .await
-        .map_err(|_| profile_error())?
+        .map_err(|_| profile_error())??;
+        #[cfg(feature = "peer")]
+        if let Some(key) = peer_key {
+            let in_use = self.list().await?.iter().any(|profile| {
+                profile
+                    .peer
+                    .as_ref()
+                    .is_some_and(|peer| peer.key_path == key)
+            });
+            if !in_use {
+                self.peer_endpoints.lock().await.remove(&key);
+            }
+        }
+        Ok(())
     }
     pub async fn set_trust(
         &self,
@@ -330,6 +418,13 @@ impl ProfileManager {
             .profile
             .clone()
             .ok_or_else(|| fail("profile_not_found", "remote profile does not exist"))?;
+        #[cfg(feature = "peer")]
+        if profile.peer.is_some() {
+            return Err(fail(
+                "invalid_params",
+                "peer identity trust does not use HTTPS certificate overrides",
+            ));
+        }
         let endpoint = RemoteEndpoint::new(&profile.origin, trust.clone()).await?;
         if endpoint.info().await?.host_id != profile.host_id {
             return Err(fail(

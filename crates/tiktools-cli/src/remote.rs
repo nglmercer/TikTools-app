@@ -1,4 +1,6 @@
 //! Native profile management never resolves local IPC or constructs AppCore.
+#[cfg(feature = "cloud-auth")]
+mod cloud;
 use crate::client::{exit_code_for, print_error};
 use serde_json::{json, Value};
 use std::{
@@ -16,6 +18,10 @@ use tiktools_client::{
 use zeroize::Zeroizing;
 
 pub async fn run(args: &[String], json_mode: bool) -> i32 {
+    #[cfg(feature = "cloud-auth")]
+    if args.first().is_some_and(|arg| arg == "cloud") {
+        return cloud::run(&args[1..], json_mode).await;
+    }
     let plan = match parse(args) {
         Ok(p) => p,
         Err(message) => {
@@ -45,6 +51,7 @@ pub async fn run(args: &[String], json_mode: bool) -> i32 {
 enum Plan {
     List,
     Show(String),
+    Check(String),
     Forget(String),
     Inspect(String),
     Trust {
@@ -96,11 +103,12 @@ fn parse(args: &[String]) -> Result<Plan, String> {
     };
     match args.first().map(String::as_str){
         Some("list") if args.len()==1=>Ok(Plan::List),
+        Some("check") if args.len()==2=>Ok(Plan::Check(name(&args[1])?)),
         Some("show")|Some("forget") if args.len()==2=>if args[0]=="show"{Ok(Plan::Show(name(&args[1])?))}else{Ok(Plan::Forget(name(&args[1])?))},
         Some("inspect")=>{let mut o=options(&args[1..],&["--url"],&[])?;Ok(Plan::Inspect(o.remove("--url").ok_or("--url is required")?))},
         Some("trust") if args.len()>=2=>{let o=options(&args[2..],&["--fingerprint"],&["--confirm"])?;if !o.contains_key("--confirm"){return Err("trust changes require --confirm after comparing the fingerprint with the owner".into());}let pin=o.get("--fingerprint").ok_or("--fingerprint is required")?;let pin=normalize_fingerprint(pin).map_err(|_|"invalid certificate fingerprint")?;Ok(Plan::Trust{name:name(&args[1])?,pin})},
         Some("pair")=>{let mut o=options(&args[1..],&["--url","--profile","--fingerprint","--label","--kind"],&["--invite-stdin"])?;let url=o.remove("--url").ok_or("--url is required")?;let profile=name(&o.remove("--profile").ok_or("--profile is required")?)?;let pin=o.remove("--fingerprint").map(|p|normalize_fingerprint(&p).map_err(|_|"invalid certificate fingerprint")).transpose()?;let kind=o.remove("--kind").unwrap_or_else(||"agent".into());if !matches!(kind.as_str(),"agent"|"desktop"){return Err("--kind must be agent or desktop".into());}Ok(Plan::Pair{url,name:profile,pin,stdin:o.contains_key("--invite-stdin"),label:o.remove("--label").unwrap_or_else(||"TikTools CLI".into()),kind})},
-        _=>Err("use remote pair|inspect|list|show|forget|trust; invitation secrets are entered privately, never as command arguments".into())
+        _=>Err("use remote pair|inspect|list|show|check|forget|trust; invitation secrets are entered privately, never as command arguments".into())
     }
 }
 async fn execute(plan: Plan) -> Result<Value, ClientError> {
@@ -115,6 +123,44 @@ async fn execute(plan: Plan) -> Result<Value, ClientError> {
         Plan::List => Ok(json!({"profiles":manager.list().await?})),
         Plan::Show(name) => Ok(serde_json::to_value(manager.get(&name).await?)
             .map_err(|_| error("protocol", "invalid profile shape"))?),
+        Plan::Check(name) => {
+            let started = tokio::time::Instant::now();
+            let remote = manager.open(&name).await?;
+            remote
+                .call_value_with_meta("collaboration.me", json!({}), None)
+                .await?;
+            let route_started = tokio::time::Instant::now();
+            let route = loop {
+                if remote.is_closed() {
+                    return Err(error(
+                        "transport",
+                        "remote connection closed during verification",
+                    ));
+                }
+                if remote.peer_endpoint_id().is_none() {
+                    break "https";
+                }
+                match remote.peer_route() {
+                    Some(tiktools_client::remote::PeerRoute::Direct) => break "direct",
+                    Some(tiktools_client::remote::PeerRoute::Relay) => break "relay",
+                    Some(tiktools_client::remote::PeerRoute::Reconnecting) | None => {}
+                }
+                if route_started.elapsed() >= Duration::from_secs(2) {
+                    return Err(error(
+                        "unavailable",
+                        "native transport has not reported its selected route",
+                    ));
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            };
+            let hello = remote.hello();
+            // Deliberately omit credentials, endpoint addresses and policy data.
+            let report = json!({"connected":true,"route":route,"connectMs":started.elapsed().as_millis(),
+                "hostId":hello.host_id,"hostInstanceId":hello.host_instance_id,"connectionId":hello.connection_id,
+                "principalId":hello.principal_id,"sessionId":hello.session_id,"grantRevision":hello.grant_revision});
+            remote.close();
+            Ok(report)
+        }
         Plan::Forget(name) => {
             manager.forget(&name).await?;
             Ok(json!({"forgotten":true,"hostSessionRevoked":false}))

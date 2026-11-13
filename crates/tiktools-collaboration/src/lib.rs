@@ -4,6 +4,7 @@ mod authority;
 mod commands;
 mod delivery;
 mod effects;
+mod peer_clock;
 mod store;
 mod streams;
 mod types;
@@ -13,7 +14,10 @@ pub use authority::{
 pub use commands::*;
 pub use delivery::*;
 pub use effects::*;
-pub use store::{hash_secret, CollaborationService};
+pub use store::{
+    hash_secret, CloudPeerGrant, CloudPeerObservation, CloudPeerSource, CollaborationService,
+    PEER_OFFLINE_TTL_MS,
+};
 pub use streams::*;
 pub use types::*;
 

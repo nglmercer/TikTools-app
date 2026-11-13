@@ -2,6 +2,8 @@ use super::*;
 
 fn profile() -> RemoteProfile {
     let mut p = RemoteProfile {
+        #[cfg(feature = "peer")]
+        peer: None,
         version: 1,
         name: "desk".into(),
         profile_id: Uuid::new_v4().to_string(),

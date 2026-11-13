@@ -14,6 +14,8 @@ use tiktools_collaboration::{
 };
 use tiktools_control_api::modules::collaboration::HelloResult;
 use tokio::sync::{watch, Mutex};
+#[cfg(feature = "cloud-peer")]
+mod cloud;
 mod connection;
 mod management;
 mod projection;
@@ -46,6 +48,8 @@ pub use profiles::commands::{
 #[serde(rename_all = "camelCase")]
 pub struct ControllerStatus {
     pub drafts_supported: bool,
+    pub cloud_supported: bool,
+    pub cloud_pairing: Option<CloudPairing>,
     pub proposals_supported: bool,
     pub epoch: String,
     pub view_revision: String,
@@ -55,6 +59,8 @@ pub struct ControllerStatus {
     pub points_loading: bool,
     pub points_error_code: Option<String>,
     pub phase: String,
+    /// Actual selected native path; absent for the HTTPS/browser transport.
+    pub transport_route: Option<String>,
     pub profile: Option<String>,
     pub origin: Option<String>,
     pub hello: Option<HelloResult>,
@@ -63,6 +69,13 @@ pub struct ControllerStatus {
     pub command_journal: Option<JournalView>,
     pub command_busy: bool,
     pub command_error_code: Option<String>,
+}
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CloudPairing {
+    pub profile: String,
+    pub host_id: String,
+    pub request_id: String,
 }
 #[derive(Clone, Serialize)]
 pub struct WorkflowRow {
@@ -94,6 +107,8 @@ struct Pairing {
 struct Lifecycle {
     worker: Option<tokio::task::JoinHandle<()>>,
     pairing: Option<Pairing>,
+    #[cfg(feature = "cloud-peer")]
+    cloud_pairing: Option<CloudPairing>,
 }
 impl Drop for Lifecycle {
     fn drop(&mut self) {
@@ -104,6 +119,12 @@ impl Drop for Lifecycle {
 }
 pub struct Controller {
     profiles: ProfileManager,
+    #[cfg(feature = "cloud-peer")]
+    cloud: Option<Arc<super::cloud_peer::CloudPeerController>>,
+    #[cfg(feature = "cloud-peer")]
+    cloud_login: std::sync::Mutex<Option<cloud::LoginJob>>,
+    #[cfg(feature = "cloud-peer")]
+    cloud_network: std::sync::Mutex<cloud::NetworkState>,
     shared: Arc<Shared>,
     lifecycle: Mutex<Lifecycle>,
     commands: Arc<Mutex<()>>,
@@ -112,6 +133,8 @@ pub struct Controller {
 
 impl Drop for Controller {
     fn drop(&mut self) {
+        #[cfg(feature = "cloud-peer")]
+        cloud::stop_login(&self.cloud_login, None);
         let v = self.shared.view.read().unwrap_or_else(|p| p.into_inner());
         if let Some(r) = &v.remote {
             r.close();
@@ -120,10 +143,27 @@ impl Drop for Controller {
 }
 
 impl Controller {
+    #[cfg(feature = "cloud-peer")]
+    pub fn with_cloud_environment(profiles: ProfileManager) -> Result<Self, ClientError> {
+        let cloud = super::cloud_peer::CloudPeerController::from_environment(
+            profiles.directory().join("cloud-account"),
+            profiles.clone(),
+            ClientKind::Desktop,
+        )?;
+        let mut controller = Self::new(profiles);
+        controller.cloud = Some(Arc::new(cloud));
+        Ok(controller)
+    }
     pub fn new(profiles: ProfileManager) -> Self {
         let (changed, _) = watch::channel(0);
         Self {
             profiles,
+            #[cfg(feature = "cloud-peer")]
+            cloud: None,
+            #[cfg(feature = "cloud-peer")]
+            cloud_login: std::sync::Mutex::new(None),
+            #[cfg(feature = "cloud-peer")]
+            cloud_network: std::sync::Mutex::new(cloud::NetworkState::default()),
             lifecycle: Mutex::new(Lifecycle::default()),
             commands: Arc::new(Mutex::new(())),
             journals: std::sync::Mutex::new(BTreeMap::new()),
@@ -132,6 +172,8 @@ impl Controller {
                 view: RwLock::new(View {
                     status: ControllerStatus {
                         drafts_supported: true,
+                        cloud_supported: false,
+                        cloud_pairing: None,
                         proposals_supported: true,
                         epoch: "0".into(),
                         view_revision: "0".into(),
@@ -141,6 +183,7 @@ impl Controller {
                         points_loading: true,
                         points_error_code: None,
                         phase: "idle".into(),
+                        transport_route: None,
                         profile: None,
                         origin: None,
                         hello: None,

@@ -237,6 +237,21 @@ impl AppCore {
     }
 
     pub async fn cloud_logout(&self) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
-        self.cloud().auth().logout().await.map_err(auth_error)
+        let result = self.cloud().auth().logout().await.map_err(auth_error);
+        let service = self
+            .collaboration
+            .lock()
+            .map_err(|_| OperationError::internal("collaboration lock unavailable"))?
+            .clone();
+        if let Some(service) = service {
+            service
+                .retain_cloud_peer_source(None)
+                .map_err(|error| OperationError {
+                    code: error.code(),
+                    message: error.to_string(),
+                    data: None,
+                })?;
+        }
+        result
     }
 }

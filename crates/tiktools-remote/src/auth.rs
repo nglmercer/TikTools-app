@@ -146,6 +146,8 @@ pub(crate) struct Authentication {
     pub authority: Authorization,
     pub token: String,
     pub browser: bool,
+    #[cfg(feature = "peer")]
+    pub peer_id: Option<String>,
 }
 
 pub(crate) async fn authenticate(
@@ -197,6 +199,8 @@ pub(crate) async fn authenticate(
         authority,
         token,
         browser,
+        #[cfg(feature = "peer")]
+        peer_id: None,
     })
 }
 

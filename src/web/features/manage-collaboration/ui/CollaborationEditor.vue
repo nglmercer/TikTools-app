@@ -5,6 +5,7 @@ import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { createCollaborationOwner } from '@/entities/collaboration/model/owner.ts';
 import { viewerGrant, type Configuration, type Grant, type PairingRequest, type Principal } from '@/entities/collaboration/api/types.ts';
 import { parseGrant, prepareConfiguration, splitIds } from '@/entities/collaboration/lib/grants.ts';
+import { activeGateway } from '@/entities/collaboration/lib/gateway.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
@@ -23,11 +24,14 @@ import InvitationDialog from './InvitationDialog.vue';
 
 interface Draft { revision: string; grant: Grant; original: string }
 const { t } = useI18n();
+const emit = defineEmits<{ teams: [] }>();
 const { listenerStatus } = useCollaborationPresentation();
 const view = ref<'access' | 'connection'>('access');
 const owner = createCollaborationOwner(useControlClient());
 owner.watchPeople();
 const { status, people, working, error, uncertain, connected, secret, canInvite, joinLink } = owner;
+const gateway = computed(() => status.value ? activeGateway(status.value) : null);
+const native = computed(() => !!status.value?.peerGateway?.available);
 const draft = ref<Configuration | null>(null);
 const baseRevision = ref('');
 const allowedOrigins = ref('');
@@ -60,7 +64,7 @@ const pending = computed(() => people.value.requests.filter(request => request.s
 const principals = computed(() => people.value.principals.filter(person => !person.revoked));
 const online = computed(() => {
   const counts: Record<string, number> = {};
-  const connections = status.value?.gateway.sessionConnections ?? {};
+  const connections = gateway.value?.sessionConnections ?? {};
   for (const session of people.value.sessions) if (!session.revoked && connections[session.sessionId]) counts[session.principalId] = (counts[session.principalId] ?? 0) + connections[session.sessionId]!;
   return counts;
 });
@@ -177,7 +181,7 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; drafts.value = {}; 
     </BaseGroupBox>
     <template v-if="status && draft">
       <BaseAlert
-        v-if="!status.gateway.available"
+        v-if="!gateway?.available"
         tone="warning"
         :title="t('collaboration.unavailable')"
       />
@@ -200,7 +204,13 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; drafts.value = {}; 
               :label="listener.label"
               :tone="listener.tone"
             />
-            <span class="collaboration-editor__muted">{{ status.gateway.address ?? status.configuration.bindAddress }} · {{ t('collaboration.connected', { count: status.gateway.connections }) }}</span>
+            <span class="collaboration-editor__muted">{{ native ? t('cloudTeams.title') : (gateway?.address ?? status.configuration.bindAddress) }} · {{ t('collaboration.connected', { count: gateway?.connections ?? 0 }) }}</span>
+            <BaseButton
+              v-if="native"
+              @click="emit('teams')"
+            >
+              {{ t('cloudTeams.title') }}
+            </BaseButton>
             <BaseButton @click="view = 'connection'">
               {{ t('collaboration.connectionSettings') }}
             </BaseButton>
@@ -257,9 +267,10 @@ onUnmounted(() => { owner.stop(); confirmation.value = null; drafts.value = {}; 
           :changed="changed"
           :dirty="dirty"
           :working="working"
-          :available="status.gateway.available"
+          :available="gateway?.available ?? false"
           @apply="applyConfiguration"
           @reset="resetDraft"
+          @teams="emit('teams')"
         />
       </template>
     </template>

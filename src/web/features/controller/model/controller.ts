@@ -8,6 +8,9 @@ import { createLiveFeedModel } from './live-feed.ts';
 import { createCompetitionModel } from './competitions.ts';
 
 export interface ControllerStatus {
+  cloudSupported?: boolean;
+  cloudPairing?: { profile: string; hostId: string; requestId: string } | null;
+  transportRoute?: 'direct' | 'relay' | 'reconnecting' | null;
   draftsSupported?: boolean;
   proposalsSupported?: boolean;
   browserJournalMissing?: boolean;

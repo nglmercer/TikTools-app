@@ -8,7 +8,7 @@ description = "Thin Winit/Wry desktop host for TikTools"
 
 [features]
 default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth", "remote-control", "remote-client"]
-remote-client = ["dep:tiktools-client"]
+remote-client = ["dep:tiktools-client", "tiktools-client/peer"]
 remote-control = ["persistence", "dep:tiktools-remote"]
 remote-browser-app = ["remote-control", "tiktools-remote/browser-app"]
 devtools = ["wry/devtools"]
@@ -16,7 +16,7 @@ live-benchmark = ["tiktools-core/live-benchmark"]
 plugin-install = ["tiktools-core/plugin-install"]
 persistence = ["tiktools-core/persistence"]
 http = ["tiktools-core/http"]
-cloud-auth = ["tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
+cloud-auth = ["tiktools-client?/cloud-peer", "tiktools-remote?/cloud-peer", "tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
 
 [dependencies]
 tiktools-core = { path = "../tiktools-core", features = ["native-tiktok"] }

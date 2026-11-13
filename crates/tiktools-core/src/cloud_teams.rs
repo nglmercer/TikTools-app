@@ -9,7 +9,18 @@ mod access;
 mod devices;
 mod hosts;
 mod invitations;
+mod peer_authorizations;
+mod peer_memberships;
+mod peers;
+mod rtc;
+pub use peer_authorizations::{PeerAuthorization, PeerAuthorizationSnapshot};
+pub use peer_memberships::{PeerMembership, PeerMemberships};
+pub use rtc::RtcTransportConfig;
 mod proofs;
+pub use peers::{
+    PeerDirectory, PeerEndpointRecord, PeerEndpointSigner, PeerPublication, PeerPublished,
+    PeerTransportConfig,
+};
 mod storage;
 mod tickets;
 mod transport;
@@ -317,10 +328,14 @@ pub struct CloudTeams {
 
 impl CloudTeams {
     pub(crate) fn new(paths: &AppPaths) -> Self {
+        Self::from_data_directory(&paths.data)
+    }
+    /// Native controller metadata only; constructs no host runtime.
+    pub fn from_data_directory(data: &std::path::Path) -> Self {
         Self {
-            key_path: paths.data.join("remote").join(KEY_FILE),
-            binding_path: paths.data.join("remote").join(HOST_BINDING_FILE),
-            controller_path: paths.data.join("remote").join(CONTROLLER_FILE),
+            key_path: data.join("remote").join(KEY_FILE),
+            binding_path: data.join("remote").join(HOST_BINDING_FILE),
+            controller_path: data.join("remote").join(CONTROLLER_FILE),
         }
     }
 }

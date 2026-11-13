@@ -308,6 +308,23 @@ async fn connection<T: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
 /// Observe configuration without creating a database for local-only startup.
 /// A persisted enabled configuration is restored when the host starts again.
 pub async fn supervise(api: Arc<ControlApi>) {
+    #[cfg(feature = "peer")]
+    {
+        tokio::join!(supervise_http(api.clone()), supervise_native(api));
+    }
+    #[cfg(not(feature = "peer"))]
+    supervise_http(api).await;
+}
+
+#[cfg(feature = "peer")]
+async fn supervise_native(api: Arc<ControlApi>) {
+    #[cfg(feature = "cloud-peer")]
+    crate::rtc::supervise(api).await;
+    #[cfg(not(feature = "cloud-peer"))]
+    crate::peer::supervise_peer(api).await;
+}
+
+async fn supervise_http(api: Arc<ControlApi>) {
     api.core().set_collaboration_gateway_available(true);
     let mut current: Option<RemoteGateway> = None;
     let mut interval = tokio::time::interval(Duration::from_millis(500));
@@ -347,7 +364,10 @@ pub async fn supervise(api: Arc<ControlApi>) {
                 let _ = gateway.shutdown().await;
             }
         }
-        if configuration.is_some_and(|(config, _)| config.enabled) && current.is_none() {
+        if configuration
+            .is_some_and(|(config, _)| config.enabled && config.advertised_origin.is_some())
+            && current.is_none()
+        {
             match start(Arc::clone(&api)).await {
                 Ok(gateway) => current = Some(gateway),
                 Err(_) => {

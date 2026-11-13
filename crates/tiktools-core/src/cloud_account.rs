@@ -24,11 +24,17 @@ impl CloudAccount {
 
     pub(crate) fn new(paths: &AppPaths, events: &EventBus) -> Self {
         let store: Arc<dyn TokenStore> = Arc::new(OsTokenStore::new());
+        Self::with_auth(
+            CloudAuth::from_environment(paths.data.clone(), store),
+            events,
+        )
+    }
+
+    pub(crate) fn with_auth(auth: CloudAuth, events: &EventBus) -> Self {
         let events = events.clone();
-        let auth =
-            CloudAuth::from_environment(paths.data.clone(), store).with_context_observer(Arc::new(
-                move || events.publish_presentation_domain(DomainEvent::CloudContextInvalidated {}),
-            ));
+        let auth = auth.with_context_observer(Arc::new(move || {
+            events.publish_presentation_domain(DomainEvent::CloudContextInvalidated {})
+        }));
         Self { auth }
     }
 

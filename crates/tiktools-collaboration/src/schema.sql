@@ -39,4 +39,19 @@ CREATE TABLE IF NOT EXISTS rate_limits (
  PRIMARY KEY (category, identity)
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_principal ON sessions(principal_id);
+CREATE TABLE IF NOT EXISTS cloud_peer_bindings (
+ source TEXT NOT NULL, device_id TEXT NOT NULL, grant_id TEXT NOT NULL,
+ endpoint_id TEXT NOT NULL UNIQUE, cloud_revision INTEGER NOT NULL,
+ principal_id TEXT NOT NULL REFERENCES principals(id),
+ session_id TEXT NOT NULL REFERENCES sessions(id),
+ applied_revision INTEGER NOT NULL, valid_until INTEGER NOT NULL,
+ PRIMARY KEY (source, device_id)
+);
+-- Separate table upgrades existing databases without rewriting grant bindings.
+-- Missing clock evidence requires a fresh authenticated Cloud validation.
+CREATE TABLE IF NOT EXISTS cloud_peer_leases (
+ session_id TEXT PRIMARY KEY REFERENCES sessions(id), boot_id TEXT NOT NULL,
+ issued_ms INTEGER NOT NULL, until_ms INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cloud_peer_session ON cloud_peer_bindings(session_id);
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit(timestamp);

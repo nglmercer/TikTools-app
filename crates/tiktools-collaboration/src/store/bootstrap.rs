@@ -103,6 +103,7 @@ impl CollaborationService {
             instance_id: Uuid::new_v4().to_string(),
             authorizations: Mutex::new(BTreeMap::new()),
             gateway: Mutex::new(GatewayStatus::default()),
+            peer_gateway: Mutex::new(PeerGatewayStatus::default()),
             _ownership: ownership,
         })
     }

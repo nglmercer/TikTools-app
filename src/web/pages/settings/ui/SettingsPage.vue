@@ -88,7 +88,10 @@ const locale = computed<Locale>({
             <CloudAccountDiagnostics />
           </SettingsDisclosure>
         </template>
-        <CollaborationEditor v-else-if="section === 'collaboration'" />
+        <CollaborationEditor
+          v-else-if="section === 'collaboration'"
+          @teams="section = 'teams'"
+        />
         <CloudTeams v-else-if="teamsAvailable" />
       </section>
     </BaseTabs>

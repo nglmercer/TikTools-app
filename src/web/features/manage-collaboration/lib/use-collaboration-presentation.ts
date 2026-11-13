@@ -1,5 +1,6 @@
 import { useI18n } from 'vue-i18n';
 import type { CollaborationStatus } from '@/entities/collaboration/api/types.ts';
+import { activeGateway } from '@/entities/collaboration/lib/gateway.ts';
 import type { StatusTone } from '@/shared/ui/status/status-types.ts';
 
 export function useCollaborationPresentation() {
@@ -13,7 +14,7 @@ export function useCollaborationPresentation() {
     return 'neutral';
   }
   function listenerStatus(status: CollaborationStatus): { label: string; tone: StatusTone } {
-    if (!status.gateway.running) return { label: t('collaboration.stopped'), tone: 'neutral' };
+    if (!activeGateway(status).running) return { label: t('collaboration.stopped'), tone: 'neutral' };
     return status.configuration.enabled
       ? { label: t('collaboration.running'), tone: 'success' }
       : { label: t('collaboration.applying'), tone: 'warning' };

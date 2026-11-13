@@ -72,7 +72,7 @@ impl CollaborationService {
         let mut identities = Vec::with_capacity(subjects.len());
         for (principal, session) in subjects {
             let raw:Option<(Option<String>,i64,String,i64,i64)>=db.query_row(
-                "SELECT CASE WHEN length(CAST(p.grant_json AS BLOB))<=?4 THEN p.grant_json ELSE NULL END,p.revision,s.kind,s.absolute_expires,s.last_activity FROM sessions s JOIN principals p ON p.id=s.principal_id WHERE s.id=?1 AND s.principal_id=?2 AND s.kind=p.kind AND s.revoked=0 AND p.revoked=0 AND s.absolute_expires>?3 AND s.last_activity>?5 AND s.last_activity>=0",
+                "SELECT CASE WHEN length(CAST(p.grant_json AS BLOB))<=?4 THEN p.grant_json ELSE NULL END,p.revision,s.kind,s.absolute_expires,s.last_activity FROM sessions s JOIN principals p ON p.id=s.principal_id LEFT JOIN cloud_peer_bindings b ON b.session_id=s.id WHERE s.id=?1 AND s.principal_id=?2 AND s.kind=p.kind AND s.revoked=0 AND p.revoked=0 AND ((b.session_id IS NOT NULL AND b.valid_until>0) OR (b.session_id IS NULL AND s.absolute_expires>?3 AND s.last_activity>?5 AND s.last_activity>=0))",
                 params![session,principal,at,GRANT_BYTES as i64,at.saturating_sub(IDLE_TTL)],
                 |row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?)),
             ).optional()?;
@@ -87,6 +87,18 @@ impl CollaborationService {
             }
             let grant: Grant = serde_json::from_str(&raw)?;
             grant.validate()?;
+            let peer_lease = peers::lease::for_session(&db, session)?;
+            let (absolute, idle) = if let Some(lease) = &peer_lease {
+                let until = now().saturating_add(lease.remaining()?);
+                (until, until)
+            } else {
+                (
+                    absolute,
+                    last_activity
+                        .checked_add(IDLE_TTL)
+                        .ok_or(Error::Unauthorized)?,
+                )
+            };
             identities.push(ExecutionIdentity {
                 host_id: self.host_id.clone(),
                 principal_id: principal.clone(),
@@ -96,9 +108,8 @@ impl CollaborationService {
                 grant_revision: revision.to_string(),
                 configuration_revision: configuration_revision.clone(),
                 absolute_expires_at: absolute,
-                idle_expires_at: last_activity
-                    .checked_add(IDLE_TTL)
-                    .ok_or(Error::Unauthorized)?,
+                idle_expires_at: idle,
+                peer_lease,
             });
         }
         // Earlier subjects may have expired while a large batch was parsed.

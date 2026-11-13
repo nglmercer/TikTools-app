@@ -1,6 +1,14 @@
 use super::*;
 
 impl CloudTeams {
+    /// Signed operations for an enrolled device must never generate a replacement
+    /// identity. Only explicit enrollment may create the initial device key.
+    pub(super) fn enrolled_device_key(&self) -> Result<Ed25519KeyPair, OperationError> {
+        let bytes = fs::read(&self.key_path)
+            .map_err(|_| OperationError::unavailable("enrolled device key is unavailable"))?;
+        parse_device_key(&bytes)
+    }
+
     /// Loads the device key, creating it once if this PC has none. Creation is
     /// exclusive: a racing creator that loses loads the winner's key, and an
     /// existing key that cannot be parsed is an error, never replaced.

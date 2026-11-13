@@ -7,6 +7,8 @@ rust-version.workspace = true
 description = "Typed Rust SDK over the TikTools control API (direct, IPC and optional HTTPS/WSS)"
 
 [features]
+cloud-peer = ["peer", "remote-profiles", "cloud-auth", "dep:tiktools-core", "dep:tiktools-cloud-auth"]
+peer = ["remote", "dep:tiktools-peer", "dep:tiktools-rtc"]
 remote = ["dep:tiktools-collaboration", "dep:reqwest", "dep:rustls", "dep:rustls-native-certs", "dep:tokio-rustls", "dep:tokio-tungstenite", "dep:tokio-util", "dep:futures-util", "dep:x509-parser", "dep:secrecy", "dep:zeroize", "dep:getrandom", "dep:url", "dep:uuid"]
 remote-profiles = ["remote", "dep:fs2", "dep:tempfile", "dep:keyring", "dep:libc"]
 # Full Cloud surface (account, sync, publisher) for hosts built with the
@@ -19,6 +21,10 @@ cloud-auth = [
 ]
 
 [dependencies]
+tiktools-core = { path = "../tiktools-core", optional = true, default-features = false, features = ["cloud-auth", "http"] }
+tiktools-cloud-auth = { path = "../tiktools-cloud-auth", optional = true, features = ["account", "os-keychain"] }
+tiktools-rtc = { path = "../tiktools-rtc", optional = true }
+tiktools-peer = { path = "../tiktools-peer", optional = true }
 tiktools-control-api = { path = "../tiktools-control-api" }
 serde.workspace = true
 serde_json.workspace = true
@@ -52,6 +58,7 @@ keyring = { version = "3.6.3", default-features = false, features = ["apple-nati
 keyring = { version = "3.6.3", default-features = false, features = ["windows-native"], optional = true }
 
 [dev-dependencies]
+tiktools-rtc = { path = "../tiktools-rtc" }
 tokio = { workspace = true, features = ["test-util"] }
 tiktools-core = { path = "../tiktools-core" }
 tiktools-remote = { path = "../tiktools-remote" }

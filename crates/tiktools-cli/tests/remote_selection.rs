@@ -56,11 +56,16 @@ fn invalid_remote_combinations_never_start_a_runtime_or_sandbox() {
 #[test]
 fn missing_remote_profile_fails_without_local_ipc_or_direct_fallback() {
     let home = Home::new();
-    let output = home.run(&["--json", "--remote-profile", "missing", "live", "status"]);
-    assert_ne!(output.status.code(), Some(0));
-    let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(value["error"]["code"], "profile_not_found");
-    home.no_host_data();
+    for args in [
+        vec!["--json", "--remote-profile", "missing", "live", "status"],
+        vec!["--json", "remote", "check", "missing"],
+    ] {
+        let output = home.run(&args);
+        assert_ne!(output.status.code(), Some(0));
+        let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["error"]["code"], "profile_not_found");
+        home.no_host_data();
+    }
 }
 #[test]
 fn profile_inventory_and_rejected_secret_arguments_create_no_host_data_or_secret_logs() {
@@ -83,5 +88,33 @@ fn profile_inventory_and_rejected_secret_arguments_create_no_host_data_or_secret
     assert_eq!(output.status.code(), Some(2));
     assert!(!String::from_utf8_lossy(&output.stderr).contains("private-test-marker"));
     assert!(!String::from_utf8_lossy(&output.stdout).contains("private-test-marker"));
+    home.no_host_data();
+}
+
+#[cfg(feature = "cloud-auth")]
+#[test]
+fn native_cloud_controller_status_and_rejected_secrets_never_start_a_live_host() {
+    let home = Home::new();
+    let status = home.run(&["--json", "remote", "cloud", "status"]);
+    assert!(
+        status.status.success(),
+        "{}",
+        String::from_utf8_lossy(&status.stderr)
+    );
+    let value: serde_json::Value = serde_json::from_slice(&status.stdout).unwrap();
+    assert!(value.get("state").is_some());
+    home.no_host_data();
+    let rejected = home.run(&[
+        "remote",
+        "cloud",
+        "pair",
+        "--profile",
+        "agent",
+        "--invite",
+        "private-cloud-marker",
+    ]);
+    assert_eq!(rejected.status.code(), Some(2));
+    assert!(!String::from_utf8_lossy(&rejected.stdout).contains("private-cloud-marker"));
+    assert!(!String::from_utf8_lossy(&rejected.stderr).contains("private-cloud-marker"));
     home.no_host_data();
 }

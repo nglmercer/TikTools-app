@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { useControllerLabels } from '../lib/use-controller-labels.ts';
-import { useControllerPairing } from '../model/use-controller-pairing.ts';
 import { useControllerWorkflowDrafts } from '../model/use-controller-workflow-drafts.ts';
 import ControllerCommandJournal from './ControllerCommandJournal.vue';
 import ControllerConnections from './ControllerConnections.vue';
@@ -29,7 +28,7 @@ const model = createControllerModel(control);
 const { status, points, pointsAllowed, error, busy, ready, commandSending } = model;
 const { t } = useI18n();
 const { labels, forgetLabels, cmd, dft } = useControllerLabels();
-const phase = computed(() => labels.value[status.value.phase as 'idle' | 'pairing' | 'connecting' | 'ready' | 'reconnecting' | 'failed'] ?? status.value.phase);
+const phase = computed(() => labels.value[status.value.phase as 'idle' | 'pairing' | 'connecting' | 'ready' | 'reconnecting' | 'failed' | 'cloud-pairing'] ?? status.value.phase);
 // A lost browser session must offer recovery instead of a dead "failed"
 // screen. The store retries quietly and only escalates to a dialog once its
 // budget is spent or the cookie is provably invalid.
@@ -96,12 +95,9 @@ watch(() => JSON.stringify([status.value.epoch, status.value.origin, status.valu
   status.value.hello?.resourceRestrictions]), () => { confirmation.value=null; pointSearch.value=''; pointAmount.value=''; });
 const workflowDrafts = useControllerWorkflowDrafts(model);
 const { selected, row, draftBusy } = workflowDrafts;
-const connection = useControllerPairing(control, model);
-const { disconnect } = connection;
-onMounted(() => { void model.start(props.browserMode ? 'browser' : window.__tiktools_controller__?.profile).then(() => {
-  if (status.value.phase === 'pairing') connection.resume(status.value.pairingRequestId ?? '');
-}); });
-onUnmounted(() => { connection.stop(); model.stop(); });
+const { disconnect } = model;
+onMounted(() => { void model.start(props.browserMode ? 'browser' : window.__tiktools_controller__?.profile); });
+onUnmounted(model.stop);
 </script>
 
 <template>
@@ -114,7 +110,7 @@ onUnmounted(() => { connection.stop(); model.stop(); });
         <h1 class="controller__heading">
           {{ status.origin ? `${props.browserMode ? t('controller.root.viewing') : labels.controlling} ${status.origin}` : labels.title }}
         </h1><p class="controller__text">
-          {{ phase }} <span v-if="status.errorCode">· {{ status.errorCode }}</span>
+          {{ phase }} <span v-if="status.transportRoute">· {{ t(`controller.root.transportRoute.${status.transportRoute}`) }}</span> <span v-if="status.errorCode">· {{ status.errorCode }}</span>
         </p><small v-if="status.hello">Host {{ status.hello.hostId }}</small>
       </div>
       <button
@@ -149,7 +145,6 @@ onUnmounted(() => { connection.stop(); model.stop(); });
     <ControllerConnections
       :model="model"
       :browser-mode="props.browserMode"
-      :connection="connection"
       @forget="requestForget"
     />
     <ControllerLiveStatus :model="model.live" />

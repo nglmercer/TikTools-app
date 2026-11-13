@@ -30,7 +30,11 @@ use wry::{PageLoadEvent, WebView, WebViewBuilder};
 
 pub fn run(profile: Option<String>, log_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let source = FrontendSource::from_environment()?;
-    let controller = Arc::new(Controller::new(ProfileManager::system()?));
+    let profiles = ProfileManager::system()?;
+    #[cfg(feature = "cloud-auth")]
+    let controller = Arc::new(Controller::with_cloud_environment(profiles)?);
+    #[cfg(not(feature = "cloud-auth"))]
+    let controller = Arc::new(Controller::new(profiles));
     platform::initialize()?;
     let runtime = Builder::new_multi_thread().enable_all().build()?;
     let mut builder = EventLoop::<()>::with_user_event();

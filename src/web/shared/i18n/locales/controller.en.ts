@@ -1,6 +1,33 @@
 // Controller UI copy (English). Every locale must mirror these keys.
 export default {
+  cloud: {
+    "title": "Connect through Cloud",
+    "signOut": "Sign out",
+    "signingIn": "Complete sign-in in your browser.",
+    "openBrowser": "Open browser",
+    "cancel": "Cancel",
+    "loginLink": "Sign-in link",
+    "signInHelp": "Sign in to see your approved teams or use an invitation.",
+    "signIn": "Sign in",
+    "pending": "Waiting for the owner and host to approve:",
+    "teams": "My teams",
+    "join": "Join a team",
+    "refresh": "Refresh teams",
+    "noTeams": "No approved teams for this device yet.",
+    "device": "Device name",
+    "invitation": "Private invitation",
+    "profile": "Profile name",
+    "request": "Request access",
+    "connect": "Connect",
+    "roles": {
+        "observer": "Observer",
+        "moderator": "Moderator",
+        "automationEditor": "Automation editor",
+        "custom": "Custom permissions"
+    }
+},
   root: {
+    transportRoute: { direct: 'Direct', relay: 'Relay', reconnecting: 'Reconnecting' },
     snapshotBudgetHelp: 'The permitted state is too large to recover under the current request limit. Ask the owner to narrow the permitted resources or increase the request limit or message size, then reconnect.',
     viewing: 'Viewing',
     reviewCommandStorage: 'Review command storage',
@@ -45,6 +72,7 @@ export default {
       rights: 'Effective permissions',
       noProfiles: 'Create a profile to connect to the host.',
       idle: 'Disconnected',
+      'cloud-pairing': "Waiting for Cloud approval",
       pairing: 'Waiting for approval',
       connecting: 'Connecting',
       ready: 'Connected',

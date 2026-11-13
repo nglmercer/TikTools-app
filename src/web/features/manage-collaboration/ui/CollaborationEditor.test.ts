@@ -26,6 +26,30 @@ function mountPanel(handler: Parameters<typeof createFakeControlClient>[0]) {
 const person = { principalId: 'person-1', clientLabel: 'Moderator PC', clientKind: 'desktop', grant: viewerGrant(), grantRevision: '1', revoked: false };
 
 describe('owner collaboration panel', () => {
+  it('uses the native gateway and saves its Cloud configuration without manual HTTPS setup', async () => {
+    const status = collaborationStatus();
+    status.peerGateway = { ...status.gateway, available: true, running: true, connections: 2 };
+    status.gateway = { ...status.gateway, available: false, running: false };
+    status.configuration.peer = { relayUrls: [] };
+    status.configuration.advertisedOrigin = null;
+    status.configuration.tlsCertificate = null;
+    status.configuration.tlsPrivateKey = null;
+    const { wrapper, calls, button } = mountPanel(method => method === 'collaboration.status' ? copy(status) : method === 'collaboration.configure' ? { ok: true } : emptyCollaborationPage(method));
+    await flushPromises();
+    expect(wrapper.text()).not.toContain(i18n.global.t('collaboration.unavailable'));
+    expect(wrapper.text()).toContain(i18n.global.t('collaboration.connected', { count: 2 }));
+    await button('Connection settings').trigger('click');
+    expect(wrapper.find('#collaboration-bind').exists()).toBe(false);
+    expect(wrapper.find('#collaboration-certificate').exists()).toBe(false);
+    expect(wrapper.find('#collaboration-key').exists()).toBe(false);
+    await button(i18n.global.t('cloudTeams.title')).trigger('click');
+    expect(wrapper.emitted('teams')).toHaveLength(1);
+    await wrapper.get('form').trigger('submit'); await flushPromises();
+    const saved = calls.find(call => call.method === 'collaboration.configure');
+    expect(saved?.params?.['peer']).toEqual({ relayUrls: [] });
+    expect(saved?.params?.['enabled']).toBe(true);
+    expect(saved?.params?.['advertisedOrigin']).toBeNull();
+  });
   it('shows everyone and what they can do on one screen without writing anything', async () => {
     const status = collaborationStatus();
     const { wrapper, calls } = mountPanel((method) => method === 'collaboration.status' ? copy(status) : method === 'collaboration.principals.list' ? { principals: [person], nextAfter: null } : emptyCollaborationPage(method));

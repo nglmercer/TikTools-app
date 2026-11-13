@@ -25,9 +25,14 @@ use tokio_tungstenite::{
     Connector, MaybeTlsStream, WebSocketStream,
 };
 use tokio_util::sync::CancellationToken;
+#[cfg(feature = "peer")]
+mod peer;
+mod session;
+mod socket;
+use session::SessionIdentity;
 #[cfg(test)]
 mod tests;
-type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
+use socket::Socket;
 type Answer = Result<CallResult<Value>, ClientError>;
 #[allow(clippy::large_enum_variant)]
 enum HelloReply {
@@ -86,6 +91,8 @@ struct Lifetime {
 struct Diagnostics {
     resync: AtomicBool,
     error: Mutex<Option<ClientError>>,
+    #[cfg(feature = "peer")]
+    route: Mutex<Option<tiktools_peer::Route>>,
 }
 impl Drop for Lifetime {
     fn drop(&mut self) {
@@ -97,6 +104,11 @@ impl Drop for Lifetime {
 /// explicit higher-level operation and never retries an ambiguous command.
 #[derive(Clone)]
 pub struct RemoteClient {
+    client_kind: ClientKind,
+    #[cfg(feature = "peer")]
+    peer_endpoint_id: Option<tiktools_peer::EndpointId>,
+    #[cfg(feature = "peer")]
+    rtc: bool,
     _lifetime: Arc<Lifetime>,
     outbound: mpsc::Sender<Outbound>,
     admission: Arc<Semaphore>,
@@ -146,7 +158,7 @@ impl RemoteClient {
         )
         .await
         .map_err(|_| network())?;
-        let (mut socket, _) = connected.map_err(|error| match error {
+        let (socket, _) = connected.map_err(|error| match error {
             tokio_tungstenite::tungstenite::Error::Http(ref response)
                 if response.status().as_u16() == 401 =>
             {
@@ -159,6 +171,14 @@ impl RemoteClient {
             }
             _ => network(),
         })?;
+        Self::negotiate(Socket::from(socket), credentials.into(), kind).await
+    }
+
+    async fn negotiate(
+        mut socket: Socket,
+        credentials: SessionIdentity,
+        kind: ClientKind,
+    ) -> Result<Self, ClientError> {
         let hello = tokio::time::timeout(Duration::from_secs(10), async {
             let mut retries = 0;
             let make_request = |id: &str| json!({"jsonrpc":"2.0","id":id,"method":"collaboration.hello","params":{"protocolVersion":1,"clientVersion":env!("CARGO_PKG_VERSION"),"clientKind":kind}});
@@ -206,19 +226,30 @@ impl RemoteClient {
         }
         // The codec has an absolute 1-MiB cap. Enforce any negotiated lower
         // message bound before JSON parsing; never rebuild/drop its read buffer.
-        Ok(Self::from_negotiated(socket, hello, credentials))
+        Ok(Self::from_negotiated(socket, hello, credentials, kind))
     }
     fn from_negotiated(
-        socket: Socket,
+        socket: impl Into<Socket>,
         hello: HelloResult,
-        credentials: &NativeCredentials,
+        credentials: impl Into<SessionIdentity>,
+        client_kind: ClientKind,
     ) -> Self {
+        let socket = socket.into();
+        #[cfg(feature = "peer")]
+        let peer_endpoint_id = socket.peer_endpoint_id();
+        #[cfg(feature = "peer")]
+        let rtc = socket.uses_rtc();
+        let credentials = credentials.into();
         let limit = hello.limits.pending_calls as usize;
         let (outbound, receiver) = mpsc::channel(limit);
         let (events, _) = broadcast::channel(256);
         let stop = CancellationToken::new();
         let hello = Arc::new(hello);
         let diagnostics = Arc::new(Diagnostics::default());
+        #[cfg(feature = "peer")]
+        if let Ok(mut route) = diagnostics.route.lock() {
+            *route = socket.peer_route();
+        }
         tokio::spawn(run(
             socket,
             receiver,
@@ -229,6 +260,11 @@ impl RemoteClient {
             diagnostics.clone(),
         ));
         Self {
+            client_kind,
+            #[cfg(feature = "peer")]
+            peer_endpoint_id,
+            #[cfg(feature = "peer")]
+            rtc,
             _lifetime: Arc::new(Lifetime { stop: stop.clone() }),
             outbound,
             admission: Arc::new(Semaphore::new(limit)),
@@ -244,11 +280,30 @@ impl RemoteClient {
     pub fn hello(&self) -> &HelloResult {
         &self.hello
     }
+    pub fn client_kind(&self) -> ClientKind {
+        self.client_kind
+    }
+    #[cfg(feature = "peer")]
+    pub fn uses_rtc(&self) -> bool {
+        self.rtc
+    }
+    #[cfg(feature = "peer")]
+    pub fn peer_route(&self) -> Option<tiktools_peer::Route> {
+        self.diagnostics.route.lock().ok().and_then(|route| *route)
+    }
+    #[cfg(feature = "peer")]
+    pub fn peer_endpoint_id(&self) -> Option<tiktools_peer::EndpointId> {
+        self.peer_endpoint_id
+    }
     pub fn is_closed(&self) -> bool {
         self.stop.is_cancelled()
     }
     pub fn close(&self) {
         self.stop.cancel();
+    }
+    #[cfg(feature = "cloud-peer")]
+    pub(crate) fn cancellation(&self) -> CancellationToken {
+        self.stop.clone()
     }
     pub fn requires_resync(&self) -> bool {
         self.diagnostics.resync.load(Ordering::SeqCst)
@@ -343,7 +398,7 @@ async fn run(
     events: broadcast::Sender<ControlEvent>,
     stop: CancellationToken,
     hello: Arc<HelloResult>,
-    credentials: NativeCredentials,
+    credentials: SessionIdentity,
     diagnostics: Arc<Diagnostics>,
 ) {
     let mut pending: BTreeMap<i64, Pending> = BTreeMap::new();
@@ -357,8 +412,10 @@ async fn run(
             _=stop.cancelled()=>break network(),
             _=heartbeat.tick()=>{send(&mut socket,Message::Ping(Vec::new().into())).await},
             _=checks.tick()=>{
+                #[cfg(feature="peer")]
+                if let Ok(mut route)=diagnostics.route.lock(){*route=socket.peer_route();}
                 if last_received.elapsed()>=Duration::from_secs(30){break fail("transport","remote heartbeat expired");}
-                if credentials.access_expires_at<=now(){break fail("unauthorized","remote access credential expired; reopen the profile to refresh");}
+                if credentials.access_expires_at.is_some_and(|until|until<=now()){break fail("unauthorized","remote access credential expired; reopen the profile to refresh");}
                 let expired:Vec<_>=pending.iter().filter(|(_,p)|p.deadline<=Instant::now()).map(|(id,_)|*id).collect();
                 for id in expired {if let Some(p)=pending.remove(&id){let _=p.answer.send(Err(fail("timeout","remote request timed out; resolve its command ID before retrying")));retire(&mut retired,id);}}
                 Ok(())
@@ -409,7 +466,7 @@ fn retire(retired: &mut VecDeque<i64>, id: i64) {
 fn process(
     raw: &str,
     hello: &HelloResult,
-    credentials: &NativeCredentials,
+    credentials: &SessionIdentity,
     pending: &mut BTreeMap<i64, Pending>,
     retired: &mut VecDeque<i64>,
     events: &broadcast::Sender<ControlEvent>,

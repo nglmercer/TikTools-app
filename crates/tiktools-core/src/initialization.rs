@@ -21,6 +21,34 @@ impl AppCore {
         media: Arc<dyn MediaHost>,
         paths: AppPaths,
     ) -> Self {
+        Self::build_with_paths(
+            emitter,
+            media,
+            paths,
+            #[cfg(feature = "cloud-auth")]
+            None,
+        )
+    }
+
+    /// Native embedders can supply an explicit Cloud account/token store (for
+    /// example memory-only headless credentials). The same context observer and
+    /// sync services are installed. This constructor is never a remote RPC.
+    #[cfg(feature = "cloud-auth")]
+    pub fn with_paths_and_cloud_auth(
+        emitter: Arc<dyn HostEmitter>,
+        media: Arc<dyn MediaHost>,
+        paths: AppPaths,
+        auth: tiktools_cloud_auth::CloudAuth,
+    ) -> Self {
+        Self::build_with_paths(emitter, media, paths, Some(auth))
+    }
+
+    fn build_with_paths(
+        emitter: Arc<dyn HostEmitter>,
+        media: Arc<dyn MediaHost>,
+        paths: AppPaths,
+        #[cfg(feature = "cloud-auth")] auth: Option<tiktools_cloud_auth::CloudAuth>,
+    ) -> Self {
         if let Err(error) = paths.ensure_directories() {
             tracing::warn!(%error, "could not create all Rust host directories");
         }
@@ -48,7 +76,10 @@ impl AppCore {
         #[cfg(feature = "plugin-install")]
         let packages = plugin_packages::PluginPackages::new(&paths, events.clone()).map(Arc::new);
         #[cfg(feature = "cloud-auth")]
-        let cloud = Arc::new(cloud_account::CloudAccount::new(&paths, &events));
+        let cloud = Arc::new(match auth {
+            Some(auth) => cloud_account::CloudAccount::with_auth(auth, &events),
+            None => cloud_account::CloudAccount::new(&paths, &events),
+        });
         #[cfg(feature = "cloud-auth")]
         let sync = Arc::new(cloud_sync::CloudSync::new(&paths, cloud.auth()));
         #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
@@ -141,6 +172,7 @@ impl AppCore {
         let core = Self {
             collaboration: Mutex::new(None),
             collaboration_gateway_available: AtomicBool::new(false),
+            collaboration_peer_available: AtomicBool::new(false),
             coordination_events: tokio::sync::broadcast::channel(1024).0,
             coordination_streams: collaboration::StreamHub::default(),
             automation_mutations: Mutex::new(()),

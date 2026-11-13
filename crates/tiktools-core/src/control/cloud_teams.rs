@@ -104,6 +104,12 @@ impl AppCore {
     pub async fn teams_host_start(
         self: &std::sync::Arc<Self>,
     ) -> Result<crate::cloud_remote_host::RemoteHostStatus, OperationError> {
+        if self
+            .collaboration_peer_available
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return self.start_cloud_peer_host().await;
+        }
         self.remote_host.start(
             self.cloud.clone(),
             self.teams.clone(),
@@ -112,11 +118,19 @@ impl AppCore {
         Ok(self.remote_host.status())
     }
     pub fn teams_host_stop(&self) -> crate::cloud_remote_host::RemoteHostStatus {
+        if let Err(error) = self.stop_cloud_peer_host() {
+            return crate::cloud_remote_host::RemoteHostStatus {
+                state: "retrying".into(),
+                host_id: None,
+                last_error: Some(error.message),
+            };
+        }
         self.remote_host.stop();
         self.remote_host.status()
     }
     pub fn teams_host_status(&self) -> crate::cloud_remote_host::RemoteHostStatus {
-        self.remote_host.status()
+        self.peer_host_status()
+            .unwrap_or_else(|| self.remote_host.status())
     }
     /// Redeems an invitation with this PC's controller device.
     pub async fn teams_invitation_redeem(

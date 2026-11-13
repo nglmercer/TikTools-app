@@ -183,7 +183,12 @@ pub(super) async fn run(
                 Err(e)
                     if matches!(
                         e.code.as_str(),
-                        "transport" | "profile_in_use" | "overloaded" | "rate_limited" | "timeout"
+                        "transport"
+                            | "unavailable"
+                            | "profile_in_use"
+                            | "overloaded"
+                            | "rate_limited"
+                            | "timeout"
                     ) =>
                 {
                     shared.phase(&epoch, "reconnecting", Some(&e));

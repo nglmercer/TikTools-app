@@ -49,7 +49,7 @@ export function prepareConfiguration(input: Configuration): Configuration {
   result.tlsCertificate = result.tlsCertificate?.trim() || null;
   result.tlsPrivateKey = result.tlsPrivateKey?.trim() || null;
   if (result.tlsProxy) { result.tlsCertificate = null; result.tlsPrivateKey = null; }
-  if (result.enabled && (!result.advertisedOrigin || !result.tlsProxy && (!result.tlsCertificate || !result.tlsPrivateKey))) throw new Error('invalid_configuration');
+  if (result.enabled && !result.peer && (!result.advertisedOrigin || !result.tlsProxy && (!result.tlsCertificate || !result.tlsPrivateKey))) throw new Error('invalid_configuration');
   if (Object.values(result.limits).some((n) => !Number.isSafeInteger(n) || n < 1)) throw new Error('invalid_configuration');
   return result;
 }

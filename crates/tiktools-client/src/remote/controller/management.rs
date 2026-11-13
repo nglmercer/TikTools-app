@@ -4,6 +4,11 @@ use super::*;
 impl Controller {
     /// Native management RPCs. Their result cannot contain access/refresh tokens.
     pub async fn manage(&self, method: &str, params: Value) -> Result<Value, ClientError> {
+        #[cfg(feature = "cloud-peer")]
+        if method.starts_with("controller.cloud.") {
+            return self.manage_cloud(method, params).await;
+        }
+
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase", deny_unknown_fields)]
         struct Pair {

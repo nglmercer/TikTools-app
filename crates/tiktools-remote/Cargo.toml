@@ -7,9 +7,15 @@ rust-version.workspace = true
 description = "Authenticated TLS remote transport for one existing TikTools control host"
 
 [features]
+default = ["peer"]
+peer = ["dep:tiktools-peer", "dep:tiktools-rtc"]
+cloud-peer = ["peer", "dep:tiktools-core", "tiktools-control-api/cloud-auth", "tiktools-control-api/http"]
 browser-app = []
 
 [dependencies]
+tiktools-core = { path = "../tiktools-core", optional = true, features = ["cloud-auth"] }
+tiktools-rtc = { path = "../tiktools-rtc", optional = true }
+tiktools-peer = { path = "../tiktools-peer", optional = true }
 tiktools-control-api = { path = "../tiktools-control-api" }
 tiktools-collaboration = { path = "../tiktools-collaboration" }
 axum = { version = "0.8.9", features = ["ws"] }

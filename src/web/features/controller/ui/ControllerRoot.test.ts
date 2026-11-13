@@ -84,29 +84,23 @@ it('renders requested points separately from verified results and includes the u
   } finally { wrapper.unmount(); }
 });
 
-it('starts in controller scope and clears the private invitation after submission', async () => {
+it('offers Cloud onboarding without manual HTTPS or certificate setup', async () => {
   i18n.global.locale.value = 'en';
+  const account = { account: { state: 'signed-out', origin: 'https://cloud.example' }, deviceId: null };
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'controller.profiles') return [];
-    if (method === 'controller.status') return { epoch: '0', viewRevision: '0', phase: 'idle', profile: null, origin: null, hello: null, errorCode: null };
-    if (method === 'controller.pair') return { requestId: 'owner-approval-request' };
-    if (method === 'controller.pair.poll') return { approved: false };
-    throw new Error(`Unexpected owner call: ${method}`);
+    if (method === 'controller.status') return { epoch: '0', viewRevision: '0', phase: 'idle', profile: null, origin: null, hello: null, errorCode: null, cloudSupported: true };
+    if (method === 'controller.cloud.status' || method === 'controller.cloud.restore') return account;
+    throw new Error(`Unexpected native call: ${method}`);
   });
   const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
   try {
     await flushPromises();
-    expect(wrapper.text()).toContain('Remote controller');
-    const inputs = wrapper.findAll('input');
-    await inputs[0]!.setValue('https://host.example');
-    await inputs[1]!.setValue('moderator');
-    await inputs[3]!.setValue('private-invitation-marker');
-    await wrapper.get('form').trigger('submit');
-    await flushPromises();
-    expect((inputs[3]!.element as HTMLInputElement).value).toBe('');
-    expect(wrapper.text()).toContain('owner-approval-request');
-    expect(calls.find((c) => c.method === 'controller.pair')?.params?.['invitation']).toBe('private-invitation-marker');
-    expect(calls.every((c) => c.method.startsWith('controller.'))).toBe(true);
+    expect(wrapper.text()).toContain('Connect through Cloud');
+    expect(wrapper.find('input[type="url"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('fingerprint');
+    expect(calls.every((call) => call.method.startsWith('controller.'))).toBe(true);
+    expect(calls.some((call) => call.method === 'controller.pair' || call.method === 'controller.probe')).toBe(false);
   } finally { wrapper.unmount(); }
 });
 

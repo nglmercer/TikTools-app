@@ -22,6 +22,9 @@ impl AppCore {
         service.update_gateway_status(|status| {
             status.available = self.collaboration_gateway_available.load(Ordering::SeqCst)
         })?;
+        service.update_peer_gateway_status(|status| {
+            status.gateway.available = self.collaboration_peer_available.load(Ordering::SeqCst)
+        })?;
         *current = Some(Arc::clone(&service));
         Ok(service)
     }
@@ -34,6 +37,16 @@ impl AppCore {
         if let Ok(current) = self.collaboration.lock() {
             if let Some(service) = current.as_ref() {
                 let _ = service.update_gateway_status(|status| status.available = available);
+            }
+        }
+    }
+    pub fn set_collaboration_peer_available(&self, available: bool) {
+        self.collaboration_peer_available
+            .store(available, Ordering::SeqCst);
+        if let Ok(current) = self.collaboration.lock() {
+            if let Some(service) = current.as_ref() {
+                let _ = service
+                    .update_peer_gateway_status(|status| status.gateway.available = available);
             }
         }
     }

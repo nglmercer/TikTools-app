@@ -18,6 +18,7 @@ pub struct ExecutionIdentity {
     pub(crate) configuration_revision: String,
     pub(crate) absolute_expires_at: i64,
     pub(crate) idle_expires_at: i64,
+    pub(crate) peer_lease: Option<crate::peer_clock::PeerLease>,
 }
 impl ExecutionIdentity {
     pub fn host_id(&self) -> &str {
@@ -53,6 +54,9 @@ impl ExecutionIdentity {
     /// Recheck immediately before admission if synchronous work inside the
     /// closure was long enough to cross a deadline. Does not re-read grants.
     pub fn check_deadline(&self) -> Result<(), Error> {
+        if let Some(lease) = &self.peer_lease {
+            return lease.remaining().map(|_| ());
+        }
         if crate::store::now() >= self.expires_at() {
             Err(Error::Unauthorized)
         } else {

@@ -1,6 +1,7 @@
 //! Network connections hold these shared, revocable authorization views.
 //! Reads never perform SQLite I/O on the async transport's event path.
 mod execution;
+use crate::peer_clock::PeerLease;
 use crate::{Authenticated, Error, Grant};
 pub use execution::{ExecutionAuthorization, ExecutionAuthorizations, ExecutionIdentity};
 use std::sync::{
@@ -11,6 +12,7 @@ use std::sync::{
 pub(crate) struct AuthorizationState {
     pub(crate) identity: RwLock<Authenticated>,
     pub(crate) revoked: AtomicBool,
+    pub(crate) peer_lease: RwLock<Option<PeerLease>>,
 }
 
 #[derive(Clone)]
@@ -20,10 +22,15 @@ pub struct Authorization {
 
 impl Authorization {
     pub(crate) fn new(identity: Authenticated) -> Self {
+        Self::with_lease(identity, None)
+    }
+
+    pub(crate) fn with_lease(identity: Authenticated, lease: Option<PeerLease>) -> Self {
         Self {
             state: Arc::new(AuthorizationState {
                 identity: RwLock::new(identity),
                 revoked: AtomicBool::new(false),
+                peer_lease: RwLock::new(lease),
             }),
         }
     }
@@ -37,6 +44,16 @@ impl Authorization {
             .identity
             .read()
             .map_err(|_| Error::Unauthorized)?;
+        let lease = self
+            .state
+            .peer_lease
+            .read()
+            .map_err(|_| Error::Unauthorized)?;
+        if let Some(lease) = &*lease {
+            let mut current = identity.clone();
+            current.access_expires_at = crate::store::now().saturating_add(lease.remaining()?);
+            return Ok(current);
+        }
         if crate::store::now() >= identity.access_expires_at {
             return Err(Error::Unauthorized);
         }

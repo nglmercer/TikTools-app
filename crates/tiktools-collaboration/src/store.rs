@@ -18,6 +18,8 @@ mod configuration;
 mod execution;
 mod invitations;
 mod pairing;
+mod peers;
+pub use peers::{CloudPeerGrant, CloudPeerObservation, CloudPeerSource, PEER_OFFLINE_TTL_MS};
 mod principals;
 mod rows;
 mod sessions;
@@ -49,6 +51,7 @@ pub struct CollaborationService {
     instance_id: String,
     authorizations: Mutex<BTreeMap<String, Weak<crate::authority::AuthorizationState>>>,
     gateway: Mutex<GatewayStatus>,
+    peer_gateway: Mutex<PeerGatewayStatus>,
     _ownership: std::fs::File,
 }
 

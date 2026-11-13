@@ -28,6 +28,8 @@ pub mod cloud_bundles;
 mod cloud_http;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_integrations;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod cloud_peer_host;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 pub mod cloud_publisher;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
@@ -154,6 +156,7 @@ pub(crate) struct PluginHealth {
 pub struct AppCore {
     collaboration: Mutex<Option<Arc<collaboration::CollaborationService>>>,
     collaboration_gateway_available: AtomicBool,
+    collaboration_peer_available: AtomicBool,
     coordination_events: tokio::sync::broadcast::Sender<Arc<collaboration::CoordinationEvent>>,
     coordination_streams: collaboration::StreamHub,
     automation_mutations: Mutex<()>,
