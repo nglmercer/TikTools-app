@@ -32,7 +32,8 @@ async function settled(page: Page): Promise<void> {
 async function openDemo(page: Page, scenario: string, instance: string): Promise<void> {
   await page.goto(`demo/?scenario=${scenario}&locale=en&instance=domain-${instance}`);
   await expect(page.getByTestId('demo-step')).toBeVisible();
-  await expect(page.getByText('Native effects, TikTok, OBS and real accounts are simulated.', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('demo-limit')).toBeVisible();
+  await expect(page.getByTestId('demo-limit')).toContainText('sample data');
   expect(await page.evaluate(() => typeof (window as Window & { ipc?: unknown }).ipc)).toBe('undefined');
   await settled(page);
 }
