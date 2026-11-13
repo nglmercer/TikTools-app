@@ -1,7 +1,14 @@
 export default {
+  changesCount: 'Alterações · {count}',
+  inventoryReview: 'Revisar pacotes ausentes',
+  inventoryEmpty: 'Nenhum pacote ausente nesta revisão.',
+  inventoryWarning: 'Corrigir estes indicadores locais? O estado anterior será arquivado. Dados de plugins, registros Cloud e alterações pendentes serão mantidos.',
+  inventoryRepair: 'Confirmar reparo local',
+
+  prepare: 'Preparar sincronização', recovery: 'Recuperação e diagnóstico',
   title: 'Alterações', changes: 'Alterações', history: 'Histórico', view: 'Alterações ou histórico',
   button: 'Sincronizar alterações', buttonCount: 'Sincronizar alterações, {count} pendentes',
-  signedOut: 'Inicie sessão no Cloud para sincronizar (Definições, Conta e Cloud).', syncOff: 'Ative a sincronização com o Cloud em Definições, Conta e Cloud.', unsupported: 'Este anfitrião não suporta sincronização.',
+  signedOut: 'Inicie sessão no Cloud para sincronizar (Definições, Conta e Cloud).', syncOff: "Prepare a sincronização neste painel de Alterações.", unsupported: 'Este anfitrião não suporta sincronização.',
   auto: 'Auto', autoHint: 'Sincronizar automaticamente quando algo mudar',
   fetch: 'Obter alterações do Cloud', push: 'Enviar os elementos selecionados', sync: 'Sincronizar', syncHint: 'Obter do Cloud, intercalar e enviar', more: 'Mais ações',
   forcePush: 'Forçar envio (substitui o Cloud)', forcePull: 'Forçar obtenção (substitui o local)', fork: 'Bifurcar um modelo público…', resetAll: 'Repor tudo para a versão sincronizada',
@@ -34,6 +41,6 @@ export default {
   confirmMarkReviewed: 'Usar a versão atual como nova cópia de referência? Repor já não voltará à anterior. Nada é enviado para o Cloud.',
   thisDevice: 'Este dispositivo',
   keysChanged: 'Definições alteradas: {keys}', keysNone: 'Definições alteradas', valuesHidden: 'Os valores das definições ficam neste dispositivo e não são mostrados.',
-  pluginsNotice: 'Comparado com a última versão obtida do Cloud. Sincronizar envia tudo o que está pendente.',
-  v2Off: 'A sincronização Cloud v2 não está ativa nesta conta. Conclua a migração em Definições, Conta e Cloud.',
+  pluginsNotice: "Comparado com a última versão do Cloud. Apenas as alterações de plugins são enviadas.",
+  v2Off: "Prepare o Cloud v2 neste painel de Alterações.",
 };

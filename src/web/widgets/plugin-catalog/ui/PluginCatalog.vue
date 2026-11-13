@@ -10,13 +10,15 @@ import { isPluginCommand, pluginMenu, type PluginCommand } from '@/entities/plug
 import { OFFICIAL_REGISTRY, remoteSelection } from '@/entities/plugin-package/lib/package-format.ts';
 import ExploreList from '@/features/explore-catalog/ui/ExploreList.vue';
 import ExploreToolbar from '@/features/explore-catalog/ui/ExploreToolbar.vue';
+import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
+import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
+import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconCompass from '@/shared/ui/icon/icons/IconCompass.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
-import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
@@ -46,6 +48,15 @@ const remoteQuery = defineModel<string>('remoteQuery', { default: '' });
 const processorQuery = defineModel<string>('processorQuery', { default: '' });
 
 const { t } = useI18n();
+const guideSteps = computed(() => [
+  { id: 'search', selector: '[data-guide=plugins-search]', title: t('guides.pluginsSearchTitle'), description: t('guides.pluginsSearch') },
+  { id: 'changes', selector: '[data-guide=changes]', title: t('guides.changesTitle'), description: t('guides.changes') },
+  { id: 'install', selector: '[data-guide=plugins-install]', title: t('guides.installTitle'), description: t('guides.install') },
+]);
+const moreOpen = ref(false);
+const moreAnchor = ref<HTMLElement | null>(null);
+const moreItems = computed(() => [{ id: 'preferences', label: t('plugins.catalog.preferences'), icon: IconGear }]);
+function toggleMore(event: MouseEvent): void { moreAnchor.value = event.currentTarget as HTMLElement; moreOpen.value = !moreOpen.value; }
 const titleId = useId();
 const { rows, installedCount, pendingUpdates, exploring, installedIds, listedLocally } = usePluginCatalogRows(props, tab, query);
 /** Key of the row a context menu was opened on; never the open plugin, which has its own panel. */
@@ -111,6 +122,7 @@ function openCatalogPlugin(id: string, installed: boolean): void {
 <template>
   <section
     class="plugin-catalog"
+    data-guide-scope="plugins"
     :aria-labelledby="titleId"
   >
     <h2
@@ -126,7 +138,10 @@ function openCatalogPlugin(id: string, installed: boolean): void {
     >
       <template #bar>
         <div class="plugin-catalog__bar">
-          <ExploreToolbar v-if="exploring" />
+          <ExploreToolbar
+            v-if="exploring"
+            plugins-only
+          />
           <form
             v-else-if="searchable"
             class="plugin-catalog__search"
@@ -135,6 +150,7 @@ function openCatalogPlugin(id: string, installed: boolean): void {
           >
             <BaseTextField
               v-model="searchValue"
+              data-guide="plugins-search"
               type="search"
               size="sm"
               :placeholder="searchLabel"
@@ -177,23 +193,33 @@ function openCatalogPlugin(id: string, installed: boolean): void {
             >
               <IconRefresh />
             </BaseIconButton>
-            <BaseIconButton
-              :label="t('plugins.catalog.preferences')"
-              variant="default"
-              size="sm"
-              @click="emit('preferences')"
-            >
-              <IconGear />
-            </BaseIconButton>
-            <BaseIconButton
-              :label="t('plugins.install.package')"
+            <BaseButton
               variant="primary"
               size="sm"
+              data-guide="plugins-install"
+              :aria-label="t('plugins.install.package')"
               :disabled="installDisabled"
               @click="emit('install-package')"
             >
-              <IconPlus />
-            </BaseIconButton>
+              {{ t('plugins.install.button') }}
+            </BaseButton>
+            <GuideButton
+              id="plugins-v1"
+              :steps="guideSteps"
+            />
+            <BaseIconButton
+              :label="t('syncChanges.more')"
+              size="sm"
+              aria-haspopup="menu"
+              :aria-expanded="moreOpen"
+              @click="toggleMore"
+            ><IconMoreVertical /></BaseIconButton>
+            <BaseMenu
+              v-model:open="moreOpen"
+              :items="moreItems"
+              :anchor="moreAnchor"
+              @select="emit('preferences')"
+            />
           </span>
         </div>
       </template>
@@ -291,6 +317,7 @@ function openCatalogPlugin(id: string, installed: boolean): void {
           />
           <ExploreList
             v-if="exploring"
+            plugins-only
             :installed-ids="installedIds"
             :hidden-ids="listedLocally"
             @open-plugin="openCatalogPlugin"

@@ -116,3 +116,10 @@ describe('SettingsPage', () => {
     await activateLocale('en');
   });
 });
+
+
+it('keeps synchronization controls out of account settings', async () => {
+  const { wrapper } = await mountPage('?section=account');
+  expect(wrapper.text()).not.toContain('Sync plugin selections');
+  expect(wrapper.findComponent({ name: 'CloudSyncEditor' }).exists()).toBe(false);
+});

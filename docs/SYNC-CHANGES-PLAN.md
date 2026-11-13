@@ -6,7 +6,7 @@ base version, conflict review (base, local, Cloud) and the background worker.
 
 ## Implemented
 
-- `SyncPanel` (modal, Changes and History views), `SyncButton` (icon, count, disabled reason) and the
+- `SyncPanel` (modal, Changes and History views), `SyncButton` (Changes label, count, disabled reason) and the
   `SyncAdapter` contract in `src/web/entities/cloud-sync/api/sync-adapter.ts`. The panel renders only the
   controls an adapter declares in `capabilities`.
 - Read-only RPC `sync.v2.changes.list`: a local read of the v2 workspace (cached Cloud value, pending edit
@@ -18,7 +18,7 @@ base version, conflict review (base, local, Cloud) and the background worker.
   settings a sorted `changedKeys` list of top-level setting NAMES that differ from the base. The cached Cloud
   value and the pending edit value of a settings record are `null` in the reply (asserted on the serialized
   JSON in the `tiktools-core` `change_entry_tests`, the typed-client parity test and the adapter tests).
-- Plugins adapter (selections and staged settings): whole-pass sync (`sync.v2.now`) and keep-local or
+- Plugins adapter (selections and staged settings): section sync (`sync.v2.section`, Plugins only) and keep-local or
   take-Cloud for conflicts. No selective send, fetch-only, field merge, force, reset or history. A settings
   change is listed as "Changed settings: a, b" with no JSON diff and no field-level merge; resolving it keeps
   the local version or takes Cloud's through the existing review and resolve RPCs, which run on the host.
@@ -35,6 +35,58 @@ base version, conflict review (base, local, Cloud) and the background worker.
 What the plan's table claimed for automations (push, fetch, merge, force, history) needs backend work first:
 native adapters for the `profiles` and `rule-templates` records, staging from the Owner library operations,
 reviewed application of fetched profiles, per-record push and fetch, and the snapshots table of phase 2.
+
+### Desktop simplification and diagnostics (2026-11-13)
+
+Settings contains account/session, diagnostics and collaboration, with synchronization
+inside the shared Changes panel. The retired `CloudSyncEditor` was removed. Plugins
+requests plugin catalog records only; templates/profiles remain in Automations.
+Optional Driver.js tours are lazy loaded from `?` and follow real Teams state.
+
+`sync.v2.section { section: "plugins" }` publishes only plugin selections/settings.
+Downloads cache all collections before advancing the shared account cursor; other
+queues remain durable and are excluded from application candidates. Older hosts
+cannot silently fall back to whole-workspace publication.
+
+Migration diagnostics distinguish an incomplete inventory from missing packages.
+Only an absent automatically derived bundled-plugin root may be omitted. Explicit
+roots remain strict. Inventory recovery previews exact missing package IDs and
+archives their install flags in SQLite before a reviewed local repair. It preserves
+Cloud queues, plugin data and conflicts. Tested on a copy of the affected profile;
+no migration was run against the production account.
+
+The AppImage bundles the GStreamer plugins and scanner used by its media libraries;
+packaging verification checks every required plugin. Host-specific helper paths
+are configured before GTK starts.
+
+Teams matches this PC against its persisted host/device binding. Approved-team
+lookup uses owner nicknames. Invitation recipient search returns only nicknames,
+blocks ambiguous aliases, and binds redemption to the selected account; it still
+requires host approval. Backend migration: RemakeBackend
+`20261113000001_remote_invitation_recipients.sql` (additive).
+
+### Verification and remaining work
+
+- Optimized Linux desktop built; AppImage and DEB packaging verified. Final AppImage
+  SHA256: `556c2f750b1972aefcd33ac7a8467b3aff1b21fb6e4ffbc5ca084efa17316898`.
+- 167 sync-engine tests and 146 targeted frontend tests passed; TypeScript/ESLint
+  passed. Latest Teams layout/recipient tests passed after the final layout change.
+- Real PostgreSQL test verifies nickname-only results, duplicate detection and
+  recipient-bound redemption. Two-PC native onboarding and native relay fallback
+  tests passed against an isolated backend, including approval and revocation.
+- Real AppImage opened with a copy of the affected profile. Plugins, compact
+  preparation and Teams layout were inspected. The original profile was untouched.
+- The original log also records SQLite BUSY errors while connecting the LIVE,
+  followed by collaboration-retention failures. The original lock holder is still
+  unknown. Extended SQLite reason codes are now logged without SQL/data values;
+  a competing-writer test proves a failed batch is preserved and retried once the
+  write lock is released. This does not establish the historical lock's cause.
+- Automations still uses a local comparison snapshot. Reviewed application of
+  downloaded settings/other section records and Variables/Overlays adapters remain
+  separate implementation work; the section-scoped publication change does not
+  claim those transports exist.
+- Backend code/migration has not been deployed. Production-account migration was
+  not executed.
 
 ## Goal
 

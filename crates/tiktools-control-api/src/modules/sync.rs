@@ -11,9 +11,10 @@ use serde::{Deserialize, Serialize};
 pub use tiktools_core::control::{
     CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus, SyncNowResult,
-    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncV2StageVariablesParams,
-    SyncV2StageVariablesResult, V2ChangeEntry, V2ConflictChoice, V2ConflictOutcome,
-    V2ConflictReview, V2ConflictTarget, V2PendingChange, WorkspaceV2Discovery,
+    SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncSection,
+    SyncV2StageVariablesParams, SyncV2StageVariablesResult, V2ChangeEntry, V2ConflictChoice,
+    V2ConflictOutcome, V2ConflictReview, V2ConflictTarget, V2PendingChange,
+    WorkspaceInventoryRepairParams, WorkspaceInventoryReview, WorkspaceV2Discovery,
     WorkspaceV2Migration, WorkspaceV2Preview, WorkspaceV2SyncResult,
 };
 use tiktools_core::{cloud_sync::SyncStatus, control::OperationError, AppCore};
@@ -71,11 +72,31 @@ pub struct SyncV2StagePluginSettingsParams {
     pub settings: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncSectionParams {
+    pub section: SyncSection,
+}
+
 fn map_error(error: OperationError) -> ApiError {
     ApiError::from(error)
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<Empty, WorkspaceInventoryReview, _, _>(
+        "sync.v2.inventory.review",
+        "Reviews absent local packages without changing sync queues",
+        false,
+        |core: Arc<AppCore>, _| async move {
+            core.workspace_inventory_review(None)
+                .await
+                .map_err(map_error)
+        },
+    );
+    router.register_typed::<WorkspaceInventoryRepairParams, WorkspaceInventoryReview, _, _>(
+        "sync.v2.inventory.repair", "Archives and clears only reviewed absent local install flags; keeps Cloud queues and plugin data", true,
+        |core: Arc<AppCore>, params| async move { core.workspace_inventory_review(Some(params.review)).await.map_err(map_error) },
+    );
     router.register_typed::<Empty, WorkspaceV2Preview, _, _>(
         "sync.v2.preview",
         "Reviews local migration inputs without changing or enabling synchronization",
@@ -178,6 +199,14 @@ pub fn register(router: &mut ControlRouter) {
         "Synchronize an already selected v2 workspace without applying Cloud records",
         true,
         |core: Arc<AppCore>, _| async move { core.sync_v2_now().await.map_err(map_error) },
+    );
+    router.register_typed::<SyncSectionParams, WorkspaceV2SyncResult, _, _>(
+        "sync.v2.section",
+        "Publishes only the requested section and returns its application candidates; other downloaded records remain cached",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            core.sync_v2_section(params.section).await.map_err(map_error)
+        },
     );
     router.register_typed::<Empty, (), _, _>(
         "sync.v2.rebuild",

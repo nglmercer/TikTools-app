@@ -1,7 +1,14 @@
 export default {
+  changesCount: 'Changes · {count}',
+  inventoryReview: 'Review missing packages',
+  inventoryEmpty: 'No missing packages in this review.',
+  inventoryWarning: 'Clear these local installation flags? Their previous state is archived. Plugin data, Cloud records and pending changes are kept.',
+  inventoryRepair: 'Confirm local repair',
+
+  prepare: 'Prepare Cloud sync', recovery: 'Recovery and diagnostics',
   title: 'Changes', changes: 'Changes', history: 'History', view: 'Changes or history',
   button: 'Sync changes', buttonCount: 'Sync changes, {count} pending',
-  signedOut: 'Sign in to Cloud to sync (Settings, Account & Cloud).', syncOff: 'Turn on Cloud sync in Settings, Account & Cloud.', unsupported: 'This host does not support sync.',
+  signedOut: 'Sign in to Cloud to sync (Settings, Account & Cloud).', syncOff: "Prepare Cloud sync in this Changes panel.", unsupported: 'This host does not support sync.',
   auto: 'Auto', autoHint: 'Sync automatically when something changes',
   fetch: 'Fetch changes from Cloud', push: 'Send the selected elements', sync: 'Sync', syncHint: 'Fetch from Cloud, merge, then send', more: 'More actions',
   forcePush: 'Force send (overwrites Cloud)', forcePull: 'Force fetch (overwrites local)', fork: 'Fork a public template…', resetAll: 'Reset everything to the synced version',
@@ -34,6 +41,6 @@ export default {
   confirmMarkReviewed: 'Use the current version as the new reference copy? Reset will no longer go back to the old one. Nothing is sent to Cloud.',
   thisDevice: 'This device',
   keysChanged: 'Changed settings: {keys}', keysNone: 'Settings changed', valuesHidden: 'Setting values stay on this device and are not shown.',
-  pluginsNotice: 'Compared with the last version fetched from Cloud. Sync sends everything pending.',
-  v2Off: 'Cloud v2 sync is not active for this account. Finish the migration in Settings, Account & Cloud.',
+  pluginsNotice: "Compared with the last version fetched from Cloud. Sync sends only plugin changes.",
+  v2Off: "Prepare Cloud v2 in this Changes panel.",
 };

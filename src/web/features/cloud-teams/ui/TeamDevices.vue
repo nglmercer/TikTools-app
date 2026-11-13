@@ -12,9 +12,10 @@ const hostDeviceLabel = ref('');
 const confirmRevoke = ref<string | null>(null);
 const { statusLabel } = useTeamLabels();
 /** Serving needs an active host device for this team; the Cloud enforces it again. */
-const hasHostDevice = computed(() => teams.devices.some((device) => device.kind === 'host' && device.status === 'active'));
+const hasHostDevice = computed(() => teams.localHostDevice !== null);
+const linkState = computed(() => teams.link.hostId && teams.link.hostId !== teams.selectedId ? 'stopped' : teams.link.state);
 const linkLabel = computed(() => {
-  const state = teams.link.state;
+  const state = linkState.value;
   return te(`cloudTeams.link.${state}`) ? t(`cloudTeams.link.${state}`) : state;
 });
 
@@ -27,17 +28,20 @@ async function revokeDevice(deviceId: string): Promise<void> {
 
 <template>
   <div class="cloud-teams__device-settings">
-    <div class="cloud-teams__block">
+    <div
+      class="cloud-teams__block"
+      data-guide="startServing"
+    >
       <h4>{{ t('cloudTeams.serving') }}</h4>
       <p class="cloud-teams__note">
         {{ linkLabel }}
-        <template v-if="teams.link.lastError">
+        <template v-if="teams.link.lastError && (!teams.link.hostId || teams.link.hostId === teams.selectedId)">
           · {{ teams.link.lastError }}
         </template>
       </p>
       <div class="cloud-teams__row">
         <BaseButton
-          v-if="teams.link.state === 'stopped'"
+          v-if="linkState === 'stopped' || linkState === 'unknown'"
           :disabled="!hasHostDevice || teams.working"
           @click="teams.setHostLink(true)"
         >
@@ -63,6 +67,7 @@ async function revokeDevice(deviceId: string): Promise<void> {
     <div class="cloud-teams__block">
       <h4>{{ t('cloudTeams.devices') }}</h4>
       <form
+        data-guide="enrollHost"
         class="cloud-teams__row"
         @submit.prevent="teams.enroll('host', hostDeviceLabel)"
       >
@@ -87,7 +92,7 @@ async function revokeDevice(deviceId: string): Promise<void> {
           class="cloud-teams__row"
         >
           <span class="cloud-teams__grow">
-            {{ device.label }} · {{ statusLabel('cloudTeams.kind', device.kind) }} ·
+            {{ device.label }} {{ device.isThisDevice ? `(${t('cloudTeams.thisPc')})` : '' }} · {{ statusLabel('cloudTeams.kind', device.kind) }} ·
             {{ statusLabel('cloudTeams.deviceStatus', device.status) }}
           </span>
           <BaseButton

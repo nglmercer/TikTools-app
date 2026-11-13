@@ -15,6 +15,7 @@ const status = (enabled: boolean): SyncStatus => ({ enabled, signedIn: true, syn
 
 async function mount(adapter: SyncAdapter, accountState: AccountStatus['state'] = 'signed-in', enabled = true) {
   const { client } = createFakeControlClient((method) => {
+    if (method === 'sync.v2.selected') return enabled;
     if (method === 'cloud.status') return account(accountState);
     if (method === 'sync.status') return status(enabled);
     throw new Error(`unexpected ${method}`);
@@ -25,10 +26,10 @@ async function mount(adapter: SyncAdapter, accountState: AccountStatus['state'] 
 }
 
 describe('SyncButton', () => {
-  it('shows the pending count in its badge and accessible name, and opens the panel', async () => {
+  it('shows the pending count in its label and accessible name, and opens the panel', async () => {
     const { adapter } = fakeAdapter(allCapabilities);
     const wrapper = await mount(adapter);
-    expect(wrapper.get('.sync-button__badge').text()).toBe('4');
+    expect(wrapper.get('button').text()).toBe('Changes · 4');
     const button = wrapper.get('button');
     expect(button.attributes('aria-label')).toBe('Sync changes, 4 pending');
     expect(button.attributes('disabled')).toBeUndefined();
@@ -55,11 +56,16 @@ describe('SyncButton', () => {
     expect(spies.list).not.toHaveBeenCalled();
   });
 
-  it('is disabled when Cloud sync is not enabled', async () => {
+  it('opens preparation when Cloud sync is not enabled', async () => {
     const { adapter } = fakeAdapter(allCapabilities);
     delete (adapter as { requiresCloud?: boolean }).requiresCloud;
     const wrapper = await mount(adapter, 'signed-in', false);
-    expect(wrapper.get('button').attributes('disabled')).toBeDefined();
+    expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
+    await wrapper.get('button').trigger('click');
+    await flushPromises();
+    expect(wrapper.get('h2').text()).toBe('Changes · Events');
+    expect(wrapper.findAll('dialog')).toHaveLength(1);
+    expect(wrapper.text()).toContain('Prepare Cloud sync');
   });
 
   it('is enabled once signed in and opted in', async () => {
@@ -67,7 +73,7 @@ describe('SyncButton', () => {
     delete (adapter as { requiresCloud?: boolean }).requiresCloud;
     const wrapper = await mount(adapter);
     expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
-    expect(wrapper.get('.sync-button__badge').text()).toBe('4');
+    expect(wrapper.get('button').text()).toBe('Changes · 4');
   });
 
   it('is disabled with the adapter reason when the host cannot sync this section', async () => {
@@ -83,7 +89,7 @@ describe('SyncButton', () => {
     expect(adapter.requiresCloud).toBe(false);
     const wrapper = await mount(adapter, 'signed-out', false);
     expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
-    expect(wrapper.get('.sync-button__badge').text()).toBe('4');
+    expect(wrapper.get('button').text()).toBe('Changes · 4');
     await wrapper.get('button').trigger('click');
     await flushPromises();
     expect(wrapper.find('[role="dialog"], dialog').exists()).toBe(true);

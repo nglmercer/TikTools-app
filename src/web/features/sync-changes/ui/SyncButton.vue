@@ -5,9 +5,10 @@ import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts
 import { useSyncStore } from '@/entities/cloud-sync/model/sync-store.ts';
 import type { SyncAdapter } from '@/entities/cloud-sync/api/sync-adapter.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
-import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
+import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import { useSyncChanges } from '../model/use-sync-changes.ts';
+import SyncSetup from './SyncSetup.vue';
+import { useControlClient } from '@/shared/api/use-control-client.ts';
 import SyncPanel from './SyncPanel.vue';
 
 const props = withDefaults(defineProps<{ adapter: SyncAdapter; size?: 'sm' | 'md' }>(), { size: 'md' });
@@ -16,6 +17,17 @@ const account = useAccountStore();
 const sync = useSyncStore();
 const capabilities = useCapabilityStore();
 const open = ref(false);
+const preparing = ref(false);
+const client = useControlClient();
+async function show(): Promise<void> {
+  if (props.adapter.requiresCloud === false) { open.value = true; return; }
+  await account.ensureRestored();
+  await sync.refresh();
+  try {
+    preparing.value = sync.status?.enabled !== true || await client.call('sync.v2.selected', {}) !== true;
+  } catch { preparing.value = true; }
+  open.value = true;
+}
 
 // The account and opt-in state are read lazily elsewhere; read them here so the button reflects them.
 onMounted(() => {
@@ -31,7 +43,6 @@ const reason = computed<string | null>(() => {
   if (own) return own;
   if (capabilities.supports('sync.status') === false) return t('syncChanges.unsupported');
   if (account.status?.state !== 'signed-in') return t('syncChanges.signedOut');
-  if (sync.status?.enabled !== true) return t('syncChanges.syncOff');
   return null;
 });
 const usable = computed(() => reason.value === null);
@@ -41,26 +52,31 @@ const label = computed(() => (count.value > 0 ? t('syncChanges.buttonCount', { c
 
 <template>
   <span class="sync-button">
-    <BaseIconButton
-      :label="label"
-      :hint="reason ?? undefined"
+    <BaseButton
+      data-guide="changes"
+      :aria-label="label"
+      :title="reason ?? undefined"
+      :aria-description="reason ?? undefined"
       variant="default"
       :size="size"
       :disabled="!usable"
-      @click="open = true"
+      @click="show"
     >
-      <IconGitMerge />
-    </BaseIconButton>
-    <span
-      v-if="usable && count > 0"
-      class="sync-button__badge"
-      aria-hidden="true"
-    >{{ count > 99 ? '99+' : count }}</span>
+      {{ count > 0 ? t('syncChanges.changesCount', { count }) : t('syncChanges.changes') }}
+    </BaseButton>
     <SyncPanel
       v-if="usable"
       v-model:open="open"
       :adapter="adapter"
-    />
+      :preparing="preparing"
+    >
+      <template #preparation>
+        <SyncSetup
+          v-if="open && preparing"
+          @ready="preparing = false"
+        />
+      </template>
+    </SyncPanel>
   </span>
 </template>
 
@@ -70,19 +86,4 @@ const label = computed(() => (count.value > 0 ? t('syncChanges.buttonCount', { c
   display: inline-flex;
 }
 
-.sync-button__badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  border-radius: 7px;
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  font-size: 10px;
-  line-height: 14px;
-  text-align: center;
-  pointer-events: none;
-}
 </style>

@@ -39,6 +39,7 @@
     "vue-tsc": "^3.3.14"
   },
   "dependencies": {
+    "driver.js": "^1.12.1",
     "pinia": "^4.1.0",
     "qrcode": "1.5.4",
     "vue": "^3.5.45",

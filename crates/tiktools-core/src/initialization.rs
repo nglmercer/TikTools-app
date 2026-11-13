@@ -10,7 +10,14 @@ impl AppCore {
     /// The desktop crate supplies this for file dialogs and audio output;
     /// headless callers can keep using [`AppCore::new`].
     pub fn with_media_host(emitter: Arc<dyn HostEmitter>, media: Arc<dyn MediaHost>) -> Self {
-        Self::with_paths(emitter, media, AppPaths::from_environment())
+        Self::build_with_paths(
+            emitter,
+            media,
+            AppPaths::from_environment(),
+            std::env::var_os("TIKTOOLS_BUILTIN_PLUGINS_DIR").is_none(),
+            #[cfg(feature = "cloud-auth")]
+            None,
+        )
     }
 
     /// Constructs an owner host with explicit application paths. Embedders and
@@ -25,6 +32,7 @@ impl AppCore {
             emitter,
             media,
             paths,
+            false,
             #[cfg(feature = "cloud-auth")]
             None,
         )
@@ -40,13 +48,14 @@ impl AppCore {
         paths: AppPaths,
         auth: tiktools_cloud_auth::CloudAuth,
     ) -> Self {
-        Self::build_with_paths(emitter, media, paths, Some(auth))
+        Self::build_with_paths(emitter, media, paths, false, Some(auth))
     }
 
     fn build_with_paths(
         emitter: Arc<dyn HostEmitter>,
         media: Arc<dyn MediaHost>,
         paths: AppPaths,
+        optional_default_builtin: bool,
         #[cfg(feature = "cloud-auth")] auth: Option<tiktools_cloud_auth::CloudAuth>,
     ) -> Self {
         if let Err(error) = paths.ensure_directories() {
@@ -61,11 +70,7 @@ impl AppCore {
             std::env::set_var("TIKTOOLS_PLUGIN_DATA_DIR", paths.plugin_data.as_os_str());
         }
 
-        let roots = plugin_roots(
-            paths.builtin_plugins.clone(),
-            paths.plugins.clone(),
-            paths.development_plugins.clone(),
-        );
+        let roots = runtime_plugin_roots(&paths, optional_default_builtin);
         let plugins = Arc::new(PluginManager::new(roots));
         match plugins.scan() {
             Ok(entries) => tracing::info!(count = entries.len(), "runtime plugin scan complete"),
@@ -282,5 +287,59 @@ impl AppCore {
         }
         core.rebuild_processor_index();
         core
+    }
+}
+
+/// Releases ship external plugins. An absent automatic resource directory is
+/// therefore not a configured inventory root. Explicit roots, unreadable roots
+/// and dangling symlinks remain mandatory and make a partial scan fail closed.
+fn runtime_plugin_roots(
+    paths: &AppPaths,
+    optional_default_builtin: bool,
+) -> Vec<tiktools_plugin_loader::PluginRoot> {
+    let mut roots = plugin_roots(
+        paths.builtin_plugins.clone(),
+        paths.plugins.clone(),
+        paths.development_plugins.clone(),
+    );
+    if optional_default_builtin
+        && std::fs::symlink_metadata(&paths.builtin_plugins)
+            .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+    {
+        roots.retain(|root| root.source != tiktools_plugin_loader::PluginSource::Builtin);
+    }
+    roots
+}
+
+#[cfg(test)]
+mod inventory_root_tests {
+    use super::*;
+    #[test]
+    fn only_the_absent_automatic_builtin_root_is_optional() {
+        let root = std::env::temp_dir().join(format!(
+            "tiktools-roots-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("builtins"),
+            development_plugins: Some(root.join("development")),
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.clone(),
+        };
+        assert_eq!(runtime_plugin_roots(&paths, false).len(), 3);
+        let automatic = runtime_plugin_roots(&paths, true);
+        assert_eq!(automatic.len(), 2);
+        assert!(automatic.iter().any(|entry| entry.path == paths.plugins));
+        assert!(automatic
+            .iter()
+            .any(|entry| Some(&entry.path) == paths.development_plugins.as_ref()));
+        std::fs::create_dir_all(&paths.builtin_plugins).unwrap();
+        assert_eq!(runtime_plugin_roots(&paths, true).len(), 3);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

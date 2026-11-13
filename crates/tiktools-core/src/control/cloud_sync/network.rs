@@ -18,6 +18,31 @@ impl AppCore {
         self: &std::sync::Arc<Self>,
         restore: bool,
     ) -> Result<WorkspaceV2SyncResult, OperationError> {
+        self.sync_v2_scoped(restore, tiktools_cloud_sync::WorkspaceSyncScope::All)
+            .await
+    }
+
+    pub async fn sync_v2_section(
+        self: &std::sync::Arc<Self>,
+        section: super::SyncSection,
+    ) -> Result<WorkspaceV2SyncResult, OperationError> {
+        let collections = match section {
+            super::SyncSection::Plugins => ["plugin-selections", "plugin-settings"],
+        };
+        self.sync_v2_scoped(
+            true,
+            tiktools_cloud_sync::WorkspaceSyncScope::Collections(
+                collections.into_iter().map(str::to_owned).collect(),
+            ),
+        )
+        .await
+    }
+
+    async fn sync_v2_scoped(
+        self: &std::sync::Arc<Self>,
+        restore: bool,
+        scope: tiktools_cloud_sync::WorkspaceSyncScope,
+    ) -> Result<WorkspaceV2SyncResult, OperationError> {
         #[cfg(feature = "persistence")]
         {
             use tiktools_cloud_sync::ProductLocalEditContext;
@@ -98,7 +123,7 @@ impl AppCore {
                 ),
             );
             let outcome = coordinator
-                .sync_v2_product(session.clone(), source)
+                .sync_v2_product_scoped(session.clone(), source, scope)
                 .await
                 .map_err(|_| {
                     OperationError::unavailable(
@@ -139,7 +164,7 @@ impl AppCore {
         }
         #[cfg(not(feature = "persistence"))]
         {
-            let _ = restore;
+            let _ = (restore, scope);
             Err(OperationError::unavailable(
                 "Cloud v2 sync requires persistence",
             ))

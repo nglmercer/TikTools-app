@@ -15,6 +15,41 @@ use crate::{
 use serde_json::Value;
 
 impl AppCore {
+    pub async fn teams_people_search(
+        &self,
+        params: crate::cloud_teams::TeamPeopleSearchParams,
+    ) -> Result<crate::cloud_teams::TeamPeople, OperationError> {
+        let query = params.query.trim();
+        if !(3..=64).contains(&query.chars().count())
+            || query.contains('@')
+            || query.chars().any(char::is_control)
+        {
+            return Err(OperationError::invalid(
+                "enter at least three nickname characters",
+            ));
+        }
+        let (origin, token) = crate::cloud_teams::credentials(self.cloud.auth()).await?;
+        let encoded: String = url::form_urlencoded::byte_serialize(query.as_bytes()).collect();
+        crate::cloud_http::decode(
+            crate::cloud_teams::send(
+                reqwest::Method::GET,
+                &origin,
+                &token,
+                &format!("/api/v3/remote/people?q={encoded}"),
+                None,
+            )
+            .await?,
+        )
+    }
+    pub async fn teams_accessible(
+        &self,
+    ) -> Result<crate::cloud_teams::PeerMemberships, OperationError> {
+        let device = self.teams.controller_device()?;
+        self.teams
+            .peer_memberships(self.cloud.auth(), &device)
+            .await
+    }
+
     pub async fn teams_hosts(&self) -> Result<TeamHostList, OperationError> {
         crate::cloud_teams::hosts(self.cloud.auth()).await
     }
@@ -34,7 +69,10 @@ impl AppCore {
         crate::cloud_teams::update_host(self.cloud.auth(), params).await
     }
     pub async fn teams_devices(&self) -> Result<TeamDeviceList, OperationError> {
-        crate::cloud_teams::devices(self.cloud.auth()).await
+        let mut list = crate::cloud_teams::devices(self.cloud.auth()).await?;
+        let binding = self.teams.host_binding()?;
+        crate::cloud_teams::mark_local_host_devices(&mut list, binding.as_ref());
+        Ok(list)
     }
     pub async fn teams_device_enroll(
         &self,

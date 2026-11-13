@@ -16,6 +16,8 @@ mod product_apply_worker;
 #[cfg(feature = "persistence")]
 #[allow(dead_code)] // Informational native preview; cutover is not enabled.
 mod product_cutover;
+#[cfg(all(feature = "persistence", feature = "plugin-install"))]
+mod inventory_recovery;
 #[cfg(feature = "persistence")]
 pub(crate) mod product_outbox;
 #[cfg(feature = "persistence")]

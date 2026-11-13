@@ -68,6 +68,19 @@ const KEY_FILE: &str = "remote-device-ed25519.pk8";
 const HOST_BINDING_FILE: &str = "remote-host-binding.json";
 const CONTROLLER_FILE: &str = "remote-controller.json";
 
+/// Backend flags are never trusted to identify the local host. The owner-scoped
+/// device list and this PC's binding must agree on both host and device.
+pub(crate) fn mark_local_host_devices(
+    list: &mut TeamDeviceList,
+    binding: Option<&(String, String)>,
+) {
+    for device in &mut list.items {
+        device.is_this_device = binding.is_some_and(|(host, id)| {
+            device.kind == "host" && device.host_id.as_ref() == Some(host) && device.id == *id
+        });
+    }
+}
+
 // ---- Views (nonsecret) -------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -96,6 +109,9 @@ pub struct TeamDevice {
     pub kind: String,
     pub host_id: Option<String>,
     pub status: String,
+    /// Set only by the local core after matching this PC's persisted host binding.
+    #[serde(default)]
+    pub is_this_device: bool,
     /// Absent from the enrollment reply; present in the list.
     #[serde(default)]
     pub created_at: String,
@@ -229,6 +245,27 @@ pub struct TeamInvitationCreateParams {
     pub host_id: String,
     pub requested_role: String,
     pub ttl_seconds: Option<i64>,
+    pub recipient_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TeamPeopleSearchParams {
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TeamPerson {
+    pub id: String,
+    pub nickname: String,
+    pub ambiguous: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TeamPeople {
+    pub items: Vec<TeamPerson>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]

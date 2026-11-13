@@ -24,6 +24,7 @@ import ExploreCatalogRow from './ExploreCatalogRow.vue';
 const props = defineProps<{
   /** Plugin ids installed on this host. */
   installedIds: ReadonlySet<string>;
+  pluginsOnly?: boolean;
   /** Plugin ids the page already lists itself (bundled, not installed yet); they are not repeated here. */
   hiddenIds?: ReadonlySet<string>;
 }>();
@@ -39,7 +40,7 @@ const account = useAccountStore();
 
 const rows = computed(() =>
   catalog.items
-    .filter((item) => item.kind !== 'plugin' || !props.hiddenIds?.has(item.id))
+    .filter((item) => (!props.pluginsOnly || item.kind === 'plugin') && (item.kind !== 'plugin' || !props.hiddenIds?.has(item.id)))
     .map((item) => ({ item, key: `${item.kind}:${item.id}` })),
 );
 const filtering = computed(() => catalog.filters.text.trim().length > 0);
@@ -52,11 +53,12 @@ const signInNeeded = computed(() => {
 const noPlugins = computed(() => catalog.dataState === 'noActiveGeneration' && catalog.filters.view !== 'mine');
 const emptyTitle = computed(() => {
   if (filtering.value) return t('plugins.catalog.noMatches', { query: catalog.filters.text.trim() });
-  return noPlugins.value ? t('exploreCatalog.nothingPublished') : t('exploreCatalog.noResults');
+  return (props.pluginsOnly || noPlugins.value) ? t('exploreCatalog.nothingPublished') : t('exploreCatalog.noResults');
 });
 const emptyHint = computed(() => {
+  if (props.pluginsOnly) return undefined;
   if (filtering.value) return undefined;
-  return noPlugins.value ? t('exploreCatalog.nothingPublishedHint') : t('exploreCatalog.noResultsHint');
+  return noPlugins.value ? t(props.pluginsOnly ? 'exploreCatalog.pluginsPublishedHint' : 'exploreCatalog.nothingPublishedHint') : t('exploreCatalog.noResultsHint');
 });
 const importNote = computed(() => {
   if (catalog.importState === 'staged') return { text: t('exploreCatalog.imported'), alert: false };
@@ -80,7 +82,8 @@ function retry(): void {
 /** False until the first request of this visit is answered, so the empty state never flashes. */
 const settled = ref(false);
 onMounted(async () => {
-  await catalog.refresh();
+  if (props.pluginsOnly && (catalog.filters.type !== 'plugin' || catalog.filters.view !== 'all')) await catalog.setFilters({ ...catalog.filters, type: 'plugin', view: 'all' });
+  else await catalog.refresh();
   settled.value = true;
 });
 </script>

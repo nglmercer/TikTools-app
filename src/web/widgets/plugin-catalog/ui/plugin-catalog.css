@@ -31,10 +31,11 @@
 .plugin-catalog__bar {
   display: flex;
   min-height: var(--control-height-md);
-  flex: 1 1 240px;
+  flex: 1 1 440px;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
-  min-width: 0;
+  min-width: min(100%, 440px);
   padding-bottom: var(--space-2);
 }
 
@@ -47,6 +48,7 @@
 
 .plugin-catalog__tools {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--space-2);
   margin-left: auto;

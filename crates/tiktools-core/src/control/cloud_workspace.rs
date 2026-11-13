@@ -15,6 +15,20 @@ pub enum WorkspaceV2DiscoveryState {
     BackendCompatible,
 }
 
+/// Reviewed local-only reconciliation of install flags for absent packages.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceInventoryReview {
+    pub review: String,
+    pub plugins: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceInventoryRepairParams {
+    pub review: String,
+}
+
 /// Compatibility is informational, not permission to write or apply data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -65,6 +79,29 @@ fn changed() -> OperationError {
 }
 
 impl AppCore {
+    pub async fn workspace_inventory_review(
+        self: &std::sync::Arc<Self>,
+        expected: Option<String>,
+    ) -> Result<WorkspaceInventoryReview, OperationError> {
+        #[cfg(all(feature = "persistence", feature = "plugin-install"))]
+        {
+            let session = self.cloud.auth().session().await.ok_or_else(changed)?;
+            let core = self.clone();
+            tokio::task::spawn_blocking(move || {
+                core.review_missing_plugin_inventory(session, expected.as_deref())
+            })
+            .await
+            .map_err(|_| OperationError::unavailable("inventory review worker unavailable"))?
+        }
+        #[cfg(not(all(feature = "persistence", feature = "plugin-install")))]
+        {
+            let _ = expected;
+            Err(OperationError::unavailable(
+                "inventory review requires package support",
+            ))
+        }
+    }
+
     /// Review local inputs without changing either protocol or contacting Cloud.
     pub async fn workspace_v2_preview(
         self: &std::sync::Arc<Self>,

@@ -17,7 +17,7 @@ mod coordinator;
 mod workspace;
 pub use workspace::{
     WorkspaceCoordError, WorkspaceCoordinator, WorkspaceEligibility, WorkspaceOutcome,
-    WorkspaceReview,
+    WorkspaceReview, WorkspaceSyncScope,
 };
 mod cutover_preview;
 pub use cutover_preview::CutoverPreview;

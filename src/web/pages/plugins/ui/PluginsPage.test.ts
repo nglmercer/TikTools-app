@@ -98,7 +98,7 @@ const preview = {
 };
 
 /** A host that announces its methods but not the unified catalog: Explore falls back to the registry. */
-const REGISTRY_HOST = ['plugins.updates.list', 'sync.status', 'sync.v2.changes.list', 'cloud.status'];
+const REGISTRY_HOST = ['plugins.updates.list', 'sync.status', 'sync.v2.changes.list', 'sync.v2.section', 'cloud.status'];
 
 async function mountPage(
   plugins: PluginStatus[] = [plugin('deck'), plugin('tts', { installed: false, enabled: false })],
@@ -214,10 +214,28 @@ function menuItem(label: string): HTMLElement {
 }
 
 describe('PluginsPage', () => {
-  it('opens the plugin preferences inside the same panel from a gear and goes back', async () => {
+  it('saves the current view on leaving and cannot overwrite a later view from a delayed callback', async () => {
+    vi.useFakeTimers();
+    try {
+      const { wrapper } = await mountPage();
+      await selectPlugin(wrapper, 'DECK');
+      wrapper.unmount();
+      const saved = JSON.parse(localStorage.getItem('tiktok-live-view-state')!);
+      expect(saved.plugins.selected).toBe('deck');
+      saved.plugins.selected = 'next-screen';
+      localStorage.setItem('tiktok-live-view-state', JSON.stringify(saved));
+      await vi.advanceTimersByTimeAsync(500);
+      expect(JSON.parse(localStorage.getItem('tiktok-live-view-state')!).plugins.selected).toBe('next-screen');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('opens the plugin preferences inside the same panel from the shared actions menu and goes back', async () => {
     const { wrapper } = await mountPage();
     expect(wrapper.find('.plugin-preferences').exists()).toBe(false);
-    await buttonByLabel(wrapper, 'Preferences').trigger('click');
+    await buttonByLabel(wrapper, 'More actions').trigger('click');
+    menuItem('Preferences').click();
+    await flushPromises();
     expect(wrapper.find('.plugin-catalog').exists()).toBe(false);
     expect(wrapper.get('.plugin-preferences .base-panel__title').text()).toBe('Preferences');
     expect(wrapper.get('.plugin-preferences').text()).toContain('Allow local package installation');
@@ -578,7 +596,9 @@ describe('PluginsPage', () => {
       const { wrapper, calls } = await explore();
       expect(methods(calls)).not.toContain('catalog.items');
       await openTab(wrapper, 'Explore');
-      expect(names(wrapper)).toEqual(['Acme TTS', 'Gift alert', 'Starter pack']);
+      expect(names(wrapper)).toEqual(['Acme TTS']);
+      expect(wrapper.find('.explore-toolbar__filters').exists()).toBe(false);
+      expect(calls.filter(call => call.method === 'catalog.items').every(call => (call.params as { kind?: string })?.kind === 'plugin')).toBe(true);
       expect(methods(calls)).toContain('catalog.items');
       expect(methods(calls)).not.toContain('registry.search');
       expect(methods(calls)).not.toContain('registry.list');
@@ -601,7 +621,9 @@ describe('PluginsPage', () => {
       await openTab(wrapper, 'Explore');
       expect(methods(calls)).toContain('catalog.items');
       expect(methods(calls)).not.toContain('registry.search');
-      expect(names(wrapper)).toEqual(['Acme TTS', 'Gift alert', 'Starter pack']);
+      expect(names(wrapper)).toEqual(['Acme TTS']);
+      expect(wrapper.find('.explore-toolbar__filters').exists()).toBe(false);
+      expect(calls.filter(call => call.method === 'catalog.items').every(call => (call.params as { kind?: string })?.kind === 'plugin')).toBe(true);
     });
 
     it('shows a neutral retry state when the Cloud is unreachable, never the marketplace wording', async () => {
@@ -615,13 +637,14 @@ describe('PluginsPage', () => {
       expect(wrapper.text()).not.toMatch(/marketplace/i);
     });
 
-    it('treats an empty plugin registry as nothing published, while templates still render', async () => {
+    it('shows a plugin-only empty state even when the backend returns templates', async () => {
       const { wrapper } = await explore((method) => (method === 'catalog.items'
         ? { items: [wire('template', 'tpl-1', 'Gift alert')], nextCursor: null, dataState: 'noActiveGeneration' }
         : undefined));
       await openTab(wrapper, 'Explore');
-      expect(names(wrapper)).toEqual(['Gift alert']);
-      expect(wrapper.text()).toContain('No plugins are published yet.');
+      expect(names(wrapper)).toEqual([]);
+      expect(wrapper.text()).toContain('Nothing published yet');
+      expect(wrapper.text()).not.toContain('Published plugins, templates and profiles');
       expect(wrapper.text()).not.toContain('not available');
     });
 
@@ -649,13 +672,14 @@ describe('PluginsPage', () => {
         : undefined));
       await openTab(wrapper, 'Explore');
       expect(wrapper.findAll('.plugin-catalog__row').map((item) => item.text())).toEqual([expect.stringContaining('TTS')]);
-      expect(names(wrapper)).toEqual(['Gift alert']);
+      expect(names(wrapper)).toEqual([]);
     });
   });
 
   it('keeps only the update policy in the plugin preferences: no registry can be added, enabled or disabled', async () => {
     const { wrapper } = await mountPage();
-    await buttonByLabel(wrapper, 'Preferences').trigger('click');
+    await buttonByLabel(wrapper, 'More actions').trigger('click');
+    menuItem('Preferences').click();
     await flushPromises();
     const panel = wrapper.get('.plugin-preferences');
     expect(panel.find('#plugin-update-policy-channel').exists()).toBe(true);

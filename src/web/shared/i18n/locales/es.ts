@@ -1308,6 +1308,7 @@ export default {
       page: 'Página {page}',
     },
     install: {
+      button: 'Instalar plugin',
       package: 'Instalar .plugin…',
     },
     catalog: {
@@ -1814,7 +1815,15 @@ export default {
     noEvents: 'Todavía no se han recibido eventos.',
     truncated: 'No se muestran los eventos más antiguos para mantener esta vista dentro de su límite de tamaño.',
   },
+  guides: { progress: '{current} de {total}', help: 'Mostrar guía', next: 'Siguiente', previous: 'Anterior', done: 'Listo', pluginsSearchTitle: 'Buscar plugins', pluginsSearch: 'Busca plugins en esta sección.', changesTitle: 'Cambios', changes: 'Revisa cambios y conflictos antes de sincronizar.', installTitle: 'Instalar un plugin', install: 'Selecciona un paquete para revisarlo e instalarlo.' },
   cloudTeams: {
+    loading: "Cargando teams…",
+    myTeams: "Mis teams",
+    searchPeople: "Buscar nickname (3+ caracteres)",
+    ambiguousNickname: "Nickname compartido por varias cuentas",
+    searchNickname: 'Buscar nickname', loadAccessible: 'Cargar equipos aprobados',
+    guide: 'Guía de configuración',
+    guideSteps: { createTeam: 'Crea o selecciona un equipo abajo.', enrollHost: 'Registra este PC en el equipo seleccionado.', startServing: 'Inicia la conexión y espera a que esté lista.', invitations: 'Crea una invitación y revisa las solicitudes de acceso.' },
     ask: 'Pedir a un equipo',
     askHint: 'Envía una petición de solo lectura a un equipo que aprobó este PC. El host decide si responde.',
     askTeam: 'Id del equipo',

@@ -10,7 +10,7 @@ export function useSyncChanges(adapter: SyncAdapter, enabled: Ref<boolean> | und
   let generation = 0;
 
   async function refresh(): Promise<void> {
-    if (enabled && !enabled.value) { changes.value = []; return; }
+    if (enabled && !enabled.value) { generation += 1; changes.value = []; error.value = null; loading.value = false; return; }
     const ticket = ++generation;
     loading.value = true;
     try {

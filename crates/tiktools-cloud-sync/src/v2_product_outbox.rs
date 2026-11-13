@@ -311,9 +311,20 @@ impl SyncCoordinator {
         session: Arc<cloud_client::Session>,
         source: Arc<dyn V2ProductUploadSource + 'static>,
     ) -> Result<crate::WorkspaceOutcome, crate::WorkspaceCoordError> {
+        self.sync_v2_product_scoped(session, source, crate::WorkspaceSyncScope::All)
+            .await
+    }
+
+    /// Collection-limited publication; the full downloaded cursor is cached.
+    pub async fn sync_v2_product_scoped(
+        &self,
+        session: Arc<cloud_client::Session>,
+        source: Arc<dyn V2ProductUploadSource + 'static>,
+        scope: crate::WorkspaceSyncScope,
+    ) -> Result<crate::WorkspaceOutcome, crate::WorkspaceCoordError> {
         let sync = self.clone();
         run_product_worker(move |cancelled, deadline| async move {
-            sync.sync_v2_product_inner(session, source, cancelled, deadline)
+            sync.sync_v2_product_inner(session, source, scope, cancelled, deadline)
                 .await
         })
         .await
@@ -323,6 +334,7 @@ impl SyncCoordinator {
         &self,
         session: Arc<cloud_client::Session>,
         source: Arc<dyn V2ProductUploadSource + 'static>,
+        scope: crate::WorkspaceSyncScope,
         cancelled: Arc<AtomicBool>,
         deadline: Instant,
     ) -> Result<crate::WorkspaceOutcome, crate::WorkspaceCoordError> {
@@ -330,16 +342,22 @@ impl SyncCoordinator {
         let (epoch, workspace) = (admission.epoch, admission.workspace);
         let generation = epoch.config.generation;
         let eligibility = self.v2_product_eligibility(session.clone(), epoch, cancelled, deadline);
-        workspace
-            .sync_product_guarded(
-                &session,
-                &eligibility,
-                &crate::workspace::ProductUploadAdmission {
-                    source: source.as_ref(),
-                    config_generation: generation,
-                },
-            )
-            .await
+        let upload = crate::workspace::ProductUploadAdmission {
+            source: source.as_ref(),
+            config_generation: generation,
+        };
+        match scope {
+            crate::WorkspaceSyncScope::All => {
+                workspace
+                    .sync_product_guarded(&session, &eligibility, &upload)
+                    .await
+            }
+            _ => {
+                workspace
+                    .sync_product_scoped_guarded(&session, &eligibility, &upload, &scope)
+                    .await
+            }
+        }
     }
 
     /// Product-only explicit rebuild from a consistent export. Preserves

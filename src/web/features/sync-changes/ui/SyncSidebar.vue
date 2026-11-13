@@ -13,7 +13,7 @@ import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 
 type SyncSidebarPanel = Pick<SyncPanelState,
   'view' | 'sendable' | 'allChecked' | 'checkedIds' | 'groups' | 'current' | 'changes' | 'loading' |
-  'busy' | 'operations' | 'operation' | 'historyLoading' |
+  'loadError' | 'busy' | 'operations' | 'operation' | 'historyLoading' |
   'toggleAll' | 'toggle'>;
 const props = defineProps<{ adapter: Pick<SyncAdapter, 'capabilities' | 'kindLabel'>; panel: SyncSidebarPanel }>();
 const emit = defineEmits<{ selectChange: [id: string]; selectOperation: [id: string]; send: [] }>();
@@ -108,7 +108,7 @@ const viewOptions = computed(() => [
           </div>
         </template>
         <BaseEmptyState
-          v-if="!panel.changes.value.length && !panel.loading.value"
+          v-if="!panel.changes.value.length && !panel.loading.value && !panel.loadError.value"
           :title="t('syncChanges.empty')"
         >
           <template #icon>

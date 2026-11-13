@@ -1306,6 +1306,7 @@ export default {
       page: 'Page {page}',
     },
     install: {
+      button: 'Install plugin',
       package: 'Install .plugin…',
     },
     catalog: {
@@ -1812,7 +1813,15 @@ export default {
     noEvents: 'No events received yet.',
     truncated: 'Older events were not shown to keep this view within its size limit.',
   },
+  guides: { progress: '{current} of {total}', help: 'Show guide', next: 'Next', previous: 'Previous', done: 'Done', pluginsSearchTitle: 'Search plugins', pluginsSearch: 'Find plugins in this section.', changesTitle: 'Changes', changes: 'Review changes and conflicts before synchronizing.', installTitle: 'Install a plugin', install: 'Select a package to review and install.' },
   cloudTeams: {
+    loading: "Loading teams…",
+    myTeams: "My teams",
+    searchPeople: "Search nickname (3+ characters)",
+    ambiguousNickname: "Nickname shared by multiple accounts",
+    searchNickname: 'Search nickname', loadAccessible: 'Load approved teams',
+    guide: 'Setup guide',
+    guideSteps: { createTeam: 'Create or select a team below.', enrollHost: 'Register this PC in the selected team.', startServing: 'Start serving and wait until the connection is ready.', invitations: 'Create an invitation and review incoming requests.' },
     ask: 'Ask a team',
     askHint: 'Send a read-only request to a team that approved this PC. The host decides whether to answer.',
     askTeam: 'Team id',

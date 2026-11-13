@@ -341,3 +341,13 @@ describe('SyncPanel values that never reach the page', () => {
     expect(byText(wrapper, 'All Cloud')).toBeDefined();
   });
 });
+
+
+describe('SyncPanel load failures', () => {
+  it('does not claim everything is synced when the initial read fails', async () => {
+    const { adapter } = fakeAdapter({}, []);
+    const { wrapper } = await openAdapter({ ...adapter, list: async () => { throw new Error('workspace unavailable'); } });
+    expect(wrapper.text()).toContain('The changes could not be loaded.');
+    expect(wrapper.text()).not.toContain('Everything is synced');
+  });
+});

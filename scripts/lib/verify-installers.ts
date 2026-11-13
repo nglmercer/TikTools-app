@@ -112,6 +112,14 @@ export async function verifyAppImageWebKit(appDir: string): Promise<void> {
       }
     }
   }
+  const requiredPlugins = (await readFile(resolve(import.meta.dir, '../appimage/gstreamer-plugins.txt'), 'utf8')).trim().split(/\s+/);
+  for (const plugin of requiredPlugins) {
+    const path = join(libDir, 'gstreamer-1.0', `libgst${plugin}.so`);
+    if (!await isElf(path).catch(() => false)) throw new Error(`AppImage is missing GStreamer plugin ${plugin}`);
+  }
+  if (!await isElf(join(appDir, 'usr/libexec/gstreamer-1.0/gst-plugin-scanner')).catch(() => false)) {
+    throw new Error('AppImage is missing GStreamer plugin scanner');
+  }
   // The host's Wayland client stack must win over any bundled copy: a pinned
   // build-host version shadows the host libraries and makes Mesa's EGL fail
   // inside WebKitWebProcess on rolling distributions (EGL_BAD_PARAMETER).

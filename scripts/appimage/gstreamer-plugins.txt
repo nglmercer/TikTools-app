@@ -1,0 +1,17 @@
+coreelements
+app
+playback
+typefindfunctions
+audioconvert
+audioresample
+videoconvertscale
+volume
+autodetect
+wavparse
+ogg
+vorbis
+opus
+vpx
+matroska
+isomp4
+libav

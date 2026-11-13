@@ -1,4 +1,5 @@
 export default {
+  pluginsPublishedHint: 'Les plugins publiés apparaîtront ici.',
   search: 'Rechercher dans le catalogue Cloud…', kinds: 'Afficher', mine: 'Ma bibliothèque', mineHint: 'Uniquement vos modèles et profils. Les plugins ne font pas partie de votre bibliothèque.',
   kind: { plugin: 'Plugins', template: 'Modèles', profile: 'Profils' },
   retry: 'Réessayer', signIn: 'Se connecter à Cloud', loadMore: 'Charger plus', list: 'Catalogue Cloud',

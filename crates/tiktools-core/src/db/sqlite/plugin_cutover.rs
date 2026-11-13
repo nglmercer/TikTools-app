@@ -25,6 +25,59 @@ pub(crate) struct PluginCutoverSource {
 }
 
 impl DatabaseManager {
+    /// A local reconciliation never emits a Cloud edit. Preserve the original
+    /// flags in the same FULL-synchronous transaction, and fence old reviews.
+    pub(crate) fn reconcile_plugin_inventory<R>(
+        &self,
+        origin: &str,
+        account: &str,
+        operation: impl FnOnce(
+            &rusqlite::Transaction<'_>,
+            PluginCutoverSource,
+        ) -> Result<R, crate::control::OperationError>,
+    ) -> Result<R, crate::control::OperationError> {
+        let run = || -> Result<R, crate::control::OperationError> {
+            let mut db = self
+                .open(&self.automation_path())
+                .map_err(inventory_db_error)?;
+            db.busy_timeout(std::time::Duration::ZERO)
+                .map_err(DatabaseError::from)
+                .map_err(inventory_db_error)?;
+            db.execute_batch("PRAGMA synchronous=FULL")
+                .map_err(DatabaseError::from)
+                .map_err(inventory_db_error)?;
+            let tx = db
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(DatabaseError::from)
+                .map_err(inventory_db_error)?;
+            let snapshot = read_source(&tx, origin, account).map_err(inventory_db_error)?;
+            let result = operation(&tx, snapshot)?;
+            tx.commit()
+                .map_err(DatabaseError::from)
+                .map_err(inventory_db_error)?;
+            Ok(result)
+        };
+        run()
+    }
+
+    pub(crate) fn archive_missing_plugin_flags(
+        tx: &rusqlite::Transaction<'_>,
+        ids: &[String],
+        review: &str,
+    ) -> Result<(), crate::control::OperationError> {
+        for id in ids {
+            tx.execute("INSERT INTO plugin_inventory_recovery(review,plugin_id,installed,enabled,source_generation,created_at) SELECT ?1,b.id,b.installed,b.enabled,s.generation,?2 FROM behavior_plugins b LEFT JOIN plugin_sync_source_versions s ON s.plugin_id=b.id WHERE b.id=?3 AND b.installed=1", rusqlite::params![review, super::util::now(), id]).map_err(DatabaseError::from).map_err(inventory_db_error)?;
+            super::behavior::advance_plugin_source(tx, id).map_err(inventory_db_error)?;
+            tx.execute(
+                "UPDATE behavior_plugins SET installed=0,updated_at=?1 WHERE id=?2 AND installed=1",
+                rusqlite::params![super::util::now(), id],
+            )
+            .map_err(DatabaseError::from)
+            .map_err(inventory_db_error)?;
+        }
+        Ok(())
+    }
+
     /// Capture all source revisions and plugin rows in one SQLite snapshot.
     /// Unfinished work cannot be collapsed into an installed selection. A
     /// caller must compare a fresh snapshot again under its mutation fence.
@@ -387,4 +440,14 @@ mod tests {
         .unwrap();
         assert!(db.plugin_cutover_source(origin, "alice").is_err());
     }
+}
+
+fn inventory_db_error(error: DatabaseError) -> crate::control::OperationError {
+    tracing::warn!(
+        sqlite_extended_code = error.sqlite_extended_code(),
+        "plugin inventory database review failed"
+    );
+    crate::control::OperationError::unavailable(
+        "plugin database has unfinished work or is busy; retry after recovery",
+    )
 }

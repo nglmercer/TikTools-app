@@ -1,7 +1,14 @@
 export default {
+  changesCount: 'Cambios · {count}',
+  inventoryReview: 'Revisar paquetes ausentes',
+  inventoryEmpty: 'Esta revisión no encontró paquetes ausentes.',
+  inventoryWarning: '¿Corregir estos indicadores locales de instalación? Se archivará el estado anterior. Se conservan los datos de plugins, los registros de Cloud y los cambios pendientes.',
+  inventoryRepair: 'Confirmar reparación local',
+
+  prepare: 'Preparar sincronización', recovery: 'Recuperación y diagnóstico',
   title: 'Cambios', changes: 'Cambios', history: 'Historial', view: 'Cambios o historial',
   button: 'Sincronizar cambios', buttonCount: 'Sincronizar cambios, {count} pendientes',
-  signedOut: 'Inicia sesión en Cloud para sincronizar (Ajustes, Cuenta y Cloud).', syncOff: 'Activa la sincronización con Cloud en Ajustes, Cuenta y Cloud.', unsupported: 'Este host no admite la sincronización.',
+  signedOut: 'Inicia sesión en Cloud para sincronizar (Ajustes, Cuenta y Cloud).', syncOff: "Prepara la sincronización desde este panel de Cambios.", unsupported: 'Este host no admite la sincronización.',
   auto: 'Auto', autoHint: 'Sincronizar automáticamente cuando algo cambie',
   fetch: 'Traer cambios de Cloud', push: 'Enviar los elementos seleccionados', sync: 'Sincronizar', syncHint: 'Traer de Cloud, fusionar y enviar', more: 'Más acciones',
   forcePush: 'Forzar envío (sobrescribe Cloud)', forcePull: 'Forzar traída (sobrescribe lo local)', fork: 'Bifurcar una plantilla pública…', resetAll: 'Restablecer todo a la versión sincronizada',
@@ -34,6 +41,6 @@ export default {
   confirmMarkReviewed: '¿Usar la versión actual como nueva copia de referencia? Restablecer ya no volverá a la anterior. No se envía nada a Cloud.',
   thisDevice: 'Este dispositivo',
   keysChanged: 'Ajustes cambiados: {keys}', keysNone: 'Ajustes cambiados', valuesHidden: 'Los valores de los ajustes se quedan en este dispositivo y no se muestran.',
-  pluginsNotice: 'Comparado con la última versión traída de Cloud. Sincronizar envía todo lo pendiente.',
-  v2Off: 'La sincronización Cloud v2 no está activa para esta cuenta. Termina la migración en Ajustes, Cuenta y Cloud.',
+  pluginsNotice: "Comparado con la última versión traída de Cloud. Solo se envían cambios de Plugins.",
+  v2Off: "Prepara Cloud v2 desde este panel de Cambios.",
 };

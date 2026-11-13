@@ -14,12 +14,29 @@ const hostRow = (id: string, revision = 1) => ({ id, name: 'Team', status: 'acti
 function host(announced: string[], handler: (method: string, params: Record<string, unknown> | undefined) => unknown = () => ({ items: [] })) {
   const { client, calls } = createFakeControlClient((method, params) => {
     if (method === 'rpc.discover') return { methods: announced.map((name) => ({ name })) };
-    return handler(method, params as Record<string, unknown> | undefined);
+    const result = handler(method, params as Record<string, unknown> | undefined);
+    if (method === 'teams.host.status' && result && typeof result === 'object' && 'items' in result) return { state: 'stopped', hostId: null, lastError: null };
+    return result;
   });
   return { stores: createStoreHarness(client), calls };
 }
 
 describe('teams store', () => {
+  it('reports a failed link read without discarding successfully loaded teams', async () => {
+    const { stores } = host(['teams.hosts.list'], (method) => {
+      if (method === 'teams.hosts.list') return { items: [hostRow(team)] };
+      if (method === 'teams.host.status') throw new Error('link status unavailable');
+      return { items: [] };
+    });
+    await stores.use(() => useCapabilityStore()).refresh('host-a');
+    const teams = stores.use(() => useTeamsStore());
+    teams.link = { state: 'ready', hostId: team, lastError: null };
+    await teams.refresh();
+    expect(teams.hosts).toHaveLength(1);
+    expect(teams.error).toBe('link status unavailable');
+    expect(teams.link.state).toBe('unknown');
+  });
+
   it('does not call team methods the host did not announce', async () => {
     const { stores, calls } = host(['rpc.discover']);
     await stores.use(() => useCapabilityStore()).refresh('host-a');
@@ -232,4 +249,23 @@ describe('teams store', () => {
       expect(teams.working).toBe(false);
     });
   });
+});
+
+
+it('requires the binding of this PC rather than another active host device', async () => {
+  const { stores } = host(['teams.hosts.list'], method => {
+    if (method === 'teams.hosts.list') return { items: [hostRow(team)] };
+    if (method === 'teams.devices.list') return { items: [
+      { id: grantId, hostId: team, label: 'Other PC', kind: 'host', status: 'active', isThisDevice: false },
+      { id: other, hostId: team, label: 'This PC', kind: 'host', status: 'active', isThisDevice: true },
+    ] };
+    return { items: [] };
+  });
+  await stores.use(() => useCapabilityStore()).refresh('host-a');
+  const teams = stores.use(() => useTeamsStore());
+  await teams.refresh();
+  await teams.select(team);
+  expect(teams.localHostDevice?.id).toBe(other);
+  await teams.select(other);
+  expect(teams.localHostDevice).toBeNull();
 });

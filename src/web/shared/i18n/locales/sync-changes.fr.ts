@@ -1,7 +1,14 @@
 export default {
+  changesCount: 'Modifications · {count}',
+  inventoryReview: 'Examiner les paquets absents',
+  inventoryEmpty: 'Aucun paquet absent dans cet examen.',
+  inventoryWarning: 'Corriger ces indicateurs locaux ? Leur état précédent sera archivé. Les données des plugins, les données Cloud et les modifications en attente sont conservées.',
+  inventoryRepair: 'Confirmer la réparation locale',
+
+  prepare: 'Préparer la synchronisation', recovery: 'Récupération et diagnostic',
   title: 'Modifications', changes: 'Modifications', history: 'Historique', view: 'Modifications ou historique',
   button: 'Synchroniser les modifications', buttonCount: 'Synchroniser les modifications, {count} en attente',
-  signedOut: 'Connectez-vous à Cloud pour synchroniser (Réglages, Compte et Cloud).', syncOff: 'Activez la synchronisation Cloud dans Réglages, Compte et Cloud.', unsupported: 'Cet hôte ne prend pas en charge la synchronisation.',
+  signedOut: 'Connectez-vous à Cloud pour synchroniser (Réglages, Compte et Cloud).', syncOff: "Préparez la synchronisation dans ce panneau Modifications.", unsupported: 'Cet hôte ne prend pas en charge la synchronisation.',
   auto: 'Auto', autoHint: 'Synchroniser automatiquement dès que quelque chose change',
   fetch: 'Récupérer les modifications de Cloud', push: 'Envoyer les éléments sélectionnés', sync: 'Synchroniser', syncHint: 'Récupérer depuis Cloud, fusionner, puis envoyer', more: 'Plus d’actions',
   forcePush: 'Forcer l’envoi (écrase Cloud)', forcePull: 'Forcer la récupération (écrase le local)', fork: 'Dupliquer un modèle public…', resetAll: 'Tout rétablir à la version synchronisée',
@@ -34,6 +41,6 @@ export default {
   confirmMarkReviewed: 'Utiliser la version actuelle comme nouvelle copie de référence ? Le rétablissement ne reviendra plus à l’ancienne. Rien n’est envoyé à Cloud.',
   thisDevice: 'Cet appareil',
   keysChanged: 'Réglages modifiés : {keys}', keysNone: 'Réglages modifiés', valuesHidden: 'Les valeurs des réglages restent sur cet appareil et ne sont pas affichées.',
-  pluginsNotice: 'Comparé à la dernière version récupérée de Cloud. Synchroniser envoie tout ce qui est en attente.',
-  v2Off: 'La synchronisation Cloud v2 n’est pas active pour ce compte. Terminez la migration dans Réglages, Compte et Cloud.',
+  pluginsNotice: "Comparé à la dernière version Cloud. Seules les modifications des plugins sont envoyées.",
+  v2Off: "Préparez Cloud v2 dans ce panneau Modifications.",
 };

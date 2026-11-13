@@ -86,6 +86,37 @@ if [ "$patched" -eq 0 ]; then
   exit 1
 fi
 
+# GStreamer discovers plugins dynamically: following WebKit's ELF dependencies
+# alone only deploys libgstapp-1.0, not the appsrc/appsink factories in libgstapp.
+# Use plugins and the scanner from the same build host as the bundled core.
+gst_plugins="$(pkg-config --variable=pluginsdir gstreamer-1.0)"
+gst_scanners="$(pkg-config --variable=pluginscannerdir gstreamer-1.0)"
+gst_target="$APPDIR/usr/lib/gstreamer-1.0"
+scanner_target="$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+if [ ! -f "$gst_scanners/gst-plugin-scanner" ]; then
+  echo "linuxdeploy-plugin-tiktoolswebkit: missing GStreamer scanner in $gst_scanners" >&2
+  exit 1
+fi
+mkdir -p "$gst_target" "$(dirname "$scanner_target")"
+install -m 0755 "$gst_scanners/gst-plugin-scanner" "$scanner_target"
+manifest="$(dirname "${BASH_SOURCE[0]}")/gstreamer-plugins.txt"
+while IFS= read -r plugin; do
+  [ -n "$plugin" ] || continue
+  if [ ! -f "$gst_plugins/libgst$plugin.so" ]; then
+    echo "linuxdeploy-plugin-tiktoolswebkit: missing libgst$plugin.so; install GStreamer base, good and libav plugins" >&2
+    exit 1
+  fi
+  install -m 0755 "$gst_plugins/libgst$plugin.so" "$gst_target/"
+done < "$manifest"
+# Deploy codec dependencies without flattening the plugin directory. This child
+# has no --plugin option, so it cannot invoke this input plugin recursively.
+tiktools_linuxdeploy="$(dirname "${BASH_SOURCE[0]}")/linuxdeploy-x86_64.AppImage"
+if [ ! -x "$tiktools_linuxdeploy" ]; then
+  echo "linuxdeploy-plugin-tiktoolswebkit: missing dependency deployer $tiktools_linuxdeploy" >&2
+  exit 1
+fi
+"$tiktools_linuxdeploy" --appdir "$APPDIR" --deploy-deps-only "$gst_target" --deploy-deps-only "$scanner_target"
+
 # Keep the host's Wayland client stack (see the header). Mixed versions make
 # Mesa's EGL initialization fail in the WebKit web process on newer distros.
 shopt -s nullglob

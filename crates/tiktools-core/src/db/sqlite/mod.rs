@@ -115,3 +115,14 @@ pub enum DatabaseError {
     #[error("workflow snapshot exceeds its bounded budget")]
     SnapshotTooLarge,
 }
+
+impl DatabaseError {
+    /// Preserve SQLite's extended reason for diagnostics (BUSY, LOCKED,
+    /// BUSY_SNAPSHOT, IOERR, etc.) without logging SQL or row contents.
+    pub(crate) fn sqlite_extended_code(&self) -> Option<i32> {
+        match self {
+            Self::Sql(rusqlite::Error::SqliteFailure(error, _)) => Some(error.extended_code),
+            _ => None,
+        }
+    }
+}

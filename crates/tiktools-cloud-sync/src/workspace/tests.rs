@@ -2514,3 +2514,62 @@ async fn guarded_review_requires_original_permit_and_exact_session() {
         .await
         .unwrap();
 }
+
+#[tokio::test]
+async fn section_sync_retains_other_queues_and_caches_the_full_shared_cursor() {
+    let temp = tempfile::tempdir().unwrap();
+    let server = start_server().await;
+    let session = connect(&server, "device-a").await;
+    let root = temp.path().join("workspace");
+    let c = coordinator(&root, &server, "account-a");
+    c.bootstrap(&[], None).unwrap();
+    let plugin = key("plugin-selections", "acme.plugin");
+    let preferences = key("preferences", "desktop");
+    let remote_template = key("rule-templates", "gift-rule");
+    c.stage(
+        plugin.clone(),
+        WorkspaceEdit::Put(serde_json::to_value(selection()).unwrap()),
+    )
+    .unwrap();
+    c.stage(preferences.clone(), WorkspaceEdit::Put(preference("dark")))
+        .unwrap();
+    let untouched = pending(&c, &preferences);
+    server
+        .remote
+        .lock()
+        .unwrap()
+        .put("account-a", remote_template.clone(), Some(template()));
+    let scope = WorkspaceSyncScope::Collections(
+        ["plugin-selections".to_owned(), "plugin-settings".to_owned()]
+            .into_iter()
+            .collect(),
+    );
+    let outcome = c.sync_scoped(&session, &scope).await.unwrap();
+    assert_eq!(outcome.pushed, 1);
+    assert_eq!(outcome.pending, 0);
+    assert!(!outcome.more_queued);
+    assert!(outcome
+        .remote
+        .iter()
+        .all(|record| scope.includes(&record.collection)));
+    assert_eq!(pending(&c, &preferences), untouched);
+    assert!(c
+        .snapshot()
+        .unwrap()
+        .state
+        .entry(&remote_template)
+        .unwrap()
+        .remote
+        .is_some());
+    drop(c);
+    let reopened = coordinator(&root, &server, "account-a");
+    assert_eq!(pending(&reopened, &preferences), untouched);
+    let outcome = reopened.sync(&session).await.unwrap();
+    assert_eq!(outcome.pushed, 1);
+    assert!(outcome
+        .remote
+        .iter()
+        .any(|record| record.collection == "rule-templates"));
+    assert_eq!(server.remote.lock().unwrap().writes(), 2);
+    no_v1(&server);
+}

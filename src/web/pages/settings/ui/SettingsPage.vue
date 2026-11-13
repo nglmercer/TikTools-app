@@ -7,7 +7,6 @@ import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDia
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
 import CloudTeams from '@/features/cloud-teams/ui/CloudTeams.vue';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import CloudSyncEditor from '@/features/cloud-sync/ui/CloudSyncEditor.vue';
 import CollaborationEditor from '@/features/manage-collaboration/ui/CollaborationEditor.vue';
 import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
 import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
@@ -83,7 +82,6 @@ const locale = computed<Locale>({
         </template>
         <template v-else-if="section === 'account'">
           <CloudAccountEditor />
-          <CloudSyncEditor />
           <SettingsDisclosure :title="t('settingsLayout.diagnostics')">
             <CloudAccountDiagnostics />
           </SettingsDisclosure>
