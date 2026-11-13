@@ -1,6 +1,8 @@
 # TikTools
 
-TikTools is a Rust desktop and headless host for TikTok LIVE. The desktop
+Multi-platform architecture and Twitch setup: [Live platform adapters](docs/MULTI-PLATFORM.md).
+
+TikTools is a Rust desktop and headless host for TikTok LIVE and Twitch chat. The desktop
 client uses a Vue WebView; Android/Termux uses the native `tiktools` CLI. It
 connects to live rooms, displays chat and engagement telemetry, awards viewer
 points, and runs local automations. Tauri is not used.
@@ -12,6 +14,8 @@ That workflow builds the Rust CLI directly. Frontend tools are optional.
 
 - Desktop Winit/Wry window and WebView lifecycle, plus a `tray-icon` tray.
 - Native Rust TikTok discovery, signing, WebSocket transport, and event decode.
+- Shared live platform adapters, independent connections, and read-only Twitch
+  chat, subscription notices, and Bits through authenticated IRC WebSocket.
 - One `AppCore` behind a typed JSON-RPC control API shared by the Vue UI,
   the `tiktools` CLI, local IPC, and agents, with `DomainEvent` streaming
   to every client.
@@ -147,6 +151,8 @@ crates/tiktools-plugin-sdk/    Typed plugin trait, adapters, result compatibilit
 crates/tiktools-plugin-macros/ Small process/native entry-point macros
 crates/tiktools-plugin-loader/ Runtime discovery and plugin runtimes
 crates/tiktools-tiktok/        Native signer, discovery, WebSocket, event model
+crates/tiktools-live/          Shared live contracts, adapter registry, connections
+crates/tiktools-twitch/        Read-only authenticated Twitch IRC WebSocket adapter
 src/web/                       Vue application and styles
 src/web/platform/              JSON-RPC control-client bridge (owns window.ipc)
 src/web/features/              One domain composable per feature

@@ -23,6 +23,7 @@ import {
   isLikeEvent,
   isShareEvent,
   parseLiveEvent,
+  isRecord,
 } from './event-parser.ts';
 import type {
   ChatAutomationEvent,
@@ -32,15 +33,19 @@ import type {
   JoinAutomationEvent,
   LikeAutomationEvent,
   ShareAutomationEvent,
+  SharedActivityEvent,
+  SharedSubscriptionEvent,
+  SharedGiftEvent,
 } from './event-types.ts';
 
 export type RoutedLiveEvent =
-  | { kind: 'follow'; event: FollowAutomationEvent }
+  | { kind: 'follow'; event: FollowAutomationEvent | SharedActivityEvent }
   | { kind: 'gift'; event: GiftAutomationEvent }
+  | { kind: 'platform-gift'; event: SharedGiftEvent }
   | { kind: 'chat'; event: ChatAutomationEvent | EmoteChatAutomationEvent }
-  | { kind: 'share'; event: ShareAutomationEvent }
-  | { kind: 'subscribe'; event: JoinAutomationEvent }
-  | { kind: 'like'; event: LikeAutomationEvent };
+  | { kind: 'share'; event: ShareAutomationEvent | SharedActivityEvent }
+  | { kind: 'subscribe'; event: JoinAutomationEvent | SharedSubscriptionEvent }
+  | { kind: 'like'; event: LikeAutomationEvent | SharedActivityEvent };
 
 /**
  * Validates one gateway frame into a typed widget event. Returns null for
@@ -52,13 +57,22 @@ export function routeLiveEvent(value: unknown): RoutedLiveEvent | null {
   const payload = parseLiveEvent(value);
   if (!payload) return null;
   const { event } = payload;
+  if (event.type.startsWith('live.') && isRecord(event.data) && typeof event.data['isHistory'] === 'boolean' && typeof event.data['msgId'] === 'string' && typeof event.data['method'] === 'string') {
+    const sharedData = event.data;
+    if (event.type === 'live.follow' || event.type === 'live.share' || event.type === 'live.like') {
+      if (event.type === 'live.like' && (typeof event.data['count'] !== 'number' || !Number.isFinite(event.data['count']) || event.data['count'] < 0)) return null;
+      return { kind: event.type === 'live.follow' ? 'follow' : event.type === 'live.share' ? 'share' : 'like', event: event as SharedActivityEvent };
+    }
+    if (event.type === 'live.subscription' && typeof event.data['gifted'] === 'boolean' && (event.data['tier'] == null || typeof event.data['tier'] === 'string') && (event.data['months'] == null || (typeof event.data['months'] === 'number' && Number.isFinite(event.data['months']) && event.data['months'] >= 0))) return { kind: 'subscribe', event: event as SharedSubscriptionEvent };
+    if (event.type === 'live.gift' && ['id', 'name', 'unit', 'amount'].every((key) => typeof sharedData[key] === 'string') && typeof event.data['count'] === 'number' && Number.isFinite(event.data['count']) && event.data['count'] >= 0 && /^\d+(\.\d+)?$/.test(String(event.data['amount']))) return { kind: 'platform-gift', event: event as SharedGiftEvent };
+  }
   if (event.type === FOLLOW_EVENT_TYPE && isFollowEvent(event)) {
     return { kind: 'follow', event };
   }
   if (event.type === GIFT_EVENT_TYPE && isGiftEvent(event)) {
     return { kind: 'gift', event };
   }
-  if (event.type === CHAT_EVENT_TYPE && isChatEvent(event)) {
+  if ((event.type === CHAT_EVENT_TYPE || event.type === 'live.chat') && isChatEvent(event)) {
     return { kind: 'chat', event };
   }
   if (event.type === EMOTE_CHAT_EVENT_TYPE && isEmoteChatEvent(event)) {

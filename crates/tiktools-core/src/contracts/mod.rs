@@ -10,7 +10,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+mod live;
 pub mod tiktok;
+pub use live::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -50,6 +52,8 @@ pub struct AutomationEvent {
     #[schemars(rename = "type")]
     pub event_type: String,
     pub timestamp: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub platform: Option<tiktools_live::PlatformId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -258,6 +262,14 @@ pub struct CompetitionAutomationData {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AutomationContracts {
+    pub live_envelope: tiktools_live::LiveEnvelope,
+    pub platform_descriptor: tiktools_live::PlatformDescriptor,
+    pub platform_connection: tiktools_live::ConnectionSnapshot,
+    pub live_chat: LiveChatAutomationData,
+    pub live_activity: LiveActivityAutomationData,
+    pub live_gift: LiveGiftAutomationData,
+    pub live_subscription: LiveSubscriptionAutomationData,
+    pub live_room_stats: LiveRoomStatsAutomationData,
     pub automation_user: AutomationUser,
     pub automation_creator: AutomationCreator,
     pub automation_points: AutomationPoints,
@@ -294,6 +306,7 @@ mod tests {
             id: "event-1".to_owned(),
             event_type: "tiktok.chat".to_owned(),
             timestamp: 1,
+            platform: None,
             connection_id: None,
             creator: None,
             user: Some(AutomationUser {

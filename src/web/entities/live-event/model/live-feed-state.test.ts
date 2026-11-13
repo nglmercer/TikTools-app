@@ -76,6 +76,18 @@ describe('live feed batching', () => {
     return () => uninstallFrameControl();
   });
 
+  it('shows Twitch activity alongside an active TikTok room without accepting stale TikTok rooms', () => {
+    const harness = createControl();
+    const live = createLiveFeedState(harness.control, callbacks('system'));
+    harness.emit('live.connected', { uniqueId: 'creator', roomId: 'tiktok-room' } as never);
+    harness.emit('live.ui-event', { event: { kind: 'chat', author: 'twitch:2:42', text: 'Twitch chat', platform: 'twitch', roomId: 'twitch-room', creatorId: 'twitch:channel' } } as never);
+    harness.emit('live.ui-event', { event: { kind: 'chat', author: 'old', text: 'stale TikTok', platform: 'tiktok', roomId: 'old-room', creatorId: 'old' } } as never);
+    runFrames();
+    expect(live.events.value.some((event) => event.text === 'Twitch chat')).toBe(true);
+    expect(live.events.value.some((event) => event.text === 'stale TikTok')).toBe(false);
+    live.dispose();
+  });
+
   it('a 1,000-event burst renders one frame, capped at 300 visible', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));

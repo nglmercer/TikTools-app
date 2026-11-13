@@ -14,7 +14,7 @@ pub struct LiveService {
     #[cfg(not(feature = "native-tiktok"))]
     connected: AtomicBool,
     #[cfg(feature = "native-tiktok")]
-    client: Arc<NativeTikTokClient>,
+    client: Arc<tiktools_tiktok::adapter::TikTokAdapter>,
     #[cfg(all(test, feature = "native-tiktok"))]
     snapshot_override: std::sync::RwLock<Option<tiktools_tiktok::ConnectionSnapshot>>,
 }
@@ -26,6 +26,10 @@ impl Default for LiveService {
 }
 
 impl LiveService {
+    #[cfg(feature = "native-tiktok")]
+    pub(crate) fn adapter(&self) -> Arc<dyn tiktools_live::Adapter> {
+        self.client.clone()
+    }
     pub fn new() -> Self {
         Self::with_native_config(NativeConfig::default())
     }
@@ -33,7 +37,9 @@ impl LiveService {
     #[cfg(feature = "native-tiktok")]
     pub fn with_native_config(config: NativeTikTokConfig) -> Self {
         Self {
-            client: Arc::new(NativeTikTokClient::new(config)),
+            client: Arc::new(tiktools_tiktok::adapter::TikTokAdapter(Arc::new(
+                NativeTikTokClient::new(config),
+            ))),
             #[cfg(test)]
             snapshot_override: std::sync::RwLock::new(None),
         }

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { interpolateText, type WidgetTextEvent } from './text.ts';
 import type { WidgetLayer } from './template.ts';
 import WidgetLayerMedia from './WidgetLayerMedia.vue';
+import { liveUnitLabel } from '../../shared/live-units.ts';
 
 const props = defineProps<{
   layers: readonly WidgetLayer[];
@@ -46,13 +47,15 @@ function mediaAt(row: LayerRow, placement: MediaPlacement): WidgetLayer[] {
 
 function content(layer: WidgetLayer): string {
   const event = props.event;
-  return interpolateText(layer.text ?? '', {
+  const template = event?.unit && layer.field === 'diamonds' && layer.text === '{{diamonds}} diamonds' ? '{{amount}} {{unit}}' : layer.text ?? '';
+  return interpolateText(template, {
     name: event?.displayName ?? '',
     username: event?.uniqueId ?? '',
     gift: event?.giftName ?? '',
     count: event?.count?.toLocaleString('en-US') ?? '',
-    diamonds: event?.totalDiamonds?.toLocaleString('en-US') ?? '',
+    diamonds: event?.unit ? `${event.amount ?? ''} ${liveUnitLabel(event.unit)}` : event?.totalDiamonds?.toLocaleString('en-US') ?? '',
     message: event?.text ?? '',
+    amount: event?.amount ?? '', unit: event?.unit ? liveUnitLabel(event.unit) : '',
   });
 }
 

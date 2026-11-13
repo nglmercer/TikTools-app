@@ -1,5 +1,15 @@
 /** Built-in event types published by the host automation boundary. */
 export const BUILTIN_EVENT_TYPES = [
+  'live.chat',
+  'live.follow',
+  'live.subscription',
+  'live.gift',
+  'live.like',
+  'live.share',
+  'live.join',
+  'live.room_stats',
+  'live.connected',
+  'live.disconnected',
   'tiktok.chat',
   'tiktok.emote_chat',
   'tiktok.gift',
@@ -27,6 +37,16 @@ export type AutomationEventType = typeof BUILTIN_EVENT_TYPES[number];
 
 /** Data contract selected for each built-in event envelope. */
 export const BUILTIN_EVENT_CONTRACTS: Record<AutomationEventType, string> = {
+  'live.chat': 'LiveChatAutomationData',
+  'live.follow': 'LiveActivityAutomationData',
+  'live.subscription': 'LiveSubscriptionAutomationData',
+  'live.gift': 'LiveGiftAutomationData',
+  'live.like': 'LiveActivityAutomationData',
+  'live.share': 'LiveActivityAutomationData',
+  'live.join': 'LiveActivityAutomationData',
+  'live.room_stats': 'LiveRoomStatsAutomationData',
+  'live.connected': 'LiveActivityAutomationData',
+  'live.disconnected': 'LiveActivityAutomationData',
   'tiktok.chat': 'ChatAutomationData',
   'tiktok.emote_chat': 'EmoteChatAutomationData',
   'tiktok.gift': 'GiftAutomationData',

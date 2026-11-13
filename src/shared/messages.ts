@@ -63,6 +63,7 @@ export type ActionOptionMeta = {
 export type ActionOptionItem = { value: string; label: string; disabled?: boolean; meta?: ActionOptionMeta };
 
 export type UiEvent = {
+  platform?: 'tiktok' | 'twitch' | 'youtube' | 'facebook' | 'kick';
   kind: 'chat' | 'gift' | 'like' | 'member' | 'social';
   author: string;
   nickname?: string;
@@ -85,6 +86,8 @@ export type UiEvent = {
     name: string;
     count: number;
     diamonds: number;
+    unit?: string;
+    amount?: string;
     imageUrl?: string;
     /**
      * Streak grouping for combo gifts (TikTok `group_id`). When present and

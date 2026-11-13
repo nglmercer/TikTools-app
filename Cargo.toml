@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "crates/tiktools-live",
+    "crates/tiktools-twitch",
     "crates/tiktools-app-update",
     "crates/tiktools-aggregation",
     "crates/tiktools-competitions",

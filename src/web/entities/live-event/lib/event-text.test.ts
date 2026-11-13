@@ -11,6 +11,9 @@ function event(overrides: Partial<DisplayEvent>): DisplayEvent {
 const t = (key: string, params?: Record<string, unknown>) => i18n.global.t(key, params ?? {});
 
 describe('eventText', () => {
+  it('shows Bits with their own amount and display unit', () => {
+    expect(eventText(event({ kind: 'gift', platform: 'twitch', i18nKey: 'platformGiftSent', i18nParams: { count: 1, giftName: 'Bits', amount: '100', unit: 'twitch_bits' } }), t)).toBe('sent 1× Bits (100 Bits)');
+  });
   it('localizes host keys with params and event fallbacks', () => {
     expect(eventText(event({ kind: 'gift', i18nKey: 'giftSent', giftDetails: { name: 'Rose', count: 3, diamonds: 1 } }), t)).toBe(
       'sent 3× Rose',

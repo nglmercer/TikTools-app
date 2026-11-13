@@ -14,7 +14,9 @@ import exploreCatalog from './explore-catalog.fr.ts';
 import importDialog from './import-dialog.fr.ts';
 import type { MessageSchema } from '../i18n.ts';
 
+import livePlatforms from './live-platforms.fr.ts';
 export default {
+  livePlatforms,
   controller,
   jsonView,
   syncChanges,
@@ -780,6 +782,16 @@ export default {
       'is-false': 'est faux',
     },
     triggers: {
+      'live-chat': 'Quelqu’un commente (toutes les plateformes)',
+      'live-gift': 'Quelqu’un envoie un cadeau (toutes les plateformes)',
+      'live-like': 'Quelqu’un aime (toutes les plateformes)',
+      'live-follow': 'Quelqu’un suit (toutes les plateformes)',
+      'live-share': 'Quelqu’un partage (toutes les plateformes)',
+      'live-join': 'Quelqu’un rejoint le LIVE (toutes les plateformes)',
+      'live-room_stats': 'Statistiques du salon (toutes les plateformes)',
+      'live-connected': 'Connecté (toutes les plateformes)',
+      'live-disconnected': 'Déconnecté (toutes les plateformes)',
+      'live-subscription': 'Abonnement (toutes les plateformes)',
       'tiktok-chat': 'Quelqu’un commente',
       'tiktok-emote_chat': 'Quelqu’un envoie un émoji',
       'tiktok-gift': 'Quelqu’un envoie un cadeau',

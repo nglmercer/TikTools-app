@@ -13,7 +13,7 @@ impl ApprovalCandidate {
                     .definition
                     .get("trigger")
                     .and_then(Value::as_str)
-                    .is_some_and(|trigger| !trigger.starts_with("tiktok."))
+                    .is_some_and(|trigger| !tiktools_live::is_builtin_live_trigger(trigger))
         })
     }
 }

@@ -59,6 +59,16 @@
           ],
           "description": "Provider-neutral pre-filter enrichment. Always optional: the base\ntrigger contract works with no processor installed."
         },
+        "platform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlatformId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "points": {
           "anyOf": [
             {
@@ -154,6 +164,80 @@
         "uniqueId",
         "nickname",
         "secUid"
+      ],
+      "type": "object"
+    },
+    "Capabilities": {
+      "properties": {
+        "chat": {
+          "type": "boolean"
+        },
+        "discovery": {
+          "type": "boolean"
+        },
+        "follows": {
+          "type": "boolean"
+        },
+        "gifts": {
+          "type": "boolean"
+        },
+        "joins": {
+          "type": "boolean"
+        },
+        "likes": {
+          "type": "boolean"
+        },
+        "moderation": {
+          "type": "boolean"
+        },
+        "roomStats": {
+          "type": "boolean"
+        },
+        "sendChat": {
+          "type": "boolean"
+        },
+        "shares": {
+          "type": "boolean"
+        },
+        "subscriptions": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "chat",
+        "follows",
+        "subscriptions",
+        "gifts",
+        "likes",
+        "shares",
+        "joins",
+        "roomStats",
+        "discovery",
+        "sendChat",
+        "moderation"
+      ],
+      "type": "object"
+    },
+    "ChannelIdentity": {
+      "properties": {
+        "handle": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/PlatformId"
+        },
+        "roomId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "platform",
+        "id",
+        "handle",
+        "roomId"
       ],
       "type": "object"
     },
@@ -346,6 +430,77 @@
         "roomId"
       ],
       "type": "object"
+    },
+    "ConnectionSnapshot": {
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/Capabilities"
+        },
+        "channel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChannelIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "connectionId": {
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "platform": {
+          "$ref": "#/$defs/PlatformId"
+        },
+        "reconnectAttempt": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "retryAfterMs": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/ConnectionState"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectionId",
+        "platform",
+        "target",
+        "state",
+        "capabilities",
+        "reconnectAttempt"
+      ],
+      "type": "object"
+    },
+    "ConnectionState": {
+      "enum": [
+        "connecting",
+        "connected",
+        "reconnecting",
+        "disconnected",
+        "error"
+      ],
+      "type": "string"
     },
     "CounterTransition": {
       "description": "Observed cumulative transition; a goal T crosses iff previous < T <= total.",
@@ -1256,6 +1411,501 @@
       "type": "object",
       "x-native-method": "WebcastLikeMessage"
     },
+    "LiveActivityAutomationData": {
+      "properties": {
+        "count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "total": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "msgId",
+        "method",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "LiveChatAutomationData": {
+      "properties": {
+        "comment": {
+          "type": "string"
+        },
+        "emotes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ChatAutomationEmote"
+          },
+          "type": "array"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "comment",
+        "msgId",
+        "method",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "LiveEnvelope": {
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/ChannelIdentity"
+        },
+        "connectionId": {
+          "type": "string"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "occurredAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "payload": {
+          "$ref": "#/$defs/LivePayload"
+        },
+        "platform": {
+          "$ref": "#/$defs/PlatformId"
+        },
+        "receivedAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sessionId": {
+          "type": "string"
+        },
+        "sourceEventId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "user": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ViewerIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "platform",
+        "connectionId",
+        "channel",
+        "sessionId",
+        "occurredAt",
+        "receivedAt",
+        "isHistory",
+        "payload"
+      ],
+      "type": "object"
+    },
+    "LiveError": {
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "retryAfterMs": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "type": "object"
+    },
+    "LiveGiftAutomationData": {
+      "properties": {
+        "amount": {
+          "description": "Decimal string in the stated unit, never assumed to be fiat currency.",
+          "type": "string"
+        },
+        "count": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "count",
+        "unit",
+        "amount",
+        "msgId",
+        "method",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "LivePayload": {
+      "description": "Common semantics only. Monetary units and platform-specific attributes are\npreserved explicitly; unsupported events are never synthesized.",
+      "oneOf": [
+        {
+          "properties": {
+            "comment": {
+              "type": "string"
+            },
+            "emotes": {
+              "items": true,
+              "type": "array"
+            },
+            "kind": {
+              "const": "chat",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "comment",
+            "emotes"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "follow",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "gifted": {
+              "type": "boolean"
+            },
+            "kind": {
+              "const": "subscription",
+              "type": "string"
+            },
+            "months": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "tier": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "gifted"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "amount": {
+              "type": "string"
+            },
+            "count": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "gift",
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "name",
+            "count",
+            "unit",
+            "amount"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "count": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "like",
+              "type": "string"
+            },
+            "total": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "count"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "count": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "kind": {
+              "const": "share",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "count"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "join",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "room_stats",
+              "type": "string"
+            },
+            "totalUsers": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "viewers": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "viewers"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "connected",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "disconnected",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "data": true,
+            "eventType": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "extension",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "eventType",
+            "data"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "LiveRoomStatsAutomationData": {
+      "properties": {
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "totalUsers": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "viewers": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "viewers",
+        "msgId",
+        "method",
+        "isHistory"
+      ],
+      "type": "object"
+    },
+    "LiveSubscriptionAutomationData": {
+      "properties": {
+        "gifted": {
+          "type": "boolean"
+        },
+        "isHistory": {
+          "type": "boolean"
+        },
+        "method": {
+          "type": "string"
+        },
+        "months": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "msgId": {
+          "type": "string"
+        },
+        "tier": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "gifted",
+        "msgId",
+        "method",
+        "isHistory"
+      ],
+      "type": "object"
+    },
     "MemberAutomationData": {
       "properties": {
         "action": {
@@ -1305,6 +1955,39 @@
       ],
       "type": "object",
       "x-native-method": "WebcastMemberMessage"
+    },
+    "PlatformDescriptor": {
+      "properties": {
+        "authentication": {
+          "type": "string"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/Capabilities"
+        },
+        "name": {
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/PlatformId"
+        }
+      },
+      "required": [
+        "platform",
+        "name",
+        "capabilities",
+        "authentication"
+      ],
+      "type": "object"
+    },
+    "PlatformId": {
+      "enum": [
+        "tiktok",
+        "twitch",
+        "youtube",
+        "facebook",
+        "kick"
+      ],
+      "type": "string"
     },
     "PluginEmitAutomationData": {
       "properties": {
@@ -1511,6 +2194,36 @@
       ],
       "type": "object",
       "x-native-method": "WebcastSocialMessage"
+    },
+    "ViewerIdentity": {
+      "properties": {
+        "avatarUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "handle": {
+          "type": "string"
+        },
+        "id": {
+          "description": "Provider-issued stable ID, never a display name or a JavaScript number.",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/PlatformId"
+        }
+      },
+      "required": [
+        "platform",
+        "id",
+        "handle",
+        "displayName"
+      ],
+      "type": "object"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1549,8 +2262,32 @@
     "like": {
       "$ref": "#/$defs/LikeAutomationData"
     },
+    "liveActivity": {
+      "$ref": "#/$defs/LiveActivityAutomationData"
+    },
+    "liveChat": {
+      "$ref": "#/$defs/LiveChatAutomationData"
+    },
+    "liveEnvelope": {
+      "$ref": "#/$defs/LiveEnvelope"
+    },
+    "liveGift": {
+      "$ref": "#/$defs/LiveGiftAutomationData"
+    },
+    "liveRoomStats": {
+      "$ref": "#/$defs/LiveRoomStatsAutomationData"
+    },
+    "liveSubscription": {
+      "$ref": "#/$defs/LiveSubscriptionAutomationData"
+    },
     "member": {
       "$ref": "#/$defs/MemberAutomationData"
+    },
+    "platformConnection": {
+      "$ref": "#/$defs/ConnectionSnapshot"
+    },
+    "platformDescriptor": {
+      "$ref": "#/$defs/PlatformDescriptor"
     },
     "pluginEmit": {
       "$ref": "#/$defs/PluginEmitAutomationData"
@@ -1566,6 +2303,14 @@
     }
   },
   "required": [
+    "liveEnvelope",
+    "platformDescriptor",
+    "platformConnection",
+    "liveChat",
+    "liveActivity",
+    "liveGift",
+    "liveSubscription",
+    "liveRoomStats",
     "automationUser",
     "automationCreator",
     "automationPoints",

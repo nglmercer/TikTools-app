@@ -12,7 +12,9 @@ import jsonView from './json-view.en.ts';
 import syncChanges from './sync-changes.en.ts';
 import exploreCatalog from './explore-catalog.en.ts';
 import importDialog from './import-dialog.en.ts';
+import livePlatforms from './live-platforms.en.ts';
 export default {
+  livePlatforms,
   controller,
   jsonView,
   syncChanges,
@@ -778,6 +780,16 @@ export default {
       'is-false': 'is false',
     },
     triggers: {
+      'live-chat': 'Someone comments (any platform)',
+      'live-gift': 'Someone sends a gift (any platform)',
+      'live-like': 'Someone likes (any platform)',
+      'live-follow': 'Someone follows (any platform)',
+      'live-share': 'Someone shares (any platform)',
+      'live-join': 'Someone joins the LIVE (any platform)',
+      'live-room_stats': 'Room stats (any platform)',
+      'live-connected': 'Connected (any platform)',
+      'live-disconnected': 'Disconnected (any platform)',
+      'live-subscription': 'Someone subscribes (any platform)',
       'tiktok-chat': 'Someone comments',
       'tiktok-emote_chat': 'Someone sends an emote',
       'tiktok-gift': 'Someone sends a gift',

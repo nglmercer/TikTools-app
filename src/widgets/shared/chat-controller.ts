@@ -56,7 +56,7 @@ export class ChatController {
     if (event.data.isHistory) return 'history';
     if (!this.recentIds.add(eventIdentity(event))) return 'duplicate';
     const emoteOnly = event.type === 'tiktok.emote_chat';
-    const text = event.type === 'tiktok.chat' ? event.data.comment : '';
+    const text = event.type !== 'tiktok.emote_chat' ? event.data.comment : '';
     const emotes = (event.data.emotes ?? []).map((emote) => ({
       id: emote.id,
       ...(typeof emote.shortcode === 'string' ? { shortcode: emote.shortcode } : {}),

@@ -29,6 +29,9 @@ export interface GiftAlertView {
   count: number;
   diamondsEach: number;
   totalDiamonds: number;
+  /** Explicit unit/amount for providers whose value is not TikTok diamonds. */
+  unit?: string;
+  amount?: string;
   giftIconUrl: string | null;
   /** True while the streak is still aggregating updates. */
   streaking: boolean;
@@ -115,7 +118,18 @@ export class GiftController {
 
   handleEnvelope(value: unknown): GiftHandleResult {
     const routed = routeLiveEvent(value);
-    if (!routed || routed.kind !== 'gift') return 'ignored';
+    if (!routed || (routed.kind !== 'gift' && routed.kind !== 'platform-gift')) return 'ignored';
+    if (routed.kind === 'platform-gift') {
+      const { event } = routed;
+      if (event.data.isHistory) return 'history';
+      if (!this.recentIds.add(eventIdentity(event))) return 'duplicate';
+      this.completed.enqueue({ key: event.id, displayName: displayNameFor(event.user), uniqueId: handleFor(event.user), avatarUrl: event.user?.avatarUrl ?? null,
+        giftId: event.data.id, giftName: event.data.name, count: event.data.count, unit: event.data.unit, amount: event.data.amount,
+        diamondsEach: 0, totalDiamonds: 0, giftIconUrl: null, streaking: false });
+      const idle = this.current === null;
+      this.pump();
+      return idle ? 'shown' : 'queued';
+    }
     const { event } = routed;
     if (event.data.isHistory) return 'history';
     if (!this.recentIds.add(eventIdentity(event))) return 'duplicate';

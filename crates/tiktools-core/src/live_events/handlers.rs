@@ -77,6 +77,7 @@ impl AppCore {
                 })
             });
         let totals = self.live_totals.observe(&event, totals_context.as_ref());
+        self.publish_normalized_tiktok(&event, raw_context.as_ref(), &totals);
         if let Some(context) = context.as_ref() {
             self.observe_native_ranking(&event, context, &totals);
         }

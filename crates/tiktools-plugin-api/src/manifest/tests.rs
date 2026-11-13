@@ -66,6 +66,8 @@ fn reads_event_types_and_validates_them() {
     // Reserved host namespaces can never be shadowed.
     for reserved in [
         "tiktok.chat",
+        "live.chat",
+        "live.subscription",
         "points.awarded",
         "plugin.emit",
         "plugin.custom",

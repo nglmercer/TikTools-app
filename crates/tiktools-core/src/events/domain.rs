@@ -5,6 +5,9 @@ use serde_json::Value;
 impl DomainEvent {
     pub fn topic(&self) -> &'static str {
         match self {
+            Self::PlatformConnection { .. } => "live.platform.connection",
+            Self::NormalizedLive { .. } => "live.normalized",
+            Self::PlatformGap { .. } => "live.platform.gap",
             Self::CloudContextInvalidated {} => "cloud.context.invalidated",
             Self::AppUpdateStateChanged { .. } => "app.update.stateChanged",
             Self::PluginInstalled { .. } => "plugin.installed",
@@ -83,6 +86,7 @@ impl DomainEvent {
         matches!(
             self,
             Self::LiveEvent { .. }
+                | Self::NormalizedLive { .. }
                 | Self::LiveUiEvent { .. }
                 | Self::LiveLikesRanking { .. }
                 | Self::LiveLikesRankingFull { .. }

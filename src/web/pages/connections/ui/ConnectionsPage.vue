@@ -4,6 +4,7 @@ import type { LiveChannel } from '@/types.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { useDiscoveryStore } from '@/entities/live-room/model/discovery-store.ts';
 import LiveConnectPanel from '@/features/connect-live/ui/LiveConnectPanel.vue';
+import PlatformConnectionsPanel from '@/features/connect-live/ui/PlatformConnectionsPanel.vue';
 import LiveExplorerPanel from '@/features/explore-live-rooms/ui/LiveExplorerPanel.vue';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import PluginServersPanel from '@/widgets/plugin-servers/ui/PluginServersPanel.vue';
@@ -94,6 +95,7 @@ watch([useCookie, selectedServer], persist);
         @connect="connectRoom"
       />
     </div>
+    <PlatformConnectionsPanel />
     <PluginServersPanel
       v-model:selected="selectedServer"
       class="connections-page__servers"

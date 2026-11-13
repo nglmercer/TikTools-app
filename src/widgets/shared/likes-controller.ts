@@ -88,12 +88,13 @@ export class LikesController {
     if (event.data.isHistory) return 'history';
     if (!this.recentIds.add(eventIdentity(event))) return 'duplicate';
 
-    const key = event.user?.userId || event.user?.uniqueId;
+    const rawKey = event.user?.userId || event.user?.uniqueId;
+    const key = rawKey ? `${event.type === 'tiktok.like' ? 'tiktok' : event.platform ?? 'unknown'}:${rawKey}` : undefined;
     if (!key) {
       log.debug('ignoring like without a usable sender');
       return 'ignored';
     }
-    const count = Number.isFinite(event.data.count) ? Math.max(0, Math.floor(event.data.count)) : 0;
+    const count = typeof event.data.count === 'number' && Number.isFinite(event.data.count) ? Math.max(0, Math.floor(event.data.count)) : 0;
     const backendTotal = event.data.aggregation?.user?.total;
     const previous = this.tracked.get(key);
     const total = typeof backendTotal === 'number' && Number.isFinite(backendTotal)

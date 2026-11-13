@@ -32,8 +32,10 @@ impl AutomationService {
             .filter(|r| {
                 r.generation.is_some()
                     && r.definition.get("enabled").and_then(Value::as_bool) == Some(true)
-                    && r.definition.get("trigger").and_then(Value::as_str)
-                        == event.get("type").and_then(Value::as_str)
+                    && tiktools_live::trigger_matches_event(
+                        r.definition.get("trigger").and_then(Value::as_str),
+                        event,
+                    )
                     && trigger_allowed(
                         r.definition.get("trigger").and_then(Value::as_str),
                         &index.trigger_owners,
@@ -73,8 +75,10 @@ impl AutomationService {
             .filter_map(|(id, r)| {
                 if r.generation.is_none()
                     || r.definition.get("enabled").and_then(Value::as_bool) != Some(true)
-                    || r.definition.get("trigger").and_then(Value::as_str)
-                        != projected.get("type").and_then(Value::as_str)
+                    || !tiktools_live::trigger_matches_event(
+                        r.definition.get("trigger").and_then(Value::as_str),
+                        &projected,
+                    )
                     || !trigger_allowed(
                         r.definition.get("trigger").and_then(Value::as_str),
                         &index.trigger_owners,

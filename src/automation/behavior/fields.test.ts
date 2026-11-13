@@ -11,6 +11,10 @@ import { matchesFilter } from './testing/filter-matcher.ts';
 import { sampleEventForType } from '../event-registry.ts';
 
 describe('condition fields', () => {
+  test('shared triggers offer a platform filter with a matching sample value', () => {
+    expect(fieldsForTrigger('live.chat').some((field) => field.path === 'event.platform')).toBe(true);
+    expect(sampleEventForType('live.chat').platform).toBe('twitch');
+  });
   test('every field a trigger offers resolves against that trigger sample event', () => {
     const sample = sampleEventForType('tiktok.gift');
     const paths = fieldsForTrigger('tiktok.gift').map((field) => field.path);

@@ -14,6 +14,7 @@ pub mod events;
 #[cfg(feature = "app-update")]
 pub use tiktools_app_update as app_update;
 pub mod ipc;
+mod live_platforms;
 pub mod paths;
 pub mod platform;
 pub mod services;
@@ -173,6 +174,7 @@ pub struct AppCore {
     #[cfg(feature = "app-update")]
     app_updater: RwLock<Option<Arc<tiktools_app_update::AppUpdater>>>,
     pub live: Arc<LiveService>,
+    pub(crate) live_platforms: live_platforms::PlatformRuntime,
     live_monitor: live_monitor::LiveMonitor,
     pub points: Arc<PointsService>,
     pub automation: Arc<AutomationService>,

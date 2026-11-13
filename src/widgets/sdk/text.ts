@@ -1,5 +1,6 @@
 import { inject, type ComputedRef, type InjectionKey } from 'vue';
 import type { WidgetStyle } from './template.ts';
+import { liveUnitLabel } from '../../shared/live-units.ts';
 
 export const textDefaults = {
   follow: { name: '{{name}}', handle: '{{username}}', message: 'just followed!' },
@@ -36,7 +37,7 @@ export function isHiddenField(design: WidgetStyle | undefined, field: TextField)
     || (design?.layers !== undefined && !design.layers.some((layer) => layer.kind === 'text' && layer.field === field));
 }
 export const widgetDesignKey: InjectionKey<ComputedRef<WidgetStyle>> = Symbol('widget-design');
-export type WidgetTextEvent = { displayName: string; uniqueId?: string; giftName?: string; count?: number; totalDiamonds?: number; text?: string };
+export type WidgetTextEvent = { displayName: string; uniqueId?: string; giftName?: string; count?: number; totalDiamonds?: number; unit?: string; amount?: string; text?: string };
 
 /** One pass, plain text only: event values are never evaluated as templates or HTML. */
 export function interpolateText(template: string, values: Record<string, string>): string {
@@ -48,9 +49,12 @@ export function useWidgetText(kind: keyof typeof textDefaults) {
   return (field: TextField, event: WidgetTextEvent | null) => {
     if (isHiddenField(design?.value, field)) return '';
     const defaults: Partial<Record<TextField, string>> = textDefaults[kind];
-    return interpolateText(design?.value.text?.[field] ?? defaults[field] ?? '', {
+    let template = design?.value.text?.[field] ?? defaults[field] ?? '';
+    if (field === 'diamonds' && event?.unit && template === textDefaults.gift.diamonds) template = '{{amount}} {{unit}}';
+    return interpolateText(template, {
       name: event?.displayName ?? '', username: event?.uniqueId ?? '', gift: event?.giftName ?? '',
       count: event?.count?.toLocaleString('en-US') ?? '', diamonds: event?.totalDiamonds?.toLocaleString('en-US') ?? '', message: event?.text ?? '',
+      amount: event?.amount ?? '', unit: event?.unit ? liveUnitLabel(event.unit) : '',
     });
   };
 }

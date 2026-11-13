@@ -429,6 +429,11 @@ impl AppCore {
         incoming: &ExecutionContext,
     ) {
         for record in records {
+            let event_view = tiktools_live::event_for_trigger(
+                event,
+                record.definition.get("trigger").and_then(Value::as_str),
+            );
+            let event = event_view.as_ref();
             if self.automation_dispatch_guard(incoming).is_err() {
                 break;
             }

@@ -535,7 +535,7 @@ pub(super) fn build_with_inherited_subjects(
                     {
                         reasons.insert(ManifestReason::MissingCapability);
                     }
-                } else if !trigger.starts_with("tiktok.") {
+                } else if !tiktools_live::is_builtin_live_trigger(trigger) {
                     if subjects.subjects.is_empty() {
                         reasons.insert(ManifestReason::PluginBindingUnavailable);
                     } else if !crate::collaboration::valid_emit_topic(trigger) {

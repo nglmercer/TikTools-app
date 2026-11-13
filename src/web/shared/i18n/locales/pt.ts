@@ -14,7 +14,9 @@ import exploreCatalog from './explore-catalog.pt.ts';
 import importDialog from './import-dialog.pt.ts';
 import type { MessageSchema } from '../i18n.ts';
 
+import livePlatforms from './live-platforms.pt.ts';
 export default {
+  livePlatforms,
   controller,
   jsonView,
   syncChanges,
@@ -780,6 +782,16 @@ export default {
       'is-false': 'é falso',
     },
     triggers: {
+      'live-chat': 'Alguém comenta (qualquer plataforma)',
+      'live-gift': 'Alguém envia um presente (qualquer plataforma)',
+      'live-like': 'Alguém curte (qualquer plataforma)',
+      'live-follow': 'Alguém segue (qualquer plataforma)',
+      'live-share': 'Alguém compartilha (qualquer plataforma)',
+      'live-join': 'Alguém entra na LIVE (qualquer plataforma)',
+      'live-room_stats': 'Estatísticas da sala (qualquer plataforma)',
+      'live-connected': 'Conectado (qualquer plataforma)',
+      'live-disconnected': 'Desconectado (qualquer plataforma)',
+      'live-subscription': 'Alguém se inscreve (qualquer plataforma)',
       'tiktok-chat': 'Alguém comenta',
       'tiktok-emote_chat': 'Alguém envia um emote',
       'tiktok-gift': 'Alguém envia um presente',

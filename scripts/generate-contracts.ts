@@ -48,6 +48,7 @@ function resolveSchema(schema: Schema, root: JsonRecord): Schema {
 function typeNameFromSchema(schema: Schema, root: JsonRecord): string {
   const resolved = resolveSchema(schema, root);
   if (typeof resolved === 'boolean') return resolved ? 'JsonValue' : 'never';
+  if (Object.hasOwn(resolved, 'const')) return JSON.stringify(resolved['const']);
   if (resolved.$ref) return refName(resolved.$ref);
   if (resolved.enum?.length) {
     return resolved.enum.map((value) => JSON.stringify(value)).join(' | ');
@@ -68,10 +69,11 @@ function typeNameFromSchema(schema: Schema, root: JsonRecord): string {
     case 'integer': return 'number';
     case 'boolean': return 'boolean';
     case 'null': return 'null';
-    case 'array': return `${resolved.items ? typeNameFromSchema(resolved.items, root) : 'JsonValue'}[]`;
+    case 'array': return `(${resolved.items ? typeNameFromSchema(resolved.items, root) : 'JsonValue'})[]`;
     case 'object': {
       if (!resolved.properties) return 'JsonObject';
-      const fields = Object.entries(resolved.properties).map(([key, value]) => `${JSON.stringify(key)}: ${typeNameFromSchema(value, root)}`);
+      const required = new Set(resolved.required ?? []);
+      const fields = Object.entries(resolved.properties).map(([key, value]) => `${JSON.stringify(key)}${required.has(key) ? '' : '?'}: ${typeNameFromSchema(value, root)}`);
       return `{ ${fields.join('; ')} }`;
     }
     default: return 'JsonValue';
@@ -100,7 +102,7 @@ function generatedTypeSource(schema: JsonRecord): string {
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([name, value]) => interfaceForDefinition(name, schemaObject(value), schema))
     .join('\n');
-  return `// THIS FILE IS GENERATED. Run bun scripts/task.ts contracts.\n\nimport type { JsonValue } from './json-value.ts';\n\n${definitions}`;
+  return `// THIS FILE IS GENERATED. Run bun scripts/task.ts contracts.\n\nimport type { JsonObject, JsonValue } from './json-value.ts';\n\n${definitions}`;
 }
 
 function generatedJsonValueSource(): string {
@@ -174,7 +176,9 @@ function sampleForField(name: string, schema: Schema, root: JsonRecord, eventTyp
     case 'giftId': return '5655';
     case 'comment': return 'Hello there';
     case 'msgId': return '1';
-    case 'method': return 'WebcastSampleMessage';
+    case 'method': return eventType?.startsWith('live.') ? eventType : 'WebcastSampleMessage';
+    case 'amount': return eventType === 'live.gift' ? '100' : sampleForSchema(schema, root);
+    case 'unit': return eventType === 'live.gift' ? 'twitch_bits' : sampleForSchema(schema, root);
     case 'emitType': return 'plugin.sample';
     // A fresh internal emit has no nesting; the generic number sampler (1)
     // would misrepresent it as already-nested.
@@ -449,8 +453,8 @@ function registrySource(schema: JsonRecord): string {
           : {}),
       };
     });
-    const hasUser = eventType.startsWith('tiktok.') && !['tiktok.room_stats', 'tiktok.connected', 'tiktok.disconnected'].includes(eventType);
-    const intelScope = eventType === 'tiktok.chat' ? 'chat' : hasUser ? 'user' : 'processing';
+    const hasUser = (eventType.startsWith('tiktok.') || eventType.startsWith('live.')) && !['tiktok.room_stats', 'tiktok.connected', 'tiktok.disconnected', 'live.room_stats', 'live.connected', 'live.disconnected'].includes(eventType);
+    const intelScope = eventType === 'tiktok.chat' || eventType === 'live.chat' ? 'chat' : hasUser ? 'user' : 'processing';
     const intelFields = intelFieldsFor(schema, intelScope);
     const sampleData: JsonRecord = {};
     for (const field of fields) sampleData[field.path.slice('event.data.'.length)] = field.sample;
@@ -467,11 +471,12 @@ function registrySource(schema: JsonRecord): string {
         id: 'sample-event',
         type: eventType,
         timestamp: 0,
+        ...(eventType.startsWith('live.') ? { platform: 'twitch' } : {}),
         ...(hasUser ? { user: sampleUser } : {}),
         data: sampleData,
         intel: intelSampleFor(schema, eventType === 'tiktok.chat'),
       },
-      fields: [...(hasUser ? envelopePaths : []), ...fields, ...intelFields],
+      fields: [...(hasUser ? envelopePaths : []), ...(eventType.startsWith('live.') ? [{ path: 'event.platform', tsType: 'PlatformId', kind: 'string', optional: false, label: { en: 'Platform', es: 'Plataforma' }, hint: { en: 'Source platform', es: 'Plataforma de origen' }, sample: 'twitch' }] : []), ...fields, ...intelFields],
       sourceFields: fields.map((field) => ({ name: field.sourceField, tsType: field.tsType, optional: field.optional })),
       note: `Generated from ${contractName ?? 'the automation envelope'} JSON Schema.`,
     };
