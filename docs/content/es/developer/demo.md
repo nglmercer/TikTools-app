@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "faaecb5fb98c82d290108d1d9ffc8375e8f0fcd04600da60557a63272ad57d59"
-translationRevision: "faaecb5fb98c82d290108d1d9ffc8375e8f0fcd04600da60557a63272ad57d59"
+sourceRevision: "695a2bf30a1a5bd78d0ad8e235b5f1289c913fc1ead020c882f343e8c42ab317"
+translationRevision: "695a2bf30a1a5bd78d0ad8e235b5f1289c913fc1ead020c882f343e8c42ab317"
 order: 140
 ---
 
@@ -38,7 +38,7 @@ Para previsualizar cambios sin commit usa `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scrip
 
 Reiniciar limpia únicamente el prefijo `tiktools.demo.<instance>.*` y recarga el iframe. Recargar reinicializa singletons, journals, i18n y diagnósticos. Cada iframe recibe un identificador distinto. Al salir se desmonta Vue, se liberan stores, cliente y transporte, y se detienen ambos temporizadores. La demo no instala `window.ipc` ni realiza HTTP arbitrario, shell, RCON, ejecución de código visitante o actualización nativa. Su CSP rechaza conexiones de red. Las plantillas de log y filtros simulados usan funciones puras compartidas: representan el contrato del frontend y no sustituyen la ejecución Rust.
 
-La entrada `startTour(id, {router, capabilities, taskState})` y el registro `tourRegistry` están en `src/web/features/guided-help/index.ts`. Siete recorridos versionados utilizan objetivos estables y catálogos separados EN/ES/PT/FR. Driver.js carga bajo demanda, limita objetivos al workspace, respeta movimiento reducido, restaura foco y cancela esperas acotadas al navegar. Cerrar una guía nunca completa tareas ni ejecuta acciones de la aplicación. El selector nombra la tarea completa, prepara su escenario y pausa la reproducción antes de iniciar. El cierre de Driver descarta la guía y la barra muestra el resultado. Reiniciar limpia el progreso versionado de esta instancia.
+La entrada `startTour(id, {router, capabilities, taskState})` y el registro `tourRegistry` están en `src/web/features/guided-help/index.ts`. Siete recorridos versionados utilizan objetivos estables y catálogos separados para cada idioma admitido. Driver.js carga bajo demanda, limita objetivos al workspace, respeta movimiento reducido, restaura foco y cancela esperas acotadas al navegar. Cerrar una guía nunca completa tareas ni ejecuta acciones de la aplicación. El selector nombra la tarea completa, prepara su escenario y pausa la reproducción antes de iniciar. El cierre de Driver descarta la guía y la barra muestra el resultado. Reiniciar limpia el progreso versionado de esta instancia.
 
 ## Resultado esperado y estado {#expected-result-and-status}
 

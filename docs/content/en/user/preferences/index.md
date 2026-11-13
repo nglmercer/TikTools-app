@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9eca92664742310ab8cd76b183d92659567203bf6baec68d39183a5c07975f0"
-translationRevision: "e9eca92664742310ab8cd76b183d92659567203bf6baec68d39183a5c07975f0"
+sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
+translationRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
 order: 10
 ---
 
@@ -20,7 +20,7 @@ Set the application language, find the correct configuration area and use suppor
 
 ## Find the relevant setting {#find-the-relevant-setting}
 
-1. Open **Settings → General** to choose the interface language. Current choices are English (`en`), Spanish (`es`), Portuguese (`pt`) and French (`fr`). Language selection does not change TikTok event identifiers or plugin API names.
+1. Open **Settings → General** to choose the interface language. Current choices are English (`en`), Spanish (`es`), Portuguese (`pt`), French (`fr`), Simplified Chinese (`zh`) and Japanese (`ja`). Language selection does not change TikTok event identifiers or plugin API names.
 2. Review the updater controls in General: channel, automatic checks, notifications and a manual check when supported. Automatic checks are optional. Signed update availability depends on the build's published signing configuration.
 3. Use **Account** for Cloud identity and its diagnostics. Use **Collaboration** for owner access configuration, and **Teams** when the host exposes that capability.
 4. Open **Plugins** for plugin-wide preferences and each plugin's Settings/Connection panes. A plugin's service credentials do not belong in General settings.

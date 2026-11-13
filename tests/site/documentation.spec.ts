@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve, join, sep } from 'node:path';
 import { readArticles, metadataErrors } from '../../docs/scripts/content.ts';
-import { docCopy, docLocales } from '../../docs/locales.ts';
+import { docCopy, docLocales, localizedDocumentPath } from '../../docs/locales.ts';
 import { siteConfig } from '../../scripts/lib/site-config.ts';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -33,7 +33,7 @@ async function demoFrame(page: Page): Promise<Frame> {
   return frame!;
 }
 
-test('all four Markdown languages have reviewed equivalents, current hashes and shared heading anchors', async () => {
+test('all six Markdown languages have reviewed equivalents, current hashes and shared heading anchors', async () => {
   const all = await articles;
   expect(metadataErrors(all)).toEqual([]);
   const english = all.filter((article) => article.relativePath.startsWith('en/'));
@@ -68,12 +68,12 @@ test('all localized built pages expose matching lang, canonical, hreflang and si
   expect(sitemap.ok()).toBe(true);
   const xml = await sitemap.text();
   const locations = new Set([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!.replace(/\/index\.html$/, '/')));
-  for (const article of (await articles).filter((entry) => /^(en|es|pt|fr)\//.test(entry.relativePath))) {
+  for (const article of (await articles).filter((entry) => localizedDocumentPath(entry.relativePath) !== undefined)) {
     const response = await request.get(htmlPath(article.relativePath));
     expect(response.status(), article.relativePath).toBe(200);
     const html = await response.text();
     const locale = String(article.frontmatter.locale);
-    const tail = canonicalPath(article.relativePath).replace(/^(en|es|pt|fr)\//, '');
+    const tail = localizedDocumentPath(canonicalPath(article.relativePath))!.tail;
     expect(html, article.relativePath).toMatch(new RegExp(`<html[^>]+lang="${locale}"`));
     expect(html).toContain(`<link rel="canonical" href="${new URL(canonicalPath(article.relativePath), site.url).href}">`);
     for (const language of docLocales) {
@@ -85,11 +85,11 @@ test('all localized built pages expose matching lang, canonical, hreflang and si
   }
 });
 
-test('locale switching preserves the equivalent article and stable heading in all four languages', async ({ page }) => {
+test('locale switching preserves the equivalent article and stable heading in all six languages', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 960 });
   await page.goto('en/user/preferences/backups.html#restore-and-verify');
   let current: typeof docLocales[number] = 'en';
-  for (const locale of ['es', 'pt', 'fr', 'en'] as const) {
+  for (const locale of [...docLocales.filter((locale) => locale !== 'en'), 'en'] as const) {
     await page.getByRole('button', { name: docCopy[current].language, exact: true }).click();
     const link = page.locator('.VPNavBarTranslations').getByRole('link', { name: docCopy[locale].label, exact: true });
     await expect(link).toHaveAttribute('href', `${site.base}${locale}/user/preferences/backups.html#restore-and-verify`);
@@ -107,7 +107,7 @@ for (const locale of docLocales) {
     await page.locator('.VPNavBarSearch button').click();
     const input = page.locator('#localsearch-input');
     await expect(input).toHaveAttribute('placeholder', docCopy[locale].search);
-    await input.fill(({ en: 'Back up', es: 'Respaldar', pt: 'backup', fr: 'sauvegarde' })[locale]);
+    await input.fill(({ en: 'Back up', es: 'Respaldar', pt: 'backup', fr: 'sauvegarde', zh: '备份', ja: 'バックアップ' })[locale]);
     const results = page.locator('.VPLocalSearchBox a.result');
     await expect(results.first()).toBeVisible();
     const urls = await results.evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href));

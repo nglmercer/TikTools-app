@@ -9,10 +9,10 @@ const { lang } = useData();
 const loaded = ref(false);
 const instance = ref(`docs-${useId().replaceAll(/[^a-zA-Z0-9_-]/g, '_')}`);
 onMounted(() => { instance.value = `docs-${crypto.randomUUID()}`; });
-const locale = computed(() => documentLocale(lang.value));
-const t = computed(() => docCopy[locale.value]);
+const articleLocale = computed(() => documentLocale(lang.value));
+const t = computed(() => docCopy[articleLocale.value]);
 const url = computed(() => {
-  const params = new URLSearchParams({ scenario: props.scenario, locale: props.locale ?? locale.value, instance: instance.value });
+  const params = new URLSearchParams({ scenario: props.scenario, locale: props.locale ?? articleLocale.value, instance: instance.value });
   if (props.route) params.set('route', props.route);
   if (props.tour) params.set('tour', props.tour);
   const valid = parseDemoOptions(params.toString());

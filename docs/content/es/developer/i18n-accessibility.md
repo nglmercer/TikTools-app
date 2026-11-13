@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
-translationRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
+sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
 order: 120
 ---
 
@@ -16,11 +16,11 @@ order: 120
 
 ## Objetivo y requisitos {#goal-and-prerequisites}
 
-Añade pantallas comprensibles en los idiomas admitidos y utilizables con teclado, tacto y tecnologías de asistencia. Lee las [capas frontend](frontend.md) y usa la interfaz compartida. Los idiomas de la aplicación y las ediciones en inglés, español, portugués y francés de esta documentación son sistemas distintos.
+Añade pantallas comprensibles en los idiomas admitidos y utilizables con teclado, tacto y tecnologías de asistencia. Lee las [capas frontend](frontend.md) y usa la interfaz compartida. Los idiomas de la aplicación y las ediciones publicadas de esta documentación son sistemas distintos.
 
 ## Añadir contenido localizado {#add-localized-content}
 
-El catálogo está en `src/web/shared/i18n/`. Inglés es la referencia tipada; español, portugués y francés se cargan bajo demanda. `activateLocale` carga los mensajes y actualiza `document.documentElement.lang`. Guarda la preferencia mediante el almacén existente, sin crear otra clave de almacenamiento local.
+El catálogo está en `src/web/shared/i18n/`. Inglés es la referencia tipada; los demás catálogos compatibles se cargan bajo demanda. `activateLocale` carga los mensajes y actualiza `document.documentElement.lang`. Guarda la preferencia mediante el almacén existente, sin crear otra clave de almacenamiento local.
 
 1. Añade la clave semántica al catálogo inglés y a sus módulos equivalentes en los otros idiomas.
 2. Conserva identificadores API, rutas de eventos y recursos guardados; traduce sus etiquetas visibles.

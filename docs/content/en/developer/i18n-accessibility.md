@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
-translationRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
+sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
 order: 120
 ---
 
@@ -16,11 +16,11 @@ order: 120
 
 ## Goal and prerequisites {#goal-and-prerequisites}
 
-Add a screen that remains understandable in supported locales and usable by keyboard, touch and assistive technology. Read [frontend layers](frontend.md) and use the existing shared UI. Runtime application locales and the English, Spanish, Portuguese and French documentation editions are separate systems.
+Add a screen that remains understandable in supported locales and usable by keyboard, touch and assistive technology. Read [frontend layers](frontend.md) and use the existing shared UI. Runtime application locales and the published documentation editions are separate systems.
 
 ## Add localized content {#add-localized-content}
 
-The application catalog lives in `src/web/shared/i18n/`. English is the typed fallback; Spanish, Portuguese and French load lazily. `activateLocale` loads the chosen messages and updates `document.documentElement.lang`. Store a locale preference through the existing locale store rather than writing another local-storage key.
+The application catalog lives in `src/web/shared/i18n/`. English is the typed fallback; All other supported catalogs load lazily. `activateLocale` loads the chosen messages and updates `document.documentElement.lang`. Store a locale preference through the existing locale store rather than writing another local-storage key.
 
 1. Add the semantic message key to the English catalog and equivalent supported catalogs/modules.
 2. Keep API IDs, event paths and stored resource identifiers stable; translate their visible labels.

@@ -1,3 +1,4 @@
+import { docLocales } from '../../docs/locales.ts';
 import { test, expect } from '@playwright/test';
 
 test('demo toolbar shares real controls, contains menus and fits desktop and mobile', async ({ page }) => {
@@ -41,7 +42,7 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
 });
 
 test('landing pages have a readable hero and useful links without loading the demo', async ({ page }) => {
-  for (const route of ['', 'en/', 'es/', 'pt/', 'fr/']) {
+  for (const route of ['', ...docLocales.map((locale) => `${locale}/`)]) {
     await page.goto(route);
     const title = page.locator('h1'); await expect(title).toHaveCount(1);
     expect(await title.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(32);

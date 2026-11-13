@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
-translationRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
+sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
 order: 120
 ---
 
@@ -16,11 +16,11 @@ order: 120
 
 ## Objetivo e pré-requisitos {#goal-and-prerequisites}
 
-Adicione uma tela que continue compreensível nos idiomas disponíveis e utilizável por teclado, toque e tecnologia assistiva. Leia [camadas do frontend](frontend.md) e use a interface compartilhada existente. Os idiomas do aplicativo em execução e as edições da documentação em inglês, espanhol, português e francês são sistemas separados.
+Adicione uma tela que continue compreensível nos idiomas disponíveis e utilizável por teclado, toque e tecnologia assistiva. Leia [camadas do frontend](frontend.md) e use a interface compartilhada existente. Os idiomas do aplicativo em execução e as edições publicadas da documentação são sistemas separados.
 
 ## Adicione conteúdo localizado {#add-localized-content}
 
-O catálogo do aplicativo fica em `src/web/shared/i18n/`. O inglês é a alternativa tipada; espanhol, português e francês carregam sob demanda. `activateLocale` carrega as mensagens escolhidas e atualiza `document.documentElement.lang`. Armazene uma preferência de idioma pelo store de idioma existente em vez de gravar outra chave no armazenamento local.
+O catálogo do aplicativo fica em `src/web/shared/i18n/`. O inglês é a alternativa tipada; os outros catálogos disponíveis carregam sob demanda. `activateLocale` carrega as mensagens escolhidas e atualiza `document.documentElement.lang`. Armazene uma preferência de idioma pelo store de idioma existente em vez de gravar outra chave no armazenamento local.
 
 1. Adicione a chave semântica da mensagem ao catálogo em inglês e aos catálogos/módulos equivalentes disponíveis.
 2. Mantenha IDs de API, caminhos de eventos e identificadores de recursos armazenados estáveis; traduza seus rótulos visíveis.

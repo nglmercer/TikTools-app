@@ -12,6 +12,8 @@ the optional native CLI also supports a Termux workflow on Android.
 · [Documentación de usuario en español](docs/content/es/user/index.md)
 · [Guias em português](docs/content/pt/user/index.md)
 · [Guides en français](docs/content/fr/user/index.md)
+· [简体中文用户指南](docs/content/zh/user/index.md)
+· [日本語ユーザーガイド](docs/content/ja/user/index.md)
 
 <span id="quick-start-"></span>
 
@@ -47,8 +49,7 @@ use the assets actually attached to a published release.
   WASM execution is currently unavailable.
 - Local overlay previews and widgets for OBS; live gateway delivery requires
   the separately installed integration.
-- English, Spanish, Portuguese and French UI translations (`en`, `es`, `pt`,
-  `fr`), with complete documentation in the same four languages.
+- English, Spanish, Portuguese, French, Simplified Chinese and Japanese UI translations (`en`, `es`, `pt`, `fr`, `zh`, `ja`), with complete documentation in the same six languages.
 - Optional Cloud account and section-specific Changes controls. Remote
   collaboration and transports remain experimental; grants, host capabilities
   and the current guide determine the operations available to a client.
@@ -164,7 +165,7 @@ src/web/features/             User operations
 src/shared/messages.ts       Host-push message contract
 src/automation/              Automation contracts and frontend helpers
 src/widgets/                 TikTools widget renderers and shared SDK
-docs/content/{en,es,pt,fr}/  Localized public user and developer guides
+docs/content/{en,es,pt,fr,zh,ja}/  Localized public user and developer guides
 docs/internal/archive/       Unchanged historical sources and provenance
 ```
 

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9eca92664742310ab8cd76b183d92659567203bf6baec68d39183a5c07975f0"
-translationRevision: "e9eca92664742310ab8cd76b183d92659567203bf6baec68d39183a5c07975f0"
+sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
+translationRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
 order: 10
 ---
 
@@ -20,7 +20,7 @@ Defina o idioma do aplicativo, encontre a área de configuração correta e use 
 
 ## Encontre a configuração relevante {#find-the-relevant-setting}
 
-1. Abra **Settings → General** para escolher o idioma da interface. As opções atuais são inglês (`en`), espanhol (`es`), português (`pt`) e francês (`fr`). A seleção de idioma não altera identificadores de eventos do TikTok nem nomes da API de plugins.
+1. Abra **Settings → General** para escolher o idioma da interface. As opções atuais são inglês (`en`), espanhol (`es`), português (`pt`), francês (`fr`), chinês simplificado (`zh`) e japonês (`ja`). A seleção de idioma não altera identificadores de eventos do TikTok nem nomes da API de plugins.
 2. Revise os controles do atualizador em General: canal, verificações automáticas, notificações e verificação manual quando compatível. Verificações automáticas são opcionais. A disponibilidade de atualizações assinadas depende da configuração de assinatura publicada da compilação.
 3. Use **Account** para identidade do Cloud e seus diagnósticos. Use **Collaboration** para configurar o acesso do proprietário e **Teams** quando o host expuser essa capacidade.
 4. Abra **Plugins** para preferências gerais de plugins e os painéis Settings/Connection de cada plugin. As credenciais de serviço de um plugin não pertencem às configurações de General.

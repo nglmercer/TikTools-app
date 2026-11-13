@@ -1,0 +1,40 @@
+---
+title: "配置积分规则"
+docId: "user.points.rules"
+translationKey: "user.points.rules"
+locale: "zh"
+audience: "user"
+featureStatus: "available"
+contentStatus: "reviewed"
+sourceLocale: "en"
+sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+order: 10
+---
+
+# 配置积分规则 {#configure-point-rules}
+
+## 目标与前置条件 {#goal-and-prerequisites}
+
+选择传入活动如何赚取本地虚拟货币，再验证一次简单奖励。你需要运行 TikTools，并确定之后用于直播检查的主播。积分规则与自动化操作相互独立：即使没有创建自动化，规则仍可发放积分。
+
+## 设置获取规则 {#set-the-earning-policy}
+
+1. 打开 **积分**，找到规则面板。选择易识别的货币名称，例如 `星星`。
+2. 只启用所需来源：礼物金币、聊天、点赞、分享、关注或加入。每种来源都有独立的倍率和启用开关。
+3. 首次检查可只启用聊天，每条 `1` 分，并关闭其他来源。建立基准时，将订阅者加成保持为 `0`。
+4. 设置每级积分，例如 `100`。编辑器要求最少 `10`，倍率不得为负数。
+5. 选择 **保存规则** 并等待确认。编辑过程中，**丢弃** 会恢复已保存的配置。
+6. 通过 [连接](../live/connections.md) 连接，在[事件流](../live/feed.md)中观察新的聊天事件，再刷新排行榜并搜索该观众。
+
+礼物和点赞倍率使用收到的贡献数量。例如，`10` 个点赞按每赞 `0.1` 分计算，在任何适用加成之前产生 `1` 分。显示的一行事件不一定等于一个贡献单位。修改倍率只设置后续奖励规则，不会重新计算过去的数据。
+
+## 预期结果与状态 {#expected-result-and-status}
+
+本地规则、观众余额及手动增减控件均可使用。仅启用聊天的测试中，每个被接受的新聊天应让该观众余额增加一分。等级按配置的每级积分计算。这些是应用内本地积分，并非 TikTok 货币或兑付承诺。
+
+## 恢复方法 {#recovery}
+
+先检查来源开关、已保存倍率及观众标识符。如果自动化也发放积分，可能产生第二次奖励。直播连接活动或忙碌时，重置控件会锁定；计划重置前，请断开连接并阅读确认提示。清除累计余额前，进行[关闭应用后的备份](../preferences/backups.md)。
+
+<DemoFrame scenario="points" locale="zh" tour="points" title="演示：积分" />

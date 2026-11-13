@@ -22,11 +22,6 @@ TikTools / Documentation
 
 </template>
 
-<template #language>
-
-English · Español · Português · Français
-
-</template>
 
 <template #intro>
 
@@ -55,6 +50,8 @@ Connect your TikTok LIVE, set up automations, and build something of your own. S
 - [**Español** <span lang="es">Guías de usuario y documentación técnica</span>](./es/index.md)
 - [**Português** <span lang="pt">Guias de uso e documentação técnica</span>](./pt/index.md)
 - [**Français** <span lang="fr">Guides d’utilisation et documentation technique</span>](./fr/index.md)
+- [**简体中文** <span lang="zh">用户指南和开发文档</span>](./zh/index.md)
+- [**日本語** <span lang="ja">ユーザーガイドと開発者向けドキュメント</span>](./ja/index.md)
 
 </template>
 

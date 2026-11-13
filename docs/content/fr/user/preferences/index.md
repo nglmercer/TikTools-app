@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9eca92664742310ab8cd76b183d92659567203bf6baec68d39183a5c07975f0"
-translationRevision: "e9eca92664742310ab8cd76b183d92659567203bf6baec68d39183a5c07975f0"
+sourceRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
+translationRevision: "6790ab7171a90bda1df882c0f88626a5875da68bf4f624968b0e54815842030f"
 order: 10
 ---
 
@@ -20,7 +20,7 @@ Définir la langue de l’application, trouver le bon espace de configuration et
 
 ## Trouver le paramètre concerné {#find-the-relevant-setting}
 
-1. Ouvrez **Settings → General** pour choisir la langue de l’interface. Les choix actuels sont l’anglais (`en`), l’espagnol (`es`), le portugais (`pt`) et le français (`fr`). Choisir une langue ne modifie pas les identifiants d’événements TikTok ni les noms d’API des plugins.
+1. Ouvrez **Settings → General** pour choisir la langue de l’interface. Les choix actuels sont l’anglais (`en`), l’espagnol (`es`), le portugais (`pt`), le français (`fr`), le chinois simplifié (`zh`) et le japonais (`ja`). Choisir une langue ne modifie pas les identifiants d’événements TikTok ni les noms d’API des plugins.
 2. Examinez les commandes de mise à jour dans General : canal, vérifications automatiques, notifications et vérification manuelle lorsqu’elle est prise en charge. Les vérifications automatiques sont facultatives. La disponibilité des mises à jour signées dépend de la configuration de signature publiée de la compilation.
 3. Utilisez **Account** pour l’identité Cloud et ses diagnostics. Utilisez **Collaboration** pour configurer l’accès du propriétaire, et **Teams** lorsque l’hôte expose cette capacité.
 4. Ouvrez **Plugins** pour les préférences communes aux plugins et les volets Settings/Connection de chaque plugin. Les identifiants du service d’un plugin n’appartiennent pas aux paramètres General.

@@ -2,10 +2,14 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
 import { createMarkdownRenderer } from 'vitepress';
-import { docLocales } from '../locales.ts';
+import { docLocales, localizedDocumentPath } from '../locales.ts';
 
 export const contentRoot = resolve(import.meta.dirname, '../content');
 export const contentHash = (body: string) => createHash('sha256').update(body.trim()).digest('hex');
+export function articleWordCount(body: string, locale: string): number {
+  const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<[^>]*>/g, '');
+  return Array.from(new Intl.Segmenter(locale, { granularity: 'word' }).segment(prose)).filter((part) => part.isWordLike).length;
+}
 export const articleBody = (source: string) => source.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trim();
 
 export async function markdownFiles(directory: string): Promise<string[]> {
@@ -64,12 +68,12 @@ export function metadataErrors(articles: readonly Article[]): string[] {
     if (data.contentStatus !== 'reviewed') errors.push(`${path}: unreviewed public content`);
     if (data.sourceLocale !== 'en') errors.push(`${path}: source locale must be explicit English`);
     if (article.headings.filter((heading) => heading.level === 'h1').length !== 1) errors.push(`${path}: expected one main heading`);
-    if (article.body.replace(/```[\s\S]*?```/g, '').split(/\s+/).length < 40) errors.push(`${path}: insufficient article content`);
+    if (articleWordCount(article.body, docLocales.includes(data.locale as typeof docLocales[number]) ? String(data.locale) : 'en') < 40) errors.push(`${path}: insufficient article content`);
     if (/\bTODO\b|Coming soon|Próximamente/.test(article.body)) errors.push(`${path}: unfinished public content`);
     const identity = `${data.docId}:${data.locale}`;
     if (seen.has(identity)) errors.push(`${path}: duplicate document identity ${identity}`);
     seen.add(identity);
-    const localized = /^(en|es|pt|fr)\//.test(path);
+    const localized = localizedDocumentPath(path);
     if (!localized) continue; // The language root selector is the explicit x-default fallback.
     if (!path.startsWith(`${String(data.locale)}/`)) errors.push(`${path}: locale/path mismatch`);
     const source = english.get(String(data.translationKey));
@@ -77,7 +81,7 @@ export function metadataErrors(articles: readonly Article[]): string[] {
     const revision = contentHash(source.body);
     if (data.sourceRevision !== revision || data.translationRevision !== revision) errors.push(`${path}: source or translation revision is stale`);
     for (const locale of docLocales) {
-      const counterpart = path.replace(/^(en|es|pt|fr)\//, `${locale}/`);
+      const counterpart = `${locale}/${localized.tail}`;
       if (!articles.some((entry) => entry.relativePath === counterpart && entry.frontmatter.translationKey === data.translationKey)) errors.push(`${path}: missing equivalent translation ${counterpart}`);
     }
     if (data.locale !== 'en' && article.body === source.body) errors.push(`${path}: untranslated English article`);

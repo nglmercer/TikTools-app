@@ -5,7 +5,8 @@ import { audienceSidebar } from './navigation.ts';
 import { writeFile } from 'node:fs/promises';
 import { buildProvenance } from '../../scripts/lib/build-provenance.ts';
 import { renderDocSearch } from '../scripts/search-policy.ts';
-import { docLocales, docCopy, type DocLocale } from '../locales.ts';
+import { tokenizeDocSearch } from '../scripts/search-tokenizer.ts';
+import { docLocales, docCopy, localizedDocumentPath, type DocLocale } from '../locales.ts';
 
 const site = siteConfig();
 const content = resolve(import.meta.dirname, '../content');
@@ -13,12 +14,13 @@ const content = resolve(import.meta.dirname, '../content');
 function theme(locale: DocLocale) {
   const t = docCopy[locale];
   return {
-    nav: [{ text: t.audience, items: [{ text: t.user, link: `/${locale}/user/` }, { text: t.developer, link: `/${locale}/developer/` }] }, { text: t.releases, link: `/${locale}/releases/` }, { text: 'Demo', link: `/demo/?locale=${locale}`, target: '_self' }],
+    nav: [{ text: t.audience, items: [{ text: t.user, link: `/${locale}/user/` }, { text: t.developer, link: `/${locale}/developer/` }] }, { text: t.releases, link: `/${locale}/releases/` }, { text: t.demo, link: `/demo/?locale=${locale}`, target: '_self' }],
     sidebar: { [`/${locale}/user/`]: audienceSidebar(content, locale, 'user'), [`/${locale}/developer/`]: audienceSidebar(content, locale, 'developer') },
     editLink: { pattern: 'https://github.com/nglmercer/TikTools-app/edit/remake/docs/content/:path', text: t.edit },
     docFooter: { prev: t.previous, next: t.next }, outline: { label: t.outline, level: [2, 3] as [number, number] },
     sidebarMenuLabel: t.navigation, returnToTopLabel: t.top, langMenuLabel: t.language,
-    darkModeSwitchLabel: t.theme, skipToContentLabel: t.skip,
+    darkModeSwitchLabel: t.theme, darkModeSwitchTitle: t.darkTitle, lightModeSwitchTitle: t.lightTitle, skipToContentLabel: t.skip,
+    lastUpdated: { text: t.lastUpdated, formatOptions: { dateStyle: 'medium' as const, timeStyle: 'short' as const, forceLocale: true } },
   };
 }
 
@@ -39,14 +41,14 @@ export default defineConfig({
   themeConfig: {
     siteTitle: 'TikTools', ...theme('en'),
     socialLinks: [{ icon: 'github', link: 'https://github.com/nglmercer/TikTools-app' }],
-    search: { provider: 'local', options: { _render: renderDocSearch, locales: searchLocales } },
+    search: { provider: 'local', options: { _render: renderDocSearch, miniSearch: { options: { tokenize: tokenizeDocSearch } }, locales: searchLocales } },
   },
   sitemap: { hostname: site.url },
   async buildEnd(config) { await writeFile(resolve(config.outDir, '.build-info.json'), JSON.stringify(buildProvenance('docs')) + '\n'); },
   transformHead({ pageData }) {
     const path = pageData.relativePath.replace(/index\.md$/, '').replace(/\.md$/, '.html');
     const url = new URL(path, site.url).href;
-    const tail = path.match(/^(en|es|pt|fr)\/(.*)$/)?.[2];
+    const tail = localizedDocumentPath(path)?.tail;
     return [['link', { rel: 'canonical', href: url }], ...docLocales.map((lang): ['link', Record<string, string>] => ['link', { rel: 'alternate', hreflang: lang, href: new URL(tail === undefined ? `${lang}/` : `${lang}/${tail}`, site.url).href }]), ['link', { rel: 'alternate', hreflang: 'x-default', href: new URL(tail === undefined ? 'en/' : `en/${tail}`, site.url).href }]];
   },
   vite: { resolve: { dedupe: ['vue'], alias: { '@': resolve(import.meta.dirname, '../../src/web') } } },

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
-translationRevision: "db87c2ee0db326f993350cc6ccb2511e7b082779195fc57df49b3c80436b5721"
+sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
 order: 120
 ---
 
@@ -16,11 +16,11 @@ order: 120
 
 ## Objectif et prérequis {#goal-and-prerequisites}
 
-Ajouter un écran qui reste compréhensible dans les langues prises en charge et utilisable au clavier, au toucher et avec les technologies d’assistance. Lisez les [couches de l’interface](frontend.md) et utilisez les composants partagés existants. Les langues de l’application à l’exécution et les éditions anglaise, espagnole, portugaise et française de la documentation sont des systèmes distincts.
+Ajouter un écran qui reste compréhensible dans les langues prises en charge et utilisable au clavier, au toucher et avec les technologies d’assistance. Lisez les [couches de l’interface](frontend.md) et utilisez les composants partagés existants. Les langues de l’application à l’exécution et les éditions publiées de la documentation sont des systèmes distincts.
 
 ## Ajouter du contenu localisé {#add-localized-content}
 
-Le catalogue de l’application se trouve dans `src/web/shared/i18n/`. L’anglais est la langue de repli typée ; l’espagnol, le portugais et le français sont chargés à la demande. `activateLocale` charge les messages choisis et met à jour `document.documentElement.lang`. Enregistrez la préférence de langue via le store de langue existant plutôt qu’une autre clé de stockage local.
+Le catalogue de l’application se trouve dans `src/web/shared/i18n/`. L’anglais est la langue de repli typée ; les autres catalogues pris en charge sont chargés à la demande. `activateLocale` charge les messages choisis et met à jour `document.documentElement.lang`. Enregistrez la préférence de langue via le store de langue existant plutôt qu’une autre clé de stockage local.
 
 1. Ajoutez la clé sémantique du message au catalogue anglais et aux catalogues/modules équivalents pris en charge.
 2. Gardez stables les identifiants d’API, chemins d’événements et identifiants de ressources stockés ; traduisez leurs libellés visibles.
