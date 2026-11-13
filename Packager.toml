@@ -13,7 +13,6 @@ out-dir = "release/installers"
 binaries-dir = "release/staging/TikTools"
 resources = [
   { src = "release/staging/TikTools/web", target = "web" },
-  { src = "release/staging/TikTools/plugins", target = "plugins" },
   { src = "release/staging/TikTools/LICENSE", target = "LICENSE" },
   { src = "release/staging/TikTools/README.md", target = "README.md" },
 ]

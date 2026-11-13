@@ -48,7 +48,7 @@ async function matchesPatchedElf(source: string, packaged: string): Promise<bool
 }
 
 async function checkContents(staging: string, resources: string, binary: string, version: string, appimage: boolean): Promise<void> {
-  for (const relative of ['web', 'plugins']) {
+  for (const relative of ['web']) {
     const entries = await files(join(staging, relative));
     if (entries.length === 0) throw new Error(`staged ${relative} is empty`);
     for (const entry of entries) {

@@ -1,8 +1,48 @@
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { verifyAppImageWebKit, verifyDebDependencies, verifyLinuxDesktop } from './verify-installers.ts';
+import { verifyAppImageWebKit, verifyDebDependencies, verifyInstaller, verifyLinuxDesktop } from './verify-installers.ts';
+
+test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle without bundled plugins and rejects changed web assets', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tiktools-deb-bundle-'));
+  const staging = join(root, 'staging');
+  const data = join(root, 'data');
+  const resources = join(data, 'usr/lib/tiktools-desktop');
+  const control = join(root, 'control');
+  const run = (...cmd: string[]) => {
+    const result = Bun.spawnSync(cmd, { cwd: root, stdout: 'pipe', stderr: 'pipe' });
+    if (result.exitCode !== 0) throw new Error(result.stderr.toString());
+  };
+  try {
+    for (const directory of [join(staging, 'web'), join(resources, 'web'), control,
+      join(data, 'usr/bin'), join(data, 'usr/share/applications'), join(data, 'usr/share/icons/hicolor/256x256/apps')]) {
+      await mkdir(directory, { recursive: true });
+    }
+    for (const file of ['web/index.html', 'LICENSE', 'README.md']) {
+      await writeFile(join(staging, file), file);
+      await copyFile(join(staging, file), join(resources, file));
+    }
+    const binary = join(staging, 'tiktools-desktop');
+    await writeFile(binary, '#!/bin/sh\nprintf "4.2.0\\n"\n');
+    await chmod(binary, 0o755);
+    await copyFile(binary, join(data, 'usr/bin/tiktools-desktop'));
+    await writeFile(join(data, 'usr/share/applications/tiktools-desktop.desktop'), '[Desktop Entry]\nType=Application\nExec=tiktools-desktop\nIcon=tiktools-desktop\n');
+    await copyFile(resolve(import.meta.dir, '../../assets/tiktools-icon.png'), join(data, 'usr/share/icons/hicolor/256x256/apps/tiktools-desktop.png'));
+    await writeFile(join(control, 'control'), 'Depends: libgtk-3-0, libwebkit2gtk-4.1-0\n');
+    await writeFile(join(root, 'debian-binary'), '2.0\n');
+    const pack = () => {
+      run('tar', '-czf', 'control.tar.gz', '-C', control, 'control');
+      run('tar', '-czf', 'data.tar.gz', '-C', data, 'usr');
+      run('ar', 'rc', 'fixture.deb', 'debian-binary', 'control.tar.gz', 'data.tar.gz');
+    };
+    pack();
+    await expect(verifyInstaller(staging, join(root, 'fixture.deb'), 'deb', '4.2.0')).resolves.toBeUndefined();
+    await writeFile(join(resources, 'web/index.html'), 'changed');
+    pack();
+    await expect(verifyInstaller(staging, join(root, 'fixture.deb'), 'deb', '4.2.0')).rejects.toThrow('installer content mismatch: web/index.html');
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 describe('Linux installer metadata', () => {
   test('requires GTK and WebKitGTK Debian dependencies', () => {
