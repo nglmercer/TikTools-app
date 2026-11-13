@@ -162,7 +162,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       if (cursor === undefined) recovery.noteUnjournaledDrop();
       return false;
     }
-    if ((event.roomId && sessionRoom && event.roomId !== sessionRoom) || (event.creatorId && sessionCreator && event.creatorId !== sessionCreator)) return false;
+    if ((!event.platform || event.platform === 'tiktok') && ((event.roomId && sessionRoom && event.roomId !== sessionRoom) || (event.creatorId && sessionCreator && event.creatorId !== sessionCreator))) return false;
     if (cursor !== undefined) {
       if (seenCursors.has(cursor)) { duplicates += 1; return false; }
       seenCursors.add(cursor);

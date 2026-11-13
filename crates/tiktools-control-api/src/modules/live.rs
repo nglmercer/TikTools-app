@@ -3,6 +3,10 @@ use std::sync::Arc;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 pub use tiktools_core::control::{LiveChannelsResult, LiveStatus};
+pub use tiktools_core::control::{
+    PlatformConnectParams, PlatformConnectionSnapshot, PlatformCredentialParams,
+    PlatformCredentialRef, PlatformDescriptor, PlatformDisconnectParams, PlatformId,
+};
 pub use tiktools_core::live_monitor::LiveMonitorStatus;
 use tiktools_core::AppCore;
 
@@ -50,6 +54,7 @@ pub struct LiveMonitorStartParams {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    register_platforms(router);
     router.register_typed::<LiveMonitorStartParams, LiveMonitorStatus, _, _>(
         "live.monitor.start",
         "Monitors a creator and connects when LIVE",
@@ -125,4 +130,94 @@ pub fn register(router: &mut ControlRouter) {
             .map_err(ApiError::from)
         },
     );
+}
+
+fn register_platforms(router: &mut ControlRouter) {
+    use tiktools_core::control::{
+        PlatformConnectParams, PlatformConnectionSnapshot, PlatformCredentialParams,
+        PlatformCredentialRef, PlatformDescriptor, PlatformDisconnectParams,
+    };
+    router.register_typed::<Empty, Vec<PlatformDescriptor>, _, _>(
+        "live.platforms",
+        "Installed live platform capabilities",
+        false,
+        |core: Arc<AppCore>, _: Empty| async move {
+            Ok::<_, ApiError>(core.live_platform_descriptors())
+        },
+    );
+    router.register_typed::<Empty, Vec<PlatformConnectionSnapshot>, _, _>(
+        "live.connections",
+        "Managed connections across platforms",
+        false,
+        |core: Arc<AppCore>, _: Empty| async move {
+            Ok::<_, ApiError>(core.live_platform_connections())
+        },
+    );
+    router.register_typed::<PlatformConnectParams, PlatformConnectionSnapshot, _, _>(
+        "live.platform.connect",
+        "Connect a platform using stored credentials",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            core.live_platform_connect(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<PlatformDisconnectParams, (), _, _>(
+        "live.platform.disconnect",
+        "Disconnect one managed connection",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            core.live_platform_disconnect(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<PlatformCredentialParams, PlatformCredentialRef, _, _>(
+        "live.platform.credentials.store",
+        "Store a private platform credential",
+        true,
+        |core: Arc<AppCore>, params| async move {
+            core.live_platform_store_credential(params)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<PlatformCredentialDelete, (), _, _>(
+        "live.platform.credentials.delete",
+        "Forget a stored platform credential",
+        true,
+        |core: Arc<AppCore>, params: PlatformCredentialDelete| async move {
+            core.live_platform_delete_credential(params.platform, &params.credential_ref)
+                .await
+                .map_err(ApiError::from)
+        },
+    );
+    #[cfg(feature = "persistence")]
+    router.register_typed::<Empty, Vec<serde_json::Value>, _, _>(
+        "live.platform.analytics",
+        "Recent daily activity by platform and channel",
+        false,
+        |core: Arc<AppCore>, _: Empty| async move {
+            tokio::task::spawn_blocking(move || core.db.platform_analytics())
+                .await
+                .map_err(|_| {
+                    ApiError::from(tiktools_core::control::OperationError::unavailable(
+                        "Analytics task failed",
+                    ))
+                })?
+                .map_err(|_| {
+                    ApiError::from(tiktools_core::control::OperationError::unavailable(
+                        "Platform analytics unavailable",
+                    ))
+                })
+        },
+    );
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PlatformCredentialDelete {
+    pub platform: tiktools_core::control::PlatformId,
+    pub credential_ref: String,
 }

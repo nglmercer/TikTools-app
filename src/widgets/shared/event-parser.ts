@@ -243,7 +243,7 @@ export function isGiftEvent(event: AutomationEventLike): event is GiftAutomation
 }
 
 export function isChatEvent(event: AutomationEventLike): event is ChatAutomationEvent {
-  return event.type === 'tiktok.chat' && isChatAutomationData(event.data);
+  return (event.type === 'tiktok.chat' || event.type === 'live.chat') && isChatAutomationData(event.data);
 }
 
 export function isEmoteChatEvent(event: AutomationEventLike): event is EmoteChatAutomationEvent {

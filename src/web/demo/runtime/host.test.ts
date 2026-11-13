@@ -66,7 +66,7 @@ describe('public demo host', () => {
       const a = createDemoHost(id); const b = createDemoHost(id);
       expect(a.state).toEqual(b.state);
       const client = createControlClient({ transport: a.transport }); client.attach();
-      for (const method of ['system.info', 'app.state.get', 'automation.snapshot', 'automation.runs', 'points.config.get', 'points.leaderboard', 'live.status', 'live.monitor.status', 'creators.recent', 'globals.list', 'processors.status', 'widgets.status']) expect(await client.call(method, {})).toBeDefined();
+      for (const method of ['system.info', 'app.state.get', 'automation.snapshot', 'automation.runs', 'points.config.get', 'points.leaderboard', 'live.status', 'live.platforms', 'live.connections', 'live.monitor.status', 'creators.recent', 'globals.list', 'processors.status', 'widgets.status']) expect(await client.call(method, {})).toBeDefined();
       expect(client.diagnostics?.().pending).toBe(0); client.detach(); a.dispose(); b.dispose();
     }
   });

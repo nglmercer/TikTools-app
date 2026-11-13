@@ -323,6 +323,17 @@ const INIT_SCRIPT = `
     'live.monitor.status': () => state.liveMonitor || { enabled: false, phase: 'stopped', uniqueId: '', pollIntervalSeconds: 30, checks: 0, failures: 0, lastCheckedAt: null, nextCheckAt: null, lastError: null },
     'live.monitor.start': (params) => (state.liveMonitor = { enabled: true, phase: 'waiting', uniqueId: params.uniqueId, pollIntervalSeconds: params.pollIntervalSeconds || 30, checks: 1, failures: 0, lastCheckedAt: Date.now(), nextCheckAt: Date.now() + 30000, lastError: null }),
     'live.monitor.stop': () => (state.liveMonitor = { ...state.liveMonitor, enabled: false, phase: 'stopped' }),
+    'live.platforms': () => state.livePlatforms || [],
+    'live.connections': () => state.liveConnections || [],
+    'live.platform.credentials.store': () => ({ credentialRef: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' }),
+    'live.platform.credentials.delete': () => null,
+    'live.platform.connect': (params) => {
+      const provider = (state.livePlatforms || []).find(p => p.platform === params.platform);
+      const connection = { connectionId: params.platform + '-1', platform: params.platform, target: params.target, state: 'connected', channel: { platform: params.platform, id: '99', handle: params.target, roomId: '99' }, capabilities: provider.capabilities, reconnectAttempt: 0, retryAfterMs: null, error: null };
+      (state.liveConnections ||= []).push(connection);
+      return connection;
+    },
+    'live.platform.disconnect': (params) => { state.liveConnections = (state.liveConnections || []).filter(c => c.connectionId !== params.connectionId); return null; },
     'live.status': () => state.liveStatus,
     'live.connect': (params) => {
       state.liveStatus = {

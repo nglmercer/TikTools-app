@@ -74,7 +74,7 @@ impl AppCore {
         }
         let event = envelope.payload();
         if let Some(event_type) = event.get("type").and_then(Value::as_str) {
-            if event_type.starts_with("tiktok.") {
+            if tiktools_live::is_builtin_live_trigger(event_type) {
                 self.events
                     .publish_domain(crate::events::DomainEvent::LiveEvent {
                         event_type: event_type.to_owned(),

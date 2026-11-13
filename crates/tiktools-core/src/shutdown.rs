@@ -15,6 +15,7 @@ impl AppCore {
             }
         }
         self.plugins.close_start_admission();
+        self.stop_platform_connections().await;
         self.automation_write_settled.notify_waiters();
         #[cfg(feature = "persistence")]
         {

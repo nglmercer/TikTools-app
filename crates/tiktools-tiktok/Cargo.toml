@@ -7,6 +7,7 @@ rust-version.workspace = true
 description = "Desktop-independent TikTok client boundary"
 
 [dependencies]
+tiktools-live = { path = "../tiktools-live" }
 tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", features = ["http-client"] }
 serde.workspace = true
 serde_json.workspace = true

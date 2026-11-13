@@ -43,6 +43,54 @@ fn sample_data_for(event_type: &str) -> (Value, Option<Value>) {
     let method = || SAMPLE_METHOD.to_owned();
     let msg_id = || SAMPLE_MSG_ID.to_owned();
     match event_type {
+        topic if tiktools_live::is_live_trigger(topic) => {
+            use tiktools_live::LivePayload;
+            let payload = match topic {
+                "live.chat" => LivePayload::Chat {
+                    comment: "Hello there".into(),
+                    emotes: vec![],
+                },
+                "live.gift" => LivePayload::Gift {
+                    id: "bits".into(),
+                    name: "Bits".into(),
+                    count: 1,
+                    unit: "twitch_bits".into(),
+                    amount: "100".into(),
+                },
+                "live.subscription" => LivePayload::Subscription {
+                    tier: Some("1000".into()),
+                    months: Some(1),
+                    gifted: false,
+                },
+                "live.like" => LivePayload::Like {
+                    count: 1,
+                    total: Some(1),
+                },
+                "live.share" => LivePayload::Share { count: 1 },
+                "live.follow" => LivePayload::Follow,
+                "live.join" => LivePayload::Join,
+                "live.room_stats" => LivePayload::RoomStats {
+                    viewers: 1,
+                    total_users: Some(1),
+                },
+                "live.connected" => LivePayload::Connected,
+                _ => LivePayload::Disconnected,
+            };
+            let mut data = sample_data(payload);
+            let object = data.as_object_mut().unwrap();
+            object.remove("kind");
+            object.insert("method".into(), json!(topic));
+            object.insert("msgId".into(), json!("1"));
+            object.insert("isHistory".into(), json!(false));
+            (
+                data,
+                (!matches!(
+                    topic,
+                    "live.room_stats" | "live.connected" | "live.disconnected"
+                ))
+                .then(sample_user),
+            )
+        }
         "tiktok.chat" => (
             sample_data(ChatAutomationData {
                 comment: "Hello there".to_owned(),
@@ -197,6 +245,9 @@ pub(crate) fn sample_automation_event(event_type: &str) -> Value {
     });
     if let Some(user) = user {
         event["user"] = user;
+    }
+    if tiktools_live::is_live_trigger(event_type) {
+        event["platform"] = json!("twitch");
     }
     event
 }

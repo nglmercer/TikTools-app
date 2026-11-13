@@ -60,6 +60,10 @@ function openViewer(): void {
         :size="20"
       />
       <span class="event-row__name">{{ name }}</span>
+      <small
+        v-if="event.platform && event.platform !== 'tiktok'"
+        class="event-row__platform"
+      >{{ event.platform }}</small>
     </button>
     <button
       class="event-row__content"

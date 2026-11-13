@@ -77,7 +77,7 @@ pub enum ManifestError {
 }
 /// Prefixes owned by the host. Plugins declare their own event types under
 /// any other dotted name (for example hotkey.pressed or timer.tick).
-const RESERVED_EVENT_PREFIXES: [&str; 3] = ["tiktok.", "points.", "plugin."];
+const RESERVED_EVENT_PREFIXES: [&str; 4] = ["tiktok.", "live.", "points.", "plugin."];
 
 pub(crate) const MAX_EVENT_TYPE_LEN: usize = 64;
 const MAX_EVENT_FIELDS: usize = 64;

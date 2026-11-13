@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
+pub mod adapter;
 mod client;
 use client::socket::{open_socket, ManagedConnection};
 mod lifecycle;

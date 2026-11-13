@@ -174,6 +174,8 @@ impl AppCore {
         let points = Arc::new(PointsService::new(db.clone()));
         #[cfg(feature = "native-tiktok")]
         let live_points_work = services::points_work::PointsWorkService::new(Arc::clone(&points));
+        let live = Arc::new(live);
+        let live_platforms = crate::live_platforms::PlatformRuntime::new(&live);
         let core = Self {
             collaboration: Mutex::new(None),
             collaboration_gateway_available: AtomicBool::new(false),
@@ -193,7 +195,8 @@ impl AppCore {
             coordination_worker: control::CoordinationWorker::default(),
             #[cfg(feature = "app-update")]
             app_updater: RwLock::new(None),
-            live: Arc::new(live),
+            live,
+            live_platforms,
             live_monitor: live_monitor::LiveMonitor::default(),
             points,
             #[cfg(feature = "native-tiktok")]

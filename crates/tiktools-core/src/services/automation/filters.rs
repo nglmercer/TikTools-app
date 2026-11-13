@@ -3,6 +3,9 @@
 use super::*;
 
 pub(crate) fn event_record_matches(record: &Value, event: &Value) -> bool {
+    let view =
+        tiktools_live::event_for_trigger(event, record.get("trigger").and_then(Value::as_str));
+    let event = view.as_ref();
     let Some(filters) = record.get("filters").and_then(Value::as_array) else {
         return true;
     };

@@ -39,7 +39,7 @@ cloud-auth = [
     "dep:uuid",
 ]
 persistence = ["dep:rusqlite"]
-http = ["dep:reqwest", "dep:tokio-tungstenite", "tiktools-plugin-sdk/http-client"]
+http = ["dep:reqwest", "dep:tokio-tungstenite", "tiktools-plugin-sdk/http-client", "dep:tiktools-twitch"]
 tiktok-network = ["dep:tokio-tungstenite"]
 native-tiktok = ["dep:tiktools-tiktok"]
 # Explicit synthetic harness only; excluded from normal release artifacts.
@@ -47,6 +47,8 @@ live-benchmark = ["native-tiktok"]
 app-update = ["dep:tiktools-app-update"]
 
 [dependencies]
+tiktools-live = { path = "../tiktools-live" }
+tiktools-twitch = { path = "../tiktools-twitch", optional = true }
 tiktools-app-update = { path = "../tiktools-app-update", optional = true }
 tiktools-aggregation = { path = "../tiktools-aggregation" }
 tiktools-competitions = { path = "../tiktools-competitions" }

@@ -1,4 +1,12 @@
 export default {
+  'automation.event.field.event.platform.label': "平台",
+  'automation.event.field.event.data.gifted.label': "赠送的订阅",
+  'automation.event.field.event.data.months.label': "月数",
+  'automation.event.field.event.data.tier.label': "等级",
+  'automation.event.field.event.data.amount.label': "金额",
+  'automation.event.field.event.data.id.label': "ID",
+  'automation.event.field.event.data.name.label': "名称",
+  'automation.event.field.event.data.unit.label': "单位",
   'automation.action.core.fetch.title': '请求 URL',
   'automation.action.core.fetch.description': '通过 POST 或 GET 将事件数据发送到服务器或网络钩子。',
   'automation.action.core.fetch.field.method.option.GET': 'GET',

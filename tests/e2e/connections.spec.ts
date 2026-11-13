@@ -108,7 +108,7 @@ test('REPO imports a token through the shared card without showing the secret', 
   await expect(page.getByRole('button', { name: 'Get API token…' })).toHaveCount(0);
   await importButton.click();
   await expect(page.getByText('API token imported and saved.')).toBeVisible();
-  await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText('API token imported and saved.')).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText('Connected in 1 ms')).toBeVisible();
   await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
   await assertNoUnhandledCalls(page);
@@ -148,9 +148,9 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
   await expect(page.getByText('Steam — Local installation')).toBeVisible();
   await expect(page.getByText('Mod profile: Stream')).toBeVisible();
   await expect(page.getByText('API token imported and saved.')).toHaveCount(0);
-  await page.locator('.connection-editor__candidate-list li').filter({ hasText: 'Mod profile: Stream' }).getByRole('button', { name: 'Use this configuration' }).click();
+  await page.locator('.credentials__candidate-list li').filter({ hasText: 'Mod profile: Stream' }).getByRole('button', { name: 'Use this configuration' }).click();
   await expect(page.getByText('API token imported and saved.')).toBeVisible();
-  await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText('API token imported and saved.')).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText('API connected · gameplay not ready', { exact: true }).first()).toBeVisible();
   await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
   await expect(page.locator('.connection-editor input').first()).toHaveValue('http://127.0.0.1:18053');
@@ -169,7 +169,7 @@ test('REPO setup offers a folder picker when automatic discovery finds nothing',
   await expect(page.getByText('No configuration found. Select the game folder.')).toBeVisible();
   await page.getByRole('button', { name: 'Folder', exact: true }).click();
   await expect(page.getByText('API token imported and saved.')).toBeVisible();
-  await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText('API token imported and saved.')).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText('Connected in 1 ms')).toBeVisible();
   await assertNoUnhandledCalls(page);
   capture.assertClean();

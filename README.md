@@ -2,9 +2,12 @@
 
 # TikTools
 
-TikTools connects to TikTok LIVE, displays chat and engagement events, keeps
-viewer points and runs local automation rules. Use it on Windows or Linux;
+TikTools connects to TikTok LIVE and Twitch chat, displays chat and engagement
+events, keeps viewer points and runs local automation rules. Use it on Windows or Linux;
 the optional native CLI also supports a Termux workflow on Android.
+
+See [Live platform adapters](docs/internal/MULTI-PLATFORM.md) for multi-platform architecture,
+independent connections and Twitch setup.
 
 [Download published binaries and checksums](https://github.com/nglmercer/TikTools-app/releases)
 · [Latest stable release](https://github.com/nglmercer/TikTools-app/releases/latest)
@@ -156,10 +159,13 @@ crates/tiktools-cli/           IPC-first native CLI and optional browser adapter
 crates/tiktools-collaboration/ Grants, sessions, execution authority and receipts
 crates/tiktools-remote/        Optional HTTPS/WSS host gateway
 crates/tiktools-rtc/           Native WebRTC transport and signaling contracts
+crates/tiktools-live/          Shared live contracts, adapter registry and connections
+crates/tiktools-tiktok/        Native TikTok client and live adapter
+crates/tiktools-twitch/        Read-only authenticated Twitch IRC WebSocket adapter
 crates/tiktools-plugin-*/      Plugin contracts, runtimes, installer and tooling
 src/web/shared/api/           Frontend control client and transport contracts
 src/web/shared/ui/            Shared Vue components
-src/web/shared/i18n/          Four UI locale catalogs
+src/web/shared/i18n/          Six UI locale catalogs
 src/web/entities/             Domain state and reusable business models
 src/web/features/             User operations
 src/shared/messages.ts       Host-push message contract

@@ -1,4 +1,12 @@
 export default {
+  'automation.event.field.event.platform.label': "プラットフォーム",
+  'automation.event.field.event.data.gifted.label': "ギフトサブスク",
+  'automation.event.field.event.data.months.label': "月数",
+  'automation.event.field.event.data.tier.label': "ティア",
+  'automation.event.field.event.data.amount.label': "金額",
+  'automation.event.field.event.data.id.label': "ID",
+  'automation.event.field.event.data.name.label': "名前",
+  'automation.event.field.event.data.unit.label': "単位",
   "automation.action.core.fetch.title": "URLを呼び出す",
   "automation.action.core.fetch.description": "POSTまたはGETでイベントデータをサーバーやWebhookに送信します。",
   "automation.action.core.fetch.field.method.option.GET": "GET",

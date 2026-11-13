@@ -4,6 +4,8 @@ import type { RuntimeVariable } from '@/entities/runtime-global/lib/runtime-vari
 import type { CollaborationStatus, Invitation, InvitationSecret, PairingRequest, Principal, Session, AuditEntry } from '@/entities/collaboration/api/types.ts';
 
 export interface MemoryHostState {
+  livePlatforms?: Array<Record<string, unknown>>;
+  liveConnections?: Array<Record<string, unknown>>;
   collaboration?: {
     status: CollaborationStatus;
     invitations: Invitation[]; issued: InvitationSecret; requests: PairingRequest[];

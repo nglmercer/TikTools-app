@@ -322,6 +322,29 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "globals.delete" => GlobalsDeleteParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
+        "live.platforms" | "live.connections" | "live.platform.analytics" => {
+            Empty::deserialize(params).map(|_| ()).map_err(invalid)
+        }
+        "live.platform.connect" => {
+            tiktools_control_api::modules::live::PlatformConnectParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
+        "live.platform.disconnect" => {
+            tiktools_control_api::modules::live::PlatformDisconnectParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
+        "live.platform.credentials.store" => {
+            tiktools_control_api::modules::live::PlatformCredentialParams::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
+        "live.platform.credentials.delete" => {
+            tiktools_control_api::modules::live::PlatformCredentialDelete::deserialize(params)
+                .map(|_| ())
+                .map_err(invalid)
+        }
         "live.connect" => LiveConnectParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),

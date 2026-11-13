@@ -29,6 +29,14 @@ impl AppCore {
         if let Some(automation) = automation.as_mut() {
             if !totals.is_null() {
                 automation["data"]["aggregation"] = totals.clone();
+                if matches!(
+                    &event.base,
+                    tiktools_tiktok::events::CanonicalLiveEvent::Gift(_)
+                ) {
+                    automation["data"]["count"] = totals["increment"].clone();
+                    automation["data"]["amount"] =
+                        json!(totals["diamonds"].as_u64().unwrap_or(0).to_string());
+                }
             }
         }
         // Originals are delivered before any persistence work. Backfill only

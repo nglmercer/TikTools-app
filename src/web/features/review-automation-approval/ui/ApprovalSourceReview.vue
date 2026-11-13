@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { recordKey, type AutomationKind } from '@/entities/automation/model/record-versions.ts';
 import ReviewedAutomationDefinition from '@/features/review-automation-proposal/ui/ReviewedAutomationDefinition.vue';
+import { isBuiltinTrigger } from '@/entities/automation/lib/automation-records.ts';
 import type { CapturedApprovalReview } from '../model/contracts.ts';
 const props = defineProps<{
   review: CapturedApprovalReview;
@@ -14,7 +15,7 @@ const { t } = useI18n();
 const source = computed(() => props.review.source);
 const customTrigger = computed(() => {
   const trigger = source.value?.kind === 'event' ? source.value.record?.['trigger'] : null;
-  return typeof trigger === 'string' && !trigger.startsWith('tiktok.') ? trigger : null;
+  return typeof trigger === 'string' && !isBuiltinTrigger(trigger) ? trigger : null;
 });
 const hasScript = computed(() => props.review?.manifest?.effects.some((effect) => effect.kind === 'script') ?? false);
 const revision = (kind: AutomationKind, id: string): string => props.versions.get(recordKey(kind, id)) ?? '0';

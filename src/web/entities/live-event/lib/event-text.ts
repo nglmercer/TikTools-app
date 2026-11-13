@@ -1,11 +1,14 @@
 import { intlLocale } from '@/shared/lib/intl.ts';
 import type { DisplayEvent } from '@/types.ts';
+import { liveUnitLabel } from '../../../../shared/live-units.ts';
 
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
 export function eventText(event: DisplayEvent, t: Translate): string {
   const params = event.i18nParams ?? {};
   switch (event.i18nKey) {
+    case 'platformGiftSent': return t('livePlatforms.giftMessage', { ...params, unit: liveUnitLabel(String(params.unit ?? '')) });
+    case 'platformSubscribed': return t('livePlatforms.subscriptionMessage');
     case 'giftSent':
       return t('feed.events.giftSent', {
         count: params.count ?? event.giftDetails?.count ?? 1,

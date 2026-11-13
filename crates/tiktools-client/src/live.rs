@@ -5,6 +5,10 @@ use tiktools_control_api::modules::live::{
     LiveChannelsParams, LiveChannelsResult, LiveConnectParams, LiveMonitorStartParams,
     LiveMonitorStatus, LivePickParams, LiveStatus,
 };
+pub use tiktools_control_api::modules::live::{
+    PlatformConnectParams, PlatformConnectionSnapshot, PlatformCredentialDelete,
+    PlatformCredentialParams, PlatformCredentialRef, PlatformDescriptor, PlatformDisconnectParams,
+};
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::ClientError;
 
@@ -20,6 +24,13 @@ pub(crate) const METHODS: &[&str] = &[
     LIVE_MONITOR_START,
     LIVE_MONITOR_STOP,
     LIVE_MONITOR_STATUS,
+    "live.platforms",
+    "live.connections",
+    "live.platform.connect",
+    "live.platform.disconnect",
+    "live.platform.credentials.store",
+    "live.platform.credentials.delete",
+    "live.platform.analytics",
 ];
 
 const LIVE_CONNECT: &str = "live.connect";
@@ -32,6 +43,39 @@ const LIVE_MONITOR_STOP: &str = "live.monitor.stop";
 const LIVE_MONITOR_STATUS: &str = "live.monitor.status";
 
 impl TikToolsClient {
+    pub async fn live_platforms(&self) -> Result<Vec<PlatformDescriptor>, ClientError> {
+        self.call("live.platforms", Empty::default()).await
+    }
+    pub async fn live_connections(&self) -> Result<Vec<PlatformConnectionSnapshot>, ClientError> {
+        self.call("live.connections", Empty::default()).await
+    }
+    pub async fn live_platform_connect(
+        &self,
+        params: PlatformConnectParams,
+    ) -> Result<PlatformConnectionSnapshot, ClientError> {
+        self.call("live.platform.connect", params).await
+    }
+    pub async fn live_platform_disconnect(
+        &self,
+        params: PlatformDisconnectParams,
+    ) -> Result<(), ClientError> {
+        self.call("live.platform.disconnect", params).await
+    }
+    pub async fn live_platform_store_credential(
+        &self,
+        params: PlatformCredentialParams,
+    ) -> Result<PlatformCredentialRef, ClientError> {
+        self.call("live.platform.credentials.store", params).await
+    }
+    pub async fn live_platform_delete_credential(
+        &self,
+        params: PlatformCredentialDelete,
+    ) -> Result<(), ClientError> {
+        self.call("live.platform.credentials.delete", params).await
+    }
+    pub async fn live_platform_analytics(&self) -> Result<Vec<serde_json::Value>, ClientError> {
+        self.call("live.platform.analytics", Empty::default()).await
+    }
     /// Connects the native TikTok live client.
     /// RPC method `live.connect`.
     pub async fn live_connect(&self, params: LiveConnectParams) -> Result<LiveStatus, ClientError> {

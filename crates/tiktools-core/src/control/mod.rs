@@ -87,6 +87,14 @@ pub use runtime_variables::{
 };
 mod helpers;
 mod live;
+mod live_platforms;
+pub use live_platforms::{
+    PlatformConnectParams, PlatformCredentialParams, PlatformCredentialRef,
+    PlatformDisconnectParams,
+};
+pub use tiktools_live::{
+    ConnectionSnapshot as PlatformConnectionSnapshot, LiveEnvelope, PlatformDescriptor, PlatformId,
+};
 mod media;
 #[cfg(feature = "plugin-install")]
 mod plugin_packages;

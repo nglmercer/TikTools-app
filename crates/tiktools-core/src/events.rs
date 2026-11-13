@@ -26,6 +26,14 @@ use projection::project_creator_event;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "topic", content = "data")]
 pub enum DomainEvent {
+    #[serde(rename = "live.platform.connection", rename_all = "camelCase")]
+    PlatformConnection {
+        connection: tiktools_live::ConnectionSnapshot,
+    },
+    #[serde(rename = "live.normalized", rename_all = "camelCase")]
+    NormalizedLive { event: tiktools_live::LiveEnvelope },
+    #[serde(rename = "live.platform.gap", rename_all = "camelCase")]
+    PlatformGap { connection_id: String, lost: u64 },
     /// An owner Cloud account or sync setting may have changed. Contains no
     /// account identity or credentials. Delivery is advisory and asynchronous;
     /// it does not authorize displaying a previously fetched private value.

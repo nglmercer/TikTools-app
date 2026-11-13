@@ -81,6 +81,30 @@ INSERT OR IGNORE INTO control_command_resources(event_id,resource_cursor)
 "#;
 
 const POINTS_SCHEMA: &str = r#"
+CREATE TABLE IF NOT EXISTS platform_viewers (
+  platform TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  storage_key TEXT NOT NULL UNIQUE,
+  handle TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  PRIMARY KEY(platform,user_id)
+);
+CREATE TABLE IF NOT EXISTS platform_channels (
+  platform TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  handle TEXT NOT NULL,
+  room_id TEXT NOT NULL,
+  PRIMARY KEY(platform,channel_id)
+);
+CREATE TABLE IF NOT EXISTS platform_analytics (
+  platform TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  day INTEGER NOT NULL,
+  event_type TEXT NOT NULL,
+  event_count INTEGER NOT NULL,
+  last_received_at INTEGER NOT NULL,
+  PRIMARY KEY(platform,channel_id,day,event_type)
+);
 CREATE TABLE IF NOT EXISTS points_config (
   id INTEGER PRIMARY KEY,
   currency_name TEXT DEFAULT 'Points',
@@ -602,6 +626,9 @@ impl DatabaseManager {
     pub(in crate::db) fn initialize_schema(&self) -> Result<(), DatabaseError> {
         let points = self.open(&self.points_path())?;
         points.execute_batch(POINTS_SCHEMA)?;
+        // Idempotent additive migration. Existing handles and balances keep
+        // their legacy storage keys; new providers never share those keys.
+        points.execute_batch("INSERT OR IGNORE INTO platform_viewers(platform,user_id,storage_key,handle,display_name) SELECT 'tiktok',COALESCE(NULLIF(user_id,''),'legacy-handle:'||unique_id),unique_id,unique_id,COALESCE(nickname,unique_id) FROM viewers WHERE NOT EXISTS(SELECT 1 FROM platform_viewers p WHERE p.storage_key=viewers.unique_id) ORDER BY unique_id; INSERT OR IGNORE INTO platform_channels(platform,channel_id,handle,room_id) SELECT 'tiktok',unique_id,unique_id,COALESCE(room_id,'') FROM creator_history;")?;
         points.execute_batch(COORDINATION_SCHEMA)?;
         points.execute_batch("INSERT OR IGNORE INTO control_resource_versions(kind,scope,resource_id,revision,deleted) SELECT 'viewer','host',unique_id,1,0 FROM viewers;")?;
         let count: i64 =

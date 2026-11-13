@@ -186,6 +186,7 @@ impl AppCore {
         session_cookie: String,
         room_id: Option<String>,
     ) -> Result<LiveStatus, OperationError> {
+        self.ensure_legacy_tiktok_available()?;
         let unique_id = clean_unique_id(&unique_id)
             .ok_or_else(|| OperationError::invalid("uniqueId must not be empty"))?;
         check_session_cookie_len(&session_cookie)?;
@@ -231,6 +232,19 @@ impl AppCore {
     }
 
     pub async fn live_disconnect(self: &Arc<Self>) -> LiveStatus {
+        for connection in self
+            .live_platforms
+            .manager
+            .snapshots()
+            .into_iter()
+            .filter(|c| c.platform == tiktools_live::PlatformId::Tiktok)
+        {
+            let _ = self
+                .live_platforms
+                .manager
+                .disconnect(&connection.connection_id)
+                .await;
+        }
         let _operation = self.live_monitor.operation.lock().await;
         self.stop_live_monitor().await;
         self.live.disconnect().await;
@@ -244,6 +258,7 @@ impl AppCore {
         self: &Arc<Self>,
         session_cookie: String,
     ) -> Result<LiveStatus, OperationError> {
+        self.ensure_legacy_tiktok_available()?;
         check_session_cookie_len(&session_cookie)?;
         let _operation = self.live_monitor.operation.lock().await;
         self.stop_live_monitor().await;

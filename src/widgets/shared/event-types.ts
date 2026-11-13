@@ -1,4 +1,5 @@
 import { liveMessageIdentity } from '../../shared/live-identity.ts';
+import type { LiveActivityAutomationData, LiveGiftAutomationData, LiveSubscriptionAutomationData, LikeAggregation, PlatformId } from '../../automation/contracts/generated/automation-events.ts';
 /**
  * Widget-side event types. Automation payloads reuse the generated TikTools
  * contracts; widgets never define their own user/gift/social shapes.
@@ -52,6 +53,7 @@ export interface AutomationCreatorLike {
 
 /** Structural subset of the generated AutomationEvent widgets rely on. */
 export interface AutomationEventLike {
+  platform?: PlatformId;
   id: string;
   type: string;
   timestamp: number;
@@ -100,11 +102,24 @@ export interface GiftAutomationEvent {
 
 export interface ChatAutomationEvent {
   id: string;
-  type: 'tiktok.chat';
+  type: 'tiktok.chat' | 'live.chat';
   timestamp: number;
   creator?: AutomationCreatorLike | null;
   user?: AutomationUser | null;
   data: ChatAutomationData;
+}
+
+export interface SharedActivityEvent extends AutomationEventLike {
+  type: 'live.follow' | 'live.share' | 'live.like';
+  data: LiveActivityAutomationData & { action?: never; aggregation?: LikeAggregation };
+}
+export interface SharedSubscriptionEvent extends AutomationEventLike {
+  type: 'live.subscription';
+  data: LiveSubscriptionAutomationData & { action?: never };
+}
+export interface SharedGiftEvent extends AutomationEventLike {
+  type: 'live.gift';
+  data: LiveGiftAutomationData;
 }
 
 export interface EmoteChatAutomationEvent {

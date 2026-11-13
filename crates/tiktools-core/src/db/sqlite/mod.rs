@@ -46,6 +46,7 @@ mod plugin_package_guard;
 pub(crate) use plugin_package_guard::{
     PackageMutationIntent, PackageMutationKind, PackageMutationPhase,
 };
+mod platforms;
 #[cfg(feature = "cloud-auth")]
 // The transactional storage boundary is not exposed to the product until the
 // coordinator can enforce draining and identity/session authorization.

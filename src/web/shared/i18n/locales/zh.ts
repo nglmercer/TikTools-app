@@ -12,7 +12,9 @@ import jsonView from './json-view.zh.ts';
 import syncChanges from './sync-changes.zh.ts';
 import exploreCatalog from './explore-catalog.zh.ts';
 import importDialog from './import-dialog.zh.ts';
+import livePlatforms from './live-platforms.zh.ts';
 export default {
+  livePlatforms,
   controller,
   jsonView,
   syncChanges,
@@ -787,6 +789,16 @@ export default {
       'is-false': "为假",
     },
     triggers: {
+      'live-chat': "有人评论（所有平台）",
+      'live-gift': "有人赠送礼物（所有平台）",
+      'live-like': "有人点赞（所有平台）",
+      'live-follow': "有人关注（所有平台）",
+      'live-share': "有人分享（所有平台）",
+      'live-join': "有人进入直播间（所有平台）",
+      'live-room_stats': "直播间统计（所有平台）",
+      'live-connected': "已连接（所有平台）",
+      'live-disconnected': "已断开（所有平台）",
+      'live-subscription': "有人订阅（所有平台）",
       'tiktok-chat': "有人评论",
       'tiktok-emote_chat': "有人发送表情",
       'tiktok-gift': "有人送礼",

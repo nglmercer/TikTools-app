@@ -310,12 +310,29 @@ impl AppCore {
             ),
             tiktools_tiktok::events::CanonicalLiveEvent::Unknown { .. } => return None,
         };
-        Some(match context {
+        let mut data = data;
+        if let Some(payload) = tiktools_tiktok::adapter::payload(event) {
+            if let (Some(target), Some(common)) = (
+                data.as_object_mut(),
+                serde_json::to_value(payload)
+                    .ok()
+                    .and_then(|v| v.as_object().cloned()),
+            ) {
+                for (key, value) in common {
+                    if key != "kind" {
+                        target.entry(key).or_insert(value);
+                    }
+                }
+            }
+        }
+        let mut normalized = match context {
             Some(context) => {
                 self.make_automation_event_with_context(event_type, data, user, context)
             }
             None => self.make_automation_event_without_context(event_type, data, user),
-        })
+        };
+        normalized["platform"] = json!("tiktok");
+        Some(normalized)
     }
     pub(crate) fn make_automation_event_without_context(
         &self,
@@ -323,13 +340,15 @@ impl AppCore {
         data: serde_json::Value,
         user: Option<serde_json::Value>,
     ) -> serde_json::Value {
-        json!({
+        let mut event = json!({
                 "id": format!("{}-{}", event_type.replace('.', "-"), self.next_sequence()),
                 "type": event_type,
                 "timestamp": now_millis(),
                 "data": data,
                 "user": user
-        })
+        });
+        add_platform_metadata(&mut event, event_type);
+        event
     }
     pub(crate) fn make_automation_event_with_context(
         &self,
@@ -349,7 +368,19 @@ impl AppCore {
         if let Some(user) = user {
             event["user"] = user;
         }
+        add_platform_metadata(&mut event, event_type);
         event
+    }
+}
+
+fn add_platform_metadata(event: &mut Value, event_type: &str) {
+    if tiktools_live::is_builtin_live_trigger(event_type) && event_type.starts_with("tiktok.") {
+        event["platform"] = json!("tiktok");
+        if matches!(event_type, "tiktok.connected" | "tiktok.disconnected") {
+            event["data"]["msgId"] = json!("");
+            event["data"]["method"] = json!(event_type);
+            event["data"]["isHistory"] = json!(false);
+        }
     }
 }
 

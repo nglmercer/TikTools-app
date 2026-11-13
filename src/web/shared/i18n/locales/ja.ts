@@ -12,7 +12,9 @@ import jsonView from './json-view.ja.ts';
 import syncChanges from './sync-changes.ja.ts';
 import exploreCatalog from './explore-catalog.ja.ts';
 import importDialog from './import-dialog.ja.ts';
+import livePlatforms from './live-platforms.ja.ts';
 export default {
+  livePlatforms,
   controller,
   jsonView,
   syncChanges,
@@ -787,6 +789,16 @@ export default {
       'is-false': "偽である",
     },
     triggers: {
+      'live-chat': "コメント（すべてのプラットフォーム）",
+      'live-gift': "ギフト（すべてのプラットフォーム）",
+      'live-like': "いいね（すべてのプラットフォーム）",
+      'live-follow': "フォロー（すべてのプラットフォーム）",
+      'live-share': "シェア（すべてのプラットフォーム）",
+      'live-join': "ライブ参加（すべてのプラットフォーム）",
+      'live-room_stats': "ルーム統計（すべてのプラットフォーム）",
+      'live-connected': "接続（すべてのプラットフォーム）",
+      'live-disconnected': "切断（すべてのプラットフォーム）",
+      'live-subscription': "サブスクリプション（すべてのプラットフォーム）",
       'tiktok-chat': "コメントされたとき",
       'tiktok-emote_chat': "エモートが送信されたとき",
       'tiktok-gift': "ギフトが贈られたとき",

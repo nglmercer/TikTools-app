@@ -7793,6 +7793,7 @@ dependencies = [
  "tiktools-cloud-sync",
  "tiktools-collaboration",
  "tiktools-competitions",
+ "tiktools-live",
  "tiktools-plugin-api",
  "tiktools-plugin-installer",
  "tiktools-plugin-loader",
@@ -7800,6 +7801,7 @@ dependencies = [
  "tiktools-plugin-registry",
  "tiktools-plugin-sdk",
  "tiktools-tiktok",
+ "tiktools-twitch",
  "tokio",
  "tokio-tungstenite 0.30.0",
  "tokio-util",
@@ -7841,6 +7843,18 @@ dependencies = [
  "winit",
  "wry",
  "x11-dl",
+]
+
+[[package]]
+name = "tiktools-live"
+version = "4.2.2"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -8048,6 +8062,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "tiktools-live",
  "tiktools-plugin-sdk",
  "tokio",
  "tokio-util",
@@ -8059,6 +8074,20 @@ dependencies = [
  "ttl-sign-core",
  "ttl-sign-embedded",
  "ttl-sign-headless",
+]
+
+[[package]]
+name = "tiktools-twitch"
+version = "4.2.2"
+dependencies = [
+ "futures-util",
+ "reqwest 0.13.5",
+ "serde",
+ "serde_json",
+ "tiktools-live",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+ "tokio-util",
 ]
 
 [[package]]

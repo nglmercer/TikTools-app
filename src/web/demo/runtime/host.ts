@@ -111,6 +111,8 @@ export function createDemoHost(scenario: ScenarioId) {
   });
   add('automation.fire', (p) => { const event = objectParams(p.record) as unknown as LiveEvent; const action = snapshot.actions.find((r) => event.actionIds?.includes(r.id)); if (!action) fail('Choose an action.'); const run = runAction(action!, event.id); return { trigger: event.trigger, eventSource: 'sample', pinned: true, matched: 1, draftMatched: 1, status: run.status, summary: run.summary, durationMs: 1 }; });
   add('automation.script.analyze', () => fail('Visitor code is never analyzed or executed in this demo.'));
+  add('live.platforms', () => state.livePlatforms ?? []);
+  add('live.connections', () => state.liveConnections ?? []);
   add('live.status', () => state.liveStatus);
   add('live.connect', (p) => { const uniqueId = bounded(p.uniqueId ?? 'demo_creator', 'uniqueId', 64); state.liveStatus = { connected: true, uniqueId, roomId: 'demo-room', connectionId: 'demo-connection', native: false }; wire.emitTopic('live.connected', state.liveStatus); return state.liveStatus; });
   add('live.disconnect', () => { state.liveStatus.connected = false; wire.emitTopic('live.disconnected', {}); return state.liveStatus; });
