@@ -191,14 +191,16 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
   await page.getByRole('button', { name: 'Load interactive demo', exact: true }).click();
   const first = await demoFrame(page);
   const firstId = new URL(first.url()).searchParams.get('instance')!;
-  const secondId = `${firstId}-b`;
-  const secondURL = new URL(first.url()); secondURL.searchParams.set('instance', secondId);
+  const secondURL = new URL(first.url()); secondURL.searchParams.set('instance', `${firstId.slice(0, 50)}-b`);
   await page.evaluate((url) => {
     const frame = document.createElement('iframe'); frame.id = 'isolated-second-demo'; frame.title = 'Second isolated demo'; frame.src = url;
     frame.style.cssText = 'display:block;width:100%;height:650px'; document.body.append(frame);
   }, secondURL.href);
   const second = (await (await page.locator('#isolated-second-demo').elementHandle())!.contentFrame())!;
   await expect(second.getByTestId('demo-reset')).toBeVisible();
+  const secondId = new URL(second.url()).searchParams.get('instance')!;
+  const secondReloadURL = second.url();
+  expect(secondId).not.toBe(firstId);
   const firstSearch = first.locator('.live-feed input[type="search"]');
   const secondSearch = second.locator('.live-feed input[type="search"]');
   await expect(firstSearch).toHaveValue(''); await expect(secondSearch).toHaveValue('');
@@ -222,7 +224,7 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
     secondLocal: localStorage.getItem(`tiktools.demo.${b}.review-sentinel`), secondSession: sessionStorage.getItem(`tiktools.demo.${b}.review-sentinel`),
   }), [firstId, secondId]);
   expect(stored).toEqual({ appLocale: 'fr', appCreator: 'real-app-sentinel', appView: JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }), appSession: 'keep-session', firstLocal: null, firstSession: null, secondLocal: 'second', secondSession: 'second' });
-  await second.goto(secondURL.href);
+  await second.goto(secondReloadURL);
   await expect(secondSearch).toHaveValue('only-second-frame');
   expect(network.external).toEqual([]); expect(network.sockets).toEqual([]);
 });
