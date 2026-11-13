@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { checkAppImageSmokeInstallation, parseAppImageSmokeArgs } from './appimage-smoke.ts';
 
 describe('AppImage smoke launch modes', () => {
@@ -41,6 +42,46 @@ describe('AppImage smoke launch modes', () => {
     }
   });
 });
+
+test.skipIf(process.platform !== 'linux')('frontend-ready smoke exits when a descendant retains output and ignores wrapper signals', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'tiktools-smoke-descendant-'));
+  const fixture = join(root, 'fixture.AppImage');
+  const pidFile = join(root, 'descendant.pid');
+  let descendant = 0;
+  try {
+    await writeFile(fixture, `#!/bin/sh
+case "\${1:-}" in
+--version) echo 4.2.2 ;;
+--update-installation-type) printf '"unknown"\\n' ;;
+*)
+  mkdir -p "$TIKTOOLS_HOME/logs"
+  echo 'WebView frontend-ready' > "$TIKTOOLS_HOME/logs/tiktools.log"
+  sh -c 'trap "" INT TERM; while :; do sleep 1; done' &
+  echo $! > "$SMOKE_DESCENDANT_PID_FILE"
+  printf '%s ' "$XDG_RUNTIME_DIR" > "$SMOKE_DESCENDANT_PID_FILE.runtime"
+  stat -c %a "$XDG_RUNTIME_DIR" >> "$SMOKE_DESCENDANT_PID_FILE.runtime"
+  trap 'exit 0' INT TERM
+  wait
+  ;;
+esac
+`);
+    await chmod(fixture, 0o755);
+    const child = Bun.spawn([process.execPath, resolve(import.meta.dir, '../smoke-appimage.ts'), fixture, '4.2.2', '--extracted-mode'], { env: { ...process.env, SMOKE_DESCENDANT_PID_FILE: pidFile, XDG_RUNTIME_DIR: '/tmp/existing-real-desktop-runtime' }, stdout: 'pipe', stderr: 'pipe' });
+    const killer = setTimeout(() => child.kill('SIGKILL'), 8000);
+    const [out, err, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]).finally(() => clearTimeout(killer));
+    descendant = Number(await readFile(pidFile, 'utf8'));
+    expect(await readFile(`${pidFile}.runtime`, 'utf8')).toMatch(/^\/tmp\/tiktools-appimage-smoke-[^/]+\/runtime 700\n$/);
+    expect(out).toContain('reached frontend-ready with an isolated profile');
+    expect(err).not.toContain('did not reach frontend-ready');
+    expect(code).toBe(0);
+    // An orphan may briefly be a zombie awaiting its OS reaper; it must not be running.
+    const status = await readFile(`/proc/${descendant}/status`, 'utf8').catch(() => 'State:\tZ');
+    expect(status).toMatch(/^State:\s+Z/m);
+  } finally {
+    if (descendant) { try { process.kill(descendant, 'SIGKILL'); } catch { /* Already reaped. */ } }
+    await rm(root, { recursive: true, force: true });
+  }
+}, 10_000);
 
 test.skipIf(process.platform !== 'linux')('extracted fixture still requires actual frontend-ready after passing both CLI probes', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tiktools-smoke-gate-test-'));
