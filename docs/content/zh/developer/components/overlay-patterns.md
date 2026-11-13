@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
-translationRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
+translationRevision: "77eebfc99defb6002eb8a085b3e6b54120cb7dd128a0f39e0a88591d1760443f"
 ---
 
 # 叠加层模式 {#overlay-patterns}

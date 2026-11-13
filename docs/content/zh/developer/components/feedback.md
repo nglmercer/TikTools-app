@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "f349a31abdf7624b102acaba5c27285a602d6f46f0fdcd7dac6a440754bb7f8e"
-translationRevision: "f349a31abdf7624b102acaba5c27285a602d6f46f0fdcd7dac6a440754bb7f8e"
+translationRevision: "ab7143ac1da72a064a0aece837c27d623f84c35166d6fcf9bf769944eae87bc2"
 ---
 
 # 警告、空状态与状态提示 {#alerts-empty-states-and-status}

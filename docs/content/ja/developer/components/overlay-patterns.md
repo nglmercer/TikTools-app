@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
-translationRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
+translationRevision: "5c85231edf4787b034a66f76a1501bd9431ef4a3ccbf877913be2eba76a91997"
 ---
 
 # オーバーレイのパターン {#overlay-patterns}

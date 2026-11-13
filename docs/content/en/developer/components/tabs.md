@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
-translationRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
+sourceRevision: "6341644dd3da8b4d7a5ef9a079a884908997a5a3f8f65618746cdb8d9db81ad8"
+translationRevision: "6341644dd3da8b4d7a5ef9a079a884908997a5a3f8f65618746cdb8d9db81ad8"
 ---
 
 # Tabs and toolbars {#tabs-and-toolbars}
@@ -43,3 +43,11 @@ This exact file is both compiled for the preview and included as the snippet. It
 Use a visible label or aria-label, preserve keyboard operation and avoid relying on color alone. Test at a narrow width and with long translated labels. For forms, bind the row's controlAttrs to the actual input so errors and required state remain associated. A disabled control cannot explain a failure on its own; show an adjacent status and a recovery action.
 
 If a preview fails, close and reopen it, then Reset its own demo instance. Review the static API and source even when the demo is unavailable. Native dialogs, external services and operating-system integration require separate desktop tests. [Return to the component guide](index.md).
+
+## Operational details {#operational-details}
+
+The runnable snippet keeps state in its parent. Table sort is a bound model used by a computed ordering of three rows; changing the header changes row order while selection keeps the stable ID. Tab editors store drafts outside the keyed child, so typing, switching and returning preserves each draft. A tab or dialog does not persist drafts itself. Choose parent state, mounted content or KeepAlive deliberately.
+
+## Operational details {#keyboard-contract}
+
+Review [keyboard, dialog exceptions and tooltip naming](../i18n-accessibility.md#operational-details) for this family. Check focus entry/return in the complete composed flow, including nonclosable dialogs and unmounted draft editors.

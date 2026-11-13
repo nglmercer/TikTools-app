@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6940dcc"
-translationRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6940dcc"
+sourceRevision: "0143551027872078a3000e0395efd04acfe5c7817443614ce6abeb3d33226f7e"
+translationRevision: "0143551027872078a3000e0395efd04acfe5c7817443614ce6abeb3d33226f7e"
 ---
 
 # Buttons and actions {#buttons-and-actions}
@@ -45,3 +45,7 @@ This exact file is both compiled for the preview and included as the snippet. It
 Use a visible label or aria-label, preserve keyboard operation and avoid relying on color alone. Test at a narrow width and with long translated labels. For forms, bind the row's controlAttrs to the actual input so errors and required state remain associated. A disabled control cannot explain a failure on its own; show an adjacent status and a recovery action.
 
 If a preview fails, close and reopen it, then Reset its own demo instance. Review the static API and source even when the demo is unavailable. Native dialogs, external services and operating-system integration require separate desktop tests. [Return to the component guide](index.md).
+
+## Operational details {#keyboard-contract}
+
+Review [keyboard, dialog exceptions and tooltip naming](../i18n-accessibility.md#operational-details) for this family. Check focus entry/return in the complete composed flow, including nonclosable dialogs and unmounted draft editors.

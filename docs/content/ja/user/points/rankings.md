@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
-translationRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
+sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
+translationRevision: "b66c4ce6f03e8711db80b9d853304814c9afa05d3da7a929e7b1dce3fe1b058d"
 order: 30
 ---
 
@@ -39,3 +39,7 @@ order: 30
 ## 問題が起きたとき {#recovery}
 
 空のスコアでは配信者、ルーム、ソースの有効状態、期間、一時停止を確認します。非対応のソース・グループの組み合わせは架空のフィールド名で補わず削除します。リセット前に重要データを[バックアップ](../preferences/backups.md) し、報告には定義 ID と診断コードを含めます。
+
+## 運用の詳細 {#operational-details}
+
+Points 表は 100 人を取得し、その行だけを検索・並べ替えます。更新や名前順への変更でデータベース全体を検索するわけではありません。フィードのランキングは配信者・ルームのセッションごとに 10 行を表示し、Top はギフトのダイヤ、Likes はいいね数を集計します。追跡上限は 5,000 人です。保存ポイントとは単位と期間を分けて比較してください。

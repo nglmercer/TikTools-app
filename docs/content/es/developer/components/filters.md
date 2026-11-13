@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "f4689110b15bb50cfe3cf4b95b0e93982ec06a139895d5440761b8b047aff4ca"
-translationRevision: "f4689110b15bb50cfe3cf4b95b0e93982ec06a139895d5440761b8b047aff4ca"
+translationRevision: "557d1181caad61b6b059e11f41aa47939eba4763a59100c7eb48530d450a355d"
 ---
 
 # Filtros y selección {#filters-and-selection}

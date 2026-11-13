@@ -99,8 +99,11 @@ for built assets, Playwright browsers and fixture requirements.
 Report what changed, which checks ran, their results and any remaining
 environment limits. A filter that runs zero tests is not evidence. A fake-host
 browser pass does not establish native Wry, real-account or physical two-PC
-acceptance. Pull requests to `remake` should satisfy the applicable frontend,
-Rust, desktop, MSRV, plugin runtime, CodeQL and dependency-review checks.
+acceptance. Pull requests to `remake` run the applicable frontend, Rust,
+desktop, MSRV and plugin-runtime jobs. The versioned CodeQL workflow runs on
+release tags or manually, not on PRs. No dependency-review workflow is
+versioned here; externally administered checks depend on repository policy.
+Do not wait for a check this checkout does not configure.
 
 ## Documentation and demo maintenance
 
@@ -116,10 +119,16 @@ includes localized `title`, `locale`, `audience`, `featureStatus`,
 `contentStatus: reviewed`, `sourceLocale: en` and numeric `order`.
 `featureStatus` is `available`, `experimental`, `planned` or `historical`.
 
-Set both `sourceRevision` and `translationRevision`, in all six languages, to the
-SHA-256 of the English Markdown body after removing frontmatter and trimming
-outer whitespace. Recompute after an English body change and review the
-translation; CJK prose is counted with word segmentation instead of whitespace. A copied English article is not a translation. Keep UI
+Set `sourceRevision` to the SHA-256 of the English Markdown body and
+`translationRevision` to the SHA-256 of that article's own localized body,
+after removing frontmatter and trimming outer whitespace. Review source and
+translations before recording revisions with
+`bun docs/scripts/record-review.ts developer/example.md` (the path after the
+locale directory). It updates the six equivalents only when explicitly run.
+Hashes detect body drift; they do not prove semantic equivalence or identify
+a human reviewer. Compare commands, RPC names, environment variables, payload
+keys, limits and negations in technical review. CJK prose is counted with word
+segmentation instead of whitespace. A copied English article is not a translation. Keep UI
 labels and API identifiers exact when they name real controls or methods.
 
 ```sh
@@ -209,9 +218,11 @@ Follow `.github/workflows/release.yml` and the
 
 - Keep historical tags and published assets immutable. Produce and verify
   checksums before exposing a release.
-- Sign installer bytes and exact manifest bytes using protected signing
-  secrets. Embed only the trusted public key; plugin publisher keys are
-  separate from application updater keys.
+- For a signed updater feed, sign package bytes and exact manifest bytes
+  using protected secrets and embed only the trusted public key. Without the
+  configured repository public key, the workflow may publish assets/checksums
+  without an updater feed. Native installer signing is separate; plugin
+  publisher keys are also distinct from application updater keys.
 - Upload to a draft release, download the uploaded assets and verify their
   exact names and hashes, then publish the verified draft.
 - Promote signed update channels only after their referenced assets are

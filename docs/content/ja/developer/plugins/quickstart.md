@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
-translationRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
+sourceRevision: "17f8e12522f04bad46b814f437e80c3f480b43331ed1278e49597878e2cee4f8"
+translationRevision: "3362aa5ac14480933433cce11b95e1bc402f814490d2080aa899eb9f260702c1"
 order: 250
 ---
 
@@ -61,3 +61,18 @@ export default definePlugin({
 ## 復旧と検証 {#recovery-and-verification}
 
 入口がなければ梱包前にビルドし、マニフェストからの相対パスを確認します。process ランタイムに未コンパイル JavaScript を指定しません。ローカル配置は `tiktools-plugin dev stage --into /absolute/path/dev-plugins` と、そのルートを設定した非公開ホストを使います。開発配置とインストールは別で、署名レジストリの信頼は確認できません。配布前に[ランタイム制限](runtimes.md) と[署名](packaging-registry.md) に進みます。
+
+## 運用の詳細 {#operational-details}
+
+`validate` 出力の `hostCompatibility`・`publishReady`・`warnings` を読みます。未ビルドの入口は警告で、`--publish` は公開上の問題で失敗しますが、全互換性警告を失敗にはしません。ビルド後に再検証し、入口・対象を確認して対象ホストで試験します。コンパイル前の成功は使用可能なパッケージの証明ではありません。
+
+Rust では独立ディレクトリに `process-rust` または `native-rust` を生成します。両方 SDK の `Plugin` trait を実装して `ActionResult::summary` を返し、プロセス版は `tiktools_process_plugin!`、ネイティブ版は `tiktools_export_native_plugin!` と `cdylib` を使います。ネイティブ ABI・信頼は対象固有でホスト内実行です。devkit の target 構文でビルドし、生成入口パスを保持して私用ホストで試します。クラッシュ分離が適するならプロセス版を選びます。
+
+```sh
+tiktools-plugin new acme.process --template process-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-process
+tiktools-plugin new acme.native --template native-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-native
+tiktools-plugin build acme-process --release
+tiktools-plugin validate acme-process --publish
+tiktools-plugin build acme-native --release
+tiktools-plugin validate acme-native --publish
+```

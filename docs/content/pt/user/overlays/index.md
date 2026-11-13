@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
-translationRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
+sourceRevision: "6062b2d3d3248eaa9ab1c8f73082c8d4a6bbe81d199f8a45b6c8c28dea617d46"
+translationRevision: "796199f3b0a9f6c23f195bae46aadfb48620b906b0cd075dad47eaa2d958ff26"
 order: 10
 ---
 
@@ -42,3 +42,7 @@ Designs locais, controles de gateway e fluxos do editor/biblioteca do Cloud cond
 Para saída ausente, verifique estado do gateway, recursos, credenciais, URL da fonte e tipo de evento selecionado. Para um conflito de revisão no Cloud, recarregue a revisão atual antes de editar novamente. Nunca publique o token da fonte em capturas de tela; informe o erro do gateway pelos [diagnósticos](../preferences/troubleshooting.md).
 
 <DemoFrame scenario="overlays" locale="pt" tour="overlay" title="Demonstração: overlays" />
+
+## Detalhes de operação {#operational-details}
+
+Instale Event Gateway separadamente, habilite e confira execução antes das fontes OBS LIVE. Estados: missing → instalar; disabled → habilitar/conferir disponibilidade; stopped → iniciar; credentialUnavailable → reiniciar gateway uma vez; assetsMissing → reparar/reconstruir assets empacotados; starting → aguardar brevemente; unreachable → conferir porta/serviço loopback. Use credencial de widget da URL gerada. Ready ou prévia local não provam LIVE nem recepção OBS: confira com teste inofensivo na fonte pretendida.

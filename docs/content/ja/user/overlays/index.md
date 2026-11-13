@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
-translationRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
+sourceRevision: "6062b2d3d3248eaa9ab1c8f73082c8d4a6bbe81d199f8a45b6c8c28dea617d46"
+translationRevision: "07cd5b4021af15df2fa78b7ad559ba6a0e72327a0e60c281df31852ab30b5bea"
 order: 10
 ---
 
@@ -42,3 +42,7 @@ order: 10
 出力がなければゲートウェイ、アセット、認証情報、URL、イベント種別を確認します。Cloud のリビジョン競合は現行版を再読み込みしてから編集します。画像でソーストークンを公開せず、ゲートウェイのエラーを[診断](../preferences/troubleshooting.md) から報告してください。
 
 <DemoFrame scenario="overlays" locale="ja" tour="overlay" title="デモ: オーバーレイ" />
+
+## 運用の詳細 {#operational-details}
+
+LIVE OBS source 前に別配布 Event Gateway を導入・有効化し実行を確認します。状態別回復は missing=導入、disabled=有効化/対応確認、stopped=起動、credentialUnavailable=一度再起動、assetsMissing=同梱 widget assets 修復/再構築、starting=少し待つ、unreachable=loopback port/service 確認です。生成 URL の widget 専用 credential を使います。ready・ローカル preview は実 LIVE や OBS 受信を証明せず、意図した source で無害なテストを行います。

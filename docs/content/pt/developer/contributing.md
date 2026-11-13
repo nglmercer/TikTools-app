@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "df2f1f1e0670dbfc40091e8bea0fa26c1821c4d7cb70f1d62ba79ae9f9e15072"
-translationRevision: "df2f1f1e0670dbfc40091e8bea0fa26c1821c4d7cb70f1d62ba79ae9f9e15072"
+sourceRevision: "2e0522178ebee69ea5eb20fec3c0ec586f13950c51d658cb3a21843536b2f9f9"
+translationRevision: "55a568d4e9d9f662d37d2514d1ad8438c4cac4a79b3ea481043e9232409772c1"
 order: 230
 ---
 
@@ -44,3 +44,9 @@ A revisão contém alterações focadas de código, evidências significativas d
 ## Recupere {#recover}
 
 Se a validação falhar por dependência ou biblioteca de plataforma ausente, informe e corrija o ambiente em vez de enfraquecer uma verificação. Se arquivos gerados divergirem, regenere a partir de sua fonte responsável e inspecione a diferença. Nunca publique cookies de sessão, chaves, credenciais ou capturas de eventos não sanitizadas. Se código e um projeto legado divergirem, descreva a discrepância e use a implementação atual nas orientações públicas. Não sobrescreva arquivos pendentes de outro responsável para fazer uma limpeza ampla parecer consistente.
+
+## Detalhes de operação {#operational-details}
+
+Selos têm significados separados: `sourceRevision` resume o corpo inglês atual e `translationRevision` o corpo localizado (sem frontmatter/espaço externo). Após revisar fonte e traduções use `bun docs/scripts/record-review.ts developer/example.md`. Edições posteriores invalidam o selo correspondente. Detecta alterações, não identidade humana nem equivalência semântica: compare comandos, IDs RPC/ambiente, chaves payload, limites, ativação/recuperação e negações. Traduza prosa completa mantendo instruções técnicas.
+
+Para migração dividida registre tema/título original e destino concreto no mapa, usando fragmento para seção. O checker valida arquivos/fragmentos e bytes históricos, mas revisão editorial verifica cobertura temática. Não edite originais/provenance históricos para aprovar.

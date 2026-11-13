@@ -21,9 +21,16 @@ Build to a single ES module and point the manifest `entry` at it:
 bun build src/index.ts --outdir dist --target browser --format esm
 ```
 
-The guest runs inside napi-vm with deny-by-default capabilities: no `process`,
-no `fs`, no network. Every effect is an intent the host validates against the
-manifest's `capabilities` and `permissions`.
+The JavaScript guest runs on QuickJS (`napi-vm` in the manifest) with
+deny-by-default host capabilities. Its compatibility environment has no full
+Node `process`, `fs` or network API; brokered effects are intents validated
+against the manifest's `capabilities` and `permissions`.
+
+Trusted, allowlisted `.node` addons are an explicit exception: they execute
+native code inside the host process with its OS privileges, outside the
+JavaScript capability boundary. See the [runtime trust limits](../../docs/content/en/developer/plugins/runtimes.md)
+before loading native dependencies. A process plugin has crash isolation,
+but its executable also retains ordinary user OS permissions.
 
 | Helper | Wire result |
 | --- | --- |

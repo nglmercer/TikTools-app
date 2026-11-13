@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
-translationRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
+sourceRevision: "4a97f64b6bdc818ebb8d16eec1e67d95a2d0eae0b75f7cfd5c1493bf27244684"
+translationRevision: "996dba8cbb043d68b54ebf316c4e126b05b0f5233ffa3f46735961ed17dfb86d"
 order: 30
 ---
 
@@ -43,3 +43,7 @@ order: 30
 権限やホストのリビジョンが古ければ再読み込みして再確認します。未確認コマンドは再試行前に記録済み結果を調べます。終了時は提供を停止するかアクセスを取り消します。招待トークンと認証情報を公開の[診断レポート](../preferences/troubleshooting.md) に含めないでください。
 
 <DemoFrame scenario="collaboration" locale="ja" title="デモ: 共同操作" />
+
+## 運用の詳細 {#operational-details}
+
+Teams 参加・承認後も host が現在版のネイティブ権限を確認します。`pendingHost` は未完了で、接続や所属だけではアクセスできません。権限変更後に再読し host/端末を確認します。observer は読み取り中心、moderator は限定運用制御、automationEditor は限定編集、custom は明示レビュー済み policy が必要です。無制限 script・外部効果は付与しません。拒否理由が UI で不明なら[role と確認契約](../../developer/collaboration.md#operational-details)を参照します。

@@ -4,7 +4,7 @@ import type { LibraryMutation } from '@/entities/rule-template/model/library-con
 /**
  * Turns one Cloud profile document into the library mutation the profile import
  * produces. The profile's default parameters are used; the user reviews the result
- * before it is sent, and imported automations stay disabled.
+ * before it is sent, including each imported enabled value.
  */
 export function profileMutation(document: unknown): LibraryMutation {
   const parsed = parseRuleProfileImport(JSON.stringify(document));

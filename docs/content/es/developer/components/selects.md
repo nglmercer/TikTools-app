@@ -7,15 +7,15 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
-translationRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
+sourceRevision: "6dc5181ece21f73c6569b5d8e54c896c6df86390333a5240ef0696257e5e56d5"
+translationRevision: "78809152b190b1a621f89080e5eecafecb526f4c847adb633c25c4cbda006978"
 ---
 
 # ComboBox y SearchSelect {#combobox-and-searchselect}
 
 ## Objetivo y requisitos {#purpose}
 
-Elige un valor estable entre opciones etiquetadas. SearchSelect filtra etiquetas y evita mostrar identificadores como texto visible. Usa el workspace Vue existente con su proveedor i18n. La vista monta los componentes reales en un iframe aislado de la aplicación; el tema documental no carga el CSS global del escritorio.
+Elige un valor estable entre opciones etiquetadas. SearchSelect busca etiquetas y valores; un valor seleccionado desconocido se muestra tal cual. Usa el workspace Vue existente con su proveedor i18n. La vista monta los componentes reales en un iframe aislado de la aplicación; el tema documental no carga el CSS global del escritorio.
 
 ## Probar el ejemplo {#example}
 
@@ -43,3 +43,11 @@ Este archivo se compila para la vista y se incluye como snippet. El estado peque
 Proporciona etiqueta visible o aria-label, conserva el manejo por teclado y evita depender solo del color. Prueba un ancho reducido y etiquetas traducidas largas. En formularios asocia controlAttrs de la fila al input real para conservar errores y estado obligatorio. Un control desactivado no explica por sí mismo un fallo: muestra estado cercano y recuperación.
 
 Si falla la vista, ciérrala y ábrela y luego reinicia su instancia. La API estática y el código siguen siendo útiles sin demo. Los diálogos nativos, servicios externos y funciones del sistema requieren pruebas separadas de escritorio. [Volver a la guía de componentes](index.md).
+
+## Detalles de operación {#operational-details}
+
+Incluye la opción seleccionada durante carga para mostrar su etiqueta; si falta se ve el valor crudo. `search` emite la consulta para búsqueda remota opcional del propietario, manteniendo búsqueda interna por etiqueta/valor. Flechas/Home/End recorren opciones activas y Enter elige la fila. Con `allowCustom`, confirmar texto lo recorta; Escape cancela la edición. Prueba ID sin cargar, filas deshabilitadas y valor personalizado además de selección correcta.
+
+## Detalles de operación {#keyboard-contract}
+
+Revisa [teclado, excepciones del diálogo y nombres/tooltip](../i18n-accessibility.md#operational-details). Comprueba foco inicial/retorno en el flujo completo, incluidos diálogos no cerrables y borradores desmontados.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
-translationRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
+sourceRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
+translationRevision: "8c906798c481cda745d80d2b11ccfe73a2ab9d171780c591052631b292df8292"
 order: 200
 ---
 
@@ -51,3 +51,7 @@ bun scripts/task.ts test web remote-browser-transport
 ## 問題が起きたとき {#recovery}
 
 切断後、受け付け済み操作は結果不明になり得ます。再接続では非公開投影を無効化し、ID を再交渉して上限付きストリームを再開・再取得します。証明書検査を弱めたり、リモート失敗から黙ってローカル所有者へ切り替えたりしません。[RTC 実装](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) と実際の機能グラフが古い計画に優先します。
+
+## 運用の詳細 {#operational-details}
+
+Peer は ALPN `tiktools/collaboration/1`、現在 15 秒の接続 timeout、明示構成した最大 4 relay を使います。Peer/RTC フレームは 1 MiB、RTC パケットは最大 16 KiB です。過大フレームは検証で拒否し、部分 RPC にはしません。構成・ID、信号処理、timeout、サイズ、認可を分けて調べます。Cloud relay は ICE TURN サーバーではなく、空リストは公開 discovery を有効にしません。ホスト・端末の稼働と現在の確認済み grant を確認し、ICE の直通/relay 経路を記録します。ready・暗号化だけでは RPC 権限も全 NAT 通過も証明できません。実機 2 台の前にセッション変更・失効と過大フレームを fixtures で検証します。

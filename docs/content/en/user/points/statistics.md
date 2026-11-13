@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
-translationRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
+sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
+translationRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ Persisted local analytics and date-range queries are available. Empty dates legi
 If data seems absent, clear the contributor search, widen the date range, confirm the creator and refresh. After a host error, retain its diagnostic code and retry once the connection recovers. Clearing the feed does not erase analytics. A fresh data directory has no earlier history; use [backups](../preferences/backups.md) when moving installations.
 
 <DemoFrame scenario="analytics" locale="en" title="Demo: analytics" />
+
+## Operational details {#operational-details}
+
+Analytics currently requests 10 top contributors for the selected creator/date range. Its search filters the received subset; it is not a global viewer lookup. These persisted aggregates have a different period and unit from the feed’s session diamond/like rankings and from saved points balances. Keep the creator, dates and metric visible when exporting or comparing results.

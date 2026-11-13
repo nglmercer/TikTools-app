@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "0d2900f8be78c415674d80b76f48d296eaef1e0bbfe0d5e3754c5f6f904bdc38"
-translationRevision: "0d2900f8be78c415674d80b76f48d296eaef1e0bbfe0d5e3754c5f6f904bdc38"
+translationRevision: "198a62b87ddc66d60cf36abeefb260681ee308ac2769530b6f7181be9e640ad8"
 ---
 
 # Importação e revisão {#import-and-review}

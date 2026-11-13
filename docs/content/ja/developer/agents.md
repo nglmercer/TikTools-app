@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
-translationRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
+sourceRevision: "13e7a36b1ef2b8d3b84834135c04c5a51e7d2b4b403af07ae25f25454de70053"
+translationRevision: "649fb801411c3aa5ca1eb8196d3dd91356baf57e9f13dac032e06f8b6ac9303d"
 order: 80
 ---
 
@@ -51,3 +51,7 @@ async fn inspect() -> Result<(), tiktools_client::ClientError> {
 エージェントも他のクライアントと同じ検証、イベント、失敗を受け取ります。アクセスは実装済みで、権限は選択バックエンドと現在の付与に依存します。応答確認が不明なら元の結果を照会し、新しい ID で自動再送しません。限定されたリモート要約から完全な定義は復元できないので、送信ソースを非公開で保持します。
 
 メソッド追加後は `bun scripts/task.ts rust test -p tiktools-client --test parity --locked` を実行します。シグネチャの正本は [SDK ソース](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/lib.rs) と正規レジストリです。過去のエージェント例は新しい所有者復旧コーディネーターに追従していない場合があります。
+
+## 運用の詳細 {#operational-details}
+
+副作用前に schema を取得し、`--dry-run --explain` で CAS・加算・永続性・破壊性を確認します。[分離した読み取り/CAS/元結果の手順](control-api.md#operational-details)と[スナップショット/適用/acknowledge 回復](remote-client.md#operational-details)を使います。ツールはメタデータ・元 payload/コマンド ID・呼出範囲を保持します。timeout 後の ID 変更は副作用を重複させます。`--confirm` は破壊操作の確認であり権限拡大ではありません。

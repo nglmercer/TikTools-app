@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
-translationRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
+sourceRevision: "00ea88ebd11714484d717b7d7533d29158afd498121db362a3d300bc21889501"
+translationRevision: "b93fd0c6b6557305c77b346b2245d41c078d2b4d8e692936f6bb1eea06fed1db"
 order: 30
 ---
 
@@ -45,3 +45,7 @@ bun scripts/task.ts rust test -p tiktools-client --test parity --locked
 两个客户端结果不一致时，先比较宿主身份、主目录、构建功能及发现结果，再考虑添加其他 store。缺少插件是运行时目录问题，不应因此将其实现编译进核心。历史架构文档含有已退役的前端路径；有分歧时，以[当前核心](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/lib.rs)及[前端结构](frontend.md)为准。
 
 ![TikTools AppCore、传输、ControlClient 与真实 Vue 工作区](/architecture.svg)
+
+## 运行细节 {#operational-details}
+
+所选二进制的 Cargo features 决定编译的路径。核心默认启用 `native-plugins` 与 `napi-vm-node-api`；`persistence` 提供 SQLite，`native-tiktok` 提供 LIVE 适配器/入口，`plugin-install`、`cloud-auth`、`app-update` 分别增加相关服务。先检查 `cargo tree -p tiktools-desktop -e features`（或实际 CLI 目标），再检查运行时 `system.info`/discovery。编译支持不等于服务已配置可用。使用[性能指南](performance.md)中的 `native-tiktok` 回归明确测试 LIVE 入口。

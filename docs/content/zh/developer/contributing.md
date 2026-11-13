@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "df2f1f1e0670dbfc40091e8bea0fa26c1821c4d7cb70f1d62ba79ae9f9e15072"
-translationRevision: "df2f1f1e0670dbfc40091e8bea0fa26c1821c4d7cb70f1d62ba79ae9f9e15072"
+sourceRevision: "2e0522178ebee69ea5eb20fec3c0ec586f13950c51d658cb3a21843536b2f9f9"
+translationRevision: "69b624eecbaba67197d3daa99516e6f19328d612ebec2e115f69d9401430739c"
 order: 230
 ---
 
@@ -44,3 +44,9 @@ bun scripts/task.ts contracts --check
 ## 恢复方法 {#recover}
 
 缺少依赖或平台库导致验证失败时，应报告并修复环境，不要削弱检查。生成文件偏离时，从其权威来源重新生成并检查差异。绝不要发布会话 Cookie、密钥、凭据或未脱敏事件抓取数据。源码与旧设计不一致时，说明差异，并以当前实现编写公开指南。不要覆盖其他所有者尚未完成的文件，只为让大范围清理看起来一致。
+
+## 运行细节 {#operational-details}
+
+审核标记含义分开：`sourceRevision` 是当前英文正文哈希，`translationRevision` 是本篇本地化正文哈希（移除 frontmatter 并去除首尾空白）。审核源文及全部译文后，运行 `bun docs/scripts/record-review.ts developer/example.md`。随后修改任一正文会使相应标记失效。这只能检测漂移，不能证明审核者身份或语义一致；应明确比较命令、RPC/环境标识符、payload 键、限制、启用/恢复步骤及否定表达。完整翻译说明并保留技术指令。
+
+拆分迁移时，在映射中记录每个原主题/标题及具体替代目标，指向特定章节时包含片段。检查器验证文件、片段及历史原始字节；主题覆盖仍须编辑审核。不要修改历史原文及 provenance 来让验证通过。

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
-translationRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
+sourceRevision: "1872b905a3eda616e94cae8902af1ca659158e89dc8157ab9029a70fda00ce95"
+translationRevision: "e1fe1f41fa9baf639efda86782687c1cb75e79fa04d7a881c72075d1d6047e6b"
 order: 210
 ---
 
@@ -54,3 +54,18 @@ Rust 缓存按角色、操作系统、工具链、锁文件及源码修订分隔
 ## 恢复方法 {#recovery}
 
 筛选无匹配时，修正筛选，不要报告成功。夹具缺少新增必需 RPC 时，扩展其明确契约，不要让未知调用直接成功。清晰记录不确定或跳过的手动验收。[测试运行器](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/lib/test-runner.ts)定义当前命令语法；[性能](performance.md)说明可复现的负载证据。
+
+## 运行细节 {#operational-details}
+
+安装 Bun 依赖不会安装 Playwright 浏览器。使用下方锁定的本地命令；Linux 的 `--with-deps` 还安装系统包，需要相应 OS 权限。主 `playwright.config.ts` 管理 Vite 和假宿主 SPA 测试，不驱动 Wry；真实编译插件 UI 用例还需要可选仓库的 UI 构建。Widget 浏览器测试需要自己的资源/配置。站点测试使用 `playwright.site.config.ts` 和已组装 docs/demo，应先构建再运行正式 `docs test`；后者运行文档脚本、demo/帮助、生产前端构建及 Chromium。跳过用例不算验收。
+
+`bun run ci` 与 workflow 都用 `-- --test-threads=1` 串行运行 Rust workspace。本地 CI 不代替 MSRV/OS 矩阵。PR 根据路径选择 frontend/native/desktop/MSRV/plugin-runtime；CodeQL 仅 tag/手动触发，本仓库未配置 dependency-review workflow，外部策略可能不同。普通纯文档路径不会启动手动站点 workflow，因此应本地执行。正式 gate 使用稳定 Bun 1.4.4；VitePress 单元测试限定 fixture，`docs check` 验证整个语料。
+
+```sh
+bun x --no-install playwright install chromium
+# Linux, when browser system libraries are missing:
+bun x --no-install playwright install --with-deps chromium
+bun scripts/task.ts test e2e
+TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build
+bun scripts/task.ts docs test
+```

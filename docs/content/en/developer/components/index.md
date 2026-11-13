@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
-translationRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
+sourceRevision: "7049a03b9a3b437dc969ee83208bbaac8521bd55bf0e557e96a185ffdfaff9f6"
+translationRevision: "7049a03b9a3b437dc969ee83208bbaac8521bd55bf0e557e96a185ffdfaff9f6"
 order: 290
 ---
 
@@ -70,3 +70,7 @@ Run `bun scripts/task.ts test web BaseButton`, the changed component's focused t
 - [Import and review](import-review.md)
 - [Cloud review patterns](cloud-patterns.md)
 - [Overlay patterns](overlay-patterns.md)
+
+## Operational details {#operational-details}
+
+The generated family references deliberately cover public composition primitives. [Forms](forms.md) includes SchemaForm and SettingsRow; [fields](fields.md) includes textarea, slider, radio, tags, date, color and single-file upload; [menus](menus.md) includes MenuBar/ContextMenu; [feedback](feedback.md) includes Notification. Icons, SchemaFieldRows and other internal rendering pieces are implementation details, not independent public contracts. Read scoped slot bindings as well as props/models in each reference. A generated signature is not a validation or accessibility guarantee.

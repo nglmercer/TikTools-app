@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e0636475d"
-translationRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e0636475d"
+sourceRevision: "9e2ce8a6d2139599d1d9ce5afe82fc181154cf9d2689131eae52a8952a4351f4"
+translationRevision: "9edf51fc4b5a66a4a3469b840b6de4daad0c8dd022069a4bc1379010baac59cf"
 ---
 
 # パネルとダイアログ {#panels-and-dialogs}
@@ -43,3 +43,7 @@ translationRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e06
 見えるラベルか aria-label を使い、キーボード操作を維持し、色だけに頼らないでください。狭い幅と長い翻訳ラベルでも確認します。フォームでは行の controlAttrs を実際の入力に結び付け、エラーと必須状態の関連を維持します。無効な操作欄だけでは失敗の理由は伝わりません。近くに状態と復旧操作を表示します。
 
 プレビューが失敗したら閉じて開き直し、そのデモインスタンスで「デモをリセット」を使います。デモが使えなくても静的な API とソースを確認します。ネイティブダイアログ、外部サービス、OS 連携は別途デスクトップでテストする必要があります。[コンポーネントガイドに戻る](index.md)。
+
+## 運用の詳細 {#keyboard-contract}
+
+[キーボード・dialog 例外・tooltip の命名](../i18n-accessibility.md#operational-details)を確認し、閉じられない dialog・unmount 草稿を含め全体の初期・復帰 focus を試してください。

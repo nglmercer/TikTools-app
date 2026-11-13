@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "cb0c8fc55416a0ade232a0272051d244ed5558d4b1f3aec87d37a7500af59475"
-translationRevision: "cb0c8fc55416a0ade232a0272051d244ed5558d4b1f3aec87d37a7500af59475"
+sourceRevision: "fb71673a581e923e3c02ae401a46937b007f9919690ca020d22c27b370b6c61d"
+translationRevision: "fb71673a581e923e3c02ae401a46937b007f9919690ca020d22c27b370b6c61d"
 order: 190
 ---
 
@@ -43,3 +43,9 @@ Direct native collaboration has implemented scoped reads, selected durable mutat
 ## Recover and verify {#recover-and-verify}
 
 On revocation or identity change, stop subscriptions and discard private projections. Use `collaboration.subscribe`, `snapshot` and `resume` according to negotiated domains and cursor validity. Resolve the original command ID after an uncertain acknowledgement. Do not retry a delete with a new ID or restore authority from an old receipt. The [authorization source](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-collaboration/src) and registry policy define the boundary; passing TLS alone is not an authorization test.
+
+## Operational details {#operational-details}
+
+Teams sequence: register the device, issue/join an invitation or access request, approve it, then have the host confirm the native permission’s current revision. `pendingHost` means this last step is outstanding. A new permission revision invalidates the previous confirmation; reload on stale expectedRevision. Native acceptance requires a fresh snapshot, active host/device, active permission and confirmedRevision equal to revision. The UI exposes host/join panels and available approvals; native confirmation is an API contract, not a promised button on every build.
+
+Legacy role conversion is closed: observer grants live/workflow/points/competition/automation/outcome reads; moderator adds points adjustment, workflow toggle, automation toggle and competition management; automationEditor adds automation editing to the reads. No preset implies arbitrary scripts, external effects or reusable automation delegation. Explicit `nativeGrant` requires role `custom`; restrict resources, effect scopes and points delta there. Native client kind is only `desktop` or `agent`. Unsupported policies fail rather than expanding rights. Diagnose pairing, host confirmation, revision freshness and transport separately.

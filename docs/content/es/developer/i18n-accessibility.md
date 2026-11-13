@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
-translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+sourceRevision: "2c74fcefd1d28353b1135c547b2e3e6ae852af8b683350011732d10c364f9323"
+translationRevision: "7e5396d6a3fe88516053b2d31e9f75b69b915a96a9e89bd6cbfc6b87ef8f8db8"
 order: 120
 ---
 
@@ -47,3 +47,11 @@ El tipado y las comprobaciones de catálogos detectan claves ausentes; los contr
 ## Recuperación {#recovery}
 
 Si aparece texto sin traducir, revisa carga diferida y nombre exacto de la clave antes de añadir inglés dentro del componente. Si desaparece el foco, inspecciona el control receptor de atributos y el destino de retorno. La [implementación i18n](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/i18n/i18n.ts) y las pruebas definen el comportamiento actual; [componentes](components/index.md) presenta las entradas compartidas.
+
+## Detalles de operación {#operational-details}
+
+Detección: `tiktok-live-locale` guardado → `navigator.languages` → inglés. `normalizeLocale` normaliza regiones y `jp` → `ja`. Códigos/regiones: `en/en-US`, `es/es-ES`, `pt/pt-BR`, `fr/fr-FR`, `zh/zh-CN`, `ja/ja-JP`; usa formatCount/formatDate de `intl.ts`. `activateLocale` carga mensajes/lang; `useLocaleStore().setLocale` además persiste y prepara preferencias de mejor esfuerzo. Usa store para ajustes. Inglés es fallback; zh/ja cargan módulos de mensajes host. Para nuevo idioma actualiza supported-locales, loaders, catálogos/host, regiones, tests de preferencias y claves/placeholders/plurales/compilación, y rutas docs/sitio. Conserva IDs/API y parámetros.
+
+Usa tokens de espacio/tipo/control/foco/capas. Puntero grueso o ancho menor de 700px eleva controles a 44px; navegación cambia bajo 900px y filas bajo 600px, independientemente. Movimiento reducido deja duraciones a cero. Prueba tacto también en escritorio ancho. La app es oscura globalmente; override claro solo aplica a JSON.
+
+Teclado: pestañas usan flechas/Home/End y selección automática; selects flechas/Home/End/Enter y Escape cancela; menús devuelven foco al disparador. Diálogos usan showModal nativo, pero `closable=false` bloquea Escape y cerrar desmonta contenido. Conserva borradores en propietario y verifica foco inicial/retorno. Botones icono requieren `label`; `hint`/tooltip explica, no nombra. Tooltip espera 500ms en hover/foco, cierra con Escape y respeta top layer del diálogo. Revisa flujos reales de teclado/asistencia; unit tests no certifican pantalla completa.

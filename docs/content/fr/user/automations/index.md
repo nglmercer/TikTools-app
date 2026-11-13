@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
-translationRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
+sourceRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
+translationRevision: "d70b4d5c76c5095a0877c77861d4e6a10267c17f2df8d19a3b0660a398995d5e"
 order: 10
 ---
 
@@ -33,8 +33,12 @@ Les tests peuvent exécuter les effets configurés. Lisez la liste d’actions s
 
 ## Résultat attendu et état {#expected-result-and-status}
 
-L’édition locale, l’exécution, les modèles, les profils et l’historique sont disponibles. Les déclencheurs de plugins apparaissent uniquement lorsque le plugin correspondant est installé et activé. Les définitions importées restent désactivées jusqu’à une activation explicite. Le panneau **Changes** de Events/Actions est une [comparaison de référence locale](../cloud/changes.md), pas un téléversement automatique vers Cloud.
+L’édition locale, l’exécution, les modèles, les profils et l’historique sont disponibles. Les déclencheurs de plugins apparaissent uniquement lorsque le plugin correspondant est installé et activé. L’activation dépend de la surface et des valeurs enabled examinées ; vérifiez événements et actions avant confirmation. Le panneau **Changes** de Events/Actions est une [comparaison de référence locale](../cloud/changes.md), pas un téléversement automatique vers Cloud.
 
 ## Récupération {#recovery}
 
 En l’absence d’exécution, vérifiez dans cet ordre le profil actif, les états d’activation, le déclencheur, les filtres, le délai et les actions manquantes. En cas de conflit de révision, lisez la définition actuellement enregistrée et examinez-la à nouveau. N’écrasez pas aveuglément la mise à jour d’une autre personne. Exportez un [profil](templates.md) fonctionnel avant des modifications étendues.
+
+## Détails de fonctionnement {#operational-details}
+
+Avant import ou changement de profil, lisez [l’activation par surface](templates.md#operational-details). Le changement peut réactiver des membres désactivés individuellement. Le cooldown est en mémoire, limité à 24 heures ; les spectateurs sans uniqueId partagent un contexte anonyme. À 8 192 clés conservées, la table est vidée : surcharge ou redémarrage peuvent autoriser des exécutions supplémentaires. Ce n’est ni quota durable ni garantie de replay.

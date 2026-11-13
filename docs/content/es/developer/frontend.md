@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
-translationRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
+sourceRevision: "40ff5183f34bff831db48c76fef50f9ef8d5fe40b632ed77747c10ebad708fb3"
+translationRevision: "d200ed0ebd5e75c0cd4cb7b53fb13bca424ef9b58fcddabb9612c21757ac448d"
 order: 40
 ---
 
@@ -51,3 +51,32 @@ bun scripts/task.ts frontend-build
 La ruta muestra datos actuales y conserva los cambios sin guardar ante conflictos. Rankings tiene código y ruta, pero sigue oculto en la navegación normal; la presencia de un componente no demuestra disponibilidad del producto. Los arranques nativo, de navegador local y de demostración pueden proporcionar transportes distintos al mismo código funcional.
 
 Si una respuesta antigua reemplaza una consulta reciente, revisa su generación antes de cambiar el backend. Cuando desaparece una página de plugin, vuelve a los plugins instalados, como hace el runtime. El [runtime de la aplicación](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/app/model/use-app-runtime.ts) es la referencia para conexión, resincronización y liberación.
+
+## Detalles de operación {#operational-details}
+
+Bootstrap elige ControlClient real/demo; `mountWorkspace({client,locale,target})` instala Pinia, i18n, router y `controlClientKey`; AppShell inicia suscripciones/resync de gaps y presentación con `useAppRuntime`. `useControlClient` falla sin proveedor aunque existan Pinia/i18n. Reusa la fábrica o provee cliente en test; desmonta y detach al terminar. Entidades no eligen transporte.
+
+Antes de await crea ticket y salida de actividad. Aplica respuesta solo si ticket vigente; en finally termina actividad. Invalida al cambiar contexto/desmontar. Cada operación solapada tiene su salida para no ocultar busy de otra. Invalidar ticket no cancela trabajo remoto.
+
+```ts
+import { createRequestScope, createActivityCounter } from '@/shared/lib/request-scope.ts';
+const requests = createRequestScope();
+const activity = createActivityCounter();
+async function refresh() {
+  const ticket = requests.begin();
+  const leave = activity.enter();
+  try {
+    const result = await client.call('system.info', {});
+    if (ticket.isCurrent()) info.value = result;
+  } finally { leave(); }
+}
+// onBeforeUnmount(() => { requests.invalidate(); activity.reset(); });
+```
+
+```ts
+import { mountWorkspace } from '@/app/mount-workspace.ts';
+const app = await mountWorkspace({ client, locale: 'en', target: '#app' });
+// At teardown:
+app.unmount();
+client.detach();
+```

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
-translationRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
+sourceRevision: "99d3351859ddb3a3304133f062f68b8e3130416947fc40433dc9c6bffaf85f6a"
+translationRevision: "172243dd57089b19a14a3aaae7bf9ab8f24a9e40d9c77e5ad26930a9519bbcd5"
 order: 170
 ---
 
@@ -44,3 +44,7 @@ Prévias locais integradas e o SDK de widgets estão implementados. Edição de 
 ## Recuperação {#recovery}
 
 Para uma prévia local em branco, inspecione tempo de vida do controlador, padrões do esquema e dimensionamento do palco antes de enfraquecer a política de origem. Para saída ao vivo, inspecione integridade do gateway, credencial do widget e lacunas explícitas. Um teste Chromium sem interface gráfica não comprova aceitação da fonte de navegador do OBS. O [SDK de widgets](https://github.com/nglmercer/TikTools-app/tree/remake/src/widgets/sdk) e os testes de protocolo compartilhado são as referências atuais da implementação.
+
+## Detalhes de operação {#operational-details}
+
+A suíte unitária usa fixtures; Chromium com gateway real exige widgets construídos e checkout externo via `TIKTOOLS_PLUGINS_REPO`. Sem fonte ela é omitida: informe skip. Execute `bun x --no-install playwright test --config src/widgets/playwright.gateway.config.ts` para esse limite. Depois confira OBS real, credencial widget, entrega e recuperação com LIVE; Chromium headless não comprova aceitação OBS/nativa.

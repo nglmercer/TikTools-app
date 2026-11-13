@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
-translationRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
+sourceRevision: "13e7a36b1ef2b8d3b84834135c04c5a51e7d2b4b403af07ae25f25454de70053"
+translationRevision: "13e7a36b1ef2b8d3b84834135c04c5a51e7d2b4b403af07ae25f25454de70053"
 order: 80
 ---
 
@@ -51,3 +51,7 @@ For a durable operation, retain method, canonical parameters, original command I
 An agent receives the same validation, events and failures as other clients. Agent access is implemented; authority depends on the selected backend and current grants. Unknown acknowledgement requires original-outcome lookup, not automatic resubmission under a new ID. Closed remote summaries cannot reconstruct a full definition, so retain the submitted source privately.
 
 Run `bun scripts/task.ts rust test -p tiktools-client --test parity --locked` after adding a method. The [SDK source](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/lib.rs) and canonical registry own signatures; historical agent examples can lag new owner recovery coordinators.
+
+## Operational details {#operational-details}
+
+Before emitting an effect, discover its schema, use `--dry-run --explain`, and inspect whether the operation is CAS, additive, durable or destructive. Follow the [isolated read → CAS → original-outcome recipe](control-api.md#operational-details) and [snapshot → apply → acknowledge recovery](remote-client.md#operational-details). A tool wrapper must preserve metadata, the original payload/command ID and caller scope; changing the ID after a timeout can repeat an effect. `--confirm` acknowledges a destructive call, not broader authority.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
-translationRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
+sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
+translationRevision: "c621eebc98665ab57a08cd00eae611a2fee2925a81854f247fbfcf5042ec4b6a"
 order: 10
 ---
 
@@ -38,3 +38,7 @@ La disponibilidad del acceso y la aceptación real de proveedores y plataformas 
 ## Recuperación {#recovery}
 
 Si el intento caducó o se canceló, ciérralo e inicia uno nuevo. Ante fallos de red o servicio, conserva el código de diagnóstico y repite tras recuperarse. Si falla el almacén de credenciales, restablece el almacenamiento seguro del sistema; no pegues tokens en ajustes ni en mensajes de soporte. Consulta [Changes](changes.md) para sincronización explícita y [colaboración](collaboration.md) para los permisos separados.
+
+## Detalles de operación {#operational-details}
+
+Cerrar sesión elimina credenciales locales y limpia el contexto antes de intentar revocación remota de mejor esfuerzo. La UI sin sesión confirma retirada local, no revocación remota durante fallo de red. Usa administración de sesiones del servicio si existe. Exporta Diagnostics antes de cerrar/cambiar cuenta conocida: se limpia ese historial UI. Cookies TikTok y sesiones de host remoto son identidades separadas.

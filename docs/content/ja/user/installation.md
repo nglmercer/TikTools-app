@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
-translationRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
+sourceRevision: "6f8673490bebb3447474a70d914d06102de87a9ef2f3f3c51da897d0d2cc8c1c"
+translationRevision: "81969544c0608f5cd6ad8eefe9bfd27613057a8a94d93fd15f1b9f3999a4cd78"
 order: 20
 ---
 
@@ -50,3 +50,7 @@ TikTools がオフライン状態で開きます。データはインストー�
 ## 問題が起きたとき {#recovery}
 
 ウィンドウが出る前に失敗したら、アカウントや移行設定を変える前に診断と不足ライブラリのエラーを確認します。別バージョンを試す前に、アプリを停止してデータディレクトリをバックアップします。古い実行ファイルの再インストールでは DB 移行は戻りません。[最初の LIVE](first-live.md) または[更新](updates.md) に進みます。
+
+## 運用の詳細 {#operational-details}
+
+ウィンドウが開かない場合はネイティブの `tiktools.log`（コントローラーモードは `controller.log`）を確認します。Windows は `%LOCALAPPDATA%/TikTools/logs`、Linux は `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` ですが、`TIKTOOLS_HOME` または `TIKTOOLS_LOG_DIR` で変わります。ファイル作成前にログ初期化が失敗する場合もあります。端末のエラーを残し、共有前に[診断の保持とプライバシー](preferences/troubleshooting.md#operational-details)を確認してください。

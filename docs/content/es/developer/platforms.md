@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
-translationRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
+sourceRevision: "c7befe2be6f91bcf50ce4572aaa95d02723a315ba11ed1d94e6d499e802c2473"
+translationRevision: "f162187f6990abeef33432d132499e4c4d7c2892298e85e67c855c89f33fa72a"
 order: 20
 ---
 
@@ -41,3 +41,19 @@ IPC local, SQLite y los plugins portables de proceso/QuickJS tienen rutas Androi
 ## Verificación y recuperación {#verify-and-recover}
 
 Ejecuta `bash scripts/termux/doctor.sh`, `bash scripts/termux/test.sh` y `bash scripts/termux/smoke.sh` desde la raíz del checkout. Indica las comprobaciones de frontend omitidas. Ante símbolos C++ ausentes en `protoc`, compara `env -u LD_LIBRARY_PATH protoc --version` antes de cambiar bibliotecas. Repara un almacén CA ausente sin desactivar su validación. La compilación cruzada no demuestra aceptación en el teléfono. La [script de validación de Termux](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/termux/smoke.sh) detalla las pruebas y restricciones.
+
+## Detalles de operación {#operational-details}
+
+Para navegador local, construye assets con index.html y CLI con `local-web`. Retira overrides heredados y usa `TIKTOOLS_HOME` descartable; inicia primero host IPC. En otra terminal con la misma raíz ejecuta el adaptador, abre enlace loopback o introduce código de seis dígitos de un uso (cinco minutos). Detén adaptador y host por separado. Loopback/pairing no ofrecen acceso remoto/LAN. Termux necesita toolchain Android nativo y assets web; binario Linux desktop no es Android.
+
+```sh
+bun scripts/task.ts frontend-build
+bun scripts/task.ts rust build -p tiktools-cli --features local-web --locked
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools host --ipc
+```
+
+```sh
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools web --assets /absolute/path/to/TikTools/dist/web --port 4174
+```

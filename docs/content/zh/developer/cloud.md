@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "49c8594160a56b6b044851e6365732d8f4a9a4a9247ce4422d2e5280f8bb3ce3"
-translationRevision: "49c8594160a56b6b044851e6365732d8f4a9a4a9247ce4422d2e5280f8bb3ce3"
+sourceRevision: "06ae46545d1366d4f456c78a0e6583ea0338afbd496467e4d25b3abe1a5430fb"
+translationRevision: "7d9e03829fdccd04da298487c8c6d81c63fd84d7e23d622a99193797d4e61dbc"
 order: 180
 ---
 
@@ -39,8 +39,14 @@ tiktools api schema globals.typed.replace
 
 V2 已有原生状态/存储/协调器、受保护的 v1 迁移、冲突审查、重建及已安装插件协调路径。采纳操作明确且限定于账户；未标记的旧安装继续使用旧路径。完整双桌面验收和部分产品适配器仍未完成。账户范围的写入纪元设置会产生不可逆的服务器影响，迁移审查中对此有说明。
 
-V3 在能力门控后增加目录、团队、集成、资源、叠加层和包接口。目录元数据不能替代签名插件验证。模板/配置导入使用所有者规则库日志，并保持禁用。包应用会记录中断步骤，不会自动重放。Cloud 中继读取访问不能与直接协作修改权限混淆。
+V3 在能力门控后增加目录、团队、集成、资源、叠加层和包接口。目录元数据不能替代签名插件验证。模板/配置导入使用所有者规则库日志；应用或导入配置时应审核 enabled。包应用会记录中断步骤，不会自动重放。Cloud 中继读取访问不能与直接协作修改权限混淆。
 
 ## 预期结果与恢复 {#expected-result-and-recovery}
 
 配置变更保留身份、修订和审查边界。自动化更改仅在本地工作；经过审查的变量使用真实类型化原生方法，不同步原始值。叠加层更改尚未合并。冲突时比较基准/本地/最新 Cloud 记录；确认未知时，解决保留的意图。可重试 HTTP 错误绝不授权重复修改。[协作](collaboration.md)另行说明运行中宿主的权限。
+
+## 运行细节 {#operational-details}
+
+debug 中 `TIKTOOLS_CLOUD_ORIGIN` 优先级为运行时 → 编译值 → 默认值；release 为编译值 → 默认值，忽略运行时覆盖。空值、`off`、`none` 仅在适用配置层禁用服务。值必须为无凭据、路径、查询或片段的 HTTPS origin；HTTP 只允许显式 loopback。隔离 debug 使用 `TIKTOOLS_CLOUD_ORIGIN=http://127.0.0.1:8787 bun run start`；编译 release 使用 `TIKTOOLS_CLOUD_ORIGIN=https://cloud.example bun scripts/task.ts rust build -p tiktools-desktop --release --locked`。保存的另一 origin 身份不能恢复，应先检查账户与 origin。编译默认值不证明服务部署可用。
+
+遵循[迁移及按模式恢复](../user/cloud/changes.md#operational-details)。启用不可逆 epoch 策略前协调所有设备，保留预览数量与原结果，屏障结果不明时重新读取状态，不要重复屏障来试探第一次是否执行。冲突恢复冻结审核条目与修订；审核过期需重做后再恢复，恢复本身不发送 Cloud 写入。

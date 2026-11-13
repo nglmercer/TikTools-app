@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "92e2164c28be287f8b5d5c96d787a106bb011e1939ff490e4e69737c87bb9716"
-translationRevision: "92e2164c28be287f8b5d5c96d787a106bb011e1939ff490e4e69737c87bb9716"
+sourceRevision: "3e866271067cf2c4d374aaccd9a6cdf6babf981df4deeff5313947cbf39b5cc7"
+translationRevision: "61bd035150cfed7915138d4dc045cf9b00d675de315f508fa35768cb523e4e5b"
 order: 50
 ---
 
@@ -48,3 +48,7 @@ onUnmounted(stop);
 ## 恢复与限制 {#recovery-and-limits}
 
 QuickJS 启动超时后可能仍处于不确定状态；管理器会保留工作线程身份并阻止替换，不会假装已经停止。部分同步插件生命周期控制路径仍可能阻塞调用者。这些属于实现限制，尤其需要在更新器交接时考虑。应正常停止拥有资源的宿主，不要删除运行中的锁。[关闭源码](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/shutdown.rs)及运行时测试，比历史生命周期图更有证明力。
+
+## 运行细节 {#operational-details}
+
+关闭首先停止 LIVE 接收并排空入口，然后取消观察器、断开连接并停止插件轮询。随后刷新 Analytics、解决积分写入（期限 30 秒）、执行 SQLite checkpoint（5 秒），最后完成原生关闭。插件轮询超时、Analytics 失败、未解决的积分写入或 checkpoint 失败都会将更新关闭标记为不安全。`AppCore::update_shutdown_safe()` 同时要求关闭已完成且安全标记有效；完成关闭本身不够。更新器使用该原生结果，没有用户开关能够证明未知工作安全。替换二进制前，请保留日志和待恢复数据并解决不确定性。

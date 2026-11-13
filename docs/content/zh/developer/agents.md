@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
-translationRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
+sourceRevision: "13e7a36b1ef2b8d3b84834135c04c5a51e7d2b4b403af07ae25f25454de70053"
+translationRevision: "ffec80ab1b25ac68fc7b81d9e4642a319080e184c4db498c3aad8ee2a188481b"
 order: 80
 ---
 
@@ -51,3 +51,7 @@ async fn inspect() -> Result<(), tiktools_client::ClientError> {
 代理获得与其他客户端相同的验证、事件和失败结果。代理访问已实现；权限取决于选定后端和当前授权。确认结果未知时，应查询原始结果，不能自动换新 ID 重新提交。封闭式远程摘要无法重建完整定义，因此需私下保留提交的源码。
 
 添加方法后，运行 `bun scripts/task.ts rust test -p tiktools-client --test parity --locked`。[SDK 源码](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/lib.rs)及规范注册表负责定义签名；历史代理示例可能落后于新的所有者恢复协调器。
+
+## 运行细节 {#operational-details}
+
+产生副作用前，先发现 schema，使用 `--dry-run --explain`，并确认操作属于 CAS、加法、持久或破坏性。遵循[隔离读取/CAS/原始结果流程](control-api.md#operational-details)及[快照/应用/acknowledge 恢复](remote-client.md#operational-details)。工具封装必须保留元数据、原始 payload/命令 ID 与调用者范围；超时后更换 ID 可能重复副作用。`--confirm` 只确认破坏性调用，不扩大权限。

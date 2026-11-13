@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "f9d8877d583d78c94a8a46a2beb25bc623dd606706f219eef87285c0a249d6a8"
-translationRevision: "f9d8877d583d78c94a8a46a2beb25bc623dd606706f219eef87285c0a249d6a8"
+translationRevision: "2b5f16a335dbc91bb73a9474ce0c9cfd2d5dbe186d1848e324687b7804455c73"
 ---
 
 # Vista y diff JSON {#json-view-and-diff}

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
-translationRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
+sourceRevision: "6f8673490bebb3447474a70d914d06102de87a9ef2f3f3c51da897d0d2cc8c1c"
+translationRevision: "6f8673490bebb3447474a70d914d06102de87a9ef2f3f3c51da897d0d2cc8c1c"
 order: 20
 ---
 
@@ -50,3 +50,7 @@ TikTools opens in an offline state. Data is stored separately from the installat
 ## Recovery {#recovery}
 
 If the package fails before a window appears, check diagnostics and missing library errors before modifying account or migration settings. Back up the data directory with the app stopped before trying another version. Reinstalling an older executable does not reverse database migrations. Continue with [your first LIVE](first-live.md) or [updates](updates.md).
+
+## Operational details {#operational-details}
+
+If the window never opens, use native `tiktools.log` (`controller.log` for controller mode): Windows `%LOCALAPPDATA%/TikTools/logs`, Linux `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`, unless `TIKTOOLS_HOME` or `TIKTOOLS_LOG_DIR` changes the location. Logging initialization can fail before a file exists. Retain any terminal error and follow [diagnostic retention and privacy](preferences/troubleshooting.md#operational-details) before sharing.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
-translationRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
+sourceRevision: "6341644dd3da8b4d7a5ef9a079a884908997a5a3f8f65618746cdb8d9db81ad8"
+translationRevision: "a5283afd2e5632b7ac114f014d60b461b03f2ec16c54d5a3b18a91042fe6c4f0"
 ---
 
 # Pestañas y barras {#tabs-and-toolbars}
@@ -43,3 +43,11 @@ Este archivo se compila para la vista y se incluye como snippet. El estado peque
 Proporciona etiqueta visible o aria-label, conserva el manejo por teclado y evita depender solo del color. Prueba un ancho reducido y etiquetas traducidas largas. En formularios asocia controlAttrs de la fila al input real para conservar errores y estado obligatorio. Un control desactivado no explica por sí mismo un fallo: muestra estado cercano y recuperación.
 
 Si falla la vista, ciérrala y ábrela y luego reinicia su instancia. La API estática y el código siguen siendo útiles sin demo. Los diálogos nativos, servicios externos y funciones del sistema requieren pruebas separadas de escritorio. [Volver a la guía de componentes](index.md).
+
+## Detalles de operación {#operational-details}
+
+El ejemplo conserva estado en el padre. Sort de tabla es modelo enlazado que ordena tres filas mediante computed; el encabezado cambia orden y selección conserva ID. Los editores de pestañas guardan borradores fuera del hijo con key: escribir, cambiar y volver conserva cada borrador. Pestaña/diálogo no los persisten. Elige estado padre, contenido montado o KeepAlive expresamente.
+
+## Detalles de operación {#keyboard-contract}
+
+Revisa [teclado, excepciones del diálogo y nombres/tooltip](../i18n-accessibility.md#operational-details). Comprueba foco inicial/retorno en el flujo completo, incluidos diálogos no cerrables y borradores desmontados.

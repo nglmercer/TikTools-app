@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
-translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+sourceRevision: "4e162cd76cb973f9215898e757b4765c429f1bc225df0903b5b40b1e3ad6fb9b"
+translationRevision: "b1eb3ecfe95315040149a79f0cf8903b8ab73c56465c0cf66a649e929a0df539"
 order: 10
 ---
 
@@ -38,3 +38,9 @@ order: 10
 最初にソースのスイッチ、保存済み率、視聴者識別子を確認します。自動化でも付与すると二重になる場合があります。LIVE 接続が有効または処理中の間はリセットがロックされます。計画したリセットの前に切断し、確認内容を読みます。累積残高を消す前に[アプリを閉じてバックアップ](../preferences/backups.md) してください。
 
 <DemoFrame scenario="points" locale="ja" tour="points" title="デモ: ポイント" />
+
+## 運用の詳細 {#operational-details}
+
+行メニューのリセットは 1 人のポイントを 0、レベルを 1 にし、リセット記録を追加します。**すべてリセット**は配信者に関係なく、このインストールに保存された全視聴者の残高を 0、レベルを 1 にし、ポイント取引履歴を削除します。視聴者レコードと累積カウンターは残ります。フィードと Analytics は消しません。LIVE を切断し、アプリを閉じてバックアップしてから範囲を確認してください。
+
+手動の加算にも保存済み購読者ボーナスが適用されます。50% の場合、購読者への +100 は +150 になります。100 の減算には加算ボーナスを適用せず、残高は 0 未満になりません。結果の残高を確認してください。表の検索は取得済み上位 100 人だけが対象で、見つからなくても保存レコードがないとは限りません。

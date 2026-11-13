@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
-translationRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
+sourceRevision: "17f8e12522f04bad46b814f437e80c3f480b43331ed1278e49597878e2cee4f8"
+translationRevision: "dce56941557453862691c3935701da9e06ff2a229dbe9503cd5081ab36027baa"
 order: 250
 ---
 
@@ -61,3 +61,18 @@ export default definePlugin({
 ## 恢复与验证 {#recovery-and-verification}
 
 入口缺失时，先构建再打包，并检查相对于清单的路径。不要将 process 运行时指向未编译的 JavaScript。本地暂存使用 `tiktools-plugin dev stage --into /absolute/path/dev-plugins`，并使用配置了该根目录的私有测试宿主。开发暂存与安装不同，不能证明签名注册表信任成立。分发示例前，请继续阅读[运行时限制](runtimes.md)与[签名](packaging-registry.md)。
+
+## 运行细节 {#operational-details}
+
+读取 `validate` 输出中的 `hostCompatibility`、`publishReady` 和 `warnings`。未构建入口只是警告；`--publish` 因发布问题失败，并非因所有兼容性警告失败。构建后重新验证，检查归档入口/目标并测试目标宿主。编译前成功退出不证明包可运行。
+
+Rust 作者可在独立目录创建 `process-rust` 或 `native-rust`。两者实现 SDK 的 `Plugin` trait 并返回 `ActionResult::summary`；进程模板使用 `tiktools_process_plugin!`，原生模板使用 `tiktools_export_native_plugin!` 及 `cdylib`。原生 ABI/信任是目标专属且在宿主进程内运行。按 devkit 目标语法构建，保留生成的准确入口路径，并使用私有宿主。集成适合崩溃隔离时优先进程模板。
+
+```sh
+tiktools-plugin new acme.process --template process-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-process
+tiktools-plugin new acme.native --template native-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-native
+tiktools-plugin build acme-process --release
+tiktools-plugin validate acme-process --publish
+tiktools-plugin build acme-native --release
+tiktools-plugin validate acme-native --publish
+```

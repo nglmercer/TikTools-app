@@ -5,6 +5,7 @@ import { compileNapiVmGuest, prepareNativeAddons, siblingSourceDirectory } from 
 import { assertPluginId } from './lib/plugin-id.ts';
 import { GATEWAY_PLUGIN_ID, stageGatewayWidgets } from './lib/gateway-widgets.ts';
 import { detectHostTarget } from './lib/plugin-targets.ts';
+import { buildPluginUi, executableName, pluginCargoManifest, processBinaryName } from './lib/plugin-build.ts';
 
 export const repositoryRoot = resolve(import.meta.dir, '..');
 const cargoWrapper = join(repositoryRoot, 'scripts', 'cargo-with-linker.mjs');
@@ -56,8 +57,7 @@ async function copyContent(source: string, target: string, directories: readonly
 
 /** Host executable suffix, resolved through the shared target helper so dev and release naming agree. */
 function stagedEntryName(entry: string): string {
-  const name = basename(entry);
-  return detectHostTarget().os === 'windows' && !name.toLowerCase().endsWith('.exe') ? `${entry}.exe` : entry;
+  return detectHostTarget().os === 'windows' && !entry.toLowerCase().endsWith('.exe') ? `${entry}.exe` : entry;
 }
 
 /**
@@ -88,18 +88,15 @@ async function stagePlugin(pluginsRepository: string, packageDirectory: string):
   await rm(stagedDirectory, { recursive: true, force: true });
   await mkdir(stagedDirectory, { recursive: true });
   if (runtime === 'process') {
-    const backend = (await exists(join(packageDirectory, 'backend', 'Cargo.toml')))
-      ? join(packageDirectory, 'backend')
-      : packageDirectory;
-    const cargoManifestPath = join(backend, 'Cargo.toml');
-    if (!(await exists(cargoManifestPath))) {
+    const cargoManifestPath = await pluginCargoManifest(packageDirectory);
+    if (!cargoManifestPath) {
       throw new Error(`${manifestPath} is a process plugin without Cargo.toml or backend/Cargo.toml`);
     }
-    const binaryName = await cargoBinaryName(cargoManifestPath, manifest, manifestPath, backend !== packageDirectory);
+    const binaryName = await processBinaryName(cargoManifestPath, requiredString(manifest.entry, 'entry', manifestPath));
     const targetDirectory = join(pluginsRepository, 'target');
     console.log(`Building development plugin ${id}...`);
-    run('node', [cargoWrapper, 'build', '--manifest-path', cargoManifestPath, '--target-dir', targetDirectory]);
-    const builtEntryPath = join(targetDirectory, 'debug', stagedEntryName(binaryName));
+    run('node', [cargoWrapper, 'build', '--locked', '--bin', binaryName, '--manifest-path', cargoManifestPath, '--target-dir', targetDirectory]);
+    const builtEntryPath = join(targetDirectory, 'debug', executableName(binaryName, detectHostTarget().os === 'windows'));
     if (!(await exists(builtEntryPath))) {
       throw new Error(`Cargo built ${id}, but its binary was not found at ${builtEntryPath}`);
     }
@@ -121,46 +118,14 @@ async function stagePlugin(pluginsRepository: string, packageDirectory: string):
   return true;
 }
 
-/**
- * The cargo binary that implements the manifest entry: a single-package
- * backend crate builds its package-named binary; a plugin-root crate builds
- * the binary named after the manifest entry.
- */
-async function cargoBinaryName(
-  cargoManifestPath: string,
-  manifest: PluginManifest,
-  manifestPath: string,
-  backendCrate: boolean,
-): Promise<string> {
-  if (!backendCrate) return basename(requiredString(manifest.entry, 'entry', manifestPath).replaceAll('\\', '/'));
-  const packageName = (await readFile(cargoManifestPath, 'utf8')).match(/^name\s*=\s*"([^"]+)"\s*$/m)?.[1];
-  if (!packageName) throw new Error(`${cargoManifestPath} has no package name`);
-  return packageName;
-}
-
 async function stagePluginUi(
   packageDirectory: string,
   manifestPath: string,
   manifest: PluginManifest,
   stagedDirectory: string,
 ): Promise<void> {
-  const ui = manifest['ui'] as { entry?: unknown } | undefined;
-  const entry = typeof ui?.entry === 'string' ? ui.entry : null;
-  if (!entry) return;
-  if (!entry.startsWith('ui/') || entry.includes('..') || entry.includes('\\')) {
-    throw new Error(`${manifestPath} has an unsafe ui entry: ${entry}`);
-  }
-  const distDirectory = join(packageDirectory, 'ui', 'dist');
-  if (!(await exists(join(distDirectory, 'index.html')))) {
-    const viteConfig = join(packageDirectory, 'ui', 'vite.config.ts');
-    if (!(await exists(viteConfig))) {
-      throw new Error(`${manifestPath} declares ui entry ${entry}, but ui/dist/index.html is missing with no vite config to build it`);
-    }
-    console.log(`Building plugin UI for ${requiredString(manifest.id, 'id', manifestPath)}...`);
-    // The UI toolchain belongs to the plugin repository (`bun install` there).
-    run('bun', ['x', 'vite', 'build', '--config', viteConfig], dirname(dirname(packageDirectory)));
-  }
-  await cp(distDirectory, join(stagedDirectory, dirname(entry)), { recursive: true });
+  const ui = await buildPluginUi({ directory: packageDirectory, manifestPath, manifest, exec: run });
+  if (ui) await cp(ui.source, join(stagedDirectory, dirname(ui.entry)), { recursive: true });
 }
 
 /**
@@ -203,8 +168,8 @@ async function stageNapiVm(
 
   await rm(stagedDirectory, { recursive: true, force: true });
   await mkdir(stagedDirectory, { recursive: true });
-  await writeFile(join(stagedDirectory, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   await copyContent(packageDirectory, stagedDirectory, ['assets', 'dist', 'locales', 'node_modules']);
+  await writeFile(join(stagedDirectory, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return true;
 }
 
@@ -214,6 +179,9 @@ async function stageNapiVm(
  * TikTools startup: it is reported and skipped.
  */
 export async function prepareDevelopmentPlugins(): Promise<string> {
+  // This root contains only generated packages. Never load removed or failed
+  // packages left by an earlier checkout, including when staging is disabled.
+  await rm(developmentPluginRoot, { recursive: true, force: true });
   await mkdir(developmentPluginRoot, { recursive: true });
   const pluginsRepository = await resolvePluginsRepository(repositoryRoot);
   if (!pluginsRepository) {

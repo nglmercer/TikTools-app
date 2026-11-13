@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
-translationRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
+sourceRevision: "7049a03b9a3b437dc969ee83208bbaac8521bd55bf0e557e96a185ffdfaff9f6"
+translationRevision: "0ec6f6a6bfcd8a2b6ef2336766e8e627678bbe4ddb175254870cd7367a01fad2"
 order: 290
 ---
 
@@ -70,3 +70,7 @@ Exécutez `bun scripts/task.ts test web BaseButton`, le test ciblé du composant
 - [Importation et examen](import-review.md)
 - [Modèles d’examen Cloud](cloud-patterns.md)
 - [Modèles d’incrustation](overlay-patterns.md)
+
+## Détails de fonctionnement {#operational-details}
+
+Les familles générées couvrent volontairement les primitives publiques. [Formulaires](forms.md) inclut SchemaForm/SettingsRow ; [champs](fields.md), textarea, slider, radio, tags, date, couleur et fichier unique ; [menus](menus.md), MenuBar/ContextMenu ; [feedback](feedback.md), Notification. Icônes, SchemaFieldRows et pièces internes ne sont pas des contrats publics autonomes. Lisez bindings de slots et props/modèles. Une signature générée ne garantit ni validation ni accessibilité.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
-translationRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
+sourceRevision: "7049a03b9a3b437dc969ee83208bbaac8521bd55bf0e557e96a185ffdfaff9f6"
+translationRevision: "7ba727571a859745a77ff21d3a474899c015cbcfaee78c6813b62bb8e42260fe"
 order: 290
 ---
 
@@ -70,3 +70,7 @@ const { t } = useI18n();
 - [导入与审查](import-review.md)
 - [Cloud 审查模式](cloud-patterns.md)
 - [叠加层模式](overlay-patterns.md)
+
+## 运行细节 {#operational-details}
+
+生成的组件族明确覆盖公共组合原语。[表单](forms.md)包括 SchemaForm/SettingsRow；[字段](fields.md)包括 textarea、slider、radio、tags、日期、颜色和单文件上传；[菜单](menus.md)包括 MenuBar/ContextMenu；[反馈](feedback.md)包括 Notification。图标、SchemaFieldRows 等内部渲染零件不是独立公共契约。除 props/模型外也应读取 scoped slot 绑定。生成签名不等于验证或可访问性保证。

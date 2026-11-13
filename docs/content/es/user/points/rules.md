@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
-translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+sourceRevision: "4e162cd76cb973f9215898e757b4765c429f1bc225df0903b5b40b1e3ad6fb9b"
+translationRevision: "a7190937eee96946f8cde4847facf99570939cd566796ad49f1111da0690473b"
 order: 10
 ---
 
@@ -38,3 +38,9 @@ Están disponibles las reglas locales, los saldos y los controles manuales de a�
 Comprueba primero el interruptor de la fuente, la tasa guardada y el identificador del espectador. Una automatización que también asigne puntos puede sumar otra asignación. Los reinicios se bloquean durante conexiones LIVE activas o en curso; desconecta antes de reiniciar y lee la confirmación. Conserva una [copia con la aplicación cerrada](../preferences/backups.md) antes de borrar saldos.
 
 <DemoFrame scenario="points" locale="es" tour="points" title="Demo de points" />
+
+## Detalles de operación {#operational-details}
+
+El menú de una fila reinicia un espectador a 0 puntos y nivel 1 y añade un marcador. **Reiniciar todos** afecta a todos los espectadores guardados en esta instalación, sin limitarse al creador: pone los saldos a 0 y niveles a 1 y elimina el historial de transacciones de puntos. Conserva los registros de espectadores y sus contadores acumulados. No limpia el feed ni Analytics. Desconecta LIVE, guarda una copia con la app cerrada y revisa el alcance antes de confirmar.
+
+Los ajustes manuales positivos aplican el bonus de suscriptor guardado: +100 con bonus del 50% entrega +150 a un suscriptor. Descontar 100 no aplica ese bonus; el saldo mínimo es cero. Comprueba el saldo final, sin asumir que el delta coincide siempre con lo escrito. La tabla solo busca en su instantánea de los 100 primeros; no encontrar un nombre no demuestra que no tenga registro.

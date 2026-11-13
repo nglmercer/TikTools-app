@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
-translationRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
+sourceRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
+translationRevision: "88986b5baa400db98038166edb0f3ade2dcdae241d1aa442986e3463bdde8baa"
 order: 280
 ---
 
@@ -48,3 +48,12 @@ A instalação no host apresenta primeiro uma revisão. Atualizações automáti
 O instalador pode verificar bytes antes de aplicar um pacote revisado e manter estado de reversão/recuperação. A preparação de desenvolvimento fica fora do gerenciamento do instalador. Em falha de confiança, corrija delegação ou metadados do publicador em vez de usar flags para ignorar assinaturas como política normal de distribuição. Em inicialização incerta do runtime, pare a substituição e reconcilie o resultado mantido.
 
 Use `bun scripts/task.ts rust test -p tiktools-plugin-package --locked` e os testes de registro para dados de teste offline. O [verificador de pacotes](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-package/src) e o [modelo de registro](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-plugin-registry/src/model.rs) definem os formatos técnicos; a infraestrutura de publicação precisa de aceitação separada pelo operador.
+
+## Detalhes de operação {#operational-details}
+
+Interprete o JSON da verificação, não apenas o código de saída. `verify` pode terminar com sucesso e `signature.status` igual a `unsigned` ou `untrusted`. Aceite somente `verified` com ID do pacote, editor e chave esperados e confira a política de distribuição. Uma chave local `--trust` comprova essa assinatura, não delegação do registro ou aprovação do namespace. Checksums isolados não comprovam autoridade nem confiança do updater. A automação abaixo deve falhar diante de resultado inesperado.
+
+```sh
+tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path/keys/acme-1.pub.json > verification.json
+bun -e 'const r = await Bun.file("verification.json").json(); if (r.signature?.status !== "verified" || r.id !== "acme.hello" || r.signature.publisher !== "acme" || r.signature.keyId !== "acme-1") throw new Error("Package trust did not match policy");'
+```

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
-translationRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
+sourceRevision: "c7befe2be6f91bcf50ce4572aaa95d02723a315ba11ed1d94e6d499e802c2473"
+translationRevision: "757cb9da5b3f893cba73e5a1aa0092b2c6a1e3250bade9a85f743a88f703c27a"
 order: 20
 ---
 
@@ -41,3 +41,19 @@ cargo build -p tiktools-cli --locked
 ## 验证与恢复 {#verify-and-recover}
 
 在检出目录根运行 `bash scripts/termux/doctor.sh`、`bash scripts/termux/test.sh` 和 `bash scripts/termux/smoke.sh`。如跳过前端检查，应如实报告。`protoc` C++ 符号损坏时，先比较 `env -u LD_LIBRARY_PATH protoc --version`，再修改库。缺少 CA 证书包必须修复，不能绕过。仅交叉编译不能证明手机端通过验收。[Termux 冒烟脚本](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/termux/smoke.sh)记录了针对性探测与剩余限制。
+
+## 运行细节 {#operational-details}
+
+本地浏览器适配器需要含 index.html 的前端资源及启用 `local-web` 的 CLI。清除继承路径覆盖，设置可丢弃 `TIKTOOLS_HOME`，先启动 IPC 宿主。另一个使用同一 home 的终端运行下方适配器命令，打开 loopback 一键链接，或输入六位一次性配对码（有效五分钟）。完成后分别停止适配器和宿主。loopback 与配对并不提供远程/LAN 访问。Termux 需要原生 Android 工具链及前端资源；Linux 桌面二进制不能代替 Android 程序。
+
+```sh
+bun scripts/task.ts frontend-build
+bun scripts/task.ts rust build -p tiktools-cli --features local-web --locked
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools host --ipc
+```
+
+```sh
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools web --assets /absolute/path/to/TikTools/dist/web --port 4174
+```

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
-translationRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
+sourceRevision: "6f8673490bebb3447474a70d914d06102de87a9ef2f3f3c51da897d0d2cc8c1c"
+translationRevision: "9936278f12631a92f9ebdd64f3c11f93327924c2786e3367a32537728bfba954"
 order: 20
 ---
 
@@ -50,3 +50,7 @@ TikTools s’ouvre hors ligne. Les données sont stockées séparément de l’i
 ## Récupération {#recovery}
 
 Si le paquet échoue avant l’apparition d’une fenêtre, consultez les diagnostics et les erreurs de bibliothèques manquantes avant de modifier les paramètres de compte ou de migration. Sauvegardez le répertoire de données lorsque l’application est arrêtée avant d’essayer une autre version. Réinstaller un exécutable plus ancien n’annule pas les migrations de base de données. Poursuivez avec [votre premier LIVE](first-live.md) ou les [mises à jour](updates.md).
+
+## Détails de fonctionnement {#operational-details}
+
+Si aucune fenêtre ne s’ouvre, consultez le journal natif `tiktools.log` (`controller.log` en mode contrôleur) : Windows `%LOCALAPPDATA%/TikTools/logs`, Linux `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`, sauf modification par `TIKTOOLS_HOME` ou `TIKTOOLS_LOG_DIR`. L’initialisation peut échouer avant la création du fichier. Conservez l’erreur du terminal et consultez [conservation et confidentialité](preferences/troubleshooting.md#operational-details) avant partage.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
-translationRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
+sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
+translationRevision: "84e2ef69f16a3be871639b862da514db1e1d22be5504770b81153cad74f0d880"
 order: 30
 ---
 
@@ -39,3 +39,7 @@ Les classements ordinaires sont disponibles ; la page de gestion dédiée reste 
 ## Récupération {#recovery}
 
 Vérifiez le créateur, la salle, l’activation des sources, la fenêtre et l’état de pause lorsque les scores restent vides. Retirez les combinaisons source/regroupement non prises en charge plutôt que d’inventer des noms de champs. Préservez les données importantes par des [sauvegardes](../preferences/backups.md) avant toute réinitialisation, et incluez l’identifiant de définition et le code de diagnostic dans votre rapport.
+
+## Détails de fonctionnement {#operational-details}
+
+Le tableau Points demande 100 spectateurs et filtre/trie uniquement ces lignes. Actualiser ou trier par nom ne recherche pas toute la base. Les classements du fil affichent 10 lignes par session créateur/salle : diamants des cadeaux pour Top et quantités pour Likes, avec un suivi limité à 5 000 spectateurs. Ils ne mesurent pas les points enregistrés. Comparez d’abord unités et périodes.

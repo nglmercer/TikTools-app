@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7e6d88e43b32698c36afd6385bee8c44cc1223d669dd4c95414db604c17f254f"
-translationRevision: "7e6d88e43b32698c36afd6385bee8c44cc1223d669dd4c95414db604c17f254f"
+sourceRevision: "b2ae789f9c15df21b415b5bc006404dffd60430f193fdaba8cd94931e750eedc"
+translationRevision: "9cf915c218a10b0e717c56c29cbbd2281c6d428dfd24777a53dae20e4e386f5e"
 order: 20
 ---
 
@@ -39,3 +39,9 @@ order: 20
 ## 预期结果、状态与恢复 {#expected-result-status-and-recovery}
 
 关闭应用后的复制，以及这里说明的导入/导出入口，都是可用的恢复方法，但不保证任意版本之间都能恢复。Cloud 更改不是完整备份。如果恢复后的版本拒绝数据，请停止并回到保留副本；重新安装旧二进制文件不会撤销数据库迁移。请参阅[更新](../updates.md)和[故障排查](troubleshooting.md)。
+
+## 运行细节 {#operational-details}
+
+单独的路径覆盖优先于 `TIKTOOLS_HOME`：`TIKTOOLS_DATA_DIR` 存放数据库，`TIKTOOLS_PLUGINS_DIR` 存放已安装包，`TIKTOOLS_PLUGIN_DATA_DIR` 存放插件状态，`TIKTOOLS_PLUGIN_STORE_DIR` 选择包存储。`TIKTOOLS_LOG_DIR` 和 `TIKTOOLS_TEMP_DIR` 分别选择日志与临时文件目录。相对值以启动工作目录解析。备份前，通过 `tiktools api call system.info --json` 查看实际路径，并记录继承的覆盖变量；停止宿主后复制数据、包和状态目录，包括现存 WAL/SHM 文件。日志只是支持证据，不能代替数据库。
+
+`system.info` 报告实际 home/dataDir；其他目录需按宿主真实启动环境解析，不能只查看另一终端。`system.health` 提供 Analytics ready/待处理及 LIVE 入口计数。

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
-translationRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
+sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
+translationRevision: "64776a7488c087fd24c2ab47fe38337704bd2d5f90df391eebae64bd310b8048"
 order: 10
 ---
 
@@ -38,3 +38,7 @@ La disponibilité de la connexion au service et la validation réelle du fournis
 ## Récupération {#recovery}
 
 Pour une tentative annulée ou expirée, lancez une nouvelle connexion après avoir fermé l’ancienne. En cas d’erreur réseau ou de service, conservez le code de diagnostic et réessayez après rétablissement. Pour une erreur de coffre d’identifiants, rétablissez le stockage sécurisé du système ; ne collez pas de jeton porteur dans les paramètres ou un message d’assistance. Consultez [Changes](changes.md) pour la synchronisation explicite et la [collaboration](collaboration.md) pour les autorisations d’accès distinctes.
+
+## Détails de fonctionnement {#operational-details}
+
+La déconnexion supprime les identifiants locaux et le contexte avant une tentative de révocation serveur au mieux. L’UI déconnectée confirme la suppression locale, pas la révocation distante en cas de panne réseau. Utilisez l’administration des sessions du service si elle existe. Exportez Diagnostics avant déconnexion/changement d’un compte connu : cet historique UI est effacé. Cookies TikTok et sessions d’hôte distant sont des identités distinctes.

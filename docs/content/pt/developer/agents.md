@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
-translationRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
+sourceRevision: "13e7a36b1ef2b8d3b84834135c04c5a51e7d2b4b403af07ae25f25454de70053"
+translationRevision: "438d3ed34ea12c58c654bc8ad8dd1b337e39ff048f3c8cbe36ec7b8c69838573"
 order: 80
 ---
 
@@ -51,3 +51,7 @@ Para uma operação durável, guarde método, parâmetros canônicos, ID origina
 Um agente recebe a mesma validação, eventos e falhas dos outros clientes. O acesso de agentes está implementado; a autoridade depende do backend selecionado e das concessões atuais. Confirmação desconhecida exige consulta do resultado original, não reenvio automático com um novo ID. Resumos remotos fechados não permitem reconstruir uma definição completa, portanto guarde a origem enviada de forma privada.
 
 Execute `bun scripts/task.ts rust test -p tiktools-client --test parity --locked` após adicionar um método. O [código do SDK](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/lib.rs) e o registro canônico definem as assinaturas; exemplos históricos de agentes podem ficar atrás dos novos coordenadores de recuperação do proprietário.
+
+## Detalhes de operação {#operational-details}
+
+Antes de efeitos, descubra o schema, use `--dry-run --explain` e confira CAS, aditividade, durabilidade e destruição. Siga a [receita isolada de leitura/CAS/resultado original](control-api.md#operational-details) e [captura/aplicação/acknowledge](remote-client.md#operational-details). O adaptador deve preservar metadados, payload/ID original e escopo; trocar o ID após timeout pode repetir efeitos. `--confirm` confirma uma chamada destrutiva, sem ampliar autoridade.

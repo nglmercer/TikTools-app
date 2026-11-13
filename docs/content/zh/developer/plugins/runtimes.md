@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
-translationRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
+sourceRevision: "6a249fa36fa53f3bfe7da57fdd25a445e593517946f80ac7e891b54d95cdc17d"
+translationRevision: "a9fbb1dbd420181e36cbc26996750d240299592c7fc8b211e106b46003712f80"
 order: 260
 ---
 
@@ -48,3 +48,7 @@ bun scripts/task.ts test bun packages
 ## 恢复方法 {#recovery}
 
 替换原生库后，重启私有宿主。如果启动超时并变为不确定状态，管理器可保留工作线程身份并阻止替换；不要宣称已成功关闭来绕过该状态。事件缓冲有界，投递可能报告滞后；启动时发出的事件不是持久队列。[加载器实现](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-loader/src)负责当前引擎及生命周期行为。
+
+## 运行细节 {#operational-details}
+
+当前加载器限制为 QuickJS 内存 512 MiB、栈 2 MiB、每次调用的中断预算、协议帧 16 MiB，以及每实例最多 128 个排队调用。这些限制不保证取消副作用。进程调用超时后会终止并移除进程；原生调用不能安全强杀，因此保留实例，OS 副作用也可能已经发生。替换或重试前检查原始结果和生命周期。可信 `.node` 插件使用宿主进程权限，在 JS 能力边界之外运行。

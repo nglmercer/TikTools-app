@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
-translationRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
+sourceRevision: "40ff5183f34bff831db48c76fef50f9ef8d5fe40b632ed77747c10ebad708fb3"
+translationRevision: "20f396a9dc6569d7d06c1f9d9eeaff2fe0ce91dd1572514cd599a206554dc82f"
 order: 40
 ---
 
@@ -51,3 +51,32 @@ bun scripts/task.ts frontend-build
 La route affiche les données actuelles de l’hôte et conserve les modifications non enregistrées en cas de conflit. Rankings dispose d’un code source et d’une route mais reste masqué dans la navigation normale ; ne déduisez pas la disponibilité produit de la présence d’un composant. Les initialisations native, navigateur local et démo peuvent fournir des transports différents tout en utilisant le même code de fonctionnalité.
 
 Si une réponse obsolète remplace une requête plus récente, vérifiez sa génération avant de modifier le serveur. Si une route perd sa page de plugin, revenez à la vue des plugins installés comme le fait déjà l’exécution. Le [runtime de l’application](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/app/model/use-app-runtime.ts) est la référence pour le rattachement, la resynchronisation et le nettoyage.
+
+## Détails de fonctionnement {#operational-details}
+
+Bootstrap choisit le ControlClient réel/demo ; `mountWorkspace({client,locale,target})` installe Pinia, i18n, router et `controlClientKey` ; AppShell lance abonnements/resync des gaps et présentation via `useAppRuntime`. `useControlClient` échoue sans fournisseur même avec Pinia/i18n. Réutilisez la factory ou fournissez le client en test ; démontez et detach à la fin. Les entities ne choisissent pas le transport.
+
+Avant await, créez ticket et sortie d’activité. Appliquez la réponse seulement si le ticket est courant ; sortez en finally. Invalidez au changement de contexte/démontage. Chaque opération superposée a sa sortie pour ne pas effacer le busy d’une autre. Invalider un ticket n’annule pas le travail distant.
+
+```ts
+import { createRequestScope, createActivityCounter } from '@/shared/lib/request-scope.ts';
+const requests = createRequestScope();
+const activity = createActivityCounter();
+async function refresh() {
+  const ticket = requests.begin();
+  const leave = activity.enter();
+  try {
+    const result = await client.call('system.info', {});
+    if (ticket.isCurrent()) info.value = result;
+  } finally { leave(); }
+}
+// onBeforeUnmount(() => { requests.invalidate(); activity.reset(); });
+```
+
+```ts
+import { mountWorkspace } from '@/app/mount-workspace.ts';
+const app = await mountWorkspace({ client, locale: 'en', target: '#app' });
+// At teardown:
+app.unmount();
+client.detach();
+```

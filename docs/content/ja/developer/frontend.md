@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
-translationRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
+sourceRevision: "40ff5183f34bff831db48c76fef50f9ef8d5fe40b632ed77747c10ebad708fb3"
+translationRevision: "c9847688650dfd62feadca162e874390aa6627b60c6e830b606d5c8fcce0690e"
 order: 40
 ---
 
@@ -51,3 +51,32 @@ bun scripts/task.ts frontend-build
 ルートは現在のホストデータを描画し、競合時も未保存編集を保持します。ランキングとコンテストはソースとルートがあっても通常のナビゲーションから隠されています。部品の存在だけで製品上の利用可否を推測しません。ネイティブ、ローカルブラウザー、デモの起動は同じ機能コードに異なる通信を提供できます。
 
 古い応答が新しい照会を置き換える場合は、バックエンド変更前に世代を確認します。プラグインページが失われたら、実装どおりインストール済み一覧に戻ります。接続、再同期、終了処理の根拠は[アプリケーションランタイム](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/app/model/use-app-runtime.ts) です。
+
+## 運用の詳細 {#operational-details}
+
+bootstrap が実・demo ControlClient を選び、`mountWorkspace({client,locale,target})` が Pinia・i18n・router・`controlClientKey` を設置します。AppShell は `useAppRuntime` で購読・gap 再同期・表示を開始します。Pinia/i18n があっても provider なしの `useControlClient` は失敗します。アプリは mount factory、component test は明示 client 提供を使い、終了時に unmount・detach します。entities で transport を選びません。
+
+await 前に ticket と activity 終了関数を作り、current な応答だけ適用して finally で終了します。文脈変更・unmount で invalidate します。重複処理は各自の終了関数を持ち、別処理の busy を消しません。ticket 失効は remote 処理を中止しません。
+
+```ts
+import { createRequestScope, createActivityCounter } from '@/shared/lib/request-scope.ts';
+const requests = createRequestScope();
+const activity = createActivityCounter();
+async function refresh() {
+  const ticket = requests.begin();
+  const leave = activity.enter();
+  try {
+    const result = await client.call('system.info', {});
+    if (ticket.isCurrent()) info.value = result;
+  } finally { leave(); }
+}
+// onBeforeUnmount(() => { requests.invalidate(); activity.reset(); });
+```
+
+```ts
+import { mountWorkspace } from '@/app/mount-workspace.ts';
+const app = await mountWorkspace({ client, locale: 'en', target: '#app' });
+// At teardown:
+app.unmount();
+client.detach();
+```

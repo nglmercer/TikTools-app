@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "49bb4d1eb5dff9f267b30e8d0ee693a6dfcb492ff4609d190370e40c72b094ab"
-translationRevision: "49bb4d1eb5dff9f267b30e8d0ee693a6dfcb492ff4609d190370e40c72b094ab"
+sourceRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
+translationRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
 order: 50
 ---
 
@@ -27,9 +27,9 @@ A `.tiktemplate.json` document describes one event and its actions. A `.tikprofi
 1. Open the intended import dialog and choose a file or paste supported JSON. Check the staged name and source before continuing.
 2. For a template, inspect the trigger, action types and parameters. For a profile, also inspect the number of entries and any common parameters.
 3. Replace example destinations, media paths and viewer identifiers with values appropriate to your own setup. Do not paste credentials into a file intended for sharing.
-4. Apply/import explicitly and wait for the result. Imported definitions stay disabled. Select them afterward and review each action and event before explicitly enabling the ones you want.
+4. Apply/import explicitly and wait for the result. Do not assume imported definitions are disabled; inspect the reviewed enabled values. Select them afterward and review each action and event before explicitly enabling the ones you want.
 5. Start with a log-only test or inspect definitions first. Tests of HTTP, audio, points or plugins can execute effects.
-6. Confirm the active profile before starting LIVE. Switching profiles changes the selected library context; it is not a Cloud synchronization command.
+6. Before confirming a profile switch, review that destination members will be enabled and all nonmembers disabled, including loose records and previously disabled destination members. Effects require triggers/conditions; this is not Cloud sync.
 
 Parameters such as <code v-pre>{{ params.giftName }}</code> resolve when applying a template. Runtime references such as <code v-pre>{{ event.user.uniqueId }}</code> remain for each event, while [globals](variables.md) provide shared saved values at execution.
 
@@ -40,3 +40,9 @@ Local template/profile import and export surfaces are available. Cloud browsing 
 ## Recovery {#recovery}
 
 For invalid JSON, use the reported parser errors and the expected document kind; renaming an arbitrary JSON file does not convert it. For a revision conflict, refresh the saved library before applying again. Retain the exported known-good profile and see [backups](../preferences/backups.md) for data that profile export does not include.
+
+## Operational details {#operational-details}
+
+Manual template import first stores a catalog document; applying it creates linked actions/events. The parser defaults omitted `enabled` to true and application preserves those values. Manual profile import also prepares its entries for the owner review. Cloud catalog template import stores templates; Cloud profile import stages a profile mutation with source provenance. Neither origin nor a successful preview is a universal disabled-state guarantee. Inspect the final comparison and saved states. For CLI imports explicitly use `tiktools template import file.tiktemplate.json --disabled` or `tiktools template profile-import file.tikprofile.json --disabled`.
+
+Switching profiles is an activation change: confirmation enables destination members and disables every nonmember action/event, including loose records. Previously disabled destination members may become enabled. Review both lists before confirming. Effects still require matching triggers, conditions and available runtime; the switch does not itself send a Cloud sync.

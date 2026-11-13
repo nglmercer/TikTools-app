@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "740e66bbac2e47784638dd501df8a42edf9942b0ee5d1e7475fb2d01027b75cc"
-translationRevision: "740e66bbac2e47784638dd501df8a42edf9942b0ee5d1e7475fb2d01027b75cc"
+sourceRevision: "240142875d416f523b6daee5f53bf37c16b4b15f409561b38bd5357668239f50"
+translationRevision: "fce6dc036d531cc46805339580cb26eef36b8fd1deef25c8d83ffe845182ef7f"
 order: 270
 ---
 
@@ -46,3 +46,23 @@ window.addEventListener('pagehide', stop, { once: true });
 ## 恢复与验证 {#recover-and-verify}
 
 框架空白时，先检查资源路径、CSP 和不透明来源 CORS，再考虑放宽策略。出现 `broker unavailable` 时，验证承载上下文。运行 `bun scripts/task.ts test bun plugin-ui` 和 `bun scripts/task.ts test web plugin-webview-host`。[代理包](https://github.com/nglmercer/TikTools-app/blob/remake/packages/plugin-ui/src/broker.ts)负责封装/版本行为及释放语义。
+
+## 运行细节 {#operational-details}
+
+处理器必须同时声明 `processorTypes` 和 `events.enrich` 能力；声明式包不执行处理器代码，因此会跳过。先安装并启用包，检查就绪状态，再测试事件样本。请参考 TextIntel 清单和 SDK 的 `Plugin::enrich`，而非仅声明式清单。参见[处理器操作流程](../automations.md#operational-details)。
+
+返回 Promise 的调用在无 broker 时失败，但顶层页面的 `subscribe` 返回空的取消订阅函数，iframe 订阅错误也会忽略。应检查 `broker.transport()`，并调用 `getSettings()` 等方法，显示其拒绝错误；订阅不是连接探针。使用下方确切命令验证隔离。
+
+```sh
+bun scripts/task.ts test web plugin-webview-host
+```
+
+```ts
+const broker = createBrokerClient();
+console.log(broker.transport());
+await broker.getSettings();
+```
+
+```json
+{"capabilities":["events.enrich"],"processorTypes":[{"id":"acme.analyze","title":{"default":"Analyze"},"eventTypes":["tiktok.chat"],"stage":"pre-filter","timeoutMs":250,"failureMode":"pass-through","inputs":[{"path":"event.data.comment","role":"message"}]}]}
+```

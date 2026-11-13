@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
-translationRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
+sourceRevision: "6a249fa36fa53f3bfe7da57fdd25a445e593517946f80ac7e891b54d95cdc17d"
+translationRevision: "6a249fa36fa53f3bfe7da57fdd25a445e593517946f80ac7e891b54d95cdc17d"
 order: 260
 ---
 
@@ -48,3 +48,7 @@ Manifest parsing rejects unsupported protocol/ABI combinations before loading. A
 ## Recovery {#recovery}
 
 Restart a private host after replacing a native library. If startup times out and becomes uncertain, the manager can retain the worker identity and block replacement; do not bypass that state by declaring shutdown successful. Event buffers are bounded and delivery may report lag; startup emission is not a durable queue. The [loader implementation](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-loader/src) owns the current engine and lifecycle behavior.
+
+## Operational details {#operational-details}
+
+Current loader limits are 512 MiB QuickJS memory, 2 MiB stack, per-call interruption budgets, 16 MiB protocol frames and up to 128 queued calls per instance. These are implementation limits, not an effects cancellation guarantee. A timed-out process is terminated/removed; a timed-out native call cannot be safely killed and its instance is retained. Native OS effects may already have happened. Inspect the original outcome and lifecycle before replacement/retry. Trusted `.node` addons run with host-process privileges, outside the JavaScript capability boundary.

@@ -1,4 +1,6 @@
-# TikTools documentation and demo implementation
+# TikTools documentation and demo implementation — historical delivery snapshot
+
+> The sections below record the initial EN/ES delivery stage, not current coverage. Current status on 2026-11-13: public guides are available in EN/ES/PT/FR/ZH/JA (475 articles). Runtime UI also has six locales. Use `bun scripts/task.ts docs check`, generated references and `docs/locales.ts` for the current inventory; the historical counts and acceptance evidence below retain their original scope.
 
 The work starts at `remake` source `80c5cb1fbfa45eaeb1c086c71320a15e565d8541`, adapting the earlier `b72370014ac0cdd4da01be43e7ad86d19d4c9d1c` audit. It lives on `feat/docs-site-demo`; the original checkout and its branch are preserved. The final build's exact source revision is recorded in `dist/site/site-manifest.json`, together with every published file's SHA-256.
 

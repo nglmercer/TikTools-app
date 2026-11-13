@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "cb0c8fc55416a0ade232a0272051d244ed5558d4b1f3aec87d37a7500af59475"
-translationRevision: "cb0c8fc55416a0ade232a0272051d244ed5558d4b1f3aec87d37a7500af59475"
+sourceRevision: "fb71673a581e923e3c02ae401a46937b007f9919690ca020d22c27b370b6c61d"
+translationRevision: "865986ab5e4decd6af3e5c1323996ca481fc22ab17bfcd378ca46ab7d8469b72"
 order: 190
 ---
 
@@ -43,3 +43,9 @@ tiktools api call collaboration.status '{}' --format json
 ## 復旧と検証 {#recover-and-verify}
 
 取り消しや本人情報の変更では購読を停止し、非公開の投影を破棄します。交渉済みドメインとカーソルの有効性に従って `collaboration.subscribe`、`snapshot`、`resume` を使います。応答が不確実なら元のコマンド ID を解決します。新しい ID で削除を再試行したり、古い受領記録から権限を復元したりしません。[認可ソース](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-collaboration/src) とレジストリ方針が境界を定めます。TLS 成功だけでは認可テストになりません。
+
+## 運用の詳細 {#operational-details}
+
+Teams は端末登録、招待・アクセス要求、承認、ホストによる現在のネイティブ権限版の確認の順です。`pendingHost` は最後が未完了です。新しい版は以前の確認を無効にし、古い expectedRevision では再読します。ネイティブ受入には新しい snapshot・稼働 host/端末・有効権限・confirmedRevision と revision の一致が必要です。UI は host/参加・利用可能承認を出しますが、ネイティブ確認は API 契約で全 build にボタンを約束しません。
+
+旧 role の変換は閉じた集合です。observer は live/workflow/points/competition/automation/outcome 読み取り、moderator はポイント調整・workflow/automation toggle・競技管理を追加、automationEditor は読み取りに編集を追加します。どの preset も任意 script・外部効果・再利用委任を暗黙付与しません。明示 `nativeGrant` は `custom` が必要でリソース・効果範囲・delta を限定します。種別は `desktop`・`agent` のみ。不対応 policy は拡権せず失敗します。pairing・host 確認・版・伝送を分けて診断します。

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "df2f1f1e0670dbfc40091e8bea0fa26c1821c4d7cb70f1d62ba79ae9f9e15072"
-translationRevision: "df2f1f1e0670dbfc40091e8bea0fa26c1821c4d7cb70f1d62ba79ae9f9e15072"
+sourceRevision: "2e0522178ebee69ea5eb20fec3c0ec586f13950c51d658cb3a21843536b2f9f9"
+translationRevision: "2e0522178ebee69ea5eb20fec3c0ec586f13950c51d658cb3a21843536b2f9f9"
 order: 230
 ---
 
@@ -44,3 +44,9 @@ The review contains focused source changes, meaningful validation evidence and h
 ## Recover {#recover}
 
 If validation fails because a dependency or platform library is missing, report and repair that environment rather than weakening a check. If generated files drift, regenerate from their owner and inspect the diff. Never publish session cookies, keys, credentials or unsanitized event captures. If source and a legacy design disagree, describe the discrepancy and use current implementation for public guidance. Do not overwrite another owner's pending files to make a broad cleanup look consistent.
+
+## Operational details {#operational-details}
+
+Review stamps have separate meanings: `sourceRevision` hashes the current English body, while `translationRevision` hashes this article’s localized body (frontmatter removed, outer whitespace trimmed). After reviewing source and all translations, run `bun docs/scripts/record-review.ts developer/example.md`. A later edit to either body invalidates the appropriate stamp. This detects drift, not human identity or semantic equivalence: compare commands, RPC/environment identifiers, payload keys, limits, activation/recovery steps and negations explicitly. Translate prose fully while preserving technical instructions.
+
+For a split migration, record each original topic/heading and its concrete replacement destination in the migration map; include a heading fragment when the destination is a specific section. The checker validates existing files/fragments and exact archived bytes; editorial review must still establish thematic coverage. Never edit historical originals or their provenance to make a migration pass.

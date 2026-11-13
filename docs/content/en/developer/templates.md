@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "51b5b2821344dd1795acb1008496542c90800461cc5fcfff5f2ed41aef6ec7b1"
-translationRevision: "51b5b2821344dd1795acb1008496542c90800461cc5fcfff5f2ed41aef6ec7b1"
+sourceRevision: "34c35d378f38a78866661b97c19113f83b5b5f2846cefa2b5076eb20fe9bdc21"
+translationRevision: "34c35d378f38a78866661b97c19113f83b5b5f2846cefa2b5076eb20fe9bdc21"
 order: 160
 ---
 
@@ -37,8 +37,28 @@ These examples assume the file has been prepared and a matching host is running.
 
 ## Expected result and status {#expected-result-and-status}
 
-Reviewed library imports create coherent linked records and retain an owner journal. Cloud catalog template/profile imports stay disabled until intentional owner activation. Missing or disabled action providers cause a requirements error rather than silently replacing an action. One selected profile pack controls the corresponding presentation context; profile selection is not remote authority.
+Reviewed library imports create coherent linked records and retain an owner journal. Cloud catalog template imports store documents; profile imports and later application require review of enabled values, not an assumption of disabled state. Missing or disabled action providers cause a requirements error rather than silently replacing an action. One selected profile pack controls the corresponding presentation context; profile selection is not remote authority.
 
 ## Recover and verify {#recover-and-verify}
 
 On revision conflict, preserve the candidate, reload the library snapshot and review the actual difference. Resolve a pending native journal before creating another import intent. Do not turn a failed update into an implicit new create. Run `bun scripts/task.ts test web rule-templates` and `bun scripts/task.ts test web library-journal` for focused frontend coverage. The [native template service](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/services/templates.rs) and generated RPC schemas supersede old `src/web/views/behavior` references.
+
+## Operational details {#operational-details}
+
+Save the first JSON below as `docs-log.tiktemplate.json`; the second is a complete one-entry `docs-pack.tikprofile.json`. Both explicitly disable their actions/events. Parameter precedence is schema default → profile → entry → explicit CLI/dialog values; whole parameter spans retain types, embedded spans become strings. Omitted enabled values default true, so use `--disabled` for CLI imports and inspect the UI’s final comparison.
+
+Current limits: 8 actions and 12 filters per template, 32 templates per profile; UI source text 64 KiB/template and 256 KiB/profile; expansion depth 64, 65,536 nodes, 256 KiB/record and 8 MiB aggregate. An expansion budget error requires reducing content, not bypassing validation. Library limits and source/expanded budgets are separate. Follow [journal recovery](automations.md#operational-details) before another import when a result is uncertain.
+
+```json
+{"templateVersion":1,"id":"docs-log","title":"Docs log","params":{"type":"object","properties":{"message":{"type":"string","default":"hello"}}},"actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"{{ params.message }}"}}],"event":{"name":"Chat","trigger":"tiktok.chat","enabled":false,"filters":[],"cooldownMs":1000,"cooldownScope":"global","runMode":"all"}}
+```
+
+```json
+{"profileVersion":1,"id":"docs-pack","name":"Docs pack","description":"","params":{"message":"profile"},"templates":[{"params":{"message":"entry"},"template":{"templateVersion":1,"id":"docs-log","title":"Docs log","params":{"type":"object","properties":{"message":{"type":"string","default":"hello"}}},"actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"{{ params.message }}"}}],"event":{"name":"Chat","trigger":"tiktok.chat","enabled":false}}}]}
+```
+
+```sh
+tiktools template import docs-log.tiktemplate.json --dry-run
+tiktools template import docs-log.tiktemplate.json --disabled
+tiktools template profile-import docs-pack.tikprofile.json --disabled
+```

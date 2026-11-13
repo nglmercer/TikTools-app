@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "12f13cdca1cf24f7de30d83fa8f3844f9d1beee6c910c4deb9be817acb89a009"
-translationRevision: "12f13cdca1cf24f7de30d83fa8f3844f9d1beee6c910c4deb9be817acb89a009"
+sourceRevision: "40a55076e0cff0230664728c6091cbec0b41649f9e69f50da50c741de337c2cb"
+translationRevision: "74f86aa2720f9652c7cbae595b73faf2f7bf808aefda840cc47157e318585d00"
 order: 50
 ---
 
@@ -40,3 +40,19 @@ CLI y escritorio comparten conceptos de control, persistencia SQLite y procesami
 Utiliza el directorio privado de Termux en lugar del almacenamiento compartido de Android, que puede impedir la ejecución y los sockets Unix. Conserva el mismo directorio de aplicación y comprueba que el host está activo antes de investigar un fallo IPC. Si Android detiene el proceso, reinícialo con ese perfil y revisa los diagnósticos de recuperación. La demo documental no reproduce el ciclo de vida de Android.
 
 La [guía de desarrollo](../developer/index.md) contiene el toolchain, los feature flags y la verificación en el dispositivo. La instalación de escritorio sigue en la [guía Windows/Linux](installation.md).
+
+## Detalles de operación {#operational-details}
+
+Para navegador local, construye assets con index.html y CLI con `local-web`. Retira overrides heredados y usa `TIKTOOLS_HOME` descartable; inicia primero host IPC. En otra terminal con la misma raíz ejecuta el adaptador, abre enlace loopback o introduce código de seis dígitos de un uso (cinco minutos). Detén adaptador y host por separado. Loopback/pairing no ofrecen acceso remoto/LAN. Termux necesita toolchain Android nativo y assets web; binario Linux desktop no es Android.
+
+```sh
+bun scripts/task.ts frontend-build
+bun scripts/task.ts rust build -p tiktools-cli --features local-web --locked
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools host --ipc
+```
+
+```sh
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools web --assets /absolute/path/to/TikTools/dist/web --port 4174
+```

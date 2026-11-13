@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
-translationRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
+sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
+translationRevision: "8b37cd7f574ca55b6fbbac3738af4008a1ffd5436bc0417acfe80a1974c9b429"
 order: 30
 ---
 
@@ -39,3 +39,7 @@ Las tablas habituales están disponibles; la administración dedicada sigue sien
 ## Recuperación {#recovery}
 
 Si no hay puntuaciones, revisa creador, sala, fuente activa, ventana y pausa. Retira combinaciones incompatibles en lugar de inventar campos. Conserva datos mediante [copias de seguridad](../preferences/backups.md) antes de reiniciar e incluye el ID de definición y el código de diagnóstico al informar de un fallo.
+
+## Detalles de operación {#operational-details}
+
+La tabla de Points solicita 100 espectadores y filtra/ordena solo las filas recibidas. Refrescar u ordenar por nombre no consulta toda la base. Los rankings del feed muestran 10 filas por sesión de creador/sala: diamantes de regalos en Top y cantidades en Likes, con seguimiento limitado a 5.000 espectadores. No representan puntos guardados. Compara unidades y límites de sesión antes de comparar totales.

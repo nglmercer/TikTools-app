@@ -28,10 +28,10 @@ export interface Article {
   links: Array<{ target: string; image: boolean }>;
 }
 
-export async function readArticles(): Promise<Article[]> {
+export async function readArticles(paths?: readonly string[]): Promise<Article[]> {
   const md = await createMarkdownRenderer(contentRoot);
   const result: Article[] = [];
-  for (const path of await markdownFiles(contentRoot)) {
+  for (const path of paths ?? await markdownFiles(contentRoot)) {
     const source = await readFile(path, 'utf8');
     const relativePath = relative(contentRoot, path).replaceAll('\\', '/');
     const env: { path: string; relativePath: string; content?: string; frontmatter?: Record<string, unknown> } = { path, relativePath };
@@ -79,7 +79,7 @@ export function metadataErrors(articles: readonly Article[]): string[] {
     const source = english.get(String(data.translationKey));
     if (!source) { errors.push(`${path}: missing English source`); continue; }
     const revision = contentHash(source.body);
-    if (data.sourceRevision !== revision || data.translationRevision !== revision) errors.push(`${path}: source or translation revision is stale`);
+    if (data.sourceRevision !== revision || data.translationRevision !== contentHash(article.body)) errors.push(`${path}: source or translation revision is stale`);
     for (const locale of docLocales) {
       const counterpart = `${locale}/${localized.tail}`;
       if (!articles.some((entry) => entry.relativePath === counterpart && entry.frontmatter.translationKey === data.translationKey)) errors.push(`${path}: missing equivalent translation ${counterpart}`);

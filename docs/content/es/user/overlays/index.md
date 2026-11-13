@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
-translationRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
+sourceRevision: "6062b2d3d3248eaa9ab1c8f73082c8d4a6bbe81d199f8a45b6c8c28dea617d46"
+translationRevision: "e812dd00bd7509f235670cfcf3de6d571d086919c157d9dcffb28fbb2c791bd6"
 order: 10
 ---
 
@@ -42,3 +42,7 @@ Están disponibles los diseños locales, la pasarela y los flujos de editor/bibl
 Si falta salida, revisa estado de pasarela, recursos, credenciales, URL y tipo de evento. Ante conflictos de revisión Cloud, carga la versión actual antes de editar. No publiques el token en capturas; informa del error mediante [diagnósticos](../preferences/troubleshooting.md).
 
 <DemoFrame scenario="overlays" locale="es" tour="overlay" title="Demo de overlays" />
+
+## Detalles de operación {#operational-details}
+
+Instala Event Gateway por separado, habilítalo y comprueba ejecución antes de fuentes OBS LIVE. Estados: missing → instalar; disabled → habilitar/revisar disponibilidad; stopped → iniciar; credentialUnavailable → reiniciar gateway una vez; assetsMissing → reparar/reconstruir assets empaquetados; starting → esperar brevemente; unreachable → revisar puerto/servicio loopback. Usa credencial de widget de la URL generada. Ready o preview local no prueban LIVE ni recepción OBS: comprueba con prueba inocua en la fuente prevista.

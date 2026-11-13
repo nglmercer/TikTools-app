@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "36ce27660edc95aea83a48cd408dbc683affaeefd2c686ee7229aeecc22d1ac8"
-translationRevision: "36ce27660edc95aea83a48cd408dbc683affaeefd2c686ee7229aeecc22d1ac8"
+sourceRevision: "9ce931bc43614d39b264662b83fbdf3ddc7df875ef7cd6193fc6742eed34c509"
+translationRevision: "9ce931bc43614d39b264662b83fbdf3ddc7df875ef7cd6193fc6742eed34c509"
 order: 70
 ---
 
@@ -52,3 +52,32 @@ On `method_not_found`, compare discovery and client/host versions. On `revision_
 Generated from the checked-in discovery snapshot; the running host remains authoritative.
 
 <!--@include: ../../../.generated/control-api.en.md-->
+
+## Operational details {#operational-details}
+
+Use a disposable `TIKTOOLS_HOME`, clear inherited path overrides as described in [storage](storage.md), start `tiktools host --ipc`, and use the same home in the controlling terminal. The recipe assumes an existing disposable workflow `docs-example`; create the disabled sample in [automations](automations.md#operational-details) first. Capture the read’s `meta.resourceVersions` revision and `meta.hostInstanceId`; replace `REVISION`/`HOST_INSTANCE` below. Keep one stable command ID with its exact payload. On timeout, query the original ID, then refresh the resource; `accepted`, `running` and `unknown` do not authorize a new effect. A revision conflict requires a fresh read and review, not automatic overwrite. `points.adjust` is additive: it accepts a command ID but no expected revision.
+
+`--include-meta` preserves the domain result and metadata; default output extracts the result. `--dry-run --explain` validates/plans without executing; explanations go to stderr and JSON results to stdout. Destructive calls require `--confirm`. Default output redacts recognized secrets; `--secrets-visible` only changes CLI rendering and cannot recover values already hidden by the host. Review output manually. `api events` is bounded by timeout/count and uses topic filters. Live discovery remains authoritative for features and permissions; generated contract descriptions below retain the registry’s exact text.
+
+```sh
+tiktools api discover --json
+tiktools api schema workflows.disable --json
+tiktools api call workflows.get '{"id":"docs-example"}' --include-meta --json
+tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision REVISION --command-id docs-disable-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --explain --json
+tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision REVISION --command-id docs-disable-001 --host-instance-id HOST_INSTANCE --include-meta --json
+tiktools api call collaboration.commands.get '{"commandId":"docs-disable-001"}' --json
+tiktools api call points.adjust '{"uniqueId":"docs-viewer","delta":1}' --command-id docs-points-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --json
+tiktools api events --topics live.status --timeout 5 --max-events 2
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"workflows.disable","params":{"id":"docs-example"},"meta":{"expectedRevision":"1","commandId":"docs-disable-001","hostInstanceId":"HOST_INSTANCE"}}
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"result":{"id":"docs-example","enabled":false},"meta":{"hostInstanceId":"HOST_INSTANCE","resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}],"command":{"commandId":"docs-disable-001","state":"succeeded"}}}
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"error":{"code":"revision_conflict","message":"Resource revision changed","data":{"resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}]}}}
+```

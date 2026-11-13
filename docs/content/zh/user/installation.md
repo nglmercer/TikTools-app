@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
-translationRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
+sourceRevision: "6f8673490bebb3447474a70d914d06102de87a9ef2f3f3c51da897d0d2cc8c1c"
+translationRevision: "2a636ffba0dbe338cf2fbb35db2a4484ef567c927375055066d3cb59d8ce739c"
 order: 20
 ---
 
@@ -50,3 +50,7 @@ TikTools 以离线状态启动。数据与安装文件分开保存，Windows 上
 ## 恢复方法 {#recovery}
 
 如果安装包在窗口出现前就失败，请先检查诊断信息及缺失库错误，再修改账户或迁移设置。尝试其他版本前，停止应用并备份数据目录。重新安装旧版可执行文件不会撤销数据库迁移。接下来可阅读[首次直播连接](first-live.md)或[更新指南](updates.md)。
+
+## 运行细节 {#operational-details}
+
+窗口始终无法打开时，查找原生日志 `tiktools.log`（控制器模式为 `controller.log`）：Windows 为 `%LOCALAPPDATA%/TikTools/logs`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`，但 `TIKTOOLS_HOME` 或 `TIKTOOLS_LOG_DIR` 可改变位置。日志初始化可能在文件创建前失败。保留可获得的终端错误，并在分享前阅读[诊断保留与隐私](preferences/troubleshooting.md#operational-details)。

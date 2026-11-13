@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
-translationRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
+sourceRevision: "7049a03b9a3b437dc969ee83208bbaac8521bd55bf0e557e96a185ffdfaff9f6"
+translationRevision: "56ade304a45796024beb49a030c9a42a7e55fba3cbe70d08b501fd413bd8afb0"
 order: 290
 ---
 
@@ -70,3 +70,7 @@ const { t } = useI18n();
 - [インポートと確認](import-review.md)
 - [Cloud の変更確認パターン](cloud-patterns.md)
 - [オーバーレイのパターン](overlay-patterns.md)
+
+## 運用の詳細 {#operational-details}
+
+生成ファミリーは公開の合成用部品を意図的に選びます。[フォーム](forms.md)は SchemaForm/SettingsRow、[フィールド](fields.md)は textarea・slider・radio・tags・日付・色・単一ファイル、[メニュー](menus.md)は MenuBar/ContextMenu、[フィードバック](feedback.md)は Notification を含みます。アイコン・SchemaFieldRows 等は内部実装で独立公開契約ではありません。props・model と scoped slot bindings を読んでください。生成署名は検証・アクセシビリティ保証ではありません。

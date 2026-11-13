@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
-translationRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
+sourceRevision: "6062b2d3d3248eaa9ab1c8f73082c8d4a6bbe81d199f8a45b6c8c28dea617d46"
+translationRevision: "5b995ec3be41ce58c3cd9d1a45dc72b06406d367a8f326165e8b526303ecaea3"
 order: 10
 ---
 
@@ -42,3 +42,7 @@ Les conceptions locales, commandes de passerelle et parcours d’éditeur/biblio
 En l’absence de sortie, vérifiez l’état de la passerelle, les ressources, les identifiants secrets, l’URL de source et le type d’événement sélectionné. Pour un conflit de révision Cloud, rechargez la révision actuelle avant de modifier à nouveau. Ne publiez jamais le jeton de source dans des captures d’écran ; signalez l’erreur de passerelle via les [diagnostics](../preferences/troubleshooting.md).
 
 <DemoFrame scenario="overlays" locale="fr" tour="overlay" title="Démo : incrustations" />
+
+## Détails de fonctionnement {#operational-details}
+
+Installez Event Gateway séparément, activez-le et vérifiez son exécution avant les sources OBS LIVE. États : missing → installer ; disabled → activer/vérifier disponibilité ; stopped → démarrer ; credentialUnavailable → redémarrer une fois ; assetsMissing → réparer/reconstruire les assets empaquetés ; starting → réessayer brièvement ; unreachable → vérifier port/service loopback. Utilisez la clé widget de l’URL générée. Ready ou aperçu local ne prouvent ni événement LIVE ni réception OBS : testez sans effet nuisible sur la source prévue.

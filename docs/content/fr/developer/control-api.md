@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "36ce27660edc95aea83a48cd408dbc683affaeefd2c686ee7229aeecc22d1ac8"
-translationRevision: "36ce27660edc95aea83a48cd408dbc683affaeefd2c686ee7229aeecc22d1ac8"
+sourceRevision: "9ce931bc43614d39b264662b83fbdf3ddc7df875ef7cd6193fc6742eed34c509"
+translationRevision: "a90a2f35314357af0da9a4d0497a9ff8110173eb2939e1c89b487d565bb4eeec"
 order: 70
 ---
 
@@ -52,3 +52,32 @@ Pour `method_not_found`, comparez la découverte et les versions client/hôte. P
 Générée depuis l’instantané de découverte versionné dans le dépôt ; l’hôte actif reste l’autorité.
 
 <!--@include: ../../../.generated/control-api.fr.md-->
+
+## Détails de fonctionnement {#operational-details}
+
+Utilisez un `TIKTOOLS_HOME` jetable, retirez les variables héritées selon [stockage](storage.md), démarrez `tiktools host --ipc` et utilisez la même racine dans le terminal de contrôle. La recette suppose le workflow jetable `docs-example` ; créez d’abord l’exemple désactivé d’[automatisation](automations.md#operational-details). Conservez révision de `meta.resourceVersions` et `meta.hostInstanceId` de la lecture ; remplacez `REVISION`/`HOST_INSTANCE`. Gardez un ID stable avec sa charge exacte. Après timeout, consultez l’ID original puis actualisez la ressource ; `accepted`, `running`, `unknown` n’autorisent pas un nouvel effet. Un conflit impose une nouvelle lecture/revue, pas un écrasement automatique. `points.adjust` est additif : ID de commande admis, sans révision attendue.
+
+`--include-meta` conserve résultat et métadonnées ; la sortie ordinaire extrait le résultat. `--dry-run --explain` valide/planifie sans exécuter ; explications sur stderr, JSON sur stdout. Les appels destructifs exigent `--confirm`. La sortie masque les secrets reconnus ; `--secrets-visible` change seulement le rendu CLI et ne retrouve pas les valeurs cachées par l’hôte. Relisez manuellement. `api events` limite durée/nombre et filtre les sujets. Discovery reste l’autorité sur features/permissions ; les descriptions générées gardent le texte exact du registre.
+
+```sh
+tiktools api discover --json
+tiktools api schema workflows.disable --json
+tiktools api call workflows.get '{"id":"docs-example"}' --include-meta --json
+tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision REVISION --command-id docs-disable-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --explain --json
+tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision REVISION --command-id docs-disable-001 --host-instance-id HOST_INSTANCE --include-meta --json
+tiktools api call collaboration.commands.get '{"commandId":"docs-disable-001"}' --json
+tiktools api call points.adjust '{"uniqueId":"docs-viewer","delta":1}' --command-id docs-points-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --json
+tiktools api events --topics live.status --timeout 5 --max-events 2
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"workflows.disable","params":{"id":"docs-example"},"meta":{"expectedRevision":"1","commandId":"docs-disable-001","hostInstanceId":"HOST_INSTANCE"}}
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"result":{"id":"docs-example","enabled":false},"meta":{"hostInstanceId":"HOST_INSTANCE","resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}],"command":{"commandId":"docs-disable-001","state":"succeeded"}}}
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"error":{"code":"revision_conflict","message":"Resource revision changed","data":{"resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}]}}}
+```

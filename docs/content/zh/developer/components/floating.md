@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "d061de3feeae9f8cfa6d7e1b5156c7e66795f7e46d64e31f4e2edd933465e52c"
-translationRevision: "d061de3feeae9f8cfa6d7e1b5156c7e66795f7e46d64e31f4e2edd933465e52c"
+translationRevision: "0212e9be3d00ad9ef4b0857793c67906d0a90f04db5551fb6f9bb49677594d32"
 ---
 
 # FloatingPanel 浮动面板 {#floatingpanel}

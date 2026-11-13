@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7e6d88e43b32698c36afd6385bee8c44cc1223d669dd4c95414db604c17f254f"
-translationRevision: "7e6d88e43b32698c36afd6385bee8c44cc1223d669dd4c95414db604c17f254f"
+sourceRevision: "b2ae789f9c15df21b415b5bc006404dffd60430f193fdaba8cd94931e750eedc"
+translationRevision: "2d6dc0f1ddc110b2a313568a12ee7ee77d4572156151d36e6a12dce4e38acf82"
 order: 20
 ---
 
@@ -39,3 +39,9 @@ TikTools を閉じたまま、現在のフォルダーを別の復旧コピー�
 ## 期待される結果・提供状況と対処 {#expected-result-status-and-recovery}
 
 終了中のコピーと記載した入出力機能を復旧に使えますが、全バージョン間の復元を保証するものではありません。Cloud 変更は完全なバックアップではありません。復元先の版がデータを拒否したら停止し、保管したコピーに戻します。古いバイナリを再インストールしても DB 移行は戻りません。[更新](../updates.md) と[トラブルシューティング](troubleshooting.md) を参照してください。
+
+## 運用の詳細 {#operational-details}
+
+個別のパス指定は `TIKTOOLS_HOME` より優先されます。`TIKTOOLS_DATA_DIR` はデータベース、`TIKTOOLS_PLUGINS_DIR` はパッケージ、`TIKTOOLS_PLUGIN_DATA_DIR` はプラグイン状態、`TIKTOOLS_PLUGIN_STORE_DIR` はパッケージストアです。`TIKTOOLS_LOG_DIR` と `TIKTOOLS_TEMP_DIR` はログと一時ファイルを選びます。相対パスは起動時の作業ディレクトリ基準です。バックアップ前に `tiktools api call system.info --json` で実パスを確認し、継承した変数も記録します。ホスト停止後にデータ・パッケージ・状態と既存 WAL/SHM をコピーします。ログはデータベースの代わりになりません。
+
+`system.info` は実 home/dataDir を返します。他のディレクトリは別端末ではなくホストの実起動環境で解決します。`system.health` は集計 ready/未処理と LIVE 入口カウンターを提供します。

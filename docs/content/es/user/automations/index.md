@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
-translationRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
+sourceRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
+translationRevision: "263525674f1738f21116ff09917f6a646ec829b8ded3e6e9187b56b03225b923"
 order: 10
 ---
 
@@ -33,8 +33,12 @@ Las pruebas pueden ejecutar los efectos configurados. Lee la lista seleccionada 
 
 ## Resultado esperado y estado {#expected-result-and-status}
 
-Están disponibles la edición local, la ejecución, las plantillas, los perfiles y el historial. Los disparadores de plugins aparecen mientras su plugin está instalado y activo. Las definiciones importadas permanecen desactivadas hasta su activación explícita. **Changes** en Eventos/Acciones es una [comparación local](../cloud/changes.md), sin subida automática a Cloud.
+Están disponibles la edición local, la ejecución, las plantillas, los perfiles y el historial. Los disparadores de plugins aparecen mientras su plugin está instalado y activo. La activación depende de la superficie y de los valores enabled revisados; comprueba eventos y acciones antes de confirmar. **Changes** en Eventos/Acciones es una [comparación local](../cloud/changes.md), sin subida automática a Cloud.
 
 ## Recuperación {#recovery}
 
 Si no se ejecuta, comprueba perfil activo, interruptores, disparador, filtros, espera y acciones ausentes, en ese orden. Ante un conflicto de revisión, vuelve a leer la definición guardada y revísala. Evita sobrescribir a ciegas cambios ajenos. Exporta un [perfil](templates.md) conocido antes de modificaciones amplias.
+
+## Detalles de operación {#operational-details}
+
+Antes de cambiar perfil/importar, lee [activación por superficie](templates.md#operational-details). El cambio puede activar miembros deshabilitados individualmente. El cooldown vive en memoria, con máximo 24 horas; sin uniqueId los espectadores comparten ámbito anónimo. La tabla se vacía al alcanzar 8.192 claves: sobrecarga o reinicio pueden permitir ejecuciones adicionales. No es cuota durable ni garantía de replay.

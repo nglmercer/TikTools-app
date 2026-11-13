@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
-translationRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
+sourceRevision: "6341644dd3da8b4d7a5ef9a079a884908997a5a3f8f65618746cdb8d9db81ad8"
+translationRevision: "b72f85fd3bb630454480532eb5d0763fb2c835a1f113f5cb6beb7d0af5a9177d"
 ---
 
 # Abas e barras de ferramentas {#tabs-and-toolbars}
@@ -43,3 +43,11 @@ Este mesmo arquivo é compilado para a prévia e incluído como trecho de códig
 Use um rótulo visível ou aria-label, preserve a operação pelo teclado e evite depender apenas da cor. Teste em uma largura estreita e com rótulos traduzidos longos. Nos formulários, vincule controlAttrs da linha ao campo real para manter a associação dos erros e do estado obrigatório. Um controle desativado não explica uma falha sozinho; mostre um status adjacente e uma ação de recuperação.
 
 Se uma prévia falhar, feche-a e abra-a novamente, depois use Reset na própria instância da demonstração. Revise a API estática e o código mesmo quando a demonstração estiver indisponível. Diálogos nativos, serviços externos e integração com o sistema operacional exigem testes de desktop separados. [Voltar ao guia de componentes](index.md).
+
+## Detalhes de operação {#operational-details}
+
+O exemplo mantém estado no pai. Sort da tabela é modelo vinculado que ordena três linhas com computed; o cabeçalho muda ordem mantendo o ID selecionado. Editores guardam rascunhos fora do filho com key: escrever, trocar e voltar preserva cada um. Aba/diálogo não persistem rascunhos. Escolha estado pai, conteúdo montado ou KeepAlive explicitamente.
+
+## Detalhes de operação {#keyboard-contract}
+
+Revise [teclado, exceções do diálogo e nomes/tooltip](../i18n-accessibility.md#operational-details). Confira foco inicial/retorno no fluxo completo, incluindo diálogos não fecháveis e editores desmontados.

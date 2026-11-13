@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
-translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+sourceRevision: "2c74fcefd1d28353b1135c547b2e3e6ae852af8b683350011732d10c364f9323"
+translationRevision: "2044bf71c9d7c366f13f360f640ca55c335538d586385522f2cee35a4752c8c1"
 order: 120
 ---
 
@@ -47,3 +47,11 @@ Tipagem de catálogos e verificações de paridade detectam chaves ausentes; con
 ## Recuperação {#recovery}
 
 Se aparecer texto não traduzido, confira o carregamento sob demanda dos catálogos e a grafia exata da chave antes de adicionar alternativas em inglês nos componentes. Se o foco desaparecer, inspecione o controle que recebe atributos encaminhados e o alvo de retorno do diálogo. A [implementação i18n](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/i18n/i18n.ts) e os testes de componentes definem o comportamento atual; [componentes](components/index.md) explica os pontos de entrada compartilhados.
+
+## Detalhes de operação {#operational-details}
+
+Detecção: `tiktok-live-locale` salvo → `navigator.languages` → inglês. `normalizeLocale` normaliza regiões e `jp` → `ja`. Códigos/regiões: `en/en-US`, `es/es-ES`, `pt/pt-BR`, `fr/fr-FR`, `zh/zh-CN`, `ja/ja-JP`; use formatCount/formatDate de `intl.ts`. `activateLocale` carrega mensagens/lang; `useLocaleStore().setLocale` também persiste e prepara preferências de melhor esforço. Use store nos ajustes. Inglês é fallback; zh/ja carregam mensagens host. Novo idioma exige supported-locales, loaders, catálogos/host, regiões, testes de preferências e chaves/placeholders/plurais/compilação e rotas docs/site. Preserve IDs/API e parâmetros.
+
+Use tokens de espaço/tipo/controle/foco/camadas. Ponteiro grosso ou largura menor que 700px eleva controles a 44px; navegação muda abaixo de 900px e linhas abaixo de 600px independentemente. Movimento reduzido zera durações. Teste toque também em desktop largo. O app é escuro globalmente; override claro só vale para JSON.
+
+Teclado: abas usam setas/Home/End com seleção automática; selects setas/Home/End/Enter e Escape cancela; menus devolvem foco ao acionador. Diálogos usam showModal nativo, mas `closable=false` bloqueia Escape e fechar desmonta conteúdo. Guarde rascunhos no proprietário e confira foco inicial/retorno. Botão ícone exige `label`; `hint`/tooltip explica, não nomeia. Tooltip aguarda 500ms em hover/foco, fecha com Escape e usa top layer do diálogo. Revise teclado/assistência reais; testes unitários não certificam tela inteira.

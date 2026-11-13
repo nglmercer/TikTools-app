@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
-translationRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
+sourceRevision: "17f8e12522f04bad46b814f437e80c3f480b43331ed1278e49597878e2cee4f8"
+translationRevision: "39dd4b7856b0d9a50911669431a9bb7a0e01eb8efe1e0857f3cafc849c44603a"
 order: 250
 ---
 
@@ -61,3 +61,18 @@ Installez les dépendances déclarées du paquet généré dans ce paquet distin
 ## Récupération et vérification {#recovery-and-verification}
 
 Si l’entrée manque, compilez avant d’empaqueter et vérifiez son chemin relatif au manifeste. Ne faites pas pointer l’environnement processus vers du JavaScript non compilé. Pour une préparation locale, utilisez `tiktools-plugin dev stage --into /absolute/path/dev-plugins` et un hôte privé de test configuré pour cette racine. La préparation de développement est distincte de l’installation ; elle ne prouve pas la confiance d’un registre signé. Poursuivez avec les [limites d’exécution](runtimes.md) et la [signature](packaging-registry.md) avant de distribuer cet exemple.
+
+## Détails de fonctionnement {#operational-details}
+
+Lisez `hostCompatibility`, `publishReady` et `warnings` dans `validate`. Une entrée non construite est un avertissement ; `--publish` échoue sur les problèmes de publication, pas tous les avertissements de compatibilité. Revalidez après compilation, examinez entrée/cible empaquetées et testez l’hôte cible. Un succès avant compilation ne prouve pas un paquet utilisable.
+
+Pour Rust, créez `process-rust` ou `native-rust` dans un dossier séparé. Les deux implémentent `Plugin` du SDK et retournent `ActionResult::summary` ; le processus utilise `tiktools_process_plugin!`, le natif `tiktools_export_native_plugin!` et `cdylib`. ABI/confiance natives sont propres à la cible et en processus. Construisez avec la syntaxe des cibles du devkit, gardez le chemin généré et utilisez un hôte privé. Préférez le processus si l’isolation des pannes convient.
+
+```sh
+tiktools-plugin new acme.process --template process-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-process
+tiktools-plugin new acme.native --template native-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-native
+tiktools-plugin build acme-process --release
+tiktools-plugin validate acme-process --publish
+tiktools-plugin build acme-native --release
+tiktools-plugin validate acme-native --publish
+```

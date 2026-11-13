@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "a5be0a16c34204ad89125df5c698b0334738b85226c6938f9b1be57aab0ff869"
-translationRevision: "a5be0a16c34204ad89125df5c698b0334738b85226c6938f9b1be57aab0ff869"
+translationRevision: "d2b7cb1ef8caeaba6566e10e42d96bce6474a60075c9526223c84167bb470168"
 ---
 
 # Modèles d’examen Cloud {#cloud-review-patterns}

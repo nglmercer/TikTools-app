@@ -8,7 +8,7 @@ featureStatus: available
 contentStatus: reviewed
 sourceLocale: "en"
 sourceRevision: "b063a84f44d6bfcdec8143cd88d520bd375a52192c6073389920843d53016ffb"
-translationRevision: "b063a84f44d6bfcdec8143cd88d520bd375a52192c6073389920843d53016ffb"
+translationRevision: "5ebf8be84abdff7beba00271120d483cb8b4dd6ee25f2d90759b655236f2ae41"
 ---
 
 # リリースとチャンネル {#releases-and-channels}

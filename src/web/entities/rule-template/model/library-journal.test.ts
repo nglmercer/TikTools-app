@@ -9,6 +9,7 @@ import { libraryCommandHash, parseLibrarySnapshot, parseLibraryState, parseLibra
 import { libraryPreview } from './library-preview.ts';
 import { useRuleProfiles } from './rule-profiles-state.ts';
 import { useRuleTemplates } from './rule-templates-state.ts';
+import { applyRuleTemplate, parseRuleTemplate } from '../lib/rule-templates.ts';
 
 const action = (id = 'old-action'): LiveAction => ({ schemaVersion: 2, id, name: id, enabled: false, typeId: 'core.log', config: { message: 'private-source' } });
 const event = (id = 'old-event', actionIds = ['old-action']): LiveEvent => ({ schemaVersion: 1, id, name: id, enabled: false, trigger: 'tiktok.chat', filters: [], actionIds, cooldownMs: 0, cooldownScope: 'global', runMode: 'all' });
@@ -47,6 +48,25 @@ function fixture() {
 async function apply(f: ReturnType<typeof fixture>, mutation: LibraryMutation) {
   const context = await f.journal.refreshSnapshot(); const pending = f.journal.request(mutation, context); await f.journal.confirm(); await pending;
 }
+
+test('manual template application reviews and preserves enabled values through confirmation', async () => {
+  const parsed = parseRuleTemplate({ templateVersion: 1, id: 'manual-enabled', title: 'Manual',
+    actions: [{ name: 'Log', typeId: 'core.log', config: { message: 'hello' } }], event: { name: 'Chat', trigger: 'tiktok.chat' } });
+  if (!parsed.ok) throw new Error(parsed.errors.join(', '));
+  const entry = applyRuleTemplate(parsed.template, {});
+  expect(entry.actions[0]!.enabled).toBe(true);
+  expect(entry.event.enabled).toBe(true);
+  const f = fixture();
+  const context = await f.journal.refreshSnapshot();
+  const pending = f.journal.request({ operation: 'apply-template', entry, profileId: 'a' }, context);
+  expect(f.source.actions.some((row) => row.id === entry.actions[0]!.id)).toBe(false);
+  expect(libraryPreview(context, f.journal.draft.value!.mutation).every((row) => row.after?.enabled)).toBe(true);
+  await f.journal.confirm();
+  await pending;
+  const saved = await f.journal.refreshSnapshot();
+  expect(saved.definitions.actions.find((row) => row.id === entry.actions[0]!.id)?.enabled).toBe(true);
+  expect(saved.definitions.events.find((row) => row.id === entry.event.id)?.enabled).toBe(true);
+});
 
 test('a known library commit keeps its review busy until a new coherent snapshot is available', async () => {
   const f = fixture(); let hold = false; let release!: () => void;

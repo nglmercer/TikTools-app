@@ -16,7 +16,7 @@ Models:
 
 - `selected`: `K &#124; null`, `{ default: null }`
 
-Slots: `default`, `empty`.
+Slots: `default { item: item, selected: index === selectedIndex }`, `empty`.
 
 ### BaseTable.vue
 
@@ -38,4 +38,4 @@ Models:
 - `selected`: `K &#124; null`, `{ default: null }`
 - `sort`: `TableSort &#124; null`, `{ default: null }`
 
-Slots: `cell-${column.key}`, `empty`.
+Slots: `cell-${column.key} { row: row, value: cellValue(row, column.key) }`, `empty`.

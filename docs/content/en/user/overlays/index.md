@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
-translationRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
+sourceRevision: "6062b2d3d3248eaa9ab1c8f73082c8d4a6bbe81d199f8a45b6c8c28dea617d46"
+translationRevision: "6062b2d3d3248eaa9ab1c8f73082c8d4a6bbe81d199f8a45b6c8c28dea617d46"
 order: 10
 ---
 
@@ -42,3 +42,7 @@ Local designs, gateway controls and capability-gated Cloud editor/library flows 
 For missing output, check gateway state, assets, credentials, source URL and selected event kind. For a Cloud revision conflict, reload the current revision before editing again. Never publish the source token in screenshots; report the gateway error through [diagnostics](../preferences/troubleshooting.md).
 
 <DemoFrame scenario="overlays" locale="en" tour="overlay" title="Demo: overlays" />
+
+## Operational details {#operational-details}
+
+Install the separate Event Gateway plugin, enable it and confirm it is running before adding live OBS sources. Widget status guides recovery: missing → install; disabled → enable/check availability; stopped → start; credentialUnavailable → restart the gateway once; assetsMissing → repair/rebuild its packaged widget assets; starting → retry briefly; unreachable → inspect loopback port/service. Use the widget-scoped credential from the generated source URL. A ready status or local preview proves neither a real LIVE event nor OBS reception: verify those with a harmless test on the intended OBS source.

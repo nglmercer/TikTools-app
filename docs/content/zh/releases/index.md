@@ -8,7 +8,7 @@ featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
 sourceRevision: "b063a84f44d6bfcdec8143cd88d520bd375a52192c6073389920843d53016ffb"
-translationRevision: "b063a84f44d6bfcdec8143cd88d520bd375a52192c6073389920843d53016ffb"
+translationRevision: "777c13c641298597f22a41d8ec377cbe5cd7097cbae58f294471466695bd7c4f"
 ---
 
 # 发行版与通道 {#releases-and-channels}

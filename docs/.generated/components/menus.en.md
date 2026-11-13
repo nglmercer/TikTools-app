@@ -20,3 +20,41 @@ Models:
 - `open`: `boolean`, `{ default: false }`
 
 Slots: —.
+
+### BaseMenuBar.vue
+
+[Source](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/menu/BaseMenuBar.vue)
+
+| Property | Type | Presence | Default |
+| --- | --- | --- | --- |
+| `menus` | `readonly MenuBarMenu[]` | Required | `—` |
+
+Own events (native control attributes are forwarded according to the component):
+
+- `select`: `[action: MenuAction]`
+
+Models:
+
+No own v-model.
+
+Slots: —.
+
+### BaseContextMenu.vue
+
+[Source](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/menu/BaseContextMenu.vue)
+
+| Property | Type | Presence | Default |
+| --- | --- | --- | --- |
+| `items` | `readonly MenuEntry[]` | Required | `—` |
+| `disabled` | `boolean` | Optional | `false` |
+
+Own events (native control attributes are forwarded according to the component):
+
+- `open`: `[event: MouseEvent &#124; KeyboardEvent]`
+- `select`: `[action: MenuAction]`
+
+Models:
+
+No own v-model.
+
+Slots: `default`.

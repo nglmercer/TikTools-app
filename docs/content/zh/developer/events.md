@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "af4dd266875a9cdd3b1166b1791ab80fd20f1a4d0b72158aaa35b385a0fcdf55"
-translationRevision: "af4dd266875a9cdd3b1166b1791ab80fd20f1a4d0b72158aaa35b385a0fcdf55"
+sourceRevision: "caded5529a62e826a91d2deb86936c29c709ac713c2a0cd021f467b1dfa2b6e7"
+translationRevision: "dcaade40651a776f5eba74be38c4724fe61defda9667fe6b0fe0c12c844403fd"
 order: 100
 ---
 
@@ -41,8 +41,22 @@ bun scripts/task.ts test bun automation
 
 ## 预期结果与状态 {#expected-result-and-status}
 
-重连重叠不会造成显示投递重复，也不会重复执行受重放保护支持的记账。队列、计数器、历史和重放缓存均保持有界。这不是无限事件归档，也不是通用的恰好一次保证。容量耗尽和持久化不可用会带来明确的健康状态影响。
+仅当已标识事件仍在当前有限重放存储中时，重连重叠才会去重。队列、计数器、历史和重放缓存均保持有界。这不是无限事件归档，也不是通用的恰好一次保证。容量耗尽和持久化不可用会带来明确的健康状态影响。
 
 ## 恢复与验证 {#recover-and-verify}
 
 使用脱敏礼物/表情夹具，测试最终连送包、缺少 ID、跨直播间身份及重连缺口。检查当前 `Cargo.toml` 的签名器修订，不要复制旧可靠性报告中的哈希。未知上游方法应保持未知，直到标准化及生成契约有意加入支持。
+
+## 运行细节 {#operational-details}
+
+当前默认值（2026-11-13）是实现限制，不是 SLA。LIVE 入口容纳 2,048 项，副作用队列容纳 128 项；这些是项数，不是字节预算。生命周期事件等待容量。礼物/关注/分享最多等待一秒，之后丢弃并记录缺口；聊天/点赞/加入/其他数据在饱和时立即丢弃。查看 `droppedCritical`、点赞批次/单位和副作用丢失计数；被丢弃的输入可能根本未执行副作用。Backfill 只修复显示，不补发积分或动作。
+
+去重最多在进程内保存 4,096 个身份 300 秒，只有该存储仍存在时才跨重连有效。过期、容量淘汰、缺少 ID 或进程重启都会失去保护；重连重叠也仅在此范围内受保护。
+
+`ui.feed.backfill` 接受 `{version:1,after:0,limit:64}`，使用全局数字游标，限制为 1–512。检查 `oldestCursor`、`latestCursor`、`gap`、`truncated`，并从最后收到的事件游标继续。`ui.feed.creator` 使用 `{creatorId,streamId,after,limit}`、按主播划分的流及字符串游标，限制为 1–64，并受字节预算约束。不要混用游标。流变化/淘汰、未来游标、入口缺口或 `CreatorFeedUnavailable` 时，应刷新权威显示状态并明确标注历史不完整，不能重建副作用。
+
+TikTok 初始化依次处理会话、房间、礼物目录、签名 bundle 和 socket。配置为 `TIKTOOLS_TIKTOK_SIGNING_BUNDLE`、`TIKTOOLS_TIKTOK_BUNDLE_CACHE`、`TIKTOOLS_TIKTOK_BUNDLE_URL`。默认五次尝试，初始退避 2 秒、上限 30 秒。HTTP 429 使用 Retry-After 或逐步增长的 30–300 秒最小值加抖动，限流重试最多两次，取消或耗尽后仍保留冷却。其他重试仅用于临时传输错误。检查 `Reconnecting { attempt, delay_ms }` 与失败阶段，不要分享 cookie 或私有签名材料。
+
+```sh
+tiktools api call system.health '{}' --json
+```

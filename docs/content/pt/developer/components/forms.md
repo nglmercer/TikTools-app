@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
-translationRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
+sourceRevision: "45f58248a1b11283e61965ea97ddca26e664ef977cbe2115a601d3a029abab05"
+translationRevision: "52d84516dd29d1f4955184ca16f648bd9dd38a458356b0ee6d6ca5f73ae10877"
 ---
 
 # Formulários {#forms}
@@ -43,3 +43,9 @@ Este mesmo arquivo é compilado para a prévia e incluído como trecho de códig
 Use um rótulo visível ou aria-label, preserve a operação pelo teclado e evite depender apenas da cor. Teste em uma largura estreita e com rótulos traduzidos longos. Nos formulários, vincule controlAttrs da linha ao campo real para manter a associação dos erros e do estado obrigatório. Um controle desativado não explica uma falha sozinho; mostre um status adjacente e uma ação de recuperação.
 
 Se uma prévia falhar, feche-a e abra-a novamente, depois use Reset na própria instância da demonstração. Revise a API estática e o código mesmo quando a demonstração estiver indisponível. Diálogos nativos, serviços externos e integração com o sistema operacional exigem testes de desktop separados. [Voltar ao guia de componentes](index.md).
+
+## Detalhes de operação {#operational-details}
+
+`BaseSchemaForm` controla modelo JSON, não persistência. Passe schema, `uiHints.fields`, `fieldOptions`, `fieldErrors`, opcionais `suggestionsFor` e `openMediaPicker`. Hint usa `showIf:{key,equals,notEquals}` para visibilidade; `advanced` agrupa campos opcionais. O proprietário carrega opções dinâmicas e preserva seleção. Erros são por campo; mídia real exige picker fornecido. O exemplo combina textarea/mídia condicional e grupo. Valores aceitos atualizam modelo; salvar ainda exige validação de domínio/host.
+
+`BaseFormRow` infere um input exceto com `group=true`. O slot oferece `controlAttrs:{id,aria-describedby,aria-invalid,aria-required}` ao controle real. Para vários use `group`, nomeie cada filho sem repetir id; ajuda/erro se associam ao grupo. `useSplitAttrs` envia class/style ao contêiner e outros atributos/listeners ao controle. File upload aceita um arquivo e confere tamanho/tipo configurados; falha limpa modelo e mostra erro. Selecionar não é enviar remotamente.

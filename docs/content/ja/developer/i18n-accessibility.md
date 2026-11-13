@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
-translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+sourceRevision: "2c74fcefd1d28353b1135c547b2e3e6ae852af8b683350011732d10c364f9323"
+translationRevision: "e646dfb8972a1a6eb5bba44b50ba654f197906784f0a78b1003c9227c608851e"
 order: 120
 ---
 
@@ -47,3 +47,11 @@ bun scripts/task.ts frontend-lint
 ## 問題が起きたとき {#recovery}
 
 未翻訳が出たら、部品に英語の代替を追加する前に遅延読み込みとキーの綴りを確認します。フォーカスが消えたら転送属性の受信部品とダイアログの復帰先を確認します。現行動作は [i18n 実装](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/i18n/i18n.ts) と部品テストが定義し、[コンポーネント](components/index.md) が共有入口を説明します。
+
+## 運用の詳細 {#operational-details}
+
+言語優先順は保存 `tiktok-live-locale` → `navigator.languages` → 英語です。`normalizeLocale` は地域タグと `jp` → `ja` を扱います。コード/書式地域は `en/en-US`・`es/es-ES`・`pt/pt-BR`・`fr/fr-FR`・`zh/zh-CN`・`ja/ja-JP` で、`intl.ts` の formatCount/formatDate を使います。`activateLocale` はメッセージ/lang を変え、`useLocaleStore().setLocale` は保存と最善努力の設定 staging も行います。設定 UI は store を使います。英語 fallback、zh/ja は host メッセージも読みます。追加時は supported-locales・loader・catalog/host・地域対応・設定テスト・キー/placeholder/複数形/コンパイル試験・docs/site routing を更新し、API ID・引数名は保持します。
+
+余白・字形・control・focus・層の token を使います。粗い pointer または幅 700px 未満で control は 44px、navigation は 900px 未満、form 行は 600px 未満で別々に変化します。reduced motion は時間を 0 にします。広い画面でも粗 pointer を試します。全体は dark で light override は JSON 限定です。
+
+キーボード：tab は矢印/Home/End で自動選択、select は矢印/Home/End/Enter と Escape 取消、menu は trigger へ focus を返します。dialog は native showModal ですが `closable=false` は Escape を拒否し、閉じると内容を unmount します。草稿は所有者に置き初期・復帰 focus を確認します。icon button は `label` が必須で `hint`/tooltip は説明のみ。tooltip は hover/focus 500ms 後に現れ Escape で閉じ、dialog の top layer に入ります。実際の支援操作は手動確認し、unit test を画面全体の認証にしません。

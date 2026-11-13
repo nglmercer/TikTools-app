@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
-translationRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
+sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
+translationRevision: "4227e2b6755c6c7032fc887c3b0772bd2d33364d120b710d415f8234e2444fb8"
 order: 20
 ---
 
@@ -41,3 +41,9 @@ Overlays do Cloud usam o fluxo de criação/revisão da [biblioteca/editor](../o
 A comparação local de automações e o compartilhamento nativo condicionado às capacidades estão disponíveis nas respectivas áreas. Operações com efeitos remotos dependem do serviço; isso não implica aceitação em produção. Se uma revisão ficar desatualizada, atualize e compare novamente. Se o resultado não estiver confirmado, inspecione as informações de status/diário antes de criar outra operação. Nunca trate um tempo limite como prova de que nada mudou.
 
 <DemoFrame scenario="cloud" locale="pt" tour="changes" title="Demonstração: Cloud" />
+
+## Detalhes de operação {#operational-details}
+
+Antes de preparar/migrar v1 → v2, faça backup e coordene versões compatíveis em todos os dispositivos. No setup prepare, confira compatibilidade e visualize; revise contagens de seleção, pendências, conflitos e itens só-v1, sem presumir sincronização. Exigir cabeçalho de época é irreversível para escritas v2 de toda a conta e pode rejeitar dispositivos antigos. Timeout da barreira é ambíguo; repeti-la avança novamente. Atualize estado de época/migração e prévia antes de agir. Ler época não comprova escritas anteriores concluídas.
+
+A recuperação depende do modo: Changes de Events/Actions compara referências locais, sem escrita Cloud. Para Variables/Plugins revisados, atualize comparações expiradas e confira revisão, conta e inventário. Se faltarem plugins, use revisão/reparo de inventário do setup e outra prévia. Para intenção incerta, preserve ID/evidência e consulte histórico/estado; recuperação técnica exige nova revisão das entradas congeladas e revisão Cloud. Retomar essa intenção não envia escrita remota por si só. Pare sem criar mutação substituta se não puder reconciliar.

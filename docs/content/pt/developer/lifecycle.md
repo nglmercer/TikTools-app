@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "92e2164c28be287f8b5d5c96d787a106bb011e1939ff490e4e69737c87bb9716"
-translationRevision: "92e2164c28be287f8b5d5c96d787a106bb011e1939ff490e4e69737c87bb9716"
+sourceRevision: "3e866271067cf2c4d374aaccd9a6cdf6babf981df4deeff5313947cbf39b5cc7"
+translationRevision: "29db543b3e2cf2d59d3df2ae69350f63b9326241e3c816ec498afc51f3796e30"
 order: 50
 ---
 
@@ -48,3 +48,7 @@ Sair de uma página e voltar não multiplica callbacks. Quando oculta, a apresen
 ## Recuperação e limites {#recovery-and-limits}
 
 Uma inicialização QuickJS que excedeu o tempo limite pode permanecer incerta; o gerenciador mantém a identidade do worker e bloqueia a substituição em vez de fingir que a parada funcionou. Alguns caminhos síncronos de controle do ciclo de vida de plugins ainda podem bloquear o chamador. Trate-os como limites de implementação, especialmente durante encaminhamento ao atualizador. Pare corretamente o host proprietário em vez de excluir seu bloqueio ativo. O [código de encerramento](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/shutdown.rs) e os testes de execução são evidências mais fortes que um diagrama histórico de ciclo de vida.
+
+## Detalhes de operação {#operational-details}
+
+O encerramento para a admissão LIVE e drena a entrada, cancela observadores/desconecta e para o polling dos plugins. Esvazia Analytics, resolve gravações de pontos (30 s), faz checkpoint SQLite (5 s) e conclui o encerramento nativo. Timeout de polling, falha analítica, pontos pendentes ou checkpoint falho tornam a atualização insegura. `AppCore::update_shutdown_safe()` exige conclusão e sinalizador seguro; concluir não basta. O atualizador usa esse resultado nativo, sem controle do usuário que certifique trabalho incerto. Preserve logs/recuperação pendente e resolva a incerteza antes de trocar binários.

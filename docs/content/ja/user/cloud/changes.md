@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
-translationRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
+sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
+translationRevision: "62915cc15f2f66804f1a359f50a70c99b25892af04edf43c015f24d50698e46d"
 order: 20
 ---
 
@@ -41,3 +41,9 @@ Cloud オーバーレイは[ライブラリ・エディター](../overlays/index
 ローカルの自動化比較と、ホスト機能に応じたネイティブ共有をそれぞれの領域で利用できます。リモートに影響する操作はサービスに依存し、本番動作の確認を意味しません。確認内容が古くなったら更新して再比較します。結果が未確認なら、新しい操作を作る前に状態・ジャーナルを確認してください。タイムアウトは「何も変わらなかった」証拠ではありません。
 
 <DemoFrame scenario="cloud" locale="ja" tour="changes" title="デモ: Cloud" />
+
+## 運用の詳細 {#operational-details}
+
+v1 → v2 の準備・移行前に保存し、全端末の互換版をそろえます。setup で準備・互換性確認・プレビューを行い、選択・待機・競合・v1 のみの件数を区別します。write-epoch ヘッダー必須化はアカウント全体の v2 書き込みに不可逆で、旧端末を拒否し得ます。barrier timeout は結果不明で、繰り返すと再び epoch が進みます。操作前に移行・epoch 状態とプレビューを更新します。epoch 読み取りは以前の書き込み完了を証明しません。
+
+回復はモード別です。Events/Actions Changes はローカル基準比較で Cloud 書き込みではありません。レビュー対象 Variables/Plugins は古い比較を読み直し、現在版・アカウント・在庫を確認します。プラグイン不足は setup 在庫レビュー・修復後に再プレビューします。結果不明の保持意図は ID・証拠を残して履歴・状態を調べ、凍結項目と Cloud 版の新たな回復レビューを行います。その再開自体は遠隔書き込みを送りません。照合不能なら停止し、新しい更新で不明状態を迂回しません。

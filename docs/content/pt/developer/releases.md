@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a606fb0f2723757e4fc3c25afb2c6b9f259bfdb5e988dd504b3f35d7d6a9f5fe"
-translationRevision: "a606fb0f2723757e4fc3c25afb2c6b9f259bfdb5e988dd504b3f35d7d6a9f5fe"
+sourceRevision: "e28f094fd59897eee4cc337e63a565849b521c329842e96dddaf891e521d0378"
+translationRevision: "e53cf57dd6a004a1c723d33749a97d6f0c86eb72d4a4a7f9b7146eaf3fd3cb34"
 order: 220
 ---
 
@@ -43,3 +43,28 @@ Empacotamento portátil e ferramentas de instaladores de plataforma estão imple
 ## Verifique e recupere {#verify-and-recover}
 
 Execute `bun scripts/task.ts rust test -p tiktools-app-update --locked` para dados locais de teste de protocolo/assinatura. Aceitação real de atualização, falha, preservação de perfil e reinício precisa de instalações compatíveis descartáveis. Mantenha o artefato verificado anterior disponível; uma publicação interrompida de feed/arquivo auxiliar deve falhar de forma segura. Não reative o encaminhamento enquanto o encerramento de plugins permanecer incerto. O [fluxo de lançamento](https://github.com/nglmercer/TikTools-app/blob/remake/.github/workflows/release.yml) e o código do atualizador definem os controles atuais; planos históricos de lançamento não são uma lista de implantação.
+
+## Detalhes de operação {#operational-details}
+
+Empacotamento portable local exige versões coincidentes de fonte/manifestos/binário, widgets/web construídos e executável release. O exemplo usa a versão atual; altere tag só com mudança intencional. `package` valida binário/layout e grava `release/TikTools-<version>-<platform>.tar.gz` (Linux) ou `.zip` (Windows). `RELEASE_BINARY` seleciona outro binário. No Windows use atribuições PowerShell e `windows-x86_64`. Instaladores precisam das dependências e cargo-packager fixado do workflow, depois `bun scripts/package-installers.ts` com mesmo tag/plataforma. Portable não produz NSIS/DEB/AppImage.
+
+Conjunção compilada: checks exigem `TIKTOOLS_APP_UPDATE_FEED_ENABLED=1` E `TIKTOOLS_APP_UPDATE_PUBLIC_KEY` válida; AppImage também `TIKTOOLS_APP_UPDATE_INSTALL_ENABLED=1` E origem suportada detectada; NSIS ainda `TIKTOOLS_APP_UPDATE_NSIS_ENABLED=1`. São valores de compilação. O workflow converte variável de repositório `TIKTOOLS_UPDATE_PUBLIC_KEY` em chave/feed. Sem ela pode publicar assets/checksums sem feed assinado. Com ela exige chave/senha protegidas, assinatura de manifesto exato/pacote, assets publicados verificados e promoção autenticada. Assinatura updater difere da assinatura OS e de editor de plugins.
+
+Testes padrão omitem aceitação real AppImage. Dois ignorados exigem fixture real descartável informando 4.0.0 (asserção atual), FUSE e signer cargo-packager; substituição exige tela. Defina `TIKTOOLS_TEST_APPIMAGE`, liste testes e execute `preflight_runs_a_real_appimage` e `packager_replaces_a_running_disposable_appimage_without_touching_its_profile` com `-- --ignored --nocapture`. Árvore extraída não substitui montagem. Observe troca, versão, reinício e perfil. NSIS exige aceitação posterior independente; processo antigo não certifica sucesso.
+
+```sh
+bun scripts/task.ts widgets
+bun scripts/task.ts frontend-build
+bun scripts/task.ts rust build -p tiktools-desktop --release --locked
+RELEASE_TAG=v4.2.2 RELEASE_PLATFORM=linux-x86_64 bun scripts/task.ts package
+```
+
+```powershell
+$env:RELEASE_TAG = 'v4.2.2'
+$env:RELEASE_PLATFORM = 'windows-x86_64'
+bun scripts/task.ts package
+```
+
+```sh
+TIKTOOLS_TEST_APPIMAGE=/absolute/path/disposable-v4.0.0.AppImage bun scripts/task.ts rust test -p tiktools-app-update --locked preflight_runs_a_real_appimage -- --ignored --nocapture
+```

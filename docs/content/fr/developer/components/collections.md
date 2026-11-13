@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
-translationRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
+sourceRevision: "45424c522635bc6271707b05d18c8d206878efbb9f9657dab9a9e69f3876832e"
+translationRevision: "e5fe3debe1969717cba2076a49ce88afd5afd6a1c39c05b6c8df23b0572c7c95"
 ---
 
 # Listes et tableaux {#lists-and-tables}
@@ -43,3 +43,7 @@ Ce fichier exact est à la fois compilé pour l’aperçu et inclus comme extrai
 Utilisez un libellé visible ou aria-label, préservez le fonctionnement au clavier et évitez de vous fier uniquement à la couleur. Testez à faible largeur et avec de longs libellés traduits. Pour les formulaires, liez les controlAttrs de la ligne au véritable champ pour que les erreurs et l’état requis restent associés. Une commande désactivée ne peut pas expliquer seule un échec ; affichez un état adjacent et une action de récupération.
 
 Si un aperçu échoue, fermez-le et rouvrez-le, puis utilisez Reset pour sa propre instance de démo. Examinez l’API statique et la source même lorsque la démo est indisponible. Les boîtes de dialogue natives, services externes et intégrations système nécessitent des tests de bureau distincts. [Revenir au guide des composants](index.md).
+
+## Détails de fonctionnement {#operational-details}
+
+L’exemple garde l’état dans le parent. Le modèle sort trie trois lignes par computed ; l’en-tête change l’ordre sans changer l’ID sélectionné. Les éditeurs gardent leurs brouillons hors de l’enfant avec key : saisir, changer puis revenir les conserve. Onglet/dialogue ne les persistent pas. Choisissez explicitement état parent, contenu monté ou KeepAlive.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6940dcc"
-translationRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6940dcc"
+sourceRevision: "0143551027872078a3000e0395efd04acfe5c7817443614ce6abeb3d33226f7e"
+translationRevision: "a41fea98559ade19ad6a903827a4b8ccf26011dc9ca86643dd99cd92c64d51e8"
 ---
 
 # Botones y acciones {#buttons-and-actions}
@@ -45,3 +45,7 @@ Este archivo se compila para la vista y se incluye como snippet. El estado peque
 Proporciona etiqueta visible o aria-label, conserva el manejo por teclado y evita depender solo del color. Prueba un ancho reducido y etiquetas traducidas largas. En formularios asocia controlAttrs de la fila al input real para conservar errores y estado obligatorio. Un control desactivado no explica por sí mismo un fallo: muestra estado cercano y recuperación.
 
 Si falla la vista, ciérrala y ábrela y luego reinicia su instancia. La API estática y el código siguen siendo útiles sin demo. Los diálogos nativos, servicios externos y funciones del sistema requieren pruebas separadas de escritorio. [Volver a la guía de componentes](index.md).
+
+## Detalles de operación {#keyboard-contract}
+
+Revisa [teclado, excepciones del diálogo y nombres/tooltip](../i18n-accessibility.md#operational-details). Comprueba foco inicial/retorno en el flujo completo, incluidos diálogos no cerrables y borradores desmontados.

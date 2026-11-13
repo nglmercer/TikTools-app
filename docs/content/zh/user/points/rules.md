@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
-translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+sourceRevision: "4e162cd76cb973f9215898e757b4765c429f1bc225df0903b5b40b1e3ad6fb9b"
+translationRevision: "e23084650469310b493b9fbbeccdac6de90f647424240c40d4f5b4ce14925e4c"
 order: 10
 ---
 
@@ -38,3 +38,9 @@ order: 10
 先检查来源开关、已保存倍率及观众标识符。如果自动化也发放积分，可能产生第二次奖励。直播连接活动或忙碌时，重置控件会锁定；计划重置前，请断开连接并阅读确认提示。清除累计余额前，进行[关闭应用后的备份](../preferences/backups.md)。
 
 <DemoFrame scenario="points" locale="zh" tour="points" title="演示：积分" />
+
+## 运行细节 {#operational-details}
+
+行菜单只将一位观众的积分归零、等级设为 1，并添加重置标记。**重置全部**影响本安装中所有已保存的观众，不按主播划分：所有余额归零、等级设为 1，并删除积分交易历史；观众记录及累计计数仍保留。它不会清空动态流或 Analytics。先断开 LIVE，在应用关闭时备份，再核对范围并确认。
+
+手动增加积分也应用已保存的订阅者奖励：奖励为 50% 时，给订阅者增加 100 实际得到 150。扣除 100 不应用该奖励，余额最低为零。请核对最终余额。表格搜索仅覆盖当前前 100 名快照；未找到观众不代表没有保存记录。

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
-translationRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
+sourceRevision: "4a97f64b6bdc818ebb8d16eec1e67d95a2d0eae0b75f7cfd5c1493bf27244684"
+translationRevision: "35b1f76e8478df31e971460171b04483c310ea468e16ef13d508e6b858187d94"
 order: 30
 ---
 
@@ -43,3 +43,7 @@ Les commandes d’accès du propriétaire et la création/inscription des équip
 Pour des autorisations ou révisions d’hôte obsolètes, rechargez et examinez à nouveau. Pour des commandes non confirmées, consultez le résultat enregistré avant de réessayer. Arrêtez le service ou révoquez l’accès en terminant une session. Excluez les jetons d’invitation et identifiants secrets des [rapports de diagnostic](../preferences/troubleshooting.md) publics.
 
 <DemoFrame scenario="collaboration" locale="fr" title="Démo : collaboration" />
+
+## Détails de fonctionnement {#operational-details}
+
+Après jonction/approbation Teams, l’hôte confirme la révision native actuelle. `pendingHost` indique l’attente ; transport actif ou appartenance ne donnent pas seuls d’accès natif. Rechargez après changement de permission et vérifiez hôte/appareil. Observer privilégie lecture ; moderator ajoute certains contrôles, automationEditor certaines éditions, custom exige une politique explicite revue. Aucun ne donne scripts/effets illimités. Consultez [rôles et confirmation](../../developer/collaboration.md#operational-details) si les contrôles n’expliquent pas un refus.

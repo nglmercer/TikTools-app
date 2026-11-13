@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
-translationRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
+sourceRevision: "3dd24191fb33ac1ebfd42ca33e68a5a97537a89df09533c4588207ea6087daa5"
+translationRevision: "9c5c60eeb08092b74bbcb497a26847922650dd4694a92edcf9145945e9b6258e"
 order: 10
 ---
 
@@ -43,6 +43,16 @@ bun scripts/task.ts packaged  # caminho do frontend empacotado, em vez de uma UR
 ```
 
 `start` inicia o Vite, aguarda sua URL alocada e executa o desktop com `TIKTOOLS_DEV_URL`. Ele pode preparar plugins do checkout separado `plugins-example-tiktools`, encontrado por `TIKTOOLS_PLUGINS_REPO` ou pelo diretório irmão. Ele não compila implementações de plugins versionadas neste repositório. Use `TIKTOOLS_SKIP_DEV_PLUGINS=1` para omitir essa preparação. Nenhum host é substituído automaticamente; um proprietário de desktop existente causa erro de inicialização.
+
+Instale as dependências do checkout externo antes de iniciar. No checkout do TikTools, os comandos abaixo instalam as ferramentas com versões bloqueadas, preparam pacotes sem iniciar um host e criam arquivos distribuíveis em `dist/plugins/`. A preparação recompila as interfaces a partir do código-fonte e substitui o conteúdo gerado de `.dev-plugins`. `TIKTOOLS_PLUGINS_REPO=off` esvazia esse diretório e não carrega pacotes externos de desenvolvimento; os plugins instalados pelo usuário são gerenciados separadamente.
+
+O caminho de diretório irmão abaixo é apenas um exemplo local. O CI não exige esse checkout; use um caminho absoluto em `TIKTOOLS_PLUGINS_REPO` para outra organização de pastas.
+
+```sh
+bun install --frozen-lockfile --cwd ../plugins-example-tiktools
+bun scripts/task.ts prepare-plugins
+bun scripts/task.ts plugins --all
+```
 
 Para experimentos nativos isolados, defina `TIKTOOLS_HOME` para um diretório descartável antes de iniciar o host. Use o mesmo diretório em todos os terminais CLI que controlam esse host. Nunca exclua um bloqueio de propriedade ativo.
 

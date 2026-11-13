@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
-translationRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
+sourceRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
+translationRevision: "27453dca716ff3eafbc81c5357a110b15a3d0344690b36b5a07dbf7d4030fc57"
 order: 10
 ---
 
@@ -33,8 +33,12 @@ LIVE のイベントに反応する、小さく分かりやすいライブラリ
 
 ## 期待される結果と提供状況 {#expected-result-and-status}
 
-ローカル編集、実行、テンプレート、プロファイル、履歴を利用できます。プラグインのトリガーは対応プラグインがインストールされ有効な間だけ表示されます。インポートした定義は明示的に有効化するまで無効です。イベント／アクションの **変更** は[ローカルの基準との比較](../cloud/changes.md) であり、Cloud への自動アップロードではありません。
+ローカル編集、実行、テンプレート、プロファイル、履歴を利用できます。プラグインのトリガーは対応プラグインがインストールされ有効な間だけ表示されます。有効状態はインポート経路と確認済み enabled 値によります。確定前にイベントとアクションを確認してください。イベント／アクションの **変更** は[ローカルの基準との比較](../cloud/changes.md) であり、Cloud への自動アップロードではありません。
 
 ## 問題が起きたとき {#recovery}
 
 実行されない場合は、アクティブなプロファイル、有効状態、トリガー、フィルター、クールダウン、欠けたアクションの順に確認します。リビジョンが競合したら、現在の保存済み定義を読み直して再確認します。他の人の更新を無条件に上書きしないでください。大きな変更の前に、正常な[プロファイル](templates.md) をエクスポートします。
+
+## 運用の詳細 {#operational-details}
+
+取り込み・切り替え前に[経路ごとの有効化規則](templates.md#operational-details)を読みます。個別に無効化した項目も再び有効になる場合があります。cooldown はメモリ内で最大 24 時間、uniqueId 不在の視聴者は匿名範囲を共有します。保持キー 8,192 件で表を空にするため、過負荷や再起動で追加実行が起こり得ます。永続 quota・replay 保証ではありません。

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "59d259c554c7b220bb7e978e2da3165034eeb494aa28e5c73666be9945fb6869"
-translationRevision: "59d259c554c7b220bb7e978e2da3165034eeb494aa28e5c73666be9945fb6869"
+sourceRevision: "6b92351b3ee8eb1b0745db65bbddb3eab21f4ae0a9945795c94147c9ca347e73"
+translationRevision: "6b92351b3ee8eb1b0745db65bbddb3eab21f4ae0a9945795c94147c9ca347e73"
 order: 40
 ---
 
@@ -27,7 +27,7 @@ The [release list](https://github.com/nglmercer/TikTools-app/releases) identifie
 1. Open **Settings → General** and inspect the updater's current state and installed version.
 2. Run the available check. Builds without the configured public key/feed capability show that checks are unavailable.
 3. Read the release notes and choose the package for your platform.
-4. When the build offers a download/manual handoff, follow that path. The production release workflow enables authenticated checks; it does not enable every experimental automatic-install feature.
+4. When the build offers a download/manual handoff, follow that path. The release workflow enables authenticated checks only when the repository public-key variable is configured; automatic installation has additional gates.
 5. For a manual update, close TikTools, replace or install the complete verified package, and reopen it. Keep the data directory separate from the application files.
 
 ## Expected result {#expected-result}
@@ -39,3 +39,7 @@ The restarted app reports the chosen version and can read the expected local pro
 A failed signature check is a failed update; download a fresh official copy and verify the release checksums. Do not bypass verification. Automatic AppImage replacement and NSIS handoff have separate build gates and are experimental. There is no general automatic rollback. Returning to an older binary does not undo a migrated SQLite schema.
 
 Report the installed version, package format and updater error from Diagnostics. Do not attach signing keys, invitation tokens or account data. The [installation guide](installation.md) describes the supported package layouts.
+
+## Operational details {#operational-details}
+
+Updater capability is fixed when the app is built. Checks require a configured feed and public key. Automatic AppImage replacement additionally requires the common install gate and a detected supported installation; NSIS requires that same common gate AND the NSIS-specific gate. Setting environment variables after installation does not enable those compiled gates. Portable/extracted/unknown layouts use manual replacement. Verify version, restart and profile after an actual installation; download, checksum or installer launch alone cannot establish completion.

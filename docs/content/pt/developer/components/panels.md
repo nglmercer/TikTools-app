@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e0636475d"
-translationRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e0636475d"
+sourceRevision: "9e2ce8a6d2139599d1d9ce5afe82fc181154cf9d2689131eae52a8952a4351f4"
+translationRevision: "b18ac34fc7a06810c5c78394fd1868630057ca992bc63f36afaf02e52147ff7f"
 ---
 
 # Painéis e diálogos {#panels-and-dialogs}
@@ -43,3 +43,7 @@ Este mesmo arquivo é compilado para a prévia e incluído como trecho de códig
 Use um rótulo visível ou aria-label, preserve a operação pelo teclado e evite depender apenas da cor. Teste em uma largura estreita e com rótulos traduzidos longos. Nos formulários, vincule controlAttrs da linha ao campo real para manter a associação dos erros e do estado obrigatório. Um controle desativado não explica uma falha sozinho; mostre um status adjacente e uma ação de recuperação.
 
 Se uma prévia falhar, feche-a e abra-a novamente, depois use Reset na própria instância da demonstração. Revise a API estática e o código mesmo quando a demonstração estiver indisponível. Diálogos nativos, serviços externos e integração com o sistema operacional exigem testes de desktop separados. [Voltar ao guia de componentes](index.md).
+
+## Detalhes de operação {#keyboard-contract}
+
+Revise [teclado, exceções do diálogo e nomes/tooltip](../i18n-accessibility.md#operational-details). Confira foco inicial/retorno no fluxo completo, incluindo diálogos não fecháveis e editores desmontados.

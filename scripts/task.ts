@@ -132,7 +132,7 @@ async function ci(): Promise<void> {
   await frontendLint();
   await rustLint();
   await tests();
-  await cargo('test', '--workspace', '--locked');
+  await cargo('test', '--workspace', '--locked', '--', '--test-threads=1');
   await verifyRustTestExists('tiktools-core', 'native-tiktok', NAMED_BATCHED_TEST);
   await cargo('test', '-p', 'tiktools-core', '--locked', '--features', 'native-tiktok', '--lib', NAMED_BATCHED_TEST);
   await cargo('test', '-p', 'tiktools-cli', '--features', 'local-web', '--locked');

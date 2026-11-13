@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
-translationRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
+sourceRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
+translationRevision: "0bcbc5822b428800e3dcaaad4113bfb7fad0fedb8a23553bf8a26d18fceed12b"
 order: 280
 ---
 
@@ -48,3 +48,12 @@ tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path
 安装器可在应用已审查包之前验证字节，并保留回滚/恢复状态。开发暂存不属于安装器管理。信任失败时，修复委托或发布者元数据，不要将未签名覆盖标志作为常规分发策略。运行时启动不确定时，停止替换并协调确认保留的结果。
 
 使用 `bun scripts/task.ts rust test -p tiktools-plugin-package --locked` 和注册表测试验证离线夹具。[包验证器](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-package/src)及[注册表模型](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-plugin-registry/src/model.rs)负责技术格式；发布基础设施需要单独运维验收。
+
+## 运行细节 {#operational-details}
+
+应判断验证 JSON，而不只是进程退出码。`verify` 可在 `signature.status` 为 `unsigned` 或 `untrusted` 时成功退出。只有状态为 `verified`，且包 ID、发布者和 key ID 均符合预期时才接受，再检查分发策略。本地 `--trust` 只证明与该本地信任键的签名关系，不证明注册表委派或命名空间授权。单独的校验和不证明发布者权限或更新器信任。以下自动判断必须拒绝任何意外结果。
+
+```sh
+tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path/keys/acme-1.pub.json > verification.json
+bun -e 'const r = await Bun.file("verification.json").json(); if (r.signature?.status !== "verified" || r.id !== "acme.hello" || r.signature.publisher !== "acme" || r.signature.keyId !== "acme-1") throw new Error("Package trust did not match policy");'
+```

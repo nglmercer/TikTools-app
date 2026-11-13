@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "5552b08e589e44879d88ee299720ed1644285e42fa201261b1cf377fd163f865"
-translationRevision: "5552b08e589e44879d88ee299720ed1644285e42fa201261b1cf377fd163f865"
+sourceRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
+translationRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
 order: 150
 ---
 
@@ -46,3 +46,24 @@ Saved rules execute through the core runtime and its capability broker. Processo
 ## Recovery {#recovery}
 
 On conflict, compare current records without losing the candidate. A remote draft remains disabled pending owner review and authority transfer; preview/manifest inspection alone does not authorize execution. Unknown external-effect outcomes require the retained effect inspection/recovery flow. Replaying UI history must never fire the automation again. Use [templates](templates.md) for controlled library import and [testing](testing.md) for boundary-specific evidence.
+
+## Operational details {#operational-details}
+
+The graph below uses catalog v1 trigger → transform → log ports and is disabled. Save it as `docs-graph.json` and validate node versions/ports against `automation.nodes.list`. `workflow save --record` persists the graph; `workflow get`/metadata-aware enable/disable calls verify saved state. Replace versions from fresh reads. Persistence/enablement is not proof of a complete graph executor or visual editor on every build: this checkout’s normal runtime executes behavior Events/Actions. Use the disabled log template in [templates](templates.md#operational-details), inspect it, intentionally enable both records and test a sanitized chat for an observable harmless runtime result. Do not claim LIVE execution merely because a graph saved.
+
+For enrichment, install/enable TextIntel with `events.enrich`, inspect Processors status/metrics and run its sample test. Inspect the actual `event.intel.providers.textintel.comment.moderation.blocked` field before creating an is-true filter linked to `core.log`; missing enrichment is not false evidence. Circuit-open or saturated processors can be skipped. A processor sample test is not end-to-end LIVE acceptance.
+
+For uncertain owner work, inspect `automation.library.get`, `automation.definition.get`, `automation.adoption.get` or `automation.approval.get` as appropriate. Retain pending.commandId, host identity and candidate. Resolve that journal’s original operation (`*.resolve`); if unknown, review actual current state and only then use its `*.review_unknown` with the original ID and explicit acknowledgement. Adoption needs a fresh authority/dependency review, not just inspect/preview. `automation.effects.get {effectId}` inspects a retained external-effect result; inspection authorizes no dispatch and offers no blind retry. Preserve unknown outcomes for operator reconciliation.
+
+```json
+{"schemaVersion":1,"id":"docs-example","name":"Docs","enabled":false,"nodes":[{"id":"start","type":"trigger.event","version":1,"position":{"x":0,"y":0},"config":{"eventType":"tiktok.chat"}},{"id":"text","type":"transform.template","version":1,"position":{"x":200,"y":0},"config":{"template":"docs-example"}},{"id":"log","type":"action.log","version":1,"position":{"x":400,"y":0},"config":{"message":"docs-example"}}],"edges":[{"id":"a","kind":"flow","source":"start","sourcePort":"flow","target":"text","targetPort":"flow"},{"id":"b","kind":"flow","source":"text","sourcePort":"flow","target":"log","targetPort":"flow"}]}
+```
+
+```sh
+tiktools api call automation.nodes.list '{}' --json
+tiktools workflow save --record "$(cat docs-graph.json)"
+tiktools api call workflows.get '{"id":"docs-example"}' --include-meta --json
+tiktools api call workflows.enable '{"id":"docs-example"}' --expected-revision REVISION --dry-run --json
+tiktools api call automation.library.get '{}' --json
+tiktools api call automation.adoption.get '{}' --json
+```

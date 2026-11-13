@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
-translationRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
+sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
+translationRevision: "c7716c33d0e7770701883e19c813694b26c7931bc4f388146508d67a89ac3aeb"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ Les statistiques locales persistantes et les requêtes par période sont disponi
 Si les données semblent absentes, effacez la recherche de contributeur, élargissez la période, confirmez le créateur et actualisez. Après une erreur de l’hôte, conservez son code de diagnostic et réessayez une fois la connexion rétablie. Effacer le flux ne supprime pas les statistiques. Un nouveau répertoire de données n’a aucun historique antérieur ; utilisez des [sauvegardes](../preferences/backups.md) pour déplacer une installation.
 
 <DemoFrame scenario="analytics" locale="fr" title="Démo : statistiques" />
+
+## Détails de fonctionnement {#operational-details}
+
+Analytics demande actuellement les 10 principaux contributeurs pour le créateur et les dates choisis. La recherche filtre ce sous-ensemble, sans rechercher tous les spectateurs. Ces agrégats persistants ont une période et une unité différentes des diamants/likes de la session et des soldes de points. Conservez créateur, dates et mesure lors des exports et comparaisons.

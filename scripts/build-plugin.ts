@@ -3,6 +3,7 @@ import { basename, join, resolve } from 'node:path';
 import { PLUGINS_REPO_ENV, PLUGINS_REPO_NAME, externalPluginDirectories, resolvePluginsRepository } from './lib/external-plugins.ts';
 import { compileNapiVmGuest, prepareNativeAddons } from './lib/napi-vm.ts';
 import { assertPluginId } from './lib/plugin-id.ts';
+import { buildPluginUi, executableName, pluginCargoManifest, processBinaryName } from './lib/plugin-build.ts';
 import { GATEWAY_PLUGIN_ID, GATEWAY_WIDGET_KINDS, stageGatewayWidgets } from './lib/gateway-widgets.ts';
 import {
   artifactFileName,
@@ -29,10 +30,10 @@ function fail(message: string): never {
   throw new Error(`Plugin packaging failed: ${message}`);
 }
 
-function runInherit(command: string, args: string[]): void {
+function runInherit(command: string, args: string[], cwd = repositoryRoot): void {
   const result = Bun.spawnSync({
     cmd: [command, ...args],
-    cwd: repositoryRoot,
+    cwd,
     stdout: 'inherit',
     stderr: 'inherit',
   });
@@ -55,8 +56,6 @@ function printHelp(): void {
 Usage:
   bun scripts/task.ts plugins --plugin <name>
   bun scripts/task.ts plugins --plugin <name> --target <rust-target>
-  bun scripts/task.ts plugins --all
-  bun scripts/task.ts plugins --all --target <rust-target>
   bun scripts/task.ts plugins --all
   bun scripts/task.ts plugins --all --target <rust-target>
 
@@ -214,7 +213,7 @@ for (const directory of await externalPluginDirectories(pluginsRepository)) {
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ExampleManifest;
   // napi-vm examples ship TypeScript; declarative examples need no build.
   // Compiled runtimes need a Cargo project.
-  if (manifest.runtime !== 'napi-vm' && manifest.runtime !== 'declarative' && !(await exists(join(directory, 'Cargo.toml')))) continue;
+  if (manifest.runtime !== 'napi-vm' && manifest.runtime !== 'declarative' && !(await pluginCargoManifest(directory))) continue;
   discovered.push({ directory, manifestPath, manifest });
 }
 
@@ -263,6 +262,7 @@ for (const { directory, manifestPath, manifest } of targets) {
   if (sourceEntry.includes('\0') || sourceEntry.startsWith('/') || sourceEntry.split('/').includes('..')) {
     fail(`${manifestPath} has an unsafe entry: ${sourceEntry}`);
   }
+  await buildPluginUi({ directory, manifestPath, manifest, exec: runInherit });
   if (id === GATEWAY_PLUGIN_ID) {
     // Widget bundles are mandatory gateway content and TikTools-owned:
     // build and stage them into the package's (gitignored) dist/ before the
@@ -284,14 +284,19 @@ for (const { directory, manifestPath, manifest } of targets) {
   } else if (runtime === 'napi-vm') {
     builtEntryPath = await buildNapiVmExample(directory, manifestPath, manifest, sourceEntry);
   } else {
+    const cargoManifest = await pluginCargoManifest(directory);
+    if (!cargoManifest) fail(`${manifestPath} has no Cargo.toml or backend/Cargo.toml`);
+    const binaryName = runtime === 'process' ? await processBinaryName(cargoManifest, sourceEntry) : null;
     runInherit('node', [
       cargoWrapper,
       'build',
+      '--locked',
+      ...(binaryName ? ['--bin', binaryName] : []),
       ...(profile === 'release' ? ['--release'] : []),
       '--target',
       selectedTarget.rustTarget,
       '--manifest-path',
-      join(directory, 'Cargo.toml'),
+      cargoManifest,
       '--target-dir',
       join(pluginsRepository, 'target'),
     ]);
@@ -299,10 +304,7 @@ for (const { directory, manifestPath, manifest } of targets) {
     // The executable suffix derives from the requested build target, never
     // from process.platform, so explicit cross-target builds resolve the
     // correct Cargo output (e.g. demo.exe on a Linux host).
-    const builtEntryName =
-      selectedTarget.os === 'windows' && !basename(sourceEntry).toLowerCase().endsWith('.exe')
-        ? `${sourceEntry}.exe`
-        : sourceEntry;
+    const builtEntryName = executableName(binaryName ?? sourceEntry, selectedTarget.os === 'windows');
     builtEntryPath = join(
       pluginsRepository,
       'target',

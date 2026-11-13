@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "df2f1f1e0670dbfc40091e8bea0fa26c1821c4d7cb70f1d62ba79ae9f9e15072"
-translationRevision: "df2f1f1e0670dbfc40091e8bea0fa26c1821c4d7cb70f1d62ba79ae9f9e15072"
+sourceRevision: "2e0522178ebee69ea5eb20fec3c0ec586f13950c51d658cb3a21843536b2f9f9"
+translationRevision: "58c0105316e54689625a140866a31ebc5ad44b40040d0ab0e71fd8960c240d80"
 order: 230
 ---
 
@@ -44,3 +44,9 @@ bun scripts/task.ts contracts --check
 ## 問題が起きたとき {#recover}
 
 依存関係や環境ライブラリ不足で検証が失敗したら、検査を弱めず環境を報告・修復します。生成物がずれたら所有元から再生成し差分を確認します。Cookie、鍵、認証情報、未処理のイベント記録を公開しません。ソースと古い設計が異なる場合は差を説明し、公開ガイドは現行実装に従います。広範な整理を一貫して見せるために他の担当者の未完了ファイルを上書きしないでください。
+
+## 運用の詳細 {#operational-details}
+
+review stamp は別々です。`sourceRevision` は現在の英語本文、`translationRevision` はこの記事の翻訳本文（frontmatter と外側空白を除去）の hash です。原文と全翻訳を確認して `bun docs/scripts/record-review.ts developer/example.md` を実行します。以後の本文編集は対応 stamp を無効にします。これは変化検出で、人間の ID・意味同等性の証明ではありません。コマンド・RPC/環境 ID・payload key・制限・有効化/回復・否定を明示比較し、技術指示を保持して全文章を訳します。
+
+分割移行は元 topic/heading ごとに具体的な移行先を記録し、節なら fragment を付けます。checker はファイル・fragment・歴史 bytes を検証しますが、話題網羅は編集 review が必要です。成功のために歴史原文・provenance を書き換えません。

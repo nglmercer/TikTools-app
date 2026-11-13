@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
-translationRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
+sourceRevision: "45f58248a1b11283e61965ea97ddca26e664ef977cbe2115a601d3a029abab05"
+translationRevision: "45f58248a1b11283e61965ea97ddca26e664ef977cbe2115a601d3a029abab05"
 ---
 
 # Forms {#forms}
@@ -43,3 +43,9 @@ This exact file is both compiled for the preview and included as the snippet. It
 Use a visible label or aria-label, preserve keyboard operation and avoid relying on color alone. Test at a narrow width and with long translated labels. For forms, bind the row's controlAttrs to the actual input so errors and required state remain associated. A disabled control cannot explain a failure on its own; show an adjacent status and a recovery action.
 
 If a preview fails, close and reopen it, then Reset its own demo instance. Review the static API and source even when the demo is unavailable. Native dialogs, external services and operating-system integration require separate desktop tests. [Return to the component guide](index.md).
+
+## Operational details {#operational-details}
+
+`BaseSchemaForm` owns a JSON-object model, not persistence. Pass a JSON schema, `uiHints.fields`, `fieldOptions`, `fieldErrors`, optional `suggestionsFor` and `openMediaPicker`. A field hint uses `showIf:{key,equals,notEquals}` for conditional visibility; `advanced` groups optional fields. Dynamic options belong to the owner, which must load them and preserve the selected value. Errors are keyed by field; a media control needs a supplied picker to select real media. The runnable example combines a conditional textarea/media form and a control group. Accepted values update the model; domain/host validation still runs when saving.
+
+`BaseFormRow` infers one input unless `group` is true. Its default slot exposes `controlAttrs:{id,aria-describedby,aria-invalid,aria-required}` for the actual control. For multiple controls use `group`, name each child independently and do not spread the same id onto every child; group help/error is associated with the group. `useSplitAttrs` routes class/style to the wrapper and other attributes/listeners to the control. File upload accepts one file and checks configured size/type; failure clears the model and exposes an error. Upload selection is not a remote upload.

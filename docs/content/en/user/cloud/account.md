@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
-translationRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
+sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
+translationRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
 order: 10
 ---
 
@@ -38,3 +38,7 @@ Service login availability and real provider/platform acceptance depend on the d
 ## Recovery {#recovery}
 
 For a cancelled or expired attempt, start a fresh login after closing the old one. For network or service errors, preserve the diagnostic code and retry after recovery. For a credential-store error, restore the operating system's secure-storage availability; do not paste a bearer token into settings or a support message. See [Changes](changes.md) for explicit synchronization and [collaboration](collaboration.md) for separate access grants.
+
+## Operational details {#operational-details}
+
+Sign-out deletes local credentials and clears the local account context before attempting server revocation on a best-effort basis. A signed-out UI confirms local removal, not successful remote token revocation during network failure. Use service-side session administration if your service provides it. Export relevant Diagnostics before signing out or changing a known account; that UI history is cleared. TikTok cookies and remote-host sessions are separate identities.

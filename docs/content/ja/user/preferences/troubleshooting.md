@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "41fe9f8a6082fad98b44a33890e9e275adc7a79aaf6cdd977e7424c459aa3ab2"
-translationRevision: "41fe9f8a6082fad98b44a33890e9e275adc7a79aaf6cdd977e7424c459aa3ab2"
+sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
+translationRevision: "34b930f66c512f6ff0178c2b22dbb707089ea713e4b768f987856f744e81efa9"
 order: 30
 ---
 
@@ -43,3 +43,9 @@ order: 30
 原因を修正してから再試行します。リビジョン競合では現在の保存状態を再読み込みして確認します。未確認のリモートコマンドは再送前にジャーナル・状態を確認します。成功した処理の後でタイムアウトする場合があります。起動失敗時はデータを削除せず、パッケージ・バージョンと起動ログを報告します。
 
 <DemoFrame scenario="diagnostics" locale="ja" tour="diagnostics" title="デモ: 診断" />
+
+## 運用の詳細 {#operational-details}
+
+Diagnostics は UI のメモリ内ログで、上限は 2,000 件または 2 MiB です。5 秒以内の重複をまとめ、初期表示は 100 件ですが、書き出しはフィルターに一致する全件を含みます。**クリア**はログ全体を消します。終了・再起動・消去・既知 Cloud アカウントの切り替えやログアウト前に証拠を書き出してください。アカウント変更でもこの履歴は消えます。
+
+ウィンドウが開かない場合、ネイティブの `tiktools.log`（コントローラーモードは `controller.log`）を確認します。Windows は `%LOCALAPPDATA%/TikTools/logs`、Linux は `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` が既定です。`TIKTOOLS_HOME` はルート、`TIKTOOLS_LOG_DIR` はログ先を変更します。ログ自体の初期化失敗ではファイルがない場合もあるため、得られる端末・起動エラーを残します。ネイティブログに UI と同じ秘匿処理は保証されません。共有前に確認してください。

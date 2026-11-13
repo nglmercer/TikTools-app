@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "92e2164c28be287f8b5d5c96d787a106bb011e1939ff490e4e69737c87bb9716"
-translationRevision: "92e2164c28be287f8b5d5c96d787a106bb011e1939ff490e4e69737c87bb9716"
+sourceRevision: "3e866271067cf2c4d374aaccd9a6cdf6babf981df4deeff5313947cbf39b5cc7"
+translationRevision: "3e866271067cf2c4d374aaccd9a6cdf6babf981df4deeff5313947cbf39b5cc7"
 order: 50
 ---
 
@@ -48,3 +48,7 @@ Navigating away and back does not multiply callbacks. Hidden presentation stops 
 ## Recovery and limits {#recovery-and-limits}
 
 A timed-out QuickJS startup can remain uncertain; the manager retains its worker identity and blocks replacement instead of pretending stop succeeded. Some synchronous plugin lifecycle control paths can still block their caller. Treat these as implementation limits, especially during updater handoff. Stop the owning host cleanly rather than deleting its live lock. The [shutdown source](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/shutdown.rs) and runtime tests are stronger evidence than a historical lifecycle diagram.
+
+## Operational details {#operational-details}
+
+Shutdown first stops LIVE admission and drains ingress, then cancels observers/disconnects and stops plugin polling. It flushes analytics, resolves points writes (30 s deadline), checkpoints SQLite (5 s), and finishes native shutdown. A plugin poll timeout, analytics failure, unresolved points write or checkpoint failure marks update shutdown unsafe. `AppCore::update_shutdown_safe()` requires both completed shutdown and the safety flag; completion alone is insufficient. The updater consumes this native result—there is no user switch that can certify uncertain work. Preserve logs/pending recovery data and resolve uncertainty before replacing binaries.

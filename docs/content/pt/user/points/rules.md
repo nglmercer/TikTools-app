@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
-translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+sourceRevision: "4e162cd76cb973f9215898e757b4765c429f1bc225df0903b5b40b1e3ad6fb9b"
+translationRevision: "10a44dc9c0bcbde534c4bb837341d821d89c65c9d340daf2279bfad72001fb43"
 order: 10
 ---
 
@@ -38,3 +38,9 @@ Regras locais, saldos de espectadores e controles manuais de adicionar/deduzir e
 Verifique primeiro o interruptor da fonte, a taxa salva e o identificador do espectador. Uma automação que também atribui pontos pode adicionar uma segunda atribuição. Os controles de redefinição ficam bloqueados durante conexões LIVE ativas/em andamento; desconecte antes de uma redefinição planejada e leia sua confirmação. Mantenha um [backup com o aplicativo fechado](../preferences/backups.md) antes de limpar saldos acumulados.
 
 <DemoFrame scenario="points" locale="pt" tour="points" title="Demonstração: pontos" />
+
+## Detalhes de operação {#operational-details}
+
+O menu da linha zera os pontos de um espectador, define nível 1 e acrescenta um marcador. **Zerar todos** afeta todos os espectadores salvos nesta instalação, entre criadores: zera saldos, define nível 1 e apaga o histórico de transações de pontos. Mantém os registros e contadores acumulados. Não limpa o feed nem o Analytics. Desconecte a LIVE, faça uma cópia com o aplicativo fechado e confira o alcance antes de confirmar.
+
+Ajustes manuais positivos recebem o bônus de assinante salvo: +100 com bônus de 50% concede +150 a um assinante. Descontar 100 não recebe esse bônus; o saldo mínimo é zero. Confira o saldo final em vez de presumir um delta exato. A tabela busca apenas na sua captura dos 100 primeiros; um nome ausente não comprova ausência de registro.

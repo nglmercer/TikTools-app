@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
-translationRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
+sourceRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
+translationRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
 order: 10
 ---
 
@@ -33,8 +33,12 @@ Tests can execute the configured effects. Read the selected action list before p
 
 ## Expected result and status {#expected-result-and-status}
 
-Local editing, execution, templates, profiles and history are available. Plugin triggers appear only while their supporting plugin is installed and enabled. Imported definitions remain disabled until explicit activation. The Events/Actions **Changes** panel is a [local reference comparison](../cloud/changes.md), not automatic Cloud upload.
+Local editing, execution, templates, profiles and history are available. Plugin triggers appear only while their supporting plugin is installed and enabled. Activation depends on the import surface and reviewed enabled values; inspect both events and actions before confirming. The Events/Actions **Changes** panel is a [local reference comparison](../cloud/changes.md), not automatic Cloud upload.
 
 ## Recovery {#recovery}
 
 For no run, check active profile, enabled states, trigger, filters, cooldown and missing actions in that order. For a revision conflict, read the current saved definition and review again. Do not overwrite another person's update blindly. Export a known-good [profile](templates.md) before broad changes.
+
+## Operational details {#operational-details}
+
+Before changing profiles or importing, read the [activation rules by surface](templates.md#operational-details). Profile switching can enable members that you had individually disabled. Cooldown state is in memory, capped at 24 hours; missing viewer uniqueId shares one anonymous scope. The table clears when it reaches 8,192 retained keys, so overload or restart can allow extra runs. It is not a durable quota or replay guarantee.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
-translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+sourceRevision: "4e162cd76cb973f9215898e757b4765c429f1bc225df0903b5b40b1e3ad6fb9b"
+translationRevision: "d24410f45e056534e95ca6be9182882400e40a7a9852af93a4ac7fb06e34f7cd"
 order: 10
 ---
 
@@ -38,3 +38,9 @@ Les règles locales, soldes des spectateurs et commandes manuelles d’ajout/ret
 Vérifiez d’abord l’interrupteur de la source, le taux enregistré et l’identifiant du spectateur. Une automatisation attribuant aussi des points peut ajouter une seconde attribution. Les commandes de réinitialisation sont verrouillées pendant les connexions LIVE actives ou occupées ; déconnectez-vous avant une réinitialisation prévue et lisez sa confirmation. Conservez une [sauvegarde avec l’application fermée](../preferences/backups.md) avant d’effacer les soldes accumulés.
 
 <DemoFrame scenario="points" locale="fr" tour="points" title="Démo : points" />
+
+## Détails de fonctionnement {#operational-details}
+
+Le menu d’une ligne remet un spectateur à 0 point et au niveau 1 et ajoute un marqueur. **Tout réinitialiser** touche tous les spectateurs enregistrés dans cette installation, tous créateurs confondus : soldes à 0, niveaux à 1 et suppression de l’historique des transactions de points. Les fiches et compteurs cumulés restent présents. Le fil et Analytics ne sont pas effacés. Déconnectez le LIVE, sauvegardez l’application fermée et vérifiez la portée avant confirmation.
+
+Les ajustements manuels positifs appliquent le bonus d’abonné enregistré : +100 avec un bonus de 50% accorde +150 à un abonné. Retirer 100 n’applique pas ce bonus ; le solde reste au minimum à zéro. Vérifiez le solde final. La recherche du tableau porte seulement sur son instantané des 100 premiers ; une absence ne prouve pas l’absence de fiche.

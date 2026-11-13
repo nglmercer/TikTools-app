@@ -49,7 +49,7 @@ test('all six Markdown languages have reviewed equivalents, current hashes and s
         expect(article.frontmatter.docId).toBe(source.frontmatter.docId);
         expect(article.frontmatter.translationKey).toBe(source.frontmatter.translationKey);
         expect(article.frontmatter.sourceRevision).toBe(revision);
-        expect(article.frontmatter.translationRevision).toBe(revision);
+        expect(article.frontmatter.translationRevision).toBe(createHash('sha256').update(article.body.trim()).digest('hex'));
         expect(article.headings.filter((heading) => heading.level === 'h1')).toHaveLength(1);
       }
       expect(translated!.body).not.toBe(source.body);

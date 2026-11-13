@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
-translationRevision: "0f07dcc0bfec1e9da49b2d29cb1cfdc4d98801ebd1f0cfeac0ca2bff26e92180"
+sourceRevision: "4e162cd76cb973f9215898e757b4765c429f1bc225df0903b5b40b1e3ad6fb9b"
+translationRevision: "4e162cd76cb973f9215898e757b4765c429f1bc225df0903b5b40b1e3ad6fb9b"
 order: 10
 ---
 
@@ -38,3 +38,9 @@ Local rules, viewer balances and manual add/deduct controls are available. With 
 Check the source enable switch, saved rate and viewer identifier first. An automation that also awards points can add a second award. Reset controls are locked during active/busy LIVE connections; disconnect before a planned reset and read its confirmation. Keep a [closed-app backup](../preferences/backups.md) before clearing accumulated balances.
 
 <DemoFrame scenario="points" locale="en" tour="points" title="Demo: points" />
+
+## Operational details {#operational-details}
+
+The row menu resets one viewer to 0 points and level 1 and adds a reset marker. **Reset all** affects every stored viewer in this installation, across creators: it sets all balances to 0 and levels to 1 and deletes the points transaction history. It keeps viewer records and accumulated counters. It does not clear the feed or Analytics. Disconnect LIVE, export a closed-app backup and read the scope before confirming.
+
+Positive manual adjustments use the saved subscriber bonus: +100 with a 50% bonus awards +150 to a subscriber. A −100 adjustment does not receive that bonus; balances stop at zero. Check the resulting balance rather than assuming the entered delta is exact. The table searches only its current top-100 snapshot; a missing match does not prove that the viewer has no saved record.

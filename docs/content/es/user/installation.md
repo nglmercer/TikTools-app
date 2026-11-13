@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
-translationRevision: "555ad595d29dac6659c260a8f2d99acc65bdf8bba49ca87d1517f527ab15469d"
+sourceRevision: "6f8673490bebb3447474a70d914d06102de87a9ef2f3f3c51da897d0d2cc8c1c"
+translationRevision: "600e415b4e68fb14a427711469f321a76ba73aad666f9a7485ac21fed1113fe2"
 order: 20
 ---
 
@@ -50,3 +50,7 @@ TikTools abre sin conexión. Sus datos se guardan fuera de la instalación, norm
 ## Recuperación {#recovery}
 
 Si el paquete falla antes de mostrar una ventana, revisa los diagnósticos y los errores de bibliotecas antes de modificar cuentas o migraciones. Antes de probar otra versión, cierra la aplicación y respalda el directorio de datos. Reinstalar un ejecutable antiguo no revierte migraciones de base de datos. Continúa con el [primer LIVE](first-live.md) o las [actualizaciones](updates.md).
+
+## Detalles de operación {#operational-details}
+
+Si no aparece la ventana, busca el log nativo `tiktools.log` (`controller.log` en modo controlador): Windows `%LOCALAPPDATA%/TikTools/logs`, Linux `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`, salvo cambios de `TIKTOOLS_HOME` o `TIKTOOLS_LOG_DIR`. El registro puede fallar antes de crear archivo. Conserva el error de terminal disponible y revisa [retención y privacidad](preferences/troubleshooting.md#operational-details) antes de compartir.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
-translationRevision: "289f2dc81c1eebfe9d93378ec7ca3dcf67413524a86f032651762e1f0b116a61"
+sourceRevision: "40ff5183f34bff831db48c76fef50f9ef8d5fe40b632ed77747c10ebad708fb3"
+translationRevision: "4acd1a58046c3f7795b5ac2361926376a517f63f67f55786e8534dcf7b6ee065"
 order: 40
 ---
 
@@ -51,3 +51,32 @@ bun scripts/task.ts frontend-build
 路由渲染当前宿主数据，冲突时保留未保存编辑。排名与竞赛已有源码和路由，但仍隐藏于常规导航；不能仅凭组件存在推断产品功能已开放。原生、本地浏览器和演示引导路径可以提供不同传输，同时复用相同功能代码。
 
 过期响应覆盖较新查询时，先检查其代次，再修改后端。路由失去插件页面时，按运行时现有行为返回已安装插件视图。[应用运行时](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/app/model/use-app-runtime.ts)是附加、重新同步和释放资源的参考。
+
+## 运行细节 {#operational-details}
+
+bootstrap 选择真实/demo ControlClient，`mountWorkspace({client,locale,target})` 安装 Pinia、i18n、router 及 `controlClientKey`；AppShell 通过 `useAppRuntime` 启动订阅、gap 重同步与呈现。即使存在 Pinia/i18n，缺少 provider 的 `useControlClient` 仍会抛错。应用复用挂载工厂，组件测试明确提供客户端；结束时卸载并 detach。entities 内不选择传输。
+
+await 前创建请求 ticket 与活动退出函数，只有 ticket 仍有效才应用响应，并始终在 finally 退出活动。上下文变化或卸载时 invalidate。重叠操作各自持有退出函数，避免一个响应清除另一项 busy。ticket 失效并不取消远程工作。
+
+```ts
+import { createRequestScope, createActivityCounter } from '@/shared/lib/request-scope.ts';
+const requests = createRequestScope();
+const activity = createActivityCounter();
+async function refresh() {
+  const ticket = requests.begin();
+  const leave = activity.enter();
+  try {
+    const result = await client.call('system.info', {});
+    if (ticket.isCurrent()) info.value = result;
+  } finally { leave(); }
+}
+// onBeforeUnmount(() => { requests.invalidate(); activity.reset(); });
+```
+
+```ts
+import { mountWorkspace } from '@/app/mount-workspace.ts';
+const app = await mountWorkspace({ client, locale: 'en', target: '#app' });
+// At teardown:
+app.unmount();
+client.detach();
+```

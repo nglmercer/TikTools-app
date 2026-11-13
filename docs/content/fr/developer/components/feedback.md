@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "f349a31abdf7624b102acaba5c27285a602d6f46f0fdcd7dac6a440754bb7f8e"
-translationRevision: "f349a31abdf7624b102acaba5c27285a602d6f46f0fdcd7dac6a440754bb7f8e"
+translationRevision: "f2c2fa709c739d0853957db45af59309c8950e6020b03ea3baafc330202f93a9"
 ---
 
 # Alertes, états vides et états d’opération {#alerts-empty-states-and-status}

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
-translationRevision: "732d9bfcadaba7b08c8a5c0504eea8f23dc7e9b2d63ed9f07287506ac2dad1e8"
+sourceRevision: "6062b2d3d3248eaa9ab1c8f73082c8d4a6bbe81d199f8a45b6c8c28dea617d46"
+translationRevision: "68fa10cf6edcd14da890258c4bcdaad2e0ffce5419d18e06d9ee3296a4e541f6"
 order: 10
 ---
 
@@ -42,3 +42,7 @@ order: 10
 缺少输出时，请检查网关状态、资源、凭据、源 URL 及所选事件类型。Cloud 修订冲突时，先重新加载当前修订再编辑。不要在截图中公开源令牌；通过[诊断](../preferences/troubleshooting.md)报告网关错误。
 
 <DemoFrame scenario="overlays" locale="zh" tour="overlay" title="演示：叠加层" />
+
+## 运行细节 {#operational-details}
+
+添加实时 OBS 来源前，先单独安装 Event Gateway 插件，启用并确认运行。状态对应恢复：missing 安装；disabled 启用并检查可用性；stopped 启动；credentialUnavailable 重启 gateway 一次；assetsMissing 修复/重建归档内 widget 资源；starting 稍后重试；unreachable 检查 loopback 端口及服务。使用生成来源 URL 中的 widget 专属凭据。ready 或本地预览不证明真实 LIVE 事件或 OBS 接收，请在目标来源进行无害测试。

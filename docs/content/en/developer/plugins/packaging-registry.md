@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
-translationRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
+sourceRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
+translationRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
 order: 280
 ---
 
@@ -48,3 +48,12 @@ Host installation first presents a review. Automatic updates require permitted p
 The installer can verify bytes before applying a reviewed package and retain rollback/recovery state. Development staging is outside installer management. On a trust failure, repair delegation or publisher metadata rather than use unsigned override flags as normal distribution policy. On uncertain runtime startup, stop replacement and reconcile its retained outcome.
 
 Use `bun scripts/task.ts rust test -p tiktools-plugin-package --locked` and the registry tests for offline fixtures. The [package verifier](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-package/src) and [registry model](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-plugin-registry/src/model.rs) own the technical formats; publishing infrastructure needs separate operator acceptance.
+
+## Operational details {#operational-details}
+
+Treat verification JSON as the result, not just the process exit code. `verify` can exit successfully with `signature.status` equal to `unsigned` or `untrusted`. Accept only `verified` with the expected package ID, publisher and key ID, then check your distribution policy. A locally supplied `--trust` key proves that local signature relationship, not registry delegation or namespace approval. Checksums alone prove neither publisher authority nor updater trust. Example automation below must fail on any unexpected result.
+
+```sh
+tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path/keys/acme-1.pub.json > verification.json
+bun -e 'const r = await Bun.file("verification.json").json(); if (r.signature?.status !== "verified" || r.id !== "acme.hello" || r.signature.publisher !== "acme" || r.signature.keyId !== "acme-1") throw new Error("Package trust did not match policy");'
+```

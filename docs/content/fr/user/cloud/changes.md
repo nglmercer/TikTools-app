@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
-translationRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
+sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
+translationRevision: "eaf4ca846ad1f45e40a499c945c0d8c1b150f1c027a4d840ecfc1bb831773d9c"
 order: 20
 ---
 
@@ -41,3 +41,9 @@ Les incrustations Cloud utilisent le parcours de création/révision de la [bibl
 La comparaison locale des automatisations et le partage natif conditionné aux capacités sont disponibles dans leurs domaines respectifs. Les opérations produisant des effets distants dépendent du service ; leur validation en production n’est pas implicite. Si un examen devient obsolète, actualisez et comparez à nouveau. Si le résultat n’est pas confirmé, consultez l’état ou le journal avant de créer une autre opération. Un délai d’attente dépassé ne prouve jamais qu’aucun changement n’a eu lieu.
 
 <DemoFrame scenario="cloud" locale="fr" tour="changes" title="Démo : Cloud" />
+
+## Détails de fonctionnement {#operational-details}
+
+Avant préparation/migration v1 → v2, sauvegardez et coordonnez les versions compatibles sur tous les appareils. Dans setup, préparez, vérifiez la compatibilité et prévisualisez ; examinez sélections, attentes, conflits et éléments uniquement v1 sans les supposer synchronisés. Exiger l’en-tête d’époque est irréversible pour les écritures v2 du compte et peut refuser les anciens appareils. Un timeout de barrière est ambigu ; la répéter avance encore l’époque. Actualisez état époque/migration et aperçu avant d’agir. Lire l’époque ne prouve pas la fin des anciennes écritures.
+
+La récupération dépend du mode : Changes Events/Actions compare des références locales sans écriture Cloud. Pour Variables/Plugins révisés, rechargez les comparaisons périmées et vérifiez révision, compte et inventaires. Si des plugins manquent, révisez/réparez l’inventaire setup puis recréez un aperçu. Pour une intention incertaine, conservez ID/preuves et consultez historique/état ; la récupération technique exige une nouvelle revue des entrées figées et de la révision Cloud. Reprendre cette intention n’envoie pas une écriture distante à lui seul. Arrêtez si la réconciliation reste impossible, sans mutation de remplacement.

@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "9a9cbc72991ae221165d8b84e5601a68116d34de7e7e02c44d73642f6ea75911"
-translationRevision: "9a9cbc72991ae221165d8b84e5601a68116d34de7e7e02c44d73642f6ea75911"
+translationRevision: "41725ae874b15b2ecc4e80473d9d1402a446c7969d7f312af026d37f5b2f89c7"
 ---
 
 # Splitter y MasterDetail {#splitter-and-masterdetail}

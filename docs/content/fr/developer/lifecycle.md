@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "92e2164c28be287f8b5d5c96d787a106bb011e1939ff490e4e69737c87bb9716"
-translationRevision: "92e2164c28be287f8b5d5c96d787a106bb011e1939ff490e4e69737c87bb9716"
+sourceRevision: "3e866271067cf2c4d374aaccd9a6cdf6babf981df4deeff5313947cbf39b5cc7"
+translationRevision: "511aa954d0baa5c5931e7eb3824fecb2fb7a9f1dd11106dd335ba9d01d93102a"
 order: 50
 ---
 
@@ -48,3 +48,7 @@ Quitter une page et y revenir ne multiplie pas les rappels. Une présentation ma
 ## Récupération et limites {#recovery-and-limits}
 
 Un démarrage QuickJS dépassant le délai peut rester incertain ; le gestionnaire conserve l’identité de son worker et bloque son remplacement au lieu de prétendre que l’arrêt a réussi. Certains parcours de contrôle synchrones du cycle de vie des plugins peuvent encore bloquer leur appelant. Traitez-les comme des limites d’implémentation, surtout lors du transfert à l’outil de mise à jour. Arrêtez proprement l’hôte propriétaire plutôt que de supprimer son verrou actif. La [source de l’arrêt](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/shutdown.rs) et les tests d’exécution sont des preuves plus solides qu’un schéma historique de cycle de vie.
+
+## Détails de fonctionnement {#operational-details}
+
+L’arrêt ferme l’admission LIVE et draine l’entrée, puis annule les observateurs/déconnecte et arrête le polling des plugins. Il vide Analytics, résout les écritures de points (30 s), effectue le checkpoint SQLite (5 s) et termine l’arrêt natif. Timeout de polling, échec analytique, points non résolus ou échec de checkpoint rendent la mise à jour non sûre. `AppCore::update_shutdown_safe()` exige fin de l’arrêt et indicateur sûr ; la fin seule ne suffit pas. L’updater consomme ce résultat natif, sans bouton capable de certifier du travail incertain. Conservez journaux/récupération et résolvez l’incertitude avant remplacement.

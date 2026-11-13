@@ -7,15 +7,15 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
-translationRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
+sourceRevision: "6dc5181ece21f73c6569b5d8e54c896c6df86390333a5240ef0696257e5e56d5"
+translationRevision: "6dc5181ece21f73c6569b5d8e54c896c6df86390333a5240ef0696257e5e56d5"
 ---
 
 # ComboBox and SearchSelect {#combobox-and-searchselect}
 
 ## Purpose and prerequisites {#purpose}
 
-Choose a stable value from labelled options. SearchSelect filters labels while keeping identifiers out of the visible text. Use the existing Vue workspace and its i18n provider. The preview mounts the real shared components in an isolated application frame; the documentation theme does not load desktop global CSS.
+Choose a stable value from labelled options. SearchSelect searches labels and values; an unknown selected value is displayed as-is. Use the existing Vue workspace and its i18n provider. The preview mounts the real shared components in an isolated application frame; the documentation theme does not load desktop global CSS.
 
 ## Try the example {#example}
 
@@ -43,3 +43,11 @@ This exact file is both compiled for the preview and included as the snippet. It
 Use a visible label or aria-label, preserve keyboard operation and avoid relying on color alone. Test at a narrow width and with long translated labels. For forms, bind the row's controlAttrs to the actual input so errors and required state remain associated. A disabled control cannot explain a failure on its own; show an adjacent status and a recovery action.
 
 If a preview fails, close and reopen it, then Reset its own demo instance. Review the static API and source even when the demo is unavailable. Native dialogs, external services and operating-system integration require separate desktop tests. [Return to the component guide](index.md).
+
+## Operational details {#operational-details}
+
+Supply the selected option even while loading so its label can render; an absent option falls back to the raw model value. `search` emits the query for the owner’s optional remote lookup, while internal matching still searches label and value. Arrow keys/Home/End move among enabled options; Enter selects the active row. With `allowCustom`, committing a typed value trims it; Escape cancels that edit. Check an unloaded selected ID, disabled rows and a custom value in addition to a successful selection.
+
+## Operational details {#keyboard-contract}
+
+Review [keyboard, dialog exceptions and tooltip naming](../i18n-accessibility.md#operational-details) for this family. Check focus entry/return in the complete composed flow, including nonclosable dialogs and unmounted draft editors.

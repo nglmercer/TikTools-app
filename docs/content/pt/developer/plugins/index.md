@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "690689449dfe463405cff0ea6b3a33979249bbe68c598ee7e8ca862eedd704dc"
-translationRevision: "690689449dfe463405cff0ea6b3a33979249bbe68c598ee7e8ca862eedd704dc"
+translationRevision: "fbb4afd7a336108b047205fadbd8e54fa6bb5dc04ac64dbf3216e26051c37c93"
 order: 240
 ---
 

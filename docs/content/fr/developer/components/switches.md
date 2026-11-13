@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "fa20b0faee8aad6fcf04c58fbc0932d3a99c78667e38bbf3f3be007cadf0fce9"
-translationRevision: "fa20b0faee8aad6fcf04c58fbc0932d3a99c78667e38bbf3f3be007cadf0fce9"
+translationRevision: "66ada1d3106c993b218344bded9dd86b642f782fcb5b64e9a4b6ac0953325941"
 ---
 
 # Interrupteurs {#switches}

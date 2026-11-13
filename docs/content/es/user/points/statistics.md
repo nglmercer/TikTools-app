@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
-translationRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
+sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
+translationRevision: "ca77e6883eafb2541f8405005c4ccad0d8277176b2782c661b5302879cb625d0"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ Están disponibles las estadísticas locales persistentes y las consultas por fe
 Si faltan datos, borra la búsqueda, amplía las fechas, confirma el creador y actualiza. Ante un error del host, conserva su código de diagnóstico y repite cuando se recupere la conexión. Vaciar el feed no borra estadísticas. Un directorio de datos nuevo no contiene historial anterior; consulta [copias de seguridad](../preferences/backups.md) para trasladar una instalación.
 
 <DemoFrame scenario="analytics" locale="es" title="Demo de analytics" />
+
+## Detalles de operación {#operational-details}
+
+Analytics solicita actualmente 10 contribuyentes principales para el creador y fechas elegidos. La búsqueda filtra ese subconjunto, no consulta todos los espectadores. Estos agregados persistentes tienen períodos y unidades distintos de los rankings de diamantes/likes de la sesión y del saldo de puntos. Conserva creador, fechas y métrica al exportar o comparar.

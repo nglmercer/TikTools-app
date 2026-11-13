@@ -1,12 +1,14 @@
 import { readFile, access, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve, relative } from 'node:path';
+import { createMarkdownRenderer } from 'vitepress';
 interface Original { source: string; sha256: string; anchors?: string[] }
-interface Entry { source: string; destinations: string[]; archive: string; sourceSha256: string; audience: string; status: string; migrationStatus: string; linkTreatment: { kind: string; legacyPathPreserved?: boolean; anchors?: string[] } }
+interface Entry { source: string; destinations: string[]; archive: string; sourceSha256: string; audience: string; status: string; migrationStatus: string; linkTreatment: { kind: string; legacyPathPreserved?: boolean; anchors?: string[]; anchorDestinations?: Record<string, string[]> } }
 interface Migration { sourceCommit: string; entries: Entry[]; assets: Array<{ source: string; archive: string; sourceSha256: string; linkTreatment: { kind: string; legacySourceRemoved?: boolean } }> }
 /** Validate coverage and the historical bytes, not merely the number of rows. */
 export async function migrationErrors(root: string): Promise<string[]> {
   const errors: string[] = [];
+  const markdown = await createMarkdownRenderer(resolve(root, 'docs/content'));
   const inventory = JSON.parse(await readFile(resolve(root, 'docs/inventory.json'), 'utf8')) as { sourceCommit: string; documents: Original[]; assets: Original[] };
   const migration = JSON.parse(await readFile(resolve(root, 'docs/migration-map.json'), 'utf8')) as Migration;
   if (migration.sourceCommit !== inventory.sourceCommit) errors.push('Migration provenance commit changed.');
@@ -29,7 +31,24 @@ export async function migrationErrors(root: string): Promise<string[]> {
     try { const bytes = await readFile(safePath(entry.archive)); if (createHash('sha256').update(bytes).digest('hex') !== document.sha256) errors.push(`Changed historical bytes: ${entry.archive}`); } catch { errors.push(`Missing archive: ${entry.archive}`); }
     if (!['user', 'developer', 'mixed', 'internal'].includes(entry.audience) || !['available', 'experimental', 'historical', 'mixed'].includes(entry.status) || !['migrated', 'archived'].includes(entry.migrationStatus)) errors.push(`Invalid migration state: ${entry.source}`);
     if (!entry.destinations.length) errors.push(`Missing destination: ${entry.source}`);
-    for (const destination of entry.destinations) try { await access(safePath(destination.split('#')[0]!)); } catch { errors.push(`Missing migration destination: ${destination}`); }
+    for (const anchor of document.anchors ?? []) {
+      if (!entry.linkTreatment.anchorDestinations?.[anchor]?.length) errors.push(`Missing topic migration: ${entry.source}#${anchor}`);
+    }
+    const destinations = new Set([...entry.destinations, ...Object.values(entry.linkTreatment.anchorDestinations ?? {}).flat()]);
+    for (const destination of destinations) {
+      const [path, fragment] = destination.split('#', 2);
+      try {
+        const target = safePath(path!);
+        await access(target);
+        if (fragment) {
+          const source = await readFile(target, 'utf8');
+          const tokens = markdown.parse(source, { path: target, relativePath: relative(root, target) });
+          const anchors = new Set(tokens.filter((token) => token.type === 'heading_open').map((token) => token.attrGet('id')));
+          for (const match of source.matchAll(/<(?:a|span)[^>]*\bid=["']([^"']+)["']/g)) anchors.add(match[1]!);
+          if (!anchors.has(decodeURIComponent(fragment))) errors.push(`Missing migration anchor: ${destination}`);
+        }
+      } catch { errors.push(`Missing migration destination: ${destination}`); }
+    }
     if (entry.linkTreatment.kind === 'archived-source-removed') {
       if (!entry.source.startsWith('docs/') || entry.linkTreatment.legacyPathPreserved !== false) errors.push(`Invalid removed-source policy: ${entry.source}`);
       try { await access(safePath(entry.source)); errors.push(`Retired legacy document was restored: ${entry.source}`); } catch { /* The exact original remains in the validated archive. */ }
