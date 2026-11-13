@@ -83,7 +83,7 @@ test('editing another variable retains the exact native integer', async ({ page 
   await expect(rows.nth(1).getByRole('textbox', { name: 'Value' })).toHaveValue('9223372036854775807');
   await rows.nth(2).getByRole('textbox', { name: 'Value' }).fill('after');
   await page.getByRole('button', { name: 'Save globals' }).click();
-  await expect.poll(async () => (await readHostState(page)).typedGlobals?.label.value).toBe('after');
+  await expect.poll(async () => (await readHostState(page)).typedGlobals?.label?.value).toBe('after');
   expect((await readHostState(page)).typedGlobals?.counter).toMatchObject({ type: 'number', numberText: '9223372036854775807' });
   expect((await readHostState(page)).globals?.counter).toBe('9223372036854775807');
   await expect(rows.nth(1).getByRole('textbox', { name: 'Value' })).toHaveValue('9223372036854775807');
