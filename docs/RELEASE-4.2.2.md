@@ -1,70 +1,37 @@
-# TikTools 4.2.2
+# TikTools 4.2.2 release record / Registro de versión TikTools 4.2.2
 
-Release built by the active workflow in `hernan-lc/TikTools-app`, with
-`RELEASE_REPO=nglmercer/TikTools-app` as its publication destination. Existing
-4.2.1 candidate assets are retained unchanged.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-## Variables
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-Variables now uses the shared Changes panel. Send publishes only the selected
-saved native values; download updates only the cache. Applying a reviewed Cloud
-value and removing a Cloud copy are separate, explicit actions. Withdrawal
-preserves the local value and its secret classification. Dirty local drafts must
-be saved or discarded first, and older hosts without the native bridge hide the
-sync control.
+**Status / Estado:** historical design, release record or dated evidence; not current acceptance / diseño, registro de versión o evidencia histórica; no acredita aceptación actual.
 
-The host rechecks the exact session, consent, local revision and target comparison.
-Queued edits can be replaced or cancelled. Uncertain uploads use epoch-fenced
-recovery, including withdrawal after a variable becomes secret, without replaying
-its previous value. Decision generations now advance after acknowledgement, so
-a later edit does not fail by reusing generation one. Unchecked Variables and
-other sections' pending queues remain outside the selected send operation.
+**Source review:** The source records reviewed Variables sync and a configured release workflow; it does not prove that the queued or failed workflow published artifacts. Version files and workflow configuration describe source intent; asset publication and supported platforms must be verified independently.
 
-Large integer values keep their exact native text through browser edits and
-Cloud comparison/adoption. Editing an unrelated variable no longer rounds an
-untouched integer; unsafe legacy representations are rejected before a save.
-The ordinary numeric API format is unchanged.
+**Revisión del código:** La fuente registra sincronización revisada de Variables y un workflow configurado; no demuestra que una ejecución en cola o fallida publicara artefactos. Los archivos de versión y el workflow describen la intención del código; la publicación y las plataformas deben verificarse por separado.
 
-Types remain explicit: text, number, boolean, list and local secret. Saving locally
-does not upload. Secret or blocked values have no diff, publish or adopt control.
-There is no field merge, force, history or autosync control for this adapter.
+<span id="ci-corrections"></span>
+<span id="ci-corrections-"></span>
+<span id="remaining-scope"></span>
+<span id="remaining-scope-"></span>
+<span id="tiktools-4-2-2"></span>
+<span id="tiktools-422"></span>
+<span id="tiktools-422-"></span>
+<span id="validation-gates"></span>
+<span id="validation-gates-"></span>
+<span id="variables"></span>
+<span id="variables-"></span>
 
-## CI corrections
+**TikTools 4.2.2 / TikTools 4.2.2** (Release record / Registro de versión): [English](content/en/releases/4.2.2.md) · [Español](content/es/releases/4.2.2.md).
 
-The failures in run `43438391891` were test modules placed before later production
-items (`items_after_test_module`) and the plugin lifecycle fixture's stable-only
-SemVer range on a candidate host. Test modules/helpers are ordered correctly;
-the lifecycle fixture explicitly opts into its candidate host while retaining
-its original compatibility bounds. Production plugin compatibility policy is
-unchanged. A full-workspace Clippy run also identified an unhandled partial read
-in an account test server; the fixture now reads bounded complete headers.
+**Release notes / Notas de versiones** (Release record / Registro de versión): [English](content/en/releases/index.md) · [Español](content/es/releases/index.md).
 
-The Linux release job starts the generated AppImage under an isolated graphical
-session and empty native/XDG profile before uploading it. A failed start prints
-bounded startup diagnostics. Installer content validation, immutable upload,
-downloaded checksum verification and signed-feed publication retain their
-existing gates.
+**App updates / Actualizar la aplicación** (User / Usuario): [English](content/en/user/updates.md) · [Español](content/es/user/updates.md).
 
-## Validation gates
+**Release engineering / Ingeniería de versiones** (Developer / Desarrollo): [English](content/en/developer/releases.md) · [Español](content/es/developer/releases.md).
 
-- Rust 1.99.1: workspace Clippy, all targets/features, locked, `-D warnings`.
-- Serial workspace tests, plugin runtime tests on Linux/Windows, MSRV checks,
-  native TikTok regression and sandbox API verification through CI.
-- Frontend lint/type checks and complete unit suites.
-- Browser tests of typed Variables, reviewed adoption and secret withdrawal.
-- Linux/Windows installer/portable packaging and uploaded checksum checks.
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/RELEASE-4.2.2.md).
 
-## Remaining scope
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/RELEASE-4.2.2.md); SHA-256 `c72d6a2ffe2e610e3984516d5bd5348361a0cd0bfd263d89df1a60986ba03d08`.
 
-Teams nickname discovery and recipient-bound invitations still require backend
-commit `6a69c99` and additive migration
-`20261113000001_remote_invitation_recipients.sql`. This release does not deploy
-the backend. Automations Cloud transport, Overlay revisions, history/branch
-provenance and the remaining Collaboration presentation audit are separate work.
-The historical LIVE SQLite lock holder has not been identified; extended reason
-codes and the competing-writer retry regression remain available.
-
-RC1's copied-profile account-policy event is documented in the
-[debugging plan](SYNC-CHANGES-PLAN.md#421-rc1-reproduction). Local validation of
-this release uses isolated profiles and fake accounts; it does not establish
-signed-in production sync or production Teams compatibility.
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

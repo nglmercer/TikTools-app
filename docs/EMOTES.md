@@ -1,61 +1,32 @@
-# TikTok LIVE emotes
+# LIVE emotes / Emotes de LIVE
 
-Status: **integrated, with protocol details still unverified**. The app is
-pinned to the signer revision that normalizes inline and standalone emotes.
-Feed rows, event details, automation events, and the chat widget receive that
-metadata. The shortcode catalog and protobuf index units still need
-confirmation against captured LIVE traffic.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-## Pipeline
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-TikTok carries graphical emotes in two forms:
+**Status / Estado:** experimental or incomplete; verify the limits in the current guide / experimental o incompleto; revisa los límites de la guía actual.
 
-1. Bracketed tokens in chat content, such as `Hello [laughcry]`.
-2. Protobuf metadata on `WebcastChatMessage.emotes`, or a standalone
-   `WebcastEmoteChatMessage.emote_list` event.
+**Source review:** Cargo.toml pins signer 26ae0954, superseding the document's 9b4f344d. src/shared/emotes/resolve.ts bounds metadata and accepts safe HTTPS images; synthetic fixtures do not settle real protocol offset units.
 
-The app pins all `tiktok-signer` crates to
-`9b4f344d105c62e23bf3a883c7a35066e001e078`. That revision adds bounded
-`LiveEmote` metadata to inline chat and a separate normalized event for
-emote-only messages.
+**Revisión del código:** Cargo.toml fija el signer 26ae0954 en lugar del 9b4f344d citado. src/shared/emotes/resolve.ts limita los metadatos y acepta imágenes HTTPS seguras; los datos sintéticos no determinan las unidades reales del protocolo.
 
-Inline metadata flows through `UiEvent.emotes` and
-`ChatAutomationData.emotes`. Standalone events use the separate
-`tiktok.emote_chat` contract and do not invent a comment string. Both forms
-reach the feed, details panel, and OBS chat widget. Emote arrays have an
-explicit `NormalizedMessageArray` provenance transform in the generated
-automation schema.
+<span id="pipeline"></span>
+<span id="pipeline-"></span>
+<span id="remaining-verification"></span>
+<span id="remaining-verification-"></span>
+<span id="rendering-behavior"></span>
+<span id="rendering-behavior-"></span>
+<span id="tiktok-live-emotes"></span>
+<span id="tiktok-live-emotes-"></span>
+<span id="tts-behavior"></span>
+<span id="tts-behavior-"></span>
 
-## Rendering behavior
+**LIVE feed / Feed LIVE** (User / Usuario): [English](content/en/user/live/feed.md) · [Español](content/es/user/live/feed.md).
 
-`src/shared/emotes/` resolves text and optional metadata into text and image
-segments. Rendering uses ordinary text children and `<img>` elements, never
-`innerHTML` or `v-html`. URLs must be absolute HTTPS URLs, metadata is bounded
-to 64 emotes and 2048-byte URLs, and a failed image falls back to its original
-shortcode when one is available.
+**Event delivery / Entrega de eventos** (Developer / Desarrollo): [English](content/en/developer/events.md) · [Español](content/es/developer/events.md).
 
-The signer preserves `EmoteWithIndex.index` without choosing a unit. The UI
-tries UTF-8 byte, Unicode code point, and UTF-16 offsets, and uses the index
-only if exactly one interpretation points to a complete bracket token and
-agrees with any known shortcode. It never slices or rewrites the comment.
-Ambiguous indices fall back to shortcode or catalog matching.
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/EMOTES.md).
 
-## TTS behavior
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/EMOTES.md); SHA-256 `eecedbc515f016fb604499abc7152af14ff9daddae8017b2fdbd8fb83b752801`.
 
-SonicBoom has matching TypeScript and Rust text sanitizers. They remove only
-known emote tokens by default; Unicode emoji removal is opt-in, unknown
-bracketed text stays intact, and meaningful zero-width joiners/non-joiners are
-preserved. Sanitization runs after trigger matching and before points checks.
-The settings card preview calls the same TypeScript sanitizer as the UI.
-
-## Remaining verification
-
-- Catalog entries such as `laughcry`, `happy`, and `wow` are hypotheses, not
-  mappings verified against captured traffic. Catalog-only matches remain
-  plain text; no artwork URLs are guessed.
-- The protobuf index unit is unknown. Conservative candidate matching is a
-  guarded fallback, not evidence that TikTok uses a particular offset unit.
-- The signer accepts safe `http(s)` artwork URLs. The app renderer intentionally
-  accepts HTTPS only, so HTTP-only URLs remain text.
-- Actual shortcode mappings, image hosts, and index semantics should be
-  confirmed using captured LIVE events before catalog changes are made.
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

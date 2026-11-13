@@ -1,95 +1,35 @@
-# Cloud Account (Desktop native auth)
+# Cloud account / Cuenta Cloud
 
-PR6 (`feat/desktop-cloud-auth`) integrates RemakeBackend native Cloud login into
-TikTools Desktop by reusing the pinned `cloud-client` crate (vendored snapshot
-of RemakeBackend at `6aead4e`). No second OAuth flow is implemented.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-## Components
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-| Area | Location |
-| --- | --- |
-| Vendored Cloud client | `crates/cloud-client/` (pinned snapshot, do not hand-edit; re-vendor to update) |
-| Auth state machine | `crates/tiktools-cloud-auth/` (`CloudAuth`, `TokenStore`, `Persistence`) |
-| Core control surface | `crates/tiktools-core/src/cloud_account.rs`, `crates/tiktools-core/src/control/cloud_account.rs` |
-| Control API (native routes) | `crates/tiktools-control-api/src/modules/cloud.rs` (`cloud.*`, feature `cloud-auth`) |
-| Desktop wiring | `crates/tiktools-desktop` (feature `cloud-auth`, OS keychain via `os-keychain`) |
-| CLI | `crates/tiktools-cli/src/commands/cloud.rs` (`cloud status/login/logout/restore`, feature `cloud-auth`) |
-| Frontend | `src/web/entities/cloud-account/`, `src/web/features/cloud-account/ui/CloudAccountEditor.vue`, Settings section |
+**Status / Estado:** available in current source; host/platform prerequisites still apply / disponible en el código actual; se aplican los requisitos del host y la plataforma.
 
-## Flow
+**Source review:** The current native account wrapper still uses CloudAuth and an OS token store, with no plaintext file fallback. The old PR number and vendored snapshot are provenance, not the current service contract.
 
-1. `cloud.login.begin` starts the loopback receiver, then returns the
-   `browserUrl` (`{origin}/desktop/login?...&state=...&codeChallenge=...`).
-2. `cloud.login.open` opens the URL in the **system browser** (never a WebView).
-3. `cloud.login.complete` waits for the loopback callback (validates `state`,
-   single-use code), redeems the PKCE code at
-   `POST {origin}/api/v1/native/handoff/redeem`, then verifies the session
-   with `GET {origin}/api/v1/native/me`.
-4. The session token is stored **only** in the OS credential store
-   (`OsTokenStore`, via the pinned `cloud-client` keychain adapter) and in
-   process memory. It never reaches the frontend, localStorage, SQLite, logs,
-   or plaintext files; only nonsecret `AccountStatus` crosses to the UI.
-5. Restart: `cloud.status` / `cloud.restore` reload the token from the
-   keychain and revalidate it against `/me`. Expired sessions surface
-   `signedIn: false` with an error instead of failing silently.
-6. `cloud.logout` revokes server-side (`POST /native/logout`) and deletes the
-   keychain entry.
+**Revisión del código:** La cuenta nativa sigue usando CloudAuth y el almacén del sistema, sin alternativa en un archivo de texto. El número del PR y la copia vendorizada son antecedentes, no el contrato actual del servicio.
 
-## Configuration
+<span id="components"></span>
+<span id="components-"></span>
+<span id="configuration"></span>
+<span id="configuration-"></span>
+<span id="flow"></span>
+<span id="flow-"></span>
+<span id="security-properties"></span>
+<span id="security-properties-"></span>
+<span id="validation-2026-11-03-local"></span>
+<span id="validation-2026-11-03-local-"></span>
 
-- Release builds pin the Cloud instance at build time using
-  `TIKTOOLS_CLOUD_ORIGIN`, or use the built-in official origin when it is absent.
-  Runtime environment variables cannot replace or disable a release's instance.
-  Operators can compile an empty value, `off` or `none` to disable Cloud;
-  `cloud.*` then fails closed with `cloud-not-configured`.
-- Debug builds additionally accept runtime `TIKTOOLS_CLOUD_ORIGIN` for isolated
-  development/staging (including the same disable values). Their precedence is:
-  1. the runtime development override,
-  2. the operator's build-time value,
-  3. the built-in official origin
-     (`tiktools_cloud_auth::DEFAULT_CLOUD_ORIGIN`,
-     `https://remakebackend-production-a872.up.railway.app`).
-- Signing in stays optional: the app never contacts the origin until the user
-  presses **Sign in** (or a persisted session is restored), and every local
-  feature works offline.
-- Plain HTTP is accepted only for loopback IP literals (local development).
-- Without the `cloud-auth` (resp. `os-keychain`) cargo features, the backend
-  has no `cloud.*` methods and the CLI rejects `cloud ...` with a rebuild hint.
-- The OS keychain is mandatory: there is no file fallback. When the keychain
-  is unavailable, login reports `keychain-unavailable` and keeps no token.
+**Cloud account / Cuenta Cloud** (User / Usuario): [English](content/en/user/cloud/account.md) · [Español](content/es/user/cloud/account.md).
 
-## Security properties
+<span id="cloud-account-desktop-native-auth"></span>
+<span id="cloud-account-desktop-native-auth-"></span>
 
-- System browser only; loopback receiver binds before the browser opens.
-- `state` mismatch and unexpected callback origins are rejected; codes are
-  single-use and callback replay fails.
-- Bearer [REDACTED] are attached only to native Cloud API routes.
-- Tokens are `SecretString`/`Zeroize` in memory (`LoginAttempt` wipes the
-  verifier material); keychain entries are namespaced by origin + account id,
-  isolating multiple accounts/origins.
-- No automatic fallback to insecure storage; offline startup keeps local-first
-  behavior unchanged.
+**Cloud integration / Integración Cloud** (Developer / Desarrollo): [English](content/en/developer/cloud.md) · [Español](content/es/developer/cloud.md).
 
-## Validation (2026-11-03, local)
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/CLOUD-ACCOUNT.md).
 
-- `cargo test -p tiktools-cloud-auth --locked`: **10 passed, 0 failed**.
-  Covers login/logout (incl. fresh-process logout revocation + cleanup),
-  expired session, invalid state/PKCE, callback replay, browser cancellation,
-  offline startup/restore, account isolation, restart persistence, keychain
-  failure. Suite previously deadlocked (callback delivered with nobody
-  listening) and the mock spoke snake_case PKCE; both fixed in this PR.
-- `cargo test -p tiktools-core --locked`: **292 passed**; control-api
-  suites green.
-- `cargo fmt --all -- --check` clean; `cargo clippy --workspace
-  --all-targets --all-features --locked -- -D warnings` clean.
-- Builds with `--no-default-features` (no `cloud-auth`) still compile;
-  CLI `cloud ...` without the feature prints a rebuild hint.
-- Frontend: `vitest` **101 files / 550 tests green**, `eslint
-  --max-warnings=0` clean, `vue-tsc --noEmit` clean.
-- Real-binary login E2E (`tiktools --standalone cloud ...`) against a
-  disposable loopback mock Cloud **plus the real OS keychain**
-  (KDE ksecretd): status → login (callback injected, state+PKCE verified,
-  redeem, `/me`) → fresh-process restore (keychain persistence) → logout
-  (server revoke + keychain delete). ALL-E2E-PASS; keychain left clean.
-- Not validated: real Google OAuth, real OS keychains on Windows/macOS,
-  production trust material. Staging keys are not production anchors.
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/CLOUD-ACCOUNT.md); SHA-256 `8251930a8f77bc169b29d7f3f7883735f3714a920b0ea5125c601d3e931bed00`.
+
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

@@ -1,73 +1,24 @@
-# Desktop packaging (in development)
+# Desktop packaging / Empaquetado del escritorio
 
-The release workflow stages portable ZIP and TAR.GZ archives and builds NSIS,
-DEB, and AppImage installers. It checks extracted installer resources against
-the portable staging tree and runs the extracted executable's version command.
-Installer upgrades and normal startup still require real Windows and Linux
-smoke tests; package extraction alone does not establish that they work.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-`Packager.toml` uses cargo-packager 0.11.8 and reuses
-`release/staging/TikTools`, which the existing portable packaging task creates.
-Run the normal frontend and release binary builds, then run
-`RELEASE_TAG=v4.0.0 RELEASE_PLATFORM=linux-x86_64 bun scripts/task.ts package`
-(use `windows-x86_64` on Windows). This stages and verifies the frontend and
-built-in plugins once and creates the portable archive. Set the tag to the
-actual release version; all version files and the compiled executable must
-match it. CI checks these before staging.
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-Before running Packager, explicitly check the **staged** binary as well:
+**Status / Estado:** experimental or incomplete; verify the limits in the current guide / experimental o incompleto; revisa los límites de la guía actual.
 
-```sh
-RELEASE_TAG=v4.0.0 RELEASE_BINARY=release/staging/TikTools/tiktools-desktop \
-  bun scripts/check-version.ts --binary
-NO_STRIP=1 cargo packager --config Packager.toml --formats deb,appimage
-```
+**Source review:** Packager.toml and package-release.ts stage the executable and web assets without bundled external plugins. Extraction checks do not prove real installation, upgrade or restart acceptance.
 
-Alternatively, after the portable staging task succeeds, run
-`RELEASE_TAG=v4.0.0 RELEASE_PLATFORM=linux-x86_64 bun scripts/package-installers.ts`.
-This checks the staged executable's reported version, requires Packager 0.11.8,
-compares extracted contents with staged assets, checks Linux desktop entries
-and icons, validates the DEB GTK/WebKitGTK dependency declarations, and writes
-versioned installers without overwriting existing outputs. AppImage ELF files can be changed by
-linuxdeploy; for those files it checks their GNU build IDs and executable version
-instead of byte equality. This is a packaging check, not a cryptographic
-signature check. It sets
-`NO_STRIP=1` because linuxdeploy's bundled strip does not support RELR sections
-in some current Linux libraries. Windows uses the same command with
-`RELEASE_PLATFORM=windows-x86_64` in PowerShell environment variables.
+**Revisión del código:** Packager.toml y package-release.ts preparan el ejecutable y el frontend sin plugins externos incluidos. Verificar la extracción no demuestra la instalación, actualización o reinicio en equipos reales.
 
-On Windows PowerShell, set `RELEASE_TAG` and `RELEASE_BINARY` in the process
-environment, using `release/staging/TikTools/tiktools-desktop.exe` for the
-latter, then run the same version check followed by
-`cargo packager --config Packager.toml --formats nsis`. The NSIS configuration
-selects per-user installation and checks for Microsoft's WebView2 Runtime;
-if it is absent, the installer stops and directs the user to Microsoft's
-download page. This check and installer behavior have not been tested on
-Windows yet.
+<span id="desktop-packaging-in-development"></span>
+<span id="desktop-packaging-in-development-"></span>
 
-DEB resources are installed under `/usr/lib/tiktools-desktop`; portable and
-Windows resources are adjacent to the executable. AppImage uses the same
-relative `usr/lib` layout as the DEB staging step. User data remains in
-`AppPaths`, outside the installation directory. The DEB dependency list uses
-Debian/Ubuntu package names and alternatives; other Linux distributions use
-their own package names and should use a tested AppImage or portable build.
-For a local Linux startup smoke test with an available graphical display and
-FUSE, run `bun scripts/smoke-appimage.ts <AppImage> 4.0.0`. It uses a disposable
-profile, disables bundled plugins, checks installation detection, and waits for
-the frontend to become ready. This does not exercise an update, plugin startup,
-or a clean machine; those still require separate tests.
+**Release engineering / Ingeniería de versiones** (Developer / Desarrollo): [English](content/en/developer/releases.md) · [Español](content/es/developer/releases.md).
 
-To migrate from a portable version, close TikTools and install a verified
-release through the platform installer once installers are available. The
-default data directory is independent of the portable executable, but back up
-the data directory first, especially before a database migration. Portable
-archives require manual replacement; they are not eligible for automatic
-installation. Reinstalling a previous version is a manual recovery option and
-does not reverse database schema changes.
+**Install a binary / Instalar un binario** (User / Usuario): [English](content/en/user/installation.md) · [Español](content/es/user/installation.md).
 
-The release workflow creates a new draft release, downloads its uploaded assets,
-checks their SHA-256 hashes and file list, and only then publishes the draft.
-It does not replace assets on an existing release. If publication fails, inspect
-and remove the incomplete draft before retrying; never delete a published
-historical release to retry. This verification does not activate the updater
-feed: signed metadata publication remains a separate, unfinished release gate.
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/APP-PACKAGING.md).
+
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/APP-PACKAGING.md); SHA-256 `c541179e0ebeec43e3425380681f4455495dfe7feb9fd3a771197e377998c2cf`.
+
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

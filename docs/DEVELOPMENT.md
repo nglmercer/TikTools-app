@@ -1,328 +1,58 @@
-# Development Guide
-
-TikTools has two intentionally separate edit loops: Bun runs Vite/Vue
-builds/tests, and Cargo builds/tests the Rust host. The desktop integration
-is only needed when changing Winit, Wry, the tray, or the final IPC bridge.
-
-Bun 1.4.4 is the supported frontend version and is pinned in `package.json`.
-Use `bun ci` for a clean install from `bun.lock`; run `bun install` only when
-changing dependencies intentionally.
-
-## Fast checks
-
-```bash
-bun run lint
-bun x vue-tsc --noEmit
-bun scripts/task.ts frontend-test
-cargo check -p tiktools-core --locked
-cargo test -p tiktools-core --locked
-cargo check -p tiktools-plugin-api --locked
-cargo test -p tiktools-plugin-sdk --locked
-cargo check -p tiktools-tiktok --locked
-```
-
-The core checks do not compile Winit, Wry, GTK, or tray integration. The
-workspace feature graph keeps the optional native plugin, persistence, HTTP,
-TikTok, and WASM boundaries explicit.
-
-## Web development loops
-
-Three scripts cover browser development, from full stack to frontend only:
-
-```bash
-bun scripts/start-web-dev.ts   # host + adapter + Vite, with dev plugins prepared
-bun run dev         # same loop, skips dev-plugin preparation
-bun scripts/task.ts serve     # Vite only, against an already-running host
-```
-
-`bun run dev` prints a one-click join link like
-`http://127.0.0.1:<vite-port>/#pair=<code>` alongside the one-use pairing
-code. Ctrl+click it to open the browser already signed in: the code travels in
-the URL fragment (never sent to the server or written to access logs), the
-pairing page clears it from the address bar immediately, and it works exactly
-once within five minutes. Typing the code manually still works.
-
-A headless agent on the same machine can pair without touching the web UI by
-posting the printed code with the adapter origin:
-
-```bash
-ADAPTER=http://127.0.0.1:<adapter-port>  # first line printed by `tiktools web`
-CODE=<six-digit-code>                     # second line printed by `tiktools web`
-curl -s -c /tmp/tiktools-jar -H "Origin: $ADAPTER" \
-  -H 'Content-Type: application/json' \
-  -d "{\"code\":\"$CODE\"}" "$ADAPTER/__local/pair"
-```
-
-Mold and kache engage automatically through
-`scripts/cargo-with-linker.mjs`. Do not add sccache: it sets
-`RUSTC_WRAPPER`, which disables the automatic kache layer covering the
-same rebuilds.
-
-## Optional build cache (Kache)
-
-Kache is an optional rustc compiler cache that speeds up Rust builds. It is
-a transparent acceleration layer — Cargo calls `kache`, which calls `rustc`
-— and is never a runtime or Cargo dependency of TikTools.
-
-Kache is used automatically whenever it is installed and on `PATH`; no
-configuration is needed. Behavior:
-
-- An existing `RUSTC_WRAPPER` (for example `sccache`) always wins and is
-  never overridden.
-- Set `TIKTOOLS_KACHE=0` to opt out, or `TIKTOOLS_KACHE=1` to require
-  kache — the wrapper fails with a clear error when it is requested but
-  not on `PATH`.
-- Kache composes with the mold and lld-link linker configuration.
-- Install kache from its prebuilt release binary or build it with
-  `cargo install --git https://github.com/kunobi-ninja/kache` (Rust 1.95
-  or newer; the workspace MSRV is 1.95).
-
-`.kache.toml` holds project-safe defaults only; see the file for the rules
-before adding keys.
-
-## Desktop loop
-
-```bash
-bun scripts/task.ts frontend-build
-cargo check -p tiktools-desktop --locked
-cargo run -p tiktools-desktop --locked
-```
-
-The normal `bun run start` command launches the Vite dev server, waits until
-it responds, prepares development plugins, and runs the desktop host against
-`TIKTOOLS_DEV_URL`. Plugin sources live in the separate
-[`plugins-example-tiktools`](https://github.com/nglmercer/plugins-example-tiktools)
-repository. When a checkout is found (`TIKTOOLS_PLUGINS_REPO=<path>`, or a
-sibling clone next to this repository), every package under its `plugins/`
-directory is built in debug mode and staged under the ignored `.dev-plugins`
-runtime root (`TIKTOOLS_DEV_PLUGINS_DIR`). Without a checkout TikTools starts
-normally with no development plugins; a package that fails to build is
-reported and skipped. This is a development convenience only; it does not
-install plugins into the user profile or add a compile-time plugin registry.
-
-```text
-workspace/
-├── TikTools-app/              # this repository
-├── RemakeBackend/             # optional Cloud backend
-└── plugins-example-tiktools/  # optional plugin sources
-``` Set
-`TIKTOOLS_SKIP_DEV_PLUGINS=1` to skip it, or use `bun scripts/task.ts rust run -p tiktools-desktop` when the
-existing frontend and plugin artifacts are sufficient.
-
-To validate the packaged frontend instead (the `tiktools://app` custom
-protocol path used by releases), run:
-
-```bash
-bun scripts/task.ts packaged
-```
-
-For manual live frontend changes:
-
-```bash
-bun scripts/task.ts serve
-TIKTOOLS_DEV_URL=http://localhost:3000 cargo run -p tiktools-desktop --locked
-```
-
-Browser-level E2E runs the same Vite app in Chromium against a fake
-`window.ipc` host (never the Wry shell):
-
-```bash
-bun scripts/task.ts e2e test            # headless suite
-bun scripts/task.ts e2e test --ui         # interactive debugging
-bun scripts/task.ts e2e test --update-snapshots     # regenerate screenshot baselines (inspect diffs!)
-```
-
-See [Playwright E2E](PLAYWRIGHT.md) for the fake-host contract, stability
-rules, and how to add specs.
-
-The SonicBoom plugin ships its own UI and backend builds plus a
-standalone browser suite (see [Plugin UI architecture](PLUGIN_UI_ARCHITECTURE.md)):
-
-```bash
-bun x vite build --config plugins-example-tiktools/plugins/sonicboom/ui/vite.config.ts       # isolated UI → plugins-example-tiktools/plugins/sonicboom/ui/dist/
-bun scripts/build-sonicboom-backend.ts  # chat observer → plugins-example-tiktools/plugins/sonicboom/backend/dist/
-bun scripts/task.ts e2e test --config plugins-example-tiktools/plugins/sonicboom/ui/playwright.config.ts        # UI suite + host/plugin interop (build UI first)
-bun test plugins-example-tiktools/plugins/sonicboom/shared plugins-example-tiktools/plugins/sonicboom/ui/src             # plugin shared-logic unit tests (the Rust backend is covered by cargo test --workspace)
-```
-
-Release builds use the custom `tiktools://app` protocol:
-
-```bash
-bun scripts/task.ts frontend-build
-cargo build -p tiktools-desktop --release --locked
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-```
-
-The portable release package is assembled by `scripts/package-release.ts`.
-Set `RELEASE_TAG` and one of `windows-x86_64`, `linux-x86_64`,
-`macos-arm64`, or `macos-x86_64` as `RELEASE_PLATFORM` after building:
-
-```bash
-RELEASE_TAG=v0.1.0 RELEASE_PLATFORM=linux-x86_64 bun scripts/task.ts package
-```
-
-The resulting archive has this layout and is validated before it is returned:
-
-```text
-TikTools/
-├── LICENSE
-├── README.md
-├── tiktools-desktop[.exe]
-└── web/
-    ├── index.html
-    └── assets/
-```
-
-`bun scripts/task.ts version check` verifies that `package.json` matches the
-canonical `[workspace.package].version` in `Cargo.toml`. It takes no
-arguments; Git tags are not compared against the code.
-
-## Cutting a release
-
-Bump first, then tag. To ship `vX.Y.Z`:
-
-1. run `bun scripts/task.ts version bump vX.Y.Z` — it updates `package.json`,
-   `Cargo.toml` `[workspace.package]`, the workspace entries in
-   `Cargo.lock`, and standalone fixture/example lockfiles in one step
-2. commit and push to `remake`
-3. create the GitHub release (or push tag `vX.Y.Z`) — the workflow
-   validates the versions, builds, packages, and publishes idempotently
-
-## Source ownership
-
-- `crates/tiktools-desktop`: UI-thread lifecycle, Wry IPC callback, custom
-  asset protocol, tray, platform event-loop setup, and the persistent local
-  control-IPC server sharing the desktop's one `AppCore`.
-- `crates/tiktools-control-api`: typed JSON-RPC router, NDJSON stdio/IPC
-  transports, `ControlClient`, discovery, and integration/parity tests.
-- `crates/tiktools-cli`: IPC-first CLI (`--standalone` opts out) over the
-  same methods.
-- `crates/tiktools-core`: control operations, service graph, domain event
-  bus, points, persistence orchestration, automation, and capability policy.
-- `crates/tiktools-tiktok`: native discovery, signing, WebSocket reconnects,
-  decode, and stable event values.
-- `crates/tiktools-plugin-api`: manifest, protocol, capability names, and C ABI.
-- `crates/tiktools-plugin-sdk`: typed plugin trait, process adapter, result
-  compatibility boundary, and runtime-neutral developer ergonomics.
-- `crates/tiktools-plugin-macros`: small generated process/native entry-point
-  bridges; unsafe FFI details stay in the SDK implementation.
-- `crates/tiktools-plugin-loader`: runtime scanning, validation, installation,
-  dynamic native libraries, process plugins, and the optional WASM boundary.
-- `src/web`: Vue presentation only. `platform/control-client.ts` is the
-  only module that touches `window.ipc`; `features/` holds one composable
-  per domain and `composables/useAppController.ts` only wires them.
-- `src/automation`: generated editor contracts, the native event registry, and
-  the single built-in event-type list consumed by the Vue UI.
-
-Keep Wry/Winit types out of core services. Use `HostEmitter` for outbound UI
-messages and `EventLoopProxy` for UI-thread work. Never put database handles,
-VM values, native TikTok objects, or plugin instances into an automation JSON
-event.
-
-Automation contracts are generated from
-`crates/tiktools-core/src/contracts/`. Run `bun scripts/task.ts contracts` after a
-Rust contract change and `bun scripts/task.ts contracts --check` in CI. Do not add manual
-TikTok event interfaces or a second event registry in the frontend.
-
-## Adding a control method
-
-1. Implement the operation on `AppCore` in `crates/tiktools-core/src/control/`,
-   returning values (never emitting UI messages) with bounded validation.
-2. Register a typed method (`Params` + `Result` with `Serialize`,
-   `Deserialize`, `JsonSchema`) in `crates/tiktools-control-api/src/modules/`.
-3. Publish a `DomainEvent` when clients must observe the change.
-4. Call it from Vue through `src/web/platform/control-client.ts` inside the
-   owning `src/web/features/` composable; never touch `window.ipc` directly.
-5. Add CLI verbs only when a typed subcommand earns its weight; raw access
-   always works through `tiktools rpc <method> '<params>'`.
-6. Test the operation, the RPC boundary, and invalid-input rejection.
-
-The legacy `PageMessage`/`IpcRouter` path is frozen as a compatibility layer:
-do not add new variants there. `src/shared/messages.ts` still specifies
-host-push shapes consumed by the feature composables.
-
-## Adding an automation action
-
-Host action descriptors belong in the Rust catalog and are sent as JSON in the
-behavior snapshot. The Vue editor renders their field metadata; it must not
-execute host behavior. An action implementation should:
-
-- validate its JSON configuration;
-- request a named capability through the core broker;
-- keep network/filesystem access outside the WebView;
-- emit JSON-safe results and logs;
-- include a Rust unit test.
-
-Plugin actions are declared in a runtime manifest under `actionTypes`; no
-plugin id is added to Rust source.
-
-## Adding workflow nodes
-
-Workflow node definitions are JSON-safe data returned by
-`automation.nodes.list`. Saved graphs must remain schema version 1 until a
-deliberate migration is introduced. New nodes need stable type/version values,
-validated ports, bounded configuration, and a migration-compatible execution
-implementation in core.
-
-## Plugin development
-
-Use `tiktools-plugin-sdk` for Rust plugin ergonomics and
-`tiktools-plugin-api` for low-level bindings. Native plugins export
-`tiktools_plugin_init` through `tiktools_export_native_plugin!`; the bridge
-passes serialized bytes through the C ABI. Do not pass Rust `String`, `Vec`,
-trait objects, or futures across that boundary. Process plugins are standalone
-executables speaking length-prefixed JSON on stdin and stdout; they are
-isolated for crashes, not sandboxed. JavaScript source files are not silently
-executed by the desktop host.
-
-Install a package after compilation:
-
-```bash
-cargo run -p tiktools-desktop --locked -- --install-plugin ./my-plugin.plugin
-```
-
-The installer validates manifest schema, checksums, package-relative paths,
-symlinks, and atomic replacement before the next runtime scan.
-
-## Paths and databases
-
-Use `AppPaths::from_environment` rather than `current_dir` for runtime data.
-The supported overrides are `TIKTOOLS_HOME`, `TIKTOOLS_DATA_DIR`,
-`TIKTOOLS_PLUGINS_DIR`, `TIKTOOLS_PLUGIN_DATA_DIR`, `TIKTOOLS_LOG_DIR`,
-`TIKTOOLS_TEMP_DIR`, and `TIKTOOLS_WEB_ROOT`.
-
-Do not rename or recreate the existing SQLite tables as part of ordinary
-feature work. Add fixtures when a persisted record format changes, and never
-overwrite a user's destination database during path migration.
-
-## Verification before commit
-
-```bash
-bun ci
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-cargo test --workspace --locked
-cargo build -p tiktools-desktop --release --locked
-cargo check -p tiktools-desktop --locked
-bun run lint
-bun x vue-tsc --noEmit
-bun scripts/task.ts frontend-test
-bun scripts/task.ts frontend-build
-git diff --check
-```
-
-## Branch protection recommendation
-
-Repository settings are intentionally managed in GitHub rather than by this
-repository. Protect `remake` by requiring pull requests, up-to-date branches,
-and these checks before merge:
-
-- `frontend`
-- `rust`
-- each desktop cross-platform check
-- CodeQL where available
-- dependency review where available
-
-Also prevent force pushes and branch deletion. Release tags are controlled by
-maintainers.
+# Development workflow / Flujo de desarrollo
+
+This legacy URL is retained. Use the topic guides below for current instructions.
+
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
+
+**Status / Estado:** implemented behavior mixed with experimental or historical material / comportamiento implementado mezclado con material experimental o histórico.
+
+**Source review:** Use the current task runner: start owns Vite plus Wry; dev uses the local-browser adapter. The bridge is shared/api and external plugin commands belong to their own checkout; obsolete SonicBoom build helpers are absent.
+
+**Revisión del código:** Usa el ejecutor actual: start administra Vite y Wry; dev usa el adaptador del navegador local. El puente está en shared/api y los plugins tienen su propio checkout; los antiguos helpers de compilación SonicBoom ya no existen.
+
+<span id="adding-a-control-method"></span>
+<span id="adding-a-control-method-"></span>
+<span id="adding-an-automation-action"></span>
+<span id="adding-an-automation-action-"></span>
+<span id="adding-workflow-nodes"></span>
+<span id="adding-workflow-nodes-"></span>
+<span id="desktop-loop"></span>
+<span id="desktop-loop-"></span>
+<span id="development-guide"></span>
+<span id="development-guide-"></span>
+<span id="fast-checks"></span>
+<span id="fast-checks-"></span>
+<span id="optional-build-cache-kache"></span>
+<span id="optional-build-cache-kache-"></span>
+<span id="paths-and-databases"></span>
+<span id="paths-and-databases-"></span>
+<span id="plugin-development"></span>
+<span id="plugin-development-"></span>
+<span id="source-ownership"></span>
+<span id="source-ownership-"></span>
+<span id="web-development-loops"></span>
+<span id="web-development-loops-"></span>
+
+**Development setup / Preparar el desarrollo** (Developer / Desarrollo): [English](content/en/developer/setup.md) · [Español](content/es/developer/setup.md).
+
+<span id="verification-before-commit"></span>
+<span id="verification-before-commit-"></span>
+
+**Testing / Pruebas** (Developer / Desarrollo): [English](content/en/developer/testing.md) · [Español](content/es/developer/testing.md).
+
+**Architecture / Arquitectura** (Developer / Desarrollo): [English](content/en/developer/architecture.md) · [Español](content/es/developer/architecture.md).
+
+**Contributing / Contribuir** (Developer / Desarrollo): [English](content/en/developer/contributing.md) · [Español](content/es/developer/contributing.md).
+
+<span id="branch-protection-recommendation"></span>
+<span id="branch-protection-recommendation-"></span>
+<span id="cutting-a-release"></span>
+<span id="cutting-a-release-"></span>
+
+**Release engineering / Ingeniería de versiones** (Developer / Desarrollo): [English](content/en/developer/releases.md) · [Español](content/es/developer/releases.md).
+
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/DEVELOPMENT.md).
+
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEVELOPMENT.md); SHA-256 `9c67bb814dac69dba3f426be0e028a78ef423d10d58d16ec9e536774d5447c97`.
+
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

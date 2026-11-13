@@ -1,140 +1,36 @@
-# Playwright E2E
+# Browser testing / Pruebas de navegador
 
-Browser-level end-to-end verification in Chromium. Playwright never
-drives the Wry shell: native behavior stays covered by Rust tests. Two
-suites cover the two frontends:
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-- **Main suite** (`tests/e2e`, `playwright.config.ts`): the generic
-  TikTools SPA against a fake host at the exact `window.ipc` boundary.
-- **Plugin UI suite** (`plugins-example-tiktools/plugins/sonicboom/ui/tests`,
-  `plugins-example-tiktools/plugins/sonicboom/ui/playwright.config.ts`): the compiled plugin UI
-  against a fake native broker, plus a real host/plugin interop spec.
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-Testing layers:
+**Status / Estado:** available in current source; host/platform prerequisites still apply / disponible en el código actual; se aplican los requisitos del host y la plataforma.
 
-```text
-Bun unit tests (src/web, src/automation, src/plugin-ui)
-  + Rust unit/integration tests (cargo)
-  + Playwright main E2E (tests/e2e)
-  + Playwright plugin UI E2E + interop (plugins-example-tiktools/plugins/sonicboom/ui/tests)
-  + Playwright screenshot regression (tests/e2e/screenshots.spec.ts)
-```
+**Source review:** The main Playwright suite still uses tests/e2e and a fake host boundary. Plugin UI suites belong to the external plugin checkout; Chromium results do not establish native Wry, real account or production network behavior.
 
-## Run
+**Revisión del código:** La suite principal usa tests/e2e y un host simulado. Las pruebas de interfaz de plugins pertenecen al checkout externo; Chromium no acredita Wry nativo, cuentas reales ni redes de producción.
 
-```bash
-bun scripts/task.ts e2e test            # headless Chromium main suite
-bun scripts/task.ts e2e test --ui         # interactive UI mode (development/debugging)
-bun scripts/task.ts e2e test --headed     # headed Chromium
-bun scripts/task.ts e2e test --update-snapshots     # regenerate screenshot baselines (see below)
+<span id="adding-a-test"></span>
+<span id="adding-a-test-"></span>
+<span id="fake-host-main-suite"></span>
+<span id="fake-host-main-suite-"></span>
+<span id="playwright-e2e"></span>
+<span id="playwright-e2e-"></span>
+<span id="plugin-ui-suite"></span>
+<span id="plugin-ui-suite-"></span>
+<span id="run"></span>
+<span id="run-"></span>
+<span id="screenshots"></span>
+<span id="screenshots-"></span>
+<span id="specs-main-suite"></span>
+<span id="specs-main-suite-"></span>
 
-bun x vite build --config plugins-example-tiktools/plugins/sonicboom/ui/vite.config.ts  # build the plugin UI first (once per change)
-bun scripts/task.ts e2e test --config plugins-example-tiktools/plugins/sonicboom/ui/playwright.config.ts   # headless Chromium plugin UI suite
-```
+**Testing / Pruebas** (Developer / Desarrollo): [English](content/en/developer/testing.md) · [Español](content/es/developer/testing.md).
 
-The first run installs nothing extra: `@playwright/test` is a
-devDependency. The main config starts the app with `bun scripts/task.ts serve`
-automatically (`reuseExistingServer: true`); the UI config serves the
-compiled `ui/dist/` with `vite preview` (with
-`Access-Control-Allow-Origin: *`, which opaque-origin frames require —
-every plugin-asset host must send it, including the desktop custom
-protocol, which is NOT CORS-exempt; production parity is pinned by the
-Rust asset-server header tests, not by this preview config).
+**Docs and demo development / Desarrollo de documentación y demo** (Developer / Desarrollo): [English](content/en/developer/demo.md) · [Español](content/es/developer/demo.md).
 
-## Fake host (main suite)
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/PLAYWRIGHT.md).
 
-`tests/e2e/fixtures/tiktools-host.ts` installs `window.ipc` via
-`page.addInitScript()` before `page.goto()`. Responses flow back through
-`window.__webview_on_message__`, exactly like the native bridge. Behavior
-is data-driven through the mutable `window.__TIKTOOLS_E2E_STATE__` object,
-so specs can change host responses mid-test with `page.evaluate()`.
-Legacy `type:` page messages (`plugin-ui-open`/`plugin-ui-close`) are
-recorded in `state.legacyMessages` for assertions.
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLAYWRIGHT.md); SHA-256 `674cd6f6e61004b578b8c1b765d94650dbff68015dba74e982780176ff6fd6ed`.
 
-- Implemented RPCs cover the boot path and tested screens
-  (`automation.snapshot/runs`, `app.state.*`, `plugins.settings.*`,
-  `plugins.options/health/action.execute/token.provision`,
-  `processors.status`, `gifts.list`, `points.*`, `creators.*`, `live.status`).
-- `state.failures[method]` forces a method to fail (error-state tests).
-- `state.actionDelayMs` delays action execution (in-flight-state tests).
-- **Unexpected RPC methods fail tests loudly**: the dispatcher records
-  them in `state.unhandled` and answers with an error; every spec calls
-  `assertNoUnhandledCalls(page)` so new frontend dependencies cannot hide
-  behind silent mocks.
-- Every spec captures `console` errors and `pageerror`s and fails when
-  any appear (`consoleCapture.assertClean()`), and traces are retained on
-  failures (`trace: 'retain-on-failure'`).
-
-Fixtures: `tests/e2e/fixtures/states.ts` (deterministic app states:
-empty, connected creator, SonicBoom connected/disconnected, legacy
-TTS-status/list/form/connection pages, webview page,
-action/option failures, locales/themes),
-`tests/e2e/fixtures/plugins.ts` (descriptors, settings, voice/output
-options, typed webview UI descriptor), and
-`tests/e2e/fixtures/plugin-frame.ts` (a minimal protocol-speaking
-plugin document served through a route at the
-`__TIKTOOLS_PLUGIN_UI_BASE__` override — real Chromium has no
-`tiktools-plugin://` scheme — exercising the production frame, shim,
-and control client end to end).
-
-## Specs (main suite)
-
-| file | coverage |
-|------|----------|
-| `navigation.spec.ts` | boot, named nav, dynamic plugin tab, removal fallback |
-| `plugin-pages.spec.ts` | declarative form save, dynamic list + refresh, text page, option-source error |
-| `plugin-webview.spec.ts` | legacy TTS section degrades to a note; inline frame round-trips settings/actions/events; pop-out posts the host message |
-| `plugin-iframe-assets.spec.ts` | external module + stylesheet load in `sandbox="allow-scripts"` with CORS (and are blocked without it — the production blank-iframe mode); inline tab renders the real compiled SonicBoom bundle |
-| `connections.spec.ts` | empty state, probe success/failure, settings stay editable |
-| `accessibility.spec.ts` | named nav + `aria-current`, launcher keyboard reachability, `status` errors |
-| `screenshots.spec.ts` | semantic assertions + deterministic baselines |
-
-## Plugin UI suite
-
-`plugins-example-tiktools/plugins/sonicboom/ui/tests/` runs against the **compiled** `ui/dist/`
-bundle (`bun x vite build --config plugins-example-tiktools/plugins/sonicboom/ui/vite.config.ts` first), so the suite verifies what
-actually ships in the isolated view.
-
-| file | coverage |
-|------|----------|
-| `tts-ui.spec.ts` | boot from broker (settings/voices/outputs), tester speak + log, failure surface, save coalescing, output refresh |
-| `interop.spec.ts` | the real `PluginWebviewHost` (bundled from `src/web` at test time) drives the real UI in a sandboxed iframe over `postMessage`; preview ACAO header pinned as a documented assumption (production parity lives in the Rust tests) |
-
-The interop spec pins the versioned broker envelope on both sides at
-once — client/shim drift fails here, not in production. (It once caught
-a real bug: Vue reactive Proxies posted across the frame boundary,
-which structured clone rejects.)
-
-## Screenshots
-
-Baselines live in `tests/e2e/screenshots.spec.ts-snapshots/` (one
-Chromium project owns them). Stability rules: fixed 1440×900 viewport,
-`deviceScaleFactor: 1`, fixed locale/theme/mock data, frozen clock
-(`page.clock.install`), no real HTTP, disabled animations, hidden caret,
-no remote avatars.
-
-Regenerating baselines:
-
-```bash
-bun scripts/task.ts e2e test --update-snapshots
-```
-
-**Do not blindly approve changed screenshots.** Inspect the diff —
-`git diff` on the PNGs plus the Playwright report — and confirm every
-pixel change is an intended visual change before committing. Layout
-regressions from renderer refactors show up here first.
-
-Inspecting failures:
-
-```bash
-bunx playwright show-trace test-results/<failing-test>/trace.zip
-```
-
-## Adding a test
-
-1. Build the host state from `fixtures/states.ts` (extend it with new
-   deterministic states rather than inlining random data).
-2. `installFakeHost(page, state)` before `page.goto('/')`.
-3. Prefer semantic locators: `getByRole`, `getByLabel`, `getByText`.
-4. Assert semantic state first, screenshot second.
-5. End with `assertNoUnhandledCalls(page)` + `consoleCapture.assertClean()`.
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

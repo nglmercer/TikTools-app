@@ -1,217 +1,54 @@
-# Troubleshooting
+# Troubleshooting / Solución de problemas
 
-## The Rust host does not start
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-Build the frontend first:
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-```bash
-bun scripts/task.ts frontend-build
-cargo run -p tiktools-desktop
-```
+**Status / Estado:** available in current source; host/platform prerequisites still apply / disponible en el código actual; se aplican los requisitos del host y la plataforma.
 
-If a debug host says that `index.html` is missing, set `TIKTOOLS_WEB_ROOT` to
-the directory containing `dist/web/index.html`, or set `TIKTOOLS_DEV_URL` to a
-running frontend server. A packaged release must keep `web/index.html` beside
-the executable inside the extracted TikTools folder; release builds ignore
-development URL overrides.
+**Source review:** Use the current owned start launcher for source development and session diagnostics for errors. platform.rs still owns platform-specific WebView setup; packaged web resources and external plugin setup require different recovery steps.
 
-## Linux WebView errors
+**Revisión del código:** Para desarrollar usa el lanzador start y consulta los diagnósticos de sesión. platform.rs mantiene la configuración WebView de cada plataforma; los recursos web empaquetados y los plugins externos requieren recuperaciones distintas.
 
-Wry uses the system GTK/WebKitGTK stack on Linux. Install the development and
-runtime packages supplied by your distribution, then run:
+<span id="automation-script-errors"></span>
+<span id="automation-script-errors-"></span>
+<span id="closing-a-plugin-window-crashes-the-app-linux-x11"></span>
+<span id="closing-a-plugin-window-crashes-the-app-linuxx11"></span>
+<span id="closing-a-plugin-window-crashes-the-app-linuxx11-"></span>
+<span id="database-or-missing-data"></span>
+<span id="database-or-missing-data-"></span>
+<span id="linux-webview-errors"></span>
+<span id="linux-webview-errors-"></span>
+<span id="native-plugin-failed-to-load"></span>
+<span id="native-plugin-failed-to-load-"></span>
+<span id="plugin-is-not-listed"></span>
+<span id="plugin-is-not-listed-"></span>
+<span id="plugin-pop-out-shows-a-broker-error"></span>
+<span id="plugin-pop-out-shows-a-broker-error-"></span>
+<span id="the-packaged-web-application-did-not-become-ready"></span>
+<span id="the-packaged-web-application-did-not-become-ready-"></span>
+<span id="the-page-loads-but-does-not-respond"></span>
+<span id="the-page-loads-but-does-not-respond-"></span>
+<span id="tiktok-connection-errors"></span>
+<span id="tiktok-connection-errors-"></span>
+<span id="troubleshooting"></span>
+<span id="troubleshooting-"></span>
+<span id="useful-checks"></span>
+<span id="useful-checks-"></span>
 
-```bash
-cargo check -p tiktools-desktop
-cargo run -p tiktools-desktop
-```
+**Troubleshooting / Solución de problemas** (User / Usuario): [English](content/en/user/preferences/troubleshooting.md) · [Español](content/es/user/preferences/troubleshooting.md).
 
-Platform-specific setup belongs in `crates/tiktools-desktop/src/platform.rs`;
-the core does not require GTK.
+**FAQ / Preguntas frecuentes** (User / Usuario): [English](content/en/user/preferences/faq.md) · [Español](content/es/user/preferences/faq.md).
 
-Current Linux desktop WebViews require X11/XWayland; native Wayland without
-`DISPLAY` is rejected with a warning. When both `DISPLAY` and
-`WAYLAND_DISPLAY` are present, the host selects the X11 backend for GTK and
-Winit so the raw handles stay compatible.
+**Diagnostics / Diagnósticos** (Developer / Desarrollo): [English](content/en/developer/diagnostics.md) · [Español](content/es/developer/diagnostics.md).
 
-## The packaged web application did not become ready
+<span id="the-rust-host-does-not-start"></span>
+<span id="the-rust-host-does-not-start-"></span>
 
-The hidden window waits up to 10 seconds for the `frontend-ready` IPC after
-the WebView is created. On Linux the event loop keeps pumping GTK every 50 ms
-inside that deadline so WebKit can progress; Windows/macOS wait for the
-deadline directly.
+**Development setup / Preparar el desarrollo** (Developer / Desarrollo): [English](content/en/developer/setup.md) · [Español](content/es/developer/setup.md).
 
-Run with debug logging and inspect the startup transitions:
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/TROUBLESHOOTING.md).
 
-```bash
-RUST_LOG=tiktools=debug bun scripts/task.ts packaged
-tail -n 200 ~/.local/share/TikTools/logs/tiktools.log
-```
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TROUBLESHOOTING.md); SHA-256 `e3c99baa1545981903e75d509a9a2c3a1956abf3d33cb8016a606f6354f826e0`.
 
-Expected sequence:
-
-```text
-Linux desktop display environment
-creating TikTools frontend WebView
-Wry WebView created successfully
-frontend page load started
-frontend page load finished
-frontend-ready IPC received
-```
-
-If only `frontend page load finished` appears, the page loaded but the ready
-signal never arrived; a missing `window.ipc` bridge now throws during
-frontend startup instead of timing out silently. To isolate a custom-protocol
-problem from an event-loop problem, compare with the Vite dev server path:
-
-```bash
-bun scripts/task.ts serve
-RUST_LOG=tiktools=debug \
-TIKTOOLS_DEV_URL=http://127.0.0.1:3000 \
-cargo run -p tiktools-desktop
-```
-
-If the dev-server path works but the packaged path fails, suspect asset
-loading; if both fail, suspect the GTK/Wry/IPC bridge.
-
-## The page loads but does not respond
-
-The Vue app expects the Wry bridge `window.ipc.postMessage`. A normal
-browser tab or an arbitrary HTTP server does not provide that bridge. Use the
-Rust desktop host and inspect DevTools in a debug build. The raw message flow
-is:
-
-```text
-window.ipc.postMessage → Wry → IpcRouter → AppCore → WebView
-```
-
-Invalid or oversized messages are rejected by the Rust parser and logged at
-debug/warn level.
-
-## Plugin pop-out shows a broker error
-
-The separate window loads the same bundle as the inline tab but talks to
-the host through the injected `window.tiktools` surface instead of
-`postMessage`. A generic `broker error` there means the page answered
-its own request: the usual cause is a missing injection (the init script
-never installed `window.tiktools`), which newer clients report
-explicitly as `native plugin broker is unavailable`.
-
-Diagnose with debug logging:
-
-```bash
-RUST_LOG=tiktools=debug bun run start
-```
-
-Expected for a healthy pop-out:
-
-```text
-plugin window opened transport="native"
-```
-
-plus no `plugin broker rejected native request` lines. In DevTools
-(debug build, F12), `window.__tiktools_transport__` reads `'native'` on
-success or `'unavailable'` when the transport is missing. Note that an
-audio-devices HTTP failure (`/api/audio/devices` unreachable) is a
-backend connectivity issue, not a broker failure: the UI renders it as
-an error card and stays usable.
-
-## Closing a plugin window crashes the app (Linux/X11)
-
-Fixed by explicit teardown ordering: the child WebView must drop before
-the parent window, with a GDK display sync between them. If a close
-crash regresses, capture the panic/X11 error with a backtrace:
-
-```bash
-RUST_BACKTRACE=1 RUST_LOG=tiktools=debug bun run start
-```
-
-and look for `BadWindow`, `Failed to focus input context`, or a panic
-in window teardown. The `TIKTOOLS_TEST_NATIVE_WINDOWS=1` native smoke
-test (`plugin_webview::smoke`) replays open/close cycles plus a broker
-round-trip against the real Wry stack; run it with a display available:
-
-```bash
-TIKTOOLS_TEST_NATIVE_WINDOWS=1 cargo test -p tiktools-desktop --locked smoke
-```
-
-## TikTok connection errors
-
-The native client needs a valid creator handle and a network path to TikTok.
-Anonymous discovery may be rate-limited; retry later or supply an authenticated
-Cookie request header. Cookies are held in memory and are not written to
-SQLite or logs.
-
-For signing failures, provide a compatible `webmssdk.js` bundle with
-`TIKTOOLS_TIKTOK_SIGNING_BUNDLE`, or allow the native client to use its configured
-cache/download path. The Rust client uses the pinned `tiktok-signer` crates
-directly and does not require a JavaScript/Bun host process.
-
-## Database or missing data
-
-Rust uses platform app-data paths. Check the resolved overrides:
-
-```text
-TIKTOOLS_HOME
-TIKTOOLS_DATA_DIR
-TIKTOOLS_PLUGINS_DIR
-TIKTOOLS_PLUGIN_DATA_DIR
-TIKTOOLS_LOG_DIR
-TIKTOOLS_TEMP_DIR
-```
-
-A checkout-local `data/tiktok-points.db` or `data/tiktok-automation.db` is
-copied only when the corresponding platform destination does not exist. The
-source is not deleted, and an existing destination is never overwritten.
-
-If SQLite reports a schema error, back up both database files before changing
-anything and run:
-
-```bash
-cargo test -p tiktools-core --features persistence
-```
-
-The Rust schema intentionally preserves the existing table names and JSON
-payload columns.
-
-## Plugin is not listed
-
-Check the runtime plugin directories and make sure each package contains
-`plugin.json` with:
-
-```text
-schemaVersion: 2 | 3
-runtime: native | process | wasm | declarative | napi-vm
-entry: package-relative file
-protocolVersion: 1
-```
-
-The host rejects invalid IDs, path traversal, incompatible versions, platform
-mismatches, missing entries, and JavaScript source entries declared as process
-plugins. Scan order is built-in, user, then development override.
-
-## Native plugin failed to load
-
-Native plugins are trusted in-process libraries. Confirm that the library
-matches the current OS/architecture and exports `tiktools_plugin_init`. Its
-manifest ABI version must match the host. A native library remains loaded for
-the process lifetime; restart TikTools after replacing it.
-
-Use a process plugin when a crash or incompatible native dependency should be
-contained outside the application.
-
-## Automation script errors
-
-Scripts run in QuickJS (`rquickjs`) with bounded source/result sizes and a loop budget.
-They receive JSON `event`, `inputs`, and `data` values only. Node APIs,
-filesystem, network, process spawning, and WebView handles are unavailable.
-Move privileged work into a declared host action or plugin capability.
-
-## Useful checks
-
-```bash
-bun x vue-tsc --noEmit
-bun scripts/task.ts frontend-test
-cargo test --workspace
-cargo check -p tiktools-desktop
-git diff --check
-```
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

@@ -1,40 +1,28 @@
-# TikTools TTS playback and token connection
+# TTS playback and token evidence / Evidencias de reproducción TTS y token
 
-Changes belong to the SonicBoom **plugin inside TikTools-app**. No changes to the
-SonicBoom server are required.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-Enable **Track audio for playback controls** in TTS to see the current queue ID,
-waiting track count, and reported duration. Skip advances the current server audio;
-Pause/Resume affects the current playback; Stop clears the current and waiting
-server audio. These controls affect the shared server queue, including other clients.
-Tracking is off by default and stops polling when disabled or the view unmounts.
-Stale or failed status reads disable the controls.
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-Duration comes from server queue metadata when available, or the `audio_secs` of
-TikTools observer-generated Pocket/Qwen jobs, matched by server, credential and
-playback queue ID. The current server's queue API does not report duration or seek
-position. Manual tests, legacy Supertonic speech and other-client tracks can therefore
-show duration unavailable. No text-based duration estimate or synthetic seek bar
-is presented.
+**Status / Estado:** historical design, release record or dated evidence; not current acceptance / diseño, registro de versión o evidencia histórica; no acredita aceptación actual.
 
-In Connection, **Get API token…** now accepts the current SonicBoom Vue admin page's
-HTML-escaped bootstrap data for CSRF and the one-time token, as well as legacy forms.
-The password is not saved; only a strictly validated API token is stored. Provisioning
-is disabled while connection edits are unsaved or another credential operation is active.
+**Source review:** The statement that SonicBoom lives inside TikTools-app is obsolete; playback controls affect the external server queue. Original images and relative links are preserved in both locations; plugin implementation belongs to the separate plugin repository.
 
-## Screenshots
+**Revisión del código:** La afirmación de que SonicBoom vive dentro de TikTools-app quedó obsoleta; sus controles afectan a la cola del servidor externo. Las imágenes y sus enlaces relativos se conservan en ambas ubicaciones; el plugin pertenece a su repositorio separado.
 
-Matching 1280 × 900 Chromium captures of the standalone TikTools plugin WebView,
-English, dark theme. Before is the checked-in plugin build at `f4876d7`; after is
-the updated plugin build. The native broker is a test fixture, with dummy queue IDs
-and reported duration of 12.5 seconds. These demonstrate rendering, not a live
-SonicBoom session or audible playback. Token compatibility is validated with a
-real local HTTP stub login/mint/logout flow; the fix is behavioral.
+<span id="screenshots"></span>
+<span id="screenshots-"></span>
+<span id="tiktools-tts-playback-and-token-connection"></span>
+<span id="tiktools-tts-playback-and-token-connection-"></span>
 
-| Before | After |
-| --- | --- |
-| ![Before TikTools TTS](before.png) | ![TikTools TTS with playback tracking](after.png) |
+**Audio and TTS / Audio y TTS** (User / Usuario): [English](../../content/en/user/plugins/audio.md) · [Español](../../content/es/user/plugins/audio.md).
 
-Unknown duration is explicit:
+**Plugin permissions and UI / Permisos e interfaz de plugins** (Developer / Desarrollo): [English](../../content/en/developer/plugins/permissions-ui.md) · [Español](../../content/es/developer/plugins/permissions-ui.md).
 
-![TikTools TTS without server duration metadata](after-unknown-duration.png)
+**Testing / Pruebas** (Developer / Desarrollo): [English](../../content/en/developer/testing.md) · [Español](../../content/es/developer/testing.md).
+
+**Exact historical source / Fuente histórica exacta:** [original Markdown](../../internal/archive/docs/ui/tts-playback/README.md).
+
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/ui/tts-playback/README.md); SHA-256 `edf8c94d035f9c9c7803f598025731b9c2adaa4c152a5024018c227cb5edc2fc`.
+
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](../../migration-map.json) para la auditoría y los destinos de cada sección.

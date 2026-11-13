@@ -1,163 +1,41 @@
-# Linux hotkeys: X11, Wayland, permissions
+# Linux hotkeys / Atajos globales en Linux
 
-Global hotkeys ship as a TypeScript napi-vm plugin
-(`plugins-example-tiktools/plugins/hotkeys`) backed by the `rdev-node` native addon.
-The guest watches the OS keyboard through one rdev listener, tracks
-modifiers plus a rolling 8-key sequence, and answers the host `poll`
-call with everything observed since the previous tick as
-`hotkey.pressed` events. The host projects enabled Behaviors into the
-guest through the `hotkey.bind` action (`shortcuts` chords plus the
-`sequencesNeeded` raw-input opt-in).
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-## Architecture
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-```text
-Behavior config (hotkey.pressed chord filters)
-        |
-        v  hotkey.bind action {shortcuts, sequencesNeeded}
-TypeScript guest (napi-vm, sandboxed JS)
-        |
-        v  require('rdev-node') — host-authorized native alias
-rdev listener ── every key, releases, sequences ── chords too
-        |
-        v press (poll)
-hotkey.pressed {key, modifiers, sequence, backend:"rdev"}
-hotkey.status {platform, session, backends:[{backend, state, capabilities}]}
-```
+**Status / Estado:** experimental or incomplete; verify the limits in the current guide / experimental o incompleto; revisa los límites de la guía actual.
 
-Backend selection is capability-based — the guest observes no platform
-or session facts by design, so `hotkey.status` reports both as
-`unknown`:
+**Source review:** Hotkeys are an external napi-vm-named plugin using the QuickJS Node-API host. The retired process-plugin portal paths and setup-linux-input.sh are not current app setup; native addons are trusted in-process code.
 
-| Session | Chords | Arbitrary keys / sequences |
-|---|---|---|
-| X11 | rdev listener (no special permissions) | rdev listener |
-| Wayland | evdev path, fails closed without `/dev/input` read access | same |
-| Windows / macOS | rdev listener | rdev listener |
+**Revisión del código:** Los atajos pertenecen a un plugin externo llamado napi-vm que usa Node-API sobre QuickJS. Las rutas portal del plugin antiguo y setup-linux-input.sh no forman parte de la configuración actual; los addons son código nativo de confianza.
 
-rdev-node picks its backend from the session: X11 sessions use
-`rdev::listen` (any desktop user, no extra permissions), Wayland
-sessions read the physical devices through evdev. The evdev path needs
-persistent read access to `/dev/input/event*` (seat ACL, `input` group,
-or a udev rule); without it the listener fails to start and the guest
-reports `state: "failed"` with the rdev error verbatim as the backend
-detail. The UI surfaces it through the standard `hotkey.status` badge.
-There is intentionally no silent fallback: a failed backend must look
-failed.
+<span id="architecture"></span>
+<span id="architecture-"></span>
+<span id="diagnostics"></span>
+<span id="diagnostics-"></span>
+<span id="known-limitations"></span>
+<span id="known-limitations-"></span>
+<span id="linux-hotkeys-x11-wayland-permissions"></span>
+<span id="linux-hotkeys-x11-wayland-permissions-"></span>
+<span id="security-analysis"></span>
+<span id="security-analysis-"></span>
+<span id="troubleshooting"></span>
+<span id="troubleshooting-"></span>
 
-One backend quirk to know: the X11 `rdev` hook cannot restart after a
-stop, while the Wayland evdev loop can. A sequences-off `hotkey.bind`
-followed by a re-bind on X11 therefore reports the backend `failed`
-until the plugin reloads; the guest surfaces this like any other
-backend failure.
+**Install plugins / Instalar plugins** (User / Usuario): [English](content/en/user/plugins/index.md) · [Español](content/es/user/plugins/index.md).
 
-`hotkey.bind` re-decides the listener on every projection: it runs
-while sequences are wanted **or** chords are watched, and stops only
-when the plugin is fully unbound with sequences off.
+**Troubleshooting / Solución de problemas** (User / Usuario): [English](content/en/user/preferences/troubleshooting.md) · [Español](content/es/user/preferences/troubleshooting.md).
 
-## What the retired process plugin did differently
+<span id="what-the-retired-process-plugin-did-differently"></span>
+<span id="what-the-retired-process-plugin-did-differently-"></span>
 
-The previous Rust process plugin (`examples/hotkey-process-plugin`,
-removed) additionally served Wayland through two host-side backends:
-compositor-authorized chords via the XDG Desktop Portal
-GlobalShortcuts interface, and arbitrary keys/sequences via an
-evdev backend reading `/dev/input/event*` behind a Polkit / input-group
-/ udev permission story.
+**Plugin runtimes / Runtimes de plugins** (Developer / Desarrollo): [English](content/en/developer/plugins/runtimes.md) · [Español](content/es/developer/plugins/runtimes.md).
 
-A napi-vm guest cannot do either: it has no D-Bus, no device, no `fs`,
-and no `process.env` access. The portal and evdev paths therefore
-moved to the roadmap as **host capability modules** — Rust code in the
-loader, granted per plugin from the manifest — instead of guest code.
-Until they land, Wayland sessions have no global-hotkey observation;
-run TikTools on X11 (or XWayland-hosted X11) for working hotkeys.
+**Platform support / Plataformas compatibles** (Developer / Desarrollo): [English](content/en/developer/platforms.md) · [Español](content/es/developer/platforms.md).
 
-## Security analysis
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/HOTKEYS_LINUX.md).
 
-**Raw rdev listening** sees every key while the listener runs,
-including input destined for other applications. That is inherent to
-global hotkeys and sequence triggers (`g o` cannot be recognized
-without observing `g` and `o` globally). The exposure is bounded by:
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/HOTKEYS_LINUX.md); SHA-256 `e2b772ea9bcc2a01f2762bcc424d68092a03c1b565663cab4ca58c293706036e`.
 
-- the native addon runs with TikTools process privileges and is **not**
-  sandboxed; it is authorized explicitly per plugin through the
-  `nativeAddons` manifest declaration plus `"trust": "trusted"`
-  (see `docs/NAPI_VM_PLUGINS.md`);
-- the guest forwards only normalized `(key, pressed)` pairs to the
-  host — no device passthrough, no file access, no network;
-- diagnostics and logs never print sequences or keystrokes (overflow
-  lines carry counts only);
-- a fully unbound plugin with sequences off stops the listener
-  entirely.
-
-Never run the desktop app as root to "fix" hotkeys, and never weaken
-`/dev/input` permissions: the napi-vm build does not read input
-devices at all.
-
-## Diagnostics
-
-Call the `hotkey.diagnostics` action (logs carry the report) or watch
-`hotkey.status` poll events. Example:
-
-```text
-Hotkey diagnostics (napi-vm):
-  runtime: napi-vm (TypeScript guest, rdev-node listening)
-  backend: rdev state=running
-  stop: available
-  bindings: 2 chord(s) watched, sequences enabled
-  portal: unsupported (compositor chords need the retired process plugin)
-  session: unknown (guests observe no platform facts)
-  native callbacks: 128 (last 4ms ago)
-  presses queued: 96
-  polls served: 57
-  failures: 0
-Queue:
-  dropped events (overflow): 0
-  pending events: 0
-```
-
-The counters discriminate the failure stage: `native callbacks: 0 (last
-never)` with `failures: 0` means the native hook is alive but the OS
-delivers nothing (focus/permission at the compositor level); `failures:
-N` with a backend `detail` names the start failure verbatim. Listener
-transitions (started, first native event, stopped, failed) are also
-emitted as one-shot poll logs, which the host records as warnings —
-steady-state polls stay silent. For the native side, run the desktop
-app with `RDEV_NODE_DEBUG=1` to trace every observed event (kinds and
-key codes only, never window titles) plus the evdev devices opened on
-Wayland; lifecycle lines (`listener started`, `stopped by request`,
-thread exit with forwarded counts) always print to stderr.
-
-`hotkey.status` carries one backend entry with `state` (`starting`,
-`running`, `permission-required`, `unsupported`, `failed`), a
-capability map (`globalChords`, `arbitraryKeys`, `sequences`,
-`keyRelease`), and queue counters (`droppedEvents`, `pendingEvents`).
-The UI needs no update for new states: `running` and
-`permission-required` are already recognized.
-
-## Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| Wayland: backend `failed`, `/dev/input` denied | evdev path needs raw-input access | click **Grant input access** next to the hotkey badge (one system authorization dialog, no terminal, no re-login); terminal fallback from the sibling `rdev-node` checkout: `./scripts/setup-linux-input.sh` (`--check` reports state without changes); or run on X11 where no extra permissions are needed |
-| X11: `failed` with display error | plugin lost `DISPLAY`/`XAUTHORITY` | check `hotkey.diagnostics`; the loader forwards desktop env |
-| Chord-only Behavior never fires | listener stopped | fixed: watched chords keep the listener running (`wantsListening`) |
-| `hotkey event queue overflowed` in logs | consumer slower than typist | counts only, no key contents; poll drains 16 events per tick |
-| Stuck modifier after sleep | missed release | state expires after 120 s idle and resets on restart |
-
-## Known limitations
-
-- The X11 backend cannot restart its hook after a stop: re-binding
-  after a sequences-off `hotkey.bind` reports `failed` until reload.
-  The Wayland evdev backend restarts cleanly. Staging an rdev-node as
-  old as v1.0.1 additionally loses `stopListener` entirely; the guest
-  detects that and says so loudly instead of pretending to stop.
-- Pure Wayland sessions need `/dev/input` read access for any
-  observation. Compositor-authorized portal chords remain roadmap
-  (host capability module).
-- Guests observe no platform facts, so status and diagnostics say
-  `unknown` where the old plugin named sessions and desktops.
-- Non-US layouts: key names are physical (`KeyK` → `k`), so positions
-  stay stable while labels vary; dead keys produce no press event.
-- `TIKTOOLS_HOTKEY_SHORTCUTS` seeding retired with the process plugin:
-  bindings now arrive exclusively through the host `hotkey.bind`
-  projection.
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

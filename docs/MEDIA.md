@@ -1,82 +1,32 @@
-# Media host API
+# Media host API / API nativa de medios
 
-TikTools stores references to user media, not duplicate files. A reference is
-JSON metadata plus a canonical path. The native host revalidates the path every
-time it opens or plays it.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-## Rust core API
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-The GUI-independent API is available from `tiktools-core`:
+**Status / Estado:** available in current source; host/platform prerequisites still apply / disponible en el código actual; se aplican los requisitos del host y la plataforma.
 
-```rust
-use tiktools_plugin_api::{AudioPlayOptions, MediaFileRef, MediaPickerOptions};
+**Source review:** The core keeps serializable references and validates local media paths; the desktop supplies actual playback/picker behavior. Media APIs do not imply that headless Android has desktop audio or GUI capabilities.
 
-let selected = core.open_media_picker(MediaPickerOptions::default()).await?;
-let Some(selection) = selected else { return Ok(()); };
+**Revisión del código:** El núcleo conserva referencias serializables y valida rutas locales; el escritorio implementa reproducción y selección. Estas API no implican que Android sin interfaz tenga audio o selectores de escritorio.
 
-if let tiktools_plugin_api::MediaSelection::File { file } = selection {
-    core.play_audio(file, AudioPlayOptions::default()).await?;
-}
+<span id="frontend-api"></span>
+<span id="frontend-api-"></span>
+<span id="media-host-api"></span>
+<span id="media-host-api-"></span>
+<span id="runtime-boundaries"></span>
+<span id="runtime-boundaries-"></span>
+<span id="rust-core-api"></span>
+<span id="rust-core-api-"></span>
 
-// A process/WASM plugin can also pass a minimal reference. The host fills and
-// checks metadata; it never trusts stale metadata supplied by the plugin.
-core.play_audio(
-    MediaFileRef::from_path("/music/alert.wav"),
-    AudioPlayOptions { volume: 0.75, ..Default::default() },
-).await?;
-```
+**Plugin permissions and UI / Permisos e interfaz de plugins** (Developer / Desarrollo): [English](content/en/developer/plugins/permissions-ui.md) · [Español](content/es/developer/plugins/permissions-ui.md).
 
-`MediaPickerOptions::default()` selects an audio file. Set `mode` to
-`MediaPickerMode::Directory` to receive a `MediaDirectoryRef` instead. The
-selection contains the canonical directory path and name without copying the
-folder.
+**Automation internals / Internos de automatización** (Developer / Desarrollo): [English](content/en/developer/automations.md) · [Español](content/es/developer/automations.md).
 
-The audio picker accepts AAC, FLAC, M4A, MP3, OGA/OGG, Opus, WAV, WebM, and
-MP4 containers. MP4 is treated as audio here: playback uses the container's
-audio track and does not copy or play its video track.
+**Audio and TTS / Audio y TTS** (User / Usuario): [English](content/en/user/plugins/audio.md) · [Español](content/es/user/plugins/audio.md).
 
-## Frontend API
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/MEDIA.md).
 
-The Vue controller exposes the same request as a callback API:
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/MEDIA.md); SHA-256 `61200732d927f77634070a2272ee8c5c73c96b202877f87d207d1a6189f7dd2f`.
 
-```ts
-app.openMediaPicker(
-  { mode: 'file', kind: 'audio', extensions: ['wav', 'mp3'] },
-  (selection, error) => {
-    if (error) return showError(error);
-    if (selection?.type === 'file') savePath(selection.file.path);
-  },
-);
-```
-
-The transport is the existing JSON IPC contract:
-
-```json
-{
-  "type": "open-media-picker",
-  "requestId": "media-42",
-  "mode": "file",
-  "kind": "audio",
-  "extensions": ["wav", "mp3"]
-}
-```
-
-The host answers with `media-selected`. Cancellation is represented by an
-omitted `selection` and no `error`.
-
-## Runtime boundaries
-
-QuickJS scripts and the sample process plugin do not get filesystem handles,
-audio objects, or arbitrary host callbacks through the TikTools protocol. They
-return a bounded JSON audio intent. The SDK emits the typed `intents` shape;
-the compatibility boundary also accepts legacy `playAudio` responses. The
-core capability broker checks the plugin manifest and the host validates the
-path before invoking the desktop provider. A process is a crash boundary, not
-an OS sandbox: its executable still has the user's normal permissions. WASM
-provides the execution sandbox; WASI must be explicitly configured and only
-grants the system capabilities the host chooses to expose. The optional WASM
-runtime is the place for explicit WASI/host imports when untrusted code must
-be supported.
-
-Native libraries remain trusted code and are not a sandbox. Use the process or
-WASM runtime for downloadable/untrusted extensions.
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

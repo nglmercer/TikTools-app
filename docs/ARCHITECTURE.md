@@ -1,204 +1,49 @@
-# Architecture
+# Architecture / Arquitectura
 
-TikTools is a thin native host. Winit owns the window event loop, Wry owns the
-WebView, and `tray-icon` owns the tray. The application core is independent of
-all three.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-```text
-                ONE AppCore
-                    │
-               ControlApi
-                    │
-          local JSON-RPC IPC
-        ┌───────────┼───────────┐
-        │           │           │
-      CLI         WebView      agents
-```
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-The desktop builds one `AppCore`, wraps it in one `ControlApi`, and serves
-every client from that instance: the WebView bridge, a persistent local IPC
-endpoint (Unix socket / Windows named pipe), and through it the `tiktools`
-CLI and agents. Standalone hosts (`host --stdio`, `host --ipc`,
-`--standalone`) are explicit opt-ins for headless use.
+**Status / Estado:** implemented behavior mixed with experimental or historical material / comportamiento implementado mezclado con material experimental o histórico.
 
-```text
-Vue WebView (control-client.ts + features/)
-    │ window.ipc.postMessage(JSON-RPC)
-    ▼
-Wry IPC handler ── Tokio ── ControlApi ── AppCore
-                         │
-          ┌──────────────┼──────────────┐
-          ▼              ▼              ▼
-      LiveService   Points/SQLite   PluginManager
-          │              │              │
-          ▼              ▼        native/process/WASM
-    tiktok-signer   host services
-```
+**Source review:** The Winit/Wry shell still owns desktop presentation around AppCore. Frontend IPC moved from src/web/platform to src/web/shared/api; plugin implementations live outside this app repository.
 
-## Workspace boundaries
+**Revisión del código:** La ventana Winit/Wry sigue presentando AppCore. El IPC del frontend pasó de src/web/platform a src/web/shared/api; las implementaciones de plugins viven fuera de este repositorio.
 
-```text
-tiktools-desktop
-  ├── winit + wry + tray-icon
-  ├── tiktools-control-api ── tiktools-core
-  └── tiktools-core
-        ├── tiktools-plugin-api
-        ├── tiktools-plugin-sdk
-        ├── tiktools-plugin-macros
-        ├── tiktools-plugin-loader
-        └── tiktools-tiktok
-tiktools-cli ── tiktools-control-api ── tiktools-core
-```
+<span id="architecture"></span>
+<span id="architecture-"></span>
+<span id="automations"></span>
+<span id="automations-"></span>
+<span id="event-and-live-flow"></span>
+<span id="event-and-live-flow-"></span>
+<span id="ipc-contract"></span>
+<span id="ipc-contract-"></span>
+<span id="platform-code"></span>
+<span id="platform-code-"></span>
+<span id="workspace-boundaries"></span>
+<span id="workspace-boundaries-"></span>
 
-`tiktools-core` has no GUI dependency. Its services communicate outward with
-`HostEmitter`, a small trait that carries serialized `HostMessage` values, and
-with the `DomainEvent` bus every control client observes identically. The
-desktop implementation sends host messages to the UI thread through
-`EventLoopProxy`; only that thread calls `WebView::evaluate_script`.
+**Architecture / Arquitectura** (Developer / Desarrollo): [English](content/en/developer/architecture.md) · [Español](content/es/developer/architecture.md).
 
-Plugin calls converge at the SDK's typed request/result boundary. Core keeps
-plugin lifecycle and polling in `plugin_runtime/`, capability-checked host
-effects in `plugin_intents.rs`, and general automation orchestration in
-`automation_runtime/`. The SDK compatibility decoder is the only place that
-translates legacy `emit` and `playAudio` response keys.
+<span id="desktop-lifecycle"></span>
+<span id="desktop-lifecycle-"></span>
 
-## Desktop lifecycle
+**Desktop lifecycle / Ciclo de vida del escritorio** (Developer / Desarrollo): [English](content/en/developer/lifecycle.md) · [Español](content/es/developer/lifecycle.md).
 
-`crates/tiktools-desktop/src/app.rs` implements `ApplicationHandler`. It creates
-a hidden Winit window and Wry WebView on the event-loop thread, dispatches
-incoming IPC to Tokio, and shows the window after the mounted Vue app sends
-`frontend-ready`. Close hides the window only while the tray is available; if
-the tray cannot be created, close shuts down. The tray exposes Show and Quit.
-Quit first asks `AppCore` to disconnect live transport, stop polling, and stop
-plugins, then exits the event loop.
+**Event delivery / Entrega de eventos** (Developer / Desarrollo): [English](content/en/developer/events.md) · [Español](content/es/developer/events.md).
 
-The WebView loads one of two sources:
+<span id="persistence"></span>
+<span id="persistence-"></span>
 
-- Development: `TIKTOOLS_DEV_URL` or `TIKTOOLS_FRONTEND_URL`.
-- Release: `tiktools://app/index.html`, served from the executable-relative
-  `web/` directory by Wry's custom protocol.
+**Storage / Almacenamiento** (Developer / Desarrollo): [English](content/en/developer/storage.md) · [Español](content/es/developer/storage.md).
 
-The asset handler canonicalizes paths and rejects traversal and symlink escapes.
+<span id="plugins"></span>
+<span id="plugins-"></span>
 
-## IPC contract
+**Plugin architecture / Arquitectura de plugins** (Developer / Desarrollo): [English](content/en/developer/plugins/index.md) · [Español](content/es/developer/plugins/index.md).
 
-The contract is JSON-RPC through `ControlApi`: every client sends
-`{"method": ...}` requests and receives result/error responses plus
-`DomainEvent` notifications. The Vue bridge (`src/web/platform/control-client.ts`)
-owns `window.ipc`; domain state lives in `src/web/features/`. Business
-services never receive a WebView handle.
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/ARCHITECTURE.md).
 
-```text
-Vue → JSON-RPC → ControlApi → AppCore operation/service
-AppCore → DomainEvent → WebView / CLI / IPC / agents
-```
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/ARCHITECTURE.md); SHA-256 `e3ce5a2b847c4a946b21aa228443b5d8fe6092267a98eb39c1bb8f5746bfb000`.
 
-`src/shared/messages.ts` remains the specification for host-push shapes.
-Rust mirrors the legacy request side in
-`crates/tiktools-core/src/ipc/messages/`, but the `IpcRouter`
-`PageMessage` path is only an explicitly marked compatibility layer: each
-legacy message adapts onto the same authoritative control operations, and
-no new legacy variants are accepted.
-
-## Event and live flow
-
-`tiktools-tiktok` wraps the pinned Rust signer/discovery/WebSocket crates and
-exports stable TikTools event values. It does not expose generated protobuf
-objects to the core. The core:
-
-1. resolves a creator through discovery, optionally bootstrapping an anonymous
-   session;
-2. creates the embedded signer backend and reconnecting WebSocket;
-3. normalizes decoded chat, gift, like, member, social, and room-stat events;
-4. updates points and SQLite;
-5. runs the pre-filter processor pipeline, merging derived evidence under the
-   reserved `intel` namespace (fail open: any processor failure passes the
-   raw event through, stamped `degraded`);
-6. emits the existing UI event shape and the enriched JSON automation event.
-
-The event registry in `src/automation/contracts/generated/` is the editor-side
-shape contract for those native events. Rust contract structs in
-`crates/tiktools-core/src/contracts/` generate the JSON Schema, TypeScript
-types, registry entries, and sample payloads. Its tests ensure every advertised
-path exists in its sample payload; consumers must not recreate event
-interfaces manually.
-
-## Persistence
-
-`rusqlite` owns the existing database names and table layout:
-
-```text
-data/tiktok-points.db       points, viewers, creators, app state, gifts
-data/tiktok-automation.db   workflows, behavior records, plugin state
-```
-
-On startup, a checkout-local `data/` database is copied to the platform app-data
-directory only when its destination is absent. Existing destination files are
-never overwritten. JSON payloads remain JSON so existing workflow and behavior
-records stay readable while their execution is moved into Rust.
-
-## Automations
-
-Rust owns workflow/behavior persistence, native event publication, built-in
-action metadata, and bounded script execution. The editor remains Vue and
-uses JSON descriptors supplied by the host. the QuickJS script engine receives only JSON values
-(`event`, `inputs`, and `data`) and has no Node, filesystem, network, or WebView
-objects.
-
-The capability broker is explicit. HTTP, audio, TTS, points, storage, and
-native integrations are host capabilities rather than framework permissions.
-
-## Plugins
-
-Plugin API and runtime are separate:
-
-```text
-versioned manifest/protocol/permissions
-                 │
-       ┌─────────┼─────────┐
-       ▼         ▼         ▼
-    native     process     WASM
-   libloading  framed IO  optional
-```
-
-Plugin directories are scanned at runtime in built-in, user, and development
-override order. No plugin id is compiled into TikTools. Native libraries expose
-only a small serialized-message C ABI and stay loaded until shutdown. Process
-plugins are standalone executables using length-prefixed JSON over stdio.
-
-Plugins contribute actions (side effects), event sources (new triggers via
-poll/emit), generic domain-event observers, and processors (pre-filter
-enrichment of host events). Plugins with `events.subscribe` receive a stable
-serialized `{topic, data}` envelope through a bounded asynchronous host queue;
-the host does not expose its internal `DomainEvent` enum or any transport API.
-The optional event-gateway example uses that observer to own its loopback HTTP,
-NDJSON, WebSocket, authentication, and browser-origin behavior. Processors
-declare `processorTypes`, require the `events.enrich` capability, answer
-`enrich` calls with side-effect-free `{annotations, views, logs}` results,
-and receive their host-rendered settings inside each request; the host merges
-results under `event.intel` in deterministic order with strict deadlines and
-circuit breaking. The textintel reference processor lives in
-`plugins-example-tiktools/plugins/textintel/` with its own latency bench.
-
-The processor pipeline keeps three boundaries. The contribution index
-(`plugin_processors::index`) precomputes eligible processors off the hot
-path and is rebuilt only on install, uninstall, enable, and disable. The
-shared invoker (`plugin_invoker`) owns the single timed-call bridge used by
-enrichment, actions, and the event poll. Per-processor health, metrics, and
-settings caches (`plugin_processors::state`) keep one processor's failures
-from affecting its siblings; stable projection into `event.intel`
-(`plugin_processors::merge`) is a pure function of ordered outcomes.
-
-Plugin configuration UI is a separate declarative system: plugins describe
-UI as data and the host renders trusted components — no SSR, no per-plugin
-servers, no plugin script in the main WebView. See
-[Plugin UI architecture](PLUGIN_UI_ARCHITECTURE.md). Browser-level
-verification runs in Chromium against a fake `window.ipc` host; see
-[Playwright E2E](PLAYWRIGHT.md).
-
-## Platform code
-
-Winit/Wry platform details are isolated under
-`crates/tiktools-desktop/src/platform.rs`. Linux uses the GTK integration
-required by WebKitGTK. The core, plugin API/loader, and TikTok crates do not
-contain desktop conditionals.
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

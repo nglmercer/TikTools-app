@@ -1,35 +1,28 @@
-# TikTools TTS redesign
+# TTS redesign evidence / Evidencias del rediseño TTS
 
-The TTS plugin now groups voice setup and the voice tester together, with a compact
-playback card and separate audience, output, message-filter, and points groups.
-SVG icons accompany visible labels. Native checkbox controls remain keyboard
-operable; their hints appear on hover or focus and dismiss with Escape.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-Dependent fields appear only when relevant, without deleting their saved values:
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-- Disable All users to configure audience roles and an allowlist.
-- Enable Team members or Top gifters to show their numeric limits.
-- Enable the allowlist to show the handle editor and saved handles.
-- Choose custom command mode to show the command field; prefix stripping is
-  hidden for unrestricted comments.
-- Choose paid messages to show points cost.
-- Enable emote cleanup to show its handling mode.
+**Status / Estado:** historical design, release record or dated evidence; not current acceptance / diseño, registro de versión o evidencia histórica; no acredita aceptación actual.
 
-Text processing and per-user overrides use expandable groups. Existing overrides
-start expanded. Unsupported speed/pitch sliders remain inside Voice adjustments,
-with their existing explanation and disabled state.
+**Source review:** The screenshots record an earlier plugin UI layout and cannot certify the currently installed external plugin. Original images and relative links are preserved in both locations; plugin implementation belongs to the separate plugin repository.
 
-## Review captures
+**Revisión del código:** Las capturas registran un diseño anterior del plugin y no certifican la versión externa instalada actualmente. Las imágenes y sus enlaces relativos se conservan en ambas ubicaciones; el plugin pertenece a su repositorio separado.
 
-Before: commit `c1e21ae` (the previous PR revision). After: the redesigned production
-plugin build. Matching Chromium desktop captures use 1440 × 1000, English, dark
-mode, and fake native-broker data. Queue ID and 12.5-second duration are fixtures;
-no real credentials or live speech are used. The mobile capture uses 390 × 844.
+<span id="review-captures"></span>
+<span id="review-captures-"></span>
+<span id="tiktools-tts-redesign"></span>
+<span id="tiktools-tts-redesign-"></span>
 
-| Before | After |
-| --- | --- |
-| ![Previous TTS view](before-desktop.png) | ![Redesigned TTS view](after-desktop.png) |
+**Audio and TTS / Audio y TTS** (User / Usuario): [English](../../content/en/user/plugins/audio.md) · [Español](../../content/es/user/plugins/audio.md).
 
-![Conditional fields and hover hint](after-fields-tooltip.png)
+**Plugin permissions and UI / Permisos e interfaz de plugins** (Developer / Desarrollo): [English](../../content/en/developer/plugins/permissions-ui.md) · [Español](../../content/es/developer/plugins/permissions-ui.md).
 
-![Mobile TTS view](after-mobile.png)
+**Testing / Pruebas** (Developer / Desarrollo): [English](../../content/en/developer/testing.md) · [Español](../../content/es/developer/testing.md).
+
+**Exact historical source / Fuente histórica exacta:** [original Markdown](../../internal/archive/docs/ui/tts-redesign/README.md).
+
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/ui/tts-redesign/README.md); SHA-256 `0ae49dd45a0de678c03ac0f01a2dec0d8e89191cffb375c4e5fee771d2f06353`.
+
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](../../migration-map.json) para la auditoría y los destinos de cada sección.

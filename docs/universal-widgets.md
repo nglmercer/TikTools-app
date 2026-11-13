@@ -1,44 +1,26 @@
-# Universal widgets and the optional OBS bridge
+# Universal widgets and OBS bridge / Widgets universales y puente OBS
 
-The Overlays page opens a portable package panel from its toolbar via
-`src/widgets/sdk/UniversalWidgetPanel.vue`. It consumes the exact shared SDK
-vendored under `src/universal`; `vendor-lock.json` records its version and hashes.
-`node scripts/check-universal.mjs` verifies the installed copy without another
-repository. Existing Vue widgets and gateway clients keep their existing routes.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-Import the compiled `universal.gift-alert/1.0.0` folder built by the OBS repository
-to preview the same package in either host. Export/import portable project or
-preset JSON to exchange settings and supported text/image/group layouts. The
-existing Vue style editor also uses the shared bounded history implementation.
-Unsupported schema assertions, dependencies and capabilities fail explicitly.
-Existing Vue designs are retained; arbitrary component/HTML source cannot be
-silently converted into the portable model. Timeline data is portable metadata;
-no new animation engine is claimed.
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-The existing `plugins-example-tiktools/plugins/event-gateway` optionally forwards its
-`live.event` fanout to the independent OBS receiver. Set `obsBridge.enabled`, a
-numeric loopback `address` (default `127.0.0.1:17453`), and `tokenEnv` (default
-`OBS_EVENT_TOKEN`) in its normal plugin settings. Obtain a paired OBS credential
-using explicit local administration. For TikTok namespaces the OBS owner must
-grant the exact types and `trustedTikTok` permission; a custom-event producer
-cannot impersonate TikTok. Pass the token through the process environment, never
-browser storage or a URL. Disable/restart the gateway to change credentials.
+**Status / Estado:** experimental or incomplete; verify the limits in the current guide / experimental o incompleto; revisa los límites de la guía actual.
 
-Forwarding uses protocol negotiation, canonical schema validation, original
-room/message identities, normalized cumulative gift data, bounded queues,
-exponential reconnect delay and origin/hop checks. Authenticated GET
-`/obs-bridge/status` reports counters. The gateway's own port remains 17452.
-Stopping this bridge or TikTools does not stop OBS or its other event producers.
+**Source review:** UniversalWidgetPanel still imports the vendored src/universal SDK, checked by check-universal.mjs. Portable preview is local; the optional OBS bridge and external gateway are separate runtime dependencies.
 
-Shared contracts, fixtures and Rust validation are in `src/universal`. Gateway
-contract/security tests run with:
+**Revisión del código:** UniversalWidgetPanel importa el SDK vendorizado src/universal, verificado por check-universal.mjs. La vista previa portátil es local; el puente OBS opcional y el gateway externo son dependencias de ejecución separadas.
 
-```text
-cargo test --manifest-path plugins-example-tiktools/plugins/event-gateway/Cargo.toml --locked
-bun scripts/check-universal.mjs
-bun test src/widgets/shared/universal.test.ts src/web/entities/overlay/lib/editor-history.test.ts
-```
+<span id="universal-widgets-and-the-optional-obs-bridge"></span>
+<span id="universal-widgets-and-the-optional-obs-bridge-"></span>
 
-See the OBS repository's `docs/architecture/current-state.md`,
-`docs/architecture/universal-widget-adrs.md` and `docs/UNIVERSAL_WIDGETS.md` for the
-verified discovery, security protocol, pairing utility and migration guide.
+**Overlays / Overlays** (User / Usuario): [English](content/en/user/overlays/index.md) · [Español](content/es/user/overlays/index.md).
+
+**Widget and overlay SDK / SDK de widgets y overlays** (Developer / Desarrollo): [English](content/en/developer/overlays.md) · [Español](content/es/developer/overlays.md).
+
+**Testing / Pruebas** (Developer / Desarrollo): [English](content/en/developer/testing.md) · [Español](content/es/developer/testing.md).
+
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/universal-widgets.md).
+
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/universal-widgets.md); SHA-256 `a3b145d387f77d0e2923ddff7b3714f3ab4f20d6b830c497108c9f9cba49e631`.
+
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

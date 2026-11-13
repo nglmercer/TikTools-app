@@ -1,61 +1,39 @@
-# TikTools 4.2.1-rc.1
+# TikTools 4.2.1-rc.1 release record / Registro de versión TikTools 4.2.1-rc.1
 
-Candidate for reproducing the reported sync, Teams and Linux AppImage problems.
-The application and backend changes are committed separately: app `338495a9`,
-RemakeBackend `6a69c99` (`fix/teams-nickname-invitations`).
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-GitHub Actions is disabled in the repository. This candidate uses locally
-compiled Linux artifacts (AppImage, DEB and portable archive), verified before
-publication. It does not include a newly compiled Windows installer.
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-## Changes to verify
+**Status / Estado:** historical design, release record or dated evidence; not current acceptance / diseño, registro de versión o evidencia histórica; no acredita aceptación actual.
 
-| Area | Expected behavior |
-| --- | --- |
-| Settings | Account/session and diagnostics remain; the old sync editor is removed. |
-| Plugins | Plugin-only catalog, search, Changes, Install plugin and secondary menu. Templates/profiles stay in Automations. |
-| Changes | One shared panel contains setup/recovery and the section comparison. A load error never claims everything is synced. |
-| Plugin sync | Only plugin selections/settings are published by the section action. Other queues remain intact and downloaded records remain cached. |
-| Migration | An absent implicit bundled-plugin directory is allowed. Explicit directories remain strict. Missing local packages are identified and can be repaired only after reviewing the exact IDs. Pending edits and conflicts are retained. |
-| Teams | Create/select a team, enroll this PC as its host, then start serving. A host enrolled on another PC cannot enable this PC's Start action. |
-| Invitations | Search by nickname, select an unambiguous result, create an invitation. Only that account can redeem it; the host still approves access. Emails are not displayed by search. |
-| Guides | The optional question-mark control opens Driver.js help. Teams steps follow the real setup state. |
-| AppImage | WebKit helpers, GStreamer plugins and scanner come from the bundle. Verify audio/video and absence of `appsink`/plugin-scanner failures. |
+**Source review:** The candidate records app/backend reproduction baselines and Linux artifact checks. Version files and workflow configuration describe source intent; asset publication and supported platforms must be verified independently.
 
-## Backend dependency
+**Revisión del código:** El candidato registra bases de reproducción de aplicación/backend y comprobaciones de artefactos Linux. Los archivos de versión y el workflow describen la intención del código; la publicación y las plataformas deben verificarse por separado.
 
-Nickname search and recipient-bound invitations require RemakeBackend commit
-`6a69c99` and migration `20261113000001_remote_invitation_recipients.sql`.
-The application prerelease does not deploy the backend or run production migrations.
-If search fails against an older backend, record the Cloud origin and request ID
-from Diagnostics before treating it as an AppImage regression.
+<span id="backend-dependency"></span>
+<span id="backend-dependency-"></span>
+<span id="changes-to-verify"></span>
+<span id="changes-to-verify-"></span>
+<span id="reproduction-record"></span>
+<span id="reproduction-record-"></span>
+<span id="scope-still-in-progress"></span>
+<span id="scope-still-in-progress-"></span>
+<span id="tiktools-4-2-1-rc-1"></span>
+<span id="tiktools-421-rc1"></span>
+<span id="tiktools-421-rc1-"></span>
+<span id="validation"></span>
+<span id="validation-"></span>
 
-## Reproduction record
+**TikTools 4.2.1-rc.1 / TikTools 4.2.1-rc.1** (Release record / Registro de versión): [English](content/en/releases/4.2.1-rc.1.md) · [Español](content/es/releases/4.2.1-rc.1.md).
 
-For every remaining failure, record the displayed application version, operating
-system, exact action, error/request ID, and relevant lines from Diagnostics/logs.
-Do not include tokens, invitation codes or secret variable values.
+**Release notes / Notas de versiones** (Release record / Registro de versión): [English](content/en/releases/index.md) · [Español](content/es/releases/index.md).
 
-Use an isolated copy of the affected profile for migration recovery tests. Review
-the package IDs before confirming repair, then check that pending edits/conflicts
-are preserved and preview migration again. Do not infer a successful migration
-from a successful compatibility check.
+**App updates / Actualizar la aplicación** (User / Usuario): [English](content/en/user/updates.md) · [Español](content/es/user/updates.md).
 
-The old LIVE session log contains SQLite lock errors and collaboration-retention
-failures. Extended SQLite error codes are now logged. A competing-writer test
-verifies rollback and successful retry, but the original lock holder remains
-unidentified; this prerelease does not claim that historical cause is fixed.
+**Release engineering / Ingeniería de versiones** (Developer / Desarrollo): [English](content/en/developer/releases.md) · [Español](content/es/developer/releases.md).
 
-## Scope still in progress
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/RELEASE-4.2.1-rc.1.md).
 
-Automations Changes still compares against the local reference copy. Cloud sync
-and reviewed application for the remaining section adapters, including Variables
-and Overlays, are unfinished. These are separate from the fixed Plugins action.
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/RELEASE-4.2.1-rc.1.md); SHA-256 `557b7b0dceb291396c1164533d13603c1b06ea99c30d627e15ffe55de67bac28`.
 
-## Validation
-
-The implementation commit passed 146 frontend tests, 167 sync-engine tests,
-PostgreSQL recipient-isolation tests and two-host native/relay acceptance.
-The release version checks and packaging verification must also pass for this
-candidate. Smoke-test the actual compiled AppImage, including its reported
-`4.2.1-rc.1` version, before reporting the candidate as verified.
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.

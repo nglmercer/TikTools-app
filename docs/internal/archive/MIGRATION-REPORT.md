@@ -1,0 +1,197 @@
+# Documentation migration handoff
+
+Source commit: `80c5cb1fbfa45eaeb1c086c71320a15e565d8541`. Branch: `feat/docs-site-demo`. No workspace commits or pushes were made.
+
+## Completed scope
+
+- 71 original documents covered: 69 bilingual legacy stubs, the user-first README and developer-only CONTRIBUTING.
+- 71 document archives and 11 image archives match the inventory SHA-256 and byte length exactly. All 11 original images remain unchanged.
+- 695 inventoried heading IDs have explicit spans. The map retains 1,548 heading IDs and aliases, including incoming fragments and VitePress/GitHub variants.
+- All 939 inventoried links have an explicit treatment: 870 document links retain compatibility paths/fragments and archive relationships; 11 image links retain original/archive copies; 26 external links stay unchanged; 32 source-code references have exact-commit permalinks in the map.
+- Each of the 71 entries has a topic-specific source audit and existing code evidence paths. 41 entries migrate instructions; 30 retain long designs, specifications or dated evidence internally.
+- The 118 distinct EN/ES guide destinations separate user, developer and release audiences. No compatibility stub enters the public VitePress srcDir or local search.
+- README documents binary downloads, current Vite/Wry startup, optional external plugin preparation, Cargo-free docs/demo commands, four UI locales and the shared/api bridge. CONTRIBUTING covers setup, validation, metadata/translation maintenance and verified immutable release/feed publication.
+
+## Verification actually run
+
+- Python provenance/coverage audit passed: 71 document hashes, 11 image hashes, 11 unchanged originals, 695 explicit inventory anchors, one H1 per rewritten document, 939 link treatments, all original document/image archive targets present.
+- `git diff --check -- README.md CONTRIBUTING.md docs` passed.
+- `bun scripts/task.ts docs check` passed against the then-present 117 public articles, 909 internal links/images and 73 external links. Public article counts can change as the parent and content owners finish integration.
+- No Cargo build, native GUI, production request or real account was used. External URL availability was not probed.
+
+## Parent reconciliation
+
+- The eight per-version release destinations below are parent-owned and were not present at this snapshot. Their EN/ES slugs are fixed in the map. The release index exists.
+- Archived source-code links remain verbatim and can point outside the archive tree. Their 32 exact-commit permalinks are recorded in `linkTreatment.originalLinks[].historicalTarget`; code snapshots were not copied or substituted for the required document/image archive.
+- Publication of the website, update feeds and 4.2.2 artifacts was not verified or claimed. The old 4.2.2 source prose is retained only as historical evidence.
+- The parent owns any published website aliases, release status, site task runner, assembly, preview, VitePress configuration, demo and public article corrections.
+
+- `docs/content/en/releases/4.2.1-rc.1.md`
+- `docs/content/en/releases/4.2.1-rc.2.md`
+- `docs/content/en/releases/4.2.1-rc.3.md`
+- `docs/content/en/releases/4.2.2.md`
+- `docs/content/es/releases/4.2.1-rc.1.md`
+- `docs/content/es/releases/4.2.1-rc.2.md`
+- `docs/content/es/releases/4.2.1-rc.3.md`
+- `docs/content/es/releases/4.2.2.md`
+
+## Every changed path in the primary scope
+
+156 paths: 71 rewritten files and 85 additions. Original image paths are preserved, not changed.
+
+- [CONTRIBUTING.md](../../../CONTRIBUTING.md)
+- [README.md](../../../README.md)
+- [docs/AGENT_API.md](../../AGENT_API.md)
+- [docs/APP-PACKAGING.md](../../APP-PACKAGING.md)
+- [docs/APP-UPDATER.md](../../APP-UPDATER.md)
+- [docs/ARCHITECTURE.md](../../ARCHITECTURE.md)
+- [docs/AUTOMATIONS.md](../../AUTOMATIONS.md)
+- [docs/BACKEND-LIKE-GOALS.md](../../BACKEND-LIKE-GOALS.md)
+- [docs/CLOUD-ACCOUNT.md](../../CLOUD-ACCOUNT.md)
+- [docs/CLOUD-REGISTRY.md](../../CLOUD-REGISTRY.md)
+- [docs/CLOUD-SYNC.md](../../CLOUD-SYNC.md)
+- [docs/CLOUD-UNIFIED.md](../../CLOUD-UNIFIED.md)
+- [docs/CLOUD-V2-DESKTOP.md](../../CLOUD-V2-DESKTOP.md)
+- [docs/CONTROL_API.md](../../CONTROL_API.md)
+- [docs/DECLARATIVE_PLUGINS.md](../../DECLARATIVE_PLUGINS.md)
+- [docs/DEPENDENCY-REFRESH.md](../../DEPENDENCY-REFRESH.md)
+- [docs/DEVELOPMENT.md](../../DEVELOPMENT.md)
+- [docs/EMOTES.md](../../EMOTES.md)
+- [docs/GETTING_STARTED.md](../../GETTING_STARTED.md)
+- [docs/HOTKEYS_LINUX.md](../../HOTKEYS_LINUX.md)
+- [docs/LIVE-COLLABORATION-APPROVAL.md](../../LIVE-COLLABORATION-APPROVAL.md)
+- [docs/LIVE-COLLABORATION-AUTOMATION.md](../../LIVE-COLLABORATION-AUTOMATION.md)
+- [docs/LIVE-COLLABORATION-CLIENT-COMMANDS.md](../../LIVE-COLLABORATION-CLIENT-COMMANDS.md)
+- [docs/LIVE-COLLABORATION-CLIENT.md](../../LIVE-COLLABORATION-CLIENT.md)
+- [docs/LIVE-COLLABORATION-OWNER.md](../../LIVE-COLLABORATION-OWNER.md)
+- [docs/LIVE-COLLABORATION-POINTS.md](../../LIVE-COLLABORATION-POINTS.md)
+- [docs/LIVE-COLLABORATION-SPEC.md](../../LIVE-COLLABORATION-SPEC.md)
+- [docs/LIVE-COLLABORATION-TRANSPORT.md](../../LIVE-COLLABORATION-TRANSPORT.md)
+- [docs/LIVE-COLLABORATION-VALIDATION.md](../../LIVE-COLLABORATION-VALIDATION.md)
+- [docs/LIVE-COLLABORATION.md](../../LIVE-COLLABORATION.md)
+- [docs/LIVE-EVENT-RELIABILITY.md](../../LIVE-EVENT-RELIABILITY.md)
+- [docs/LIVE-EVENTS.md](../../LIVE-EVENTS.md)
+- [docs/LIVE_PERFORMANCE.md](../../LIVE_PERFORMANCE.md)
+- [docs/LIVE_WEBVIEW_PROJECTION.md](../../LIVE_WEBVIEW_PROJECTION.md)
+- [docs/LOCAL_BROWSER_ADAPTER_PLAN.md](../../LOCAL_BROWSER_ADAPTER_PLAN.md)
+- [docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md](../../LOCAL_BROWSER_ADAPTER_VALIDATION.md)
+- [docs/MEDIA.md](../../MEDIA.md)
+- [docs/NAPI-VM-MIGRATION-PLAN.md](../../NAPI-VM-MIGRATION-PLAN.md)
+- [docs/NAPI_VM_PLUGINS.md](../../NAPI_VM_PLUGINS.md)
+- [docs/P2P-COLLABORATION-PLAN.md](../../P2P-COLLABORATION-PLAN.md)
+- [docs/PERFORMANCE_REFACTOR_PROGRESS.md](../../PERFORMANCE_REFACTOR_PROGRESS.md)
+- [docs/PLAYWRIGHT.md](../../PLAYWRIGHT.md)
+- [docs/PLUGINS.md](../../PLUGINS.md)
+- [docs/PLUGIN_AUTHORING.md](../../PLUGIN_AUTHORING.md)
+- [docs/PLUGIN_PACKAGE_MANAGER_PLAN.md](../../PLUGIN_PACKAGE_MANAGER_PLAN.md)
+- [docs/PLUGIN_REGISTRY_PROTOCOL.md](../../PLUGIN_REGISTRY_PROTOCOL.md)
+- [docs/PLUGIN_UI_ARCHITECTURE.md](../../PLUGIN_UI_ARCHITECTURE.md)
+- [docs/RELEASE-4.2.1-rc.1.md](../../RELEASE-4.2.1-rc.1.md)
+- [docs/RELEASE-4.2.1-rc.2.md](../../RELEASE-4.2.1-rc.2.md)
+- [docs/RELEASE-4.2.1-rc.3.md](../../RELEASE-4.2.1-rc.3.md)
+- [docs/RELEASE-4.2.2.md](../../RELEASE-4.2.2.md)
+- [docs/SONICBOOM-LIVE-TTS-VALIDATION.md](../../SONICBOOM-LIVE-TTS-VALIDATION.md)
+- [docs/SYNC-CHANGES-PLAN.md](../../SYNC-CHANGES-PLAN.md)
+- [docs/TEMPLATES.md](../../TEMPLATES.md)
+- [docs/TERMUX.md](../../TERMUX.md)
+- [docs/TERMUX_AGENT_WORKFLOW.md](../../TERMUX_AGENT_WORKFLOW.md)
+- [docs/TERMUX_VALIDATION.md](../../TERMUX_VALIDATION.md)
+- [docs/TROUBLESHOOTING.md](../../TROUBLESHOOTING.md)
+- [docs/TWO-PC-ACCEPTANCE.md](../../TWO-PC-ACCEPTANCE.md)
+- [docs/UI_DIAGNOSTICS.md](../../UI_DIAGNOSTICS.md)
+- [docs/UI_KIT_USAGE.md](../../UI_KIT_USAGE.md)
+- [docs/USER_GUIDE.md](../../USER_GUIDE.md)
+- [docs/V2_PRODUCT_OUTBOX_STAGING.md](../../V2_PRODUCT_OUTBOX_STAGING.md)
+- [docs/WIDGET_SDK.md](../../WIDGET_SDK.md)
+- [docs/aggregation/README.md](../../aggregation/README.md)
+- [docs/internal/archive/CONTRIBUTING.md](CONTRIBUTING.md)
+- [docs/internal/archive/MIGRATION-REPORT.md](MIGRATION-REPORT.md)
+- [docs/internal/archive/PROVENANCE.json](PROVENANCE.json)
+- [docs/internal/archive/README.md](README.md)
+- [docs/internal/archive/docs/AGENT_API.md](docs/AGENT_API.md)
+- [docs/internal/archive/docs/APP-PACKAGING.md](docs/APP-PACKAGING.md)
+- [docs/internal/archive/docs/APP-UPDATER.md](docs/APP-UPDATER.md)
+- [docs/internal/archive/docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/internal/archive/docs/AUTOMATIONS.md](docs/AUTOMATIONS.md)
+- [docs/internal/archive/docs/BACKEND-LIKE-GOALS.md](docs/BACKEND-LIKE-GOALS.md)
+- [docs/internal/archive/docs/CLOUD-ACCOUNT.md](docs/CLOUD-ACCOUNT.md)
+- [docs/internal/archive/docs/CLOUD-REGISTRY.md](docs/CLOUD-REGISTRY.md)
+- [docs/internal/archive/docs/CLOUD-SYNC.md](docs/CLOUD-SYNC.md)
+- [docs/internal/archive/docs/CLOUD-UNIFIED.md](docs/CLOUD-UNIFIED.md)
+- [docs/internal/archive/docs/CLOUD-V2-DESKTOP.md](docs/CLOUD-V2-DESKTOP.md)
+- [docs/internal/archive/docs/CONTROL_API.md](docs/CONTROL_API.md)
+- [docs/internal/archive/docs/DECLARATIVE_PLUGINS.md](docs/DECLARATIVE_PLUGINS.md)
+- [docs/internal/archive/docs/DEPENDENCY-REFRESH.md](docs/DEPENDENCY-REFRESH.md)
+- [docs/internal/archive/docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- [docs/internal/archive/docs/EMOTES.md](docs/EMOTES.md)
+- [docs/internal/archive/docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+- [docs/internal/archive/docs/HOTKEYS_LINUX.md](docs/HOTKEYS_LINUX.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-APPROVAL.md](docs/LIVE-COLLABORATION-APPROVAL.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-AUTOMATION.md](docs/LIVE-COLLABORATION-AUTOMATION.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-CLIENT-COMMANDS.md](docs/LIVE-COLLABORATION-CLIENT-COMMANDS.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-CLIENT.md](docs/LIVE-COLLABORATION-CLIENT.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-OWNER.md](docs/LIVE-COLLABORATION-OWNER.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-POINTS.md](docs/LIVE-COLLABORATION-POINTS.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-SPEC.md](docs/LIVE-COLLABORATION-SPEC.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-TRANSPORT.md](docs/LIVE-COLLABORATION-TRANSPORT.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md](docs/LIVE-COLLABORATION-VALIDATION.md)
+- [docs/internal/archive/docs/LIVE-COLLABORATION.md](docs/LIVE-COLLABORATION.md)
+- [docs/internal/archive/docs/LIVE-EVENT-RELIABILITY.md](docs/LIVE-EVENT-RELIABILITY.md)
+- [docs/internal/archive/docs/LIVE-EVENTS.md](docs/LIVE-EVENTS.md)
+- [docs/internal/archive/docs/LIVE_PERFORMANCE.md](docs/LIVE_PERFORMANCE.md)
+- [docs/internal/archive/docs/LIVE_WEBVIEW_PROJECTION.md](docs/LIVE_WEBVIEW_PROJECTION.md)
+- [docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md](docs/LOCAL_BROWSER_ADAPTER_PLAN.md)
+- [docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md](docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md)
+- [docs/internal/archive/docs/MEDIA.md](docs/MEDIA.md)
+- [docs/internal/archive/docs/NAPI-VM-MIGRATION-PLAN.md](docs/NAPI-VM-MIGRATION-PLAN.md)
+- [docs/internal/archive/docs/NAPI_VM_PLUGINS.md](docs/NAPI_VM_PLUGINS.md)
+- [docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md](docs/P2P-COLLABORATION-PLAN.md)
+- [docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md](docs/PERFORMANCE_REFACTOR_PROGRESS.md)
+- [docs/internal/archive/docs/PLAYWRIGHT.md](docs/PLAYWRIGHT.md)
+- [docs/internal/archive/docs/PLUGINS.md](docs/PLUGINS.md)
+- [docs/internal/archive/docs/PLUGIN_AUTHORING.md](docs/PLUGIN_AUTHORING.md)
+- [docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md](docs/PLUGIN_PACKAGE_MANAGER_PLAN.md)
+- [docs/internal/archive/docs/PLUGIN_REGISTRY_PROTOCOL.md](docs/PLUGIN_REGISTRY_PROTOCOL.md)
+- [docs/internal/archive/docs/PLUGIN_UI_ARCHITECTURE.md](docs/PLUGIN_UI_ARCHITECTURE.md)
+- [docs/internal/archive/docs/RELEASE-4.2.1-rc.1.md](docs/RELEASE-4.2.1-rc.1.md)
+- [docs/internal/archive/docs/RELEASE-4.2.1-rc.2.md](docs/RELEASE-4.2.1-rc.2.md)
+- [docs/internal/archive/docs/RELEASE-4.2.1-rc.3.md](docs/RELEASE-4.2.1-rc.3.md)
+- [docs/internal/archive/docs/RELEASE-4.2.2.md](docs/RELEASE-4.2.2.md)
+- [docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md](docs/SONICBOOM-LIVE-TTS-VALIDATION.md)
+- [docs/internal/archive/docs/SYNC-CHANGES-PLAN.md](docs/SYNC-CHANGES-PLAN.md)
+- [docs/internal/archive/docs/TEMPLATES.md](docs/TEMPLATES.md)
+- [docs/internal/archive/docs/TERMUX.md](docs/TERMUX.md)
+- [docs/internal/archive/docs/TERMUX_AGENT_WORKFLOW.md](docs/TERMUX_AGENT_WORKFLOW.md)
+- [docs/internal/archive/docs/TERMUX_VALIDATION.md](docs/TERMUX_VALIDATION.md)
+- [docs/internal/archive/docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+- [docs/internal/archive/docs/TWO-PC-ACCEPTANCE.md](docs/TWO-PC-ACCEPTANCE.md)
+- [docs/internal/archive/docs/UI_DIAGNOSTICS.md](docs/UI_DIAGNOSTICS.md)
+- [docs/internal/archive/docs/UI_KIT_USAGE.md](docs/UI_KIT_USAGE.md)
+- [docs/internal/archive/docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+- [docs/internal/archive/docs/V2_PRODUCT_OUTBOX_STAGING.md](docs/V2_PRODUCT_OUTBOX_STAGING.md)
+- [docs/internal/archive/docs/WIDGET_SDK.md](docs/WIDGET_SDK.md)
+- [docs/internal/archive/docs/aggregation/README.md](docs/aggregation/README.md)
+- [docs/internal/archive/docs/perf-phase4.md](docs/perf-phase4.md)
+- [docs/internal/archive/docs/release_plan.md](docs/release_plan.md)
+- [docs/internal/archive/docs/ui/tts-minimal/README.md](docs/ui/tts-minimal/README.md)
+- [docs/internal/archive/docs/ui/tts-minimal/after-desktop.png](docs/ui/tts-minimal/after-desktop.png)
+- [docs/internal/archive/docs/ui/tts-minimal/after-mobile.png](docs/ui/tts-minimal/after-mobile.png)
+- [docs/internal/archive/docs/ui/tts-minimal/audio-bar.png](docs/ui/tts-minimal/audio-bar.png)
+- [docs/internal/archive/docs/ui/tts-minimal/before-desktop.png](docs/ui/tts-minimal/before-desktop.png)
+- [docs/internal/archive/docs/ui/tts-playback/README.md](docs/ui/tts-playback/README.md)
+- [docs/internal/archive/docs/ui/tts-playback/after-unknown-duration.png](docs/ui/tts-playback/after-unknown-duration.png)
+- [docs/internal/archive/docs/ui/tts-playback/after.png](docs/ui/tts-playback/after.png)
+- [docs/internal/archive/docs/ui/tts-playback/before.png](docs/ui/tts-playback/before.png)
+- [docs/internal/archive/docs/ui/tts-redesign/README.md](docs/ui/tts-redesign/README.md)
+- [docs/internal/archive/docs/ui/tts-redesign/after-desktop.png](docs/ui/tts-redesign/after-desktop.png)
+- [docs/internal/archive/docs/ui/tts-redesign/after-fields-tooltip.png](docs/ui/tts-redesign/after-fields-tooltip.png)
+- [docs/internal/archive/docs/ui/tts-redesign/after-mobile.png](docs/ui/tts-redesign/after-mobile.png)
+- [docs/internal/archive/docs/ui/tts-redesign/before-desktop.png](docs/ui/tts-redesign/before-desktop.png)
+- [docs/internal/archive/docs/universal-widgets.md](docs/universal-widgets.md)
+- [docs/migration-map.json](../../migration-map.json)
+- [docs/perf-phase4.md](../../perf-phase4.md)
+- [docs/release_plan.md](../../release_plan.md)
+- [docs/ui/tts-minimal/README.md](../../ui/tts-minimal/README.md)
+- [docs/ui/tts-playback/README.md](../../ui/tts-playback/README.md)
+- [docs/ui/tts-redesign/README.md](../../ui/tts-redesign/README.md)
+- [docs/universal-widgets.md](../../universal-widgets.md)

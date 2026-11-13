@@ -1,58 +1,28 @@
-# Agent workflow on Android
+# Agent workflow on Android / Flujo de agentes en Android
 
-Work inside the native Termux checkout on `remake`. Read the source and any
-repository instructions before editing. Preserve the typed Control API,
-AppCore ownership, plugin protocol and event schemas. Never launch desktop
-components as a validation shortcut.
+This legacy URL is retained. Use the topic guides below for current instructions.
 
-```bash
-git status --short --branch
-rustc -vV
-bash scripts/termux/check.sh
-```
+Se conserva esta dirección antigua. Usa las guías temáticas siguientes para las instrucciones actuales.
 
-Make focused edits, then run:
+**Status / Estado:** available in current source; host/platform prerequisites still apply / disponible en el código actual; se aplican los requisitos del host y la plataforma.
 
-```bash
-git diff --check
-cargo fmt --all -- --check
-cargo check -p tiktools-cli --locked
-cargo test -p tiktools-cli --locked
-cargo test -p tiktools-control-api --locked
-cargo test -p tiktools-client --locked
-cargo test -p tiktools-core --locked
-cargo test -p tiktools-tiktok --locked
-cargo build -p tiktools-cli --locked
-./target/debug/tiktools --json api verify --sandbox
-bash scripts/termux/smoke.sh
-```
+**Source review:** The native Termux check and smoke scripts still exist. Agents should use the CLI and typed Control API with isolated paths; desktop launches or Linux cross-compilation do not establish Android device behavior.
 
-Use `api discover` and `api schema <method>` rather than inventing commands.
-The sandbox verifier selects a throwaway core. The smoke script additionally
-isolates every application directory and plugin source, validates the real IPC
-host and cleans up only its own child processes. A standalone command without
-sandbox isolation uses the user's real data; do not use it for mutating tests.
+**Revisión del código:** Los scripts nativos de comprobación y smoke siguen existiendo. Los agentes deben usar CLI y Control API tipada con rutas aisladas; abrir el escritorio o compilar desde Linux no demuestra comportamiento real en Android.
 
-Never print or commit `TIKTOOLS_SESSION_COOKIE`. Automated tests must not require
-an authenticated TikTok session. Use fixtures and mocked lifecycle transports.
-Keep tests with real credentials separate and explicitly report them untested
-unless they actually ran. Report passed, failed and skipped checks separately;
-a skipped frontend test is never a pass. Capture the target, Rust version,
-command exit status and relevant failure output in the final report.
+<span id="agent-workflow-on-android"></span>
+<span id="agent-workflow-on-android-"></span>
 
-Native `.so` and `.node` plugins fail closed on Android. Process plugins need
-Bionic executables and valid shebangs. Do not disable trust, integrity, timeout
-or environment restrictions to make a desktop integration run on a phone.
-The pure Rust VM supports only the host capabilities actually available.
+**Agents and CLI / Agentes y CLI** (Developer / Desarrollo): [English](content/en/developer/agents.md) · [Español](content/es/developer/agents.md).
 
-For offline work, first populate the Cargo cache while online, then add
-`--offline` to focused Cargo commands. TLS failures require checking the CA
-bundle and network, not disabling verification. Missing QuickJS bindings require
-native Clang binding generation. Native protobuf generation requires Termux's
-`protobuf` package. If an agent-injected library path breaks `protoc`, diagnose
-with `env -u LD_LIBRARY_PATH protoc --version` and use that prefix only when
-confirmed. See [Termux setup](TERMUX.md) for resource and background limits.
+**Platform support / Plataformas compatibles** (Developer / Desarrollo): [English](content/en/developer/platforms.md) · [Español](content/es/developer/platforms.md).
 
-Before committing, inspect `git diff`, check for secrets and unrelated generated
-files, and record every remaining failure. Commit and push only the intended
-changes using the project's normal Git workflow.
+**Testing / Pruebas** (Developer / Desarrollo): [English](content/en/developer/testing.md) · [Español](content/es/developer/testing.md).
+
+**Termux / Termux** (User / Usuario): [English](content/en/user/termux.md) · [Español](content/es/user/termux.md).
+
+**Exact historical source / Fuente histórica exacta:** [original Markdown](internal/archive/docs/TERMUX_AGENT_WORKFLOW.md).
+
+Archived byte for byte from commit [`80c5cb1f`](https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_AGENT_WORKFLOW.md); SHA-256 `5890c1a3b4ee4963d72f7bb28d41f41b00b011399f268fd3f026b1d1a15a5872`.
+
+Conservado byte por byte; los resultados fechados y las afirmaciones obsoletas se mantienen como antecedentes. Consulta [el mapa de migración](migration-map.json) para la auditoría y los destinos de cada sección.
