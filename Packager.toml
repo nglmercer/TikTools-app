@@ -1,7 +1,7 @@
 name = "tiktools-desktop"
 product-name = "TikTools"
 identifier = "com.nglmercer.tiktools"
-version = "4.1.0"
+version = "4.2.0"
 publisher = "TikTools"
 description = "TikTools desktop application"
 homepage = "https://github.com/nglmercer/TikTools-app"
