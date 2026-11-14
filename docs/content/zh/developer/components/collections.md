@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
-translationRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
+sourceRevision: "45424c522635bc6271707b05d18c8d206878efbb9f9657dab9a9e69f3876832e"
+translationRevision: "2a48cef9151d6befba499c0c4c0aa870521bff139962995df3010ee3868ed06e"
 ---
 
 # 列表与表格 {#lists-and-tables}
@@ -43,3 +43,7 @@ translationRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f
 使用可见标签或 aria-label，保留键盘操作，并避免只依赖颜色传达信息。在窄屏和较长的翻译标签下测试。对于表单，将行的 controlAttrs 绑定到实际输入控件，确保错误和必填状态仍有关联。禁用控件本身无法解释故障；应在旁边显示状态及恢复操作。
 
 预览失败时，先关闭后重新打开，再重置演示该预览自己的演示实例。即使演示不可用，也可查看静态 API 和源码。原生对话框、外部服务和操作系统集成需要单独进行桌面测试。[返回组件指南](index.md)。
+
+## 运行细节 {#operational-details}
+
+可运行示例将状态保留在父组件。表格绑定 sort 模型，并用 computed 对三行排序；点击表头改变顺序，选择仍保留稳定 ID。标签编辑器将草稿保存在带 key 的子组件之外，输入、切换再返回仍保留各自草稿。标签或对话框自身不保存草稿。应明确选择父状态、保持挂载或 KeepAlive。

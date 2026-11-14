@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
-translationRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
+sourceRevision: "00ea88ebd11714484d717b7d7533d29158afd498121db362a3d300bc21889501"
+translationRevision: "00ea88ebd11714484d717b7d7533d29158afd498121db362a3d300bc21889501"
 order: 30
 ---
 
@@ -45,3 +45,7 @@ All clients observe the same authoritative operation and event path. `host --ipc
 If two clients disagree, compare host identity, home directory, build features and discovery before adding another store. A missing plugin is a runtime catalog issue, not a reason to compile its implementation into core. Historical architecture documents contain retired frontend paths; follow the [current core](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/lib.rs) and [frontend map](frontend.md) when they differ.
 
 ![TikTools AppCore, transport, ControlClient and real Vue workspace](/architecture.svg)
+
+## Operational details {#operational-details}
+
+The selected binary’s Cargo features determine compiled paths. Core defaults enable `native-plugins` and `napi-vm-node-api`; `persistence` supplies SQLite services, `native-tiktok` the LIVE adapter/ingress, and `plugin-install`, `cloud-auth`, `app-update` add their respective services. Inspect `cargo tree -p tiktools-desktop -e features` (or the actual CLI target), then runtime `system.info`/discovery. Compiled support does not establish configured service availability. Exercise LIVE ingress explicitly with the `native-tiktok` regression in [performance](performance.md).

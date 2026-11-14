@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "36ce27660edc95aea83a48cd408dbc683affaeefd2c686ee7229aeecc22d1ac8"
-translationRevision: "36ce27660edc95aea83a48cd408dbc683affaeefd2c686ee7229aeecc22d1ac8"
+sourceRevision: "9ce931bc43614d39b264662b83fbdf3ddc7df875ef7cd6193fc6742eed34c509"
+translationRevision: "11fa6a4eda1c79e97febd02d593c9357cf119ca5d7b0111fe112b40ecd65d381"
 order: 70
 ---
 
@@ -52,3 +52,32 @@ target/debug/tiktools api verify --sandbox
 コミット済みの機能検出スナップショットから生成しています。実行中のホストが最終的な根拠です。
 
 <!--@include: ../../../.generated/control-api.ja.md-->
+
+## 運用の詳細 {#operational-details}
+
+使い捨て `TIKTOOLS_HOME` を使い、[ストレージ](storage.md)の継承パス設定を解除し、`tiktools host --ipc` を起動します。制御端末も同じ home を使います。例は使い捨て workflow `docs-example` がある前提なので、先に[自動化](automations.md#operational-details)の無効な例を作ります。読み取りの `meta.resourceVersions` の版と `meta.hostInstanceId` を保存し、`REVISION`・`HOST_INSTANCE` を置換します。同じコマンド ID と正確な payload を保持し、timeout 後は元 ID を照会してリソースを再取得します。`accepted`・`running`・`unknown` は新しい副作用を許可しません。版競合では読み直して再レビューし、自動上書きしません。`points.adjust` は加算型でコマンド ID は受け付けますが expected revision は受け付けません。
+
+`--include-meta` は結果とメタデータを残し、通常出力は結果だけを抽出します。`--dry-run --explain` は実行せず検証・計画し、説明は stderr、JSON は stdout です。破壊的呼び出しには `--confirm` が必要です。既知の秘密は既定で秘匿し、`--secrets-visible` もホストが隠した値は復元できません。手作業で確認します。`api events` は時間・件数・topic を制限します。features・権限は実ホスト discovery が正で、生成する契約説明はレジストリ原文を保持します。
+
+```sh
+tiktools api discover --json
+tiktools api schema workflows.disable --json
+tiktools api call workflows.get '{"id":"docs-example"}' --include-meta --json
+tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision REVISION --command-id docs-disable-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --explain --json
+tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision REVISION --command-id docs-disable-001 --host-instance-id HOST_INSTANCE --include-meta --json
+tiktools api call collaboration.commands.get '{"commandId":"docs-disable-001"}' --json
+tiktools api call points.adjust '{"uniqueId":"docs-viewer","delta":1}' --command-id docs-points-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --json
+tiktools api events --topics live.status --timeout 5 --max-events 2
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"workflows.disable","params":{"id":"docs-example"},"meta":{"expectedRevision":"1","commandId":"docs-disable-001","hostInstanceId":"HOST_INSTANCE"}}
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"result":{"id":"docs-example","enabled":false},"meta":{"hostInstanceId":"HOST_INSTANCE","resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}],"command":{"commandId":"docs-disable-001","state":"succeeded"}}}
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"error":{"code":"revision_conflict","message":"Resource revision changed","data":{"resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}]}}}
+```

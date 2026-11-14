@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e0636475d"
-translationRevision: "6ddef04010107168724bf216912139813ecac7622db8ec9938b9e43e0636475d"
+sourceRevision: "9e2ce8a6d2139599d1d9ce5afe82fc181154cf9d2689131eae52a8952a4351f4"
+translationRevision: "c357a85ef88075ca654e161eba24776cbd933a710d548b076813d68944ad5ffc"
 ---
 
 # Paneles y diálogos {#panels-and-dialogs}
@@ -43,3 +43,7 @@ Este archivo se compila para la vista y se incluye como snippet. El estado peque
 Proporciona etiqueta visible o aria-label, conserva el manejo por teclado y evita depender solo del color. Prueba un ancho reducido y etiquetas traducidas largas. En formularios asocia controlAttrs de la fila al input real para conservar errores y estado obligatorio. Un control desactivado no explica por sí mismo un fallo: muestra estado cercano y recuperación.
 
 Si falla la vista, ciérrala y ábrela y luego reinicia su instancia. La API estática y el código siguen siendo útiles sin demo. Los diálogos nativos, servicios externos y funciones del sistema requieren pruebas separadas de escritorio. [Volver a la guía de componentes](index.md).
+
+## Detalles de operación {#keyboard-contract}
+
+Revisa [teclado, excepciones del diálogo y nombres/tooltip](../i18n-accessibility.md#operational-details). Comprueba foco inicial/retorno en el flujo completo, incluidos diálogos no cerrables y borradores desmontados.

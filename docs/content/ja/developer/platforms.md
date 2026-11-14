@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
-translationRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
+sourceRevision: "c7befe2be6f91bcf50ce4572aaa95d02723a315ba11ed1d94e6d499e802c2473"
+translationRevision: "87f6e7b9743b445490b995bd4bd10e65488704676890481e3b226d75005b4776"
 order: 20
 ---
 
@@ -41,3 +41,19 @@ cargo build -p tiktools-cli --locked
 ## 検証と対処 {#verify-and-recover}
 
 ルートから `bash scripts/termux/doctor.sh`、`bash scripts/termux/test.sh`、`bash scripts/termux/smoke.sh` を実行します。省略したフロントエンド検査を正直に報告します。`protoc` の C++ シンボル問題はライブラリ変更前に `env -u LD_LIBRARY_PATH protoc --version` と比較します。CA バンドル不足は修復し、迂回しません。クロスコンパイルだけでは端末の受け入れを確認できません。[Termux スモークスクリプト](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/termux/smoke.sh) に対象検査と制限があります。
+
+## 運用の詳細 {#operational-details}
+
+ローカル browser adapter には index.html を含む assets と `local-web` CLI を作ります。継承パスを解除し使い捨て `TIKTOOLS_HOME` を指定、先に IPC host を起動します。同じ home の別端末で adapter を実行し、loopback 一クリック link または 6 桁一回限り code（5 分有効）で接続します。終了時は adapter と host を別々に止めます。loopback/pairing は遠隔・LAN access を提供しません。Termux は native Android toolchain と web assets が必要で、desktop Linux binary は Android binary ではありません。
+
+```sh
+bun scripts/task.ts frontend-build
+bun scripts/task.ts rust build -p tiktools-cli --features local-web --locked
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools host --ipc
+```
+
+```sh
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools web --assets /absolute/path/to/TikTools/dist/web --port 4174
+```

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
-translationRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
+sourceRevision: "45424c522635bc6271707b05d18c8d206878efbb9f9657dab9a9e69f3876832e"
+translationRevision: "04ccbd751ddae7d69e36c3f91aef8d3cba85960d32dae3b77f7c930c4224c577"
 ---
 
 # リストとテーブル {#lists-and-tables}
@@ -43,3 +43,7 @@ translationRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f
 見えるラベルか aria-label を使い、キーボード操作を維持し、色だけに頼らないでください。狭い幅と長い翻訳ラベルでも確認します。フォームでは行の controlAttrs を実際の入力に結び付け、エラーと必須状態の関連を維持します。無効な操作欄だけでは失敗の理由は伝わりません。近くに状態と復旧操作を表示します。
 
 プレビューが失敗したら閉じて開き直し、そのデモインスタンスで「デモをリセット」を使います。デモが使えなくても静的な API とソースを確認します。ネイティブダイアログ、外部サービス、OS 連携は別途デスクトップでテストする必要があります。[コンポーネントガイドに戻る](index.md)。
+
+## 運用の詳細 {#operational-details}
+
+実行例は親に状態を置きます。表は sort model と computed で 3 行を並べ替え、見出し操作でも選択 ID を保持します。タブの草稿は key 付き子の外に保存し、入力・切り替え・復帰しても残ります。タブ・ダイアログ自体は草稿を永続化しません。親状態・常時 mount・KeepAlive を意図して選びます。

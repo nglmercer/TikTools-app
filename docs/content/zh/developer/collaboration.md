@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "cb0c8fc55416a0ade232a0272051d244ed5558d4b1f3aec87d37a7500af59475"
-translationRevision: "cb0c8fc55416a0ade232a0272051d244ed5558d4b1f3aec87d37a7500af59475"
+sourceRevision: "fb71673a581e923e3c02ae401a46937b007f9919690ca020d22c27b370b6c61d"
+translationRevision: "c13d4e37e61a1a45537a43ba8304c2eeb1beae2e49d36651785d6059977939a5"
 order: 190
 ---
 
@@ -43,3 +43,9 @@ tiktools api call collaboration.status '{}' --format json
 ## 恢复与验证 {#recover-and-verify}
 
 撤销或身份改变时，停止订阅并丢弃私有投影。按协商领域和游标有效性使用 `collaboration.subscribe`、`snapshot` 和 `resume`。确认不确定时，查询原始命令 ID。不要换新 ID 重试删除，也不要根据旧回执恢复权限。[授权源码](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-collaboration/src)和注册表策略定义边界；仅通过 TLS 不是授权测试。
+
+## 运行细节 {#operational-details}
+
+Teams 流程：注册设备、发出/加入邀请或访问请求、批准，再由宿主确认原生权限的当前修订。`pendingHost` 表示最后一步未完成。新修订使旧确认失效；expectedRevision 过期时重新加载。原生接收要求新快照、活动宿主/设备、有效权限且 confirmedRevision 等于 revision。UI 提供宿主/加入面板及可用批准入口；原生确认是 API 契约，不保证所有构建都有相应按钮。
+
+旧角色映射为封闭集合：observer 获得 live/workflows/积分/竞赛/自动化/结果读取；moderator 额外获得积分调整、workflow/自动化开关及竞赛管理；automationEditor 在读取外增加自动化编辑。预设不授予任意脚本、外部副作用或可复用自动化委派。显式 `nativeGrant` 要求 `custom`，并在那里限制资源、副作用范围和积分 delta。原生客户端只支持 `desktop` 或 `agent`。不支持的策略直接失败，不会扩大权限。分别诊断配对、宿主确认、修订新鲜度和传输。

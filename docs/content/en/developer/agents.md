@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
-translationRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
+sourceRevision: "81526e0de1483b13f1df159576cb69f37ce2c5e3cf072ee9db199cd6c8c84dfb"
+translationRevision: "81526e0de1483b13f1df159576cb69f37ce2c5e3cf072ee9db199cd6c8c84dfb"
 order: 80
 ---
 
@@ -102,3 +102,7 @@ bun scripts/task.ts test headless-teams --binary /absolute/path/tiktools --backe
 New package builds also accept `./TikTools.AppImage --cli --build-info` and `./TikTools.AppImage --cli --json teams doctor`. This entry point dispatches before GUI initialization; older published AppImages do not gain it automatically.
 
 Reusing a controller profile across CLI processes requires an available OS credential store.
+
+## Operational details {#operational-details}
+
+Before emitting an effect, discover its schema, use `--dry-run --explain`, and inspect whether the operation is CAS, additive, durable or destructive. Follow the [isolated read → CAS → original-outcome recipe](control-api.md#operational-details) and [snapshot → apply → acknowledge recovery](remote-client.md#operational-details). A tool wrapper must preserve metadata, the original payload/command ID and caller scope; changing the ID after a timeout can repeat an effect. `--confirm` acknowledges a destructive call, not broader authority.

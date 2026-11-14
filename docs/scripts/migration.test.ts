@@ -17,7 +17,7 @@ async function fixture() {
   await writeFile(join(root, 'docs/internal/archive/docs/OLD.md'), original);
   await writeFile(join(root, 'docs/internal/archive/docs/old.png'), image);
   await writeFile(join(root, 'docs/content/en/user/index.md'), '# Current guide\n');
-  const entry = { source: 'docs/OLD.md', destinations: ['docs/content/en/user/index.md'], archive: 'docs/internal/archive/docs/OLD.md', sourceSha256: hash(original), audience: 'user', status: 'available', migrationStatus: 'migrated', linkTreatment: { kind: 'archived-source-removed', legacyPathPreserved: false } };
+  const entry = { source: 'docs/OLD.md', destinations: ['docs/content/en/user/index.md'], archive: 'docs/internal/archive/docs/OLD.md', archiveRetention: undefined as { kind: 'git-only'; reason: string } | undefined, sourceSha256: hash(original), audience: 'user', status: 'available', migrationStatus: 'migrated', linkTreatment: { kind: 'archived-source-removed', legacyPathPreserved: false, anchorDestinations: { 'original-guide': ['docs/content/en/user/index.md'] } } };
   await writeFile(join(root, 'docs/inventory.json'), JSON.stringify({ sourceCommit, documents: [{ source: entry.source, sha256: hash(original), anchors: ['original-guide'] }], assets: [{ source: 'docs/old.png', sha256: hash(image) }] }));
   const migration = { sourceCommit, entries: [entry], assets: [{ source: 'docs/old.png', sourceSha256: hash(image), archive: 'docs/internal/archive/docs/old.png', linkTreatment: { kind: 'archived-copy-only', legacySourceRemoved: true } }] };
   const save = () => writeFile(join(root, 'docs/migration-map.json'), JSON.stringify(migration));
@@ -26,6 +26,25 @@ async function fixture() {
 
 test('removed legacy documents and images remain covered by exact archives and current destinations', async () => {
   const { root } = await fixture(); expect(await migrationErrors(root)).toEqual([]);
+});
+test('migration destinations validate generated heading fragments', async () => {
+  const { root, migration, save } = await fixture();
+  const entry = migration.entries[0]!;
+  entry.destinations = ['docs/content/en/user/index.md#current-guide'];
+  await save();
+  expect(await migrationErrors(root)).toEqual([]);
+  entry.destinations = ['docs/content/en/user/index.md#missing'];
+  await save();
+  expect((await migrationErrors(root)).join('\n')).toContain('Missing migration anchor');
+});
+test('topic migration targets cannot bypass fragment validation or omit an original topic', async () => {
+  const { root, migration, save } = await fixture();
+  migration.entries[0]!.linkTreatment.anchorDestinations['original-guide'] = ['docs/content/en/user/index.md#missing'];
+  await save();
+  expect((await migrationErrors(root)).join('\n')).toContain('Missing migration anchor');
+  migration.entries[0]!.linkTreatment.anchorDestinations['original-guide'] = [];
+  await save();
+  expect((await migrationErrors(root)).join('\n')).toContain('Missing topic migration');
 });
 test('cleanup policy rejects reintroduced legacy copies', async () => {
   const { root } = await fixture();
@@ -38,6 +57,34 @@ test('removing compatibility files cannot hide a missing or changed archive', as
   await rm(join(root, 'docs/internal/archive/docs/old.png'));
   const errors = (await migrationErrors(root)).join('\n');
   expect(errors).toContain('Changed historical bytes'); expect(errors).toContain('Missing historical asset');
+});
+test('explicit Git-only retirement keeps coverage without a local historical copy', async () => {
+  const { root, migration, save } = await fixture();
+  const entry = migration.entries[0]!;
+  entry.archive = `https://github.com/nglmercer/TikTools-app/blob/${migration.sourceCommit}/${entry.source}`;
+  entry.archiveRetention = { kind: 'git-only', reason: 'Obsolete implementation plan; guidance migrated to the current guide.' };
+  await rm(join(root, 'docs/internal/archive/docs/OLD.md'));
+  await save();
+  expect(await migrationErrors(root)).toEqual([]);
+  await writeFile(join(root, 'docs/internal/archive/docs/OLD.md'), 'restored');
+  expect((await migrationErrors(root)).join('\n')).toContain('Retired archive was restored');
+});
+test('Git-only retirement requires a reason, immutable provenance and original topic coverage', async () => {
+  const { root, migration, save } = await fixture();
+  const entry = migration.entries[0]!;
+  entry.archiveRetention = { kind: 'git-only', reason: 'Obsolete report' };
+  entry.archive = `https://github.com/nglmercer/TikTools-app/blob/main/${entry.source}`;
+  await rm(join(root, 'docs/internal/archive/docs/OLD.md'));
+  await save();
+  expect((await migrationErrors(root)).join('\n')).toContain('Invalid Git-only retirement');
+  entry.archive = `https://github.com/nglmercer/TikTools-app/blob/${migration.sourceCommit}/${entry.source}`;
+  entry.archiveRetention.reason = '';
+  await save();
+  expect((await migrationErrors(root)).join('\n')).toContain('Invalid Git-only retirement');
+  entry.archiveRetention.reason = 'Obsolete report';
+  entry.linkTreatment.anchorDestinations['original-guide'] = [];
+  await save();
+  expect((await migrationErrors(root)).join('\n')).toContain('Missing topic migration');
 });
 test('the removal policy cannot silently retire maintained repository entry points', async () => {
   const { root, migration, save } = await fixture();

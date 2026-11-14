@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
-translationRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
+sourceRevision: "6a249fa36fa53f3bfe7da57fdd25a445e593517946f80ac7e891b54d95cdc17d"
+translationRevision: "55e734123a4444711d8ab35c8c8540eb121d6993900cd047a5210333578af3b0"
 order: 260
 ---
 
@@ -48,3 +48,7 @@ El analizador rechaza protocolo/ABI incompatibles antes de cargar. Android permi
 ## Recuperación {#recovery}
 
 Reinicia un host privado tras reemplazar una biblioteca nativa. Si el inicio agota su plazo y queda incierto, el gestor conserva la identidad y bloquea sustituciones; no eludas ese estado declarando cierre correcto. Los buffers de eventos son acotados y pueden informar retraso; emitir durante inicio no constituye una cola duradera. La [implementación del cargador](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-loader/src) define motor y ciclo de vida actuales.
+
+## Detalles de operación {#operational-details}
+
+Los límites actuales son 512 MiB de memoria QuickJS, pila 2 MiB, presupuesto de interrupción por llamada, tramas 16 MiB y hasta 128 llamadas en cola por instancia. Son límites, no garantía de cancelar efectos. Un proceso agotado se termina/retira; una llamada nativa no se puede matar con seguridad y se conserva la instancia. Sus efectos OS pueden haber ocurrido. Revisa resultado original y ciclo de vida antes de sustituir/reintentar. Addons `.node` confiables usan privilegios del host, fuera del límite JS.

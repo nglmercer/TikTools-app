@@ -41,16 +41,18 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-mobile.png' });
 });
 
-test('landing pages have a readable hero and useful links without loading the demo', async ({ page }) => {
+test('product landing pages show the real demo automatically and fit every viewport', async ({ page }) => {
   for (const route of ['', ...docLocales.map((locale) => `${locale}/`)]) {
     await page.goto(route);
     const title = page.locator('h1'); await expect(title).toHaveCount(1);
     expect(await title.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(32);
     await expect(page.locator('main a[href*="/user/"]').first()).toBeVisible();
     await expect(page.locator('main a[href*="/developer/"]').first()).toBeVisible();
-    await expect(page.locator('iframe')).toHaveCount(0);
+    await expect(page.locator('iframe')).toHaveCount(1);
+    await expect(page.frameLocator('.product-stage iframe').locator('.live-feed')).toContainText('Hello TikTools!');
     await page.setViewportSize({ width: 390, height: 844 });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const layout = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth, overflow: [...document.querySelectorAll('main *')].filter((node) => node.getBoundingClientRect().right > innerWidth + 1).slice(0, 8).map((node) => ({ element: node.tagName, class: node.className, right: node.getBoundingClientRect().right })) }));
+    expect(layout.width, JSON.stringify(layout.overflow)).toBeLessThanOrEqual(layout.viewport);
     await page.screenshot({ path: `/tmp/tiktools-docs-design-${route ? route.slice(0, 2) : 'root'}-mobile.png`, fullPage: true });
     await page.setViewportSize({ width: 1440, height: 960 });
     await page.screenshot({ path: `/tmp/tiktools-docs-design-${route ? route.slice(0, 2) : 'root'}-desktop.png`, fullPage: true });
@@ -59,4 +61,7 @@ test('landing pages have a readable hero and useful links without loading the de
   await page.goto('');
   await expect(page.locator('html')).toHaveClass(/dark/);
   await page.screenshot({ path: '/tmp/tiktools-docs-design-root-dark.png', fullPage: true });
+  await page.goto('es/');
+  await expect(page.frameLocator('.product-stage iframe').locator('.live-feed')).toContainText('Hello TikTools!');
+  await page.screenshot({ path: '/tmp/tiktools-docs-design-es-dark.png', fullPage: true });
 });

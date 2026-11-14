@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
-translationRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
+sourceRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
+translationRevision: "855b72a4103674a3d1273f6cc2fc562e0af906736b0adee9f76f510e2feeb109"
 order: 90
 ---
 
@@ -45,3 +45,38 @@ O desktop nativo tem uma entrada isolada `tiktools-desktop --controller` e diár
 ## Recupere {#recover}
 
 Em uma lacuna de sequência, use o caminho negociado de instantâneo/retomada da assinatura e limpe projeções privadas quando a identidade mudar. Não reproduza mutações de negócio automaticamente após reconectar. Um certificado alterado exige revisão explícita de confiança. A [implementação de perfis](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/profiles/mod.rs) documenta as concessões temporárias de perfil e a incerteza de renovação; a aceitação real entre vários PCs e armazenamentos do sistema deve ser informada separadamente dos testes de loopback.
+
+## Detalhes de operação {#operational-details}
+
+Aplique cada evento confiável à captura/projeção correspondente antes de `acknowledge`; confirmar antes perde evidências de recuperação. Retome apenas com a mesma instância, assinatura, sessão e permissão. Lacuna, contexto alterado, cursor rejeitado ou fechamento do navegador por gap exige novas capturas autorizadas e outra assinatura. Não repita mutações pelo histórico. Use a [receita de metadados/ID original](control-api.md#operational-details) para escritas incertas.
+
+O `event` local contém `{topic,data?}`; variantes unitárias podem omitir dados. Em remoto `event.params` é ReliableEvent com sequência textual, ID, versão do recurso e ator. `event.gap` é outro método. Os exemplos são ilustrativos, não replay durável de efeitos perdidos.
+
+```json
+{"jsonrpc":"2.0","method":"event","params":{"topic":"live.status","data":{}}}
+{"jsonrpc":"2.0","method":"event","params":{"topic":"workflow.changed","data":{},"hostInstanceId":"h1","subscriptionId":"s1","sequence":"7","eventId":"e7","resource":{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"},"actor":{"principalId":"owner"}}}
+{"jsonrpc":"2.0","method":"event.gap","params":{"lost":3,"resync":true}}
+```
+
+O esboço SDK abaixo exige remote-profiles. Callbacks de projeção pertencem ao aplicativo e terminam antes de acknowledge. Veja [RecoveryStream](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/recovery.rs) para baseline, cursor e retomada tipados.
+
+```rust
+use tiktools_client::remote::{RecoveryMode, RecoveryStream, StreamDomain};
+use std::collections::BTreeSet;
+
+let mut stream = RecoveryStream::start(remote, BTreeSet::from([StreamDomain::Workflows])).await?;
+replace_snapshot(stream.baseline().expect("complete authorized baseline"))?;
+loop {
+    match stream.next_event().await {
+        Ok(event) => {
+            apply_to_projection(&event)?;
+            stream.acknowledge(&event)?;
+        }
+        Err(_) => {
+            if stream.reconnect().await? == RecoveryMode::Snapshot {
+                replace_snapshot(stream.baseline().expect("fresh authorized baseline"))?;
+            }
+        }
+    }
+}
+```

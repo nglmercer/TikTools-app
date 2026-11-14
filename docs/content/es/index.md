@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
+sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+translationRevision: "0b886028d9dcc8270a00598d321fa643840439d830ee50660707f8f87d630856"
 layout: page
 order: 0
 ---
@@ -17,22 +17,22 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / Documentación
+TikTools / Para tu próximo LIVE
 
 </template>
 
 
 <template #intro>
 
-# Tu guía para<br />un mejor LIVE. {#tiktools-documentation}
+# Tu LIVE.<br />Tus reglas. {#tiktools-documentation}
 
-Conecta tu TikTok LIVE, aprovecha los eventos de tu audiencia y crea con TikTools. Documentación práctica, desde tu primera conexión hasta tu próximo plugin.
+Conecta tu TikTok LIVE, automatiza las respuestas a tu audiencia y crea overlays para OBS. Prueba aquí la interfaz real con datos ficticios y prepara tu próxima transmisión.
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">Prueba la demo interactiva</a>
+<a :href="demoHref" target="_self">Prueba TikTools</a>
 [Descarga TikTools](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>
@@ -41,7 +41,7 @@ Conecta tu TikTok LIVE, aprovecha los eventos de tu audiencia y crea con TikTool
 
 ## Tu primer LIVE, paso a paso {#start-here}
 
-Empieza con la app publicada. No necesitas herramientas de desarrollo.
+Explora la aplicación aquí mismo o instálala para conectar tu LIVE. No necesitas herramientas de desarrollo.
 
 1. [**Revisa los requisitos** <span>Encuentra la configuración para tu sistema.</span>](./user/requirements.md)
 2. [**Instala TikTools** <span>Descarga y abre un binario publicado.</span>](./user/installation.md)
@@ -53,7 +53,7 @@ Empieza con la app publicada. No necesitas herramientas de desarrollo.
 
 ## Encuentra tu punto de partida {#explore-the-guides}
 
-Dos caminos. Las mismas herramientas.
+Guías para usar TikTools y referencias para ampliarlo.
 
 </template>
 
@@ -93,7 +93,7 @@ Trabaja con el host Rust, la interfaz Vue y la API de control tipada. Empieza aq
 
 <template #footer>
 
-La demo utiliza datos ficticios. Cada guía indica las funciones experimentales y sus requisitos.
+Los ejemplos usan datos ficticios y guardan sus cambios dentro de la demo. Cada guía indica los requisitos y las funciones experimentales.
 
 [Código en GitHub](https://github.com/nglmercer/TikTools-app)
 

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
-translationRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
+sourceRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
+translationRevision: "c3a61318016c883c9bcd75e3561ec7e75cc1812bf57e0ffe0033579f7af3ebcf"
 order: 90
 ---
 
@@ -45,3 +45,38 @@ tiktools --remote-profile live-desk workflow list
 ## 問題が起きたとき {#recover}
 
 シーケンス欠落では交渉済み購読の snapshot/resume を使い、ID 変更時は非公開投影を消します。再接続後に業務変更を自動再実行しません。証明書変更には明示的な信頼確認が必要です。[プロファイル実装](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/profiles/mod.rs) にリースと更新の不確実性があります。実際の複数 PC・OS ストアの受け入れはループバックテストと別に報告します。
+
+## 運用の詳細 {#operational-details}
+
+信頼イベントは対応するスナップショット・投影へ適用してから `acknowledge` します。先に確認すると回復証拠を失います。再開にはホストインスタンス・購読・セッション・grant の一致が必要です。gap、文脈変更、カーソル拒否、gap によるブラウザー切断では新しい認可済みスナップショットと購読を取得します。履歴から更新処理を再実行しません。不明な書き込みは[メタデータと元 ID の手順](control-api.md#operational-details)で確認します。
+
+ローカル `event` は `{topic,data?}` で単位型では data がない場合もあります。リモート `event.params` は文字列 sequence、イベント ID、リソース版、actor を持つ ReliableEvent です。`event.gap` は別メソッドです。以下は形式例で、失われた副作用の永続 replay ではありません。
+
+```json
+{"jsonrpc":"2.0","method":"event","params":{"topic":"live.status","data":{}}}
+{"jsonrpc":"2.0","method":"event","params":{"topic":"workflow.changed","data":{},"hostInstanceId":"h1","subscriptionId":"s1","sequence":"7","eventId":"e7","resource":{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"},"actor":{"principalId":"owner"}}}
+{"jsonrpc":"2.0","method":"event.gap","params":{"lost":3,"resync":true}}
+```
+
+以下の SDK 統合例には remote-profiles が必要です。投影 callback はアプリが実装し acknowledge より先に完了します。[RecoveryStream](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/recovery.rs) に型付き baseline・cursor・再開契約があります。
+
+```rust
+use tiktools_client::remote::{RecoveryMode, RecoveryStream, StreamDomain};
+use std::collections::BTreeSet;
+
+let mut stream = RecoveryStream::start(remote, BTreeSet::from([StreamDomain::Workflows])).await?;
+replace_snapshot(stream.baseline().expect("complete authorized baseline"))?;
+loop {
+    match stream.next_event().await {
+        Ok(event) => {
+            apply_to_projection(&event)?;
+            stream.acknowledge(&event)?;
+        }
+        Err(_) => {
+            if stream.reconnect().await? == RecoveryMode::Snapshot {
+                replace_snapshot(stream.baseline().expect("fresh authorized baseline"))?;
+            }
+        }
+    }
+}
+```

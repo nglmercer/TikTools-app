@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "f9d8877d583d78c94a8a46a2beb25bc623dd606706f219eef87285c0a249d6a8"
-translationRevision: "f9d8877d583d78c94a8a46a2beb25bc623dd606706f219eef87285c0a249d6a8"
+translationRevision: "68f02c99743c8c56c62788363018b1cb71d2b7b8e07e31977a9fbcb6bcdfc75f"
 ---
 
 # Vue JSON et différences {#json-view-and-diff}

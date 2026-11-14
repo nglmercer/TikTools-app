@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "af4dd266875a9cdd3b1166b1791ab80fd20f1a4d0b72158aaa35b385a0fcdf55"
-translationRevision: "af4dd266875a9cdd3b1166b1791ab80fd20f1a4d0b72158aaa35b385a0fcdf55"
+sourceRevision: "caded5529a62e826a91d2deb86936c29c709ac713c2a0cd021f467b1dfa2b6e7"
+translationRevision: "381296887776b3746ddfc5e6a2d66dc6ec0c9bcd48fead1acda9343e491b86d1"
 order: 100
 ---
 
@@ -41,8 +41,22 @@ Los [contratos Rust](https://github.com/nglmercer/TikTools-app/tree/remake/crate
 
 ## Resultado esperado y estado {#expected-result-and-status}
 
-El solapamiento de reconexión no duplica entregas visuales ni la contabilidad protegida por identidad. Colas, contadores, historial y cachés permanecen acotados. No es un archivo ilimitado ni una garantía universal de ejecución única. Agotar capacidad o perder persistencia afecta explícitamente a la salud.
+El solapamiento de reconexión solo se deduplica mientras el evento identificado permanezca en el almacén finito actual. Colas, contadores, historial y cachés permanecen acotados. No es un archivo ilimitado ni una garantía universal de ejecución única. Agotar capacidad o perder persistencia afecta explícitamente a la salud.
 
 ## Recuperación y verificación {#recover-and-verify}
 
 Utiliza muestras saneadas de regalos/emotes y prueba finales de combo, identificadores ausentes, cambios de sala y huecos. Consulta la revisión del firmador en `Cargo.toml`, no un hash antiguo. Los métodos desconocidos siguen sin semántica inventada hasta ampliar normalización y contratos.
+
+## Detalles de operación {#operational-details}
+
+Los defaults actuales (2026-11-13) son límites de implementación, no un SLA. La entrada LIVE admite 2.048 elementos y el canal de efectos 128; no son presupuestos de bytes. El ciclo de vida espera capacidad. Regalos/follows/shares esperan como máximo un segundo antes de descartarse con hueco. Chat/likes/joins/otros datos se descartan inmediatamente al saturarse. Revisa `droppedCritical`, lotes/unidades de likes perdidos y pérdidas de efectos: una entrada descartada puede no haber ejecutado sus efectos. Backfill solo repara presentación, nunca puntos ni acciones.
+
+La deduplicación guarda como máximo 4.096 identidades durante 300 segundos en memoria del proceso. Sobrevive a reconexiones solo mientras vive ese almacén. Caducidad, expulsión, IDs ausentes o reinicio eliminan la protección; el solapamiento solo está protegido dentro de esos límites.
+
+`ui.feed.backfill` acepta `{version:1,after:0,limit:64}`, cursor numérico global y límite 1–512. Revisa `oldestCursor`, `latestCursor`, `gap` y `truncated`; continúa desde el último cursor recibido. `ui.feed.creator` usa `{creatorId,streamId,after,limit}`, cursores de texto, stream por creador, límite 1–64 y presupuesto de bytes. No intercambies cursores. Si cambia/se expulsa el stream, el cursor es futuro, hay hueco de ingreso o `CreatorFeedUnavailable`, refresca la presentación autoritativa y marca la historia faltante; no inventes efectos.
+
+TikTok inicializa sesión, sala, catálogo de regalos, bundle de firma y socket. Configuración: `TIKTOOLS_TIKTOK_SIGNING_BUNDLE`, `TIKTOOLS_TIKTOK_BUNDLE_CACHE`, `TIKTOOLS_TIKTOK_BUNDLE_URL`. Defaults: cinco intentos, backoff inicial 2 s hasta 30 s. HTTP 429 usa Retry-After o mínimo creciente 30–300 s con jitter, hasta dos reintentos por rate limit; conserva cooldown tras cancelar/agotarse. Otros reintentos exigen fallo transitorio de transporte. Revisa `Reconnecting { attempt, delay_ms }` y la etapa; no adjuntes cookies ni material privado de firma.
+
+```sh
+tiktools api call system.health '{}' --json
+```

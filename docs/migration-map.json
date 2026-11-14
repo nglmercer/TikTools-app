@@ -850,7 +850,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/TERMUX_VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md"
           },
           {
             "target": "CONTRIBUTING.md",
@@ -1159,7 +1159,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "CONTROL_API.md#version-metadata",
@@ -4124,7 +4124,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "#external-effect-receipts",
@@ -4901,7 +4901,7 @@
               "docs/content/en/developer/releases.md",
               "docs/content/es/developer/releases.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/DEPENDENCY-REFRESH.md#dependency-refresh-2026-10-26"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEPENDENCY-REFRESH.md#dependency-refresh-2026-10-26"
           },
           {
             "target": "#versions",
@@ -4916,7 +4916,7 @@
               "docs/content/en/developer/releases.md",
               "docs/content/es/developer/releases.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/DEPENDENCY-REFRESH.md#versions"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEPENDENCY-REFRESH.md#versions"
           },
           {
             "target": "NAPI-VM-MIGRATION-PLAN.md",
@@ -4929,7 +4929,7 @@
               "docs/content/en/developer/architecture.md",
               "docs/content/es/developer/architecture.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/NAPI-VM-MIGRATION-PLAN.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md"
           },
           {
             "target": "#compatibility-changes-and-constraints",
@@ -4944,7 +4944,7 @@
               "docs/content/en/developer/releases.md",
               "docs/content/es/developer/releases.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/DEPENDENCY-REFRESH.md#compatibility-changes-and-constraints"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEPENDENCY-REFRESH.md#compatibility-changes-and-constraints"
           },
           {
             "target": "https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-6.0",
@@ -4964,7 +4964,7 @@
               "docs/content/en/developer/releases.md",
               "docs/content/es/developer/releases.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/DEPENDENCY-REFRESH.md#validation-environment"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEPENDENCY-REFRESH.md#validation-environment"
           },
           {
             "target": "#pr-integration-validation",
@@ -4979,20 +4979,24 @@
               "docs/content/en/developer/releases.md",
               "docs/content/es/developer/releases.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/DEPENDENCY-REFRESH.md#pr-integration-validation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEPENDENCY-REFRESH.md#pr-integration-validation"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEPENDENCY-REFRESH.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/DEPENDENCY-REFRESH.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEPENDENCY-REFRESH.md",
       "sourceSha256": "894bcc846ba98b85869a7d095748055c31037871315a0fbc56b9fdfe6c47f358",
       "notes": [
         "Current-source audit at 80c5cb1f: package.json and Cargo.toml now define the supported versions, including Bun 1.4.4 and Rust MSRV 1.95. The dated outdated audit and suite counts are historical; the old napi-vm engine pin is superseded by rquickjs.",
         "Code evidence: package.json, Cargo.toml, .github/workflows/ci.yml, crates/tiktools-core/src/services/script.rs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Dated dependency-update PR report; versions are recorded in lockfiles and current setup and testing guides."
+      }
     },
     {
       "source": "docs/DEVELOPMENT.md",
@@ -6941,7 +6945,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "LIVE-COLLABORATION-APPROVAL.md",
@@ -7333,7 +7337,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           }
         ],
         "removedOn": "2026-11-13",
@@ -7524,7 +7528,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "#browser-journal-foundation",
@@ -7975,7 +7979,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "#trust-and-host-binding",
@@ -8049,7 +8053,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "https://docs.rs/rustls/0.23.46/rustls/client/danger/trait.ServerCertVerifier.html",
@@ -8244,7 +8248,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "#enable-a-host",
@@ -8629,7 +8633,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "#available-api-and-agent-use",
@@ -9327,7 +9331,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "LIVE-COLLABORATION-AUTOMATION.md",
@@ -10093,7 +10097,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "LIVE-COLLABORATION-OWNER.md",
@@ -10851,7 +10855,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#live-collaboration-implementation-evidence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#live-collaboration-implementation-evidence"
           },
           {
             "target": "#competition-updates-and-winner-actions",
@@ -10866,7 +10870,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#competition-updates-and-winner-actions"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#competition-updates-and-winner-actions"
           },
           {
             "target": "#shared-source-response-revalidation",
@@ -10881,7 +10885,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#shared-source-response-revalidation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#shared-source-response-revalidation"
           },
           {
             "target": "#recovery-of-activation-results",
@@ -10896,7 +10900,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#recovery-of-activation-results"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#recovery-of-activation-results"
           },
           {
             "target": "#explicit-edits-to-owner-automations",
@@ -10911,7 +10915,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#explicit-edits-to-owner-automations"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#explicit-edits-to-owner-automations"
           },
           {
             "target": "#reusable-grant-native-ingress-and-two-controllers",
@@ -10926,7 +10930,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#reusable-grant-native-ingress-and-two-controllers"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#reusable-grant-native-ingress-and-two-controllers"
           },
           {
             "target": "#embedded-browser-workflow-controller",
@@ -10941,7 +10945,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#embedded-browser-workflow-controller"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#embedded-browser-workflow-controller"
           },
           {
             "target": "#scoped-competition-status",
@@ -10956,7 +10960,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#scoped-competition-status"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#scoped-competition-status"
           },
           {
             "target": "#creator-scoped-live-feed",
@@ -10971,7 +10975,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#creator-scoped-live-feed"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#creator-scoped-live-feed"
           },
           {
             "target": "#remote-heartbeat-cancellation",
@@ -10986,7 +10990,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#remote-heartbeat-cancellation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#remote-heartbeat-cancellation"
           },
           {
             "target": "#independent-controllers-over-tls",
@@ -11001,7 +11005,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#independent-controllers-over-tls"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#independent-controllers-over-tls"
           },
           {
             "target": "#atomic-owner-library-transitions-—-latest-extension",
@@ -11016,7 +11020,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#atomic-owner-library-transitions-—-latest-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#atomic-owner-library-transitions-—-latest-extension"
           },
           {
             "target": "CLOUD-SYNC.md#backend-v2-handoff-reviewed-on-2026-11-08",
@@ -11044,7 +11048,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#native-owner-definition-intents-—-previous-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#native-owner-definition-intents-—-previous-extension"
           },
           {
             "target": "#atomic-approved-points-execution-identity-—-previous-extension",
@@ -11059,7 +11063,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#atomic-approved-points-execution-identity-—-previous-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#atomic-approved-points-execution-identity-—-previous-extension"
           },
           {
             "target": "#scoped-scripts-and-emitted-rules-—-previous-extension",
@@ -11074,7 +11078,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#scoped-scripts-and-emitted-rules-—-previous-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#scoped-scripts-and-emitted-rules-—-previous-extension"
           },
           {
             "target": "#scoped-http-audio-and-external-effect-recovery-—-previous-extension",
@@ -11089,7 +11093,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#scoped-http-audio-and-external-effect-recovery-—-previous-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#scoped-http-audio-and-external-effect-recovery-—-previous-extension"
           },
           {
             "target": "#owner-approval-ui-and-native-recovery-—-current-extension",
@@ -11104,7 +11108,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#owner-approval-ui-and-native-recovery-—-current-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#owner-approval-ui-and-native-recovery-—-current-extension"
           },
           {
             "target": "#durable-delegated-core-approval-—-preceding-extension",
@@ -11119,7 +11123,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#durable-delegated-core-approval-—-preceding-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#durable-delegated-core-approval-—-preceding-extension"
           },
           {
             "target": "LIVE-COLLABORATION-APPROVAL.md",
@@ -11149,7 +11153,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#runtime-authority-and-private-event-contexts-—-preceding-foundation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#runtime-authority-and-private-event-contexts-—-preceding-foundation"
           },
           {
             "target": "LIVE-COLLABORATION-APPROVAL.md",
@@ -11179,7 +11183,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#persisted-execution-subjects-and-owner-manifest-preview-—-current-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#persisted-execution-subjects-and-owner-manifest-preview-—-current-extension"
           },
           {
             "target": "#native-private-proposals-—-current-extension",
@@ -11194,7 +11198,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#native-private-proposals-—-current-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#native-private-proposals-—-current-extension"
           },
           {
             "target": "#owner-source-review-and-native-adoption-recovery-—-current-extension",
@@ -11209,7 +11213,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#owner-source-review-and-native-adoption-recovery-—-current-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#owner-source-review-and-native-adoption-recovery-—-current-extension"
           },
           {
             "target": "#trusted-automation-provenance-and-disabled-drafts-—-prior-extension",
@@ -11224,7 +11228,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#trusted-automation-provenance-and-disabled-drafts-—-prior-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#trusted-automation-provenance-and-disabled-drafts-—-prior-extension"
           },
           {
             "target": "#native-automation-board-and-event-command-recovery-—-prior-extension",
@@ -11239,7 +11243,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#native-automation-board-and-event-command-recovery-—-prior-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#native-automation-board-and-event-command-recovery-—-prior-extension"
           },
           {
             "target": "#scoped-automation-status-and-event-deactivation-—-prior-extension",
@@ -11254,7 +11258,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#scoped-automation-status-and-event-deactivation-—-prior-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#scoped-automation-status-and-event-deactivation-—-prior-extension"
           },
           {
             "target": "#checked-owner-automation-editor-—-prior-extension",
@@ -11269,7 +11273,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#checked-owner-automation-editor-—-prior-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#checked-owner-automation-editor-—-prior-extension"
           },
           {
             "target": "LIVE-COLLABORATION-AUTOMATION.md",
@@ -11301,7 +11305,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#executable-behavior-consistency-and-admission-—-preceding-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#executable-behavior-consistency-and-admission-—-preceding-extension"
           },
           {
             "target": "LIVE-COLLABORATION-AUTOMATION.md",
@@ -11333,7 +11337,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#explicit-local-drafts-and-conflict-comparison-—-preceding-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#explicit-local-drafts-and-conflict-comparison-—-preceding-extension"
           },
           {
             "target": "#bounded-points-display-and-confirmation-—-preceding-extension",
@@ -11348,7 +11352,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#bounded-points-display-and-confirmation-—-preceding-extension"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#bounded-points-display-and-confirmation-—-preceding-extension"
           },
           {
             "target": "#implemented-foundation-and-transport",
@@ -11363,7 +11367,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#implemented-foundation-and-transport"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#implemented-foundation-and-transport"
           },
           {
             "target": "LIVE-COLLABORATION-TRANSPORT.md",
@@ -11421,7 +11425,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#owner-settings-evidence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#owner-settings-evidence"
           },
           {
             "target": "#remote-workflow-command-evidence",
@@ -11436,7 +11440,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#remote-workflow-command-evidence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#remote-workflow-command-evidence"
           },
           {
             "target": "#desktop-durable-command-evidence",
@@ -11451,7 +11455,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#desktop-durable-command-evidence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#desktop-durable-command-evidence"
           },
           {
             "target": "#points-persistence-evidence",
@@ -11466,7 +11470,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#points-persistence-evidence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#points-persistence-evidence"
           },
           {
             "target": "LIVE-COLLABORATION-POINTS.md",
@@ -11498,7 +11502,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#points-api-and-command-evidence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#points-api-and-command-evidence"
           },
           {
             "target": "LIVE-COLLABORATION-POINTS.md",
@@ -11530,7 +11534,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#points-stream-evidence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#points-stream-evidence"
           },
           {
             "target": "#native-points-intent-and-migration-evidence",
@@ -11545,7 +11549,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#native-points-intent-and-migration-evidence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#native-points-intent-and-migration-evidence"
           },
           {
             "target": "#executed-checks",
@@ -11560,7 +11564,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#executed-checks"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#executed-checks"
           },
           {
             "target": "#remaining-acceptance",
@@ -11575,7 +11579,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md#remaining-acceptance"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md#remaining-acceptance"
           },
           {
             "target": "LIVE-COLLABORATION-SPEC.md",
@@ -11599,13 +11603,17 @@
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md",
       "sourceSha256": "9028d9d2919f564d072e4bac8f08a8c4619de3bda7055265d67489f4250fccae",
       "notes": [
         "Current-source audit at 80c5cb1f: The archive records dated local and independent-controller checks. Current tests include peer-cloud RTC and controller recovery, but recorded passes do not prove physical two-PC, production service or full LIVE acceptance today.",
         "Code evidence: crates/tiktools-client/tests/peer_cloud/rtc.rs, src/web/features/controller/model/browser-workflow-recovery.test.ts, tests/e2e/collaboration.spec.ts.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Accumulated implementation and test-run report; maintained collaboration contracts and testing guides retain the reusable material."
+      }
     },
     {
       "source": "docs/LIVE-COLLABORATION.md",
@@ -11872,7 +11880,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LIVE-COLLABORATION-VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
           },
           {
             "target": "LIVE-COLLABORATION-POINTS.md",
@@ -12079,7 +12087,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md"
           },
           {
             "target": "#architecture-decision",
@@ -12746,7 +12754,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md"
           },
           {
             "target": "#test-environment",
@@ -13245,7 +13253,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#local-browser-adapter-implementation-plan"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#local-browser-adapter-implementation-plan"
           },
           {
             "target": "#outcome-and-scope",
@@ -13260,7 +13268,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#outcome-and-scope"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#outcome-and-scope"
           },
           {
             "target": "#source-findings",
@@ -13275,7 +13283,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#source-findings"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#source-findings"
           },
           {
             "target": "#_1-verify-contracts-before-introducing-a-server",
@@ -13290,7 +13298,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_1-verify-contracts-before-introducing-a-server"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_1-verify-contracts-before-introducing-a-server"
           },
           {
             "target": "#_2-add-the-optional-local-adapter-to-the-existing-cli",
@@ -13305,7 +13313,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_2-add-the-optional-local-adapter-to-the-existing-cli"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_2-add-the-optional-local-adapter-to-the-existing-cli"
           },
           {
             "target": "#_3-authenticate-local-access-and-serve-assets-safely",
@@ -13320,7 +13328,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_3-authenticate-local-access-and-serve-assets-safely"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_3-authenticate-local-access-and-serve-assets-safely"
           },
           {
             "target": "#_4-connect-and-stabilize-the-existing-vue-ui",
@@ -13335,7 +13343,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_4-connect-and-stabilize-the-existing-vue-ui"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_4-connect-and-stabilize-the-existing-vue-ui"
           },
           {
             "target": "#_5-validate-and-document",
@@ -13350,7 +13358,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_5-validate-and-document"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#_5-validate-and-document"
           },
           {
             "target": "#delivery-order",
@@ -13365,20 +13373,24 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#delivery-order"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md#delivery-order"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_PLAN.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md",
       "sourceSha256": "8ca69e45dbf397e90aa30711ceb98eca6c6ce7039480e6b35f4284497559f2a8",
       "notes": [
         "Current-source audit at 80c5cb1f: The optional local-web adapter now has server, pairing and socket modules and is used by start-web-dev.ts. The original milestone plan is historical; loopback local access is distinct from remote Cloud collaboration.",
         "Code evidence: crates/tiktools-cli/src/web/server.rs, crates/tiktools-cli/src/web/pairing.rs, crates/tiktools-cli/src/web/socket.rs, scripts/start-web-dev.ts.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Branch-specific implementation sequence; current transport and platform guides cover the browser adapter."
+      }
     },
     {
       "source": "docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md",
@@ -13494,7 +13506,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#local-browser-adapter-implementation-record"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#local-browser-adapter-implementation-record"
           },
           {
             "target": "#source-inventory-and-boundaries",
@@ -13509,7 +13521,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#source-inventory-and-boundaries"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#source-inventory-and-boundaries"
           },
           {
             "target": "#completed-native-android-checks",
@@ -13524,7 +13536,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#completed-native-android-checks"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#completed-native-android-checks"
           },
           {
             "target": "#browser-connection-lifecycle-follow-up",
@@ -13539,7 +13551,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#browser-connection-lifecycle-follow-up"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#browser-connection-lifecycle-follow-up"
           },
           {
             "target": "#checks-unavailable-in-this-environment",
@@ -13554,7 +13566,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#checks-unavailable-in-this-environment"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#checks-unavailable-in-this-environment"
           },
           {
             "target": "#six-digit-pairing-follow-up",
@@ -13569,7 +13581,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#six-digit-pairing-follow-up"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#six-digit-pairing-follow-up"
           },
           {
             "target": "#pairing-code-renewal-follow-up",
@@ -13584,7 +13596,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#pairing-code-renewal-follow-up"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#pairing-code-renewal-follow-up"
           },
           {
             "target": "#remaining-acceptance-work",
@@ -13599,20 +13611,24 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#remaining-acceptance-work"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md#remaining-acceptance-work"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md",
       "sourceSha256": "7f03f633ad5fd08f6744667de2708953d1ebe92b8c967b89439aad0e2081e4e6",
       "notes": [
         "Current-source audit at 80c5cb1f: Pairing and browser transport tests exist in the current source. The archived native Android checks and six-digit pairing follow-ups do not establish completed Android browser acceptance on every device.",
         "Code evidence: crates/tiktools-cli/src/web/tests.rs, src/web/shared/api/browser-transport.test.ts, scripts/termux/web-smoke.mjs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Dated branch implementation and validation report; maintained platform and transport guides cover the supported behavior."
+      }
     },
     {
       "source": "docs/MEDIA.md",
@@ -13828,7 +13844,7 @@
               "docs/content/en/developer/architecture.md",
               "docs/content/es/developer/architecture.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/NAPI-VM-MIGRATION-PLAN.md#napi-vm-migration-plan"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md#napi-vm-migration-plan"
           },
           {
             "target": "#baseline-and-target",
@@ -13841,7 +13857,7 @@
               "docs/content/en/developer/architecture.md",
               "docs/content/es/developer/architecture.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/NAPI-VM-MIGRATION-PLAN.md#baseline-and-target"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md#baseline-and-target"
           },
           {
             "target": "https://github.com/nglmercer/napi-vm/blob/3816dcfec05c0d4d5d2e05d20e8cff71e98ac1ee/docs/crate-architecture.md",
@@ -13874,7 +13890,7 @@
               "docs/content/en/developer/architecture.md",
               "docs/content/es/developer/architecture.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/NAPI-VM-MIGRATION-PLAN.md#implementation-sequence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md#implementation-sequence"
           },
           {
             "target": "#acceptance-gates",
@@ -13887,7 +13903,7 @@
               "docs/content/en/developer/architecture.md",
               "docs/content/es/developer/architecture.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/NAPI-VM-MIGRATION-PLAN.md#acceptance-gates"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md#acceptance-gates"
           },
           {
             "target": "#rollout-and-rollback",
@@ -13900,20 +13916,24 @@
               "docs/content/en/developer/architecture.md",
               "docs/content/es/developer/architecture.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/NAPI-VM-MIGRATION-PLAN.md#rollout-and-rollback"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md#rollout-and-rollback"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/NAPI-VM-MIGRATION-PLAN.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md",
       "sourceSha256": "ec7df3b7da6cdfb9f0e07eb776cdf3a9f2b15c7562fd705decca28c0f39a7ebd",
       "notes": [
         "Current-source audit at 80c5cb1f: The dependency migration proposed here is obsolete: Cargo.toml and the script service now use rquickjs. Only the serialized runtime name napi-vm survives; the old upstream VM revisions are not installation instructions.",
         "Code evidence: Cargo.toml, crates/tiktools-core/src/services/script.rs, crates/tiktools-plugin-loader/src/quickjs/runtime.rs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Superseded dependency migration task; the runtime now uses QuickJS and current runtime guides describe it."
+      }
     },
     {
       "source": "docs/NAPI_VM_PLUGINS.md",
@@ -14728,7 +14748,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#plan-colaboracion-rust-con-webrtc-y-senalizacion-en-el-backend"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#plan-colaboracion-rust-con-webrtc-y-senalizacion-en-el-backend"
           },
           {
             "target": "#decision-vigente-sustituir-iroh",
@@ -14743,7 +14763,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#decision-vigente-sustituir-iroh"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#decision-vigente-sustituir-iroh"
           },
           {
             "target": "https://github.com/webrtc-rs/webrtc",
@@ -14778,7 +14798,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#senalizacion-wss-implementada-en-remakebackend"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#senalizacion-wss-implementada-en-remakebackend"
           },
           {
             "target": "#adaptador-webrtc-rust-validacion-inicial",
@@ -14793,7 +14813,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#adaptador-webrtc-rust-validacion-inicial"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#adaptador-webrtc-rust-validacion-inicial"
           },
           {
             "target": "#descubrimiento-stun-y-base-cifrada-del-respaldo",
@@ -14808,7 +14828,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#descubrimiento-stun-y-base-cifrada-del-respaldo"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#descubrimiento-stun-y-base-cifrada-del-respaldo"
           },
           {
             "target": "#enrutamiento-del-respaldo-en-el-backend-existente",
@@ -14823,7 +14843,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#enrutamiento-del-respaldo-en-el-backend-existente"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#enrutamiento-del-respaldo-en-el-backend-existente"
           },
           {
             "target": "#implementacion-anterior-y-evidencia-conservada",
@@ -14838,7 +14858,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#implementacion-anterior-y-evidencia-conservada"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#implementacion-anterior-y-evidencia-conservada"
           },
           {
             "target": "TWO-PC-ACCEPTANCE.md",
@@ -14870,7 +14890,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#objetivo-y-decision-propuesta"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#objetivo-y-decision-propuesta"
           },
           {
             "target": "https://docs.rs/iroh/1.4.1/iroh/",
@@ -14890,7 +14910,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#alternativas-revisadas"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#alternativas-revisadas"
           },
           {
             "target": "https://libp2p.github.io/rust-libp2p/dcutr_example/index.html",
@@ -14925,7 +14945,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#arquitectura"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#arquitectura"
           },
           {
             "target": "https://docs.rs/iroh-relay/1.4.1/iroh_relay/",
@@ -14945,7 +14965,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#reutilizar-el-contrato-de-colaboracion"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#reutilizar-el-contrato-de-colaboracion"
           },
           {
             "target": "#protocolo-inicial-acotado",
@@ -14960,7 +14980,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#protocolo-inicial-acotado"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#protocolo-inicial-acotado"
           },
           {
             "target": "#que-significa-seguir-funcionando-si-cloud-cae",
@@ -14975,7 +14995,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#que-significa-seguir-funcionando-si-cloud-cae"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#que-significa-seguir-funcionando-si-cloud-cae"
           },
           {
             "target": "https://man7.org/linux/man-pages/man2/clock_gettime.2.html",
@@ -15010,7 +15030,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#implementacion-por-entregas"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#implementacion-por-entregas"
           },
           {
             "target": "#_1-prueba-rust-de-conectividad-y-decision-de-dependencia",
@@ -15025,7 +15045,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#_1-prueba-rust-de-conectividad-y-decision-de-dependencia"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#_1-prueba-rust-de-conectividad-y-decision-de-dependencia"
           },
           {
             "target": "#_2-una-identidad-y-un-motor-de-permisos",
@@ -15040,7 +15060,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#_2-una-identidad-y-un-motor-de-permisos"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#_2-una-identidad-y-un-motor-de-permisos"
           },
           {
             "target": "#_3-primer-recorrido-completo-headless",
@@ -15055,7 +15075,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#_3-primer-recorrido-completo-headless"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#_3-primer-recorrido-completo-headless"
           },
           {
             "target": "#_4-desktop-y-automatizaciones-existentes",
@@ -15070,7 +15090,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#_4-desktop-y-automatizaciones-existentes"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#_4-desktop-y-automatizaciones-existentes"
           },
           {
             "target": "#_5-despliegue-de-respaldo-y-observabilidad",
@@ -15085,7 +15105,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#_5-despliegue-de-respaldo-y-observabilidad"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#_5-despliegue-de-respaldo-y-observabilidad"
           },
           {
             "target": "#_6-aceptacion-fisica-y-live",
@@ -15100,7 +15120,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#_6-aceptacion-fisica-y-live"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#_6-aceptacion-fisica-y-live"
           },
           {
             "target": "#alcance-para-mantenerlo-simple",
@@ -15115,7 +15135,7 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#alcance-para-mantenerlo-simple"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#alcance-para-mantenerlo-simple"
           },
           {
             "target": "#evidencia-actual-y-trabajo-pendiente",
@@ -15130,20 +15150,24 @@
               "docs/content/en/developer/remote-client.md",
               "docs/content/es/developer/remote-client.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md#evidencia-actual-y-trabajo-pendiente"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md#evidencia-actual-y-trabajo-pendiente"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/P2P-COLLABORATION-PLAN.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md",
       "sourceSha256": "d9814d74d44804b3c4cb816299645569921018a18eee13a2eb638c2c4d2b607c",
       "notes": [
         "Current-source audit at 80c5cb1f: Rust WebRTC code now lives in tiktools-rtc, while tiktools-peer still contains the earlier Iroh implementation. The historical Spanish plan must not imply Iroh removal, deployed backend signaling or completed physical acceptance.",
         "Code evidence: crates/tiktools-rtc/src/lib.rs, crates/tiktools-peer/src/lib.rs, crates/tiktools-core/src/cloud_peer_host/rtc.rs, crates/tiktools-client/tests/peer_cloud/rtc.rs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Implementation roadmap mixing superseded transport decisions and delivery evidence; current transport and collaboration guides cover the contracts."
+      }
     },
     {
       "source": "docs/PERFORMANCE_REFACTOR_PROGRESS.md",
@@ -15379,7 +15403,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#live-reliability-refactor-progress"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#live-reliability-refactor-progress"
           },
           {
             "target": "#current-implementation-audit",
@@ -15394,7 +15418,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#current-implementation-audit"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#current-implementation-audit"
           },
           {
             "target": "#evidence-and-validation",
@@ -15409,7 +15433,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#evidence-and-validation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#evidence-and-validation"
           },
           {
             "target": "#completed-batches",
@@ -15424,7 +15448,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#completed-batches"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#completed-batches"
           },
           {
             "target": "#batch-1-transport-ownership-and-ingress-generation-accounting",
@@ -15439,7 +15463,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-1-transport-ownership-and-ingress-generation-accounting"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-1-transport-ownership-and-ingress-generation-accounting"
           },
           {
             "target": "#batch-2-fan-out-and-polling-isolation",
@@ -15454,7 +15478,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-2-fan-out-and-polling-isolation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-2-fan-out-and-polling-isolation"
           },
           {
             "target": "#batch-3-frontend-admission-and-disposal",
@@ -15469,7 +15493,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-3-frontend-admission-and-disposal"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-3-frontend-admission-and-disposal"
           },
           {
             "target": "#batch-4-connection-task-failure-guard",
@@ -15484,7 +15508,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-4-connection-task-failure-guard"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-4-connection-task-failure-guard"
           },
           {
             "target": "#batch-5-owned-bounded-live-points-execution",
@@ -15499,7 +15523,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-5-owned-bounded-live-points-execution"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-5-owned-bounded-live-points-execution"
           },
           {
             "target": "#batch-6-plugin-queue-accounting",
@@ -15514,7 +15538,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-6-plugin-queue-accounting"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-6-plugin-queue-accounting"
           },
           {
             "target": "#batch-7-measurement-and-verification-record",
@@ -15529,7 +15553,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-7-measurement-and-verification-record"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#batch-7-measurement-and-verification-record"
           },
           {
             "target": "https://github.com/nglmercer/TikTools-app/pull/19",
@@ -15549,7 +15573,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#additional-frontend-regressions"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#additional-frontend-regressions"
           },
           {
             "target": "#final-rust-rerun-on-the-implemented-batches",
@@ -15564,7 +15588,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#final-rust-rerun-on-the-implemented-batches"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#final-rust-rerun-on-the-implemented-batches"
           },
           {
             "target": "#phase-1-—-loss-aware-graceful-ingress-shutdown-prompt-phase-1",
@@ -15579,7 +15603,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#phase-1-—-loss-aware-graceful-ingress-shutdown-prompt-phase-1"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#phase-1-—-loss-aware-graceful-ingress-shutdown-prompt-phase-1"
           },
           {
             "target": "#phase-2-—-durable-points-fifo-ordering-and-sqlite-correctness",
@@ -15594,7 +15618,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#phase-2-—-durable-points-fifo-ordering-and-sqlite-correctness"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#phase-2-—-durable-points-fifo-ordering-and-sqlite-correctness"
           },
           {
             "target": "#phase-3-—-plugin-worker-lifecycle-and-isolation",
@@ -15609,7 +15633,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#phase-3-—-plugin-worker-lifecycle-and-isolation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#phase-3-—-plugin-worker-lifecycle-and-isolation"
           },
           {
             "target": "#reviewable-commit-sequence",
@@ -15624,7 +15648,7 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#reviewable-commit-sequence"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#reviewable-commit-sequence"
           },
           {
             "target": "#october-2026-desktop-transport-follow-up",
@@ -15639,20 +15663,24 @@
               "docs/content/en/developer/lifecycle.md",
               "docs/content/es/developer/lifecycle.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md#october-2026-desktop-transport-follow-up"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md#october-2026-desktop-transport-follow-up"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/PERFORMANCE_REFACTOR_PROGRESS.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md",
       "sourceSha256": "ff59098ba2322dc5b313f7350838e289fe086fb7bb1104dba4ff72986aa3dc98",
       "notes": [
         "Current-source audit at 80c5cb1f: The current ingress, points writer and plugin worker retain bounded admission and lifecycle accounting. The baseline-specific progress table and earlier unresolved gates remain dated evidence, not a current issue tracker or acceptance certificate.",
         "Code evidence: crates/tiktools-core/src/live_events/ingress.rs, crates/tiktools-core/src/services/points/writer.rs, crates/tiktools-plugin-loader/src/worker.rs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Branch-specific agent progress and verification log; current lifecycle, events and performance guides retain the technical guidance."
+      }
     },
     {
       "source": "docs/PLAYWRIGHT.md",
@@ -17290,7 +17318,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#plugin-package-manager-sdk-plan"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#plugin-package-manager-sdk-plan"
           },
           {
             "target": "PLUGINS.md",
@@ -17339,7 +17367,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_1-context"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_1-context"
           },
           {
             "target": "#_2-current-state",
@@ -17354,7 +17382,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_2-current-state"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_2-current-state"
           },
           {
             "target": "#_3-target-architecture",
@@ -17369,7 +17397,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_3-target-architecture"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_3-target-architecture"
           },
           {
             "target": "#_4-core-vocabulary",
@@ -17384,7 +17412,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_4-core-vocabulary"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_4-core-vocabulary"
           },
           {
             "target": "#_5-manifest-additions",
@@ -17399,7 +17427,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_5-manifest-additions"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_5-manifest-additions"
           },
           {
             "target": "#_6-package-format-v2-and-trust-model",
@@ -17414,7 +17442,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_6-package-format-v2-and-trust-model"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_6-package-format-v2-and-trust-model"
           },
           {
             "target": "#_7-registry-protocol-v1",
@@ -17429,7 +17457,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_7-registry-protocol-v1"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_7-registry-protocol-v1"
           },
           {
             "target": "#_8-resolver",
@@ -17444,7 +17472,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_8-resolver"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_8-resolver"
           },
           {
             "target": "#_9-install-transaction-pipeline",
@@ -17459,7 +17487,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_9-install-transaction-pipeline"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_9-install-transaction-pipeline"
           },
           {
             "target": "#_10-receipts-store-layout-updates-rollback",
@@ -17474,7 +17502,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_10-receipts-store-layout-updates-rollback"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_10-receipts-store-layout-updates-rollback"
           },
           {
             "target": "#_11-jobs-progress-typed-errors",
@@ -17489,7 +17517,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_11-jobs-progress-typed-errors"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_11-jobs-progress-typed-errors"
           },
           {
             "target": "#_12-control-api-client-cli",
@@ -17504,7 +17532,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_12-control-api-client-cli"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_12-control-api-client-cli"
           },
           {
             "target": "#_13-desktop-integration",
@@ -17519,7 +17547,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_13-desktop-integration"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_13-desktop-integration"
           },
           {
             "target": "#_14-ui-src-web-fsd",
@@ -17534,7 +17562,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_14-ui-src-web-fsd"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_14-ui-src-web-fsd"
           },
           {
             "target": "#_15-author-sdk-and-devkit",
@@ -17549,7 +17577,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_15-author-sdk-and-devkit"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_15-author-sdk-and-devkit"
           },
           {
             "target": "#_16-migration-and-compatibility",
@@ -17564,7 +17592,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_16-migration-and-compatibility"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_16-migration-and-compatibility"
           },
           {
             "target": "#_17-security-checklist",
@@ -17579,7 +17607,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_17-security-checklist"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_17-security-checklist"
           },
           {
             "target": "#_18-roadmap",
@@ -17594,7 +17622,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_18-roadmap"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_18-roadmap"
           },
           {
             "target": "#m0-—-foundations-no-behavior-change",
@@ -17609,7 +17637,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m0-—-foundations-no-behavior-change"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m0-—-foundations-no-behavior-change"
           },
           {
             "target": "#m1-—-local-package-management",
@@ -17624,7 +17652,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m1-—-local-package-management"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m1-—-local-package-management"
           },
           {
             "target": "#m2-—-signatures-and-trust",
@@ -17639,7 +17667,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m2-—-signatures-and-trust"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m2-—-signatures-and-trust"
           },
           {
             "target": "#m3-—-registry",
@@ -17654,7 +17682,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m3-—-registry"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m3-—-registry"
           },
           {
             "target": "#m4-—-cloud-ux-and-updates",
@@ -17669,7 +17697,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m4-—-cloud-ux-and-updates"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m4-—-cloud-ux-and-updates"
           },
           {
             "target": "#m5-—-author-experience",
@@ -17684,7 +17712,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m5-—-author-experience"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m5-—-author-experience"
           },
           {
             "target": "#m6-—-scale-and-ecosystem-later",
@@ -17699,7 +17727,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m6-—-scale-and-ecosystem-later"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#m6-—-scale-and-ecosystem-later"
           },
           {
             "target": "#_19-verification",
@@ -17714,7 +17742,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_19-verification"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_19-verification"
           },
           {
             "target": "#_20-decisions-to-confirm-recommended-defaults",
@@ -17729,20 +17757,24 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_20-decisions-to-confirm-recommended-defaults"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md#_20-decisions-to-confirm-recommended-defaults"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md",
       "sourceSha256": "2734ff945b902776f5527fdd62446f33f789b1a6f4af0b2db1530c874da510dd",
       "notes": [
         "Current-source audit at 80c5cb1f: The old local-archive-only context is superseded by installer, signed registry, Cloud catalog and devkit code. The milestone roadmap is retained internally; unresolved ecosystem goals are not shipped package-manager capabilities.",
         "Code evidence: crates/tiktools-plugin-installer/src/lib.rs, crates/tiktools-plugin-registry/src/lib.rs, crates/tiktools-control-api/src/modules/registry.rs, crates/tiktools-plugin-devkit/src/lib.rs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Milestone-oriented implementation plan; packaging, registry and authoring contracts have maintained guides."
+      }
     },
     {
       "source": "docs/PLUGIN_REGISTRY_PROTOCOL.md",
@@ -18724,7 +18756,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#421-rc1-reproduction"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#421-rc1-reproduction"
           }
         ],
         "removedOn": "2026-11-13",
@@ -18888,7 +18920,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#421-rc1-reproduction"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#421-rc1-reproduction"
           }
         ],
         "removedOn": "2026-11-13",
@@ -19079,7 +19111,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#421-rc1-reproduction"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#421-rc1-reproduction"
           }
         ],
         "removedOn": "2026-11-13",
@@ -19228,7 +19260,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#sonicboom-live-tts-integration-validation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#sonicboom-live-tts-integration-validation"
           },
           {
             "target": "#confirmed-defects-and-changes",
@@ -19243,7 +19275,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#confirmed-defects-and-changes"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#confirmed-defects-and-changes"
           },
           {
             "target": "#bounded-scheduling-and-observable-outcomes",
@@ -19258,7 +19290,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#bounded-scheduling-and-observable-outcomes"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#bounded-scheduling-and-observable-outcomes"
           },
           {
             "target": "#automated-checks",
@@ -19273,7 +19305,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#automated-checks"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#automated-checks"
           },
           {
             "target": "#http-integration-coverage",
@@ -19288,7 +19320,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#http-integration-coverage"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#http-integration-coverage"
           },
           {
             "target": "#real-model-verification",
@@ -19303,7 +19335,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#real-model-verification"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#real-model-verification"
           },
           {
             "target": "#limits-and-follow-up",
@@ -19318,7 +19350,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#limits-and-follow-up"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#limits-and-follow-up"
           },
           {
             "target": "#related-commits",
@@ -19333,7 +19365,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#related-commits"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#related-commits"
           },
           {
             "target": "#files",
@@ -19348,7 +19380,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#files"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#files"
           },
           {
             "target": "#follow-up-per-user-providers-and-minimal-controls",
@@ -19363,20 +19395,24 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#follow-up-per-user-providers-and-minimal-controls"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md#follow-up-per-user-providers-and-minimal-controls"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/SONICBOOM-LIVE-TTS-VALIDATION.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md",
       "sourceSha256": "0b12a02ec33ca1b41f311968752dedd6d1cf65881b493add8b06a50c1c9cb782",
       "notes": [
         "Current-source audit at 80c5cb1f: The validation belongs to dated app/server/plugin baselines. SonicBoom implementation and build helpers now belong to the external plugin project; the current app retains the generic declarative HTTP and plugin host contracts.",
         "Code evidence: scripts/lib/external-plugins.ts, crates/tiktools-core/src/services/declarative_http/execution.rs, crates/tiktools-plugin-api/src/manifest/validation.rs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Dated integration defect and test report; current audio plugin and runtime guides retain the operational guidance."
+      }
     },
     {
       "source": "docs/SYNC-CHANGES-PLAN.md",
@@ -19562,7 +19598,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#sync-and-the-changes-panel-plan"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#sync-and-the-changes-panel-plan"
           },
           {
             "target": "CLOUD-V2-DESKTOP.md",
@@ -19592,7 +19628,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#implemented"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#implemented"
           },
           {
             "target": "#desktop-simplification-and-diagnostics-2026-11-13",
@@ -19607,7 +19643,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#desktop-simplification-and-diagnostics-2026-11-13"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#desktop-simplification-and-diagnostics-2026-11-13"
           },
           {
             "target": "#verification-and-remaining-work",
@@ -19622,7 +19658,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#verification-and-remaining-work"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#verification-and-remaining-work"
           },
           {
             "target": "#_4-2-1-rc-1-reproduction",
@@ -19637,7 +19673,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#_4-2-1-rc-1-reproduction"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#_4-2-1-rc-1-reproduction"
           },
           {
             "target": "https://github.com/nglmercer/TikTools-app/releases/tag/v4.2.1-rc.1",
@@ -19657,7 +19693,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#read-contention-correction-rc2"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#read-contention-correction-rc2"
           },
           {
             "target": "#typed-local-variables-foundation",
@@ -19672,7 +19708,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#typed-local-variables-foundation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#typed-local-variables-foundation"
           },
           {
             "target": "#native-variables-comparison-and-explicit-cached-application",
@@ -19687,7 +19723,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#native-variables-comparison-and-explicit-cached-application"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#native-variables-comparison-and-explicit-cached-application"
           },
           {
             "target": "#reviewed-variables-actions-and-changes-panel-4-2-2",
@@ -19702,7 +19738,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#reviewed-variables-actions-and-changes-panel-4-2-2"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#reviewed-variables-actions-and-changes-panel-4-2-2"
           },
           {
             "target": "#goal",
@@ -19717,7 +19753,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#goal"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#goal"
           },
           {
             "target": "#shape",
@@ -19732,7 +19768,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#shape"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#shape"
           },
           {
             "target": "#per-section",
@@ -19747,7 +19783,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#per-section"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#per-section"
           },
           {
             "target": "#phases",
@@ -19762,7 +19798,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#phases"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#phases"
           },
           {
             "target": "#completion-checklist",
@@ -19777,7 +19813,7 @@
               "docs/content/en/developer/cloud.md",
               "docs/content/es/developer/cloud.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md#completion-checklist"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md#completion-checklist"
           },
           {
             "target": "CLOUD-V2-DESKTOP.md#reviewed-variables-actions-422",
@@ -19799,13 +19835,17 @@
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/SYNC-CHANGES-PLAN.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md",
       "sourceSha256": "1f2fc9c9ee3371ee4d36305debc4f5bcba5bdf742103523e18699c3d94c8a989",
       "notes": [
         "Current-source audit at 80c5cb1f: The shared SyncAdapter panel and reviewed Variables adapter are implemented. Plugins and Variables use explicit section passes; an Automations local reference comparison must not be described as Cloud publication.",
         "Code evidence: src/web/entities/cloud-sync/api/sync-adapter.ts, src/web/features/edit-runtime-globals/model/variable-sync-adapter.ts, crates/tiktools-core/src/control/cloud_sync/network.rs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Implementation checklist and incremental progress log; current Changes and Cloud guides retain the supported behavior."
+      }
     },
     {
       "source": "docs/TEMPLATES.md",
@@ -20352,7 +20392,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md"
           }
         ],
         "removedOn": "2026-11-13",
@@ -20536,7 +20576,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/TERMUX_VALIDATION.md#android-termux-validation-record"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md#android-termux-validation-record"
           },
           {
             "target": "#dependency-audit-and-fixes",
@@ -20551,7 +20591,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/TERMUX_VALIDATION.md#dependency-audit-and-fixes"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md#dependency-audit-and-fixes"
           },
           {
             "target": "#checks",
@@ -20566,7 +20606,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/TERMUX_VALIDATION.md#checks"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md#checks"
           },
           {
             "target": "#capability-and-verification-limits",
@@ -20581,7 +20621,7 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/TERMUX_VALIDATION.md#capability-and-verification-limits"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md#capability-and-verification-limits"
           },
           {
             "target": "TERMUX.md",
@@ -20630,20 +20670,24 @@
               "docs/content/en/user/termux.md",
               "docs/content/es/user/termux.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/TERMUX_VALIDATION.md#files-changed"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md#files-changed"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/TERMUX_VALIDATION.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md",
       "sourceSha256": "c8e38d5413ac39747758c631d11dbc6994970634250108a48348d21ee6e17884",
       "notes": [
         "Current-source audit at 80c5cb1f: The archived results concern Android 16, Termux 0.118.3 and their recorded baseline. Current CLI features and Termux scripts support repeating selected checks, without converting an earlier device run into current universal Android acceptance.",
         "Code evidence: crates/tiktools-cli/Cargo.toml, scripts/termux/test.sh, scripts/termux/smoke.sh, scripts/termux/web-smoke.mjs.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Device-specific historical test report; current Termux, platform and testing guides retain setup and validation instructions."
+      }
     },
     {
       "source": "docs/TROUBLESHOOTING.md",
@@ -22690,7 +22734,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/perf-phase4.md#phase-4-profiling-notes"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/perf-phase4.md#phase-4-profiling-notes"
           },
           {
             "target": "#environment",
@@ -22703,7 +22747,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/perf-phase4.md#environment"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/perf-phase4.md#environment"
           },
           {
             "target": "#baselines-and-decisions",
@@ -22716,7 +22760,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/perf-phase4.md#baselines-and-decisions"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/perf-phase4.md#baselines-and-decisions"
           },
           {
             "target": "#reproduce",
@@ -22729,20 +22773,24 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/perf-phase4.md#reproduce"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/perf-phase4.md#reproduce"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/perf-phase4.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/perf-phase4.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/perf-phase4.md",
       "sourceSha256": "8e7cb99ed016be1d7afea7b89cc4efe2e587735c817e542b34284b8217eab715",
       "notes": [
         "Current-source audit at 80c5cb1f: The old Bun/Rust versions and no-pressure conclusion describe that measured environment only. Current package.json, CI and profiling scripts supersede its toolchain instructions without rewriting historical measurement bytes.",
         "Code evidence: package.json, .github/workflows/ci.yml, scripts/profile-live-memory.ts.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Dated profiling report with no implementation change; performance methodology is maintained in the developer guide."
+      }
     },
     {
       "source": "docs/release_plan.md",
@@ -23468,7 +23516,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#tiktools-—-ci-security-release-code-hardening-task"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#tiktools-—-ci-security-release-code-hardening-task"
           },
           {
             "target": "#objective",
@@ -23483,7 +23531,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#objective"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#objective"
           },
           {
             "target": "#_1-fix-native-plugin-ffi-zero-length-buffer-handling",
@@ -23498,7 +23546,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_1-fix-native-plugin-ffi-zero-length-buffer-handling"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_1-fix-native-plugin-ffi-zero-length-buffer-handling"
           },
           {
             "target": "#add-tests",
@@ -23513,7 +23561,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#add-tests"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#add-tests"
           },
           {
             "target": "#_2-standardize-bun-as-the-frontend-package-manager",
@@ -23528,7 +23576,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_2-standardize-bun-as-the-frontend-package-manager"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_2-standardize-bun-as-the-frontend-package-manager"
           },
           {
             "target": "#required-changes",
@@ -23543,7 +23591,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#required-changes"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#required-changes"
           },
           {
             "target": "#_3-add-frontend-eslint",
@@ -23558,7 +23606,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_3-add-frontend-eslint"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_3-add-frontend-eslint"
           },
           {
             "target": "#package-json",
@@ -23573,7 +23621,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#package-json"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#package-json"
           },
           {
             "target": "#_4-preserve-typescript-strictness",
@@ -23588,7 +23636,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_4-preserve-typescript-strictness"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_4-preserve-typescript-strictness"
           },
           {
             "target": "#_5-add-rust-formatting-and-lint-validation",
@@ -23603,7 +23651,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_5-add-rust-formatting-and-lint-validation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_5-add-rust-formatting-and-lint-validation"
           },
           {
             "target": "#_6-add-main-ci-workflow",
@@ -23618,7 +23666,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_6-add-main-ci-workflow"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_6-add-main-ci-workflow"
           },
           {
             "target": "#frontend-job",
@@ -23633,7 +23681,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#frontend-job"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#frontend-job"
           },
           {
             "target": "#rust-job",
@@ -23648,7 +23696,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#rust-job"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#rust-job"
           },
           {
             "target": "#_7-add-desktop-cross-platform-compilation-checks",
@@ -23663,7 +23711,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_7-add-desktop-cross-platform-compilation-checks"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_7-add-desktop-cross-platform-compilation-checks"
           },
           {
             "target": "#_8-add-github-codeql",
@@ -23678,7 +23726,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_8-add-github-codeql"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_8-add-github-codeql"
           },
           {
             "target": "#_9-add-dependency-review",
@@ -23693,7 +23741,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_9-add-dependency-review"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_9-add-dependency-review"
           },
           {
             "target": "#_10-add-dependabot",
@@ -23708,7 +23756,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_10-add-dependabot"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_10-add-dependabot"
           },
           {
             "target": "#_11-pin-github-actions-safely",
@@ -23723,7 +23771,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_11-pin-github-actions-safely"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_11-pin-github-actions-safely"
           },
           {
             "target": "#_12-add-ci-friendly-project-scripts",
@@ -23738,7 +23786,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_12-add-ci-friendly-project-scripts"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_12-add-ci-friendly-project-scripts"
           },
           {
             "target": "#_13-establish-version-consistency",
@@ -23753,7 +23801,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_13-establish-version-consistency"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_13-establish-version-consistency"
           },
           {
             "target": "#_14-decide-how-package-json-version-is-handled",
@@ -23768,7 +23816,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_14-decide-how-package-json-version-is-handled"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_14-decide-how-package-json-version-is-handled"
           },
           {
             "target": "#_15-add-release-workflow",
@@ -23783,7 +23831,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_15-add-release-workflow"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_15-add-release-workflow"
           },
           {
             "target": "#_16-package-frontend-assets-with-the-desktop-executable",
@@ -23798,7 +23846,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_16-package-frontend-assets-with-the-desktop-executable"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_16-package-frontend-assets-with-the-desktop-executable"
           },
           {
             "target": "#_17-release-build-matrix",
@@ -23813,7 +23861,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_17-release-build-matrix"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_17-release-build-matrix"
           },
           {
             "target": "#_18-generate-sha-256-checksums",
@@ -23828,7 +23876,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_18-generate-sha-256-checksums"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_18-generate-sha-256-checksums"
           },
           {
             "target": "#_19-use-github-release-generation",
@@ -23843,7 +23891,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_19-use-github-release-generation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_19-use-github-release-generation"
           },
           {
             "target": "#_20-do-not-reuse-legacy-electron-squirrel-release-files",
@@ -23858,7 +23906,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_20-do-not-reuse-legacy-electron-squirrel-release-files"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_20-do-not-reuse-legacy-electron-squirrel-release-files"
           },
           {
             "target": "#_21-add-release-packaging-script",
@@ -23873,7 +23921,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_21-add-release-packaging-script"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_21-add-release-packaging-script"
           },
           {
             "target": "#_22-add-license-file-if-missing",
@@ -23888,7 +23936,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_22-add-license-file-if-missing"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_22-add-license-file-if-missing"
           },
           {
             "target": "#_23-audit-secrets-and-generated-files",
@@ -23903,7 +23951,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_23-audit-secrets-and-generated-files"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_23-audit-secrets-and-generated-files"
           },
           {
             "target": "#_24-preserve-webview-security-behavior",
@@ -23918,7 +23966,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_24-preserve-webview-security-behavior"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_24-preserve-webview-security-behavior"
           },
           {
             "target": "#_25-preserve-plugin-installer-security",
@@ -23933,7 +23981,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_25-preserve-plugin-installer-security"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_25-preserve-plugin-installer-security"
           },
           {
             "target": "#_26-review-process-plugin-timeout-behavior",
@@ -23948,7 +23996,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_26-review-process-plugin-timeout-behavior"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_26-review-process-plugin-timeout-behavior"
           },
           {
             "target": "#_27-add-readme-ci-documentation",
@@ -23963,7 +24011,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_27-add-readme-ci-documentation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_27-add-readme-ci-documentation"
           },
           {
             "target": "#_28-update-development-documentation",
@@ -23978,7 +24026,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_28-update-development-documentation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_28-update-development-documentation"
           },
           {
             "target": "#_29-add-contributing-md-if-missing",
@@ -23993,7 +24041,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_29-add-contributing-md-if-missing"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_29-add-contributing-md-if-missing"
           },
           {
             "target": "#_30-github-branch-protection-documentation",
@@ -24008,7 +24056,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_30-github-branch-protection-documentation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_30-github-branch-protection-documentation"
           },
           {
             "target": "#_31-validate-lockfiles",
@@ -24023,7 +24071,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_31-validate-lockfiles"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_31-validate-lockfiles"
           },
           {
             "target": "#_32-required-local-validation",
@@ -24038,7 +24086,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_32-required-local-validation"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_32-required-local-validation"
           },
           {
             "target": "#_33-inspect-generated-desktop-package",
@@ -24053,7 +24101,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_33-inspect-generated-desktop-package"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_33-inspect-generated-desktop-package"
           },
           {
             "target": "#_34-avoid-unrelated-refactors",
@@ -24068,7 +24116,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_34-avoid-unrelated-refactors"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_34-avoid-unrelated-refactors"
           },
           {
             "target": "#_35-commit-structure",
@@ -24083,7 +24131,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_35-commit-structure"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_35-commit-structure"
           },
           {
             "target": "#_36-final-report-required",
@@ -24098,7 +24146,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#_36-final-report-required"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#_36-final-report-required"
           },
           {
             "target": "#changed-files",
@@ -24113,7 +24161,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#changed-files"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#changed-files"
           },
           {
             "target": "#bug-fixes",
@@ -24128,7 +24176,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#bug-fixes"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#bug-fixes"
           },
           {
             "target": "#ci",
@@ -24143,7 +24191,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#ci"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#ci"
           },
           {
             "target": "#security",
@@ -24158,7 +24206,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#security"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#security"
           },
           {
             "target": "#release",
@@ -24173,7 +24221,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#release"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#release"
           },
           {
             "target": "#verification",
@@ -24188,7 +24236,7 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#verification"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#verification"
           },
           {
             "target": "#definition-of-done",
@@ -24203,20 +24251,24 @@
               "docs/content/en/developer/testing.md",
               "docs/content/es/developer/testing.md"
             ],
-            "archiveTarget": "docs/internal/archive/docs/release_plan.md#definition-of-done"
+            "archiveTarget": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md#definition-of-done"
           }
         ],
         "removedOn": "2026-11-13",
         "sourceAtMigration": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md"
       },
       "migrationStatus": "archived",
-      "archive": "docs/internal/archive/docs/release_plan.md",
+      "archive": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md",
       "sourceSha256": "38d352ff29779a3a064fa838b8d5fe34b6c83feb65077d30cd1c18185d12ba3c",
       "notes": [
         "Current-source audit at 80c5cb1f: The old package-script names and bundled-plugin release steps are obsolete. Current task.ts, immutable draft/upload verification and signed channel staging define the workflow; a checked-in workflow is not a completed release.",
         "Code evidence: scripts/task.ts, scripts/package-release.ts, .github/workflows/release.yml, scripts/stage-update-channels.ts.",
-        "The exact original is archived, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
-      ]
+        "The exact original is retained only at the immutable source commit, including normative requirements and dated evidence. Current guides summarize supported behavior; they do not republish the complete historical specification."
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Obsolete agent task prompt for CI, security and release hardening; maintained release and testing guides cover the reusable instructions."
+      }
     },
     {
       "source": "docs/ui/tts-minimal/README.md",

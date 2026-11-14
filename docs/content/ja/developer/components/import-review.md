@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "0d2900f8be78c415674d80b76f48d296eaef1e0bbfe0d5e3754c5f6f904bdc38"
-translationRevision: "0d2900f8be78c415674d80b76f48d296eaef1e0bbfe0d5e3754c5f6f904bdc38"
+translationRevision: "ace2ca52f495a7b61f729f3d1c0804d27be763bcd83d32599026aec96f68b695"
 ---
 
 # インポートと確認 {#import-and-review}

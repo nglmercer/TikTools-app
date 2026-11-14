@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
+sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+translationRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
 layout: page
 order: 0
 ---
@@ -17,31 +17,31 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / Documentation
+TikTools / LIVE toolkit
 
 </template>
 
 
 <template #intro>
 
-# Your guide to<br />a better LIVE. {#tiktools-documentation}
+# Your LIVE.<br />Your rules. {#tiktools-documentation}
 
-Connect your TikTok LIVE, make viewer events work for you, and build on TikTools. Practical documentation, from your first connection to your next plugin.
+Connect TikTok LIVE, turn audience events into automations, and design overlays for OBS. Try the real interface below with fictional data, then build your own broadcast setup.
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">Try the interactive demo</a>
+<a :href="demoHref" target="_self">Try TikTools</a>
 [Download TikTools](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>
 
 <template #start>
 
-## Your first LIVE, step by step {#start-here}
+## Take it to your next LIVE {#start-here}
 
-Start with a released app. No development tools needed.
+Ready for your broadcast? Install TikTools for Windows or Linux, connect a creator, and watch your first audience events arrive.
 
 1. [**Check the requirements** <span>Find the right setup for your system.</span>](./user/requirements.md)
 2. [**Install TikTools** <span>Download and open a released binary.</span>](./user/installation.md)
@@ -51,9 +51,9 @@ Start with a released app. No development tools needed.
 
 <template #directory>
 
-## Find your starting point {#explore-the-guides}
+## Make it yours {#explore-the-guides}
 
-Two paths. One shared toolkit.
+Get your setup working, or extend it with your own plugins.
 
 </template>
 
@@ -61,7 +61,7 @@ Two paths. One shared toolkit.
 
 ### [User guides](./user/index.md) {#user-guides}
 
-Set up your stream, respond to your audience, and make everyday tasks easier. Start here if you use the app.
+Connect your stream, reward your viewers, and automate the moments that matter. Follow a workflow from its first click to a result you can check.
 
 - [Create your first automation](./user/automations/first-rule.md)
 - [Set up OBS and overlays](./user/overlays/index.md)
@@ -83,9 +83,9 @@ Work with the Rust host, Vue frontend, and typed control API. Start here if you 
 
 <template #resources>
 
-## Useful along the way {#resources}
+## Everything you need to keep going {#resources}
 
-- [**UI component reference** <span>17 families with examples and source.</span>](./developer/components/index.md)
+- [**UI component reference** <span>17 families with interactive examples, states and source.</span>](./developer/components/index.md)
 - [**Troubleshooting** <span>Find diagnostics and recover from common issues.</span>](./user/preferences/troubleshooting.md)
 - [**Release notes** <span>See what changed before you update.</span>](./releases/index.md)
 
@@ -93,7 +93,7 @@ Work with the Rust host, Vue frontend, and typed control API. Start here if you 
 
 <template #footer>
 
-The demo uses fictional data. Each guide identifies experimental features and prerequisites.
+The browser demo runs the real TikTools interface with fictional data. No installation or account is needed to try it. Guides cover the requirements for your real setup.
 
 [Source on GitHub](https://github.com/nglmercer/TikTools-app)
 

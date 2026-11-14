@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
-translationRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
+sourceRevision: "99d3351859ddb3a3304133f062f68b8e3130416947fc40433dc9c6bffaf85f6a"
+translationRevision: "3e5aaa62172d452bd9ad0af01ce9b4aaba25806f41e2806d1164036a17268179"
 order: 170
 ---
 
@@ -44,3 +44,7 @@ bun scripts/task.ts test bun widgets
 ## 問題が起きたとき {#recovery}
 
 ローカルプレビューが空ならオリジン方針を弱める前に、コントローラーの寿命、スキーマ既定値、ステージサイズを確認します。ライブ出力はゲートウェイの健全性、ウィジェット認証情報、明示的欠落を調べます。ヘッドレス Chromium の成功は OBS ブラウザーソースの受け入れを証明しません。[Widget SDK](https://github.com/nglmercer/TikTools-app/tree/remake/src/widgets/sdk) と共有プロトコルテストが現行の根拠です。
+
+## 運用の詳細 {#operational-details}
+
+独立 unit は fixture、実 gateway Chromium は構築 widget assets と `TIKTOOLS_PLUGINS_REPO` の外部 checkout が必要です。source 不在では skip するので明示します。`bun x --no-install playwright test --config src/widgets/playwright.gateway.config.ts` を別境界として実行し、実 LIVE で OBS Browser Source・widget credential・配信・回復を確認します。headless Chromium は OBS/native 受入の証明ではありません。

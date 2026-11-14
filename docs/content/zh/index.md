@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
+sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+translationRevision: "25e3c15f45da9aee92bdfb6974e818f6340bb6f94a5eeda577349774cb0665a0"
 layout: page
 order: 0
 ---
@@ -17,30 +17,30 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / 文档
+TikTools / 直播工具箱
 
 </template>
 
 <template #intro>
 
-# 让每一场直播<br />更出色的实用指南。 {#tiktools-documentation}
+# 你的直播，<br />由你做主。 {#tiktools-documentation}
 
-连接 TikTok LIVE，让观众事件发挥作用，并基于 TikTools 构建新功能。从首次连接到下一个插件，都有实用文档伴你前行。
+连接 TikTok LIVE，将观众事件转为自动化操作，为 OBS 设计叠加层。在下方用虚构数据体验真实界面，再打造属于你的直播配置。
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">试用交互式演示</a>
+<a :href="demoHref" target="_self">试用 TikTools</a>
 [下载 TikTools](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>
 
 <template #start>
 
-## 一步步开启首次直播 {#start-here}
+## 下一场直播，用上 TikTools {#start-here}
 
-从已发布的应用开始，无需开发工具。
+准备好开播了吗？安装适用于 Windows 或 Linux 的 TikTools，连接主播，查看第一批观众事件。
 
 1. [**查看系统要求** <span>找到适合你的系统环境。</span>](./user/requirements.md)
 2. [**安装 TikTools** <span>下载并打开已发布的程序。</span>](./user/installation.md)
@@ -50,9 +50,9 @@ TikTools / 文档
 
 <template #directory>
 
-## 找到适合你的起点 {#explore-the-guides}
+## 打造你的专属配置 {#explore-the-guides}
 
-两条学习路径，共用一套工具。
+完成直播配置，或编写自己的插件来扩展功能。
 
 </template>
 
@@ -60,7 +60,7 @@ TikTools / 文档
 
 ### [用户指南](./user/index.md) {#user-guides}
 
-配置直播、回应观众，让日常任务更轻松。使用应用的用户请从这里开始。
+连接直播、奖励观众，将重要时刻转为自动化操作。跟随指南，从第一次点击走到可检查的结果。
 
 - [创建第一条自动化](./user/automations/first-rule.md)
 - [设置 OBS 与叠加层](./user/overlays/index.md)
@@ -82,9 +82,9 @@ TikTools / 文档
 
 <template #resources>
 
-## 开发与使用中的实用资源 {#resources}
+## 继续探索所需的资源 {#resources}
 
-- [**UI 组件参考** <span>17 个组件族，附示例与源码。</span>](./developer/components/index.md)
+- [**UI 组件参考** <span>17 个组件族，附交互示例、状态与源码。</span>](./developer/components/index.md)
 - [**故障排查** <span>查找诊断信息，恢复常见故障。</span>](./user/preferences/troubleshooting.md)
 - [**发行说明** <span>更新前先了解变化。</span>](./releases/index.md)
 
@@ -92,7 +92,7 @@ TikTools / 文档
 
 <template #footer>
 
-演示使用虚构数据。每篇指南都会注明实验性功能及前置条件。
+浏览器演示运行真实的 TikTools 界面，使用虚构数据。无需安装或注册账户即可试用。指南会说明真实配置所需的条件。
 
 [GitHub 源码](https://github.com/nglmercer/TikTools-app)
 

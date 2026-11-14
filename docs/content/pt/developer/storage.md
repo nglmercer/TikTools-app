@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
-translationRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
+sourceRevision: "7ec9d94e484af17e8e82aaaa2122cc47ecd206cf9306047795d6aaa72eea2edb"
+translationRevision: "ec562530a5513fb8a55704391bfc9741d0e19ab49ed4e16fedac4423eca1a95b"
 order: 60
 ---
 
@@ -47,3 +47,11 @@ Diários duráveis de fluxos, pontos e proprietário compatíveis mantêm os res
 ## Recuperação {#recovery}
 
 Mantenha arquivos SQLite e quaisquer WAL/SHM ativos juntos ao fazer um backup offline. Um tempo limite da interface não comprova reversão. Em `revision_conflict`, preserve o rascunho e compare uma leitura nova. Para efeitos externos incertos, inspecione o registro de efeito mantido em vez de reproduzir um feed. Consulte a [autoridade de caminhos](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/paths.rs) e a [recuperação do Cloud](cloud.md) para seus limites distintos.
+
+## Detalhes de operação {#operational-details}
+
+Confira caminhos antes de testes/cópias com `tiktools api call system.info --json`. `TIKTOOLS_HOME` escolhe a raiz; `TIKTOOLS_DATA_DIR`, `TIKTOOLS_PLUGINS_DIR`, `TIKTOOLS_PLUGIN_DATA_DIR`, `TIKTOOLS_PLUGIN_STORE_DIR`, `TIKTOOLS_LOG_DIR` e `TIKTOOLS_TEMP_DIR` substituem diretórios derivados. Valores relativos usam o diretório de inicialização. Uma raiz isolada não neutraliza overrides herdados: confira/remova-os antes.
+
+Analytics contém agregados com escritor próprio: fila atual 1.024, lotes 128, prazo de flush 10 s. O arquivo vizinho `*.pending.json` deriva do caminho da base. A inicialização reaplica lotes identificados e remove o arquivo antes de `ready` admitir trabalho. Recuperação ilegível/acima de 16 MiB, base indisponível ou falha ao remover o arquivo mantêm admissão desativada. Preserve base e arquivo, inspecione `ready`/pendências/erros e faça backup antes do reparo. Não apague evidências para aparentar saúde; os diários de pontos têm outro contrato de durabilidade.
+
+`system.info` informa home/dataDir efetivos; resolva outros diretórios pelo ambiente real de inicialização do host, não outro terminal. Use `system.health` para ready/pendências analíticas e contadores de entrada LIVE.

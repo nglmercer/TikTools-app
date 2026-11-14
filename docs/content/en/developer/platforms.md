@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
-translationRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
+sourceRevision: "c7befe2be6f91bcf50ce4572aaa95d02723a315ba11ed1d94e6d499e802c2473"
+translationRevision: "c7befe2be6f91bcf50ce4572aaa95d02723a315ba11ed1d94e6d499e802c2473"
 order: 20
 ---
 
@@ -41,3 +41,19 @@ Local IPC, SQLite and portable process/QuickJS plugins have implemented Android 
 ## Verify and recover {#verify-and-recover}
 
 Run `bash scripts/termux/doctor.sh`, `bash scripts/termux/test.sh` and `bash scripts/termux/smoke.sh` from the checkout root. Report skipped frontend checks honestly. For broken `protoc` C++ symbols, compare `env -u LD_LIBRARY_PATH protoc --version` before changing libraries. A missing CA bundle must be repaired, never bypassed. Cross-compilation alone does not establish phone acceptance. The [Termux smoke script](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/termux/smoke.sh) records the targeted probes and remaining restrictions.
+
+## Operational details {#operational-details}
+
+For a local browser adapter, build frontend assets containing index.html and a CLI with `local-web`. Clear inherited path overrides and set a disposable `TIKTOOLS_HOME`; start the IPC host first. In a second terminal with the same home run the adapter command below, open its loopback one-click link or enter the six-digit one-use pairing code (valid five minutes). Stop the adapter and host independently when finished. Loopback binding and pairing do not provide remote/LAN access. A Termux device needs its own native Android toolchain and built web assets; a Linux desktop binary is not an Android binary.
+
+```sh
+bun scripts/task.ts frontend-build
+bun scripts/task.ts rust build -p tiktools-cli --features local-web --locked
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools host --ipc
+```
+
+```sh
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools web --assets /absolute/path/to/TikTools/dist/web --port 4174
+```

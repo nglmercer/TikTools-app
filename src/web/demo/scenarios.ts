@@ -16,6 +16,8 @@ export const scenarios = {
 export type ScenarioId = keyof typeof scenarios;
 export const demoLocales = supportedLocales;
 export type DemoLocale = Locale;
+export const embeddedPanels = { connection: '/connections', feed: '/feed', automation: '/automations', points: '/points', overlays: '/overlays' } as const;
+export type EmbeddedPanel = keyof typeof embeddedPanels;
 export function isScenario(value: string): value is ScenarioId { return Object.hasOwn(scenarios, value); }
 export const demoRoutes = ['/connections', '/feed', '/automations', '/points', '/analytics', '/overlays', '/plugins', '/settings', '/debug', '/ui-kit', '/components'] as const;
 export function validDemoRoute(value: string): boolean {
@@ -34,9 +36,16 @@ export function parseDemoOptions(search: string) {
   const params = new URLSearchParams(search);
   const scenario = params.get('scenario') ?? 'connection';
   const locale = normalizeLocale(params.get('locale') ?? 'es');
-  const route = params.get('route') ?? (isScenario(scenario) ? scenarios[scenario].route : '');
+  const embed = params.get('embed');
+  if (embed !== null && !Object.hasOwn(embeddedPanels, embed)) throw new Error('Invalid embedded panel.');
+  const panel = embed as EmbeddedPanel | null;
+  const events = params.get('events');
+  if (events !== null && (panel !== 'feed' || !/^(?:[0-9]|1[0-2])$/.test(events))) throw new Error('Invalid initial event count.');
+  const initialEvents = events === null ? panel === 'feed' ? 1 : 0 : Number(events);
+  const route = params.get('route') ?? (panel ? embeddedPanels[panel] : isScenario(scenario) ? scenarios[scenario].route : '');
   const instance = params.get('instance') ?? 'standalone';
   const tour = params.get('tour');
   if (!isScenario(scenario) || !locale || !validDemoRoute(route) || !/^[a-zA-Z0-9_-]{1,64}$/.test(instance) || (tour !== null && !['connection', 'automation', 'plugin', 'overlay', 'points', 'changes', 'diagnostics'].includes(tour))) throw new Error('Invalid demo parameters.');
-  return { scenario, locale, route, instance, tour };
+  if (panel && (route !== embeddedPanels[panel] || tour)) throw new Error('Embedded panels require their focused route without a tour.');
+  return { scenario, locale, route, instance, tour, embed: panel, initialEvents };
 }

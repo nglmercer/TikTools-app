@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
-translationRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
+sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
+translationRevision: "78ce7c124fefac65fc37718d87fb15fd386130fc9a16414febfc481f33749dba"
 order: 10
 ---
 
@@ -38,3 +38,7 @@ A disponibilidade do login do serviço e a aceitação real por provedor/platafo
 ## Recuperação {#recovery}
 
 Para uma tentativa cancelada ou expirada, inicie um login novo após fechar o anterior. Para erros de rede ou serviço, preserve o código de diagnóstico e tente novamente após a recuperação. Para um erro do armazenamento de credenciais, restaure a disponibilidade do armazenamento seguro do sistema operacional; não cole um token de portador nas configurações nem em uma mensagem de suporte. Consulte [Changes](changes.md) para sincronização explícita e [colaboração](collaboration.md) para concessões de acesso separadas.
+
+## Detalhes de operação {#operational-details}
+
+Sair apaga credenciais locais e limpa o contexto antes de tentar revogação remota de melhor esforço. A interface desconectada confirma remoção local, não revogação remota durante falha de rede. Use administração de sessões do serviço se disponível. Exporte Diagnostics antes de sair/trocar conta conhecida: esse histórico UI é apagado. Cookies TikTok e sessões de host remoto são identidades separadas.

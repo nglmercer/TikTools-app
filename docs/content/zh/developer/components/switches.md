@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "fa20b0faee8aad6fcf04c58fbc0932d3a99c78667e38bbf3f3be007cadf0fce9"
-translationRevision: "fa20b0faee8aad6fcf04c58fbc0932d3a99c78667e38bbf3f3be007cadf0fce9"
+translationRevision: "f11df5b80c19c6dec930371e56ec6b1ca7bd66ffb4abdbe6a4f1c1aec8181cfe"
 ---
 
 # 开关 {#switches}

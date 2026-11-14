@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
-translationRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
+sourceRevision: "3dd24191fb33ac1ebfd42ca33e68a5a97537a89df09533c4588207ea6087daa5"
+translationRevision: "3dd24191fb33ac1ebfd42ca33e68a5a97537a89df09533c4588207ea6087daa5"
 order: 10
 ---
 
@@ -43,6 +43,16 @@ bun scripts/task.ts packaged  # packaged frontend path, rather than a developmen
 ```
 
 `start` launches Vite, waits for its allocated URL and runs the desktop against `TIKTOOLS_DEV_URL`. It can prepare plugins from the separate `plugins-example-tiktools` checkout found through `TIKTOOLS_PLUGINS_REPO` or the sibling directory. It does not compile checked-in plugin implementations. Use `TIKTOOLS_SKIP_DEV_PLUGINS=1` to omit that preparation. No host is replaced automatically; an existing desktop owner causes a startup error.
+
+Install the external checkout's own dependencies before starting. From the TikTools checkout, the commands below install its locked toolchain, stage packages without launching a host, and create distributable archives in `dist/plugins/`. Preparation rebuilds source UIs and replaces the generated `.dev-plugins` contents. `TIKTOOLS_PLUGINS_REPO=off` clears that staging root and loads no external development packages; installed user plugins are managed separately.
+
+The sibling path below is only a local example. CI does not require this checkout; use an absolute `TIKTOOLS_PLUGINS_REPO` path for a different layout.
+
+```sh
+bun install --frozen-lockfile --cwd ../plugins-example-tiktools
+bun scripts/task.ts prepare-plugins
+bun scripts/task.ts plugins --all
+```
 
 For isolated native experiments, set `TIKTOOLS_HOME` to a disposable directory before launching the host. Use the same home from every CLI terminal controlling that host. Never delete a live ownership lock.
 

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
-translationRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
+sourceRevision: "3dd24191fb33ac1ebfd42ca33e68a5a97537a89df09533c4588207ea6087daa5"
+translationRevision: "41f53de469bb60654a038126c355ad85eff102510b897e4add403e7eb03847df"
 order: 10
 ---
 
@@ -43,6 +43,16 @@ bun scripts/task.ts packaged  # frontend empaquetado, sin URL de desarrollo
 ```
 
 `start` inicia Vite, espera su URL asignada y ejecuta el escritorio con `TIKTOOLS_DEV_URL`. Puede preparar plugins desde el checkout externo `plugins-example-tiktools`, encontrado mediante `TIKTOOLS_PLUGINS_REPO` o un directorio hermano. No compila implementaciones de plugins incluidas en este repositorio. Usa `TIKTOOLS_SKIP_DEV_PLUGINS=1` para omitir esa preparación. Un host existente no se sustituye: el arranque informa de un propietario abierto.
+
+Instala las dependencias del checkout externo antes de iniciar. Desde el checkout de TikTools, los comandos siguientes instalan su toolchain bloqueado, preparan paquetes sin abrir un host y crean archivos distribuibles en `dist/plugins/`. La preparación recompila las interfaces desde sus fuentes y reemplaza el contenido generado de `.dev-plugins`. `TIKTOOLS_PLUGINS_REPO=off` vacía ese directorio y no carga paquetes externos de desarrollo; los plugins instalados del usuario se gestionan por separado.
+
+La ruta hermana siguiente es solo un ejemplo local. CI no requiere ese checkout; usa una ruta absoluta en `TIKTOOLS_PLUGINS_REPO` si tu distribución de carpetas es distinta.
+
+```sh
+bun install --frozen-lockfile --cwd ../plugins-example-tiktools
+bun scripts/task.ts prepare-plugins
+bun scripts/task.ts plugins --all
+```
 
 Para pruebas nativas aisladas, asigna a `TIKTOOLS_HOME` un directorio descartable antes de iniciar el host. Utiliza el mismo directorio desde las terminales CLI que lo controlan. Nunca elimines un bloqueo de propietario activo.
 

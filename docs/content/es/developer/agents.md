@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
-translationRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
+sourceRevision: "81526e0de1483b13f1df159576cb69f37ce2c5e3cf072ee9db199cd6c8c84dfb"
+translationRevision: "555576af9a753fc77f140bc5e00ab727d23e7a63433ef0568fe8ff2b0a9ecc6a"
 order: 80
 ---
 
@@ -102,3 +102,7 @@ bun scripts/task.ts test headless-teams --binary /absolute/path/tiktools --backe
 Los nuevos paquetes también admiten `./TikTools.AppImage --cli --build-info` y `./TikTools.AppImage --cli --json teams doctor`. Esta entrada despacha antes de inicializar la GUI; las AppImages publicadas anteriormente no la incorporan automáticamente.
 
 La reutilización de un perfil controller entre procesos del CLI requiere un almacén de credenciales del sistema operativo disponible.
+
+## Detalles de operación {#operational-details}
+
+Antes de producir efectos, descubre el schema, usa `--dry-run --explain` y comprueba si es CAS, aditivo, durable o destructivo. Sigue la [receta aislada de lectura/CAS/resultado original](control-api.md#operational-details) y [snapshot/aplicar/acknowledge](remote-client.md#operational-details). Un adaptador debe conservar metadatos, payload/ID original y ámbito del llamante; cambiar el ID tras timeout puede repetir efectos. `--confirm` confirma una llamada destructiva, no autoridad adicional.

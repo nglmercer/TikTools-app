@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "d061de3feeae9f8cfa6d7e1b5156c7e66795f7e46d64e31f4e2edd933465e52c"
-translationRevision: "d061de3feeae9f8cfa6d7e1b5156c7e66795f7e46d64e31f4e2edd933465e52c"
+translationRevision: "b82a7f6a00bdb73692a62b662e12cc54e35afef15a3f8e0bbb5e83810b3e8cf6"
 ---
 
 # FloatingPanel の使い方 {#floatingpanel}

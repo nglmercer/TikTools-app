@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "49c8594160a56b6b044851e6365732d8f4a9a4a9247ce4422d2e5280f8bb3ce3"
-translationRevision: "49c8594160a56b6b044851e6365732d8f4a9a4a9247ce4422d2e5280f8bb3ce3"
+sourceRevision: "06ae46545d1366d4f456c78a0e6583ea0338afbd496467e4d25b3abe1a5430fb"
+translationRevision: "898da8f756958ffdd92bb80f4b2a5a9831c8453c5c6e746a964a5b5021435200"
 order: 180
 ---
 
@@ -39,8 +39,14 @@ Esses comandos inspecionam esquemas; não migram uma conta nem salvam valores de
 
 V2 tem estado/armazenamento/coordenador nativos, migração v1 protegida, revisão de conflitos, reconstrução e reconciliação de plugins instalados. A adoção é explícita e limitada à conta; instalações legadas sem marcação permanecem no caminho legado. A aceitação completa entre dois desktops e alguns adaptadores de produto continuam incompletos. A configuração de época de gravação para toda a conta tem consequências irreversíveis no servidor explicadas na revisão da migração.
 
-V3 adiciona catálogo, equipes, integrações, recursos, overlays e pacotes por trás de capacidades. Metadados de catálogo não substituem a verificação de plugins assinados. A importação de modelos/perfis usa o diário da biblioteca do proprietário e permanece desativada. A aplicação de pacotes registra etapas interrompidas em vez de reproduzi-las automaticamente. O acesso de leitura por relay do Cloud não deve ser confundido com autoridade de mutação da colaboração direta.
+V3 adiciona catálogo, equipes, integrações, recursos, overlays e pacotes por trás de capacidades. Metadados de catálogo não substituem a verificação de plugins assinados. A importação usa o diário do proprietário; confira enabled ao aplicar/importar perfil. A aplicação de pacotes registra etapas interrompidas em vez de reproduzi-las automaticamente. O acesso de leitura por relay do Cloud não deve ser confundido com autoridade de mutação da colaboração direta.
 
 ## Resultado esperado e recuperação {#expected-result-and-recovery}
 
 Alterações de configuração mantêm limites de identidade, revisão e análise. Changes de Automations é apenas local; Variables revisadas usam métodos nativos tipados reais e não sincronizam valores brutos. Changes de Overlays não está mesclado. Em um conflito, compare registros base/locais/novos do Cloud; em uma confirmação desconhecida, resolva a intenção mantida. Um erro HTTP que permite nova tentativa nunca autoriza repetir uma mutação. [Colaboração](collaboration.md) trata separadamente da autoridade sobre o host em execução.
+
+## Detalhes de operação {#operational-details}
+
+`TIKTOOLS_CLOUD_ORIGIN` usa runtime → valor compilado → padrão em debug, mas compilado → padrão em release, que ignora overrides runtime. Vazio, `off`, `none` desativam apenas na camada aplicável. Aceita origem HTTPS sem credenciais/caminho/query/fragmento; HTTP só loopback explícito. Debug isolado: `TIKTOOLS_CLOUD_ORIGIN=http://127.0.0.1:8787 bun run start`; release: `TIKTOOLS_CLOUD_ORIGIN=https://cloud.example bun scripts/task.ts rust build -p tiktools-desktop --release --locked`. Identidade de outra origem não restaura: confira origem/conta antes de autenticar. Padrão compilado não prova disponibilidade.
+
+Siga [migração e recuperação por modo](../user/cloud/changes.md#operational-details). Coordene dispositivos antes da política irreversível de época, preserve contagens/resultados e consulte estado após barreira ambígua, sem repeti-la para descobrir se ocorreu. A recuperação congela entradas e revisão aprovadas; revisão vencida precisa ser reconstruída antes de retomar, que não envia escrita Cloud.

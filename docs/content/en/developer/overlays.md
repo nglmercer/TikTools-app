@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
-translationRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
+sourceRevision: "99d3351859ddb3a3304133f062f68b8e3130416947fc40433dc9c6bffaf85f6a"
+translationRevision: "99d3351859ddb3a3304133f062f68b8e3130416947fc40433dc9c6bffaf85f6a"
 order: 170
 ---
 
@@ -44,3 +44,7 @@ Built-in local previews and the widget SDK are implemented. Cloud overlay editin
 ## Recovery {#recovery}
 
 For a blank local preview, inspect controller lifetime, schema defaults and stage sizing before weakening origin policy. For live output, inspect gateway health, widget credential and explicit gaps. A headless Chromium test does not prove OBS Browser Source acceptance. The [Widget SDK](https://github.com/nglmercer/TikTools-app/tree/remake/src/widgets/sdk) and shared protocol tests are the current implementation references.
+
+## Operational details {#operational-details}
+
+The independent widget unit suite uses fixtures; the real-gateway Chromium suite needs built widget assets and the external plugin checkout selected by `TIKTOOLS_PLUGINS_REPO`. It skips when that source is missing: report a skip explicitly. Run `bun x --no-install playwright test --config src/widgets/playwright.gateway.config.ts` for that separate boundary. Then verify actual OBS Browser Source, widget credential, event delivery and recovery with real LIVE input; headless Chromium does not establish OBS/native acceptance.

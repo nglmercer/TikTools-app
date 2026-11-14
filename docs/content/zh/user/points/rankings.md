@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
-translationRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
+sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
+translationRevision: "7efb2f20a170e42ae53d494e5e48a44dbfa7f3bd0fbe4d4192b558626493e8b9"
 order: 30
 ---
 
@@ -39,3 +39,7 @@ order: 30
 ## 恢复方法 {#recovery}
 
 分数持续为空时，检查主播、直播间、来源启用状态、窗口及暂停状态。移除不受支持的来源/分组组合，不要编造字段名。重置前通过[备份](../preferences/backups.md)保存重要数据；报告问题时附上定义 ID 与诊断代码。
+
+## 运行细节 {#operational-details}
+
+Points 表格请求 100 位观众，只对收到的行搜索和排序。刷新或按姓名排序不会搜索整个数据库。动态流榜单按主播/房间会话显示 10 行：Top 统计礼物钻石，Likes 统计点赞数量，最多跟踪 5,000 位观众。这些榜单不表示已保存积分。比较总数前，请先确认单位及会话范围。

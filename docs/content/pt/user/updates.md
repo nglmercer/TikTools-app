@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "59d259c554c7b220bb7e978e2da3165034eeb494aa28e5c73666be9945fb6869"
-translationRevision: "59d259c554c7b220bb7e978e2da3165034eeb494aa28e5c73666be9945fb6869"
+sourceRevision: "6b92351b3ee8eb1b0745db65bbddb3eab21f4ae0a9945795c94147c9ca347e73"
+translationRevision: "e9a16659dc888de9dc4a736ce6c66d6a0d55643d950c336d4c479849f3196d54"
 order: 40
 ---
 
@@ -27,7 +27,7 @@ A [lista de versões](https://github.com/nglmercer/TikTools-app/releases) identi
 1. Abra **Settings → General** e inspecione o estado atual do atualizador e a versão instalada.
 2. Execute a verificação disponível. Compilações sem a chave pública ou capacidade de feed configurada mostram que as verificações estão indisponíveis.
 3. Leia as notas de versão e escolha o pacote para sua plataforma.
-4. Quando a compilação oferecer download ou encaminhamento manual, siga esse caminho. O fluxo de lançamento de produção habilita verificações autenticadas; ele não habilita todos os recursos experimentais de instalação automática.
+4. Quando a compilação oferecer download ou encaminhamento manual, siga esse caminho. O fluxo habilita verificações autenticadas somente com a variável de chave pública configurada; a instalação automática tem portas adicionais.
 5. Para uma atualização manual, feche o TikTools, substitua ou instale o pacote verificado completo e reabra. Mantenha o diretório de dados separado dos arquivos do aplicativo.
 
 ## Resultado esperado {#expected-result}
@@ -39,3 +39,7 @@ O aplicativo reiniciado informa a versão escolhida e consegue ler o perfil loca
 Uma falha na verificação de assinatura significa falha na atualização; baixe uma cópia oficial nova e verifique as somas de verificação da versão. Não contorne a verificação. A substituição automática de AppImage e o encaminhamento para NSIS têm controles de compilação separados e são experimentais. Não existe reversão automática geral. Voltar a um binário antigo não desfaz um esquema SQLite migrado.
 
 Informe a versão instalada, o formato do pacote e o erro do atualizador em Diagnostics. Não anexe chaves de assinatura, tokens de convite ou dados da conta. O [guia de instalação](installation.md) descreve as disposições de pacote compatíveis.
+
+## Detalhes de operação {#operational-details}
+
+A capacidade do updater é fixada na compilação. Verificar exige feed e chave pública. AppImage automático exige também porta comum de instalação e origem suportada detectada; NSIS exige essa mesma porta E a específica NSIS. Variáveis após instalar não ativam portas compiladas. Portable/extraído/desconhecido usa substituição manual. Verifique versão, reinício e perfil após instalar; download, checksum ou abrir instalador não comprovam conclusão.

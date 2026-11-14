@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
-translationRevision: "d2c0041373921fc8f25f11ee7bdd713daed7c8d2af41b57c5f14324dfaf22a96"
+sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
+translationRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
 order: 30
 ---
 
@@ -39,3 +39,7 @@ Ordinary leaderboards are available; the dedicated management page remains exper
 ## Recovery {#recovery}
 
 Check creator, room, source enablement, window and pause state when scores stay empty. Remove unsupported source/group combinations rather than inventing field names. Preserve important data through [backups](../preferences/backups.md) before resets, and include definition ID and diagnostic code in a report.
+
+## Operational details {#operational-details}
+
+The Points table requests 100 viewers and filters/sorts only those received rows. Refreshing or sorting by name does not search the entire database. Feed rankings show 10 rows per creator/room session: gift diamonds for Top and counts for Likes, with tracking bounded to 5,000 viewers. They do not measure saved points. Compare units and session boundaries before comparing totals.

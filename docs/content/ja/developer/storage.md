@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
-translationRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
+sourceRevision: "7ec9d94e484af17e8e82aaaa2122cc47ecd206cf9306047795d6aaa72eea2edb"
+translationRevision: "4b0d4e93e515898bc2dd78d1783299890afd6aebe472be9c8734a2fbcb5ef56d"
 order: 60
 ---
 
@@ -47,3 +47,11 @@ target/debug/tiktools api discover
 ## 問題が起きたとき {#recovery}
 
 オフラインバックアップでは SQLite と存在する WAL/SHM をまとめて保管します。UI タイムアウトはロールバックの証拠ではありません。`revision_conflict` は下書きを保持して新しい読み取りと比較します。外部処理が不確実ならフィードを再実行せず保持した処理記録を調べます。[パスの正本](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/paths.rs) と [Cloud 復旧](cloud.md) で別々の境界を確認します。
+
+## 運用の詳細 {#operational-details}
+
+試験・バックアップ前に `tiktools api call system.info --json` で実パスを確認します。`TIKTOOLS_HOME` がルートを選び、`TIKTOOLS_DATA_DIR`、`TIKTOOLS_PLUGINS_DIR`、`TIKTOOLS_PLUGIN_DATA_DIR`、`TIKTOOLS_PLUGIN_STORE_DIR`、`TIKTOOLS_LOG_DIR`、`TIKTOOLS_TEMP_DIR` が派生先を個別に上書きします。相対パスは起動ディレクトリ基準です。home の分離だけでは継承変数を無効化できないため先に確認・解除します。
+
+Analytics は集計データを専用ライターで書きます。現在のキューは 1,024 件、バッチ 128 件、flush 期限 10 秒です。データベースパスから隣接 `*.pending.json` を作ります。起動時に ID 付きバッチを再適用し、回復ファイルを除いてから `ready` が新規処理を許可します。読めない・16 MiB 超の回復ファイル、使用不能な DB、回復ファイル削除失敗では受け付けを停止します。DB と回復ファイルを保持し、`ready`・未処理件数・エラーを確認して修復前に保存します。健全に見せるための削除はしません。ポイントログは別の耐久性契約です。
+
+`system.info` は実 home/dataDir を返します。他のディレクトリは別端末ではなくホストの実起動環境で解決します。`system.health` は集計 ready/未処理と LIVE 入口カウンターを提供します。

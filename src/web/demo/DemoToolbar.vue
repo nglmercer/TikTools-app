@@ -13,9 +13,17 @@ import { demoLocales, scenarios, type ScenarioId, type DemoLocale } from './scen
 import type { PlaybackStatus } from './playback.ts';
 import { localeNames } from '@/shared/i18n/supported-locales.ts';
 import { toolbarCopy } from './toolbar-copy.ts';
-const props = defineProps<{ scenario: ScenarioId; locale: DemoLocale; paused: boolean; busy: boolean; events: number; status: PlaybackStatus; guideState: string; failure: boolean; ready: boolean; tours: Array<{ value: string; label: string }>; initialTour: string; docsUrl: string; metrics: string }>();
-const emit = defineEmits<{ scenario: [value: ScenarioId]; locale: [value: DemoLocale]; play: []; step: []; reset: []; failure: []; guide: [id: string, trigger: HTMLElement]; catalog: []; cancelGuide: [] }>();
+import type { EmbeddedPanel } from './scenarios.ts';
+import { experienceCopy } from '../../../docs/experience/copy.ts';
+const props = defineProps<{ scenario: ScenarioId; locale: DemoLocale; paused: boolean; busy: boolean; events: number; status: PlaybackStatus; guideState: string; failure: boolean; ready: boolean; tours: Array<{ value: string; label: string }>; initialTour: string; docsUrl: string; metrics: string; embed?: EmbeddedPanel | null; connectionCase?: 'normal' | 'offline' | 'auth' }>();
+const emit = defineEmits<{ scenario: [value: ScenarioId]; locale: [value: DemoLocale]; play: []; step: []; reset: []; failure: []; guide: [id: string, trigger: HTMLElement]; catalog: []; cancelGuide: []; connectionCase: [value: 'normal' | 'offline' | 'auth'] }>();
 const t = computed(() => toolbarCopy[props.locale]);
+const copy = computed(() => experienceCopy[props.locale]);
+const currentTask = computed(() => {
+  const scenario = props.scenario;
+  return scenario === 'connection' || scenario === 'automation' || scenario === 'points' || scenario === 'overlays' ? copy.value.topics[scenario] : copy.value.otherTasks[scenario];
+});
+const connectionOptions = computed(() => (['normal', 'offline', 'auth'] as const).map((value) => ({ value, label: copy.value.connectionStates[value] })));
 const scenarioOptions = computed(() => Object.entries(scenarios).map(([value, scenario]) => ({ value, label: scenario[props.locale] })));
 const languageOptions = computed(() => demoLocales.map((value) => ({ value, label: localeNames[value] })));
 const selectedTour = ref(props.initialTour);
@@ -33,8 +41,14 @@ function selectAction(action: MenuAction) { if (action.id === 'failure') emit('f
 function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.currentTarget as HTMLElement); }
 </script>
 <template>
-  <div class="demo-toolbar">
-    <div class="demo-toolbar__heading">
+  <div
+    class="demo-toolbar"
+    :class="{ 'demo-toolbar--embedded': embed }"
+  >
+    <div
+      v-if="!embed"
+      class="demo-toolbar__heading"
+    >
       <div class="demo-toolbar__identity">
         <a
           class="demo-toolbar__brand"
@@ -74,17 +88,31 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
       </div>
     </div>
     <p
+      v-if="!embed"
       class="demo-toolbar__description"
       data-testid="demo-limit"
     >
-      {{ t.limit }}
+      <strong>{{ copy.task }}:</strong> {{ currentTask.task }} <span class="demo-toolbar__limit">{{ t.limit }}</span>
     </p>
     <div class="demo-toolbar__controls">
-      <label class="demo-toolbar__field demo-toolbar__scenario"><span>{{ t.scenario }}</span><BaseComboBox
+      <label
+        v-if="!embed"
+        class="demo-toolbar__field demo-toolbar__scenario"
+      ><span>{{ t.scenario }}</span><BaseComboBox
         :aria-label="t.scenario"
         :options="scenarioOptions"
         :model-value="scenario"
         @update:model-value="emit('scenario', $event as ScenarioId)"
+      /></label>
+      <label
+        v-if="embed === 'connection'"
+        class="demo-toolbar__field demo-toolbar__case"
+      ><span>{{ copy.connectionStates.label }}</span><BaseComboBox
+        :aria-label="copy.connectionStates.label"
+        :options="connectionOptions"
+        :model-value="connectionCase ?? 'normal'"
+        :disabled="!ready || busy"
+        @update:model-value="emit('connectionCase', $event as 'normal' | 'offline' | 'auth')"
       /></label>
       <div
         class="demo-toolbar__playback"
@@ -123,7 +151,10 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
           </template>
         </BaseButton>
       </div>
-      <div class="demo-toolbar__guides">
+      <div
+        v-if="!embed"
+        class="demo-toolbar__guides"
+      >
         <label class="demo-toolbar__field"><span>{{ t.chooseGuide }}</span><BaseComboBox
           v-model="selectedTour"
           :aria-label="t.chooseGuide"
@@ -139,6 +170,13 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         </BaseButton>
       </div>
     </div>
+    <p
+      v-if="embed === 'connection' && connectionCase !== 'normal'"
+      class="demo-toolbar__recovery"
+      role="status"
+    >
+      {{ connectionCase === 'offline' ? copy.connectionStates.offlineHelp : copy.connectionStates.authHelp }}
+    </p>
     <div
       class="demo-toolbar__status"
       role="status"
@@ -158,6 +196,12 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         :data-status="guideState"
       >{{ guideLabel }}</span>
     </div>
+    <details
+      v-if="!embed"
+      class="demo-toolbar__expected"
+    >
+      <summary>{{ copy.success }}</summary><p>{{ currentTask.result }}</p>
+    </details>
     <output
       data-testid="demo-metrics"
       aria-live="off"

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
-translationRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
+sourceRevision: "00ea88ebd11714484d717b7d7533d29158afd498121db362a3d300bc21889501"
+translationRevision: "c1d4d9160416178f0dc2412de9b2c62dec536ceedcca7cef41297fc3a2809b81"
 order: 30
 ---
 
@@ -45,3 +45,7 @@ Tous les clients observent le même parcours faisant autorité pour les opérati
 Si deux clients divergent, comparez l’identité de l’hôte, le répertoire d’application, les fonctionnalités de compilation et la découverte avant d’ajouter un autre store. Un plugin absent est un problème de catalogue d’exécution, pas une raison de compiler son implémentation dans le cœur. Les documents d’architecture historiques contiennent des chemins d’interface retirés ; suivez le [cœur actuel](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/lib.rs) et le [plan de l’interface](frontend.md) lorsqu’ils diffèrent.
 
 ![AppCore TikTools, transport, ControlClient et espace de travail Vue réel](/architecture.svg)
+
+## Détails de fonctionnement {#operational-details}
+
+Les features Cargo du binaire choisi déterminent les chemins compilés. Le cœur active par défaut `native-plugins` et `napi-vm-node-api` ; `persistence` fournit SQLite, `native-tiktok` l’adaptateur/entrée LIVE, et `plugin-install`, `cloud-auth`, `app-update` leurs services. Consultez `cargo tree -p tiktools-desktop -e features` (ou la CLI choisie), puis `system.info`/discovery. La compilation ne prouve pas la disponibilité configurée. Testez l’entrée LIVE avec la régression `native-tiktok` de [performance](performance.md).

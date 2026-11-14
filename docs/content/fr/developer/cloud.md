@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "49c8594160a56b6b044851e6365732d8f4a9a4a9247ce4422d2e5280f8bb3ce3"
-translationRevision: "49c8594160a56b6b044851e6365732d8f4a9a4a9247ce4422d2e5280f8bb3ce3"
+sourceRevision: "06ae46545d1366d4f456c78a0e6583ea0338afbd496467e4d25b3abe1a5430fb"
+translationRevision: "2cc81ecc7fd36c99e129ac480ec73e673e79ccf136a296143e2d670fa0e7dbd0"
 order: 180
 ---
 
@@ -39,8 +39,14 @@ Ces commandes examinent les schémas ; elles ne migrent pas de compte et n’enr
 
 V2 dispose d’un état/stockage/coordinateur natif, d’une migration v1 protégée, d’un examen des conflits, d’une reconstruction et de parcours de rapprochement des plugins installés. L’adoption est explicite et limitée au compte ; les anciennes installations non marquées conservent leur parcours historique. La validation complète de deux bureaux et certains adaptateurs produit restent incomplets. La configuration d’époque d’écriture à l’échelle du compte a des conséquences serveur irréversibles expliquées par son examen de migration.
 
-V3 ajoute catalogue, équipes, intégrations, ressources, incrustations et paquets derrière des capacités. Les métadonnées de catalogue ne remplacent pas la vérification signée des plugins. L’importation de modèles/profils utilise le journal de bibliothèque du propriétaire et reste désactivée. L’application des paquets enregistre les étapes interrompues au lieu de les rejouer automatiquement. L’accès en lecture au relais Cloud ne doit pas être confondu avec l’autorité de mutation de collaboration directe.
+V3 ajoute catalogue, équipes, intégrations, ressources, incrustations et paquets derrière des capacités. Les métadonnées de catalogue ne remplacent pas la vérification signée des plugins. L’importation utilise le journal du propriétaire ; examinez enabled à l’application/import de profil. L’application des paquets enregistre les étapes interrompues au lieu de les rejouer automatiquement. L’accès en lecture au relais Cloud ne doit pas être confondu avec l’autorité de mutation de collaboration directe.
 
 ## Résultat attendu et récupération {#expected-result-and-recovery}
 
 Les changements de configuration conservent les frontières d’identité, de révision et d’examen. Automations Changes est uniquement local ; Variables avec examen utilise de vraies méthodes natives typées et ne synchronise pas les valeurs brutes. Overlay Changes n’est pas fusionné. En cas de conflit, comparez les enregistrements de base, locaux et Cloud récents ; en cas d’accusé inconnu, résolvez l’intention conservée. Une erreur HTTP autorisant une nouvelle tentative n’autorise jamais à répéter une mutation. La [collaboration](collaboration.md) couvre séparément l’autorité de l’hôte actif.
+
+## Détails de fonctionnement {#operational-details}
+
+`TIKTOOLS_CLOUD_ORIGIN` suit runtime → valeur compilée → défaut en debug, mais compilée → défaut en release, qui ignore les variables runtime. Vide, `off`, `none` désactivent seulement à la couche applicable. Valeur admise : origine HTTPS sans identifiants/chemin/query/fragment ; HTTP uniquement loopback explicite. Debug isolé : `TIKTOOLS_CLOUD_ORIGIN=http://127.0.0.1:8787 bun run start` ; release : `TIKTOOLS_CLOUD_ORIGIN=https://cloud.example bun scripts/task.ts rust build -p tiktools-desktop --release --locked`. Une identité d’une autre origine ne se restaure pas : vérifiez origine/compte avant authentification. Un défaut compilé ne prouve pas la disponibilité.
+
+Suivez [migration et récupération par mode](../user/cloud/changes.md#operational-details). Coordonnez tous les appareils avant la politique d’époque irréversible, gardez comptes/résultats et relisez l’état après barrière ambiguë sans la répéter pour savoir si elle a réussi. La récupération fige entrées et révision examinées ; une revue périmée doit être refaite avant reprise, qui n’envoie pas d’écriture Cloud.

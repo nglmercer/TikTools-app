@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
-translationRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
+sourceRevision: "81526e0de1483b13f1df159576cb69f37ce2c5e3cf072ee9db199cd6c8c84dfb"
+translationRevision: "cd02f37c5775eb905c546ef7b4afc517ca90e73b892045a96ad59e8d84372b2a"
 order: 80
 ---
 
@@ -102,3 +102,7 @@ bun scripts/task.ts test headless-teams --binary /absolute/path/tiktools --backe
 新构建的安装包还支持 `./TikTools.AppImage --cli --build-info` 和 `./TikTools.AppImage --cli --json teams doctor`，会在初始化图形界面前转交给 CLI。以前发布的 AppImage 不会自动获得此入口。
 
 在不同 CLI 进程间复用 controller 配置需要可用的操作系统凭据存储。
+
+## 运行细节 {#operational-details}
+
+产生副作用前，先发现 schema，使用 `--dry-run --explain`，并确认操作属于 CAS、加法、持久或破坏性。遵循[隔离读取/CAS/原始结果流程](control-api.md#operational-details)及[快照/应用/acknowledge 恢复](remote-client.md#operational-details)。工具封装必须保留元数据、原始 payload/命令 ID 与调用者范围；超时后更换 ID 可能重复副作用。`--confirm` 只确认破坏性调用，不扩大权限。

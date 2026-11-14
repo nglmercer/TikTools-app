@@ -32,4 +32,4 @@
 - `open`: `boolean`, `{ default: false }`
 - `tab`: `string`, `{ required: true }`
 
-Slots: `tab`, `manual-lead`, `item`, `staged-extra`, `footer`.
+Slots: `tab`, `manual-lead`, `item { item: item }`, `staged-extra`, `footer { tab: tab }`.

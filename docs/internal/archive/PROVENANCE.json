@@ -2,9 +2,9 @@
   "version": 1,
   "sourceCommit": "80c5cb1fbfa45eaeb1c086c71320a15e565d8541",
   "reviewedFromCommit": "b72370014ac0cdd4da01be43e7ad86d19d4c9d1c",
-  "purpose": "Internal byte-preserving historical archive. Do not edit original files or treat normative plans, dated tests or release prose as current deployment/acceptance claims.",
+  "purpose": "Historical provenance with byte-preserving local references and explicit Git-only retirements of obsolete plans and reports. Do not treat historical designs or dated tests as current acceptance claims.",
   "migrationMap": "../../migration-map.json",
-  "relativeLayout": "Original repository-relative paths are retained beneath this directory so Markdown and image relationships survive.",
+  "relativeLayout": "Retained local originals preserve their repository-relative paths and bytes. Removed plans and reports resolve through migration-map.json to the immutable source commit, including links from retained historical documents.",
   "documents": [
     {
       "source": "CONTRIBUTING.md",
@@ -1050,7 +1050,12 @@
           "target": "#pr-integration-validation",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Dated dependency-update PR report; versions are recorded in lockfiles and current setup and testing guides."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/DEPENDENCY-REFRESH.md"
     },
     {
       "source": "docs/DEVELOPMENT.md",
@@ -2454,7 +2459,12 @@
           "target": "LIVE-COLLABORATION-SPEC.md",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Accumulated implementation and test-run report; maintained collaboration contracts and testing guides retain the reusable material."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LIVE-COLLABORATION-VALIDATION.md"
     },
     {
       "source": "docs/LIVE-COLLABORATION.md",
@@ -2842,7 +2852,12 @@
           "target": "#delivery-order",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Branch-specific implementation sequence; current transport and platform guides cover the browser adapter."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_PLAN.md"
     },
     {
       "source": "docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md",
@@ -2891,7 +2906,12 @@
           "target": "#remaining-acceptance-work",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Dated branch implementation and validation report; maintained platform and transport guides cover the supported behavior."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/LOCAL_BROWSER_ADAPTER_VALIDATION.md"
     },
     {
       "source": "docs/MEDIA.md",
@@ -2970,7 +2990,12 @@
           "target": "#rollout-and-rollback",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Superseded dependency migration task; the runtime now uses QuickJS and current runtime guides describe it."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/NAPI-VM-MIGRATION-PLAN.md"
     },
     {
       "source": "docs/NAPI_VM_PLUGINS.md",
@@ -3248,7 +3273,12 @@
           "target": "#evidencia-actual-y-trabajo-pendiente",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Implementation roadmap mixing superseded transport decisions and delivery evidence; current transport and collaboration guides cover the contracts."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/P2P-COLLABORATION-PLAN.md"
     },
     {
       "source": "docs/PERFORMANCE_REFACTOR_PROGRESS.md",
@@ -3351,7 +3381,12 @@
           "target": "#october-2026-desktop-transport-follow-up",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Branch-specific agent progress and verification log; current lifecycle, events and performance guides retain the technical guidance."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PERFORMANCE_REFACTOR_PROGRESS.md"
     },
     {
       "source": "docs/PLAYWRIGHT.md",
@@ -3739,7 +3774,12 @@
           "target": "#_20-decisions-to-confirm-recommended-defaults",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Milestone-oriented implementation plan; packaging, registry and authoring contracts have maintained guides."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/PLUGIN_PACKAGE_MANAGER_PLAN.md"
     },
     {
       "source": "docs/PLUGIN_REGISTRY_PROTOCOL.md",
@@ -4074,7 +4114,12 @@
           "target": "#follow-up-per-user-providers-and-minimal-controls",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Dated integration defect and test report; current audio plugin and runtime guides retain the operational guidance."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SONICBOOM-LIVE-TTS-VALIDATION.md"
     },
     {
       "source": "docs/SYNC-CHANGES-PLAN.md",
@@ -4165,7 +4210,12 @@
           "target": "CLOUD-V2-DESKTOP.md#reviewed-variables-actions-422",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Implementation checklist and incremental progress log; current Changes and Cloud guides retain the supported behavior."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/SYNC-CHANGES-PLAN.md"
     },
     {
       "source": "docs/TEMPLATES.md",
@@ -4340,7 +4390,12 @@
           "target": "#files-changed",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Device-specific historical test report; current Termux, platform and testing guides retain setup and validation instructions."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/TERMUX_VALIDATION.md"
     },
     {
       "source": "docs/TROUBLESHOOTING.md",
@@ -4725,7 +4780,12 @@
           "target": "#reproduce",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Dated profiling report with no implementation change; performance methodology is maintained in the developer guide."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/perf-phase4.md"
     },
     {
       "source": "docs/release_plan.md",
@@ -4984,7 +5044,12 @@
           "target": "#definition-of-done",
           "kind": "link"
         }
-      ]
+      ],
+      "archiveRetention": {
+        "kind": "git-only",
+        "reason": "Obsolete agent task prompt for CI, security and release hardening; maintained release and testing guides cover the reusable instructions."
+      },
+      "historicalUrl": "https://github.com/nglmercer/TikTools-app/blob/80c5cb1fbfa45eaeb1c086c71320a15e565d8541/docs/release_plan.md"
     },
     {
       "source": "docs/ui/tts-minimal/README.md",

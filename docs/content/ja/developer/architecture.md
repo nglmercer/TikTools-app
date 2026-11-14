@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
-translationRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
+sourceRevision: "00ea88ebd11714484d717b7d7533d29158afd498121db362a3d300bc21889501"
+translationRevision: "bb70d9dc69b44676148b2d1234fb9c39c700f8e62dc8587afc7bcf151e23f538"
 order: 30
 ---
 
@@ -45,3 +45,7 @@ bun scripts/task.ts rust test -p tiktools-client --test parity --locked
 クライアント間で食い違う場合は、別ストアを追加する前にホスト ID、ホーム、ビルド機能、検出結果を比べます。プラグイン不足は実行時カタログの問題で、コアへ実装を組み込む理由にはなりません。過去の構造文書には廃止されたフロントエンドパスがあります。異なる場合は[現在のコア](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/lib.rs) と[フロントエンド構成](frontend.md) に従います。
 
 ![TikTools の AppCore、通信層、ControlClient、実際の Vue ワークスペース](/architecture.svg)
+
+## 運用の詳細 {#operational-details}
+
+選択バイナリの Cargo features がコンパイル対象を決めます。コア既定は `native-plugins` と `napi-vm-node-api`、`persistence` は SQLite、`native-tiktok` は LIVE アダプターと入口、`plugin-install`・`cloud-auth`・`app-update` は各サービスを追加します。`cargo tree -p tiktools-desktop -e features`（または実際の CLI）と実行時の `system.info`・discovery を確認します。コンパイル済みでも構成済みサービスとは限りません。[性能](performance.md)の `native-tiktok` 回帰で LIVE 入口を明示的に検証します。

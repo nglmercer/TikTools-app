@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7e6d88e43b32698c36afd6385bee8c44cc1223d669dd4c95414db604c17f254f"
-translationRevision: "7e6d88e43b32698c36afd6385bee8c44cc1223d669dd4c95414db604c17f254f"
+sourceRevision: "b2ae789f9c15df21b415b5bc006404dffd60430f193fdaba8cd94931e750eedc"
+translationRevision: "a593753b59e83fcc2be71388ffba1846f44e9cd8146d706a5f179be6218c37f4"
 order: 20
 ---
 
@@ -39,3 +39,9 @@ Com o TikTools fechado, preserve a pasta atual como uma cópia de recuperação 
 ## Resultado esperado, status e recuperação {#expected-result-status-and-recovery}
 
 Cópias com o aplicativo fechado e as áreas de importação/exportação citadas são métodos de recuperação disponíveis, sem garantia universal de restauração entre versões. Changes do Cloud não é um backup completo. Se uma versão restaurada rejeitar os dados, pare e retorne à cópia preservada; reinstalar um binário antigo não desfaz uma migração de banco de dados. Consulte [atualizações](../updates.md) e [solução de problemas](troubleshooting.md).
+
+## Detalhes de operação {#operational-details}
+
+Overrides individuais prevalecem sobre `TIKTOOLS_HOME`: `TIKTOOLS_DATA_DIR` contém bases; `TIKTOOLS_PLUGINS_DIR`, pacotes; `TIKTOOLS_PLUGIN_DATA_DIR`, estado dos plugins; `TIKTOOLS_PLUGIN_STORE_DIR`, armazenamento de pacotes. `TIKTOOLS_LOG_DIR` e `TIKTOOLS_TEMP_DIR` selecionam logs e temporários. Valores relativos usam o diretório de inicialização. Antes da cópia, consulte os caminhos efetivos com `tiktools api call system.info --json` e registre overrides herdados; copie dados/pacotes/estado com o host parado, incluindo WAL/SHM existentes. Logs são evidências de suporte, não substituem as bases.
+
+`system.info` informa home/dataDir efetivos; resolva outros diretórios pelo ambiente real de inicialização do host, não outro terminal. Use `system.health` para ready/pendências analíticas e contadores de entrada LIVE.

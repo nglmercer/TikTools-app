@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
-translationRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
+sourceRevision: "c68c149552a943cf0f03393c5dac91bd62abf9c50f791d7b0757599754f4804e"
+translationRevision: "4119dfbcd58aeb11c7db0d37bf2a076896d60eb5d45ea7179b0ad3768a2c67be"
 order: 10
 ---
 
@@ -41,3 +41,7 @@ order: 10
 ## 恢复方法 {#recovery}
 
 如果窗口空白或程序提前退出，请收集启动诊断信息和确切的安装包版本。AppImage 与 DEB 是不同的安装格式，都不是 Android 可执行文件。该环境请参阅 [Termux 与无界面运行的适用范围](termux.md)。从源码构建的额外要求见开发者指南。
+
+## 运行细节 {#operational-details}
+
+窗口始终无法打开时，查找原生日志 `tiktools.log`（控制器模式为 `controller.log`）：Windows 为 `%LOCALAPPDATA%/TikTools/logs`，Linux 为 `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`，但 `TIKTOOLS_HOME` 或 `TIKTOOLS_LOG_DIR` 可改变位置。日志初始化可能在文件创建前失败。保留可获得的终端错误，并在分享前阅读[诊断保留与隐私](preferences/troubleshooting.md#operational-details)。

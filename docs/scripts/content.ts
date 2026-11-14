@@ -79,7 +79,7 @@ export function metadataErrors(articles: readonly Article[]): string[] {
     const source = english.get(String(data.translationKey));
     if (!source) { errors.push(`${path}: missing English source`); continue; }
     const revision = contentHash(source.body);
-    if (data.sourceRevision !== revision || data.translationRevision !== revision) errors.push(`${path}: source or translation revision is stale`);
+    if (data.sourceRevision !== revision || data.translationRevision !== contentHash(article.body)) errors.push(`${path}: source or translation revision is stale`);
     for (const locale of docLocales) {
       const counterpart = `${locale}/${localized.tail}`;
       if (!articles.some((entry) => entry.relativePath === counterpart && entry.frontmatter.translationKey === data.translationKey)) errors.push(`${path}: missing equivalent translation ${counterpart}`);

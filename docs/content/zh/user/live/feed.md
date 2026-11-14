@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
-translationRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
+sourceRevision: "4830f0a02244f46bfefb9b37c09d96c969688d022a0df90359c96c3e359af147"
+translationRevision: "2291cb390369b29e56df1a5ea5a0eca4b31806d7233905ab4b5ae28bca194277"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ order: 20
 事件流为空时，请移除筛选、恢复滚动，并检查连接状态。安静的直播间也可能运行正常。重新连接同一主播会保留上下文，切换主播则会更换上下文。**清空动态** 仅清空工作事件流，不会重置积分或统计。通过[诊断](../preferences/troubleshooting.md)调查丢失提示，不要假定所有未显示的行都意味着上游事件丢失。
 
 <DemoFrame scenario="feed" locale="zh" title="演示：直播事件流" />
+
+## 运行细节 {#operational-details}
+
+本版本最多保留 300 条显示事件，并在等待呈现时暂存最多 900 条。保留策略先移除最旧的非礼物行；只有不剩其他类型时才移除礼物。因此，旧礼物可能比新聊天保留更久。暂停滚动不会停止接收，也不保证保留所有内容。筛选无法恢复已移除的行；丢失提示只说明视图不完整，不能据此重放积分或动作。

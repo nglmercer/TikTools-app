@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
-translationRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
+sourceRevision: "4830f0a02244f46bfefb9b37c09d96c969688d022a0df90359c96c3e359af147"
+translationRevision: "4830f0a02244f46bfefb9b37c09d96c969688d022a0df90359c96c3e359af147"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ Filtering and inspection are available. During heavy traffic, the interface can 
 If the feed is empty, remove filters, resume scrolling and check connection status. A quiet room may be healthy. Reconnecting to the same creator retains context; switching creator changes it. **Clear** empties the working feed and does not reset points or analytics. Investigate loss indicators through [diagnostics](../preferences/troubleshooting.md), without assuming all missing display rows are missing upstream events.
 
 <DemoFrame scenario="feed" locale="en" title="Demo: feed" />
+
+## Operational details {#operational-details}
+
+This version retains up to 300 displayed events and stages up to 900 while presentation waits. Retention evicts the oldest non-gift row first; gifts are evicted only when no other types remain. An older gift can therefore outlast a newer chat. Pausing scrolling does not stop ingestion or guarantee retention. Filters cannot restore evicted rows; a loss warning is evidence of an incomplete view, not permission to replay points or actions.

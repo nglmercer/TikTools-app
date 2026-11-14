@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "5552b08e589e44879d88ee299720ed1644285e42fa201261b1cf377fd163f865"
-translationRevision: "5552b08e589e44879d88ee299720ed1644285e42fa201261b1cf377fd163f865"
+sourceRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
+translationRevision: "d769546add745734d5ff24ec4c46522b5edfab0a55efed05d06e1243473e2e3f"
 order: 150
 ---
 
@@ -46,3 +46,24 @@ Las reglas guardadas ejecutan mediante el runtime y su intermediario de capacida
 ## Recuperación {#recovery}
 
 Ante conflictos, compara los registros actuales sin perder el candidato. Un borrador remoto permanece desactivado hasta revisión y transferencia de autoridad; inspeccionar una vista previa no autoriza ejecución. Los efectos externos inciertos requieren inspección y recuperación retenida. Repetir historial visual nunca debe disparar automatizaciones. Usa [plantillas](templates.md) para importaciones controladas y [pruebas](testing.md) para evidencia por límite.
+
+## Detalles de operación {#operational-details}
+
+El grafo siguiente usa puertos v1 de catálogo trigger → transform → log y está desactivado. Guárdalo como `docs-graph.json` y contrasta versiones/puertos con `automation.nodes.list`. `workflow save --record` persiste; `workflow get` y enable/disable con metadatos verifican estado guardado. Usa revisiones recién leídas. Guardar/habilitar no prueba ejecutor completo ni editor visual en todo build: el runtime normal de este checkout ejecuta Eventos/Acciones de comportamiento. Usa la plantilla de log de [plantillas](templates.md#operational-details), revísala, habilita intencionalmente ambos registros y prueba chat saneado para observar un efecto inocuo. Guardar grafo no demuestra ejecución LIVE.
+
+Para enriquecimiento, instala/habilita TextIntel con `events.enrich`, revisa estado/métricas en Processors y ejecuta su muestra. Inspecciona `event.intel.providers.textintel.comment.moderation.blocked` antes de crear filtro is-true hacia `core.log`; la ausencia del campo no es evidencia falsa. Circuito abierto o saturación pueden omitir procesadores. Una muestra no valida LIVE completo.
+
+Ante trabajo incierto consulta `automation.library.get`, `automation.definition.get`, `automation.adoption.get` o `automation.approval.get`. Conserva pending.commandId, identidad de host y candidato. Resuelve la operación original del diario (`*.resolve`); si es unknown, revisa estado actual antes de `*.review_unknown` con ID original y aceptación explícita. Adoptar exige revisión nueva de autoridad/dependencias, no basta inspect/preview. `automation.effects.get {effectId}` inspecciona efecto externo retenido: no autoriza despacho ni reintento ciego. Conserva lo desconocido para reconciliación operativa.
+
+```json
+{"schemaVersion":1,"id":"docs-example","name":"Docs","enabled":false,"nodes":[{"id":"start","type":"trigger.event","version":1,"position":{"x":0,"y":0},"config":{"eventType":"tiktok.chat"}},{"id":"text","type":"transform.template","version":1,"position":{"x":200,"y":0},"config":{"template":"docs-example"}},{"id":"log","type":"action.log","version":1,"position":{"x":400,"y":0},"config":{"message":"docs-example"}}],"edges":[{"id":"a","kind":"flow","source":"start","sourcePort":"flow","target":"text","targetPort":"flow"},{"id":"b","kind":"flow","source":"text","sourcePort":"flow","target":"log","targetPort":"flow"}]}
+```
+
+```sh
+tiktools api call automation.nodes.list '{}' --json
+tiktools workflow save --record "$(cat docs-graph.json)"
+tiktools api call workflows.get '{"id":"docs-example"}' --include-meta --json
+tiktools api call workflows.enable '{"id":"docs-example"}' --expected-revision REVISION --dry-run --json
+tiktools api call automation.library.get '{}' --json
+tiktools api call automation.adoption.get '{}' --json
+```

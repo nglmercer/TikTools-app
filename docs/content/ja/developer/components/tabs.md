@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
-translationRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
+sourceRevision: "6341644dd3da8b4d7a5ef9a079a884908997a5a3f8f65618746cdb8d9db81ad8"
+translationRevision: "e1fbc90cfe383dee06916dac98592b48848e26f0650431fba6603bba72f5e8ef"
 ---
 
 # タブとツールバー {#tabs-and-toolbars}
@@ -43,3 +43,11 @@ translationRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc
 見えるラベルか aria-label を使い、キーボード操作を維持し、色だけに頼らないでください。狭い幅と長い翻訳ラベルでも確認します。フォームでは行の controlAttrs を実際の入力に結び付け、エラーと必須状態の関連を維持します。無効な操作欄だけでは失敗の理由は伝わりません。近くに状態と復旧操作を表示します。
 
 プレビューが失敗したら閉じて開き直し、そのデモインスタンスで「デモをリセット」を使います。デモが使えなくても静的な API とソースを確認します。ネイティブダイアログ、外部サービス、OS 連携は別途デスクトップでテストする必要があります。[コンポーネントガイドに戻る](index.md)。
+
+## 運用の詳細 {#operational-details}
+
+実行例は親に状態を置きます。表は sort model と computed で 3 行を並べ替え、見出し操作でも選択 ID を保持します。タブの草稿は key 付き子の外に保存し、入力・切り替え・復帰しても残ります。タブ・ダイアログ自体は草稿を永続化しません。親状態・常時 mount・KeepAlive を意図して選びます。
+
+## 運用の詳細 {#keyboard-contract}
+
+[キーボード・dialog 例外・tooltip の命名](../i18n-accessibility.md#operational-details)を確認し、閉じられない dialog・unmount 草稿を含め全体の初期・復帰 focus を試してください。

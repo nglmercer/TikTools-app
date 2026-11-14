@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
-translationRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
+sourceRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
+translationRevision: "8014fe992e075bf805059e3d80ed2605d1c1c7c91c698b76da9de5a36046ee54"
 order: 10
 ---
 
@@ -33,8 +33,12 @@ order: 10
 
 ## 预期结果与状态 {#expected-result-and-status}
 
-本地编辑、执行、模板、配置及历史均可使用。插件触发器仅在对应插件已安装并启用时出现。导入的定义会保持禁用，直到明确激活。事件/操作的 **更改** 面板是[本地参考比较](../cloud/changes.md)，不会自动上传至 Cloud。
+本地编辑、执行、模板、配置及历史均可使用。插件触发器仅在对应插件已安装并启用时出现。激活状态取决于导入入口及已审核的 enabled 值；确认前应检查事件和动作。事件/操作的 **更改** 面板是[本地参考比较](../cloud/changes.md)，不会自动上传至 Cloud。
 
 ## 恢复方法 {#recovery}
 
 没有运行记录时，依次检查当前配置、启用状态、触发器、筛选条件、冷却时间及缺失操作。发生修订冲突时，请读取当前保存的定义并重新审查，不要盲目覆盖他人的更新。大范围修改前，导出已知正常的[配置](templates.md)。
+
+## 运行细节 {#operational-details}
+
+导入或切换配置前，请阅读[各入口的启用规则](templates.md#operational-details)。切换可能启用曾单独禁用的成员。冷却状态保存在内存中，上限 24 小时；无 uniqueId 的观众共享匿名范围。保留键达到 8,192 时表会清空，因此过载或重启可能允许额外执行。它不是持久配额，也不保证阻止重放。

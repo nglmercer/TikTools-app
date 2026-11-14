@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
-translationRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
+sourceRevision: "4a97f64b6bdc818ebb8d16eec1e67d95a2d0eae0b75f7cfd5c1493bf27244684"
+translationRevision: "2cbe901be7ab6ec1b6458d4135506c0d06d677dc434e31295d5af37d15879be8"
 order: 30
 ---
 
@@ -43,3 +43,7 @@ order: 30
 授权或宿主修订过期时，重新加载并再次审查。命令未确认时，重试前先检查已记录结果。会话结束时停止服务或撤销访问。不要在公开[诊断报告](../preferences/troubleshooting.md)中包含邀请令牌或凭据。
 
 <DemoFrame scenario="collaboration" locale="zh" title="演示：协作" />
+
+## 运行细节 {#operational-details}
+
+加入或批准 Teams 访问后，宿主还须确认原生权限的当前修订。`pendingHost` 表示仍待确认；活动传输或团队成员身份本身不授予原生访问。权限变化后重新加载并核对宿主/设备状态。observer 以读取为主；moderator 增加指定运行控制，automationEditor 增加指定编辑，custom 要求明确审核的策略。任何角色都不授予无限脚本/外部副作用。界面无法解释拒绝时，参见[角色及确认契约](../../developer/collaboration.md#operational-details)。

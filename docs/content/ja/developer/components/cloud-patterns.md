@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "a5be0a16c34204ad89125df5c698b0334738b85226c6938f9b1be57aab0ff869"
-translationRevision: "a5be0a16c34204ad89125df5c698b0334738b85226c6938f9b1be57aab0ff869"
+translationRevision: "146ebbbf0995b2ab5a28a53db94bff9e9288c2f5b29509710a879722e6dc4eb9"
 ---
 
 # Cloud の変更確認パターン {#cloud-review-patterns}

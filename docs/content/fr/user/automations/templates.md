@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "49bb4d1eb5dff9f267b30e8d0ee693a6dfcb492ff4609d190370e40c72b094ab"
-translationRevision: "49bb4d1eb5dff9f267b30e8d0ee693a6dfcb492ff4609d190370e40c72b094ab"
+sourceRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
+translationRevision: "a3bd159033aeb74889a6f66601928ca79f91621d843c5c82165f22e6c7c0e3a0"
 order: 50
 ---
 
@@ -27,9 +27,9 @@ Un document `.tiktemplate.json` décrit un événement et ses actions. Un docume
 1. Ouvrez la boîte de dialogue d’importation voulue et choisissez un fichier ou collez du JSON pris en charge. Vérifiez le nom préparé et la source avant de poursuivre.
 2. Pour un modèle, examinez le déclencheur, les types d’action et les paramètres. Pour un profil, examinez aussi le nombre d’entrées et les paramètres communs.
 3. Remplacez les destinations d’exemple, chemins de médias et identifiants de spectateurs par des valeurs adaptées à votre configuration. Ne collez pas d’identifiants secrets dans un fichier destiné au partage.
-4. Appliquez/importez explicitement et attendez le résultat. Les définitions importées restent désactivées. Sélectionnez-les ensuite et examinez chaque action et événement avant d’activer explicitement ceux souhaités.
+4. Appliquez/importez explicitement et attendez le résultat. Ne supposez pas les définitions désactivées : examinez les valeurs enabled. Sélectionnez-les ensuite et examinez chaque action et événement avant d’activer explicitement ceux souhaités.
 5. Commencez par un test limité au journal ou examinez d’abord les définitions. Les tests HTTP, audio, points ou plugins peuvent exécuter des effets.
-6. Confirmez le profil actif avant de démarrer le LIVE. Changer de profil modifie le contexte de bibliothèque sélectionné ; ce n’est pas une commande de synchronisation Cloud.
+6. Avant de confirmer un profil, examinez l’activation de ses membres et la désactivation des autres, y compris éléments isolés et membres précédemment désactivés. Les effets exigent déclencheurs/conditions ; ce n’est pas un sync Cloud.
 
 Les paramètres tels que <code v-pre>{{ params.giftName }}</code> sont résolus lors de l’application du modèle. Les références d’exécution telles que <code v-pre>{{ event.user.uniqueId }}</code> restent présentes pour chaque événement, tandis que les [variables globales](variables.md) fournissent des valeurs enregistrées partagées lors de l’exécution.
 
@@ -40,3 +40,9 @@ Les outils locaux d’importation et d’exportation des modèles/profils sont d
 ## Récupération {#recovery}
 
 Pour du JSON invalide, utilisez les erreurs d’analyse indiquées et le type de document attendu ; renommer un fichier JSON quelconque ne le convertit pas. En cas de conflit de révision, actualisez la bibliothèque enregistrée avant de réappliquer. Conservez le profil fonctionnel exporté et consultez les [sauvegardes](../preferences/backups.md) pour les données que l’exportation de profil n’inclut pas.
+
+## Détails de fonctionnement {#operational-details}
+
+L’import manuel de modèle enregistre d’abord un document de catalogue ; son application crée actions/événements liés. Le parseur utilise true si `enabled` manque et l’application conserve ces valeurs. L’import manuel de profil prépare ses entrées pour revue propriétaire. Le catalogue Cloud stocke des modèles ; un profil Cloud prépare une mutation avec provenance. Ni origine ni aperçu réussi ne garantissent une désactivation universelle. Examinez comparaison finale et états enregistrés. En CLI, utilisez explicitement `tiktools template import file.tiktemplate.json --disabled` ou `tiktools template profile-import file.tikprofile.json --disabled`.
+
+Changer de profil modifie l’activation : la confirmation active les membres du profil cible et désactive toutes les actions/événements hors profil, y compris les éléments isolés. Des membres précédemment désactivés peuvent être activés. Vérifiez les deux listes. Les effets exigent encore déclencheur, conditions et runtime ; le changement n’envoie pas de synchronisation Cloud à lui seul.

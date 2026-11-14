@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
-translationRevision: "3d15fcb4c2e2528f60cab585a24e6d7172a4a4ca53905af1bc44cab5284edbcc"
+sourceRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
+translationRevision: "91610226f73b8a2c806aca378c3ce8d66c9c93865098821f855da399091cfa4d"
 order: 280
 ---
 
@@ -48,3 +48,12 @@ tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path
 インストーラーは確認済みパッケージの適用前にバイト列を検証し、ロールバック・復旧状態を保持できます。開発用の配置は管理対象外です。信頼エラーでは未署名許可フラグを通常方針にせず、委任や発行者情報を修復します。起動が不確実なら置換を止め、保持した結果を照合します。
 
 オフラインの検証には `bun scripts/task.ts rust test -p tiktools-plugin-package --locked` とレジストリテストを使います。技術形式の正本は[パッケージ検証器](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-package/src) と[レジストリモデル](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-plugin-registry/src/model.rs) です。公開基盤は運用者による別の受け入れ確認が必要です。
+
+## 運用の詳細 {#operational-details}
+
+終了コードだけでなく検証 JSON を判定します。`verify` は `signature.status` が `unsigned`・`untrusted` でも成功終了します。`verified` でパッケージ ID・発行者・key ID が期待どおりの場合だけ受け入れ、配布方針も確認します。ローカル `--trust` はその鍵との署名関係を示すだけで、レジストリ委任・名前空間承認ではありません。checksum だけでは発行権限・updater 信頼を証明できません。以下の自動判定は想定外を拒否します。
+
+```sh
+tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path/keys/acme-1.pub.json > verification.json
+bun -e 'const r = await Bun.file("verification.json").json(); if (r.signature?.status !== "verified" || r.id !== "acme.hello" || r.signature.publisher !== "acme" || r.signature.keyId !== "acme-1") throw new Error("Package trust did not match policy");'
+```

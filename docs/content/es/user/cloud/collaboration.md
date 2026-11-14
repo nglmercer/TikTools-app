@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
-translationRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
+sourceRevision: "4a97f64b6bdc818ebb8d16eec1e67d95a2d0eae0b75f7cfd5c1493bf27244684"
+translationRevision: "63e8fedabc20cf5faa895b93cc0437db2a72a46f290977cd6c297d4eba82b3d6"
 order: 30
 ---
 
@@ -43,3 +43,7 @@ Existen controles del propietario y flujos frontend de creación/registro de equ
 Si cambian permisos o revisiones del host, carga y revisa otra vez. Ante órdenes sin confirmar, inspecciona el resultado registrado antes de repetir. Detén el servicio o revoca acceso al terminar. Mantén tokens de invitación y credenciales fuera de los [informes públicos](../preferences/troubleshooting.md).
 
 <DemoFrame scenario="collaboration" locale="es" title="Demo de collaboration" />
+
+## Detalles de operación {#operational-details}
+
+Tras unirse/aprobar acceso Teams, el host debe confirmar la revisión vigente del permiso nativo. `pendingHost` indica espera; transporte activo o pertenencia no conceden acceso por sí solos. Recarga tras cambiar permisos y revisa host/dispositivo. Observer orienta a lectura; moderator añade controles concretos, automationEditor edición concreta y custom requiere política explícita revisada. Ninguno concede scripts/efectos ilimitados. Consulta [roles y confirmación](../../developer/collaboration.md#operational-details) si los controles no explican un rechazo.

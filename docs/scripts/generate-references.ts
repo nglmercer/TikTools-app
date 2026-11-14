@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { docLocales, docCopy } from '../locales.ts';
 import { componentFamilies } from './component-families.ts';
+import { renderControlReference, type ReferenceMethod } from './control-reference.ts';
 const root = resolve(import.meta.dirname, '../..');
 const check = process.argv.includes('--check');
 async function output(path: string, value: string) {
@@ -36,7 +37,12 @@ for (const [family, definition] of Object.entries(componentFamilies)) {
     }
     visit(script);
     for (const prop of props) prop.push(defaults.get(prop[0]!) ?? (prop[2] === 'required' ? '—' : prop[1] === 'boolean' ? 'false' : 'undefined'));
-    const slots = [...new Set([...(descriptor.template?.content ?? '').matchAll(/<slot\b([^>]*)/g)].map((match) => /\bname="([^"]+)"/.exec(match[1]!)?.[1] ?? (/\b:name=/.test(match[1]!) ? 'dynamic' : 'default')))];
+    const slots = [...new Set([...(descriptor.template?.content ?? '').matchAll(/<slot\b([^>]*)/g)].map((match) => {
+      const attributes = match[1]!;
+      const name = /\bname="([^"]+)"/.exec(attributes)?.[1] ?? (/\b:name=/.test(attributes) ? 'dynamic' : 'default');
+      const bindings = [...attributes.matchAll(/(?:v-bind:|:)([\w-]+)="([^"]*)"/g)].filter((binding) => binding[1] !== 'name').map((binding) => `${binding[1]}: ${binding[2]}`);
+      return bindings.length ? `${name} { ${bindings.join(', ')} }` : name;
+    }))];
     apis.push({ path, props, events, models, slots });
   }
   for (const locale of docLocales) {
@@ -54,12 +60,9 @@ for (const [family, definition] of Object.entries(componentFamilies)) {
     await output(`docs/.generated/components/${family}.${locale}.md`, fragment);
   }
 }
-const schema = JSON.parse(await readFile(resolve(root, 'docs/contracts/control-api.json'), 'utf8')) as { methods: Array<{ name: string; description: string; sideEffect: boolean; destructive: boolean; requiresDesktop: boolean; concurrency?: string }> };
+const schema = JSON.parse(await readFile(resolve(root, 'docs/contracts/control-api.json'), 'utf8')) as { methods: ReferenceMethod[] };
 for (const locale of docLocales) {
-  const t = docCopy[locale].reference;
-  let text = `| ${t.method} | ${t.effects} | ${t.destructive} | Desktop | CAS |\n| --- | --- | --- | --- | --- |\n`;
-  text += schema.methods.map((m) => `| ${cell(m.name)} | ${m.sideEffect} | ${m.destructive} | ${m.requiresDesktop} | ${m.concurrency ?? '—'} |`).join('\n') + '\n';
-  await output(`docs/.generated/control-api.${locale}.md`, text);
+  await output(`docs/.generated/control-api.${locale}.md`, renderControlReference(schema.methods, locale));
 }
 const eventSchema = JSON.parse(await readFile(resolve(root, 'src/automation/contracts/generated/automation-events.schema.json'), 'utf8'));
 await output('docs/.generated/schema-provenance.json', JSON.stringify({ controlMethods: schema.methods.length, controlSha256: createHash('sha256').update(await readFile(resolve(root, 'docs/contracts/control-api.json'))).digest('hex'), eventDefinitions: Object.keys(eventSchema.$defs).sort() }, null, 2) + '\n');

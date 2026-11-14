@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: "en"
-sourceRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
-translationRevision: "31c9a7b19885a3e31e5f71e0dfbd7757513cff9330b60145b3302225e9207bcb"
+sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+translationRevision: "10882fd5a2bfc5b46f0de2ac342d209b809b5a3561e1ae812ef93ec3c05e223d"
 layout: page
 order: 0
 ---
@@ -17,22 +17,22 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / Documentação
+TikTools / Ferramentas para sua LIVE
 
 </template>
 
 
 <template #intro>
 
-# Seu guia para<br />uma LIVE melhor. {#tiktools-documentation}
+# Sua LIVE.<br />Suas regras. {#tiktools-documentation}
 
-Conecte sua LIVE do TikTok, aproveite os eventos dos espectadores e desenvolva com o TikTools. Documentação prática, da primeira conexão ao próximo plugin.
+Conecte sua LIVE do TikTok, automatize ações e crie sobreposições para o OBS. Experimente os controles reais logo abaixo com dados fictícios, sem instalar o aplicativo nem criar uma conta.
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">Experimente a demonstração interativa</a>
+<a :href="demoHref" target="_self">Experimente o TikTools</a>
 [Baixar TikTools](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>
@@ -41,7 +41,7 @@ Conecte sua LIVE do TikTok, aproveite os eventos dos espectadores e desenvolva c
 
 ## Sua primeira LIVE, passo a passo {#start-here}
 
-Comece com um aplicativo já lançado. Você não precisa de ferramentas de desenvolvimento.
+Instale o aplicativo, conecte um criador e confira seu primeiro evento. Você pode praticar na demonstração antes de começar.
 
 1. [**Confira os requisitos** <span>Encontre a configuração adequada para seu sistema.</span>](./user/requirements.md)
 2. [**Instale o TikTools** <span>Baixe e abra um binário publicado.</span>](./user/installation.md)
@@ -53,7 +53,7 @@ Comece com um aplicativo já lançado. Você não precisa de ferramentas de dese
 
 ## Encontre seu ponto de partida {#explore-the-guides}
 
-Dois caminhos. Um conjunto de ferramentas compartilhado.
+Use o aplicativo ou desenvolva suas próprias integrações.
 
 </template>
 

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
-translationRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
+sourceRevision: "45f58248a1b11283e61965ea97ddca26e664ef977cbe2115a601d3a029abab05"
+translationRevision: "8771fa42ddee98119c9c2ad1eb1060e440bab919b874ffce907c9d6716456f6f"
 ---
 
 # 表单 {#forms}
@@ -43,3 +43,9 @@ translationRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad
 使用可见标签或 aria-label，保留键盘操作，并避免只依赖颜色传达信息。在窄屏和较长的翻译标签下测试。对于表单，将行的 controlAttrs 绑定到实际输入控件，确保错误和必填状态仍有关联。禁用控件本身无法解释故障；应在旁边显示状态及恢复操作。
 
 预览失败时，先关闭后重新打开，再重置演示该预览自己的演示实例。即使演示不可用，也可查看静态 API 和源码。原生对话框、外部服务和操作系统集成需要单独进行桌面测试。[返回组件指南](index.md)。
+
+## 运行细节 {#operational-details}
+
+`BaseSchemaForm` 管理 JSON 对象模型，不负责持久保存。传入 schema、`uiHints.fields`、`fieldOptions`、`fieldErrors`，可选 `suggestionsFor` 与 `openMediaPicker`。字段 hint 的 `showIf:{key,equals,notEquals}` 控制条件显示，`advanced` 归组高级字段。所有者负责加载动态选项并保留已选值；错误以字段名为键，真实媒体选择需要提供 picker。可运行示例包括条件 textarea/media 及控件组。接受的值更新模型，保存时仍需领域/宿主验证。
+
+`BaseFormRow` 默认只推断一个 input，`group=true` 时不自动绑定单控件。默认 slot 提供 `controlAttrs:{id,aria-describedby,aria-invalid,aria-required}`，应传给实际控件。多控件时使用 `group`，分别命名子控件，不要重复同一 id；帮助/错误关联整个组。`useSplitAttrs` 将 class/style 给外层，其余属性/监听给实际控件。文件上传只接受一个文件并检查配置的大小/类型，失败会清空模型并显示错误。选择文件并非远程上传。

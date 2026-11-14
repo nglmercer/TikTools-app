@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
-translationRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
+sourceRevision: "99d3351859ddb3a3304133f062f68b8e3130416947fc40433dc9c6bffaf85f6a"
+translationRevision: "287cfe6fe1ad033005e7fbf56a68ddf55f7269eaa052c22fe2677732d5d3d6da"
 order: 170
 ---
 
@@ -44,3 +44,7 @@ bun scripts/task.ts test bun widgets
 ## 恢复方法 {#recovery}
 
 本地预览空白时，先检查控制器生命周期、schema 默认值及舞台尺寸，再考虑放宽来源策略。实时输出问题需检查网关健康、小组件凭据及明确缺口。无界面 Chromium 测试不能证明 OBS 浏览器源已通过验收。[小组件 SDK](https://github.com/nglmercer/TikTools-app/tree/remake/src/widgets/sdk)及共享协议测试是当前实现参考。
+
+## 运行细节 {#operational-details}
+
+独立 widget 单元测试使用 fixtures；真实 gateway 的 Chromium 测试需要已构建 widget 资源及通过 `TIKTOOLS_PLUGINS_REPO` 选择的外部插件仓库。源码缺失会跳过，必须明确报告 skip。使用 `bun x --no-install playwright test --config src/widgets/playwright.gateway.config.ts` 测试该边界，随后用真实 LIVE 验证 OBS Browser Source、widget 凭据、事件传递和恢复。无头 Chromium 不能证明 OBS/原生验收。

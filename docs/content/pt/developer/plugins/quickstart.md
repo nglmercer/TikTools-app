@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
-translationRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
+sourceRevision: "17f8e12522f04bad46b814f437e80c3f480b43331ed1278e49597878e2cee4f8"
+translationRevision: "b4d02e1120be4045f61f9f2d14f19fbe7e4f188b67fcdcd02710c4aaf506c791"
 order: 250
 ---
 
@@ -61,3 +61,18 @@ Instale as dependências declaradas do pacote gerado nesse pacote separado e exe
 ## Recuperação e verificação {#recovery-and-verification}
 
 Se a entrada estiver ausente, compile antes de empacotar e confira seu caminho relativo ao manifesto. Não aponte o runtime de processo para JavaScript não compilado. Para preparação local, use `tiktools-plugin dev stage --into /absolute/path/dev-plugins` e um host privado de teste configurado para essa raiz. Preparação de desenvolvimento é separada da instalação; não comprova confiança em registro assinado. Continue com [limites de execução](runtimes.md) e [assinatura](packaging-registry.md) antes de distribuir a amostra.
+
+## Detalhes de operação {#operational-details}
+
+Leia `hostCompatibility`, `publishReady` e `warnings` de `validate`. Entrada não compilada é advertência; `--publish` falha por problemas de publicação, não por toda advertência de compatibilidade. Valide novamente após compilar, confira entrada/destino empacotados e teste o host de destino. Saída bem-sucedida antes da compilação não prova pacote utilizável.
+
+Para Rust, crie `process-rust` ou `native-rust` em diretório separado. Ambos implementam `Plugin` do SDK e retornam `ActionResult::summary`; processo usa `tiktools_process_plugin!`, nativo usa `tiktools_export_native_plugin!` e `cdylib`. ABI/confiança nativa são específicas do alvo e em processo. Compile com a sintaxe de targets do devkit, mantenha o caminho gerado e use host privado. Prefira processo quando isolamento de falhas for adequado.
+
+```sh
+tiktools-plugin new acme.process --template process-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-process
+tiktools-plugin new acme.native --template native-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-native
+tiktools-plugin build acme-process --release
+tiktools-plugin validate acme-process --publish
+tiktools-plugin build acme-native --release
+tiktools-plugin validate acme-native --publish
+```

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
-translationRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
+sourceRevision: "3dd24191fb33ac1ebfd42ca33e68a5a97537a89df09533c4588207ea6087daa5"
+translationRevision: "62f30c303bb61e305480e537c6514a25828c7d7822b04798f5e8887e9826ef83"
 order: 10
 ---
 
@@ -43,6 +43,16 @@ bun scripts/task.ts packaged  # 開発 URL ではなく同梱フロントエン�
 ```
 
 `start` は Vite を起動して割り当て URL を待ち、`TIKTOOLS_DEV_URL` でデスクトップを起動します。`TIKTOOLS_PLUGINS_REPO` または隣接する別の `plugins-example-tiktools` からプラグインを準備できます。このリポジトリ内のプラグイン実装はコンパイルしません。準備を省くには `TIKTOOLS_SKIP_DEV_PLUGINS=1` を使います。既存ホストは自動置換せず、デスクトップ所有者がいれば起動エラーになります。
+
+起動前に外部プラグインリポジトリ自身の依存関係をインストールします。TikTools リポジトリで以下を実行すると、ロック済みのツールをインストールし、ホストを起動せずにパッケージを準備し、`dist/plugins/` に配布用アーカイブを作成できます。準備時は UI をソースから再ビルドし、`.dev-plugins` の生成内容を置き換えます。`TIKTOOLS_PLUGINS_REPO=off` はこのステージングディレクトリを空にし、外部の開発パッケージを読み込みません。ユーザーがインストールしたプラグインは別に管理されます。
+
+以下の隣接ディレクトリのパスはローカル開発の例です。CI はこのプラグインリポジトリを必要としません。配置が異なる場合は `TIKTOOLS_PLUGINS_REPO` に絶対パスを指定します。
+
+```sh
+bun install --frozen-lockfile --cwd ../plugins-example-tiktools
+bun scripts/task.ts prepare-plugins
+bun scripts/task.ts plugins --all
+```
 
 分離実験では起動前に `TIKTOOLS_HOME` を使い捨てディレクトリへ設定し、操作する全 CLI でも同じホームを使います。稼働中ロックを削除しないでください。
 

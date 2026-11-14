@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
-translationRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
+sourceRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
+translationRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
 order: 200
 ---
 
@@ -51,3 +51,7 @@ Local IPC and desktop transport are established paths. Native peer, WebRTC and c
 ## Recovery {#recovery}
 
 Treat disconnect as possible uncertainty for accepted operations. Reconnect must invalidate private projections, renegotiate identity and resume or snapshot bounded streams. Never downgrade certificate checks or fall back silently to a local owner after remote failure. The [RTC implementation](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) and actual feature graph supersede older transport plans.
+
+## Operational details {#operational-details}
+
+Peer uses ALPN `tiktools/collaboration/1`, a current 15 s connection timeout and at most four explicitly configured relays. Peer/RTC frames are capped at 1 MiB; RTC fragments into packets of at most 16 KiB. Oversized frames fail framing validation rather than becoming a partial RPC. Diagnose configuration/identity, signaling, connection timeout, frame size and authorization separately. Cloud relay is not an ICE TURN server; an empty relay list does not enable public discovery. Check host/device activity and current confirmed grant before testing a route, and record whether ICE selected direct or relay. A ready/encrypted transport proves neither RPC authority nor that every NAT is traversable. Test changed/revoked sessions and oversized frames with fixtures before real two-PC acceptance.

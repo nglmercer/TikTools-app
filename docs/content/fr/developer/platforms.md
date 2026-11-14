@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
-translationRevision: "84f0988ac1aa15def527c00d0a134fb6c5c3bd00ef60efc7a376faec426a162f"
+sourceRevision: "c7befe2be6f91bcf50ce4572aaa95d02723a315ba11ed1d94e6d499e802c2473"
+translationRevision: "53c56ead4935beb9116e86f9794fcdf064bf92eb5624114d7e4afb6584845a56"
 order: 20
 ---
 
@@ -41,3 +41,19 @@ L’IPC local, SQLite et les plugins portables processus/QuickJS disposent de pa
 ## Vérifier et récupérer {#verify-and-recover}
 
 Exécutez `bash scripts/termux/doctor.sh`, `bash scripts/termux/test.sh` et `bash scripts/termux/smoke.sh` depuis la racine du dépôt. Signalez honnêtement les vérifications d’interface ignorées. Pour des symboles C++ `protoc` défaillants, comparez `env -u LD_LIBRARY_PATH protoc --version` avant de modifier les bibliothèques. Un ensemble de certificats CA manquant doit être réparé, jamais contourné. La compilation croisée seule ne démontre pas la validation sur téléphone. Le [script de vérification Termux](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/termux/smoke.sh) consigne les sondes ciblées et les restrictions restantes.
+
+## Détails de fonctionnement {#operational-details}
+
+Pour le navigateur local, construisez les assets avec index.html et la CLI avec `local-web`. Retirez les variables héritées et utilisez `TIKTOOLS_HOME` jetable ; démarrez d’abord l’hôte IPC. Dans un autre terminal avec la même racine, lancez l’adaptateur, ouvrez le lien loopback ou saisissez le code de six chiffres à usage unique (cinq minutes). Arrêtez séparément adaptateur et hôte. Loopback/pairing ne fournissent pas d’accès distant/LAN. Termux exige toolchain Android natif et assets web ; un binaire Linux desktop n’est pas Android.
+
+```sh
+bun scripts/task.ts frontend-build
+bun scripts/task.ts rust build -p tiktools-cli --features local-web --locked
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools host --ipc
+```
+
+```sh
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools web --assets /absolute/path/to/TikTools/dist/web --port 4174
+```

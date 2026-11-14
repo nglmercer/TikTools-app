@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
-translationRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
+sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
+translationRevision: "353195b2b412e47763fc0520f40936727eb19f0c56141c8e581b0c811c0e31c7"
 order: 20
 ---
 
@@ -41,3 +41,9 @@ Cloud 叠加层采用[库/编辑器](../overlays/index.md)的创建与修订流�
 本地自动化比较和按能力开放的原生共享，在各自区域中可用。产生远程副作用的操作依赖服务，并不表示已通过生产验收。审查过期时，刷新并重新比较。结果未确认时，先检查状态或日志，再创建另一个操作。不要将超时当作没有发生变更的证据。
 
 <DemoFrame scenario="cloud" locale="zh" tour="changes" title="演示：Cloud 变更" />
+
+## 运行细节 {#operational-details}
+
+准备或执行 v1 → v2 迁移前，先备份本地数据，并协调所有设备使用兼容版本。在 setup 依次准备、检查兼容性和预览；分别查看选择、待处理、冲突及仅 v1 项目数量，不要假定全部已同步。要求写入 epoch 头对账户全部 v2 写入不可逆，可能拒绝旧设备。屏障超时代表结果不明，重复调用会再次推进 epoch。后续操作前刷新迁移/epoch 状态和预览；读取 epoch 不证明旧写入已经完成。
+
+恢复依模式而定：Events/Actions Changes 只比较本地参考，不写 Cloud。已审核 Variables/Plugins 比较过期时重新加载，核对当前修订、账户和清单。缺少插件时使用 setup 清单审核/修复，再生成预览。保留的不明意图应保存 ID/证据并查看历史/状态；技术恢复需要重新审核冻结条目及 Cloud 修订。恢复该意图本身不发送远程写入。无法核对状态时停止，不要创建替代变更绕过不确定性。

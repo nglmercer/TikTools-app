@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
-translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+sourceRevision: "2c74fcefd1d28353b1135c547b2e3e6ae852af8b683350011732d10c364f9323"
+translationRevision: "41485a8df0080d774338fa0108074bc4db296a320e297d992e15302286b66542"
 order: 120
 ---
 
@@ -47,3 +47,11 @@ Le typage des catalogues et les contrôles de parité détectent les clés manqu
 ## Récupération {#recovery}
 
 Si du texte non traduit apparaît, vérifiez le chargement différé des catalogues et l’orthographe exacte des clés avant d’ajouter des replis anglais dans les composants. Si le focus disparaît, examinez la commande recevant les attributs transférés et la cible de retour de la boîte de dialogue. L’[implémentation i18n](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/i18n/i18n.ts) et les tests de composants définissent le comportement actuel ; les [composants](components/index.md) expliquent les points d’entrée partagés.
+
+## Détails de fonctionnement {#operational-details}
+
+Détection : `tiktok-live-locale` sauvegardé → `navigator.languages` → anglais. `normalizeLocale` gère régions et `jp` → `ja`. Codes/régions : `en/en-US`, `es/es-ES`, `pt/pt-BR`, `fr/fr-FR`, `zh/zh-CN`, `ja/ja-JP` ; utilisez formatCount/formatDate d’`intl.ts`. `activateLocale` charge messages/lang ; `useLocaleStore().setLocale` persiste aussi et prépare les préférences au mieux. Utilisez le store dans les réglages. Anglais en fallback ; zh/ja chargent les messages hôte. Nouveau langage : supported-locales, loaders, catalogues/hôte, régions, tests préférences/clés/placeholders/pluriels/compilation et routes docs/site. Préservez IDs/API et paramètres.
+
+Utilisez tokens espace/type/contrôle/focus/couches. Tout pointeur grossier ou largeur sous 700px porte les contrôles à 44px ; navigation sous 900px et lignes sous 600px sont indépendantes. Mouvement réduit annule les durées. Testez le tactile aussi sur écran large. L’app est sombre globalement ; la variante claire est réservée au JSON.
+
+Clavier : onglets flèches/Home/End avec sélection automatique ; selects flèches/Home/End/Entrée et Échap annule ; menus rendent le focus. Dialogues en showModal natif, mais `closable=false` bloque Échap et fermer démonte le contenu. Gardez les brouillons chez le propriétaire et vérifiez focus initial/retour. Bouton icône exige `label` ; `hint`/tooltip explique sans nommer. Tooltip attend 500ms au survol/focus, ferme sur Échap et respecte le top layer. Vérifiez les flux clavier/assistance réels ; les unit tests ne certifient pas un écran entier.

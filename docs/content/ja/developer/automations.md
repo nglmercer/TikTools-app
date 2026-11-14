@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "5552b08e589e44879d88ee299720ed1644285e42fa201261b1cf377fd163f865"
-translationRevision: "5552b08e589e44879d88ee299720ed1644285e42fa201261b1cf377fd163f865"
+sourceRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
+translationRevision: "42835015c312a2f0ab5603c7406b60b50850ad8b577c1ee531b27468dcfeb386"
 order: 150
 ---
 
@@ -46,3 +46,24 @@ bun scripts/task.ts test bun automation
 ## 問題が起きたとき {#recovery}
 
 競合では候補を失わず現行レコードと比較します。リモート下書きは所有者確認と権限移譲まで無効のままです。プレビューやマニフェスト確認だけで実行許可は得られません。外部処理の結果不明時は、保持した処理の調査・復旧フローを使います。UI 履歴の再表示で自動化を再実行してはいけません。管理された取り込みは[テンプレート](templates.md)、境界ごとの証拠は[テスト](testing.md) を参照します。
+
+## 運用の詳細 {#operational-details}
+
+以下のグラフはカタログ v1 の trigger → transform → log ポートを使い、無効です。`docs-graph.json` として保存し `automation.nodes.list` で版・ポートを確認します。`workflow save --record` が保存し、`workflow get` とメタデータ付き有効・無効操作で保存状態を確認します。直前の読み取り版を使います。保存・有効化だけでは全 build の完全なグラフ実行器・視覚エディターを証明しません。この checkout の通常 runtime は behavior Events/Actions を実行します。無害な実行確認は[テンプレート](templates.md#operational-details)のログ規則を確認して両レコードを意図的に有効にし、匿名化 chat を試します。グラフ保存は LIVE 実行の証明ではありません。
+
+処理器は `events.enrich` を持つ TextIntel を導入・有効化し、Processors の状態・指標とサンプルを確認します。実際の `event.intel.providers.textintel.comment.moderation.blocked` を見てから is-true フィルターを `core.log` へ結びます。フィールド不在は false の証拠ではありません。回路開放・飽和では処理器を省略します。サンプル試験は LIVE 全体の受入試験ではありません。
+
+所有者処理が不明なら `automation.library.get`・`automation.definition.get`・`automation.adoption.get`・`automation.approval.get` を使い分けます。pending.commandId・host・候補を保持し、`*.resolve` で元操作を解決します。unknown の場合は現状態を調べてから元 ID と明示了承で `*.review_unknown` を使います。引き継ぎは権限・依存の再レビューが必要で、inspect・preview だけでは不足します。`automation.effects.get {effectId}` は保持済み外部効果を調べるだけで送出を許可せず、盲目的な再試行も提供しません。不明結果を残して運用者が照合します。
+
+```json
+{"schemaVersion":1,"id":"docs-example","name":"Docs","enabled":false,"nodes":[{"id":"start","type":"trigger.event","version":1,"position":{"x":0,"y":0},"config":{"eventType":"tiktok.chat"}},{"id":"text","type":"transform.template","version":1,"position":{"x":200,"y":0},"config":{"template":"docs-example"}},{"id":"log","type":"action.log","version":1,"position":{"x":400,"y":0},"config":{"message":"docs-example"}}],"edges":[{"id":"a","kind":"flow","source":"start","sourcePort":"flow","target":"text","targetPort":"flow"},{"id":"b","kind":"flow","source":"text","sourcePort":"flow","target":"log","targetPort":"flow"}]}
+```
+
+```sh
+tiktools api call automation.nodes.list '{}' --json
+tiktools workflow save --record "$(cat docs-graph.json)"
+tiktools api call workflows.get '{"id":"docs-example"}' --include-meta --json
+tiktools api call workflows.enable '{"id":"docs-example"}' --expected-revision REVISION --dry-run --json
+tiktools api call automation.library.get '{}' --json
+tiktools api call automation.adoption.get '{}' --json
+```

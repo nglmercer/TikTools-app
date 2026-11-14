@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
-translationRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
+sourceRevision: "6a249fa36fa53f3bfe7da57fdd25a445e593517946f80ac7e891b54d95cdc17d"
+translationRevision: "28276632fbebdb6027f53c89983021b670fad346925fac66f50accb37c55dac8"
 order: 260
 ---
 
@@ -48,3 +48,7 @@ bun scripts/task.ts test bun packages
 ## 問題が起きたとき {#recovery}
 
 ネイティブライブラリ置換後は非公開ホストを再起動します。起動がタイムアウトして不明になったら、管理側がワーカー ID を保持して置換を禁止する場合があります。終了成功を宣言して迂回しません。イベントバッファーは有限で遅れが報告され、起動時の送出は永続待機列ではありません。[ローダー実装](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-loader/src) が現行エンジンとライフサイクルの正本です。
+
+## 運用の詳細 {#operational-details}
+
+現在の制限は QuickJS メモリ 512 MiB、スタック 2 MiB、呼び出しごとの割り込み予算、プロトコルフレーム 16 MiB、インスタンスごとに最大 128 件の待機呼び出しです。副作用中止は保証しません。プロセスの timeout は終了・削除しますが、ネイティブ呼び出しは安全に強制終了できず、インスタンスを保持します。OS の副作用が既に起きた場合もあります。置換・再試行前に元結果とライフサイクルを調べます。信頼済み `.node` は JS の能力境界外でホスト権限を使います。

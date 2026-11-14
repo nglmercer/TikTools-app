@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "f349a31abdf7624b102acaba5c27285a602d6f46f0fdcd7dac6a440754bb7f8e"
-translationRevision: "f349a31abdf7624b102acaba5c27285a602d6f46f0fdcd7dac6a440754bb7f8e"
+translationRevision: "aad9cd2e36d82d499cdd9e2e626f9ecd919b41ad102f0c7330e7d301ecf92397"
 ---
 
 # 通知・空の状態・ステータス {#alerts-empty-states-and-status}

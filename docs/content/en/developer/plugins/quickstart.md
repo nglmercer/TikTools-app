@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
-translationRevision: "61201a958231d15db3c9d5b2aad72fa33b1863224ebb395b7e7a879aa1eb16e8"
+sourceRevision: "17f8e12522f04bad46b814f437e80c3f480b43331ed1278e49597878e2cee4f8"
+translationRevision: "17f8e12522f04bad46b814f437e80c3f480b43331ed1278e49597878e2cee4f8"
 order: 250
 ---
 
@@ -61,3 +61,18 @@ Install the generated package's declared dependencies in that separate package, 
 ## Recovery and verification {#recovery-and-verification}
 
 If the entry is missing, build before packaging and check its manifest-relative path. Do not point the process runtime at uncompiled JavaScript. For local staging, use `tiktools-plugin dev stage --into /absolute/path/dev-plugins` and a private test host configured for that root. Development staging is separate from installation; it does not prove signed registry trust. Continue with [runtime limits](runtimes.md) and [signing](packaging-registry.md) before distributing the sample.
+
+## Operational details {#operational-details}
+
+Read `hostCompatibility`, `publishReady` and `warnings` in `validate` output. Missing built entry is a warning; `--publish` fails on publication issues, not every compatibility warning. Revalidate after building, inspect the packaged entry/target, and test the destination host. Exit success before compilation does not prove a usable package.
+
+For Rust, scaffold `process-rust` or `native-rust` in a separate author directory as below. Both implement the SDK `Plugin` trait and return `ActionResult::summary`; the process template uses `tiktools_process_plugin!`, while native uses `tiktools_export_native_plugin!` and a `cdylib`. Native ABI/trust is target-specific and in-process. Build for a supported target using the devkit’s target syntax, retain the exact generated entry path and use a private host. Prefer a process template when crash isolation fits the integration.
+
+```sh
+tiktools-plugin new acme.process --template process-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-process
+tiktools-plugin new acme.native --template native-rust --sdk-path /absolute/path/TikTools/crates/tiktools-plugin-sdk --dir acme-native
+tiktools-plugin build acme-process --release
+tiktools-plugin validate acme-process --publish
+tiktools-plugin build acme-native --release
+tiktools-plugin validate acme-native --publish
+```

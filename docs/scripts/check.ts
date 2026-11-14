@@ -17,7 +17,9 @@ for (const article of articles) {
   for (const frame of article.source.matchAll(/<DemoFrame\s+([^>]+)\/?\s*>/g)) {
     const attributes = new Map([...frame[1]!.matchAll(/([a-z]+)="([^"]*)"/g)].map((match) => [match[1]!, match[2]!]));
     if (!attributes.get('title')) errors.push(`${article.relativePath}: demo iframe needs an accessible title`);
-    try { parseDemoOptions(new URLSearchParams([...attributes].filter(([key]) => key !== 'title')).toString()); } catch { errors.push(`${article.relativePath}: invalid DemoFrame parameters`); }
+    const parameters = new URLSearchParams([...attributes].filter(([key]) => key !== 'title' && key !== 'panel'));
+    if (attributes.has('panel')) parameters.set('embed', attributes.get('panel')!);
+    try { parseDemoOptions(parameters.toString()); } catch { errors.push(`${article.relativePath}: invalid DemoFrame parameters`); }
   }
   for (const link of article.links) {
     if (/^(https?:|mailto:)/.test(link.target)) { externalLinks += 1; continue; }

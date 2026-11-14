@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "41fe9f8a6082fad98b44a33890e9e275adc7a79aaf6cdd977e7424c459aa3ab2"
-translationRevision: "41fe9f8a6082fad98b44a33890e9e275adc7a79aaf6cdd977e7424c459aa3ab2"
+sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
+translationRevision: "732ff8dabf3951e283cafea2ede53a2d1e9354332fb56980ac6c5b3b918c4f2b"
 order: 30
 ---
 
@@ -43,3 +43,9 @@ order: 30
 修正具体原因后再重试。修订冲突时，重新加载并审查当前保存状态。远程命令未确认时，先检查日志/状态再发送另一个命令：超时也可能发生在效果已成功之后。启动失败时，报告安装包、版本及启动日志，不要直接删除数据目录。
 
 <DemoFrame scenario="diagnostics" locale="zh" tour="diagnostics" title="演示：诊断" />
+
+## 运行细节 {#operational-details}
+
+Diagnostics 是内存中的界面日志，上限为 2,000 条或 2 MiB；五秒内的重复项会合并。界面初始显示 100 条，导出包含所有匹配筛选的条目，而**清空**会删除整个日志。关闭、重启、清空或切换/退出已知 Cloud 账户前，请先复制或导出证据；这些账户切换会清空该界面历史。
+
+窗口无法打开时，查看原生日志 `tiktools.log`（控制器模式为 `controller.log`）：Windows 默认在 `%LOCALAPPDATA%/TikTools/logs`，Linux 在 `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`。`TIKTOOLS_HOME` 改变根目录，`TIKTOOLS_LOG_DIR` 覆盖日志目录。日志初始化自身失败时文件可能不存在，请保留可获得的终端/启动错误。原生日志不保证具备界面脱敏，分享前务必人工检查。

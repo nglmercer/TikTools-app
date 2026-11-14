@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
-translationRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
+translationRevision: "bc9a941a274e815332ab1aa3cb7712b1b765cd3d40a259c700dd087cde7ba2bb"
 ---
 
 # Padrões de overlays {#overlay-patterns}

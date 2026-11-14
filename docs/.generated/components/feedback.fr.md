@@ -56,3 +56,24 @@ Modèles:
 Aucun v-model propre.
 
 Slots: —.
+
+### BaseNotification.vue
+
+[Code source](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/ui/notification/BaseNotification.vue)
+
+| Propriété | Type | Présence | Valeur par défaut |
+| --- | --- | --- | --- |
+| `message` | `string` | Obligatoire | `—` |
+| `tone` | `'error' &#124; 'warning' &#124; 'info' &#124; 'ok'` | Facultative | `'info'` |
+| `actionLabel` | `string` | Facultative | `undefined` |
+
+Événements propres (les attributs des contrôles natifs sont transmis selon le composant):
+
+- `action`: `[]`
+- `dismiss`: `[]`
+
+Modèles:
+
+Aucun v-model propre.
+
+Slots: —.

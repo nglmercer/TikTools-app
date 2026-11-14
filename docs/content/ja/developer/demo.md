@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "695a2bf30a1a5bd78d0ad8e235b5f1289c913fc1ead020c882f343e8c42ab317"
-translationRevision: "695a2bf30a1a5bd78d0ad8e235b5f1289c913fc1ead020c882f343e8c42ab317"
+sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
+translationRevision: "461443eadbfc9f5082ea43078badfb67a19b7cbb7f58c8eb1c97ef5c61cd700a"
 order: 140
 ---
 
@@ -34,7 +34,7 @@ bun scripts/task.ts site preview
 
 `src/web/app/mount-workspace.ts` は共有 app/Pinia/router ファクトリーを提供し、インポートだけでマウントや通信選択をしません。明示的なデモ起動が共有 `ControlTransport`・制御クライアント境界に `src/web/demo/runtime/transport.ts` を渡します。純粋な初期フィクスチャーは Playwright から独立した `demo/fixtures/base-host.ts` にあります。`shared/lib/app-storage.ts` と `demo/storage.ts` の分離ストレージにより、「デモをリセット」がネイティブ設定や他のデモを消すのを防ぎます。ページ、ウィジェット、機能は既存 entity ストアと `src/web/shared/api` を使います。模倣アプリを別に作ったり、通常のネイティブ起動に偽 API を注入したり、デモ要求を実ホストへ流したりしません。
 
-`demo/scenarios.ts` は11のシナリオ ID と許可ルート・言語・ツアーを検証します。`runtime/host.ts` はハンドラーを明示登録し、検出にはその一覧を出し、`rpc-response` に要求 ID を返します。非対応の実処理は即座にエラーにします。架空レコードを初期化し、「次のイベント」ごとに固定時計を1刻み進めます。「再生」と「次のイベント」は必要なら先に模擬 RPC で架空配信者へ接続し、直ちにイベントを配信します。「再生」は2秒ごとに継続し、「一時停止」は生成を止めます。ツールバーは再生状態と件数を表示します。300刻みで停止し、フィードと実行履歴をそれぞれ最大60件保持します。応答待機列と保存レコードには別の上限があります。
+`demo/scenarios.ts` は11のシナリオ ID と許可ルート・言語・ツアーを検証します。特定の操作に絞った例では、`embed=connection|feed|automation|points|overlays` も指定できます。各埋め込みパネルは対応するルートを必要とし、ツアーは開始できません。不正な組み合わせは検証で拒否されます。埋め込み画面ではワークスペースのナビゲーションと完全版デモのツールバーを省き、実際のページコンポーネント、ストア、模擬ランタイムをそのまま使います。`runtime/host.ts` はハンドラーを明示登録し、検出にはその一覧を出し、`rpc-response` に要求 ID を返します。非対応の実処理は即座にエラーにします。架空レコードを初期化し、「次のイベント」ごとに固定時計を1刻み進めます。「再生」と「次のイベント」は必要なら先に模擬 RPC で架空配信者へ接続し、直ちにイベントを配信します。「再生」は2秒ごとに継続し、「一時停止」は生成を止めます。ツールバーは再生状態と件数を表示します。300刻みで停止し、フィードと実行履歴をそれぞれ最大60件保持します。応答待機列と保存レコードには別の上限があります。
 
 「デモをリセット」は現在の `tiktools.demo.<instance>.*` 接頭辞だけを消し、フレームを再読み込みします。モジュールのシングルトン、ジャーナル、i18n、診断も初期化します。各埋め込みフレームに別のインスタンス ID を与えます。ページ退出時は Vue を解除し、ストアを破棄し、クライアント・通信を外して2つのタイマーを消します。`window.ipc` 橋渡しや任意の HTTP、shell、RCON、訪問者スクリプト、ネイティブ更新インストールは実行しません。CSP はネットワーク接続を拒否します。ログテンプレートとフィルター模擬は純粋な共有関数を使います。これはフロントエンド契約の例で、Rust 実行の代替ではありません。
 
@@ -46,7 +46,21 @@ bun scripts/task.ts site preview
 
 ## コンポーネントと Markdown {#components-and-markdown}
 
-`docs/examples/*.vue` は描画カタログとソース例の両方を提供します。小さなボタンはデスクトップのグローバルスタイルなしで Markdown 内に描画します。状態付きダイアログ、配置例、アプリページは `DemoFrame` を使います。base を考慮した検証済み URL を作り、要求時だけ iframe を読み込みます。公開用 `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` は、デスクトップ開発ツール全体を有効にせず部品カタログを公開します。
+`docs/examples/*.vue` は描画カタログとソース例の両方を提供します。小さなボタンはデスクトップのグローバルスタイルなしで Markdown 内に描画します。状態付きダイアログ、配置例、アプリページは `DemoFrame` を使い、base を考慮した検証済み URL を作ります。記事内の例は、既定では要求時だけ iframe を読み込みます。操作例は、それを説明する手順の近くに配置してください。
+
+```vue
+<DemoFrame scenario="connection" locale="ja" panel="connection" title="LIVE 接続パネルを操作する" />
+```
+
+`panel` プロパティで、対象を絞る `embed` クエリーと対応ルートを選びます。読み込む前の記事内の例には、タイトルと読み込み操作だけの簡潔な起動画面を表示し、アプリの UI を模倣しません。クリックすると実際の操作画面を読み込みます。フレームごとに分離されたインスタンス ID が割り当てられ、リセットはそのインスタンスだけに適用されます。完全版デモへのリンクは埋め込みモードを外し、ワークスペース全体を開きます。例を読み込む前でも記事が役立つよう、説明する手順と期待される結果は Markdown に残してください。
+
+ホームページでは `autoload` と `minimal` を指定して、実際のワークスペースを自動で読み込みます。5つの操作タブで、接続、LIVE のアクティビティ、自動化、オーバーレイ、ポイントを選び、常に1つの iframe だけをマウントします。タブを切り替えるとフレームを入れ替えるため、5つのアプリを同時に動かしません。模倣 UI やシーンのプレビューは使いません。
+
+```vue
+<DemoFrame scenario="connection" locale="ja" panel="connection" title="TikTools を試す" autoload minimal />
+```
+
+`autoload` はコンポーネントのマウント後に iframe を起動します。`minimal` はフレームの記事用見出し、起動操作、課題フッターを隠し、ホームページのデモ領域内で使えるようにします。読み込み中の表示と iframe に同じ `--demo-frame-height` を適用して、読み込み前から高さを確保し、周囲のコンテンツが移動しないようにしてください。どちらのモードも実際の UI とストレージ分離の動作は同じです。公開用 `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` は、デスクトップ開発ツール全体を有効にせず部品カタログを公開します。
 
 ## 復旧と検証 {#recovery-and-verification}
 

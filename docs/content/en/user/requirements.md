@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
-translationRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
+sourceRevision: "c68c149552a943cf0f03393c5dac91bd62abf9c50f791d7b0757599754f4804e"
+translationRevision: "c68c149552a943cf0f03393c5dac91bd62abf9c50f791d7b0757599754f4804e"
 order: 10
 ---
 
@@ -41,3 +41,7 @@ The application opens and its main navigation is usable while offline. Optional 
 ## Recovery {#recovery}
 
 For a blank window or an early exit, collect startup diagnostics and the exact package version. The AppImage and DEB are different installation formats; neither is an Android executable. See [Termux and headless scope](termux.md) for that environment. Building from source has additional requirements in the developer guide.
+
+## Operational details {#operational-details}
+
+If the window never opens, use native `tiktools.log` (`controller.log` for controller mode): Windows `%LOCALAPPDATA%/TikTools/logs`, Linux `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`, unless `TIKTOOLS_HOME` or `TIKTOOLS_LOG_DIR` changes the location. Logging initialization can fail before a file exists. Retain any terminal error and follow [diagnostic retention and privacy](preferences/troubleshooting.md#operational-details) before sharing.

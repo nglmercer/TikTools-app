@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
-translationRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
+sourceRevision: "6a249fa36fa53f3bfe7da57fdd25a445e593517946f80ac7e891b54d95cdc17d"
+translationRevision: "5f849b48d405ec96cf5d69ccfeb5e67b6628576288342b456b0998d3665ad99a"
 order: 260
 ---
 
@@ -48,3 +48,7 @@ L’analyse du manifeste rejette les combinaisons protocole/ABI non prises en ch
 ## Récupération {#recovery}
 
 Redémarrez un hôte privé après remplacement d’une bibliothèque native. Si le démarrage dépasse le délai et devient incertain, le gestionnaire peut conserver l’identité du worker et bloquer le remplacement ; ne contournez pas cet état en déclarant l’arrêt réussi. Les tampons d’événements sont bornés et la livraison peut signaler du retard ; l’émission au démarrage n’est pas une file durable. L’[implémentation du chargeur](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-loader/src) définit le moteur actuel et le comportement du cycle de vie.
+
+## Détails de fonctionnement {#operational-details}
+
+Les limites actuelles sont 512 MiB de mémoire QuickJS, pile 2 MiB, budget d’interruption par appel, trames 16 MiB et jusqu’à 128 appels en file par instance. Elles ne garantissent pas l’annulation des effets. Un processus en timeout est terminé/retiré ; un appel natif ne peut pas être tué sûrement et son instance reste retenue. Des effets OS peuvent déjà avoir eu lieu. Examinez résultat original et cycle de vie avant remplacement/reprise. Les addons `.node` fiables utilisent les privilèges du processus hôte hors du périmètre JS.

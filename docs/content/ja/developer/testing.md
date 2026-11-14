@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
-translationRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
+sourceRevision: "1872b905a3eda616e94cae8902af1ca659158e89dc8157ab9029a70fda00ce95"
+translationRevision: "bf07c8167d8e24eae4f817a43be393d27b15df404b1979184d5f60b447202f9c"
 order: 210
 ---
 
@@ -54,3 +54,18 @@ Rust キャッシュは役割、OS、ツールチェーン、ロックファイ�
 ## 問題が起きたとき {#recovery}
 
 一致ゼロなら成功報告せずフィルターを修正します。必須 RPC が足りなければ未知呼び出しを成功扱いせず、偽ホストの明示契約を拡張します。不確実・省略した手動受け入れは明示します。現行構文は[テストランナー](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/lib/test-runner.ts)、再現可能な負荷証拠は[性能](performance.md) を参照します。
+
+## 運用の詳細 {#operational-details}
+
+Bun 依存の導入だけでは Playwright browser は入りません。以下の固定ローカルコマンドを使い、Linux の `--with-deps` は OS package と権限も必要です。主 `playwright.config.ts` は Vite と fake-host SPA で Wry ではなく、実コンパイル plugin UI は任意 checkout の build も必要です。widget suite は独自 assets/config、site は `playwright.site.config.ts` と組立済み docs/demo が必要です。先に構築してから公式 `docs test` を行います。これは docs scripts・demo/help・production frontend build・Chromium を実行します。skip は受入ではありません。
+
+`bun run ci` と workflow は Rust workspace を `-- --test-threads=1` で直列実行します。ローカルは MSRV/OS matrix の代わりではありません。PR はパス別に frontend/native/desktop/MSRV/plugin-runtime を選び、CodeQL は tag/manual、dependency-review workflow は未登録です。外部 policy は異なり得ます。docs-only では手動 site を起動しないのでローカル確認が必要です。公式 gate は安定 Bun 1.4.4 を使い、VitePress unit は限定 fixture、`docs check` は全記事を検証します。
+
+```sh
+bun x --no-install playwright install chromium
+# Linux, when browser system libraries are missing:
+bun x --no-install playwright install --with-deps chromium
+bun scripts/task.ts test e2e
+TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build
+bun scripts/task.ts docs test
+```

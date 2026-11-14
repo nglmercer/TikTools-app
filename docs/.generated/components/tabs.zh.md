@@ -16,7 +16,7 @@
 
 - `modelValue`: `T`, `{ required: true }`
 
-Slots: `bar`, `default`.
+Slots: `bar`, `default { value: model }`.
 
 ### BaseToolbar.vue
 

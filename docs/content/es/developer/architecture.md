@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
-translationRevision: "9726c146c879432a9964d4eaed6e35b3645100b390f6e08e87b67b2a4e854bb8"
+sourceRevision: "00ea88ebd11714484d717b7d7533d29158afd498121db362a3d300bc21889501"
+translationRevision: "a001e5ccbafb126c7e19f13427c490f83b2d3f0c0a007959d5ee6f8ad7ca7d5f"
 order: 30
 ---
 
@@ -45,3 +45,7 @@ Todos los clientes observan la misma operación autoritativa y el mismo recorrid
 Si dos clientes discrepan, compara identidad del host, directorio de datos, características compiladas y descubrimiento antes de añadir otro almacén. Un plugin ausente es un problema del catálogo en ejecución, no una razón para compilarlo dentro del núcleo. Los documentos históricos contienen rutas frontend retiradas; ante diferencias, consulta el [núcleo actual](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/lib.rs) y el [mapa frontend](frontend.md).
 
 ![TikTools AppCore, transport, ControlClient e interfaz Vue real](/architecture.svg)
+
+## Detalles de operación {#operational-details}
+
+Las features Cargo del binario elegido determinan los recorridos compilados. Los defaults del núcleo activan `native-plugins` y `napi-vm-node-api`; `persistence` aporta SQLite, `native-tiktok` adaptador/ingreso LIVE, y `plugin-install`, `cloud-auth`, `app-update` sus servicios. Inspecciona `cargo tree -p tiktools-desktop -e features` (o el CLI elegido), después `system.info`/discovery. Código compilado no demuestra servicio configurado. Ejercita ingreso LIVE con la regresión `native-tiktok` de [rendimiento](performance.md).

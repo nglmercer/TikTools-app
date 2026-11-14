@@ -1,5 +1,5 @@
-import { writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import { readArticles } from './content.ts';
 const links = new Map<string, string[]>();
 for (const page of await readArticles()) for (const link of page.links) if (/^https?:/.test(link.target)) {
@@ -18,7 +18,10 @@ await Promise.all(Array.from({ length: 4 }, async () => {
   }
 }));
 results.sort((a, b) => a.url.localeCompare(b.url));
-await writeFile(resolve(import.meta.dirname, '../internal/external-link-audit.json'), JSON.stringify({ reviewedAt: new Date().toISOString(), scope: 'Current public Markdown links. Immutable archive links remain inventoried as historical evidence.', results }, null, 2) + '\n');
+const reportPath = resolve(import.meta.dirname, '../../dist/reports/external-link-audit.json');
+await mkdir(dirname(reportPath), { recursive: true });
+await writeFile(reportPath, JSON.stringify({ reviewedAt: new Date().toISOString(), scope: 'Current public Markdown links. Immutable archive links remain inventoried as historical evidence.', results }, null, 2) + '\n');
+console.log(`Report: ${reportPath}`);
 console.log(`${results.length} public external destinations checked; ${results.filter((result) => result.state !== 'available').length} require review.`);
 for (const row of results.filter((row) => row.state !== 'available')) console.log(`${row.status ?? 'network'} ${row.url}`);
 if (results.some((row) => row.state !== 'available')) process.exitCode = 1;

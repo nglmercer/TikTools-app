@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
-translationRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
+sourceRevision: "45f58248a1b11283e61965ea97ddca26e664ef977cbe2115a601d3a029abab05"
+translationRevision: "c72fb4fbd4db7dcd7ed98117e1582566931de7380c03d3dbdb53217c3a5d5678"
 ---
 
 # Formularios {#forms}
@@ -43,3 +43,9 @@ Este archivo se compila para la vista y se incluye como snippet. El estado peque
 Proporciona etiqueta visible o aria-label, conserva el manejo por teclado y evita depender solo del color. Prueba un ancho reducido y etiquetas traducidas largas. En formularios asocia controlAttrs de la fila al input real para conservar errores y estado obligatorio. Un control desactivado no explica por sí mismo un fallo: muestra estado cercano y recuperación.
 
 Si falla la vista, ciérrala y ábrela y luego reinicia su instancia. La API estática y el código siguen siendo útiles sin demo. Los diálogos nativos, servicios externos y funciones del sistema requieren pruebas separadas de escritorio. [Volver a la guía de componentes](index.md).
+
+## Detalles de operación {#operational-details}
+
+`BaseSchemaForm` controla modelo JSON, no persistencia. Pasa schema, `uiHints.fields`, `fieldOptions`, `fieldErrors`, `suggestionsFor` y `openMediaPicker` opcionales. Un hint usa `showIf:{key,equals,notEquals}` para visibilidad; `advanced` agrupa campos opcionales. El propietario carga opciones dinámicas y conserva selección. Errores van por campo; seleccionar medios reales necesita picker suministrado. El ejemplo combina textarea/media condicional y grupo. Los valores aceptados actualizan modelo; al guardar sigue validación de dominio/host.
+
+`BaseFormRow` infiere un input salvo `group=true`. El slot publica `controlAttrs:{id,aria-describedby,aria-invalid,aria-required}` para el control real. Con varios usa `group`, nombra cada hijo y no repitas el mismo id; ayuda/error se asocian al grupo. `useSplitAttrs` dirige class/style al contenedor y demás atributos/listeners al control. File upload acepta un archivo y comprueba tamaño/tipo configurados; falla limpiando modelo y mostrando error. Seleccionar archivo no es subirlo remotamente.

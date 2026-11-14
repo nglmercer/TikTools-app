@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
-translationRevision: "de1679ef655bf91d46a7247f3d4e36bd6140c30476f0739c2cae872588e80aaa"
+sourceRevision: "6a249fa36fa53f3bfe7da57fdd25a445e593517946f80ac7e891b54d95cdc17d"
+translationRevision: "1b8cf741b008d38404fbf91d5c8b0295f0628f0b2e68c477ee94761e16e198c7"
 order: 260
 ---
 
@@ -48,3 +48,7 @@ A análise do manifesto rejeita combinações incompatíveis de protocolo/ABI an
 ## Recuperação {#recovery}
 
 Reinicie um host privado após substituir uma biblioteca nativa. Se a inicialização exceder o tempo limite e ficar incerta, o gerenciador pode manter a identidade do worker e bloquear a substituição; não contorne esse estado declarando sucesso no encerramento. Buffers de eventos são limitados e a entrega pode informar atraso; emissão na inicialização não é uma fila durável. A [implementação do carregador](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-plugin-loader/src) define o mecanismo atual e o comportamento de ciclo de vida.
+
+## Detalhes de operação {#operational-details}
+
+Os limites atuais são memória QuickJS 512 MiB, pilha 2 MiB, orçamento de interrupção por chamada, quadros 16 MiB e até 128 chamadas enfileiradas por instância. Não garantem cancelamento de efeitos. Um processo com timeout é terminado/removido; uma chamada nativa não pode ser morta com segurança e a instância é mantida. Efeitos no SO podem já ter ocorrido. Confira resultado original e ciclo de vida antes de substituir/repetir. Addons `.node` confiáveis usam privilégios do host fora do limite JS.

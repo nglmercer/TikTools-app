@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
-translationRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
+sourceRevision: "c68c149552a943cf0f03393c5dac91bd62abf9c50f791d7b0757599754f4804e"
+translationRevision: "7592985d7d424b5727216c61f7663cc72f9a0abca1e6aa506b7d99a21afa22ff"
 order: 10
 ---
 
@@ -41,3 +41,7 @@ O aplicativo abre e a navegação principal funciona mesmo offline. Integraçõe
 ## Recuperação {#recovery}
 
 Para uma janela em branco ou encerramento precoce, colete os diagnósticos de inicialização e a versão exata do pacote. AppImage e DEB são formatos de instalação diferentes; nenhum é um executável Android. Consulte [Termux e operação sem interface gráfica](termux.md) para esse ambiente. A compilação do código-fonte tem requisitos adicionais no guia de desenvolvimento.
+
+## Detalhes de operação {#operational-details}
+
+Se a janela não abrir, procure o log nativo `tiktools.log` (`controller.log` no modo controlador): Windows `%LOCALAPPDATA%/TikTools/logs`, Linux `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`, salvo alterações em `TIKTOOLS_HOME` ou `TIKTOOLS_LOG_DIR`. O registro pode falhar antes de criar o arquivo. Preserve o erro do terminal e confira [retenção e privacidade](preferences/troubleshooting.md#operational-details) antes de compartilhar.

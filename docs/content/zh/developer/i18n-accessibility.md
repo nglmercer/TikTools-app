@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
-translationRevision: "7dc918a0278876f1490f546683b9cf084f00058f7650b72521f98bc87fbfe517"
+sourceRevision: "2c74fcefd1d28353b1135c547b2e3e6ae852af8b683350011732d10c364f9323"
+translationRevision: "4740b64ac0a82bd91ef2886fa9475030342be22ba5afc43366d07fcf3a46ba38"
 order: 120
 ---
 
@@ -47,3 +47,11 @@ bun scripts/task.ts frontend-lint
 ## 恢复方法 {#recovery}
 
 出现未翻译文本时，先检查延迟目录加载及精确键名，再考虑在组件中添加英语回退。焦点消失时，检查接收转发属性的控件及对话框返回目标。[i18n 实现](https://github.com/nglmercer/TikTools-app/blob/remake/src/web/shared/i18n/i18n.ts)及组件测试定义当前行为；[组件指南](components/index.md)说明共享入口。
+
+## 运行细节 {#operational-details}
+
+语言选择顺序为已保存的 `tiktok-live-locale` → `navigator.languages` → 英语。`normalizeLocale` 处理地区标签及 `jp` → `ja`。界面代码/格式地区为 `en/en-US`、`es/es-ES`、`pt/pt-BR`、`fr/fr-FR`、`zh/zh-CN`、`ja/ja-JP`，使用 `intl.ts` 的 formatCount/formatDate。`activateLocale` 加载消息并设置文档 lang；`useLocaleStore().setLocale` 还持久保存并尽力暂存偏好。设置控件应使用 store。英语为回退，zh/ja 另加载宿主消息模块。新增语言需更新 supported-locales、懒加载、目录/宿主消息、格式地区映射、偏好测试、键/占位符/复数及编译测试，以及 docs/站点语言路由。API ID 和参数名不翻译。
+
+使用间距、字体、控件、焦点及层级 tokens。任意粗指针或宽度小于 700px 时，控件升至 44px；导航在 900px 下变化，表单行在 600px 下变化，彼此独立。减少动画偏好将时长归零。也要测试宽屏粗指针。应用整体为深色，浅色覆盖仅用于 JSON，不是全局浅色主题。
+
+键盘契约：标签用方向键/Home/End 自动选择；select 用方向键/Home/End/Enter，Escape 取消；菜单关闭后返回触发器。对话框使用原生 showModal 焦点限制，但 `closable=false` 禁止 Escape，关闭会卸载内容。草稿归所有者，并核对初始/返回焦点。图标按钮需要 `label`，`hint`/tooltip 只是解释。tooltip 在悬停/聚焦 500ms 后出现、Escape 关闭并位于对话框顶层。真实键盘/辅助流程仍需人工检查，单元测试不能认证整屏。

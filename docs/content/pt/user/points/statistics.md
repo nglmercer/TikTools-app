@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
-translationRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
+sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
+translationRevision: "7c3770e4190c05abb3a91210f4474d18a8f26b6dc5e9ba104cb60cca8a635f0e"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ Análises locais persistidas e consultas por intervalo de datas estão disponív
 Se os dados parecerem ausentes, limpe a pesquisa de contribuidores, amplie o intervalo de datas, confirme o criador e atualize. Após um erro do host, guarde seu código de diagnóstico e tente novamente quando a conexão se recuperar. Limpar o feed não apaga as análises. Um diretório de dados novo não tem histórico anterior; use [backups](../preferences/backups.md) ao mover instalações.
 
 <DemoFrame scenario="analytics" locale="pt" title="Demonstração: análises" />
+
+## Detalhes de operação {#operational-details}
+
+O Analytics solicita atualmente 10 principais contribuidores para o criador e período escolhidos. A busca filtra esse subconjunto, sem pesquisar todos os espectadores. Esses agregados persistidos têm período e unidade diferentes dos rankings de diamantes/likes da sessão e dos saldos de pontos. Preserve criador, datas e métrica ao exportar ou comparar.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9da10089b4e61005dba26f1fc5e4e4f61ce9d2a4c511fc40083c4e78d5ee7621"
-translationRevision: "9da10089b4e61005dba26f1fc5e4e4f61ce9d2a4c511fc40083c4e78d5ee7621"
+sourceRevision: "eee7ff4f52d7c40a3493110a8f3ad26becec74679798d185951589e6b3f829eb"
+translationRevision: "6893da848d5cb2494d89cfc40a2026b4a869598128ac61a8c15058da84bcd90a"
 ---
 
 # Menus {#menus}
@@ -43,3 +43,7 @@ Ce fichier exact est à la fois compilé pour l’aperçu et inclus comme extrai
 Utilisez un libellé visible ou aria-label, préservez le fonctionnement au clavier et évitez de vous fier uniquement à la couleur. Testez à faible largeur et avec de longs libellés traduits. Pour les formulaires, liez les controlAttrs de la ligne au véritable champ pour que les erreurs et l’état requis restent associés. Une commande désactivée ne peut pas expliquer seule un échec ; affichez un état adjacent et une action de récupération.
 
 Si un aperçu échoue, fermez-le et rouvrez-le, puis utilisez Reset pour sa propre instance de démo. Examinez l’API statique et la source même lorsque la démo est indisponible. Les boîtes de dialogue natives, services externes et intégrations système nécessitent des tests de bureau distincts. [Revenir au guide des composants](index.md).
+
+## Détails de fonctionnement {#keyboard-contract}
+
+Consultez [clavier, exceptions du dialogue et noms/tooltip](../i18n-accessibility.md#operational-details). Vérifiez focus initial/retour dans le flux complet, y compris dialogues non fermables et éditeurs démontés.

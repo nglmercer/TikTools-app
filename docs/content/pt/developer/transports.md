@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
-translationRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
+sourceRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
+translationRevision: "44cc2292048adab16facd7f68c88ad9dcab44f4eefdc6db2a0c8e60a1745aa1a"
 order: 200
 ---
 
@@ -51,3 +51,7 @@ IPC local e transporte de desktop são caminhos estabelecidos. Par nativo, WebRT
 ## Recuperação {#recovery}
 
 Trate a desconexão como possível incerteza para operações aceitas. Reconectar deve invalidar projeções privadas, renegociar a identidade e retomar ou obter instantâneos de fluxos limitados. Nunca reduza verificações de certificado nem retorne silenciosamente a um proprietário local após falha remota. A [implementação RTC](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) e o grafo real de recursos substituem planos antigos de transporte.
+
+## Detalhes de operação {#operational-details}
+
+Peer usa ALPN `tiktools/collaboration/1`, timeout atual de 15 s e até quatro relays configurados explicitamente. Quadros Peer/RTC têm limite de 1 MiB; RTC fragmenta em pacotes de até 16 KiB. Quadros excessivos falham na validação, sem RPC parcial. Diagnostique configuração/identidade, sinalização, timeout, tamanho e autorização separadamente. Relay Cloud não é servidor TURN ICE; lista vazia não ativa descoberta pública. Confira host/dispositivo e permissão confirmada atual antes da rota; registre se ICE escolheu direto ou relay. Transporte ready/cifrado não prova autoridade nem travessia de todo NAT. Teste sessões alteradas/revogadas e quadros excessivos com fixtures antes de dois PCs reais.

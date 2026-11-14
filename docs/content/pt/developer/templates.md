@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "51b5b2821344dd1795acb1008496542c90800461cc5fcfff5f2ed41aef6ec7b1"
-translationRevision: "51b5b2821344dd1795acb1008496542c90800461cc5fcfff5f2ed41aef6ec7b1"
+sourceRevision: "34c35d378f38a78866661b97c19113f83b5b5f2846cefa2b5076eb20fe9bdc21"
+translationRevision: "2c51b48d317c5b20234e3d19e26974a975d686b731a3319770712d11d41294bc"
 order: 160
 ---
 
@@ -37,8 +37,28 @@ Esses exemplos pressupõem um arquivo preparado e um host correspondente em exec
 
 ## Resultado esperado e status {#expected-result-and-status}
 
-Importações revisadas de biblioteca criam registros vinculados coerentes e mantêm um diário do proprietário. Importações de modelos/perfis do catálogo do Cloud permanecem desativadas até ativação intencional do proprietário. Provedores de ações ausentes ou desativados causam um erro de requisitos em vez de substituir silenciosamente uma ação. Um pacote de perfil selecionado controla o contexto de apresentação correspondente; seleção de perfil não é autoridade remota.
+Importações revisadas de biblioteca criam registros vinculados coerentes e mantêm um diário do proprietário. O catálogo Cloud salva documentos de template; importar perfis e aplicar templates exige revisar enabled, sem presumir desativação. Provedores de ações ausentes ou desativados causam um erro de requisitos em vez de substituir silenciosamente uma ação. Um pacote de perfil selecionado controla o contexto de apresentação correspondente; seleção de perfil não é autoridade remota.
 
 ## Recupere e verifique {#recover-and-verify}
 
 Em conflito de revisão, preserve a candidata, recarregue o instantâneo da biblioteca e revise a diferença real. Resolva um diário nativo pendente antes de criar outra intenção de importação. Não transforme uma atualização com falha em uma nova criação implícita. Execute `bun scripts/task.ts test web rule-templates` e `bun scripts/task.ts test web library-journal` para cobertura específica do frontend. O [serviço nativo de modelos](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/services/templates.rs) e os esquemas RPC gerados substituem referências antigas a `src/web/views/behavior`.
+
+## Detalhes de operação {#operational-details}
+
+Salve o primeiro JSON como `docs-log.tiktemplate.json`; o segundo é um `docs-pack.tikprofile.json` completo de uma entrada. Ambos desativam ações/eventos explicitamente. Precedência: padrão do schema → perfil → entrada → valores CLI/diálogo. Um span completo preserva tipo; um embutido vira texto. Enabled ausente usa true: aplique `--disabled` e confira a comparação UI.
+
+Limites atuais: 8 ações e 12 filtros/template, 32 templates/perfil; texto UI 64 KiB/template e 256 KiB/perfil; expansão profundidade 64, 65.536 nós, 256 KiB/registro e 8 MiB total. Reduza conteúdo em excesso, sem ignorar validação. Limites de biblioteca, fonte e expansão são separados. Siga [recuperação do diário](automations.md#operational-details) antes de novo import com resultado incerto.
+
+```json
+{"templateVersion":1,"id":"docs-log","title":"Docs log","params":{"type":"object","properties":{"message":{"type":"string","default":"hello"}}},"actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"{{ params.message }}"}}],"event":{"name":"Chat","trigger":"tiktok.chat","enabled":false,"filters":[],"cooldownMs":1000,"cooldownScope":"global","runMode":"all"}}
+```
+
+```json
+{"profileVersion":1,"id":"docs-pack","name":"Docs pack","description":"","params":{"message":"profile"},"templates":[{"params":{"message":"entry"},"template":{"templateVersion":1,"id":"docs-log","title":"Docs log","params":{"type":"object","properties":{"message":{"type":"string","default":"hello"}}},"actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"{{ params.message }}"}}],"event":{"name":"Chat","trigger":"tiktok.chat","enabled":false}}}]}
+```
+
+```sh
+tiktools template import docs-log.tiktemplate.json --dry-run
+tiktools template import docs-log.tiktemplate.json --disabled
+tiktools template profile-import docs-pack.tikprofile.json --disabled
+```

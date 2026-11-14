@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
-translationRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
+sourceRevision: "45f58248a1b11283e61965ea97ddca26e664ef977cbe2115a601d3a029abab05"
+translationRevision: "0c0f6abd63e5df29ca248266d6a96a432e456f6cb625aab253202c2f4c9cb4ba"
 ---
 
 # Formulaires {#forms}
@@ -43,3 +43,9 @@ Ce fichier exact est à la fois compilé pour l’aperçu et inclus comme extrai
 Utilisez un libellé visible ou aria-label, préservez le fonctionnement au clavier et évitez de vous fier uniquement à la couleur. Testez à faible largeur et avec de longs libellés traduits. Pour les formulaires, liez les controlAttrs de la ligne au véritable champ pour que les erreurs et l’état requis restent associés. Une commande désactivée ne peut pas expliquer seule un échec ; affichez un état adjacent et une action de récupération.
 
 Si un aperçu échoue, fermez-le et rouvrez-le, puis utilisez Reset pour sa propre instance de démo. Examinez l’API statique et la source même lorsque la démo est indisponible. Les boîtes de dialogue natives, services externes et intégrations système nécessitent des tests de bureau distincts. [Revenir au guide des composants](index.md).
+
+## Détails de fonctionnement {#operational-details}
+
+`BaseSchemaForm` possède un modèle JSON, pas sa persistance. Passez schéma, `uiHints.fields`, `fieldOptions`, `fieldErrors`, facultativement `suggestionsFor` et `openMediaPicker`. Un hint utilise `showIf:{key,equals,notEquals}` pour la visibilité ; `advanced` groupe les champs optionnels. Le propriétaire charge les options dynamiques et préserve la sélection. Les erreurs sont par champ ; un média réel exige un picker fourni. L’exemple combine textarea/média conditionnel et groupe. Les valeurs acceptées modifient le modèle ; sauvegarder exige encore la validation domaine/hôte.
+
+`BaseFormRow` infère un input sauf avec `group=true`. Son slot fournit `controlAttrs:{id,aria-describedby,aria-invalid,aria-required}` au contrôle réel. Pour plusieurs, utilisez `group`, nommez chaque enfant et ne répétez pas l’id ; aide/erreur décrivent le groupe. `useSplitAttrs` dirige class/style vers le conteneur et autres attributs/listeners vers le contrôle. File upload accepte un fichier et vérifie taille/type configurés ; l’échec vide le modèle et affiche l’erreur. Choisir n’est pas téléverser.

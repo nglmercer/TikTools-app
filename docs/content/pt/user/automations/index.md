@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
-translationRevision: "d387d7bdb1836994210e926b3eb87a8db533292ec393afcba6adb22dedfff286"
+sourceRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
+translationRevision: "50616be9e5b99a01a92dc79f2e247512fa7c72a684de06cd06694d578834467c"
 order: 10
 ---
 
@@ -33,8 +33,12 @@ Os testes podem executar os efeitos configurados. Leia a lista de ações seleci
 
 ## Resultado esperado e status {#expected-result-and-status}
 
-Edição local, execução, modelos, perfis e histórico estão disponíveis. Acionadores de plugins aparecem apenas enquanto o plugin correspondente está instalado e ativo. Definições importadas permanecem desativadas até uma ativação explícita. O painel **Changes** de Events/Actions é uma [comparação com referência local](../cloud/changes.md), não um envio automático ao Cloud.
+Edição local, execução, modelos, perfis e histórico estão disponíveis. Acionadores de plugins aparecem apenas enquanto o plugin correspondente está instalado e ativo. A ativação depende da superfície e dos valores enabled revisados; confira eventos e ações antes de confirmar. O painel **Changes** de Events/Actions é uma [comparação com referência local](../cloud/changes.md), não um envio automático ao Cloud.
 
 ## Recuperação {#recovery}
 
 Quando não houver execução, verifique perfil ativo, estados de ativação, acionador, filtros, intervalo de espera e ações ausentes, nessa ordem. Para um conflito de revisão, leia a definição salva atual e revise novamente. Não sobrescreva a atualização de outra pessoa às cegas. Exporte um [perfil](templates.md) que funcione antes de fazer alterações amplas.
+
+## Detalhes de operação {#operational-details}
+
+Antes de trocar perfil/importar, leia [ativação por superfície](templates.md#operational-details). A troca pode ativar membros desativados individualmente. Cooldown fica em memória, limitado a 24 horas; sem uniqueId os espectadores compartilham escopo anônimo. A tabela esvazia ao atingir 8.192 chaves: sobrecarga ou reinício podem permitir execuções adicionais. Não é cota durável nem garantia contra replay.

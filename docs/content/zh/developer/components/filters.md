@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "f4689110b15bb50cfe3cf4b95b0e93982ec06a139895d5440761b8b047aff4ca"
-translationRevision: "f4689110b15bb50cfe3cf4b95b0e93982ec06a139895d5440761b8b047aff4ca"
+translationRevision: "a1534c4f348748697d1f1da2a32d1042b46fa537ecd16dd44a86e82cd431f0c1"
 ---
 
 # 筛选与选择 {#filters-and-selection}

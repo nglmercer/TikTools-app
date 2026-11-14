@@ -83,10 +83,11 @@ The default preview serves [English docs](http://127.0.0.1:4173/TikTools-app/en/
 development loops, build paths and configuration. Site publication is tracked
 separately from this local preview.
 
-Retired documents remain in the versioned historical archive. The
+Retained historical references remain in the versioned archive. Obsolete
+implementation plans and agent reports are retained only in Git history. The
 [migration map](docs/migration-map.json) records every original document,
 heading and image; [archive provenance](docs/internal/archive/PROVENANCE.json)
-identifies the unchanged historical sources and their hashes. The
+identifies the historical sources, their hashes and explicit Git-only retirements. The
 [original README](docs/internal/archive/README.md) remains available verbatim.
 
 <span id="development--quality-"></span>
@@ -112,7 +113,22 @@ Example plugins live in the separate
 [`plugins-example-tiktools`](https://github.com/nglmercer/plugins-example-tiktools)
 repository. When that checkout is a sibling, or `TIKTOOLS_PLUGINS_REPO` points
 to it, `start` can prepare its packages in the ignored `.dev-plugins` directory.
+Sibling paths are optional examples for local development. The application and
+its normal CI checks work without this checkout; set `TIKTOOLS_PLUGINS_REPO`
+to an absolute path if your repositories are in different locations.
 Use `TIKTOOLS_SKIP_DEV_PLUGINS=1 bun run start` to skip preparation.
+Install the plugin checkout's own dependencies before using its UI builds:
+
+```sh
+bun install --frozen-lockfile --cwd ../plugins-example-tiktools
+bun scripts/task.ts prepare-plugins   # build/stage without launching the desktop
+bun scripts/task.ts plugins --all     # distributable archives in dist/plugins
+```
+
+Preparation rebuilds plugin UIs and replaces the generated `.dev-plugins`
+contents. `TIKTOOLS_PLUGINS_REPO=off bun run start` clears that staging root
+and launches without external development packages. Installed user plugins
+are managed separately in Plugins.
 `bun run dev` starts the headless host, local browser adapter and Vite without
 automatic development-plugin preparation.
 
@@ -159,14 +175,14 @@ crates/tiktools-rtc/           Native WebRTC transport and signaling contracts
 crates/tiktools-plugin-*/      Plugin contracts, runtimes, installer and tooling
 src/web/shared/api/           Frontend control client and transport contracts
 src/web/shared/ui/            Shared Vue components
-src/web/shared/i18n/          Four UI locale catalogs
+src/web/shared/i18n/          Six UI locale catalogs
 src/web/entities/             Domain state and reusable business models
 src/web/features/             User operations
 src/shared/messages.ts       Host-push message contract
 src/automation/              Automation contracts and frontend helpers
 src/widgets/                 TikTools widget renderers and shared SDK
 docs/content/{en,es,pt,fr,zh,ja}/  Localized public user and developer guides
-docs/internal/archive/       Unchanged historical sources and provenance
+docs/internal/archive/       Retained historical references and provenance
 ```
 
 <span id="runtime-plugin-model-"></span>

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
-translationRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
+sourceRevision: "4a97f64b6bdc818ebb8d16eec1e67d95a2d0eae0b75f7cfd5c1493bf27244684"
+translationRevision: "78cd6277049c86d1a964bfe0beedae96bf9c16ff951d055b6e5d4d23d91d31b8"
 order: 30
 ---
 
@@ -43,3 +43,7 @@ Existem controles de acesso do proprietário e criação/registro de equipes no 
 Para concessões ou revisões do host desatualizadas, recarregue e revise novamente. Para comandos não confirmados, inspecione o resultado registrado antes de tentar novamente. Pare de servir ou revogue o acesso ao encerrar uma sessão. Mantenha tokens de convite e credenciais fora de [relatórios de diagnóstico](../preferences/troubleshooting.md) públicos.
 
 <DemoFrame scenario="collaboration" locale="pt" title="Demonstração: colaboração" />
+
+## Detalhes de operação {#operational-details}
+
+Após entrar/aprovar acesso Teams, o host confirma a revisão atual da permissão nativa. `pendingHost` indica espera; transporte ativo ou participação não concedem acesso sozinhos. Atualize após alterar permissões e confira host/dispositivo. Observer é de leitura; moderator acrescenta controles selecionados, automationEditor edição selecionada e custom exige política explícita revisada. Nenhum concede scripts/efeitos irrestritos. Veja [papéis e confirmação](../../developer/collaboration.md#operational-details) se os controles não explicarem uma recusa.

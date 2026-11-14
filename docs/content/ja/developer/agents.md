@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
-translationRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
+sourceRevision: "81526e0de1483b13f1df159576cb69f37ce2c5e3cf072ee9db199cd6c8c84dfb"
+translationRevision: "17368ab881386205f22473fa83fd7adc31d085f3dc9f2e8a8b593eafc151318f"
 order: 80
 ---
 
@@ -102,3 +102,7 @@ bun scripts/task.ts test headless-teams --binary /absolute/path/tiktools --backe
 新しいパッケージは `./TikTools.AppImage --cli --build-info` と `./TikTools.AppImage --cli --json teams doctor` にも対応し、GUI 初期化前に CLI へ処理を渡します。公開済みの古い AppImage にこの入口が自動追加されることはありません。
 
 CLI プロセス間で controller プロファイルを再利用するには、OS の資格情報ストアが利用可能である必要があります。
+
+## 運用の詳細 {#operational-details}
+
+副作用前に schema を取得し、`--dry-run --explain` で CAS・加算・永続性・破壊性を確認します。[分離した読み取り/CAS/元結果の手順](control-api.md#operational-details)と[スナップショット/適用/acknowledge 回復](remote-client.md#operational-details)を使います。ツールはメタデータ・元 payload/コマンド ID・呼出範囲を保持します。timeout 後の ID 変更は副作用を重複させます。`--confirm` は破壊操作の確認であり権限拡大ではありません。

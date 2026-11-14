@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
-translationRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
+sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
+translationRevision: "bf19680ae5ceef35d0e67c06563e497a8474884dca93e99bcb5821c98420814c"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ order: 20
 データがなければ貢献者検索を消し、期間を広げ、配信者を確認して更新します。ホストエラーでは診断コードを保持し、接続復旧後に再試行します。フィード消去で統計は消えません。新規データディレクトリに過去履歴はないため、環境移行では[バックアップ](../preferences/backups.md) を使います。
 
 <DemoFrame scenario="analytics" locale="ja" title="デモ: 統計" />
+
+## 運用の詳細 {#operational-details}
+
+Analytics は選択した配信者と日付範囲の上位貢献者を現在 10 人取得します。検索対象は受信した部分集合で、全視聴者検索ではありません。永続集計の期間・単位は、フィードのセッション内ダイヤ・いいねランキングやポイント残高とは異なります。書き出しや比較では配信者・日付・指標も残してください。

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6940dcc"
-translationRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6940dcc"
+sourceRevision: "0143551027872078a3000e0395efd04acfe5c7817443614ce6abeb3d33226f7e"
+translationRevision: "047eecad89969342675b0169b5ced19604f804603a54fb1ed26bda44747db933"
 ---
 
 # 按钮与操作 {#buttons-and-actions}
@@ -45,3 +45,7 @@ translationRevision: "26583002f15a3d4830951786c0522cddf5e464739359bd4514940776b6
 使用可见标签或 aria-label，保留键盘操作，并避免只依赖颜色传达信息。在窄屏和较长的翻译标签下测试。对于表单，将行的 controlAttrs 绑定到实际输入控件，确保错误和必填状态仍有关联。禁用控件本身无法解释故障；应在旁边显示状态及恢复操作。
 
 预览失败时，先关闭后重新打开，再重置演示该预览自己的演示实例。即使演示不可用，也可查看静态 API 和源码。原生对话框、外部服务和操作系统集成需要单独进行桌面测试。[返回组件指南](index.md)。
+
+## 运行细节 {#keyboard-contract}
+
+参见[键盘、对话框例外与 tooltip 命名](../i18n-accessibility.md#operational-details)。在完整组合流程中核对初始/返回焦点，包括不可关闭对话框及已卸载的草稿编辑器。

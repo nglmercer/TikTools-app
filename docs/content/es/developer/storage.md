@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
-translationRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
+sourceRevision: "7ec9d94e484af17e8e82aaaa2122cc47ecd206cf9306047795d6aaa72eea2edb"
+translationRevision: "896bd5209b72c3b0f4f847f32efb8af9808c3dfc098053237a901a0a6645121b"
 order: 60
 ---
 
@@ -47,3 +47,11 @@ Los flujos duraderos de workflows, puntos y diarios del propietario conservan re
 ## Recuperación {#recovery}
 
 Conserva juntos SQLite y sus archivos WAL/SHM al crear una copia fuera de línea. Un tiempo de espera de la interfaz no demuestra reversión. Ante `revision_conflict`, guarda el borrador y compara una lectura reciente. Para efectos inciertos, inspecciona su registro en lugar de repetir el feed. Consulta la [autoridad de rutas](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/paths.rs) y la [recuperación Cloud](cloud.md).
+
+## Detalles de operación {#operational-details}
+
+Consulta rutas antes de experimentar/copiar con `tiktools api call system.info --json`. `TIKTOOLS_HOME` elige raíz; `TIKTOOLS_DATA_DIR`, `TIKTOOLS_PLUGINS_DIR`, `TIKTOOLS_PLUGIN_DATA_DIR`, `TIKTOOLS_PLUGIN_STORE_DIR`, `TIKTOOLS_LOG_DIR` y `TIKTOOLS_TEMP_DIR` sustituyen sus directorios derivados. Los valores relativos parten del directorio de lanzamiento. Una raíz aislada no anula overrides heredados: revísalos/retíralos primero.
+
+Analytics guarda agregados con escritor propio: cola actual 1.024, lotes 128 y flush de 10 s. El archivo vecino `*.pending.json` deriva de la ruta de su base. El arranque reproduce lotes con ID y retira el archivo antes de que `ready` admita trabajo. Recuperación ilegible/mayor de 16 MiB, base indisponible o fallo al retirar archivo mantienen admisión deshabilitada. Conserva base y archivo, revisa `ready`/pendientes/errores y respalda antes de reparar. No borres evidencia pendiente para aparentar salud; los diarios de puntos tienen otro contrato durable.
+
+`system.info` informa home/dataDir efectivos; resuelve los demás directorios con el entorno real de lanzamiento del host, no otra terminal. Usa `system.health` para ready/pendientes analíticos y contadores de ingreso LIVE.

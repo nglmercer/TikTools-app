@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7e6d88e43b32698c36afd6385bee8c44cc1223d669dd4c95414db604c17f254f"
-translationRevision: "7e6d88e43b32698c36afd6385bee8c44cc1223d669dd4c95414db604c17f254f"
+sourceRevision: "b2ae789f9c15df21b415b5bc006404dffd60430f193fdaba8cd94931e750eedc"
+translationRevision: "8d4c1c22be78540b85ff938603d818d98cb9dbe33bbaa868edb9327de83971a4"
 order: 20
 ---
 
@@ -39,3 +39,9 @@ Avec TikTools fermé, conservez le dossier actuel comme copie de récupération 
 ## Résultat attendu, état et récupération {#expected-result-status-and-recovery}
 
 Les copies réalisées avec l’application fermée et les outils d’importation/exportation nommés sont des méthodes de récupération disponibles, sans garantie universelle de restauration entre versions. Cloud Changes n’est pas une sauvegarde complète. Si une version rejette les données restaurées, arrêtez-vous et revenez à la copie préservée ; réinstaller un ancien binaire n’annule pas une migration de base de données. Consultez les [mises à jour](../updates.md) et le [dépannage](troubleshooting.md).
+
+## Détails de fonctionnement {#operational-details}
+
+Les chemins individuels priment sur `TIKTOOLS_HOME` : `TIKTOOLS_DATA_DIR` contient les bases, `TIKTOOLS_PLUGINS_DIR` les paquets, `TIKTOOLS_PLUGIN_DATA_DIR` leur état et `TIKTOOLS_PLUGIN_STORE_DIR` le magasin de paquets. `TIKTOOLS_LOG_DIR` et `TIKTOOLS_TEMP_DIR` choisissent journaux et fichiers temporaires. Les chemins relatifs dépendent du dossier de lancement. Avant sauvegarde, consultez `tiktools api call system.info --json` et notez les variables héritées ; copiez données/paquets/état avec l’hôte arrêté, y compris les WAL/SHM existants. Les journaux ne remplacent pas les bases.
+
+`system.info` indique home/dataDir effectifs ; résolvez les autres dossiers depuis l’environnement réel de lancement de l’hôte, pas un autre terminal. Utilisez `system.health` pour ready/attentes analytiques et compteurs LIVE.

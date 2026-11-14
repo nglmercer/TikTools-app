@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
-translationRevision: "f225b60d175147b26bdcda6972e1c4a71bd122230ee7d4c58b337162f9672bb0"
+sourceRevision: "a7333d75baa9aec6e0c4afb69d1c773575a56ee8da982f0fa5a11a73b903ec2d"
+translationRevision: "65a78c17935897b77577b4ac2f50610122de509350e14d8f1e7addced9a13e84"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ order: 20
 数据看似缺失时，请清空贡献者搜索、扩大日期范围、确认主播并刷新。宿主错误后保留诊断代码，待连接恢复再重试。清空事件流不会擦除统计。新的数据目录没有先前历史；迁移安装时请使用[备份](../preferences/backups.md)。
 
 <DemoFrame scenario="analytics" locale="zh" title="演示：统计分析" />
+
+## 运行细节 {#operational-details}
+
+Analytics 当前请求所选主播及日期范围内的前 10 位贡献者。搜索仅筛选收到的子集，不是全局观众查询。这些持久聚合的时间范围与单位不同于动态流会话内的钻石/点赞榜单，也不同于积分余额。导出或比较结果时，请同时保留主播、日期和指标。

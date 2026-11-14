@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
-translationRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad2cb64c"
+sourceRevision: "45f58248a1b11283e61965ea97ddca26e664ef977cbe2115a601d3a029abab05"
+translationRevision: "1089c0b282dd7dba651aadb66e4c946ea4c63f20359aa3b9676de4f4a4ee89a6"
 ---
 
 # フォーム {#forms}
@@ -43,3 +43,9 @@ translationRevision: "64717ea696bf8575991871485338e2dda205627d229de37c93019a22ad
 見えるラベルか aria-label を使い、キーボード操作を維持し、色だけに頼らないでください。狭い幅と長い翻訳ラベルでも確認します。フォームでは行の controlAttrs を実際の入力に結び付け、エラーと必須状態の関連を維持します。無効な操作欄だけでは失敗の理由は伝わりません。近くに状態と復旧操作を表示します。
 
 プレビューが失敗したら閉じて開き直し、そのデモインスタンスで「デモをリセット」を使います。デモが使えなくても静的な API とソースを確認します。ネイティブダイアログ、外部サービス、OS 連携は別途デスクトップでテストする必要があります。[コンポーネントガイドに戻る](index.md)。
+
+## 運用の詳細 {#operational-details}
+
+`BaseSchemaForm` は JSON オブジェクトモデルを扱い、永続化はしません。schema・`uiHints.fields`・`fieldOptions`・`fieldErrors` と任意の `suggestionsFor`・`openMediaPicker` を渡します。`showIf:{key,equals,notEquals}` は条件表示、`advanced` は追加項目のグループです。動的候補の取得・選択保持は所有者が行い、エラーはフィールド名で渡します。実媒体には picker が必要です。例には条件 textarea/media とグループを含みます。値がモデルへ入っても保存時の domain・host 検証は必要です。
+
+`BaseFormRow` は `group=true` 以外では input を 1 個推定します。default slot の `controlAttrs:{id,aria-describedby,aria-invalid,aria-required}` を実コントロールへ渡します。複数の場合は `group` と個別名を使い、同じ id を配布しません。共通説明・エラーはグループへ付きます。`useSplitAttrs` は class/style を外枠、他の属性・listener をコントロールへ渡します。File upload は 1 ファイルの設定サイズ・型を検証し、失敗時はモデルを空にしてエラーを出します。選択自体は遠隔送信ではありません。

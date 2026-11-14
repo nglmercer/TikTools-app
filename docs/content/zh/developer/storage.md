@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
-translationRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
+sourceRevision: "7ec9d94e484af17e8e82aaaa2122cc47ecd206cf9306047795d6aaa72eea2edb"
+translationRevision: "1eebde56f068e9c54db4e6201a19caec1b093f1d229bd33d4953e7a027266391"
 order: 60
 ---
 
@@ -47,3 +47,11 @@ target/debug/tiktools api discover
 ## 恢复方法 {#recovery}
 
 离线备份时，将 SQLite 文件与所有活动 WAL/SHM 文件一同保留。UI 超时不能证明已回滚。遇到 `revision_conflict`，保留草稿并比较新的读取结果。外部效果不确定时，检查保留的效果记录，不要重放事件流。各自边界见[路径权威实现](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/paths.rs)及 [Cloud 恢复](cloud.md)。
+
+## 运行细节 {#operational-details}
+
+试验或备份前，使用 `tiktools api call system.info --json` 查看实际路径。`TIKTOOLS_HOME` 选择根目录；`TIKTOOLS_DATA_DIR`、`TIKTOOLS_PLUGINS_DIR`、`TIKTOOLS_PLUGIN_DATA_DIR`、`TIKTOOLS_PLUGIN_STORE_DIR`、`TIKTOOLS_LOG_DIR`、`TIKTOOLS_TEMP_DIR` 分别覆盖派生目录。相对路径基于启动工作目录。单独隔离 home 不会消除继承的覆盖变量，应先检查或取消它们。
+
+Analytics 保存聚合数据并使用独立写入器：当前队列为 1,024，批次为 128，刷新期限 10 秒。数据库旁的 `*.pending.json` 路径由该数据库路径派生。启动时按批次 ID 重放保留内容并移除恢复文件，之后 `ready` 才允许新工作。恢复文件不可读或超过 16 MiB、数据库不可用或无法移除恢复文件时，保持禁止接收。请保留数据库及恢复文件，检查 `ready`、待处理计数和错误，修复前备份。不要删除待处理证据来掩盖故障；积分日志具有独立持久性契约。
+
+`system.info` 报告实际 home/dataDir；其他目录需按宿主真实启动环境解析，不能只查看另一终端。`system.health` 提供 Analytics ready/待处理及 LIVE 入口计数。

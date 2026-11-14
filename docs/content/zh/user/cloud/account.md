@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
-translationRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
+sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
+translationRevision: "dcdf6b0e0597904e86b677257bceda1e83a272fbe55075253c580e829a37db83"
 order: 10
 ---
 
@@ -38,3 +38,7 @@ order: 10
 ## 恢复方法 {#recovery}
 
 尝试已取消或过期时，关闭旧尝试后重新登录。网络或服务错误请保留诊断代码，待恢复后重试。凭据存储错误需恢复操作系统的安全存储能力；不要将 bearer 令牌粘贴到设置或支持消息中。明确同步操作见[变更](changes.md)，独立访问授权见[协作](collaboration.md)。
+
+## 运行细节 {#operational-details}
+
+退出登录先删除本地凭据并清空账户上下文，再尽力尝试服务器撤销。界面显示已退出只确认本地移除，不证明网络故障时远程令牌已撤销。若服务提供会话管理，可在那里检查。退出或切换已知账户前请导出 Diagnostics，因为该界面历史会清空。TikTok cookie 与远程宿主会话是独立身份。

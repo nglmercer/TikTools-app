@@ -7,15 +7,15 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
-translationRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
+sourceRevision: "6dc5181ece21f73c6569b5d8e54c896c6df86390333a5240ef0696257e5e56d5"
+translationRevision: "0a29ebaa13f24f77044a4df8c7bbcd772b7ba9cb20bb3c6cfa03c716b8eb79f1"
 ---
 
 # ComboBox 与 SearchSelect {#combobox-and-searchselect}
 
 ## 用途与前置条件 {#purpose}
 
-从带标签的选项中选择稳定值。SearchSelect 筛选标签，同时不在可见文本中显示标识符。使用现有 Vue 工作区及其 i18n 提供器。预览在隔离的应用框架中挂载真实共享组件；文档主题不会加载桌面的全局 CSS。
+从带标签的选项中选择稳定值。SearchSelect 同时搜索标签与值；未知的已选值会原样显示。使用现有 Vue 工作区及其 i18n 提供器。预览在隔离的应用框架中挂载真实共享组件；文档主题不会加载桌面的全局 CSS。
 
 ## 试用示例 {#example}
 
@@ -43,3 +43,11 @@ translationRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a4
 使用可见标签或 aria-label，保留键盘操作，并避免只依赖颜色传达信息。在窄屏和较长的翻译标签下测试。对于表单，将行的 controlAttrs 绑定到实际输入控件，确保错误和必填状态仍有关联。禁用控件本身无法解释故障；应在旁边显示状态及恢复操作。
 
 预览失败时，先关闭后重新打开，再重置演示该预览自己的演示实例。即使演示不可用，也可查看静态 API 和源码。原生对话框、外部服务和操作系统集成需要单独进行桌面测试。[返回组件指南](index.md)。
+
+## 运行细节 {#operational-details}
+
+加载时也应提供当前已选选项，才能显示标签；缺少选项时回退到原始模型值。`search` 发出查询供所有者选择性远程搜索，内部仍匹配标签与值。方向键/Home/End 在启用选项间移动，Enter 选择活动行。`allowCustom` 开启时，提交文本会去除首尾空白，Escape 取消编辑。除正常选择外，也测试未加载 ID、禁用行及自定义值。
+
+## 运行细节 {#keyboard-contract}
+
+参见[键盘、对话框例外与 tooltip 命名](../i18n-accessibility.md#operational-details)。在完整组合流程中核对初始/返回焦点，包括不可关闭对话框及已卸载的草稿编辑器。

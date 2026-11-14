@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "740e66bbac2e47784638dd501df8a42edf9942b0ee5d1e7475fb2d01027b75cc"
-translationRevision: "740e66bbac2e47784638dd501df8a42edf9942b0ee5d1e7475fb2d01027b75cc"
+sourceRevision: "240142875d416f523b6daee5f53bf37c16b4b15f409561b38bd5357668239f50"
+translationRevision: "1608f018caea3e96beb4ab0e346ca6a491225e580f9282c6f034434ef5e731dc"
 order: 270
 ---
 
@@ -46,3 +46,23 @@ Renderizado declarativo, marcos y ventanas nativas tienen contratos y pruebas im
 ## Recuperación y verificación {#recover-and-verify}
 
 Ante un marco vacío, revisa rutas, CSP y CORS de origen opaco antes de relajar políticas. Ante intermediario ausente, revisa el contexto anfitrión. Ejecuta `bun scripts/task.ts test bun plugin-ui` y las pruebas frontend correspondientes. El [paquete del intermediario](https://github.com/nglmercer/TikTools-app/blob/remake/packages/plugin-ui/src/broker.ts) define versiones, sobres y liberación.
+
+## Detalles de operación {#operational-details}
+
+Los procesadores necesitan `processorTypes` y capacidad `events.enrich`; se omiten paquetes declarativos porque no ejecutan código de procesador. Instala/habilita el paquete y comprueba su estado antes de probar una muestra. Parte del manifiesto TextIntel y `Plugin::enrich` del SDK, no de un manifiesto solo declarativo. Véase [la receta operativa](../automations.md#operational-details).
+
+Las llamadas con promesa fallan sin broker, pero `subscribe` en página superior devuelve una función vacía y se ignoran errores de suscripción iframe. Comprueba `broker.transport()` y una llamada como `getSettings()`, mostrando su rechazo; suscribirse no prueba conexión. Verifica aislamiento con el comando exacto siguiente.
+
+```sh
+bun scripts/task.ts test web plugin-webview-host
+```
+
+```ts
+const broker = createBrokerClient();
+console.log(broker.transport());
+await broker.getSettings();
+```
+
+```json
+{"capabilities":["events.enrich"],"processorTypes":[{"id":"acme.analyze","title":{"default":"Analyze"},"eventTypes":["tiktok.chat"],"stage":"pre-filter","timeoutMs":250,"failureMode":"pass-through","inputs":[{"path":"event.data.comment","role":"message"}]}]}
+```

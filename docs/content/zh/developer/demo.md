@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "695a2bf30a1a5bd78d0ad8e235b5f1289c913fc1ead020c882f343e8c42ab317"
-translationRevision: "695a2bf30a1a5bd78d0ad8e235b5f1289c913fc1ead020c882f343e8c42ab317"
+sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
+translationRevision: "c873983e655dee7c6b370628feb023fa34d89ea0f2c6f3026b21886dd43167f8"
 order: 140
 ---
 
@@ -34,7 +34,7 @@ bun scripts/task.ts site preview
 
 `src/web/app/mount-workspace.ts` 提供共享 app/Pinia/router 工厂；导入它不会挂载应用或选择传输。明确的演示引导在共享 `ControlTransport`/控制客户端边界提供 `src/web/demo/runtime/transport.ts`。纯种子夹具位于 `demo/fixtures/base-host.ts`，独立于 Playwright。`shared/lib/app-storage.ts` 和 `demo/storage.ts` 提供隔离存储适配器，确保重置不会清除原生偏好或其他演示实例。页面、小组件和功能应使用现有 entity store 及 `src/web/shared/api` 调用。不要创建第二套仿制应用、向普通原生启动注入假原生 API，或让演示请求穿透到真实宿主。
 
-`demo/scenarios.ts` 验证 11 个场景 ID 以及允许的路由、语言和导览。`runtime/host.ts` 注册明确的方法处理器；发现列出这些处理器，`rpc-response` 回传请求 ID，不支持的效果立即返回错误。宿主填充虚构记录，每次下一个事件将固定时钟推进一个刻度。播放和下一个事件会在需要时先通过模拟 RPC 连接虚构主播，再立即投递事件。播放此后每两秒继续一次；暂停停止生成。工具栏显示播放状态和事件数。流在 300 个刻度后停止，最多保留 60 条事件流记录和 60 次运行。响应队列及存储记录另有各自限制。
+`demo/scenarios.ts` 验证 11 个场景 ID 以及允许的路由、语言和导览。聚焦示例还接受 `embed=connection|feed|automation|points|overlays`。每个嵌入面板都必须使用匹配的路由，且不能启动导览；无效组合无法通过验证。嵌入入口省略工作区导航及完整演示工具栏，同时保留真实页面组件、store 和模拟运行时。`runtime/host.ts` 注册明确的方法处理器；发现列出这些处理器，`rpc-response` 回传请求 ID，不支持的效果立即返回错误。宿主填充虚构记录，每次下一个事件将固定时钟推进一个刻度。播放和下一个事件会在需要时先通过模拟 RPC 连接虚构主播，再立即投递事件。播放此后每两秒继续一次；暂停停止生成。工具栏显示播放状态和事件数。流在 300 个刻度后停止，最多保留 60 条事件流记录和 60 次运行。响应队列及存储记录另有各自限制。
 
 重置演示仅清空当前 `tiktools.demo.<instance>.*` 前缀，并重新加载框架。重新加载重置模块单例、日志、i18n 和诊断。不同嵌入框架获得不同实例 ID。页面退出时卸载 Vue、释放 store、分离客户端/传输，并清空两个定时器。演示不会安装 `window.ipc` 桥，也不会执行任意 HTTP、shell、RCON、访客脚本或原生更新安装。其 CSP 拒绝网络连接。日志模板和筛选模拟使用纯共享函数；它们是前端契约示例，不替代 Rust 执行。
 
@@ -46,7 +46,21 @@ bun scripts/task.ts site preview
 
 ## 组件与 Markdown {#components-and-markdown}
 
-`docs/examples/*.vue` 同时提供渲染目录和源码片段。小型按钮直接在 Markdown 中渲染，不使用桌面全局样式。有状态对话框、布局示例及应用页面使用 `DemoFrame`，它构建考虑基础路径且经过验证的 URL，仅在请求时加载 iframe。公开选项 `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` 可开放组件目录，而无需启用全部桌面开发工具。
+`docs/examples/*.vue` 同时提供渲染目录和源码片段。小型按钮直接在 Markdown 中渲染，不使用桌面全局样式。有状态对话框、布局示例及应用页面使用 `DemoFrame`，它构建考虑基础路径且经过验证的 URL。文章中的示例默认在请求时才加载 iframe。请将聚焦示例放在其对应的操作说明旁：
+
+```vue
+<DemoFrame scenario="connection" locale="zh" panel="connection" title="试用直播连接面板" />
+```
+
+`panel` 属性选择聚焦的 `embed` 查询参数和路由。激活前，文章示例显示包含标题和加载控件的中性启动区，不仿制应用界面。点击后才加载真实界面。每个框架都有独立的实例 ID，重置只清空当前实例。完整演示链接移除嵌入模式，并打开完整工作区。请在 Markdown 中保留操作步骤和预期结果，确保未加载示例时文章仍然实用。
+
+首页使用 `autoload` 和 `minimal` 自动加载真实工作区。五个工作流程标签页分别选择连接、实时活动、自动化、叠加层或积分，每次只挂载一个活动 iframe。切换标签页会替换当前框架，不会同时运行五个应用。首页不使用仿制界面或场景预览。
+
+```vue
+<DemoFrame scenario="connection" locale="zh" panel="connection" title="试用 TikTools" autoload minimal />
+```
+
+`autoload` 在组件挂载后启动 iframe；`minimal` 隐藏框架的文章标题、启动控件和任务页脚，以便嵌入首页展示区。加载前应预留展示区高度，让加载状态和 iframe 一致使用 `--demo-frame-height`，避免周围内容发生位移。两种模式均使用相同的真实界面和隔离存储机制。公开选项 `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` 可开放组件目录，而无需启用全部桌面开发工具。
 
 ## 恢复与验证 {#recovery-and-verification}
 

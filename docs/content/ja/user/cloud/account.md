@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
-translationRevision: "a35f6efcbba515b60b6f0c3d3bda6fd0224a993585776873fd02afa4e7202a61"
+sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
+translationRevision: "e1b72a8f3e8f5ab3f79d0dbcf3e9709e58093e6afc3c0ba4178433531bcc5fd6"
 order: 10
 ---
 
@@ -38,3 +38,7 @@ Cloud 認証付きでビルドされたホストでは、ネイティブのサ�
 ## 問題が起きたとき {#recovery}
 
 キャンセル・期限切れなら古い試行を閉じてから新しく始めます。ネットワークやサービスのエラーでは診断コードを保持し、復旧後に再試行します。認証情報ストアのエラーでは OS の安全な保存機能を復旧してください。Bearer トークンを設定やサポートメッセージへ貼り付けないでください。明示的な同期は [変更](changes.md)、別途付与するアクセス権は[共同操作](collaboration.md) を参照します。
+
+## 運用の詳細 {#operational-details}
+
+ログアウトは先にローカル資格情報・アカウント文脈を消し、サーバー失効を最善努力で試します。ログアウト表示はローカル削除を示し、通信失敗時の遠隔 token 失効は保証しません。サービスにセッション管理があれば利用します。既知アカウントの変更・終了前に Diagnostics を書き出します。その UI 履歴は消去されます。TikTok Cookie・遠隔ホストセッションは別 ID です。

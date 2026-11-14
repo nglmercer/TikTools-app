@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "41fe9f8a6082fad98b44a33890e9e275adc7a79aaf6cdd977e7424c459aa3ab2"
-translationRevision: "41fe9f8a6082fad98b44a33890e9e275adc7a79aaf6cdd977e7424c459aa3ab2"
+sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
+translationRevision: "c9765cbd7e1784cbe7de04640e0de66ab0ed723aaf8933226353489559379fd2"
 order: 30
 ---
 
@@ -43,3 +43,9 @@ Le filtrage, la copie et l’exportation texte des diagnostics sont disponibles.
 Réessayez après correction de la cause précise. Pour les conflits de révision, rechargez et examinez l’état actuellement enregistré. Pour une commande distante non confirmée, consultez son journal/état avant d’en envoyer une autre : un délai d’attente dépassé peut suivre un effet réussi. Si le démarrage échoue, signalez le paquet, la version et le journal de démarrage plutôt que de supprimer le répertoire de données.
 
 <DemoFrame scenario="diagnostics" locale="fr" tour="diagnostics" title="Démo : diagnostics" />
+
+## Détails de fonctionnement {#operational-details}
+
+Diagnostics est un journal UI en mémoire, limité à 2 000 entrées ou 2 MiB. Les répétitions en cinq secondes sont regroupées. La vue montre d’abord 100 entrées ; l’export contient toutes les entrées filtrées, mais **Effacer** supprime le journal entier. Exportez avant de fermer, redémarrer, effacer, changer de compte Cloud connu ou vous déconnecter : ces changements vident cet historique.
+
+Sans fenêtre, cherchez le journal natif `tiktools.log` (`controller.log` en mode contrôleur) dans `%LOCALAPPDATA%/TikTools/logs` sous Windows ou `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` sous Linux. `TIKTOOLS_HOME` change la racine et `TIKTOOLS_LOG_DIR` remplace le répertoire des journaux. Si leur initialisation échoue, aucun fichier n’est garanti ; conservez l’erreur du terminal/démarrage disponible. La rédaction UI n’est pas garantie pour les journaux natifs : relisez avant partage.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
-translationRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
+sourceRevision: "c68c149552a943cf0f03393c5dac91bd62abf9c50f791d7b0757599754f4804e"
+translationRevision: "f64cebdff874245ee781e84f4f79bd6d6993bd5ba1ed4da639ebd83b9a1ade01"
 order: 10
 ---
 
@@ -41,3 +41,7 @@ Cloud アカウントはアカウント方式のカタログや共同操作に�
 ## 問題が起きたとき {#recovery}
 
 空白ウィンドウや起動直後の終了では、起動診断と正確なパッケージバージョンを記録します。AppImage と DEB は異なるインストール形式で、どちらも Android 実行ファイルではありません。その環境については [Termux とヘッドレスの対応範囲](termux.md) を参照します。ソースビルドには開発者ガイドに記載された追加要件があります。
+
+## 運用の詳細 {#operational-details}
+
+ウィンドウが開かない場合はネイティブの `tiktools.log`（コントローラーモードは `controller.log`）を確認します。Windows は `%LOCALAPPDATA%/TikTools/logs`、Linux は `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` ですが、`TIKTOOLS_HOME` または `TIKTOOLS_LOG_DIR` で変わります。ファイル作成前にログ初期化が失敗する場合もあります。端末のエラーを残し、共有前に[診断の保持とプライバシー](preferences/troubleshooting.md#operational-details)を確認してください。

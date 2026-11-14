@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
-translationRevision: "a6a7a67da0a7349c2c8fd860de9d945e841ee1f1a82057c312f4cc193fbd9fe8"
+sourceRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
+translationRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
 order: 90
 ---
 
@@ -45,3 +45,38 @@ The native desktop has an isolated `tiktools-desktop --controller` entry and pro
 ## Recover {#recover}
 
 On a sequence gap, use the negotiated subscription snapshot/resume path and clear private projections when identity changes. Do not replay business mutations automatically after reconnect. A changed certificate requires explicit trust review. The [profile implementation](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/profiles/mod.rs) documents profile leases and refresh uncertainty; real multi-PC and OS-store acceptance must be reported separately from loopback tests.
+
+## Operational details {#operational-details}
+
+Apply a reliable event to the matching snapshot/projection before calling `acknowledge`; acknowledging first loses recovery evidence. On reconnect, resume only with the same host instance, subscription, session and grant context. A gap, changed host/session/grant, rejected cursor or browser gap closure requires fresh authorized snapshots, then a new subscription. Do not replay mutations from event history. Use the [metadata and original-command recipe](control-api.md#operational-details) for uncertain writes.
+
+Local `event` envelopes contain `{topic,data?}`; unit variants can omit data. Remote `event.params` is a ReliableEvent with string sequence, event ID, resource version and actor. `event.gap` is a separate method. Example envelopes below are illustrative, not a durable replay of missing effects.
+
+```json
+{"jsonrpc":"2.0","method":"event","params":{"topic":"live.status","data":{}}}
+{"jsonrpc":"2.0","method":"event","params":{"topic":"workflow.changed","data":{},"hostInstanceId":"h1","subscriptionId":"s1","sequence":"7","eventId":"e7","resource":{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"},"actor":{"principalId":"owner"}}}
+{"jsonrpc":"2.0","method":"event.gap","params":{"lost":3,"resync":true}}
+```
+
+The SDK integration sketch below requires remote-profiles. The projection callbacks are application-owned; they must finish before acknowledgement. See [RecoveryStream](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/remote/recovery.rs) for typed baseline, cursor and resumption contracts.
+
+```rust
+use tiktools_client::remote::{RecoveryMode, RecoveryStream, StreamDomain};
+use std::collections::BTreeSet;
+
+let mut stream = RecoveryStream::start(remote, BTreeSet::from([StreamDomain::Workflows])).await?;
+replace_snapshot(stream.baseline().expect("complete authorized baseline"))?;
+loop {
+    match stream.next_event().await {
+        Ok(event) => {
+            apply_to_projection(&event)?;
+            stream.acknowledge(&event)?;
+        }
+        Err(_) => {
+            if stream.reconnect().await? == RecoveryMode::Snapshot {
+                replace_snapshot(stream.baseline().expect("fresh authorized baseline"))?;
+            }
+        }
+    }
+}
+```

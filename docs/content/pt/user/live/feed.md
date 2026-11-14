@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
-translationRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
+sourceRevision: "4830f0a02244f46bfefb9b37c09d96c969688d022a0df90359c96c3e359af147"
+translationRevision: "695064c8829cdb35f26e51b5ea42e6c108544b66dc0fa07d3bceb05fc98130f3"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ Filtragem e inspeção estão disponíveis. Durante tráfego intenso, a interfac
 Se o feed estiver vazio, remova os filtros, retome a rolagem e confira o status da conexão. Uma sala silenciosa pode estar funcionando normalmente. Reconectar ao mesmo criador mantém o contexto; trocar de criador o altera. **Clear** esvazia o feed de trabalho e não redefine pontos nem análises. Investigue indicadores de perda pelos [diagnósticos](../preferences/troubleshooting.md), sem presumir que todas as linhas ausentes da exibição sejam eventos perdidos na origem.
 
 <DemoFrame scenario="feed" locale="pt" title="Demonstração: feed" />
+
+## Detalhes de operação {#operational-details}
+
+Esta versão mantém até 300 eventos visíveis e prepara até 900 enquanto a apresentação aguarda. Remove primeiro a linha mais antiga que não é presente; presentes só saem quando não restam outros tipos. Um presente antigo pode permanecer depois de um chat recente. Pausar a rolagem não interrompe a entrada nem garante retenção. Filtros não recuperam linhas removidas; um aviso de perda indica uma visualização incompleta, não autorização para repetir pontos ou ações.

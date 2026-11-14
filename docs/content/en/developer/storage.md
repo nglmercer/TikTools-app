@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
-translationRevision: "f6f86e9e87d6727f4dace206cef26a37d501f8030f7a1ff42688af77592a7445"
+sourceRevision: "7ec9d94e484af17e8e82aaaa2122cc47ecd206cf9306047795d6aaa72eea2edb"
+translationRevision: "7ec9d94e484af17e8e82aaaa2122cc47ecd206cf9306047795d6aaa72eea2edb"
 order: 60
 ---
 
@@ -47,3 +47,11 @@ Supported durable workflow, points and owner journals retain original outcomes a
 ## Recovery {#recovery}
 
 Keep SQLite files and any active WAL/SHM together when making an offline backup. A UI timeout does not prove rollback. On `revision_conflict`, preserve the draft and compare a fresh read. On uncertain external effects, inspect the retained effect record rather than replaying a feed. See the [path authority](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/paths.rs) and [Cloud recovery](cloud.md) for their distinct boundaries.
+
+## Operational details {#operational-details}
+
+Resolve paths before experiments or backups with `tiktools api call system.info --json`. `TIKTOOLS_HOME` selects the root; independent `TIKTOOLS_DATA_DIR`, `TIKTOOLS_PLUGINS_DIR`, `TIKTOOLS_PLUGIN_DATA_DIR`, `TIKTOOLS_PLUGIN_STORE_DIR`, `TIKTOOLS_LOG_DIR` and `TIKTOOLS_TEMP_DIR` override their derived directories. Relative overrides resolve against the launching working directory. An isolated home alone does not neutralize inherited overrides; inspect/unset them first.
+
+Analytics is aggregated data with a dedicated writer: current queue 1,024, batches 128, flush deadline 10 s. A sibling `*.pending.json` recovery file is derived from the analytics database path. Startup replays retained batches with IDs, then retires the file before `ready` admits new work. Unreadable/over-16-MiB recovery, unavailable database or failure to retire the file keeps admission disabled. Preserve the database and recovery file, inspect `ready`/pending/error diagnostics and back up before repair. Do not delete pending evidence to make startup appear healthy; points journals have a separate durability contract.
+
+`system.info` reports effective home/dataDir; resolve the other directories from the host’s actual launch environment, not an unrelated terminal. Use `system.health` for analytics ready/pending and LIVE ingress counters.

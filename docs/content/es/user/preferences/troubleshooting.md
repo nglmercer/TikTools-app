@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "41fe9f8a6082fad98b44a33890e9e275adc7a79aaf6cdd977e7424c459aa3ab2"
-translationRevision: "41fe9f8a6082fad98b44a33890e9e275adc7a79aaf6cdd977e7424c459aa3ab2"
+sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
+translationRevision: "701dc90d1687589711190ee5d4fc75e69b186a59827e1aa27236c33314a7ba9f"
 order: 30
 ---
 
@@ -43,3 +43,9 @@ Están disponibles filtros, copia y exportación de diagnósticos. Un paquete ta
 Repite después de corregir la causa concreta. Ante conflictos de revisión, carga y revisa el estado guardado actual. Si una orden remota queda sin confirmar, inspecciona su historial/estado antes de enviarla otra vez: el efecto puede haberse producido pese al tiempo de espera. Si falla el inicio, informa de paquete, versión y registro; evita borrar el directorio de datos.
 
 <DemoFrame scenario="diagnostics" locale="es" tour="diagnostics" title="Demo de diagnostics" />
+
+## Detalles de operación {#operational-details}
+
+Diagnostics es un registro UI en memoria, limitado a 2.000 entradas o 2 MiB. Agrupa repeticiones dentro de cinco segundos. Muestra inicialmente 100; exportar incluye todas las entradas filtradas, mientras **Limpiar** borra el registro entero. Copia/exporta antes de cerrar, reiniciar, limpiar o cambiar/cerrar una cuenta Cloud conocida: esos cambios vacían este historial.
+
+Si no aparece ventana, revisa `tiktools.log` nativo (`controller.log` en modo controlador) en `%LOCALAPPDATA%/TikTools/logs` en Windows o `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` en Linux. `TIKTOOLS_HOME` cambia la raíz y `TIKTOOLS_LOG_DIR` sustituye el directorio de logs. Si falla el propio registro, puede no existir archivo; conserva el error de terminal/inicio disponible. Los logs nativos no garantizan la redacción de la UI: revisa todo antes de compartir.

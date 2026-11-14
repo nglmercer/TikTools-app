@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
-translationRevision: "4c70fe5256ba711f6f8fd6c3e8d305c4a44bdd6ba06092a846015e6f1898744f"
+sourceRevision: "7049a03b9a3b437dc969ee83208bbaac8521bd55bf0e557e96a185ffdfaff9f6"
+translationRevision: "fbeddfaa0a9f244ace38ddaab9e1c4d7b73b495d444eb92037cffca17a83c468"
 order: 290
 ---
 
@@ -70,3 +70,7 @@ Ejecuta `bun scripts/task.ts test web BaseButton`, la prueba dirigida del compon
 - [Importación y revisión](import-review.md)
 - [Patrones de revisión Cloud](cloud-patterns.md)
 - [Patrones de overlays](overlay-patterns.md)
+
+## Detalles de operación {#operational-details}
+
+Las familias generadas cubren deliberadamente primitivas públicas. [Formularios](forms.md) incluye SchemaForm/SettingsRow; [campos](fields.md), textarea, slider, radio, tags, fecha, color y archivo único; [menús](menus.md), MenuBar/ContextMenu; [feedback](feedback.md), Notification. Iconos, SchemaFieldRows y piezas internas no son contratos públicos independientes. Lee bindings de slots además de props/modelos. Una firma generada no garantiza validación ni accesibilidad.

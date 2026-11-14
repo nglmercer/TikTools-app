@@ -11,6 +11,12 @@ through this broker:
 - on a top-level page with no host every call fails with
   `native plugin broker is unavailable` instead of messaging the page itself.
 
+That error applies to promise-returning calls. `subscribe` without a native
+broker on a top-level page returns an empty unsubscribe function; iframe
+subscription errors are also ignored. Check `broker.transport()` and a
+promise-returning operation such as `getSettings()` before claiming a working
+connection. A subscription or its cleanup function is not a connectivity test.
+
 Plugin identity is always supplied by the host; the UI never sends a plugin id.
 
 ```ts

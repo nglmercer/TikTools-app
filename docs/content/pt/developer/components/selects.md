@@ -7,15 +7,15 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
-translationRevision: "0b1afb44d490c0e59da97b283ec21523b0b5bc9581af491446dc5976a462c4a9"
+sourceRevision: "6dc5181ece21f73c6569b5d8e54c896c6df86390333a5240ef0696257e5e56d5"
+translationRevision: "6e19d340be14c921f5c39ad15a02bd1327f177e7b36b2c5c42db4bf07cc85324"
 ---
 
 # ComboBox e SearchSelect {#combobox-and-searchselect}
 
 ## Objetivo e pré-requisitos {#purpose}
 
-Escolha um valor estável entre opções rotuladas. SearchSelect filtra rótulos mantendo identificadores fora do texto visível. Use o workspace Vue existente e seu provedor i18n. A prévia monta os componentes compartilhados reais em um quadro isolado do aplicativo; o tema da documentação não carrega o CSS global do desktop.
+Escolha um valor estável entre opções rotuladas. SearchSelect busca rótulos e valores; um valor selecionado desconhecido é mostrado diretamente. Use o workspace Vue existente e seu provedor i18n. A prévia monta os componentes compartilhados reais em um quadro isolado do aplicativo; o tema da documentação não carrega o CSS global do desktop.
 
 ## Experimente o exemplo {#example}
 
@@ -43,3 +43,11 @@ Este mesmo arquivo é compilado para a prévia e incluído como trecho de códig
 Use um rótulo visível ou aria-label, preserve a operação pelo teclado e evite depender apenas da cor. Teste em uma largura estreita e com rótulos traduzidos longos. Nos formulários, vincule controlAttrs da linha ao campo real para manter a associação dos erros e do estado obrigatório. Um controle desativado não explica uma falha sozinho; mostre um status adjacente e uma ação de recuperação.
 
 Se uma prévia falhar, feche-a e abra-a novamente, depois use Reset na própria instância da demonstração. Revise a API estática e o código mesmo quando a demonstração estiver indisponível. Diálogos nativos, serviços externos e integração com o sistema operacional exigem testes de desktop separados. [Voltar ao guia de componentes](index.md).
+
+## Detalhes de operação {#operational-details}
+
+Forneça a opção selecionada durante carga para exibir seu rótulo; se faltar, aparece o valor bruto. `search` emite a consulta para busca remota opcional do proprietário, mantendo busca interna por rótulo/valor. Setas/Home/End percorrem opções habilitadas; Enter escolhe a linha. Com `allowCustom`, confirmar texto remove espaços externos; Escape cancela. Teste ID não carregado, linhas desativadas e valor personalizado além da seleção normal.
+
+## Detalhes de operação {#keyboard-contract}
+
+Revise [teclado, exceções do diálogo e nomes/tooltip](../i18n-accessibility.md#operational-details). Confira foco inicial/retorno no fluxo completo, incluindo diálogos não fecháveis e editores desmontados.

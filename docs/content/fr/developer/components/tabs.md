@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
-translationRevision: "9147d836f4615a8360caae32aa203a3a0ec9331986c2ab42ae4708e4fc5deab7"
+sourceRevision: "6341644dd3da8b4d7a5ef9a079a884908997a5a3f8f65618746cdb8d9db81ad8"
+translationRevision: "5d8ffb57e09d4ab865b312137a956f74b006f5fd039101f92f1e88b48b779970"
 ---
 
 # Onglets et barres d’outils {#tabs-and-toolbars}
@@ -43,3 +43,11 @@ Ce fichier exact est à la fois compilé pour l’aperçu et inclus comme extrai
 Utilisez un libellé visible ou aria-label, préservez le fonctionnement au clavier et évitez de vous fier uniquement à la couleur. Testez à faible largeur et avec de longs libellés traduits. Pour les formulaires, liez les controlAttrs de la ligne au véritable champ pour que les erreurs et l’état requis restent associés. Une commande désactivée ne peut pas expliquer seule un échec ; affichez un état adjacent et une action de récupération.
 
 Si un aperçu échoue, fermez-le et rouvrez-le, puis utilisez Reset pour sa propre instance de démo. Examinez l’API statique et la source même lorsque la démo est indisponible. Les boîtes de dialogue natives, services externes et intégrations système nécessitent des tests de bureau distincts. [Revenir au guide des composants](index.md).
+
+## Détails de fonctionnement {#operational-details}
+
+L’exemple garde l’état dans le parent. Le modèle sort trie trois lignes par computed ; l’en-tête change l’ordre sans changer l’ID sélectionné. Les éditeurs gardent leurs brouillons hors de l’enfant avec key : saisir, changer puis revenir les conserve. Onglet/dialogue ne les persistent pas. Choisissez explicitement état parent, contenu monté ou KeepAlive.
+
+## Détails de fonctionnement {#keyboard-contract}
+
+Consultez [clavier, exceptions du dialogue et noms/tooltip](../i18n-accessibility.md#operational-details). Vérifiez focus initial/retour dans le flux complet, y compris dialogues non fermables et éditeurs démontés.

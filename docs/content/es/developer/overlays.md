@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
-translationRevision: "d90002c49e613ce5a797f60447aa89527e5c46faa28f3ee8686b6344fdbd4c25"
+sourceRevision: "99d3351859ddb3a3304133f062f68b8e3130416947fc40433dc9c6bffaf85f6a"
+translationRevision: "c85583e3ca5d09b8e5e036553fd83606450727d27347a785793f4c35012b1e52"
 order: 170
 ---
 
@@ -44,3 +44,7 @@ Las vistas previas integradas y el SDK están implementados. Existen editor Clou
 ## Recuperación {#recovery}
 
 Ante una vista previa vacía, comprueba vida del controlador, valores del esquema y dimensiones antes de debilitar políticas de origen. En vivo, revisa salud, credencial de widget y huecos explícitos. Chromium sin interfaz no demuestra aceptación OBS. El [SDK](https://github.com/nglmercer/TikTools-app/tree/remake/src/widgets/sdk) y las pruebas de protocolo compartido son las referencias actuales.
+
+## Detalles de operación {#operational-details}
+
+La suite unitaria usa fixtures; Chromium con gateway real necesita widgets construidos y checkout externo elegido por `TIKTOOLS_PLUGINS_REPO`. Si falta fuente se omite: informa el skip. Ejecuta `bun x --no-install playwright test --config src/widgets/playwright.gateway.config.ts` para ese límite. Después verifica OBS real, credencial widget, entrega y recuperación con LIVE; Chromium headless no acredita aceptación OBS/nativa.

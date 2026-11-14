@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
-translationRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
+sourceRevision: "3dd24191fb33ac1ebfd42ca33e68a5a97537a89df09533c4588207ea6087daa5"
+translationRevision: "6a9da18f10ef56c23a272975990c7f3c08e86346de2dd5ae0a934771f5e35a96"
 order: 10
 ---
 
@@ -43,6 +43,16 @@ bun scripts/task.ts packaged  # chemin des ressources empaquetées, plutôt qu�
 ```
 
 `start` lance Vite, attend l’URL qui lui est attribuée et exécute le bureau avec `TIKTOOLS_DEV_URL`. Il peut préparer les plugins depuis le dépôt distinct `plugins-example-tiktools`, trouvé via `TIKTOOLS_PLUGINS_REPO` ou le répertoire voisin. Il ne compile pas d’implémentations de plugins présentes dans ce dépôt. Utilisez `TIKTOOLS_SKIP_DEV_PLUGINS=1` pour omettre cette préparation. Aucun hôte n’est remplacé automatiquement ; un propriétaire de bureau existant provoque une erreur de démarrage.
+
+Installez les dépendances du dépôt externe avant le démarrage. Depuis le dépôt TikTools, les commandes suivantes installent les outils aux versions verrouillées, préparent les paquets sans lancer d’hôte et créent les archives distribuables dans `dist/plugins/`. La préparation recompile les interfaces depuis leurs sources et remplace le contenu généré de `.dev-plugins`. `TIKTOOLS_PLUGINS_REPO=off` vide ce répertoire et ne charge aucun paquet externe de développement ; les plugins installés par l’utilisateur sont gérés séparément.
+
+Le chemin voisin ci-dessous est seulement un exemple local. La CI n’exige pas ce dépôt ; utilisez un chemin absolu dans `TIKTOOLS_PLUGINS_REPO` pour une autre organisation des dossiers.
+
+```sh
+bun install --frozen-lockfile --cwd ../plugins-example-tiktools
+bun scripts/task.ts prepare-plugins
+bun scripts/task.ts plugins --all
+```
 
 Pour des expériences natives isolées, définissez `TIKTOOLS_HOME` vers un répertoire jetable avant de lancer l’hôte. Utilisez le même répertoire depuis chaque terminal CLI contrôlant cet hôte. Ne supprimez jamais un verrou de propriété actif.
 

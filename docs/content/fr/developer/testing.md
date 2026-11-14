@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
-translationRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
+sourceRevision: "1872b905a3eda616e94cae8902af1ca659158e89dc8157ab9029a70fda00ce95"
+translationRevision: "3cddc357560172df56fd79e165c811e4673c7f75c724676cf35d14214743719c"
 order: 210
 ---
 
@@ -54,3 +54,18 @@ Un rapport de modification nomme la suite réussie et son périmètre. Exécutez
 ## Récupération {#recovery}
 
 Si un filtre ne correspond à rien, corrigez-le plutôt que d’annoncer une réussite. Si une fixture omet une RPC nouvellement requise, étendez son contrat explicite plutôt que de faire réussir les appels inconnus. Rendez visibles les validations manuelles incertaines ou ignorées. Le [lanceur de tests](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/lib/test-runner.ts) définit la syntaxe actuelle ; la [performance](performance.md) explique les preuves de charge reproductibles.
+
+## Détails de fonctionnement {#operational-details}
+
+Installer Bun n’installe pas les navigateurs Playwright. Utilisez la commande locale verrouillée ci-dessous ; Linux `--with-deps` installe aussi des paquets système et exige les privilèges OS. `playwright.config.ts` gère Vite et SPA avec faux hôte, pas Wry ; l’UI compilée exige aussi le build du dépôt facultatif. Les suites widget exigent assets/configuration propres. Le site utilise `playwright.site.config.ts` et docs/demo assemblés : construisez avant `docs test`, qui exécute scripts, demo/aide, frontend production et Chromium. Skip n’est pas une acceptation.
+
+`bun run ci` et workflow sérialisent Rust workspace avec `-- --test-threads=1`. CI locale ne remplace pas la matrice MSRV/OS. PR sélectionne frontend/native/desktop/MSRV/plugin-runtime par chemins ; CodeQL est tag/manual et aucun dependency-review n’est versionné. Les règles externes peuvent varier. Exécutez docs/site localement car docs seuls ne lancent pas le workflow manuel. Utilisez Bun stable 1.4.4 ; le fixture unitaire VitePress est borné et `docs check` valide le corpus entier.
+
+```sh
+bun x --no-install playwright install chromium
+# Linux, when browser system libraries are missing:
+bun x --no-install playwright install --with-deps chromium
+bun scripts/task.ts test e2e
+TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build
+bun scripts/task.ts docs test
+```

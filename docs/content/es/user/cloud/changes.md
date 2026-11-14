@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
-translationRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
+sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
+translationRevision: "d10088ad911ff785cebe9428728c8e59cd631360c910325f228057363ac6e9c8"
 order: 20
 ---
 
@@ -41,3 +41,9 @@ Las superposiciones Cloud usan el flujo de creación/revisión de [biblioteca y 
 Están disponibles la comparación local y el intercambio nativo según capacidades en sus áreas respectivas. Las operaciones remotas dependen del servicio; no se implica aceptación en producción. Si una revisión caduca, actualiza y compara otra vez. Si el resultado no está confirmado, inspecciona estado e historial antes de crear otra operación. Un tiempo de espera agotado no demuestra que nada haya cambiado.
 
 <DemoFrame scenario="cloud" locale="es" tour="changes" title="Demo de cloud" />
+
+## Detalles de operación {#operational-details}
+
+Antes de preparar/migrar v1 → v2, respalda datos y coordina versiones compatibles en todos los dispositivos. En setup prepara, comprueba compatibilidad y previsualiza; revisa conteos seleccionados, pendientes, conflictos y solo-v1 sin asumir sincronización. Exigir cabecera de época es irreversible para escrituras v2 de toda la cuenta y puede rechazar equipos antiguos. Un timeout de barrera es ambiguo; repetirla vuelve a avanzarla. Recarga estado de época/migración y vista previa antes de actuar. Leer época no prueba escrituras anteriores completadas.
+
+La recuperación depende del modo: Changes de Eventos/Acciones compara referencias locales, sin escritura Cloud. Para Variables/Plugins revisados, recarga comparaciones caducadas y revisa revisión, cuenta e inventarios. Si faltan plugins, usa revisión/reparación de inventario en setup y otra vista previa. Ante intención incierta conserva ID/evidencia y consulta historia/estado; la recuperación técnica exige revisión nueva de entradas congeladas y revisión Cloud. Reanudar esa intención no envía por sí solo una escritura remota. Si no puedes reconciliar, detente sin crear mutación sustituta.

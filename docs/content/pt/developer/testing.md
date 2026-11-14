@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
-translationRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
+sourceRevision: "1872b905a3eda616e94cae8902af1ca659158e89dc8157ab9029a70fda00ce95"
+translationRevision: "bf1c49243351f87a236ebea69fb49548e540cda3001f5cef176e6dc583da0a8f"
 order: 210
 ---
 
@@ -54,3 +54,18 @@ Um relatório de alteração nomeia a suíte aprovada e seu escopo. Execute veri
 ## Recuperação {#recovery}
 
 Se um filtro não corresponder a nada, corrija-o em vez de informar sucesso. Se um cenário de teste não tiver um RPC recém-exigido, amplie seu contrato explícito em vez de fazer chamadas desconhecidas terem sucesso. Mantenha visível a aceitação manual incerta/ignorada. O [executor de testes](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/lib/test-runner.ts) define a sintaxe atual de comandos; [desempenho](performance.md) explica evidências de carga reproduzíveis.
+
+## Detalhes de operação {#operational-details}
+
+Instalar Bun não instala navegadores Playwright. Use o comando local bloqueado abaixo; Linux `--with-deps` também instala pacotes do sistema e exige privilégios OS. `playwright.config.ts` administra Vite e SPA com host falso, não Wry; UI compilada precisa ainda do build do checkout opcional. Suítes widget precisam de assets/configuração própria. Site usa `playwright.site.config.ts` e docs/demo montados: construa antes de `docs test`, que executa scripts, demo/ajuda, frontend produção e Chromium. Skip não é aceitação.
+
+`bun run ci` e workflow serializam Rust workspace com `-- --test-threads=1`. CI local não substitui matriz MSRV/OS. PR seleciona frontend/native/desktop/MSRV/plugin-runtime por caminhos; CodeQL só tag/manual e não há dependency-review versionado. Políticas externas podem variar. Execute docs/site localmente porque caminhos só-docs não disparam site manual. Use Bun estável 1.4.4; fixture unitária VitePress limitada e `docs check` valida o corpus completo.
+
+```sh
+bun x --no-install playwright install chromium
+# Linux, when browser system libraries are missing:
+bun x --no-install playwright install --with-deps chromium
+bun scripts/task.ts test e2e
+TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build
+bun scripts/task.ts docs test
+```

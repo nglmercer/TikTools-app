@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
-translationRevision: "63b402ba448308fc3e2eadad531dbbd7ae433aa1e79c7d0e85e953db6f3bc065"
+sourceRevision: "45424c522635bc6271707b05d18c8d206878efbb9f9657dab9a9e69f3876832e"
+translationRevision: "94876bb6f71badabcdcb82ff41c657515f43ccb2929a653fa1f85a9a9306b36d"
 ---
 
 # Listas y tablas {#lists-and-tables}
@@ -43,3 +43,7 @@ Este archivo se compila para la vista y se incluye como snippet. El estado peque
 Proporciona etiqueta visible o aria-label, conserva el manejo por teclado y evita depender solo del color. Prueba un ancho reducido y etiquetas traducidas largas. En formularios asocia controlAttrs de la fila al input real para conservar errores y estado obligatorio. Un control desactivado no explica por sí mismo un fallo: muestra estado cercano y recuperación.
 
 Si falla la vista, ciérrala y ábrela y luego reinicia su instancia. La API estática y el código siguen siendo útiles sin demo. Los diálogos nativos, servicios externos y funciones del sistema requieren pruebas separadas de escritorio. [Volver a la guía de componentes](index.md).
+
+## Detalles de operación {#operational-details}
+
+El ejemplo conserva estado en el padre. Sort de tabla es modelo enlazado que ordena tres filas mediante computed; el encabezado cambia orden y selección conserva ID. Los editores de pestañas guardan borradores fuera del hijo con key: escribir, cambiar y volver conserva cada borrador. Pestaña/diálogo no los persisten. Elige estado padre, contenido montado o KeepAlive expresamente.

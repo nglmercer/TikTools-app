@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "12f13cdca1cf24f7de30d83fa8f3844f9d1beee6c910c4deb9be817acb89a009"
-translationRevision: "12f13cdca1cf24f7de30d83fa8f3844f9d1beee6c910c4deb9be817acb89a009"
+sourceRevision: "40a55076e0cff0230664728c6091cbec0b41649f9e69f50da50c741de337c2cb"
+translationRevision: "ee70b546dfd5d1a27db37e149928e568f3c9aa92e3ffefb5ff9c22e3870a4fd7"
 order: 50
 ---
 
@@ -40,3 +40,19 @@ A CLI e o desktop compartilham conceitos de controle, persistência SQLite e pro
 Use o diretório privado do aplicativo Termux em vez do armazenamento compartilhado do Android, que pode impedir execução e sockets Unix. Mantenha o mesmo diretório de dados do aplicativo e confirme que o host está ativo antes de depurar uma falha de IPC. Se o Android encerrar o processo, reinicie-o com o mesmo perfil e inspecione os diagnósticos de recuperação. Não espere que a demonstração da documentação reproduza o comportamento de ciclo de vida do Android.
 
 O [guia de desenvolvimento](../developer/index.md) contém as ferramentas, flags de recursos e procedimentos de verificação no dispositivo. A instalação de binários de desktop continua no [guia Windows/Linux](installation.md).
+
+## Detalhes de operação {#operational-details}
+
+Para navegador local, construa assets com index.html e CLI com `local-web`. Remova overrides herdados e use `TIKTOOLS_HOME` descartável; inicie primeiro host IPC. Em outro terminal com a mesma raiz execute o adaptador, abra link loopback ou digite código de seis dígitos de um uso (cinco minutos). Pare adaptador e host separadamente. Loopback/pairing não oferecem acesso remoto/LAN. Termux exige toolchain Android nativo e assets web; binário Linux desktop não é Android.
+
+```sh
+bun scripts/task.ts frontend-build
+bun scripts/task.ts rust build -p tiktools-cli --features local-web --locked
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools host --ipc
+```
+
+```sh
+export TIKTOOLS_HOME=/absolute/path/disposable-home
+target/debug/tiktools web --assets /absolute/path/to/TikTools/dist/web --port 4174
+```

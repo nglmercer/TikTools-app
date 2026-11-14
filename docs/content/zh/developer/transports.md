@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
-translationRevision: "293f8c00709f3796e5d6bab335df654aef5d9d379c19d622934bf1f8a95591c0"
+sourceRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
+translationRevision: "170fec34f0552f33947038429c504c2ca8720074fc76079eb61b3848439f4897"
 order: 200
 ---
 
@@ -51,3 +51,7 @@ bun scripts/task.ts test web remote-browser-transport
 ## 恢复方法 {#recovery}
 
 断线后，应将已接受操作视为可能存在不确定结果。重连必须使私有投影失效、重新协商身份，并恢复有界流或获取快照。不要降低证书检查要求，也不要在远程失败后静默回退到本地所有者。[RTC 实现](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src)及实际功能依赖图优先于旧传输计划。
+
+## 运行细节 {#operational-details}
+
+Peer 使用 ALPN `tiktools/collaboration/1`，当前连接超时为 15 秒，最多显式配置四个 relay。Peer/RTC 帧上限为 1 MiB；RTC 拆分为最多 16 KiB 的数据包。超大帧会在验证中失败，不产生部分 RPC。应分别诊断配置/身份、信令、连接超时、帧大小及授权。Cloud relay 不是 ICE TURN 服务器；空 relay 列表不启用公共发现。测试路径前检查宿主/设备活动及当前已确认授权，并记录 ICE 选择直连还是 relay。ready/加密传输不证明 RPC 权限，也不保证穿越所有 NAT。真实双机验收前，用 fixtures 测试会话变化/撤销和超大帧。

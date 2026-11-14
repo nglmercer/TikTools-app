@@ -22,4 +22,4 @@
 
 - `open`: `boolean`, `{ default: false }`
 
-Slots: `default`.
+Slots: `default { minimized: minimized }`.

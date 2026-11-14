@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "51b5b2821344dd1795acb1008496542c90800461cc5fcfff5f2ed41aef6ec7b1"
-translationRevision: "51b5b2821344dd1795acb1008496542c90800461cc5fcfff5f2ed41aef6ec7b1"
+sourceRevision: "34c35d378f38a78866661b97c19113f83b5b5f2846cefa2b5076eb20fe9bdc21"
+translationRevision: "b9c7c0a908b5ecf5dc10fc4f936cd9c956267059dc49d4a415215fffff3d8426"
 order: 160
 ---
 
@@ -37,8 +37,28 @@ Ces exemples supposent le fichier préparé et un hôte correspondant actif. Dan
 
 ## Résultat attendu et état {#expected-result-and-status}
 
-Les importations de bibliothèque examinées créent des enregistrements liés cohérents et conservent un journal du propriétaire. Les importations de modèles/profils du catalogue Cloud restent désactivées jusqu’à une activation intentionnelle du propriétaire. Les fournisseurs d’actions manquants ou désactivés provoquent une erreur de prérequis plutôt que de remplacer silencieusement une action. Un ensemble de profil sélectionné contrôle le contexte de présentation correspondant ; choisir un profil ne confère pas d’autorité distante.
+Les importations de bibliothèque examinées créent des enregistrements liés cohérents et conservent un journal du propriétaire. Le catalogue Cloud conserve des modèles ; import de profils et application exigent une revue des valeurs enabled sans supposer leur désactivation. Les fournisseurs d’actions manquants ou désactivés provoquent une erreur de prérequis plutôt que de remplacer silencieusement une action. Un ensemble de profil sélectionné contrôle le contexte de présentation correspondant ; choisir un profil ne confère pas d’autorité distante.
 
 ## Récupérer et vérifier {#recover-and-verify}
 
 En cas de conflit de révision, préservez la proposition, rechargez l’instantané de bibliothèque et examinez la différence réelle. Résolvez un journal natif en attente avant de créer une autre intention d’importation. Ne transformez pas un échec de mise à jour en création nouvelle implicite. Exécutez `bun scripts/task.ts test web rule-templates` et `bun scripts/task.ts test web library-journal` pour une couverture ciblée de l’interface. Le [service natif de modèles](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/services/templates.rs) et les schémas RPC générés remplacent les anciennes références `src/web/views/behavior`.
+
+## Détails de fonctionnement {#operational-details}
+
+Enregistrez le premier JSON comme `docs-log.tiktemplate.json` ; le second est un `docs-pack.tikprofile.json` complet d’une entrée. Les deux désactivent explicitement actions/événements. Priorité : défaut du schéma → profil → entrée → valeurs CLI/dialogue. Un span complet conserve le type ; un span incorporé devient texte. Enabled absent vaut true : utilisez `--disabled` et examinez la comparaison UI.
+
+Limites actuelles : 8 actions et 12 filtres/modèle, 32 modèles/profil ; texte UI 64 KiB/modèle et 256 KiB/profil ; expansion profondeur 64, 65 536 nœuds, 256 KiB/enregistrement et 8 MiB total. Réduisez le contenu excessif sans contourner la validation. Les budgets bibliothèque, source et expansion sont distincts. Suivez [la récupération du journal](automations.md#operational-details) avant un nouvel import incertain.
+
+```json
+{"templateVersion":1,"id":"docs-log","title":"Docs log","params":{"type":"object","properties":{"message":{"type":"string","default":"hello"}}},"actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"{{ params.message }}"}}],"event":{"name":"Chat","trigger":"tiktok.chat","enabled":false,"filters":[],"cooldownMs":1000,"cooldownScope":"global","runMode":"all"}}
+```
+
+```json
+{"profileVersion":1,"id":"docs-pack","name":"Docs pack","description":"","params":{"message":"profile"},"templates":[{"params":{"message":"entry"},"template":{"templateVersion":1,"id":"docs-log","title":"Docs log","params":{"type":"object","properties":{"message":{"type":"string","default":"hello"}}},"actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"{{ params.message }}"}}],"event":{"name":"Chat","trigger":"tiktok.chat","enabled":false}}}]}
+```
+
+```sh
+tiktools template import docs-log.tiktemplate.json --dry-run
+tiktools template import docs-log.tiktemplate.json --disabled
+tiktools template profile-import docs-pack.tikprofile.json --disabled
+```

@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
-translationRevision: "a2669421fbbd7518680451321a7764827d1f6fc5334b7aa875dbf1eaf5293f54"
+translationRevision: "ec720a01c14f0385720d842cc9b885f65bb7f7210dfe28ee452af18664fdb23a"
 ---
 
 # Modèles d’incrustation {#overlay-patterns}

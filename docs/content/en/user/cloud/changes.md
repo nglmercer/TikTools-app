@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
-translationRevision: "470449e93855a0308eeb03939acc2d6e929761dd28d5f7ff8930152aaf0d1fe7"
+sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
+translationRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
 order: 20
 ---
 
@@ -41,3 +41,9 @@ Cloud overlays use the [library/editor](../overlays/index.md) create/revise flow
 Local automation comparison and capability-gated native sharing are available in their respective areas. Operations with remote side effects depend on the service; production acceptance is not implied. If a review becomes stale, refresh and compare again. If the outcome is unconfirmed, inspect status/journal information before creating another operation. Never treat a timeout as proof that nothing changed.
 
 <DemoFrame scenario="cloud" locale="en" tour="changes" title="Demo: cloud" />
+
+## Operational details {#operational-details}
+
+Before v1 → v2 preparation/migration, back up local data and coordinate compatible versions on every device. In setup, prepare, check compatibility and preview; inspect selection, pending, conflict and v1-only counts rather than treating all as synchronized. Enforcing the write-epoch header is irreversible account-wide for v2 writes and can reject old devices. A barrier timeout is ambiguous; repeating a barrier advances it again. Refresh migration/epoch state and the current preview before any further action. Reading the epoch does not prove older writes completed.
+
+Recovery depends on mode: Events/Actions Changes compares local references, so it does not send Cloud writes. For reviewed Variables/Plugins, reload stale comparisons and review current revisions, account and inventories. If plugins are missing, use the setup inventory review/repair and generate a new preview. For an uncertain retained intent, preserve its ID/evidence and inspect current history/state; technical recovery requires a fresh recovery review of frozen entries and Cloud revision. Resuming that reviewed intent does not itself send a remote write. Stop if state cannot be reconciled; do not create a replacement mutation to bypass uncertainty.

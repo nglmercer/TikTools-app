@@ -8,7 +8,7 @@ featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
 sourceRevision: "bbf2a26d0d2b51d7eea5245dde57023be2a6a4203b1b348258c5e5206aecbbd3"
-translationRevision: "bbf2a26d0d2b51d7eea5245dde57023be2a6a4203b1b348258c5e5206aecbbd3"
+translationRevision: "6a88654e6e96c2a18b0c41c0be66100b606b0d64716a7f7e0e515de2367f6033"
 ---
 
 # TextField e SpinBox {#textfield-and-spinbox}

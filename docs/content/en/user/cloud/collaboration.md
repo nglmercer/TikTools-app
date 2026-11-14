@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
-translationRevision: "7bff4e49d94a8ee7e13b7a64bc8b66bec9090371bb6cefe0689ef63563424f8a"
+sourceRevision: "4a97f64b6bdc818ebb8d16eec1e67d95a2d0eae0b75f7cfd5c1493bf27244684"
+translationRevision: "4a97f64b6bdc818ebb8d16eec1e67d95a2d0eae0b75f7cfd5c1493bf27244684"
 order: 30
 ---
 
@@ -43,3 +43,7 @@ Owner access controls and frontend team creation/enrollment exist. The complete 
 For stale grants or host revisions, reload and review again. For unconfirmed commands, inspect the recorded outcome before retrying. Stop serving or revoke access when ending a session. Keep invitation tokens and credentials out of public [diagnostic reports](../preferences/troubleshooting.md).
 
 <DemoFrame scenario="collaboration" locale="en" title="Demo: collaboration" />
+
+## Operational details {#operational-details}
+
+After joining or approving Teams access, the host must confirm the current native permission revision. `pendingHost` means this is still pending; an active transport or team membership alone grants no native access. Reload after a permission change and recheck host/device status. Observer is read-oriented; moderator adds selected operational controls, automationEditor adds selected editing, and custom requires an explicit reviewed policy. None grants unrestricted scripts or external effects. See [the role and confirmation contract](../../developer/collaboration.md#operational-details) if available controls do not explain a denial.

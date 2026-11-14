@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
-translationRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
+sourceRevision: "c68c149552a943cf0f03393c5dac91bd62abf9c50f791d7b0757599754f4804e"
+translationRevision: "ee008aeff5df0b3917848ed29fc346703f1984d672c0fae300f902205fd724bd"
 order: 10
 ---
 
@@ -41,3 +41,7 @@ L’application s’ouvre et sa navigation principale fonctionne hors ligne. Les
 ## Récupération {#recovery}
 
 En cas de fenêtre vide ou de fermeture précoce, recueillez les diagnostics de démarrage et la version exacte du paquet. AppImage et DEB sont deux formats d’installation différents ; aucun n’est un exécutable Android. Consultez le [périmètre Termux et sans interface graphique](termux.md) pour cet environnement. La compilation depuis les sources comporte des prérequis supplémentaires dans le guide de développement.
+
+## Détails de fonctionnement {#operational-details}
+
+Si aucune fenêtre ne s’ouvre, consultez le journal natif `tiktools.log` (`controller.log` en mode contrôleur) : Windows `%LOCALAPPDATA%/TikTools/logs`, Linux `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`, sauf modification par `TIKTOOLS_HOME` ou `TIKTOOLS_LOG_DIR`. L’initialisation peut échouer avant la création du fichier. Conservez l’erreur du terminal et consultez [conservation et confidentialité](preferences/troubleshooting.md#operational-details) avant partage.

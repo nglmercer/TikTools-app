@@ -28,6 +28,7 @@ export function createDemoHost(scenario: ScenarioId) {
   let disposed = false;
   let signedIn = true;
   let logError = false;
+  let connectionExample: { kind: 'normal' | 'offline' | 'auth'; message: string } = { kind: 'normal', message: '' };
   let runSequence = 0;
   let overlaySequence = 1;
   const totals: AnalyticsTotals = { chats: 40, giftEvents: 2, gifts: 3, diamonds: 10, likeEvents: 1, likes: 5, joins: 1, follows: 1, shares: 1, peakViewers: 24 };
@@ -112,7 +113,15 @@ export function createDemoHost(scenario: ScenarioId) {
   add('automation.fire', (p) => { const event = objectParams(p.record) as unknown as LiveEvent; const action = snapshot.actions.find((r) => event.actionIds?.includes(r.id)); if (!action) fail('Choose an action.'); const run = runAction(action!, event.id); return { trigger: event.trigger, eventSource: 'sample', pinned: true, matched: 1, draftMatched: 1, status: run.status, summary: run.summary, durationMs: 1 }; });
   add('automation.script.analyze', () => fail('Visitor code is never analyzed or executed in this demo.'));
   add('live.status', () => state.liveStatus);
-  add('live.connect', (p) => { const uniqueId = bounded(p.uniqueId ?? 'demo_creator', 'uniqueId', 64); state.liveStatus = { connected: true, uniqueId, roomId: 'demo-room', connectionId: 'demo-connection', native: false }; wire.emitTopic('live.connected', state.liveStatus); return state.liveStatus; });
+  add('live.connect', (p) => {
+    const uniqueId = bounded(p.uniqueId ?? 'demo_creator', 'uniqueId', 64);
+    if (connectionExample.kind !== 'normal') {
+      state.liveStatus.connected = false;
+      wire.emitTopic('live.error', { phase: connectionExample.kind, message: connectionExample.message });
+      throw new DemoRpcError(connectionExample.kind === 'offline' ? 'creator_offline' : 'authentication_required', connectionExample.message);
+    }
+    state.liveStatus = { connected: true, uniqueId, roomId: 'demo-room', connectionId: 'demo-connection', native: false }; wire.emitTopic('live.connected', state.liveStatus); return state.liveStatus;
+  });
   add('live.disconnect', () => { state.liveStatus.connected = false; wire.emitTopic('live.disconnected', {}); return state.liveStatus; });
   add('live.channels', () => ({ rooms: [], nextOffset: null, fetchedAt: DEMO_AT, source: 'demo' }));
   const monitor = { enabled: false, phase: 'stopped', uniqueId: 'demo_creator', pollIntervalSeconds: 30, checks: 0, failures: 0, lastCheckedAt: null as number | null, nextCheckAt: null as number | null, lastError: null };
@@ -199,6 +208,7 @@ export function createDemoHost(scenario: ScenarioId) {
     return true;
   }
   return { ...wire, state, step, get paused() { return paused; }, setPaused(value: boolean) { paused = value; }, tick() { return !paused && step(); }, simulateError(value: boolean) { logError = value; },
+    setConnectionExample(kind: 'normal' | 'offline' | 'auth', message = '') { connectionExample = { kind, message }; },
     diagnostics: () => ({ ...wire.diagnostics(), ticks, paused, disposed, calls: state.calls.length, events: state.feedJournal?.length ?? 0, runs: state.automationRuns.length }),
     wasSuccessful(method: string) { return committed.has(method); },
     pluginInstalled() { return snapshot.plugins.some((plugin) => plugin.installed); },

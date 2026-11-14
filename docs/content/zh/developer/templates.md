@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "51b5b2821344dd1795acb1008496542c90800461cc5fcfff5f2ed41aef6ec7b1"
-translationRevision: "51b5b2821344dd1795acb1008496542c90800461cc5fcfff5f2ed41aef6ec7b1"
+sourceRevision: "34c35d378f38a78866661b97c19113f83b5b5f2846cefa2b5076eb20fe9bdc21"
+translationRevision: "4425e836fb6a4a8d6de9f7bf82aa8d21f268243dc9c6136de1dbf93375b9e486"
 order: 160
 ---
 
@@ -37,8 +37,28 @@ tiktools template profile-export --out backup.tikprofile.json
 
 ## 预期结果与状态 {#expected-result-and-status}
 
-经过审查的规则库导入会创建一致的关联记录，并保留所有者日志。Cloud 目录中的模板/配置导入会保持禁用，直到所有者有意激活。缺失或禁用的操作提供者会导致需求错误，不会被静默替换。一个选中的配置包控制对应的展示上下文；配置选择并不代表远程权限。
+经过审查的规则库导入会创建一致的关联记录，并保留所有者日志。Cloud 目录模板导入保存文档，配置导入及后续应用必须审核 enabled，不能假定禁用。缺失或禁用的操作提供者会导致需求错误，不会被静默替换。一个选中的配置包控制对应的展示上下文；配置选择并不代表远程权限。
 
 ## 恢复与验证 {#recover-and-verify}
 
 修订冲突时，保留候选项、重新加载规则库快照，并审查实际差异。创建新的导入意图前，先解决待处理原生日志。不要将失败的更新隐式转为新建。运行 `bun scripts/task.ts test web rule-templates` 和 `bun scripts/task.ts test web library-journal` 获得针对性前端覆盖。[原生模板服务](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-core/src/services/templates.rs)及生成的 RPC schema 优先于旧 `src/web/views/behavior` 引用。
+
+## 运行细节 {#operational-details}
+
+将第一个 JSON 保存为 `docs-log.tiktemplate.json`；第二个是完整的单条目 `docs-pack.tikprofile.json`。两者都明确禁用动作/事件。参数优先级为 schema 默认值 → 配置 → 条目 → CLI/对话框显式值。完整参数占位保留类型，嵌入占位转换为字符串。省略 enabled 默认 true，应使用 `--disabled` 并检查 UI 最终比较。
+
+当前限制：每模板 8 个动作、12 个筛选，每配置 32 个模板；UI 源文本每模板 64 KiB、每配置 256 KiB；展开深度 64、65,536 节点、每记录 256 KiB、总计 8 MiB。预算错误应通过减少内容解决，不能绕过验证。目录、源文本和展开预算彼此独立。结果不确定时，再次导入前遵循[日志恢复](automations.md#operational-details)。
+
+```json
+{"templateVersion":1,"id":"docs-log","title":"Docs log","params":{"type":"object","properties":{"message":{"type":"string","default":"hello"}}},"actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"{{ params.message }}"}}],"event":{"name":"Chat","trigger":"tiktok.chat","enabled":false,"filters":[],"cooldownMs":1000,"cooldownScope":"global","runMode":"all"}}
+```
+
+```json
+{"profileVersion":1,"id":"docs-pack","name":"Docs pack","description":"","params":{"message":"profile"},"templates":[{"params":{"message":"entry"},"template":{"templateVersion":1,"id":"docs-log","title":"Docs log","params":{"type":"object","properties":{"message":{"type":"string","default":"hello"}}},"actions":[{"name":"Log","typeId":"core.log","enabled":false,"config":{"message":"{{ params.message }}"}}],"event":{"name":"Chat","trigger":"tiktok.chat","enabled":false}}}]}
+```
+
+```sh
+tiktools template import docs-log.tiktemplate.json --dry-run
+tiktools template import docs-log.tiktemplate.json --disabled
+tiktools template profile-import docs-pack.tikprofile.json --disabled
+```

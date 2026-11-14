@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
-translationRevision: "455bcdbf94d1bff28bd50dcb993cdff59dd000214e25c49bb194c9b3124e8e59"
+sourceRevision: "1872b905a3eda616e94cae8902af1ca659158e89dc8157ab9029a70fda00ce95"
+translationRevision: "1872b905a3eda616e94cae8902af1ca659158e89dc8157ab9029a70fda00ce95"
 order: 210
 ---
 
@@ -54,3 +54,18 @@ A change report names the passing suite and its scope. Run frontend lint/type/bu
 ## Recovery {#recovery}
 
 If a filter matches nothing, fix the filter instead of reporting success. If a fixture misses a newly required RPC, extend its explicit contract rather than making unknown calls succeed. Keep uncertain/skipped manual acceptance visible. The [test runner](https://github.com/nglmercer/TikTools-app/blob/remake/scripts/lib/test-runner.ts) defines current command syntax; [performance](performance.md) explains reproducible load evidence.
+
+## Operational details {#operational-details}
+
+A fresh Bun install does not install Playwright browsers. Use the locked local Playwright command below; Linux `--with-deps` also installs system packages and needs the corresponding OS privileges. Main `playwright.config.ts` owns a Vite dev server and fake-host SPA tests, not Wry; real compiled plugin-UI cases additionally need the optional plugin checkout’s UI build. Widget browser suites need built widgets and their own configuration. Site tests use `playwright.site.config.ts` and an assembled docs/demo site; build it before the official `docs test`, which runs docs-script tests, demo/help tests, a production frontend build and Chromium. Never report a skipped fixture as acceptance.
+
+`bun run ci` and the workflow both serialize workspace Rust tests using `-- --test-threads=1`. Local CI still omits separate MSRV/OS matrix evidence. PR CI selects frontend/native/desktop/MSRV/plugin-runtime jobs by changed paths; CodeQL is tag/manual only and no dependency-review workflow is versioned here. External branch-policy checks may differ. Docs/site checks must be run locally because ordinary docs-only paths do not launch the manual site workflow. Use stable Bun 1.4.4 for the official gate; the VitePress parser unit fixture is bounded while `docs check` validates the entire corpus.
+
+```sh
+bun x --no-install playwright install chromium
+# Linux, when browser system libraries are missing:
+bun x --no-install playwright install --with-deps chromium
+bun scripts/task.ts test e2e
+TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build
+bun scripts/task.ts docs test
+```

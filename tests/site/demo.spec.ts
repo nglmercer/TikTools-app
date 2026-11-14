@@ -2,6 +2,24 @@ import { test, expect } from '@playwright/test';
 import { demoLocales, scenarios } from '../../src/web/demo/scenarios.ts';
 import { componentFamilies } from '../../docs/scripts/component-families.ts';
 
+test('table examples sort actual rows and tab examples retain independent drafts', async ({ page }) => {
+  await page.goto('demo/?scenario=settings&locale=en&route=/components/collections');
+  const example = page.locator('.component-example');
+  await example.getByRole('columnheader', { name: '#' }).click();
+  await expect(example.locator('tbody tr').first()).toContainText('1');
+  await example.getByRole('columnheader', { name: '#' }).click();
+  await expect(example.locator('tbody tr').first()).toContainText('3');
+  await page.goto('demo/?scenario=settings&locale=en&route=/components/tabs');
+  const tabs = page.locator('.component-example');
+  await tabs.locator('textarea').fill('first draft');
+  await tabs.getByRole('tab').nth(1).click();
+  await tabs.locator('textarea').fill('second draft');
+  await tabs.getByRole('tab').nth(0).click();
+  await expect(tabs.locator('textarea')).toHaveValue('first draft');
+  await tabs.getByRole('tab').nth(1).click();
+  await expect(tabs.locator('textarea')).toHaveValue('second draft');
+});
+
 test('the jp URL alias selects Japanese and is rewritten to the canonical ja locale', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=jp');
   await expect(page.getByTestId('demo-play')).toBeEnabled();

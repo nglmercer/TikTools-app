@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
-translationRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
+sourceRevision: "4830f0a02244f46bfefb9b37c09d96c969688d022a0df90359c96c3e359af147"
+translationRevision: "e97c731542bee311a0618d9a8cfd28fbaafd42269b289da9c703b330e55ee895"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ Le filtrage et l’inspection sont disponibles. Lors d’un trafic important, l�
 Si le flux est vide, retirez les filtres, reprenez le défilement et vérifiez l’état de connexion. Une salle calme peut fonctionner normalement. La reconnexion au même créateur conserve le contexte ; changer de créateur le modifie. **Clear** vide le flux de travail sans réinitialiser les points ou les statistiques. Examinez les indicateurs de perte via les [diagnostics](../preferences/troubleshooting.md), sans supposer que toutes les lignes manquantes à l’affichage sont des événements distants perdus.
 
 <DemoFrame scenario="feed" locale="fr" title="Démo : flux" />
+
+## Détails de fonctionnement {#operational-details}
+
+Cette version conserve au plus 300 événements affichés et en prépare jusqu’à 900 en attendant la présentation. Elle retire d’abord la plus ancienne ligne autre qu’un cadeau, puis les cadeaux seulement lorsqu’il ne reste aucun autre type. Un cadeau ancien peut donc survivre à un chat récent. Suspendre le défilement n’arrête pas l’entrée et ne garantit pas la conservation. Les filtres ne récupèrent pas les lignes retirées ; une perte ne permet pas de rejouer points ou actions.

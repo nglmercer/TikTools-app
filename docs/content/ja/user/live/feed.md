@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
-translationRevision: "8589ccb9d2f5cc646ae0bf9ac5164b90ba7cc73e4bcc819535fc59e0752fe30d"
+sourceRevision: "4830f0a02244f46bfefb9b37c09d96c969688d022a0df90359c96c3e359af147"
+translationRevision: "957815be64ea5840b2e21b6ae73d5486891c2bfc0656701876345aaf02c88d48"
 order: 20
 ---
 
@@ -38,3 +38,7 @@ order: 20
 空ならフィルターを外し、スクロールを再開して接続状態を確認します。静かなルームでも正常な場合があります。同じ配信者への再接続は対象を保持し、切り替えると対象が変わります。**フィードを消去** は作業用フィードだけを消し、ポイントや統計はリセットしません。欠落表示は[診断](../preferences/troubleshooting.md) で調べ、表示にない行がすべて配信元でも失われたとは判断しないでください。
 
 <DemoFrame scenario="feed" locale="ja" title="デモ: フィード" />
+
+## 運用の詳細 {#operational-details}
+
+この版の表示保持は最大 300 件、表示待ちの一時保存は最大 900 件です。最も古いギフト以外の行から除き、他の種類がなくなってからギフトを除きます。そのため古いギフトが新しいチャットより長く残る場合があります。スクロール停止中も受信は続き、保持は保証されません。フィルターでは消えた行を戻せません。欠落表示を理由にポイントやアクションを再実行しないでください。

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
-translationRevision: "8842472fa359a7c4b2e33bbd6e84a900b9a6dd71a8207afcf61aa507be7494d3"
+sourceRevision: "3dd24191fb33ac1ebfd42ca33e68a5a97537a89df09533c4588207ea6087daa5"
+translationRevision: "45d5894c226a273bc195b0e2f4970c4dacb660cf9a4b7e48255df162c2ea416e"
 order: 10
 ---
 
@@ -43,6 +43,16 @@ bun scripts/task.ts packaged  # 使用打包后的前端路径，而非开发 UR
 ```
 
 `start` 启动 Vite，等待分配的 URL，再让桌面通过 `TIKTOOLS_DEV_URL` 连接。它可从 `TIKTOOLS_PLUGINS_REPO` 或相邻目录中找到的独立 `plugins-example-tiktools` 检出准备插件，不会编译应用仓库内的插件实现。设置 `TIKTOOLS_SKIP_DEV_PLUGINS=1` 可跳过准备。不会自动替换宿主；已有桌面所有者会导致启动错误。
+
+启动前，请先安装外部插件仓库自己的依赖。在 TikTools 仓库中执行以下命令，使用锁文件安装工具链、在不启动宿主的情况下准备插件，并在 `dist/plugins/` 中生成可分发归档。准备过程会重新构建插件界面，并替换 `.dev-plugins` 中的生成内容。`TIKTOOLS_PLUGINS_REPO=off` 会清空该暂存目录，不加载外部开发插件；用户已安装的插件另行管理。
+
+下面的相邻目录路径只是本地示例。CI 不需要该插件仓库；目录布局不同时，可将 `TIKTOOLS_PLUGINS_REPO` 设为绝对路径。
+
+```sh
+bun install --frozen-lockfile --cwd ../plugins-example-tiktools
+bun scripts/task.ts prepare-plugins
+bun scripts/task.ts plugins --all
+```
 
 进行隔离的原生实验时，启动宿主前将 `TIKTOOLS_HOME` 设为可丢弃目录。控制该宿主的所有 CLI 终端使用同一主目录。绝不要删除运行中宿主的所有权锁。
 

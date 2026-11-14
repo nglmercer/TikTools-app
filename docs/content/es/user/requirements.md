@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
-translationRevision: "f3bc30b94983b95c7ce6ffc7fe8b3707aa175cadd2156f26f16b8b77be83ea6b"
+sourceRevision: "c68c149552a943cf0f03393c5dac91bd62abf9c50f791d7b0757599754f4804e"
+translationRevision: "1664c2a41360e5483b50977d7e29bcce1c4d590447196b2a0cf0c394ab9f2ef8"
 order: 10
 ---
 
@@ -41,3 +41,7 @@ La aplicación abre y su navegación principal funciona sin conexión. Las integ
 ## Recuperación {#recovery}
 
 Ante una ventana vacía o un cierre temprano, recopila los diagnósticos de inicio y la versión exacta del paquete. AppImage y DEB son formatos distintos de instalación; ninguno se ejecuta en Android. Consulta el [alcance de Termux y del modo sin interfaz](termux.md). La compilación desde código tiene requisitos adicionales en Desarrollo.
+
+## Detalles de operación {#operational-details}
+
+Si no aparece la ventana, busca el log nativo `tiktools.log` (`controller.log` en modo controlador): Windows `%LOCALAPPDATA%/TikTools/logs`, Linux `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`, salvo cambios de `TIKTOOLS_HOME` o `TIKTOOLS_LOG_DIR`. El registro puede fallar antes de crear archivo. Conserva el error de terminal disponible y revisa [retención y privacidad](preferences/troubleshooting.md#operational-details) antes de compartir.

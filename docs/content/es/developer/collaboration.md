@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "cb0c8fc55416a0ade232a0272051d244ed5558d4b1f3aec87d37a7500af59475"
-translationRevision: "cb0c8fc55416a0ade232a0272051d244ed5558d4b1f3aec87d37a7500af59475"
+sourceRevision: "fb71673a581e923e3c02ae401a46937b007f9919690ca020d22c27b370b6c61d"
+translationRevision: "1067c9a16b3b87c09699da32141cd1629328938986b2f18276388c2a2d69848f"
 order: 190
 ---
 
@@ -43,3 +43,9 @@ La colaboración directa nativa implementa lecturas acotadas, mutaciones durader
 ## Recuperación y verificación {#recover-and-verify}
 
 Ante revocación o cambio de identidad, detén suscripciones y elimina proyecciones privadas. Usa `collaboration.subscribe`, `snapshot` y `resume` según dominios negociados y cursores vigentes. Resuelve el identificador original ante una confirmación incierta. No repitas un borrado con otro identificador ni restaures autoridad desde un recibo antiguo. El [código de autorización](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-collaboration/src) y la política del registro definen el límite; superar TLS no prueba autorización.
+
+## Detalles de operación {#operational-details}
+
+Secuencia Teams: registra dispositivo, emite/acepta invitación o solicitud, aprueba y haz que el host confirme la revisión actual del permiso nativo. `pendingHost` indica ese paso pendiente. Una revisión nueva invalida la confirmación anterior; recarga ante expectedRevision caducada. Aceptación nativa exige snapshot reciente, host/dispositivo activos, permiso activo y confirmedRevision igual a revision. La UI expone paneles host/unión y aprobaciones disponibles; confirmación nativa es contrato API, no botón prometido en todo build.
+
+Conversión heredada cerrada: observer lee live/workflows/puntos/competición/automatización/resultados; moderator añade ajustar puntos, toggles workflow/automatización y gestión de competición; automationEditor añade edición a las lecturas. Ningún preset implica scripts arbitrarios, efectos externos ni delegación reutilizable. `nativeGrant` explícito exige rol `custom`; restringe recursos, efectos y delta allí. Tipo de cliente nativo: solo `desktop` o `agent`. Políticas incompatibles fallan sin ampliar derechos. Diagnostica pairing, confirmación, revisión y transporte por separado.
