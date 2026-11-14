@@ -5,8 +5,52 @@ import { parseDemoOptions, scenarios } from '../scenarios.ts';
 import { createLiveFeedState } from '@/entities/live-event/model/live-feed-state.ts';
 import { flushPromises } from '@vue/test-utils';
 import { parseHosts, parseDevices, parseAccessibleTeams } from '@/entities/cloud-teams/api/teams-api.ts';
+import type { AnalyticsTotals, GiftCatalogEntry, UiEvent } from '../../../shared/messages.ts';
+import { DEMO_ACTIVITY_LENGTH } from '../fixtures/audience.ts';
 
 describe('public demo host', () => {
+  it('populates the feed, profiles, gift catalog and analytics from the same six fictional viewers', async () => {
+    const host = createDemoHost('feed', 'es'); const client = createControlClient({ transport: host.transport }); client.attach();
+    for (let i = 0; i < DEMO_ACTIVITY_LENGTH; i++) { host.step(); await Promise.resolve(); }
+    const events = host.state.feedJournal!.map((row) => row.event as unknown as UiEvent);
+    expect(new Set(events.slice(0, 9).map((event) => event.author)).size).toBe(6);
+    expect(new Set(events.map((event) => event.kind))).toEqual(new Set(['chat', 'like', 'gift', 'member', 'social']));
+    expect(events[6]).toMatchObject({ author: 'milo', text: 'Saludos desde Lima 👋' });
+    expect(host.state.automationRuns).toEqual(expect.arrayContaining([expect.objectContaining({ summary: 'Hello Kai', test: false })]));
+    const catalog = await client.call<{ gifts: GiftCatalogEntry[] }>('gifts.list', {});
+    expect(catalog.gifts[0]).toMatchObject({ id: 'demo-rose', iconUrl: expect.any(String) });
+    expect(events.filter((event) => event.kind === 'gift').map((event) => event.giftDetails?.count)).toEqual([1, 3, 2, 5, 1]);
+    for (const event of events) {
+      expect(host.state.leaderboard.some((viewer) => viewer.uniqueId === event.author)).toBe(true);
+      if (event.kind === 'gift') expect(event.giftDetails?.imageUrl).toBe(catalog.gifts[0]!.iconUrl);
+    }
+    for (const viewer of host.state.leaderboard) {
+      const last = events.findLast((event) => event.author === viewer.uniqueId)!;
+      expect(viewer).toMatchObject({ points: last.points, level: last.level });
+    }
+    const { summary } = await client.call<{ summary: { totals: AnalyticsTotals; topViewers: Array<{ chats: number; likes: number; shares: number; diamonds: number }> } }>('analytics.summary', {});
+    expect(summary.topViewers).toHaveLength(6);
+    for (const [total, key] of [['chats', 'chats'], ['likes', 'likes'], ['shares', 'shares'], ['diamonds', 'diamonds']] as const) expect(summary.totals[total]).toBe(summary.topViewers.reduce((sum, viewer) => sum + viewer[key], 0));
+    client.detach(); host.dispose();
+  });
+  it('awards the actual sender using the edited rates, toggles, subscriber bonus and gift quantity', async () => {
+    const host = createDemoHost('feed'); const client = createControlClient({ transport: host.transport }); client.attach();
+    const viewer = (id: string) => host.state.leaderboard.find((user) => user.uniqueId === id)!;
+    host.step(); await Promise.resolve();
+    expect(viewer('luna').points).toBe(121);
+    await client.call('points.config.set', { pointsPerLikeEnabled: false, pointsPerCoin: 2, pointsPerChat: 3, subBonusMultiplier: 100 });
+    host.step(); await Promise.resolve();
+    expect(viewer('milo')).toMatchObject({ points: 85, totalLikes: 42 });
+    expect(viewer('luna').points).toBe(121);
+    host.step(); await Promise.resolve();
+    expect(viewer('sofia')).toMatchObject({ points: 66, totalCoins: 9 });
+    host.step(); await Promise.resolve();
+    expect(viewer('kai')).toMatchObject({ points: 48, totalChats: 10 });
+    for (let i = 0; i < 5; i++) { host.step(); await Promise.resolve(); }
+    expect(viewer('nora')).toMatchObject({ points: 34, totalCoins: 5 });
+    expect(viewer('leo').points).toBe(20);
+    client.detach(); host.dispose();
+  });
   it('keeps offline and session examples disconnected, then permits recovery without credentials', async () => {
     const host = createDemoHost('connection'); const client = createControlClient({ transport: host.transport }); client.attach();
     for (const [kind, code] of [['offline', 'creator_offline'], ['auth', 'authentication_required']] as const) {

@@ -98,6 +98,20 @@ for (const locale of docLocales) {
     const frame = page.frameLocator('.product-stage iframe');
     await expect(frame.locator('.live-feed')).toContainText('Hello TikTools!');
     await expect(frame.getByTestId('demo-event-count')).toContainText('9 / 300');
+    expect(new Set(await frame.locator('.event-row__author').evaluateAll(nodes => nodes.map(node => node.getAttribute('title')))).size).toBe(6);
+    const rose = frame.locator('img.event-row__gift').first();
+    await rose.scrollIntoViewIfNeeded();
+    await expect(rose).toHaveAttribute('alt', 'Rose');
+    await expect.poll(() => rose.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    expect(new URL((await rose.getAttribute('src'))!,page.url()).origin).toBe(new URL(baseURL!).origin);
+    await frame.locator('.event-row__author[title="@sofia"]').first().click();
+    await expect(frame.locator('.viewer-profile__handle')).toHaveText('@sofia');
+    await expect(frame.locator('.viewer-profile__stat dd')).toHaveText(['65','12','9','15','1']);
+    // Re-select the feed to start the ordinary landing tab-switch checks fresh.
+    await page.locator('#stage-connection-tab').click();
+    await expect(frame.locator('#live-handle')).toBeVisible();
+    await page.locator('#stage-feed-tab').click();
+    await expect(frame.locator('.live-feed')).toContainText('Hello TikTools!');
     await expect(page.locator('.product-stage iframe')).toHaveAttribute('loading','eager');
     const height = (await stage.boundingBox())!.height;
     const source = await page.locator('.product-stage iframe').getAttribute('src');

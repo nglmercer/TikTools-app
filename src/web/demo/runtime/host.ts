@@ -2,13 +2,14 @@ import type { BehaviorRun, LiveAction, LiveEvent } from '../../../automation/beh
 import type { AutomationEvent } from '../../../automation/types.ts';
 import { matchesAllFilters } from '../../../automation/behavior/filter-simulation.ts';
 import { renderTemplate } from '../../../automation/behavior/templates.ts';
-import type { UiEvent, AnalyticsTotals } from '../../../shared/messages.ts';
+import type { AnalyticsTotals } from '../../../shared/messages.ts';
 import type { RequestMetadata, ResourceVersion } from '@/shared/api/control-contracts.ts';
 import type { RuntimeVariable } from '@/entities/runtime-global/lib/runtime-variable.ts';
 import { isRuntimeVariable, variableText } from '@/entities/runtime-global/lib/runtime-variable.ts';
 import { emptyOverlay, validateOverlay, type OverlayDocument } from '../../../shared/cloud-overlay-schema.ts';
-import type { ScenarioId } from '../scenarios.ts';
+import type { ScenarioId, DemoLocale } from '../scenarios.ts';
 import { scenarioState, DEMO_AT } from '../fixtures/scenario-state.ts';
+import { demoActivity } from '../fixtures/audience.ts';
 import { createDemoTransport, demoMethod, DemoRpcError, objectParams, stringParam, type DemoMethod } from './transport.ts';
 
 const clone = <T>(value: T): T => structuredClone(value);
@@ -17,7 +18,7 @@ const fail = (message: string): never => { throw new DemoRpcError('demo_unsuppor
 const safeNumber = (value: unknown, fallback = 0) => typeof value === 'number' && Number.isFinite(value) ? Math.max(-10000, Math.min(10000, value)) : fallback;
 
 /** Deliberately explicit host: supported methods mutate bounded memory, never execute external effects. */
-export function createDemoHost(scenario: ScenarioId) {
+export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') {
   const { state, snapshot } = scenarioState(scenario);
   const methods: Record<string, DemoMethod> = {};
   const versions = new Map<string, string>();
@@ -31,7 +32,10 @@ export function createDemoHost(scenario: ScenarioId) {
   let connectionExample: { kind: 'normal' | 'offline' | 'auth'; message: string } = { kind: 'normal', message: '' };
   let runSequence = 0;
   let overlaySequence = 1;
-  const totals: AnalyticsTotals = { chats: 40, giftEvents: 2, gifts: 3, diamonds: 10, likeEvents: 1, likes: 5, joins: 1, follows: 1, shares: 1, peakViewers: 24 };
+  const sum = (key: string) => state.leaderboard.reduce((total, viewer) => total + safeNumber(viewer[key]), 0);
+  const totals: AnalyticsTotals = { chats: sum('totalChats'), giftEvents: state.leaderboard.length, gifts: sum('totalCoins'), diamonds: sum('totalCoins'), likeEvents: state.leaderboard.length, likes: sum('totalLikes'), joins: state.leaderboard.length, follows: 2, shares: sum('totalShares'), peakViewers: state.leaderboard.length };
+  const sessionLikes = new Map<string, number>();
+  const board = () => [...state.leaderboard].sort((left, right) => Number(right.points) - Number(left.points));
   const overlayId = '00000000-0000-4000-8000-000000000001';
   const overlays = new Map<string, { id: string; revision: number; status: string; document: OverlayDocument }>([[overlayId, { id: overlayId, revision: 1, status: 'draft', document: { ...emptyOverlay('chat', 'Demo chat'), elements: [{ id: 'text-1', type: 'text', x: 20, y: 20, width: 600, height: 80, source: { kind: 'field', field: 'chat.message' } }] } }]]);
   const resource = (kind: string, id: string): ResourceVersion => ({ kind: 'automation', scope: kind, id, revision: versions.get(`${kind}:${id}`) ?? (rows(kind).some((r) => r.id === id) ? '1' : '0') });
@@ -128,12 +132,12 @@ export function createDemoHost(scenario: ScenarioId) {
   add('live.monitor.status', () => monitor);
   add('live.monitor.start', (p) => { Object.assign(monitor, { enabled: true, phase: 'waiting', uniqueId: bounded(p.uniqueId, 'uniqueId', 64), checks: monitor.checks + 1, lastCheckedAt: DEMO_AT }); return monitor; });
   add('live.monitor.stop', () => { Object.assign(monitor, { enabled: false, phase: 'stopped' }); return monitor; });
-  add('creators.get', () => ({ creator: state.creator })); add('creators.recent', () => ({ creators: state.recentCreators })); add('gifts.list', () => ({ gifts: [] }));
+  add('creators.get', () => ({ creator: state.creator })); add('creators.recent', () => ({ creators: state.recentCreators })); add('gifts.list', () => ({ gifts: state.gifts }));
   add('points.config.get', () => state.pointsConfig); add('points.config.set', (p) => { for (const [key, value] of Object.entries(p)) if (Object.hasOwn(state.pointsConfig, key) && ['number', 'boolean', 'string'].includes(typeof value)) state.pointsConfig[key] = typeof value === 'number' ? safeNumber(value) : value; return state.pointsConfig; });
-  add('points.leaderboard', () => ({ viewers: state.leaderboard }));
+  add('points.leaderboard', () => ({ viewers: board() }));
   add('points.adjust', (p) => { const viewer = state.leaderboard.find((v) => v.uniqueId === p.uniqueId); if (!viewer) throw new DemoRpcError('not_found', 'Unknown demo viewer.'); viewer.points = Math.max(0, safeNumber(viewer.points) + safeNumber(p.delta)); viewer.level = Math.floor(Number(viewer.points) / Math.max(10, safeNumber(state.pointsConfig.pointsPerLevel, 100))) + 1; return { ok: true }; });
   add('points.reset', () => { for (const v of state.leaderboard) { v.points = 0; v.level = 1; } return { ok: true }; });
-  add('analytics.summary', (p) => ({ summary: { creatorUniqueId: p.creatorUniqueId, startDay: p.startDay, endDay: p.endDay, totals, days: [{ day: p.startDay, ...totals }], hours: [], sessions: 1, topViewers: [{ uniqueId: 'luna', chats: totals.chats, gifts: totals.gifts, diamonds: totals.diamonds, likes: totals.likes, shares: totals.shares, interactions: totals.chats + totals.gifts + totals.likes, lastSeen: DEMO_AT + ticks * 1000 }] } }));
+  add('analytics.summary', (p) => ({ summary: { creatorUniqueId: p.creatorUniqueId, startDay: p.startDay, endDay: p.endDay, totals, days: [{ day: p.startDay, ...totals }], hours: [], sessions: 1, topViewers: state.leaderboard.map((viewer) => ({ uniqueId: viewer.uniqueId, chats: viewer.totalChats, gifts: viewer.totalCoins, diamonds: viewer.totalCoins, likes: viewer.totalLikes, shares: viewer.totalShares, interactions: Number(viewer.totalChats) + Number(viewer.totalCoins) + Number(viewer.totalLikes) + Number(viewer.totalShares), lastSeen: viewer.lastSeen })) } }));
   add('globals.list', () => ({ globals: state.globals }));
   const variables = () => ({ revision: state.typedGlobalsRevision ?? 'a'.repeat(64), variables: state.typedGlobals });
   add('globals.typed.list', variables);
@@ -189,15 +193,36 @@ export function createDemoHost(scenario: ScenarioId) {
     if (disposed || !state.liveStatus.connected || ticks >= 300 || wire.diagnostics().queuedResponses > 20) return false;
     if (ticks === 0) wire.emitTopic('live.connected', state.liveStatus);
     ticks += 1;
-    const kind = ticks % 3 === 0 ? 'gift' : ticks % 3 === 2 ? 'like' : 'chat';
-    const event: UiEvent = { kind, author: 'luna', nickname: 'Luna', text: kind === 'chat' ? 'Hello TikTools!' : kind === 'gift' ? 'Rose' : '5 likes', msgId: `demo-message-${ticks}`, correlationId: `demo-message-${ticks}`, feedCursor: ticks, roomId: 'demo-room', creatorId: 'demo_creator', sourceType: kind, points: safeNumber(state.leaderboard[0]!.points) + 1, pointsDelta: 1, level: 2, ...(kind === 'gift' ? { giftDetails: { name: 'Rose', count: 1, diamonds: 1, repeatEnd: true } } : {}), ...(kind === 'like' ? { likeCount: 5, likeUserTotal: ticks * 5 } : {}) };
-    state.leaderboard[0]!.points = event.points; state.leaderboard[0]!.level = Math.floor(Number(event.points) / Math.max(10, safeNumber(state.pointsConfig.pointsPerLevel, 100))) + 1; event.level = Number(state.leaderboard[0]!.level);
-    if (kind === 'chat') totals.chats += 1; if (kind === 'gift') { totals.gifts += 1; totals.diamonds += 1; } if (kind === 'like') totals.likes += 5;
+    const { event, data, type } = demoActivity(ticks, locale);
+    const viewer = state.leaderboard.find((user) => user.uniqueId === event.author)!;
+    const config = state.pointsConfig;
+    const rate = type === 'tiktok.chat' ? 'pointsPerChat' : type === 'tiktok.gift' ? 'pointsPerCoin' : type === 'tiktok.like' ? 'pointsPerLike' : type === 'tiktok.follow' ? 'pointsPerFollow' : type === 'tiktok.share' ? 'pointsPerShare' : 'pointsPerJoin';
+    const units = event.giftDetails?.diamonds ?? event.likeCount ?? 1;
+    const base = config[`${rate}Enabled`] === true ? Math.max(0, safeNumber(config[rate])) * units : 0;
+    const bonus = viewer.isSubscriber ? Math.max(0, safeNumber(config.subBonusMultiplier)) / 100 : 0;
+    const delta = Number((base * (1 + bonus)).toFixed(2));
+    viewer.points = Number((Number(viewer.points) + delta).toFixed(2));
+    viewer.level = Math.floor(Number(viewer.points) / Math.max(10, safeNumber(config.pointsPerLevel, 100))) + 1;
+    viewer.lastSeen = DEMO_AT + ticks * 1000;
+    event.points = Number(viewer.points); event.pointsDelta = delta; event.level = Number(viewer.level);
+    if (event.kind === 'chat') { totals.chats += 1; viewer.totalChats = Number(viewer.totalChats) + 1; }
+    if (event.kind === 'gift') { totals.giftEvents += 1; totals.gifts += event.giftDetails!.count; totals.diamonds += units; viewer.totalCoins = Number(viewer.totalCoins) + units; }
+    if (event.kind === 'like') {
+      totals.likeEvents += 1; totals.likes += units; viewer.totalLikes = Number(viewer.totalLikes) + units;
+      const previous = sessionLikes.get(event.author) ?? 0;
+      event.likeUserTotal = previous + units; event.likeViewerKey = String(viewer.userId); sessionLikes.set(event.author, event.likeUserTotal);
+      data.total = totals.likes; data.aggregation = { user: { previous, total: event.likeUserTotal } };
+    }
+    if (type === 'tiktok.join') totals.joins += 1;
+    if (type === 'tiktok.follow') totals.follows += 1;
+    if (type === 'tiktok.share') { totals.shares += 1; viewer.totalShares = Number(viewer.totalShares) + 1; }
     (state.feedJournal ??= []).push({ cursor: ticks, event: event as unknown as Record<string, unknown> }); if (state.feedJournal.length > 60) state.feedJournal.shift();
     wire.emitTopic('live.ui-event', { event, cursor: ticks, sequence: ticks });
-    wire.emitTopic('points.changed', { uniqueId: 'luna', delta: 1, totalPoints: event.points, level: event.level });
-    wire.emitTopic('room.stats', { viewers: 24, totalUsers: 100, topViewers: [] });
-    const envelope = sample(kind === 'chat' ? 'tiktok.chat' : kind === 'gift' ? 'tiktok.gift' : 'tiktok.like');
+    wire.emitTopic('points.changed', { uniqueId: event.author, delta, totalPoints: event.points, level: event.level });
+    wire.emitTopic('ui.points.snapshot', { viewers: board() });
+    wire.emitTopic('room.stats', { viewers: state.leaderboard.length, totalUsers: state.leaderboard.length, topViewers: [...state.leaderboard].sort((left, right) => Number(right.totalCoins) - Number(left.totalCoins)).map((user, index) => ({ rank: index + 1, score: user.totalCoins, delta: 0, uniqueId: user.uniqueId, nickname: user.nickname, userId: user.userId })) });
+    wire.emitTopic('live.likes-ranking', { creatorId: 'demo_creator', roomId: 'demo-room', leaders: [...sessionLikes].sort((left, right) => right[1] - left[1]).map(([uniqueId, score], index) => { const user = state.leaderboard.find((user) => user.uniqueId === uniqueId)!; return { rank: index + 1, score, uniqueId, nickname: user.nickname, userId: user.userId }; }) });
+    const envelope: AutomationEvent = { id: event.msgId!, type, timestamp: Number(viewer.lastSeen), data, user: { uniqueId: event.author, nickname: event.nickname!, secUid: `demo-${event.author}`, userId: String(viewer.userId), avatarUrl: null }, points: { delta, total: event.points, level: event.level }, creator: { uniqueId: 'demo_creator', roomId: 'demo-room' } };
     for (const trigger of snapshot.events) {
       const now = DEMO_AT + ticks * 1000;
       if (!trigger.enabled || trigger.trigger !== envelope.type || !matchesAllFilters(trigger.filters, envelope) || now - (cooldowns.get(trigger.id) ?? 0) < trigger.cooldownMs) continue;
@@ -212,6 +237,6 @@ export function createDemoHost(scenario: ScenarioId) {
     diagnostics: () => ({ ...wire.diagnostics(), ticks, paused, disposed, calls: state.calls.length, events: state.feedJournal?.length ?? 0, runs: state.automationRuns.length }),
     wasSuccessful(method: string) { return committed.has(method); },
     pluginInstalled() { return snapshot.plugins.some((plugin) => plugin.installed); },
-    dispose() { disposed = true; paused = true; wire.transport.detach(); committed.clear(); versions.clear(); cooldowns.clear(); state.calls = []; state.feedJournal = []; state.automationRuns = []; },
+    dispose() { disposed = true; paused = true; wire.transport.detach(); committed.clear(); versions.clear(); cooldowns.clear(); sessionLikes.clear(); state.calls = []; state.feedJournal = []; state.automationRuns = []; },
   };
 }

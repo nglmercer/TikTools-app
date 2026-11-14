@@ -21,7 +21,7 @@ import { useNavigationStore } from '@/shared/model/navigation-store.ts';
 import type { BuiltinAppTab } from '@/types.ts';
 import { parseFrameCommand, type ConnectionCase, type DemoFrameState } from './frame-messages.ts';
 export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, storage: { clear(): void }) {
-  const host = createDemoHost(options.scenario);
+  const host = createDemoHost(options.scenario, options.locale);
   configureAppClock(() => DEMO_AT + host.diagnostics().ticks * 1000);
   const client = createControlClient({ transport: host.transport });
   if (options.embed || !validDemoRoute(location.hash.slice(1))) location.hash = options.route;

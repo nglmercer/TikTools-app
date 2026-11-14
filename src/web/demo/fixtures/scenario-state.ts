@@ -3,6 +3,7 @@ import type { CollaborationStatus } from '@/entities/collaboration/api/types.ts'
 import { viewerGrant } from '@/entities/collaboration/api/types.ts';
 import { baseHostState } from './base-host.ts';
 import type { ScenarioId } from '../scenarios.ts';
+import { demoViewers, demoGifts } from './audience.ts';
 
 export const DEMO_AT = 1_760_000_000_000;
 const text = (value: string) => ({ default: value, i18key: `demo.${value.replaceAll(/[^a-zA-Z]/g, '').slice(0, 40)}` });
@@ -34,7 +35,8 @@ export function scenarioState(id: ScenarioId) {
     liveStatus: { connected: id !== 'connection', uniqueId: id !== 'connection' ? 'demo_creator' : null, roomId: 'demo-room', connectionId: 'demo-connection', native: false },
     creator: { uniqueId: 'demo_creator', roomId: 'demo-room', nickname: 'Demo Creator', avatarUrl: null, title: 'Fictional LIVE', lastConnected: DEMO_AT, connectCount: 1 },
     recentCreators: [{ uniqueId: 'demo_creator', nickname: 'Demo Creator', avatarUrl: null, roomId: 'demo-room', lastConnected: DEMO_AT, connectCount: 1 }],
-    leaderboard: [{ uniqueId: 'luna', nickname: 'Luna', points: 120, level: 2, isSubscriber: false, totalChats: 40, totalCoins: 10, totalLikes: 5, totalShares: 1, firstSeen: DEMO_AT, lastSeen: DEMO_AT }],
+    leaderboard: demoViewers(DEMO_AT),
+    gifts: demoGifts.map((gift) => ({ ...gift })),
     typedGlobals: { greeting: { type: 'text', value: 'Hello' }, goal: { type: 'number', value: 100 } }, globals: { greeting: 'Hello', goal: '100' },
     sync: { signedIn: true, enabled: true, entries: [], resolved: [] },
     variableComparisons: [{ name: 'greeting', review: 'demo-review-1', local: { type: 'text', value: 'Hello' }, cloud: { type: 'text', value: 'Welcome' }, cloudDeleted: false, localSecret: false, blockedLocal: false, pendingStatus: null, canSend: true, canApply: true, canWithdraw: false }],
