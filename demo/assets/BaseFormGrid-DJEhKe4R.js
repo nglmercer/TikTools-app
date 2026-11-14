@@ -1,0 +1,1 @@
+import{F as e,M as t,f as n,t as r}from"./_plugin-vue_export-helper-DIHKSeMp.js";var i={},a={class:`base-form-grid`};function o(r,i){return t(),n(`div`,a,[e(r.$slots,`default`,{},void 0,!0)])}var s=r(i,[[`render`,o],[`__scopeId`,`data-v-26e6dfea`]]);export{s as t};

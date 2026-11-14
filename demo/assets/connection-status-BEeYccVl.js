@@ -1,0 +1,1 @@
+function e(e,t){return e?e.ok?t(`connections.servers.connectedIn`,{ms:e.latencyMs}):e.reachable&&e.gameplayReady===!1?t(`connections.servers.apiNotReady`):t(`connections.servers.failed`):t(`connections.servers.notConfigured`)}export{e as t};

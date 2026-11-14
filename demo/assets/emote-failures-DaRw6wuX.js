@@ -1,0 +1,1 @@
+var e=new Set;function t(t){return e.has(t)}function n(t){if(!e.has(t)){if(e.size>=256){let t=e.values().next().value;t!==void 0&&e.delete(t)}e.add(t)}}function r(){return e.size}export{t as n,n as r,r as t};

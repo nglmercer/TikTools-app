@@ -1,0 +1,1 @@
+var e;function t(t){e=t}function n(t=`local`){return e?e(t):t===`local`?globalThis.localStorage:globalThis.sessionStorage}export{t as n,n as t};

@@ -1,0 +1,1 @@
+import{B as e,c as t}from"./_plugin-vue_export-helper-DIHKSeMp.js";function n(){let n=e();return{rootAttrs:t(()=>({class:n.class,style:n.style})),controlAttrs:t(()=>Object.fromEntries(Object.entries(n).filter(([e])=>e!==`class`&&e!==`style`)))}}export{n as t};

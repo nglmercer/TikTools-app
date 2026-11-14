@@ -1,0 +1,1 @@
+import{K as e,M as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DIHKSeMp.js";import{t as a}from"./BaseIcon-PXOOzYKu.js";var o=i({__name:`IconChevronRight`,setup(i){return(i,o)=>(t(),r(a,null,{default:e(()=>[...o[0]||=[n(`path`,{d:`M6.25 4.5 9.75 8l-3.5 3.5`},null,-1)]]),_:1}))}});export{o as t};

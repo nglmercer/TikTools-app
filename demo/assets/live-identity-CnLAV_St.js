@@ -1,0 +1,1 @@
+var e=3e5,t=4096;function n(e,t,n=``,r=``){return typeof t!=`string`||!t.trim()||/^0+$/.test(t.trim())?null:JSON.stringify([r,n,e,t.trim()])}export{e as n,n as r,t};

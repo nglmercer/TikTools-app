@@ -1,0 +1,1 @@
+import{K as e,M as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DIHKSeMp.js";import{t as a}from"./BaseIcon-PXOOzYKu.js";var o=i({__name:`IconPopout`,setup(i){return(i,o)=>(t(),r(a,null,{default:e(()=>[...o[0]||=[n(`rect`,{x:`2.5`,y:`5.5`,width:`8`,height:`8`,rx:`.5`},null,-1),n(`path`,{d:`M5.5 5.5v-3h8v8h-3`},null,-1)]]),_:1}))}});export{o as t};

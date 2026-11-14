@@ -1,0 +1,1 @@
+import{w as e}from"./_plugin-vue_export-helper-DIHKSeMp.js";var t=Symbol(`control-client`);function n(){let n=e(t);if(!n)throw Error(`ControlClient is not provided`);return n}export{n,t};

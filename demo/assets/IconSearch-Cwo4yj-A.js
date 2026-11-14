@@ -1,0 +1,1 @@
+import{K as e,M as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DIHKSeMp.js";import{t as a}from"./BaseIcon-PXOOzYKu.js";var o=i({__name:`IconSearch`,setup(i){return(i,o)=>(t(),r(a,null,{default:e(()=>[...o[0]||=[n(`circle`,{cx:`7`,cy:`7`,r:`4.25`},null,-1),n(`path`,{d:`M10.25 10.25 13.5 13.5`},null,-1)]]),_:1}))}});export{o as t};

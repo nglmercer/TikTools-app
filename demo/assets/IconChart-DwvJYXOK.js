@@ -1,0 +1,1 @@
+import{K as e,M as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DIHKSeMp.js";import{t as a}from"./BaseIcon-PXOOzYKu.js";var o=i({__name:`IconChart`,setup(i){return(i,o)=>(t(),r(a,null,{default:e(()=>[...o[0]||=[n(`path`,{d:`M2.5 13.5h11`},null,-1),n(`path`,{d:`M4.5 11V8M8 11V4.5M11.5 11V6.5`},null,-1)]]),_:1}))}});export{o as t};

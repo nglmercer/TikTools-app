@@ -1,0 +1,1 @@
+.json-token--key{color:var(--color-json-key)}.json-token--string{color:var(--color-json-string)}.json-token--number{color:var(--color-json-number)}.json-token--boolean{color:var(--color-json-boolean)}.json-token--null{color:var(--color-json-null);font-style:italic}.json-token--punct{color:var(--color-json-punct)}.json-token--ws,.json-token--text{color:var(--color-text)}
