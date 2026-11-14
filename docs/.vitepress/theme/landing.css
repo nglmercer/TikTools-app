@@ -34,7 +34,7 @@
 .product-stage__tabs button > svg { width:16px; height:16px; flex-shrink:0; }
 .product-stage__tabs button:hover { color:#edf0f6; background:#2c2f3a; }
 .product-stage__tabs button[aria-selected=true] { color:#dce4ff; background:#30374f; border-bottom-color:#8da8ff; }
-.product-stage__body { display:grid; grid-template-columns:250px minmax(0,1fr); --demo-frame-height:560px; }
+.product-stage__body { display:grid; grid-template-columns:250px minmax(0,1fr); }
 .product-stage__lesson { display:flex; flex-direction:column; align-items:flex-start; padding:26px 22px; border-right:1px solid #353842; min-width:0; }
 .product-stage__lesson-number { color:#8494bb; font:10px var(--vp-font-family-mono); letter-spacing:.1em; margin-bottom:24px; }
 .product-stage__lesson h3 { font-size:19px; line-height:1.4; letter-spacing:-.02em; font-weight:600; margin-bottom:12px; }
@@ -114,7 +114,7 @@
   .product-stage__sample { display:none; }
   .product-stage__tabs { padding:6px 6px 0; }
   .product-stage__tabs button { min-height:44px; padding:12px; font-size:11px; }
-  .product-stage__body { display:flex; flex-direction:column; --demo-frame-height:540px; }
+  .product-stage__body { display:flex; flex-direction:column; }
   .product-stage__lesson { order:2; padding:20px; border-right:0; border-top:1px solid #353842; }
   .product-stage__lesson-number { margin-bottom:10px; }
   .product-stage__lesson h3 { font-size:18px; }

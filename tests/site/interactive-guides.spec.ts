@@ -27,9 +27,9 @@ for (const locale of docLocales) {
     await panels.nth(1).getByRole('button', { name: docCopy[locale].loadDemo, exact: true }).click();
     const feed = page.frameLocator('.demo-frame[data-panel="feed"] iframe');
     await expect(feed.locator('.live-feed')).toContainText('Hello TikTools!');
-    await feed.getByTestId('demo-step').click();
+    await panels.nth(1).getByTestId('frame-step').click();
     await expect(feed.getByTestId('demo-event-count')).toContainText('2 / 300');
-    await connection.getByTestId('demo-reset').click();
+    await panels.first().getByTestId('frame-reset').click();
     await expect(handle).not.toHaveValue('isolated_creator');
     await expect(feed.getByTestId('demo-event-count')).toContainText('2 / 300');
     const full = panels.first().getByRole('link', { name: new RegExp(docCopy[locale].fullDemo) });
@@ -43,6 +43,48 @@ for (const locale of docLocales) {
       await page.screenshot({ path:'/tmp/tiktools-redesign-es-guide-mobile.png', fullPage:true });
     }
     expect(errors).toEqual([]);
+  });
+
+  test(`${locale}: article zoom preserves a desktop viewport, working controls and existing state`, async ({ page }) => {
+    await page.goto(`${locale}/user/live/feed.html`);
+    const panel = page.locator('.demo-frame');
+    await panel.getByRole('button', { name:docCopy[locale].loadDemo,exact:true }).click();
+    const frame = (await (await panel.locator('iframe').elementHandle())!.contentFrame())!;
+    await expect(frame.locator('#demo-controls')).toBeHidden();
+    await expect(panel.getByTestId('frame-step')).toBeEnabled();
+    expect(await frame.evaluate(() => innerWidth)).toBe(1280);
+    await panel.getByTestId('frame-step').click();
+    await expect(frame.locator('.live-feed')).toContainText('Hello TikTools!');
+    const search = frame.locator('.live-feed input[type="search"]');
+    const instance = new URL(frame.url()).searchParams.get('instance');
+    for (const [scale,width] of [['0.5',640],['0.75',960],['1',1280]] as const) {
+      await panel.getByTestId('frame-zoom').selectOption(scale);
+      expect(await frame.evaluate(() => innerWidth)).toBe(1280);
+      expect(Math.round((await panel.locator('iframe').boundingBox())!.width)).toBe(width);
+      expect(new URL(frame.url()).searchParams.get('instance')).toBe(instance);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await panel.getByTestId('frame-zoom').selectOption('0.5');
+    await search.click(); await search.fill('Luna');
+    await panel.getByTestId('frame-zoom').selectOption('fit');
+    await expect(search).toHaveValue('Luna');
+    const alignment = await frame.locator('.feed-page').evaluate(node => { const stream=node.querySelector('.feed-page__stream')!.getBoundingClientRect(); const inspector=node.querySelector('.feed-page__inspector')!.getBoundingClientRect(); return { top:Math.abs(stream.top-inspector.top), right:inspector.left >= stream.right }; });
+    expect(alignment.top).toBeLessThan(2); expect(alignment.right).toBe(true);
+    await panel.getByTestId('frame-reset').click();
+    await expect(search).toHaveValue('');
+    await expect(panel.getByTestId('frame-step')).toBeEnabled();
+    expect(new URL(frame.url()).searchParams.get('instance')).toBe(instance);
+    await panel.getByTestId('frame-play').click();
+    await expect(panel.getByTestId('frame-play')).toHaveAttribute('aria-pressed','true');
+    await panel.getByTestId('frame-play').click();
+    await expect(panel.getByTestId('frame-play')).toHaveAttribute('aria-pressed','false');
+    if (locale === 'en') {
+      await panel.getByTestId('frame-step').click();
+      await panel.scrollIntoViewIfNeeded();
+      await panel.screenshot({ path:'/tmp/tiktools-scaled-feed-fit.png' });
+      await panel.getByTestId('frame-zoom').selectOption('0.5');
+      await panel.screenshot({ path:'/tmp/tiktools-scaled-feed-50.png' });
+    }
   });
 
   test(`${locale}: product landing loads real controls directly and switches one stable workspace`, async ({ page,baseURL }) => {

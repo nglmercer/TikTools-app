@@ -29,7 +29,8 @@ async function demoFrame(page: Page): Promise<Frame> {
   const element = await page.locator('.demo-frame iframe').elementHandle();
   const frame = await element?.contentFrame();
   expect(frame, 'The on-demand iframe should own a browsing context').toBeTruthy();
-  await expect(frame!.getByTestId('demo-step')).toBeVisible();
+  await expect(frame!.locator('.app-layout')).toBeVisible();
+  await expect(frame!.locator('#demo-controls')).toBeHidden();
   return frame!;
 }
 
@@ -200,7 +201,7 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
     frame.style.cssText = 'display:block;width:100%;height:650px'; document.body.append(frame);
   }, secondURL.href);
   const second = (await (await page.locator('#isolated-second-demo').elementHandle())!.contentFrame())!;
-  await expect(second.getByTestId('demo-reset')).toBeVisible();
+  await expect(second.locator('.app-layout')).toBeVisible();
   const secondId = new URL(second.url()).searchParams.get('instance')!;
   const secondReloadURL = second.url();
   expect(secondId).not.toBe(firstId);
@@ -217,8 +218,8 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
       sessionStorage.setItem(`tiktools.demo.${id}.review-sentinel`, value);
     });
   }, [firstId, secondId]);
-  await first.getByTestId('demo-reset').click();
-  await expect(first.getByTestId('demo-reset')).toBeVisible(); await expect(firstSearch).toHaveValue('');
+  await page.locator('.demo-frame').getByTestId('frame-reset').click();
+  await expect(page.locator('.demo-frame').getByTestId('frame-reset')).toBeEnabled(); await expect(firstSearch).toHaveValue('');
   await expect(secondSearch).toHaveValue('only-second-frame');
   const stored = await page.evaluate(([a, b]) => ({
     appLocale: localStorage.getItem('tiktok-live-locale'), appCreator: localStorage.getItem('tiktok-live-username'),

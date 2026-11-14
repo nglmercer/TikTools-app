@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
-translationRevision: "33456a9bc5d6c41b26f7c34952478e24f26632a271664c9a665db1c24bd43a86"
+sourceRevision: "9884cf56b87f6ddb7a6a9331e144da20913db78eb4d6f764fbd00c7a17f00f31"
+translationRevision: "7b39723bfcf09e9de5a8e38a0c5abbae999af5925818338170ffcbcf8e5cd055"
 order: 140
 ---
 
@@ -36,7 +36,9 @@ Para uma prévia local sem commit, use `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/
 
 `demo/scenarios.ts` valida 11 IDs de cenário e as rotas/idiomas/tutoriais permitidos. `runtime/host.ts` registra manipuladores explícitos de métodos; a descoberta lista esses manipuladores, IDs de requisição são repetidos em `rpc-response` e efeitos incompatíveis retornam erro imediatamente. O host inicializa registros fictícios e avança um relógio fixo um passo por Next event. Play e Next event primeiro conectam o criador fictício pelo RPC simulado quando necessário e depois entregam um evento imediato. Play continua a cada dois segundos; Pause para a produção. A barra de ferramentas exibe o estado da reprodução e a contagem de eventos. O fluxo para em 300 passos e mantém no máximo 60 eventos de feed e 60 execuções. Filas de resposta e registros armazenados têm limites separados.
 
-O parâmetro de consulta `embed=connection|feed|automation|points|overlays` seleciona um exemplo focado para incorporação. Ele omite a navegação geral e a barra completa da demonstração, mantendo os componentes, as páginas e o runtime reais. Use a rota correspondente ao painel escolhido e não combine esse modo com um tutorial. A demonstração completa continua disponível pelo link de abertura, que remove o parâmetro de incorporação.
+O parâmetro de consulta `embed=connection|feed|automation|points|overlays` seleciona um exemplo focado para incorporação. Ele omite a navegação geral, mantendo os componentes, as páginas e o runtime reais. Use a rota correspondente ao painel escolhido e não combine esse modo com um tutorial. Todos os iframes da documentação também recebem `framed=1`, que oculta a barra grande `DemoToolbar` dentro do quadro. Os controles compactos de reproduzir, pausar, próximo evento e reiniciar ficam no componente pai `DemoFrame`. A demonstração independente mantém sua barra completa; o link para abri-la remove os parâmetros de incorporação.
+
+A comunicação entre `DemoFrame` e o iframe verifica a origem, a janela de origem e o identificador da instância. Essa ponte aceita apenas os comandos limitados de reprodução, reinício e seleção de casos predefinidos de recuperação da conexão; ela não expõe chamadas RPC arbitrárias. O transporte de controle continua isolado no runtime da demonstração.
 
 Reset limpa apenas o prefixo atual `tiktools.demo.<instance>.*` e recarrega o quadro. Recarregar redefine singletons de módulos, diários, i18n e diagnósticos. Quadros incorporados diferentes recebem IDs distintos de instância. Sair da página desmonta Vue, descarta stores, desconecta cliente/transporte e limpa os dois temporizadores. A demonstração não instala uma ponte `window.ipc` nem realiza HTTP arbitrário, shell, RCON, execução de scripts de visitantes ou instalação nativa de atualizações. Sua CSP rejeita conexões de rede. Modelos de registro e simulação de filtros usam funções compartilhadas puras; são exemplos do contrato de frontend, não substitutos da execução Rust.
 
@@ -64,7 +66,15 @@ Na página inicial, `DemoFrame` usa as propriedades booleanas `autoload` e `mini
 <DemoFrame scenario="connection" locale="pt" panel="connection" title="Experimente o TikTools" autoload minimal />
 ```
 
-Reserve a altura do quadro antes de o aplicativo terminar de carregar para evitar deslocamentos de conteúdo. Cada exemplo mantém sua instância de armazenamento isolada, e o controle de reinício limpa somente essa instância. O link para abrir a demonstração completa sai do modo incorporado e permite explorar o workspace. Mantenha as instruções e o resultado esperado próximos ao exemplo, usando `DocSteps` para sequências e `DocCallout` para orientações contextuais.
+Cada iframe da documentação mantém uma largura interna fixa de desktop de `1280` pixels CSS. O componente pai aplica a escala por transformação CSS fora do iframe; assim, as consultas de mídia internas continuam usando o layout de desktop. O ajuste automático é o padrão. O leitor também pode escolher `25%`, `50%`, `75%` ou `100%`; mudar o zoom preserva o estado e não recarrega a demonstração.
+
+Para definir uma escala inicial explícita, passe a propriedade numérica `:scale="0.5"`. Use `viewportHeight` para ajustar a altura interna do quadro, mantendo a largura de desktop fixa:
+
+```vue
+<DemoFrame scenario="connection" locale="pt" panel="connection" title="Pratique sua primeira conexão" :scale="0.5" :viewport-height="720" />
+```
+
+O componente reserva a altura correspondente antes de o aplicativo terminar de carregar para evitar deslocamentos de conteúdo. Cada exemplo mantém sua instância de armazenamento isolada, e o controle de reinício limpa somente essa instância. O link para abrir a demonstração completa sai do modo incorporado e permite explorar o workspace. Mantenha as instruções e o resultado esperado próximos ao exemplo, usando `DocSteps` para sequências e `DocCallout` para orientações contextuais.
 
 ## Recuperação e verificação {#recovery-and-verification}
 

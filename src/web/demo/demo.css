@@ -2,6 +2,7 @@ html[data-demo] body { display:flex; flex-direction:column; height:100dvh; margi
 html[data-demo] #app { flex:1 1 0; width:100%; height:auto; min-height:0; }
 html[data-demo] #app > .app-layout { height:100%; min-height:0; }
 #demo-controls { position:relative; z-index:110; flex:0 0 auto; border-bottom:1px solid var(--color-border); background:var(--color-bg-app); color:var(--color-text); }
+html[data-demo-frame] #demo-controls { display:none; }
 .demo-toolbar { --control-height-md:34px; --space-5:12px; padding:14px 20px 16px; font:13px/1.5 var(--font-family); }
 .demo-toolbar__heading,.demo-toolbar__identity,.demo-toolbar__utilities,.demo-toolbar__playback,.demo-toolbar__guides { display:flex; align-items:center; gap:12px; min-width:0; }
 .demo-toolbar__heading { justify-content:space-between; gap:20px; }

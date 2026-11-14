@@ -19,6 +19,7 @@ import type { GuideOutcome } from '@/features/guided-help/model/types.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
 import { useNavigationStore } from '@/shared/model/navigation-store.ts';
 import type { BuiltinAppTab } from '@/types.ts';
+import { parseFrameCommand, type ConnectionCase, type DemoFrameState } from './frame-messages.ts';
 export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, storage: { clear(): void }) {
   const host = createDemoHost(options.scenario);
   configureAppClock(() => DEMO_AT + host.diagnostics().ticks * 1000);
@@ -28,7 +29,22 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   if (options.scenario === 'diagnostics') recordFailure();
   const toolbar = document.querySelector('#demo-controls')!;
   const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as 'normal' | 'offline' | 'auth' });
-  const playback = createDemoPlayback(host, client, (state) => Object.assign(toolbarState, state));
+  function publishFrameState() {
+    if (!options.framed || window.parent === window) return;
+    const state: DemoFrameState = { type: 'tiktools.demo.state', instance: options.instance, ready: toolbarState.ready,
+      paused: toolbarState.paused, busy: toolbarState.busy || ['preparing', 'active'].includes(toolbarState.guideState),
+      events: toolbarState.events, status: toolbarState.status, connectionCase: toolbarState.connectionCase };
+    window.parent.postMessage(state, location.origin);
+  }
+  const playback = createDemoPlayback(host, client, (state) => { Object.assign(toolbarState, state); publishFrameState(); });
+  async function changeConnectionCase(kind: ConnectionCase) {
+    playback.pause();
+    await client.call('live.disconnect', {});
+    toolbarState.connectionCase = kind;
+    const copy = experienceCopy[options.locale].connectionStates;
+    host.setConnectionExample(kind, kind === 'offline' ? copy.offlineHelp : kind === 'auth' ? copy.authHelp : '');
+    publishFrameState();
+  }
   const tours = (Object.keys(tourRegistry) as Array<keyof typeof tourRegistry>).map((value) => ({ value, label: toolbarCopy[options.locale].tourTitles[value] }));
   const initialTour = options.tour ?? scenarioTour(options.scenario);
   const tourActions: { start?: (id: string, trigger: HTMLElement) => void; stop?: () => void } = {};
@@ -39,18 +55,12 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     docsUrl: new URL(`../${options.locale}/`, location.href).href,
     onScenario, onLocale,
     onPlay: () => { void playback.play(); },
-    onStep: () => { void playback.step(); }, onReset: () => { storage.clear(); location.reload(); },
+    onStep: () => { void playback.step(); }, onReset: resetDemo,
     onFailure: () => { toolbarState.failure = !toolbarState.failure; host.simulateError(toolbarState.failure); if (toolbarState.failure) recordFailure(); },
     onCatalog: () => { location.hash = '/components/buttons'; },
     onGuide: (id: string, trigger: HTMLElement) => tourActions.start?.(id, trigger),
     onCancelGuide: () => tourActions.stop?.(),
-    onConnectionCase: async (kind: 'normal' | 'offline' | 'auth') => {
-      playback.pause();
-      await client.call('live.disconnect', {});
-      toolbarState.connectionCase = kind;
-      const copy = experienceCopy[options.locale].connectionStates;
-      host.setConnectionExample(kind, kind === 'offline' ? copy.offlineHelp : kind === 'auth' ? copy.authHelp : '');
-    },
+    onConnectionCase: changeConnectionCase,
   }) });
   toolbarApp.config.idPrefix = 'demo-tools';
   toolbarApp.mount(toolbar);
@@ -103,12 +113,31 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   toolbarState.ready = true;
   if (options.embed === 'feed') for (let index = 0; index < options.initialEvents; index += 1) await playback.step();
   if (options.tour) launchTour(options.tour);
+  function onFrameCommand(event: MessageEvent) {
+    if (!options.framed || !toolbarState.ready || event.origin !== location.origin || event.source !== window.parent) return;
+    const command = parseFrameCommand(event.data, options.instance);
+    if (!command) return;
+    if (command.action === 'reset') resetDemo();
+    else if (command.action === 'connection-case') void changeConnectionCase(command.value);
+    else if (!toolbarState.busy && !['preparing', 'active'].includes(toolbarState.guideState)) {
+      if (command.action === 'play') void playback.play();
+      else void playback.step();
+    }
+  }
+  if (options.framed) window.addEventListener('message', onFrameCommand);
+  publishFrameState();
   const timer = setInterval(() => playback.tick(), 2000);
   // Observable state has no mutators or test-only globals, and is useful for support diagnostics.
-  const metricsTimer = setInterval(() => { toolbarState.paused = host.paused; toolbarState.metrics = JSON.stringify({ host: host.diagnostics(), client: client.diagnostics?.() }); }, 500);
+  const metricsTimer = setInterval(() => { toolbarState.paused = host.paused; toolbarState.metrics = JSON.stringify({ host: host.diagnostics(), client: client.diagnostics?.() }); publishFrameState(); }, 500);
   let disposed = false;
-  function cleanup() { if (disposed) return; disposed = true; tour?.stop('disposed'); stopTour(); playback.dispose(); clearInterval(timer); clearInterval(metricsTimer); toolbarApp.unmount(); client.detach(); host.dispose(); configureAppClock(undefined); window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', restore); }
+  function cleanup() { if (disposed) return; disposed = true; tour?.stop('disposed'); stopTour(); playback.dispose(); clearInterval(timer); clearInterval(metricsTimer); toolbarApp.unmount(); client.detach(); host.dispose(); configureAppClock(undefined); window.removeEventListener('message', onFrameCommand); window.removeEventListener('pagehide', onPageHide); window.removeEventListener('pageshow', restore); }
   function dispose() { if (disposed) return; cleanup(); app.unmount(); }
+  function resetDemo() {
+    // Stop pending preference writes before clearing this instance's storage.
+    dispose();
+    storage.clear();
+    location.reload();
+  }
   function restore(event: PageTransitionEvent) { if (event.persisted) location.reload(); }
   function onPageHide(event: PageTransitionEvent) { dispose(); if (event.persisted) window.addEventListener('pageshow', restore, { once: true }); }
   window.addEventListener('pagehide', onPageHide);

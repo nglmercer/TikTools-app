@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
-translationRevision: "f2c665112d5a9a940e5a204fc4f0985732ce87ef31c70d31cfb9fdc393c23273"
+sourceRevision: "9884cf56b87f6ddb7a6a9331e144da20913db78eb4d6f764fbd00c7a17f00f31"
+translationRevision: "a40bc2d573a50630b29e15abbd0f0448e79380b1e9774c0f44e5037a95405802"
 order: 140
 ---
 
@@ -40,6 +40,8 @@ Reiniciar limpia únicamente el prefijo `tiktools.demo.<instance>.*` y recarga e
 
 El parámetro `embed=connection|feed|automation|points|overlays` selecciona una vista incrustada enfocada. Oculta la navegación general y conserva las páginas y el runtime reales; utiliza la ruta correspondiente al panel, sin iniciar un recorrido guiado. La vista de conexión permite practicar los controles sin ocupar el artículo con todo el espacio de trabajo. El modo incrustado mantiene el mismo límite de transporte simulado y el aislamiento de almacenamiento de la demo completa.
 
+Todos los iframes documentales utilizan `framed=1`, que oculta la barra grande `DemoToolbar`. **Reproducir**, **Pausar**, **Siguiente evento** y **Reiniciar** aparecen en una fila compacta del componente padre `DemoFrame`; la demo independiente conserva su barra completa. El puente de mensajes entre padre e iframe solo admite los controles previstos de reproducción, reinicio y selección de casos de recuperación de conexión, valida el origen, la ventana emisora (`source`) y el identificador de instancia, y no expone llamadas RPC arbitrarias. El transporte simulado y el almacenamiento aislado mantienen sus límites anteriores.
+
 La entrada `startTour(id, {router, capabilities, taskState})` y el registro `tourRegistry` están en `src/web/features/guided-help/index.ts`. Siete recorridos versionados utilizan objetivos estables y catálogos separados para cada idioma admitido. Driver.js carga bajo demanda, limita objetivos al workspace, respeta movimiento reducido, restaura foco y cancela esperas acotadas al navegar. Cerrar una guía nunca completa tareas ni ejecuta acciones de la aplicación. El selector nombra la tarea completa, prepara su escenario y pausa la reproducción antes de iniciar. El cierre de Driver descarta la guía y la barra muestra el resultado. Reiniciar limpia el progreso versionado de esta instancia.
 
 ## Resultado esperado y estado {#expected-result-and-status}
@@ -58,13 +60,21 @@ Para insertar un panel real junto a una instrucción, declara el escenario, idio
 
 `panel` admite `connection`, `feed`, `automation`, `points` y `overlays` y selecciona el modo `embed` correspondiente. En un artículo, antes de interactuar se muestra un marcador neutro con el título y el botón para probar el ejemplo, sin cargar el iframe. El botón carga la instancia aislada; reiniciar descarta únicamente el estado de esa instancia. **Abrir demo completa** sale del modo incrustado y recupera la navegación general. Coloca cada ejemplo junto al paso que explica y conserva el texto necesario para comprender la tarea sin cargarlo.
 
-La página de inicio utiliza `autoload` para cargar el iframe real en cuanto se monta el componente y `minimal` para ocultar la cabecera, las acciones y el texto auxiliar de `DemoFrame`, que ya presenta el contenedor de la página. Las cinco pestañas comparten una sola vista activa: al cambiar de pestaña se desmonta el iframe anterior antes de mostrar el siguiente. No se utiliza `ScenePreview` ni una interfaz dibujada que imite la aplicación.
+La página de inicio utiliza `autoload` para cargar el iframe real en cuanto se monta el componente y `minimal` para reducir la presentación auxiliar de `DemoFrame`, que ya proporciona el contenedor de la página. Los controles de reproducción permanecen en la fila compacta del padre. Las cinco pestañas comparten una sola vista activa: al cambiar de pestaña se desmonta el iframe anterior antes de mostrar el siguiente. No se utiliza `ScenePreview` ni una interfaz dibujada que imite la aplicación.
 
 ```vue
 <DemoFrame scenario="connection" locale="es" panel="connection" title="Prueba TikTools" autoload minimal />
 ```
 
-El contenedor reserva la altura de la demo durante la carga para evitar saltos de contenido. `--demo-frame-height` permite coordinar la altura del estado de espera con la del iframe en cada tamaño de pantalla. Estas opciones de presentación no cambian el transporte simulado ni el aislamiento de almacenamiento y ciclo de vida de cada instancia.
+El iframe conserva un viewport de escritorio de `1280` píxeles CSS de ancho. El contenedor aplica `transform: scale(...)` desde fuera: las consultas de medios de la aplicación siguen evaluándose con el ancho de escritorio, incluso cuando el artículo se ve en una pantalla estrecha. El ajuste automático adapta la escala al espacio disponible; también se puede elegir `25`, `50`, `75` o `100` %. Cambiar el zoom no recarga el iframe ni pierde el estado de la demo.
+
+La prop opcional `scale` permite fijar una escala inicial y `viewportHeight` permite indicar la altura del viewport de escritorio. Por ejemplo:
+
+```vue
+<DemoFrame scenario="connection" locale="es" panel="connection" title="Prueba TikTools" :scale="0.5" :viewport-height="720" />
+```
+
+El contenedor reserva la altura escalada durante la carga para evitar saltos de contenido. Estas opciones de presentación no cambian el transporte simulado ni el aislamiento de almacenamiento y ciclo de vida de cada instancia.
 
 ## Recuperación y verificación {#recovery-and-verification}
 

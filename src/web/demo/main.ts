@@ -16,6 +16,7 @@ try {
   const storage = installDemoStorage(options.instance, backing);
   document.documentElement.lang = options.locale;
   if (options.embed) document.documentElement.dataset.demoPanel = options.embed;
+  if (options.framed) document.documentElement.dataset.demoFrame = 'true';
   const { bootDemo } = await import('./mount-demo.ts');
   await bootDemo(options, storage);
 } catch (error) {
