@@ -86,6 +86,9 @@ describe('public demo host', () => {
   });
   it('validates public parameters without promoting hidden screens', () => {
     expect(parseDemoOptions('?embed=feed').route).toBe('/feed');
+    expect(parseDemoOptions('?embed=feed').initialEvents).toBe(1);
+    expect(parseDemoOptions('?embed=feed&events=9').initialEvents).toBe(9);
+    for (const params of ['?embed=feed&events=13', '?embed=feed&events=-1', '?embed=feed&events=1.5', '?events=9', '?embed=connection&events=9']) expect(() => parseDemoOptions(params)).toThrow();
     expect(parseDemoOptions('?embed=connection').embed).toBe('connection');
     for (const params of ['?embed=unknown', '?embed=connection&route=/feed', '?embed=connection&tour=connection']) expect(() => parseDemoOptions(params)).toThrow();
     expect(parseDemoOptions('?scenario=feed&locale=fr').locale).toBe('fr');

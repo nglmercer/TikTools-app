@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
-translationRevision: "2b499416d56fe7c0f57af76955293598365918abc54b09e3185de4b495c6e9d3"
+sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+translationRevision: "430265d011c8fccab96c1de23a20513d0d13a0013f2859652221a5213a0e5b4e"
 layout: page
 order: 0
 ---
@@ -17,31 +17,31 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / Documentation
+TikTools / Outils pour vos LIVE
 
 </template>
 
 
 <template #intro>
 
-# Votre guide pour<br />un meilleur LIVE. {#tiktools-documentation}
+# Votre LIVE.<br />Vos règles. {#tiktools-documentation}
 
-Connectez votre LIVE, découvrez les événements de votre audience et transformez-les en actions. Apprenez avec des exemples de l’interface réelle, puis appliquez chaque parcours à votre prochaine diffusion.
+Connectez TikTok LIVE, transformez les événements de votre audience en automatisations et créez des incrustations pour OBS. Essayez l’interface réelle ci-dessous avec des données fictives, puis composez votre propre installation de diffusion.
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">Essayer la démo interactive</a>
+<a :href="demoHref" target="_self">Essayer TikTools</a>
 [Télécharger TikTools](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>
 
 <template #start>
 
-## Votre premier LIVE, étape par étape {#start-here}
+## Passez à votre prochain LIVE {#start-here}
 
-Installez une version publiée, connectez un créateur et vérifiez votre premier événement. Essayez les commandes avec des données fictives à chaque étape.
+Prêt à diffuser ? Installez TikTools pour Windows ou Linux, connectez un créateur et découvrez les premiers événements de votre audience.
 
 1. [**Vérifier les prérequis** <span>Trouvez la configuration adaptée à votre système.</span>](./user/requirements.md)
 2. [**Installer TikTools** <span>Téléchargez et ouvrez un binaire publié.</span>](./user/installation.md)
@@ -51,9 +51,9 @@ Installez une version publiée, connectez un créateur et vérifiez votre premie
 
 <template #directory>
 
-## Trouvez votre point de départ {#explore-the-guides}
+## Créez une configuration à votre image {#explore-the-guides}
 
-Choisissez un parcours pour utiliser l’application, ou découvrez les outils qui permettent de l’étendre.
+Faites fonctionner votre installation ou enrichissez-la avec vos propres plugins.
 
 </template>
 
@@ -61,7 +61,7 @@ Choisissez un parcours pour utiliser l’application, ou découvrez les outils q
 
 ### [Guides d’utilisation](./user/index.md) {#user-guides}
 
-Préparez votre diffusion, réagissez à votre audience et simplifiez les tâches quotidiennes. Commencez ici si vous utilisez l’application.
+Connectez votre diffusion, récompensez vos spectateurs et automatisez les moments qui comptent. Suivez chaque parcours du premier clic jusqu’à un résultat que vous pouvez vérifier.
 
 - [Créer votre première automatisation](./user/automations/first-rule.md)
 - [Configurer OBS et les incrustations](./user/overlays/index.md)
@@ -83,7 +83,7 @@ Travaillez avec l’hôte Rust, l’interface Vue et l’API de contrôle typée
 
 <template #resources>
 
-## Ressources utiles en chemin {#resources}
+## Tout pour continuer {#resources}
 
 - [**Référence des composants d’interface** <span>17 familles avec exemples interactifs, états et code source.</span>](./developer/components/index.md)
 - [**Dépannage** <span>Consultez les diagnostics et résolvez les problèmes courants.</span>](./user/preferences/troubleshooting.md)
@@ -93,7 +93,7 @@ Travaillez avec l’hôte Rust, l’interface Vue et l’API de contrôle typée
 
 <template #footer>
 
-La démo utilise des données fictives. Chaque guide précise les fonctionnalités expérimentales et les prérequis.
+La démo dans le navigateur utilise la véritable interface TikTools avec des données fictives. Aucune installation ni aucun compte ne sont nécessaires pour l’essayer. Les guides couvrent les prérequis de votre installation réelle.
 
 [Code source sur GitHub](https://github.com/nglmercer/TikTools-app)
 

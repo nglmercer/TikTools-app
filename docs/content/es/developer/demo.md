@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
-translationRevision: "b874d7bbdae72627d4394ee473ceb799d092b6b784a007e058c2774e5d21a97c"
+sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
+translationRevision: "f2c665112d5a9a940e5a204fc4f0985732ce87ef31c70d31cfb9fdc393c23273"
 order: 140
 ---
 
@@ -48,7 +48,7 @@ La demo muestra navegación, edición local, eventos y recuperación que admite 
 
 ## Componentes y Markdown {#components-and-markdown}
 
-`docs/examples/*.vue` aporta el catálogo ejecutable y sus snippets. Los botones pequeños se montan directamente en Markdown sin estilos globales del escritorio. Los diálogos, layouts y páginas completas usan `DemoFrame`, que valida parámetros, respeta el base y carga un iframe solo bajo demanda. La opción pública `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` expone el catálogo sin activar todas las herramientas de desarrollo del escritorio.
+`docs/examples/*.vue` aporta el catálogo ejecutable y sus snippets. Los botones pequeños se montan directamente en Markdown sin estilos globales del escritorio. Los diálogos, layouts y páginas completas usan `DemoFrame`, que valida parámetros y respeta el base. En los artículos, el iframe se carga bajo demanda; la página de inicio lo carga automáticamente para mostrar la aplicación real. La opción pública `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` expone el catálogo sin activar todas las herramientas de desarrollo del escritorio.
 
 Para insertar un panel real junto a una instrucción, declara el escenario, idioma, panel y un título descriptivo:
 
@@ -56,7 +56,15 @@ Para insertar un panel real junto a una instrucción, declara el escenario, idio
 <DemoFrame scenario="connection" locale="es" panel="connection" title="Practica tu primera conexión LIVE" />
 ```
 
-`panel` admite `connection`, `feed`, `automation`, `points` y `overlays` y selecciona el modo `embed` correspondiente. Antes de interactuar se muestra una vista previa sin cargar el iframe. El botón para probar el ejemplo carga su instancia aislada; reiniciar descarta únicamente el estado de esa instancia. **Abrir demo completa** sale del modo incrustado y recupera la navegación general. Coloca cada ejemplo junto al paso que explica y conserva el texto necesario para comprender la tarea sin cargarlo.
+`panel` admite `connection`, `feed`, `automation`, `points` y `overlays` y selecciona el modo `embed` correspondiente. En un artículo, antes de interactuar se muestra un marcador neutro con el título y el botón para probar el ejemplo, sin cargar el iframe. El botón carga la instancia aislada; reiniciar descarta únicamente el estado de esa instancia. **Abrir demo completa** sale del modo incrustado y recupera la navegación general. Coloca cada ejemplo junto al paso que explica y conserva el texto necesario para comprender la tarea sin cargarlo.
+
+La página de inicio utiliza `autoload` para cargar el iframe real en cuanto se monta el componente y `minimal` para ocultar la cabecera, las acciones y el texto auxiliar de `DemoFrame`, que ya presenta el contenedor de la página. Las cinco pestañas comparten una sola vista activa: al cambiar de pestaña se desmonta el iframe anterior antes de mostrar el siguiente. No se utiliza `ScenePreview` ni una interfaz dibujada que imite la aplicación.
+
+```vue
+<DemoFrame scenario="connection" locale="es" panel="connection" title="Prueba TikTools" autoload minimal />
+```
+
+El contenedor reserva la altura de la demo durante la carga para evitar saltos de contenido. `--demo-frame-height` permite coordinar la altura del estado de espera con la del iframe en cada tamaño de pantalla. Estas opciones de presentación no cambian el transporte simulado ni el aislamiento de almacenamiento y ciclo de vida de cada instancia.
 
 ## Recuperación y verificación {#recovery-and-verification}
 

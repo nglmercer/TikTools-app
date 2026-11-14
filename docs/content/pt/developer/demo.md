@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
-translationRevision: "63613f0cb5d06c5d19809eda7edf66f326f99d5a29ed3f438f8fabef6f6885cb"
+sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
+translationRevision: "33456a9bc5d6c41b26f7c34952478e24f26632a271664c9a665db1c24bd43a86"
 order: 140
 ---
 
@@ -48,7 +48,7 @@ A demonstração apresenta navegação, edição local, apresentação de evento
 
 ## Componentes e Markdown {#components-and-markdown}
 
-`docs/examples/*.vue` fornece tanto o catálogo renderizado quanto os trechos de código-fonte. Botões pequenos renderizam diretamente no Markdown sem estilos globais de desktop. Diálogos com estado, exemplos de layout e páginas do aplicativo usam `DemoFrame`, que constrói URLs validadas e compatíveis com a base e carrega um iframe apenas sob solicitação. A opção pública `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` expõe o catálogo de componentes sem habilitar todas as ferramentas de desenvolvimento do desktop.
+`docs/examples/*.vue` fornece tanto o catálogo renderizado quanto os trechos de código-fonte. Botões pequenos renderizam diretamente no Markdown sem estilos globais de desktop. Diálogos com estado, exemplos de layout e páginas do aplicativo usam `DemoFrame`, que constrói URLs validadas e compatíveis com a base. Nas páginas de artigos, o comportamento padrão carrega o iframe apenas sob solicitação. A opção pública `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` expõe o catálogo de componentes sem habilitar todas as ferramentas de desenvolvimento do desktop.
 
 Para colocar um painel de conexão junto às instruções de uma página em português, use:
 
@@ -56,7 +56,15 @@ Para colocar um painel de conexão junto às instruções de uma página em port
 <DemoFrame scenario="connection" locale="pt" panel="connection" title="Pratique sua primeira conexão" />
 ```
 
-A propriedade `panel` aceita `connection`, `feed`, `automation`, `points` ou `overlays`. Uma prévia aparece antes da interação; o iframe só é carregado quando o leitor escolhe experimentar. Cada exemplo possui uma instância de armazenamento isolada, e o controle de reinício limpa somente essa instância. O link para abrir a demonstração completa sai do modo incorporado e permite explorar o workspace. Mantenha as instruções e o resultado esperado próximos ao exemplo, usando `DocSteps` para sequências e `DocCallout` para orientações contextuais.
+A propriedade `panel` aceita `connection`, `feed`, `automation`, `points` ou `overlays`. Por padrão, um convite neutro para iniciar o exemplo aparece antes da interação; ele não imita a interface do aplicativo. O iframe só é carregado quando o leitor escolhe experimentar.
+
+Na página inicial, `DemoFrame` usa as propriedades booleanas `autoload` e `minimal` para carregar diretamente a interface real em uma apresentação compacta. O leitor escolhe entre cinco abas de tarefas: conexão, atividade ao vivo, automações, pontos e sobreposições. Apenas o iframe da aba selecionada permanece ativo; a página não usa `ScenePreview` nem uma imitação visual do produto. Para criar uma incorporação com o mesmo comportamento, use:
+
+```vue
+<DemoFrame scenario="connection" locale="pt" panel="connection" title="Experimente o TikTools" autoload minimal />
+```
+
+Reserve a altura do quadro antes de o aplicativo terminar de carregar para evitar deslocamentos de conteúdo. Cada exemplo mantém sua instância de armazenamento isolada, e o controle de reinício limpa somente essa instância. O link para abrir a demonstração completa sai do modo incorporado e permite explorar o workspace. Mantenha as instruções e o resultado esperado próximos ao exemplo, usando `DocSteps` para sequências e `DocCallout` para orientações contextuais.
 
 ## Recuperação e verificação {#recovery-and-verification}
 

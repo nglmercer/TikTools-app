@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
-translationRevision: "2f2b7440a8fa22dc5fd2b3e739427458afe3068c91b4e7c6501a005cb9183f8a"
+sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
+translationRevision: "c873983e655dee7c6b370628feb023fa34d89ea0f2c6f3026b21886dd43167f8"
 order: 140
 ---
 
@@ -46,13 +46,21 @@ bun scripts/task.ts site preview
 
 ## 组件与 Markdown {#components-and-markdown}
 
-`docs/examples/*.vue` 同时提供渲染目录和源码片段。小型按钮直接在 Markdown 中渲染，不使用桌面全局样式。有状态对话框、布局示例及应用页面使用 `DemoFrame`，它构建考虑基础路径且经过验证的 URL，仅在请求时加载 iframe。请将聚焦示例放在其对应的操作说明旁：
+`docs/examples/*.vue` 同时提供渲染目录和源码片段。小型按钮直接在 Markdown 中渲染，不使用桌面全局样式。有状态对话框、布局示例及应用页面使用 `DemoFrame`，它构建考虑基础路径且经过验证的 URL。文章中的示例默认在请求时才加载 iframe。请将聚焦示例放在其对应的操作说明旁：
 
 ```vue
 <DemoFrame scenario="connection" locale="zh" panel="connection" title="试用直播连接面板" />
 ```
 
-`panel` 属性选择聚焦的 `embed` 查询参数和路由。激活前，组件显示轻量预览；点击后才加载真实界面。每个框架都有独立的实例 ID，重置只清空当前实例。完整演示链接移除嵌入模式，并打开完整工作区。请在 Markdown 中保留操作步骤和预期结果，确保未加载示例时文章仍然实用。公开选项 `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` 可开放组件目录，而无需启用全部桌面开发工具。
+`panel` 属性选择聚焦的 `embed` 查询参数和路由。激活前，文章示例显示包含标题和加载控件的中性启动区，不仿制应用界面。点击后才加载真实界面。每个框架都有独立的实例 ID，重置只清空当前实例。完整演示链接移除嵌入模式，并打开完整工作区。请在 Markdown 中保留操作步骤和预期结果，确保未加载示例时文章仍然实用。
+
+首页使用 `autoload` 和 `minimal` 自动加载真实工作区。五个工作流程标签页分别选择连接、实时活动、自动化、叠加层或积分，每次只挂载一个活动 iframe。切换标签页会替换当前框架，不会同时运行五个应用。首页不使用仿制界面或场景预览。
+
+```vue
+<DemoFrame scenario="connection" locale="zh" panel="connection" title="试用 TikTools" autoload minimal />
+```
+
+`autoload` 在组件挂载后启动 iframe；`minimal` 隐藏框架的文章标题、启动控件和任务页脚，以便嵌入首页展示区。加载前应预留展示区高度，让加载状态和 iframe 一致使用 `--demo-frame-height`，避免周围内容发生位移。两种模式均使用相同的真实界面和隔离存储机制。公开选项 `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` 可开放组件目录，而无需启用全部桌面开发工具。
 
 ## 恢复与验证 {#recovery-and-verification}
 

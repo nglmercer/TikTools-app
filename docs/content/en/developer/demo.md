@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
-translationRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
+sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
+translationRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
 order: 140
 ---
 
@@ -46,13 +46,21 @@ The demo demonstrates navigation, local editing, event presentation and recovery
 
 ## Components and Markdown {#components-and-markdown}
 
-`docs/examples/*.vue` supplies both the rendered catalog and source snippets. Small buttons render directly in Markdown without desktop global styles. Stateful dialogs, layout examples and application pages use `DemoFrame`, which builds base-aware, validated URLs and loads an iframe only on request. Place focused examples next to the instructions they demonstrate:
+`docs/examples/*.vue` supplies both the rendered catalog and source snippets. Small buttons render directly in Markdown without desktop global styles. Stateful dialogs, layout examples and application pages use `DemoFrame`, which builds base-aware, validated URLs. Article examples load their iframe on request by default. Place focused examples next to the instructions they demonstrate:
 
 ```vue
 <DemoFrame scenario="connection" locale="en" panel="connection" title="Try the LIVE connection panel" />
 ```
 
-The `panel` prop selects the focused `embed` query and route. Before activation, the component shows a lightweight preview; clicking loads the real interface. Each frame receives an isolated instance ID, and Reset clears only that instance. The full demo link removes the embed mode and opens the complete workspace. Keep explanatory steps and expected results in Markdown so the article remains useful before loading the example. The public `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` option exposes the component catalog without enabling all desktop development tools.
+The `panel` prop selects the focused `embed` query and route. Before activation, an article example shows a neutral launcher with its title and load control; it does not imitate the application UI. Clicking loads the real interface. Each frame receives an isolated instance ID, and Reset clears only that instance. The full demo link removes the embed mode and opens the complete workspace. Keep explanatory steps and expected results in Markdown so the article remains useful before loading the example.
+
+The homepage loads the real workspace automatically with `autoload` and `minimal`. Its five workflow tabs select connection, live activity, automation, overlays or points, with only one active iframe mounted at a time. Switching tabs replaces that frame rather than keeping five applications running. There is no imitation UI or scene preview.
+
+```vue
+<DemoFrame scenario="connection" locale="en" panel="connection" title="Try TikTools" autoload minimal />
+```
+
+`autoload` starts the iframe after the component mounts; `minimal` hides the frame's article heading, launch controls and task footer for use inside the homepage stage. Reserve the stage height before loading, using `--demo-frame-height` consistently for its loading state and iframe, to avoid shifting the surrounding content. The real interface and isolated storage behavior are the same in both modes. The public `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` option exposes the component catalog without enabling all desktop development tools.
 
 ## Recovery and verification {#recovery-and-verification}
 

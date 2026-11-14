@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "bb2118694b71f5253af2a48ec8355edf9fe3925a6d3bd5fbe112aad5ca271148"
-translationRevision: "bb2118694b71f5253af2a48ec8355edf9fe3925a6d3bd5fbe112aad5ca271148"
+sourceRevision: "ce8b062224fcabe381c0e841571e9c0930f9ab5923ff11bf4231641e86cc1d71"
+translationRevision: "ce8b062224fcabe381c0e841571e9c0930f9ab5923ff11bf4231641e86cc1d71"
 search: false
 layout: page
 order: 0
@@ -18,24 +18,24 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / Documentation
+TikTools / LIVE toolkit
 
 </template>
 
 
 <template #intro>
 
-# Everything for<br />your next LIVE. {#tiktools}
+# Your LIVE.<br />Your rules. {#tiktools}
 
-Connect your TikTok LIVE, set up automations, and build something of your own. Start with practical guides for creators and developers.
+Connect TikTok LIVE, turn audience events into automations, and design overlays for OBS. Try the real interface below with fictional data, then make it your own.
 
-<span lang="es">Conecta tu LIVE, configura automatizaciones y crea a tu manera. Guías prácticas para usuarios y desarrolladores, en tu idioma.</span>
+<span lang="es">Conecta tu TikTok LIVE, automatiza los eventos de tu audiencia y diseña overlays para OBS. Prueba la interfaz real con datos ficticios.</span>
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">Try the interactive demo</a>
+<a :href="demoHref" target="_self">Try TikTools</a>
 [Download TikTools](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>
@@ -44,7 +44,7 @@ Connect your TikTok LIVE, set up automations, and build something of your own. S
 
 ## Choose your language {#choose-your-language}
 
-<span lang="es">Elige el idioma de la documentación.</span>
+Choose a language for your setup guides. <span lang="es">Elige el idioma de tus guías.</span>
 
 - [**English** <span lang="en">User guides and developer documentation</span>](./en/index.md)
 - [**Español** <span lang="es">Guías de usuario y documentación técnica</span>](./es/index.md)
@@ -57,7 +57,7 @@ Connect your TikTok LIVE, set up automations, and build something of your own. S
 
 <template #directory>
 
-## A guide for what you want to do {#explore-the-guides}
+## Make it yours {#explore-the-guides}
 
 <span lang="es">Un punto de partida para cada tarea.</span>
 
@@ -99,7 +99,7 @@ Find your way around the Rust host, Vue interface, shared contracts, and plugin 
 
 <template #footer>
 
-The browser demo uses fictional data in the real TikTools interface.
+The browser demo runs the real TikTools interface with fictional data. No installation or account is needed to try it.
 
 [Source on GitHub](https://github.com/nglmercer/TikTools-app)
 

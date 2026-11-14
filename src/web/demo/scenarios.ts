@@ -39,10 +39,13 @@ export function parseDemoOptions(search: string) {
   const embed = params.get('embed');
   if (embed !== null && !Object.hasOwn(embeddedPanels, embed)) throw new Error('Invalid embedded panel.');
   const panel = embed as EmbeddedPanel | null;
+  const events = params.get('events');
+  if (events !== null && (panel !== 'feed' || !/^(?:[0-9]|1[0-2])$/.test(events))) throw new Error('Invalid initial event count.');
+  const initialEvents = events === null ? panel === 'feed' ? 1 : 0 : Number(events);
   const route = params.get('route') ?? (panel ? embeddedPanels[panel] : isScenario(scenario) ? scenarios[scenario].route : '');
   const instance = params.get('instance') ?? 'standalone';
   const tour = params.get('tour');
   if (!isScenario(scenario) || !locale || !validDemoRoute(route) || !/^[a-zA-Z0-9_-]{1,64}$/.test(instance) || (tour !== null && !['connection', 'automation', 'plugin', 'overlay', 'points', 'changes', 'diagnostics'].includes(tour))) throw new Error('Invalid demo parameters.');
   if (panel && (route !== embeddedPanels[panel] || tour)) throw new Error('Embedded panels require their focused route without a tour.');
-  return { scenario, locale, route, instance, tour, embed: panel };
+  return { scenario, locale, route, instance, tour, embed: panel, initialEvents };
 }

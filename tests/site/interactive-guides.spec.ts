@@ -10,7 +10,8 @@ for (const locale of docLocales) {
     await page.goto(`${locale}/`);
     await expect(page.locator('.docs-topic')).toHaveCount(4);
     await expect(page.locator('.docs-topic').first()).toContainText(copy.topics.connection.title);
-    await expect(page.locator('iframe')).toHaveCount(0);
+    await expect(page.locator('iframe')).toHaveCount(1);
+    await expect(page.frameLocator('.product-stage iframe').locator('.live-feed')).toContainText('Hello TikTools!');
     await page.locator('.docs-topic').first().click();
     await expect(page).toHaveURL(new RegExp(`/${locale}/user/first-live.html$`));
     const panels = page.locator('.demo-frame');
@@ -42,6 +43,40 @@ for (const locale of docLocales) {
       await page.screenshot({ path:'/tmp/tiktools-redesign-es-guide-mobile.png', fullPage:true });
     }
     expect(errors).toEqual([]);
+  });
+
+  test(`${locale}: product landing loads real controls directly and switches one stable workspace`, async ({ page,baseURL }) => {
+    const errors: string[] = []; const outbound: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('request', request => { if (!request.url().startsWith(baseURL!) && !/^(data:|blob:)/.test(request.url())) outbound.push(request.url()); });
+    await page.setViewportSize({ width:1440,height:960 });
+    await page.goto(`${locale}/`);
+    const stage = page.locator('.product-stage__window');
+    await expect(page.locator('iframe')).toHaveCount(1);
+    const frame = page.frameLocator('.product-stage iframe');
+    await expect(frame.locator('.live-feed')).toContainText('Hello TikTools!');
+    await expect(frame.getByTestId('demo-event-count')).toContainText('9 / 300');
+    await expect(page.locator('.product-stage iframe')).toHaveAttribute('loading','eager');
+    const height = (await stage.boundingBox())!.height;
+    const source = await page.locator('.product-stage iframe').getAttribute('src');
+    await page.locator('.docs-home__actions a').first().click();
+    await expect(page).toHaveURL(/#playground$/);
+    await expect(page.locator('.product-stage iframe')).toHaveAttribute('src',source!);
+    for (const [view,selector] of [['connection','#live-handle'],['automation','.automations-page'],['overlays','.overlays-page'],['points','.points-page'],['feed','.live-feed']] as const) {
+      await page.locator(`#stage-${view}-tab`).click();
+      await expect(frame.locator('html')).toHaveAttribute('data-demo-panel',view);
+      await expect(frame.locator(selector)).toBeVisible();
+      await expect(page.locator('iframe')).toHaveCount(1);
+      expect(Math.abs((await stage.boundingBox())!.height-height)).toBeLessThanOrEqual(1);
+      await expect(page.locator(`#stage-${view}-tab`)).toHaveAttribute('aria-selected','true');
+    }
+    await page.locator('#stage-feed-tab').press('End');
+    await expect(page.locator('#stage-points-tab')).toBeFocused();
+    await expect(frame.locator('.points-page')).toBeVisible();
+    const full = new URL((await page.locator('.product-stage__bar > a').getAttribute('href'))!,page.url());
+    expect(full.searchParams.get('scenario')).toBe('points');
+    expect(full.searchParams.has('embed')).toBe(false);
+    expect(errors).toEqual([]); expect(outbound).toEqual([]);
   });
 
   test(`${locale}: connection examples fail accurately and recover without a session cookie`, async ({ page }) => {

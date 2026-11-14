@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
-translationRevision: "30c8f1c472c13a9bb6eec5da73ecd22c0d6e103ba76f4ec59bebf028320f3f1c"
+sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
+translationRevision: "7536c967ad6e7fbc6ec6ba3ee66ab4da9e6c7bc79567df03f3151936b6efedb5"
 order: 140
 ---
 
@@ -46,13 +46,21 @@ La démo illustre la navigation, l’édition locale, la présentation des évé
 
 ## Composants et Markdown {#components-and-markdown}
 
-`docs/examples/*.vue` fournit à la fois le catalogue rendu et les extraits sources. Les petits boutons s’affichent directement dans Markdown sans styles globaux du bureau. Les boîtes de dialogue avec état, exemples de disposition et pages applicatives utilisent `DemoFrame`, qui construit des URL validées tenant compte de la base et ne charge un iframe que sur demande. Placez les exemples ciblés à côté des instructions qu’ils illustrent :
+`docs/examples/*.vue` fournit à la fois le catalogue rendu et les extraits sources. Les petits boutons s’affichent directement dans Markdown sans styles globaux du bureau. Les boîtes de dialogue avec état, exemples de disposition et pages applicatives utilisent `DemoFrame`, qui construit des URL validées tenant compte de la base. Par défaut, les exemples des articles chargent leur iframe sur demande. Placez les exemples ciblés à côté des instructions qu’ils illustrent :
 
 ```vue
 <DemoFrame scenario="connection" locale="fr" panel="connection" title="Essayer le panneau de connexion LIVE" />
 ```
 
-La propriété `panel` sélectionne le paramètre `embed` et la route correspondante. Avant l’activation, le composant affiche un aperçu léger ; un clic charge l’interface réelle. Chaque cadre reçoit un identifiant d’instance isolé et la réinitialisation n’efface que cette instance. Le lien vers la démo complète retire le mode intégré et ouvre l’espace de travail entier. Conservez les étapes explicatives et les résultats attendus en Markdown pour que l’article reste utile avant le chargement de l’exemple. L’option publique `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` expose le catalogue de composants sans activer tous les outils de développement du bureau.
+La propriété `panel` sélectionne le paramètre `embed` et la route correspondante. Avant l’activation, un exemple d’article affiche un lanceur neutre avec son titre et sa commande de chargement ; il n’imite pas l’interface applicative. Un clic charge l’interface réelle. Chaque cadre reçoit un identifiant d’instance isolé et la réinitialisation n’efface que cette instance. Le lien vers la démo complète retire le mode intégré et ouvre l’espace de travail entier. Conservez les étapes explicatives et les résultats attendus en Markdown pour que l’article reste utile avant le chargement de l’exemple.
+
+La page d’accueil charge automatiquement l’espace de travail réel avec `autoload` et `minimal`. Ses cinq onglets permettent de choisir la connexion, l’activité en direct, les automatisations, les incrustations ou les points, avec un seul iframe actif monté à la fois. Changer d’onglet remplace ce cadre plutôt que de laisser cinq applications fonctionner. Aucune imitation de l’interface ni aucun aperçu de scène n’est utilisé.
+
+```vue
+<DemoFrame scenario="connection" locale="fr" panel="connection" title="Essayer TikTools" autoload minimal />
+```
+
+`autoload` démarre l’iframe après le montage du composant ; `minimal` masque l’en-tête d’article, les commandes de lancement et le pied de tâche du cadre pour son intégration dans la zone de démonstration de l’accueil. Réservez la hauteur de cette zone avant le chargement, en utilisant `--demo-frame-height` de manière cohérente pour son état de chargement et son iframe, afin d’éviter de déplacer le contenu environnant. L’interface réelle et le stockage isolé se comportent de la même façon dans les deux modes. L’option publique `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` expose le catalogue de composants sans activer tous les outils de développement du bureau.
 
 ## Récupération et vérification {#recovery-and-verification}
 

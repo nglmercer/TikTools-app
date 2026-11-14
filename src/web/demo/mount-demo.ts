@@ -101,7 +101,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   tourActions.stop = () => { tour?.stop('dismissed'); tour = undefined; toolbarState.guideState = 'idle'; };
 
   toolbarState.ready = true;
-  if (options.embed === 'feed') await playback.step();
+  if (options.embed === 'feed') for (let index = 0; index < options.initialEvents; index += 1) await playback.step();
   if (options.tour) launchTour(options.tour);
   const timer = setInterval(() => playback.tick(), 2000);
   // Observable state has no mutators or test-only globals, and is useful for support diagnostics.

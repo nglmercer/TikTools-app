@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "2e7f0ab271cce7a8c6e78d9d73c38ae0da022cefe2db104b1001a8f45cf8754c"
-translationRevision: "4ad22e9703598e049dc6841b92058b827f8a59a5fa73831c99072885032a09f9"
+sourceRevision: "9aec97bb1d4bc623c4f9b64478668231fad203638ef4b6eb62369d8e7eebd6ec"
+translationRevision: "461443eadbfc9f5082ea43078badfb67a19b7cbb7f58c8eb1c97ef5c61cd700a"
 order: 140
 ---
 
@@ -46,13 +46,21 @@ bun scripts/task.ts site preview
 
 ## コンポーネントと Markdown {#components-and-markdown}
 
-`docs/examples/*.vue` は描画カタログとソース例の両方を提供します。小さなボタンはデスクトップのグローバルスタイルなしで Markdown 内に描画します。状態付きダイアログ、配置例、アプリページは `DemoFrame` を使います。base を考慮した検証済み URL を作り、要求時だけ iframe を読み込みます。操作例は、それを説明する手順の近くに配置してください。
+`docs/examples/*.vue` は描画カタログとソース例の両方を提供します。小さなボタンはデスクトップのグローバルスタイルなしで Markdown 内に描画します。状態付きダイアログ、配置例、アプリページは `DemoFrame` を使い、base を考慮した検証済み URL を作ります。記事内の例は、既定では要求時だけ iframe を読み込みます。操作例は、それを説明する手順の近くに配置してください。
 
 ```vue
 <DemoFrame scenario="connection" locale="ja" panel="connection" title="LIVE 接続パネルを操作する" />
 ```
 
-`panel` プロパティで、対象を絞る `embed` クエリーと対応ルートを選びます。操作を始める前は軽量なプレビューを表示し、クリックすると実際の UI を読み込みます。フレームごとに分離されたインスタンス ID が割り当てられ、リセットはそのインスタンスだけに適用されます。完全版デモへのリンクは埋め込みモードを外し、ワークスペース全体を開きます。例を読み込む前でも記事が役立つよう、説明する手順と期待される結果は Markdown に残してください。公開用 `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` は、デスクトップ開発ツール全体を有効にせず部品カタログを公開します。
+`panel` プロパティで、対象を絞る `embed` クエリーと対応ルートを選びます。読み込む前の記事内の例には、タイトルと読み込み操作だけの簡潔な起動画面を表示し、アプリの UI を模倣しません。クリックすると実際の操作画面を読み込みます。フレームごとに分離されたインスタンス ID が割り当てられ、リセットはそのインスタンスだけに適用されます。完全版デモへのリンクは埋め込みモードを外し、ワークスペース全体を開きます。例を読み込む前でも記事が役立つよう、説明する手順と期待される結果は Markdown に残してください。
+
+ホームページでは `autoload` と `minimal` を指定して、実際のワークスペースを自動で読み込みます。5つの操作タブで、接続、LIVE のアクティビティ、自動化、オーバーレイ、ポイントを選び、常に1つの iframe だけをマウントします。タブを切り替えるとフレームを入れ替えるため、5つのアプリを同時に動かしません。模倣 UI やシーンのプレビューは使いません。
+
+```vue
+<DemoFrame scenario="connection" locale="ja" panel="connection" title="TikTools を試す" autoload minimal />
+```
+
+`autoload` はコンポーネントのマウント後に iframe を起動します。`minimal` はフレームの記事用見出し、起動操作、課題フッターを隠し、ホームページのデモ領域内で使えるようにします。読み込み中の表示と iframe に同じ `--demo-frame-height` を適用して、読み込み前から高さを確保し、周囲のコンテンツが移動しないようにしてください。どちらのモードも実際の UI とストレージ分離の動作は同じです。公開用 `VITE_TIKTOOLS_PUBLIC_UI_KIT=1` は、デスクトップ開発ツール全体を有効にせず部品カタログを公開します。
 
 ## 復旧と検証 {#recovery-and-verification}
 

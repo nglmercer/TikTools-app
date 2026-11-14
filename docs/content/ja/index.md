@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: "en"
-sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
-translationRevision: "1653dabe6ae22b50e22a47b0c0551df4bfd484cef897708392a9e83667aa4626"
+sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+translationRevision: "285a9a3cdaca53a2a283059e662c6d06ad069a3a4a2cf7c066f3ffe594cc5d86"
 layout: page
 order: 0
 ---
@@ -17,30 +17,30 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / ドキュメント
+TikTools / LIVE ツールキット
 
 </template>
 
 <template #intro>
 
-# より良い LIVE への<br />ガイド。 {#tiktools-documentation}
+# あなたの LIVE を、<br />思いどおりに。 {#tiktools-documentation}
 
-実際の画面を操作しながら、TikTok LIVE への接続、チャットの自動化、OBS の設定を学べます。架空のデータで試し、結果を確かめてから、自分の配信に取り入れましょう。
+TikTok LIVE に接続し、視聴者のイベントからアクションを自動実行。OBS 用のオーバーレイもデザインできます。下の実際の操作画面を架空のデータで試し、自分だけの配信環境を作りましょう。
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">対話型デモを試す</a>
+<a :href="demoHref" target="_self">TikTools を試す</a>
 [TikTools をダウンロード](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>
 
 <template #start>
 
-## 最初の LIVE を一歩ずつ {#start-here}
+## 次の LIVE で使ってみる {#start-here}
 
-公開済みアプリから始めましょう。開発ツールは不要です。
+配信に取り入れる準備ができたら、Windows または Linux に TikTools をインストール。クリエイターに接続して、視聴者から届く最初のイベントを確認しましょう。
 
 1. [**動作要件を確認** <span>自分の環境に合う構成を探します。</span>](./user/requirements.md)
 2. [**TikTools をインストール** <span>公開済みバイナリを取得して開きます。</span>](./user/installation.md)
@@ -50,9 +50,9 @@ TikTools / ドキュメント
 
 <template #directory>
 
-## 自分に合う入口を見つける {#explore-the-guides}
+## 自分らしい配信環境へ {#explore-the-guides}
 
-2つの入口から、同じツールキットへ。
+配信環境を整える手順から、独自プラグインでの拡張まで。
 
 </template>
 
@@ -60,7 +60,7 @@ TikTools / ドキュメント
 
 ### [ユーザーガイド](./user/index.md) {#user-guides}
 
-配信を整え、視聴者に反応し、日々の作業を楽にします。アプリを使う方はこちらから。
+LIVE に接続し、視聴者にポイントを付与して、配信中の反応を自動化。最初のクリックから結果の確認まで、操作ごとのガイドで進められます。
 
 - [最初の自動化を作る](./user/automations/first-rule.md)
 - [OBS とオーバーレイを設定する](./user/overlays/index.md)
@@ -82,9 +82,9 @@ Rust ホスト、Vue フロントエンド、型付き Control API を扱いま�
 
 <template #resources>
 
-## 作業中に役立つ資料 {#resources}
+## 使い続けるためのリソース {#resources}
 
-- [**UI コンポーネントリファレンス** <span>17系統のサンプルとソース。</span>](./developer/components/index.md)
+- [**UI コンポーネントリファレンス** <span>17系統の操作例、表示状態、ソースコード。</span>](./developer/components/index.md)
 - [**トラブルシューティング** <span>診断を見つけ、よくある問題から復旧します。</span>](./user/preferences/troubleshooting.md)
 - [**リリースノート** <span>更新前に変更を確認します。</span>](./releases/index.md)
 
@@ -92,7 +92,7 @@ Rust ホスト、Vue フロントエンド、型付き Control API を扱いま�
 
 <template #footer>
 
-デモは架空のデータを使います。各ガイドには実験的な機能と前提条件を記載しています。
+ブラウザーデモは、実際の TikTools の UI を架空のデータで動かします。試すためのインストールやアカウントは不要です。実際の配信に必要な準備は、各ガイドで確認できます。
 
 [GitHub のソース](https://github.com/nglmercer/TikTools-app)
 

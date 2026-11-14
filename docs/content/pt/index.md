@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: "en"
-sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
-translationRevision: "3007fb003292387b2c0a8745801c90885d9d1889ec8aa5c3e11bfbe3dd0b9e7e"
+sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+translationRevision: "10882fd5a2bfc5b46f0de2ac342d209b809b5a3561e1ae812ef93ec3c05e223d"
 layout: page
 order: 0
 ---
@@ -17,22 +17,22 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / Documentação
+TikTools / Ferramentas para sua LIVE
 
 </template>
 
 
 <template #intro>
 
-# Seu guia para<br />uma LIVE melhor. {#tiktools-documentation}
+# Sua LIVE.<br />Suas regras. {#tiktools-documentation}
 
-Conecte sua LIVE, acompanhe os eventos e transforme a participação do público em ações. Aprenda com a interface real, exemplos interativos e instruções para cada etapa.
+Conecte sua LIVE do TikTok, automatize ações e crie sobreposições para o OBS. Experimente os controles reais logo abaixo com dados fictícios, sem instalar o aplicativo nem criar uma conta.
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">Explore a demonstração</a>
+<a :href="demoHref" target="_self">Experimente o TikTools</a>
 [Baixar TikTools](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>

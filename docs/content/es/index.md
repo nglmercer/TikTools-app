@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "cc1465f0b5da5cbbd2ff9782ed1163f9a7f793b3fedc837340d3896e3da9c990"
-translationRevision: "0900980b0881c328c8d072aabf7a7526eae33e8cfe2ec9c42f1be4efd039a818"
+sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+translationRevision: "0b886028d9dcc8270a00598d321fa643840439d830ee50660707f8f87d630856"
 layout: page
 order: 0
 ---
@@ -17,22 +17,22 @@ order: 0
 
 <template #eyebrow>
 
-TikTools / Documentación
+TikTools / Para tu próximo LIVE
 
 </template>
 
 
 <template #intro>
 
-# Tu guía para<br />un mejor LIVE. {#tiktools-documentation}
+# Tu LIVE.<br />Tus reglas. {#tiktools-documentation}
 
-Conecta tu TikTok LIVE, convierte la actividad de tu audiencia en acciones y prepara tu emisión. Aprende con guías paso a paso y controles reales que puedes probar con datos de ejemplo.
+Conecta tu TikTok LIVE, automatiza las respuestas a tu audiencia y crea overlays para OBS. Prueba aquí la interfaz real con datos ficticios y prepara tu próxima transmisión.
 
 </template>
 
 <template #actions="{ demoHref }">
 
-<a :href="demoHref" target="_self">Prueba la demo interactiva</a>
+<a :href="demoHref" target="_self">Prueba TikTools</a>
 [Descarga TikTools](https://github.com/nglmercer/TikTools-app/releases)
 
 </template>
@@ -41,7 +41,7 @@ Conecta tu TikTok LIVE, convierte la actividad de tu audiencia en acciones y pre
 
 ## Tu primer LIVE, paso a paso {#start-here}
 
-Prueba primero los controles o empieza con la aplicación publicada. No necesitas herramientas de desarrollo.
+Explora la aplicación aquí mismo o instálala para conectar tu LIVE. No necesitas herramientas de desarrollo.
 
 1. [**Revisa los requisitos** <span>Encuentra la configuración para tu sistema.</span>](./user/requirements.md)
 2. [**Instala TikTools** <span>Descarga y abre un binario publicado.</span>](./user/installation.md)

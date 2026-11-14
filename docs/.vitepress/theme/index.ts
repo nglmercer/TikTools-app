@@ -1,6 +1,7 @@
 import DefaultTheme from 'vitepress/theme';
 import './style.css';
 import './experience.css';
+import './landing.css';
 import DemoFrame from './components/DemoFrame.vue';
 import DocsHome from './components/DocsHome.vue';
 import InlineButtons from '../../examples/buttons.vue';
