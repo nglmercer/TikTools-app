@@ -3,11 +3,11 @@ import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { checkAppImageSmokeInstallation, parseAppImageSmokeArgs } from './appimage-smoke.ts';
+import { checkAppImageCli, checkAppImageSmokeInstallation, parseAppImageSmokeArgs } from './appimage-smoke.ts';
 
 describe('AppImage smoke launch modes', () => {
   test('defaults to strict mounted classification unless extraction is explicitly selected', () => {
-    expect(parseAppImageSmokeArgs(['release/TikTools.AppImage', '4.2.2'], 'linux')).toEqual({ imageArg: 'release/TikTools.AppImage', expectedVersion: '4.2.2', mode: 'mounted' });
+    expect(parseAppImageSmokeArgs(['release/TikTools.AppImage', '4.2.2'], 'linux')).toEqual({ imageArg: 'release/TikTools.AppImage', expectedVersion: '4.2.2', mode: 'mounted', requireCli: false });
     expect(parseAppImageSmokeArgs(['release/TikTools.AppImage', '4.2.2', '--extracted-mode'], 'linux').mode).toBe('extracted');
   });
 
@@ -112,4 +112,11 @@ test.skipIf(process.platform !== 'linux')('mounted fixture clears inherited extr
     expect(err).toContain('mounted installation detection failed: received "unknown"; expected appImage');
     expect(out).not.toContain('inherited-extraction');
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('new AppImages must expose the real companion CLI when explicitly required', () => {
+  expect(parseAppImageSmokeArgs(['app', '4.2.2', '--require-cli', '--extracted-mode'], 'linux').requireCli).toBe(true);
+  expect(() => parseAppImageSmokeArgs(['app', '4.2.2', '--require-cli', '--require-cli'], 'linux')).toThrow('usage');
+  expect(() => checkAppImageCli(JSON.stringify({ version: '4.2.2', features: { cloudAuth: true, remoteClient: true, remoteControl: true } }), '4.2.2')).not.toThrow();
+  expect(() => checkAppImageCli(JSON.stringify({ version: '4.2.2', features: { remoteControl: false } }), '4.2.2')).toThrow('headless');
 });

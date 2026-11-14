@@ -111,7 +111,7 @@ async def serve(args):
                     except (OSError, ssl.SSLError, ConnectionError):
                         pass
 
-    server = await asyncio.start_server(connection, "127.0.0.1", 0, ssl=context)
+    server = await asyncio.start_server(connection, "127.0.0.1", args.port, ssl=context)
     port = server.sockets[0].getsockname()[1]
     print(port, flush=True)
     if not args.control:
@@ -147,6 +147,7 @@ async def serve(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--upstream", required=True)
     parser.add_argument("--cert", required=True)
     parser.add_argument("--key", required=True)

@@ -28,10 +28,10 @@ export interface Article {
   links: Array<{ target: string; image: boolean }>;
 }
 
-export async function readArticles(): Promise<Article[]> {
+export async function readArticles(paths?: readonly string[]): Promise<Article[]> {
   const md = await createMarkdownRenderer(contentRoot);
   const result: Article[] = [];
-  for (const path of await markdownFiles(contentRoot)) {
+  for (const path of paths ?? await markdownFiles(contentRoot)) {
     const source = await readFile(path, 'utf8');
     const relativePath = relative(contentRoot, path).replaceAll('\\', '/');
     const env: { path: string; relativePath: string; content?: string; frontmatter?: Record<string, unknown> } = { path, relativePath };

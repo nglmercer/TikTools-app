@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
-translationRevision: "7c0b540c4f1b4e1953b3007092ce5440109f355d8ad06eb763aa60d3616f23d0"
+sourceRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
+translationRevision: "fe3c629f94372134069e2f5316f807214666ce435d135cb45c0eba72054c5839"
 order: 80
 ---
 
@@ -51,3 +51,54 @@ async fn inspect() -> Result<(), tiktools_client::ClientError> {
 エージェントも他のクライアントと同じ検証、イベント、失敗を受け取ります。アクセスは実装済みで、権限は選択バックエンドと現在の付与に依存します。応答確認が不明なら元の結果を照会し、新しい ID で自動再送しません。限定されたリモート要約から完全な定義は復元できないので、送信ソースを非公開で保持します。
 
 メソッド追加後は `bun scripts/task.ts rust test -p tiktools-client --test parity --locked` を実行します。シグネチャの正本は [SDK ソース](https://github.com/nglmercer/TikTools-app/blob/remake/crates/tiktools-client/src/lib.rs) と正規レジストリです。過去のエージェント例は新しい所有者復旧コーディネーターに追従していない場合があります。
+
+## エージェント向けのヘッドレス Teams {#headless-teams}
+
+ホスト機能を有効にして CLI をビルドするか、ポータブルリリースに含まれる同じバージョンの CLI を使用します。所有者を永続プロセスとして実行し、絶対パスの独立した `TIKTOOLS_HOME` を指定します。別の端末からの所有者コマンドも同じディレクトリを使います。
+
+```sh
+cargo build -p tiktools-cli --release --locked --features remote-control
+TIKTOOLS_HOME=/absolute/test-owner target/release/tiktools host --ipc
+```
+
+`cloud login` は所有者ランタイム、`remote cloud login` は controller コンテキストを認証します。アカウントのメタデータとデバイス鍵は分離されたままです。どちらも実際のブラウザによる引き継ぎを使い、デスクトップウィンドウは不要です。`--non-interactive` はログインを開始せず、資格情報がなければ `authentication_required` を返します。
+
+所有者はチームを作成し、ホストデバイスを登録してサービスを開始します。`teams people search NICKNAME` で宛先 ID を調べ、その宛先に紐づく招待を作成します。トークンは新規の非公開ファイルに一度だけ保存され、標準出力にはメタデータのみが含まれます。申請を明示的に承認し、接続前にエージェントのネイティブ権限を設定してください。
+
+```sh
+tiktools --json teams create --name "Studio" --confirm
+tiktools --json teams host enroll --team TEAM_ID --label "Host" --confirm
+tiktools --json teams host start --wait --timeout 30 --confirm
+tiktools --json teams invitations create --team TEAM_ID --recipient RECIPIENT_ID --role observer --output-file /private/invite --confirm
+```
+
+承認後に `remote cloud connect --host ID --profile agent --kind agent --wait --non-interactive --timeout 30` を使うと再利用可能な接続を作成できます。`teams list --joined` は controller の参加チーム、`teams list --owned` は所有チームを取得します。`teams doctor` は所有者、`teams doctor --context controller` は controller の認証と所属を調べ、`remote check agent` は実際の接続を検証します。
+
+```sh
+tiktools --json teams join --profile agent --kind agent --invite-stdin --non-interactive < /private/invite
+tiktools --json teams requests list --team TEAM_ID
+tiktools --json teams requests approve --team TEAM_ID --request REQUEST_ID --confirm
+tiktools --json teams grants list --team TEAM_ID
+tiktools --json teams grants update --team TEAM_ID --grant GRANT_ID --expected-revision REVISION --role custom --policy @agent-policy.json --confirm
+tiktools remote serve --profile agent --stdio --events --timeout 30
+```
+
+`agent-policy.json`:
+
+<<< ../../../examples/agent-policy.json
+
+```json
+{"jsonrpc":"2.0","id":"agent-1","method":"live.status","params":{}}
+```
+
+永続クライアントは一行に一つの JSON-RPC リクエストを受け取り、ID を保持します。書き込みには `confirm: true` が必要です。永続的な書き込みには文書化されたコマンドとホストのメタデータも必要です。EOF、終了シグナル、接続終了でクライアントを解放します。サイズと時間には上限があり、タイムアウトした書き込みでも確定している場合があります。
+
+受け入れランナーはコンパイル済み CLI、実際の使い捨てバックエンド、合成アカウント、別々の所有者と controller プロセスを使います。CLI 受け入れ fixture とインストール済み pgrust ツールを含む RemakeBackend checkout を指定します。開発バイナリは実行時にテスト用 origin を使えます。リリースはビルド時の origin を維持するため、固定 loopback TLS ポート向けに staging release をビルドして `--cloud-port PORT` を指定します。本番 origin に固定されたバイナリは認証前に拒否され、リモート workflow は開始しません。
+
+```sh
+bun scripts/task.ts test headless-teams --binary /absolute/path/tiktools --backend /absolute/path/RemakeBackend --report /tmp/headless-teams.json
+```
+
+新しいパッケージは `./TikTools.AppImage --cli --build-info` と `./TikTools.AppImage --cli --json teams doctor` にも対応し、GUI 初期化前に CLI へ処理を渡します。公開済みの古い AppImage にこの入口が自動追加されることはありません。
+
+CLI プロセス間で controller プロファイルを再利用するには、OS の資格情報ストアが利用可能である必要があります。

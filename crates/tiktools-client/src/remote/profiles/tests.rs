@@ -717,3 +717,25 @@ async fn profile_lease_excludes_another_process_and_releases_after_process_death
     assert!(!child.0.wait().unwrap().success());
     assert!(directory::Lease::open(directory, "lease", true).is_ok());
 }
+
+#[cfg(all(unix, feature = "cloud-peer"))]
+#[tokio::test]
+async fn cloud_login_prepares_private_profile_root_before_sidecar_creates_children() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("profiles");
+    let manager = ProfileManager::new(directory.clone(), Arc::new(Store::default())).unwrap();
+    let _controller = crate::remote::cloud_peer::CloudPeerController::from_environment(
+        directory.join("cloud-account"),
+        manager.clone(),
+        ClientKind::Agent,
+    )
+    .unwrap();
+    // Reproduce the account sidecar's create_dir_all before the first profile exists.
+    std::fs::create_dir_all(directory.join("cloud-account")).unwrap();
+    assert_eq!(
+        std::fs::metadata(&directory).unwrap().permissions().mode() & 0o077,
+        0
+    );
+    manager.ensure_new("agent").await.unwrap();
+}

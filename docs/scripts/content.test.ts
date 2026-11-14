@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { resolve } from 'node:path';
 import { docLocales, type DocLocale } from '../locales.ts';
-import { articleWordCount, contentHash, metadataErrors, readArticles, type Article } from './content.ts';
+import { articleWordCount, contentHash, contentRoot, metadataErrors, readArticles, type Article } from './content.ts';
 
 const en = '# Install TikTools\n\n' + 'Read the release notes and choose the correct package for your operating system. '.repeat(4);
 const es = '# Instalar TikTools\n\n' + 'Lee las notas de la versión y elige el paquete correspondiente a tu sistema operativo. '.repeat(4);
@@ -13,7 +14,7 @@ const translations = () => [article('en', en), article('es', es), article('pt', 
 
 describe('public documentation metadata', () => {
   test('reads metadata through the installed VitePress frontmatter renderer', async () => {
-    const articles = await readArticles();
+    const articles = await readArticles([resolve(contentRoot, 'en/user/installation.md')]);
     expect(articles.find((entry) => entry.relativePath === 'en/user/installation.md')?.frontmatter.docId).toBe('user.start.installation');
   });
   test('accepts all six translations with an explicitly reviewed source revision', () => {

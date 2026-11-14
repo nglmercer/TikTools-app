@@ -1,3 +1,6 @@
+import { createHash } from 'node:crypto';
+import { readFile, writeFile } from 'node:fs/promises';
+import { validateCliBuildInfo } from './lib/cli-release.ts';
 import { cp, mkdir, rm, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 
@@ -82,6 +85,15 @@ const versionCheck = Bun.spawn([process.execPath, 'scripts/check-version.ts', '-
 });
 if (await versionCheck.exited !== 0) fail('release version verification failed');
 
+const cliName = platformValue === 'windows-x86_64' ? 'tiktools.exe' : 'tiktools';
+const cliPath = resolve(repositoryRoot, process.env.RELEASE_CLI_BINARY?.trim() || join('target', 'release', cliName));
+if (!(await isFile(cliPath))) fail(`compiled headless CLI is missing ${cliPath}; build tiktools-cli with --features remote-control`);
+const revision = run('git', ['rev-parse', 'HEAD']).trim();
+if (run('git', ['status', '--porcelain', '--untracked-files=no']).trim()) fail('commit tracked source changes before packaging a release');
+const cliInfo: unknown = JSON.parse(run(cliPath, ['--build-info']));
+validateCliBuildInfo(cliInfo, version, revision);
+const cliManifest = { ...cliInfo, stagedBinarySha256: createHash('sha256').update(await readFile(cliPath)).digest('hex') };
+
 const releaseDirectory = resolve(repositoryRoot, 'release');
 const stagingDirectory = join(releaseDirectory, 'staging');
 const bundleName = 'TikTools';
@@ -94,6 +106,8 @@ await rm(archivePath, { force: true });
 await mkdir(bundleDirectory, { recursive: true });
 
 await cp(binaryPath, join(bundleDirectory, platform.binaryName));
+await cp(cliPath, join(bundleDirectory, cliName));
+await writeFile(join(bundleDirectory, 'cli-build.json'), `${JSON.stringify(cliManifest, null, 2)}\n`);
 // Plugins are not bundled: they install separately (marketplace or .plugin
 // files) and their sources live in the plugins-example-tiktools repository.
 await cp(webRoot, join(bundleDirectory, 'web'), { recursive: true });

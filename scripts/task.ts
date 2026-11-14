@@ -18,6 +18,7 @@ const USAGE =
   'Targeted tests: `test` (fast units), `test rust <crate> [filter] [--features <list>]`,\n' +
   '`test web [filter] [--watch|--changed]`, `test bun <area> [filter]`,\n' +
   '`test plugin <name> [filter]`, `test e2e [filter]`, `test --changed`.\n' +
+  'Headless acceptance: test headless-teams --binary PATH [--backend PATH] [--report PATH].\n' +
   'Internal steps used by CI and guides: frontend-lint, frontend-test, frontend-build,\n' +
   'rust-lint, rust <cargo args>, widgets, plugins <args>, e2e [args], package,\n' +
   'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins.\n' +
@@ -184,7 +185,8 @@ try {
       await ci();
       break;
     case 'test':
-      await runTargetedTests(args, { root, runner });
+      if (args[0] === 'headless-teams') await script('test-headless-teams.ts', ...args.slice(1));
+      else await runTargetedTests(args, { root, runner });
       break;
     case 'frontend-lint':
       needNoArgs('frontend-lint', args);

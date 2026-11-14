@@ -199,3 +199,23 @@ Keep TikTok cookies, Cloud credentials, invitation tokens and secret Variables
 out of logs, issues and screenshots. TikTok session cookies stay in memory.
 Cloud login is separate from the TikTok LIVE connection. Review diagnostic
 exports before sharing them.
+
+## Headless Teams CLI
+
+Build `tiktools-cli` with `--features remote-control` to serve a Team without a
+WebView. New portable packages include the matching `tiktools` executable and
+`cli-build.json`; new AppImages dispatch `--cli` before starting the desktop.
+Existing published AppImages retain their original capabilities.
+
+```sh
+cargo build -p tiktools-cli --release --locked --features remote-control
+target/release/tiktools --build-info
+TIKTOOLS_HOME=/absolute/test-owner target/release/tiktools host --ipc
+```
+
+The [agent guide](docs/content/en/developer/agents.md#headless-teams) covers owner
+commands, controller authentication, private invitations, explicit permissions
+and the persistent JSON-RPC client. Run the real backend acceptance suite
+against an existing CLI with `bun scripts/task.ts test headless-teams --binary
+/absolute/path/tiktools --backend /absolute/path/RemakeBackend`. It provisions
+synthetic accounts and disposable data; it does not start GitHub Actions.

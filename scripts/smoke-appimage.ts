@@ -2,10 +2,10 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { checkAppImageSmokeInstallation, parseAppImageSmokeArgs } from './lib/appimage-smoke.ts';
+import { checkAppImageCli, checkAppImageSmokeInstallation, parseAppImageSmokeArgs } from './lib/appimage-smoke.ts';
 import { startAppImageProcess } from './lib/appimage-process.ts';
 
-const { imageArg, expectedVersion, mode } = parseAppImageSmokeArgs(process.argv.slice(2), process.platform);
+const { imageArg, expectedVersion, mode, requireCli } = parseAppImageSmokeArgs(process.argv.slice(2), process.platform);
 const image = resolve(imageArg);
 const root = await mkdtemp(join(tmpdir(), 'tiktools-appimage-smoke-'));
 const env = {
@@ -22,8 +22,8 @@ const env = {
   // CI setting. Extracted mode verifies startup, not FUSE/updater acceptance.
   APPIMAGE_EXTRACT_AND_RUN: mode === 'extracted' ? '1' : undefined,
 };
-async function probe(argument: string): Promise<string> {
-  const child = startAppImageProcess(image, [argument], env, join(root, argument.slice(2)));
+async function probe(argument: string, ...extra: string[]): Promise<string> {
+  const child = startAppImageProcess(image, [argument, ...extra], env, join(root, argument.slice(2)));
   let code: number | null;
   try {
     if (!await child.wait(20_000)) throw new Error(`AppImage ${argument} probe timed out`);
@@ -43,6 +43,11 @@ try {
   await writeFile(marker, 'preserve this data');
   if (await probe('--version') !== expectedVersion) throw new Error('AppImage version mismatch');
   checkAppImageSmokeInstallation(await probe('--update-installation-type'), mode);
+  if (requireCli) {
+    checkAppImageCli(await probe('--cli', '--build-info'), expectedVersion);
+    const verification = JSON.parse(await probe('--cli', '--json', 'api', 'verify', '--sandbox', '--timeout', '5')) as { ok?: boolean };
+    if (verification.ok !== true) throw new Error('AppImage headless API verification failed');
+  }
   const child = startAppImageProcess(image, [], env, join(root, 'frontend'));
   let ready = false;
   try {
