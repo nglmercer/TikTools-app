@@ -7629,6 +7629,7 @@ dependencies = [
  "rcgen",
  "ring",
  "rpassword",
+ "rustls",
  "serde",
  "serde_json",
  "tempfile",

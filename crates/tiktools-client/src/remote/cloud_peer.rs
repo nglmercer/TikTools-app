@@ -28,7 +28,9 @@ pub struct CloudPeerController {
     lifecycle: tokio::sync::Mutex<()>,
 }
 fn cloud(error: OperationError) -> ClientError {
-    ClientError::new(error.code, error.message)
+    let mut failure = ClientError::new(error.code, error.message);
+    failure.data = error.data;
+    failure
 }
 impl CloudPeerController {
     pub fn from_environment(
@@ -36,6 +38,7 @@ impl CloudPeerController {
         profiles: ProfileManager,
         kind: ClientKind,
     ) -> Result<Self, ClientError> {
+        profiles.prepare_directory()?;
         let auth = CloudAuth::from_environment(
             data.clone(),
             Arc::new(tiktools_cloud_auth::OsTokenStore::new()),
@@ -91,7 +94,7 @@ fn scoped(data: &Path, origin: &str, account: &str) -> (CloudTeams, PathBuf) {
     (CloudTeams::from_data_directory(&data), data)
 }
 impl CloudPeerController {
-    pub async fn teams(
+    pub async fn memberships(
         &self,
     ) -> Result<Vec<tiktools_core::cloud_teams::PeerMembership>, ClientError> {
         let session = self
@@ -112,13 +115,21 @@ impl CloudPeerController {
         .await
         .map_err(|_| network())?
         .map_err(cloud)?;
+        Ok(memberships.items)
+    }
+
+    /// Teams usable by this controller kind. Discovery tools can use
+    /// `memberships` to inspect all native kinds without broadening admission.
+    pub async fn teams(
+        &self,
+    ) -> Result<Vec<tiktools_core::cloud_teams::PeerMembership>, ClientError> {
+        let memberships = self.memberships().await?;
         let kind = match self.kind {
             ClientKind::Desktop => "desktop",
             ClientKind::Agent => "agent",
             ClientKind::Browser => return Err(protocol()),
         };
         Ok(memberships
-            .items
             .into_iter()
             .filter(|item| item.client_kind == kind)
             .collect())

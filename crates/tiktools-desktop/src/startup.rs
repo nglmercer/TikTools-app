@@ -44,11 +44,40 @@ impl Mode {
         Ok(Self::Controller(profile))
     }
 }
+/// Preserve CLI arguments exactly; a remote profile belongs to the CLI here,
+/// not the desktop controller mode. No environment or filesystem is touched.
+pub fn cli_arguments(
+    args: impl IntoIterator<Item = std::ffi::OsString>,
+) -> Option<Vec<std::ffi::OsString>> {
+    let mut args = args.into_iter();
+    (args.next()?.as_os_str() == std::ffi::OsStr::new("--cli")).then(|| args.collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     fn parse(args: &[&str]) -> Result<Mode, &'static str> {
         Mode::parse(args.iter().map(|s| s.to_string()))
+    }
+    #[test]
+    fn packaged_cli_dispatch_precedes_desktop_remote_selection() {
+        let args = [
+            "--cli",
+            "--remote-profile",
+            "agent",
+            "api",
+            "call",
+            "live.status",
+            "{}",
+        ];
+        assert_eq!(
+            cli_arguments(args.map(std::ffi::OsString::from)).unwrap(),
+            args[1..]
+                .iter()
+                .map(|value| std::ffi::OsString::from(*value))
+                .collect::<Vec<_>>()
+        );
+        assert!(cli_arguments(["--controller"].map(std::ffi::OsString::from)).is_none());
     }
     #[test]
     fn remote_selection_is_exclusive_before_host_initialization() {

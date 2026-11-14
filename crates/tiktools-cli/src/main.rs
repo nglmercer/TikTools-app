@@ -24,9 +24,6 @@ const USAGE: &str = "\
 usage: tiktools [--json] [--standalone | --remote-profile NAME] <command> [args]
 
 commands:
-  remote cloud status | login | logout | enroll [--label NAME] | join [--invite-stdin]
-         | connect --profile NAME --host ID [--kind desktop|agent]
-         | pair --profile NAME [--kind desktop|agent] [--label NAME] [--invite-stdin]
   remote list | show NAME | check NAME | forget NAME
   plugin list | get <id> | install <file.plugin> [--replace] | uninstall <id> [--purge]
          | install <id[@version]> [--yes] [--no-wait]
@@ -63,6 +60,12 @@ commands:
          | list | delete <template-id>
          | profile-import <file> [--param k=v]... [--dry-run] [--no-save] [--disabled]
          | profile-export --out <file> [--name n]
+  teams create|list|host|people|invitations|requests|grants|sessions|doctor
+                                Owner administration; writes need --confirm
+  teams join --profile NAME --kind agent --invite-stdin [--wait] [--timeout SEC]
+  teams list --joined           Controller memberships; no local host needed
+  teams doctor --context controller
+  --build-info                  JSON version, source revision and compiled features
   api discover [--format json|human]
     | schema <method> [--format json|human]
     | call <method> [params-json] [--timeout SEC] [--dry-run] [--confirm]
@@ -72,10 +75,12 @@ commands:
     | verify [--coverage|--smoke] [--sandbox] [--timeout SEC]
   rpc <method> [params-json]
   rpc --stdio [--events]        NDJSON request/response loop on stdio
-  remote cloud status | login | logout
-         cloud enroll [--label NAME] | join [--invite-stdin]
-         cloud connect --host ID --profile NAME [--kind desktop|agent]
-         cloud pair --profile NAME [--label NAME] [--kind desktop|agent] [--invite-stdin]
+  remote serve --profile NAME --stdio [--events] [--timeout SEC]
+  remote cloud status | login | logout | teams | doctor
+         | enroll [--label NAME] | join [--invite-stdin]
+         | connect --host ID --profile NAME [--kind desktop|agent] [--wait]
+         | pair --profile NAME [--label NAME] [--kind desktop|agent] [--invite-stdin]
+         pair/connect accept --non-interactive and --timeout SEC
                                 Native Cloud P2P onboarding; no local host runtime
   cloud status | login | logout | restore
                                 Cloud account (official Cloud; override with TIKTOOLS_CLOUD_ORIGIN)
@@ -107,6 +112,11 @@ without --confirm.
 ";
 
 fn main() {
+    // Native peer dependencies can enable multiple rustls providers. Select
+    // the same provider as the desktop before constructing any async client.
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
     let code = run();
     std::process::exit(code);
 }
@@ -129,6 +139,21 @@ fn run() -> i32 {
     if let Some(error) = selection_error(&args, standalone, remote_profile.as_deref()) {
         eprintln!("tiktools: {error}");
         return 2;
+    }
+    if args.first().is_some_and(|v| v == "--build-info") {
+        if args.len() != 1 {
+            eprintln!("--build-info accepts no arguments");
+            return 2;
+        }
+        #[cfg(feature = "cloud-auth")]
+        let cloud_origin = tiktools_core::cloud_account::resolve_cloud_origin();
+        #[cfg(not(feature = "cloud-auth"))]
+        let cloud_origin: Option<String> = None;
+        println!(
+            "{}",
+            serde_json::json!({"version":env!("CARGO_PKG_VERSION"),"sourceRevision":option_env!("TIKTOOLS_BUILD_SHA"),"buildMode":if cfg!(debug_assertions) {"development"} else {"release"},"cloudOrigin":cloud_origin,"features":{"cloudAuth":cfg!(feature="cloud-auth"),"remoteClient":cfg!(feature="remote-client"),"remoteControl":cfg!(feature="remote-control"),"localWeb":cfg!(feature="local-web")}})
+        );
+        return 0;
     }
     if args.is_empty() || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
         print!("{USAGE}");
@@ -162,6 +187,42 @@ async fn dispatch(
     standalone: bool,
     remote_profile: Option<String>,
 ) -> i32 {
+    #[cfg(all(feature = "cloud-auth", feature = "remote-client"))]
+    if args.first().is_some_and(|arg| arg == "teams") {
+        let redirected = if args.get(1).is_some_and(|v| v == "join") {
+            Some(
+                std::iter::once("pair".to_owned())
+                    .chain(args[2..].iter().cloned())
+                    .collect::<Vec<_>>(),
+            )
+        } else if args.get(1).is_some_and(|v| v == "list") && args.iter().any(|v| v == "--joined") {
+            Some(
+                std::iter::once("teams".to_owned())
+                    .chain(
+                        args[2..]
+                            .iter()
+                            .filter(|v| v.as_str() != "--joined")
+                            .cloned(),
+                    )
+                    .collect(),
+            )
+        } else if args.get(1).is_some_and(|v| v == "doctor")
+            && args
+                .get(2..4)
+                .is_some_and(|v| v == ["--context", "controller"])
+        {
+            Some(
+                std::iter::once("doctor".to_owned())
+                    .chain(args[4..].iter().cloned())
+                    .collect(),
+            )
+        } else {
+            None
+        };
+        if let Some(redirected) = redirected {
+            return remote::cloud::run(&redirected, json_mode).await;
+        }
+    }
     if args.first().is_some_and(|arg| arg == "remote") {
         #[cfg(feature = "remote-client")]
         return remote::run(&args[1..], json_mode).await;

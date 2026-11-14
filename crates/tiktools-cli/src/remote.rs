@@ -1,6 +1,7 @@
 //! Native profile management never resolves local IPC or constructs AppCore.
 #[cfg(feature = "cloud-auth")]
-mod cloud;
+pub(crate) mod cloud;
+mod stdio;
 use crate::client::{exit_code_for, print_error};
 use serde_json::{json, Value};
 use std::{
@@ -18,6 +19,20 @@ use tiktools_client::{
 use zeroize::Zeroizing;
 
 pub async fn run(args: &[String], json_mode: bool) -> i32 {
+    if args.first().is_some_and(|arg| arg == "serve") {
+        return match stdio::run(&args[1..]).await {
+            Ok(()) => 0,
+            Err(failure) => {
+                println!(
+                    "{}",
+                    crate::output::redact_secrets(
+                        json!({"jsonrpc":"2.0","id":null,"error":{"code":failure.code,"message":failure.message,"data":failure.data}})
+                    )
+                );
+                exit_code_for(&failure)
+            }
+        };
+    }
     #[cfg(feature = "cloud-auth")]
     if args.first().is_some_and(|arg| arg == "cloud") {
         return cloud::run(&args[1..], json_mode).await;

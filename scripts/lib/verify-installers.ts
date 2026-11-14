@@ -63,6 +63,18 @@ async function checkContents(staging: string, resources: string, binary: string,
   for (const file of ['LICENSE', 'README.md']) {
     if (await digest(join(staging, file)) !== await digest(join(resources, file))) throw new Error(`installer content mismatch: ${file}`);
   }
+  // New releases include a matching headless CLI. Keep old immutable tags verifiable.
+  const cliName = binary.endsWith('.exe') ? 'tiktools.exe' : 'tiktools';
+  if (await lstat(join(staging, cliName)).catch(() => null)) {
+    const cli = join(binary, '..', cliName);
+    const source = join(staging, cliName);
+    if (await digest(source) !== await digest(cli) && !(appimage && await matchesPatchedElf(source, cli))) throw new Error('installer CLI differs from staged CLI');
+    const manifest = await readFile(join(staging, 'cli-build.json'), 'utf8');
+    if (manifest !== await readFile(join(resources, 'cli-build.json'), 'utf8')) throw new Error('installer CLI manifest differs from staging');
+    const build = JSON.parse(await run([cli, '--build-info'], resources, 15_000)) as { version?: string; sourceRevision?: string };
+    const expected = JSON.parse(manifest) as { version: string; sourceRevision: string };
+    if (build.version !== version || build.sourceRevision !== expected.sourceRevision) throw new Error('installer CLI identity differs from the release');
+  }
   const stagedBinary = join(staging, basename(binary));
   if (await digest(stagedBinary) !== await digest(binary) && !(appimage && await matchesPatchedElf(stagedBinary, binary))) throw new Error('installer binary differs from staged binary');
   if ((await run([binary, '--version'], resources, 15_000)).trim() !== version) throw new Error('installer binary version does not match the release');

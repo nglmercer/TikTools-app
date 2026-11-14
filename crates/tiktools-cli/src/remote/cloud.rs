@@ -5,6 +5,8 @@ use tiktools_client::remote::cloud_peer::CloudPeerController;
 #[derive(Debug, PartialEq)]
 enum Command {
     Status,
+    Teams,
+    Doctor,
     Login,
     Logout,
     Enroll {
@@ -17,12 +19,17 @@ enum Command {
         name: String,
         host: String,
         kind: ClientKind,
+        budget: Duration,
+        wait: bool,
     },
     Pair {
         name: String,
         label: String,
         kind: ClientKind,
         stdin: bool,
+        budget: Duration,
+        wait: bool,
+        non_interactive: bool,
     },
 }
 fn parse(args: &[String]) -> Result<Command, String> {
@@ -31,9 +38,11 @@ fn parse(args: &[String]) -> Result<Command, String> {
         .map(String::as_str)
         .ok_or("use remote cloud status|login|logout|enroll|join|connect|pair")?;
     match verb {
-        "status" | "login" | "logout" if args.len() == 1 => Ok(match verb {
+        "status" | "login" | "logout" | "teams" | "doctor" if args.len() == 1 => Ok(match verb {
             "status" => Command::Status,
             "login" => Command::Login,
+            "teams" => Command::Teams,
+            "doctor" => Command::Doctor,
             _ => Command::Logout,
         }),
         "enroll" => {
@@ -54,16 +63,27 @@ fn parse(args: &[String]) -> Result<Command, String> {
             let mut opts = options(
                 &args[1..],
                 if verb == "pair" {
-                    &["--profile", "--kind", "--label"]
+                    &["--profile", "--kind", "--label", "--timeout"]
                 } else {
-                    &["--profile", "--kind", "--host"]
+                    &["--profile", "--kind", "--host", "--timeout"]
                 },
                 if verb == "pair" {
-                    &["--invite-stdin"]
+                    &["--invite-stdin", "--wait", "--no-wait", "--non-interactive"]
                 } else {
-                    &[]
+                    &["--wait", "--non-interactive"]
                 },
             )?;
+            let budget =
+                crate::commands::teams::timeout(&opts, if verb == "pair" { 600 } else { 90 })?;
+            if opts.contains_key("--wait") && opts.contains_key("--no-wait") {
+                return Err("--wait and --no-wait are mutually exclusive".into());
+            }
+            let non_interactive = opts.contains_key("--non-interactive");
+            if verb == "pair" && non_interactive && !opts.contains_key("--invite-stdin") {
+                return Err("--non-interactive requires --invite-stdin".into());
+            }
+            let wait = opts.contains_key("--wait")
+                || verb == "pair" && !non_interactive && !opts.contains_key("--no-wait");
             let name = opts.remove("--profile").ok_or("--profile is required")?;
             if !tiktools_client::remote::profiles::valid_name(&name) {
                 return Err("invalid remote profile name".into());
@@ -81,11 +101,20 @@ fn parse(args: &[String]) -> Result<Command, String> {
                         .unwrap_or_else(|| "TikTools controller".into()),
                     kind,
                     stdin: opts.contains_key("--invite-stdin"),
+                    budget,
+                    wait,
+                    non_interactive,
                 })
             } else {
                 let host = opts.remove("--host").ok_or("--host is required")?;
                 if uuid_check(&host) {
-                    Ok(Command::Connect { name, host, kind })
+                    Ok(Command::Connect {
+                        name,
+                        host,
+                        kind,
+                        budget,
+                        wait,
+                    })
                 } else {
                     Err("invalid Cloud host ID".into())
                 }
@@ -105,7 +134,7 @@ fn uuid_check(raw: &str) -> bool {
         })
 }
 
-pub(super) async fn run(args: &[String], json_mode: bool) -> i32 {
+pub(crate) async fn run(args: &[String], json_mode: bool) -> i32 {
     let command = match parse(args) {
         Ok(command) => command,
         Err(error) => {
@@ -113,7 +142,19 @@ pub(super) async fn run(args: &[String], json_mode: bool) -> i32 {
             return 2;
         }
     };
-    match execute(command).await {
+    let budget = match &command {
+        Command::Pair { budget, .. } | Command::Connect { budget, .. } => *budget,
+        _ => Duration::from_secs(120),
+    };
+    let execution = tokio::time::timeout(budget, execute(command))
+        .await
+        .unwrap_or_else(|_| {
+            Err(error(
+                "timeout",
+                "Cloud onboarding deadline exceeded; an accepted join request may still exist",
+            ))
+        });
+    match execution {
         Ok(value) => {
             if json_mode {
                 println!("{value}");
@@ -131,8 +172,8 @@ pub(super) async fn run(args: &[String], json_mode: bool) -> i32 {
         }
     }
 }
-fn native_auth(failure: impl std::fmt::Display) -> ClientError {
-    error("cloud_auth", &failure.to_string())
+fn native_auth(failure: tiktools_core::cloud_account::AuthError) -> ClientError {
+    error(failure.code(), &failure.to_string())
 }
 async fn login(controller: &CloudPeerController) -> Result<(), ClientError> {
     let begin = controller
@@ -164,35 +205,78 @@ async fn execute(command: Command) -> Result<Value, ClientError> {
     )?;
     match command {
         Command::Status => {
-            return serde_json::to_value(controller.account().status().await)
-                .map_err(|_| error("protocol", "invalid account status"))
+            let restored = controller.account().restore().await;
+            let mut status = serde_json::to_value(controller.account().status().await)
+                .map_err(|_| error("protocol", "invalid account status"))?;
+            status["context"] = json!("controller");
+            status["verified"] = json!(restored.is_ok());
+            status["credentialState"] =
+                json!(
+                    match restored.as_ref().err().map(|failure| failure.code()) {
+                        None => "verified",
+                        Some("no-saved-session" | "unconfigured") => "missing",
+                        Some("storage-unavailable") => "unavailable",
+                        Some("expired") => "expired",
+                        Some(_) => "unverified",
+                    }
+                );
+            if let Err(failure) = restored {
+                status["restoreError"] = json!({"code":failure.code()});
+            }
+            return Ok(status);
         }
-        Command::Logout => {
-            return serde_json::to_value(controller.account().logout().await.map_err(native_auth)?)
-                .map_err(|_| error("protocol", "invalid account status"))
+        Command::Doctor => {
+            let restored = controller.account().restore().await;
+            let status = controller.account().status().await;
+            let teams = if restored.is_ok() {
+                Some(controller.memberships().await?)
+            } else {
+                None
+            };
+            return Ok(
+                json!({"context":"controller","verified":restored.is_ok(),"account":status,"teams":teams,"restoreError":restored.err().map(|e| e.code().to_owned())}),
+            );
         }
         Command::Login => {
             login(&controller).await?;
             return serde_json::to_value(controller.account().status().await)
                 .map_err(|_| error("protocol", "invalid account status"));
         }
+        Command::Logout => {
+            return serde_json::to_value(controller.account().logout().await.map_err(native_auth)?)
+                .map_err(|_| error("protocol", "invalid account status"))
+        }
         _ => {}
     }
     if let Err(restore) = controller.account().restore().await {
         // Pair keeps login, enrollment and admission in one process, so it
         // also works when the OS can provide only memory-only persistence.
-        if matches!(command, Command::Pair { .. })
-            && matches!(
-                restore.code(),
-                "no-saved-session" | "expired" | "storage-unavailable"
-            )
-        {
+        if matches!(
+            command,
+            Command::Pair {
+                non_interactive: false,
+                ..
+            }
+        ) && matches!(
+            restore.code(),
+            "no-saved-session" | "expired" | "storage-unavailable"
+        ) {
             login(&controller).await?;
         } else {
-            return Err(native_auth(restore));
+            let mut failure = error(
+                "authentication_required",
+                "Cloud authentication is required for the controller context",
+            );
+            failure.data = Some(
+                json!({"context":"controller","cause":restore.code(),"nextCommand":"tiktools remote cloud login"}),
+            );
+            return Err(failure);
         }
     }
     match command {
+        Command::Teams => {
+            Ok(json!({"context":"controller","items":controller.memberships().await?}))
+        }
         Command::Enroll { label } => serde_json::to_value(controller.enroll(label).await?)
             .map_err(|_| error("protocol", "invalid enrolled device")),
         Command::Join { stdin } => {
@@ -202,12 +286,15 @@ async fn execute(command: Command) -> Result<Value, ClientError> {
             serde_json::to_value(controller.redeem(token.to_string()).await?)
                 .map_err(|_| error("protocol", "invalid join request"))
         }
-        Command::Connect { name, host, .. } => {
-            serde_json::to_value(controller.connect(&name, &host).await?)
-                .map_err(|_| error("protocol", "invalid peer profile"))
-        }
+        Command::Connect {
+            name, host, wait, ..
+        } => connect(&controller, &name, &host, wait).await,
         Command::Pair {
-            name, label, stdin, ..
+            name,
+            label,
+            stdin,
+            wait,
+            ..
         } => {
             profiles.ensure_new(&name).await?;
             match controller.controller_device_id().await {
@@ -221,42 +308,40 @@ async fn execute(command: Command) -> Result<Value, ClientError> {
                 .await
                 .map_err(|_| error("input", "private invitation input failed"))??;
             let request = controller.redeem(token.to_string()).await?;
-            eprintln!(
-                "Waiting for owner approval of request {} (host {})",
-                request.request_id, request.host_id
-            );
-            tokio::time::timeout(Duration::from_secs(600), async {
-                loop {
-                    match controller.connect(&name, &request.host_id).await {
-                        Ok(profile) => {
-                            return serde_json::to_value(profile)
-                                .map_err(|_| error("protocol", "invalid peer profile"))
-                        }
-                        Err(error)
-                            if matches!(
-                                error.code.as_str(),
-                                "approval_pending"
-                                    | "transport"
-                                    | "unauthorized"
-                                    | "unavailable"
-                                    | "rate_limited"
-                            ) =>
-                        {
-                            tokio::time::sleep(Duration::from_secs(10)).await
-                        }
-                        Err(error) => return Err(error),
-                    }
-                }
-            })
-            .await
-            .map_err(|_| {
-                error(
-                    "approval_pending",
-                    "approval timed out; use remote cloud connect with the host ID shown above",
-                )
-            })?
+            if !wait {
+                return Ok(
+                    json!({"state":"approval_pending","requestId":request.request_id,"hostId":request.host_id,"nextCommand":format!("tiktools remote cloud connect --host {} --profile {}",request.host_id,name)}),
+                );
+            }
+            connect(&controller, &name, &request.host_id, true).await
         }
         _ => unreachable!(),
+    }
+}
+
+async fn connect(
+    controller: &CloudPeerController,
+    name: &str,
+    host: &str,
+    wait: bool,
+) -> Result<Value, ClientError> {
+    loop {
+        match controller.connect(name, host).await {
+            Ok(profile) => {
+                return serde_json::to_value(profile)
+                    .map_err(|_| error("protocol", "invalid peer profile"))
+            }
+            Err(failure)
+                if wait
+                    && matches!(
+                        failure.code.as_str(),
+                        "approval_pending" | "transport" | "unavailable" | "rate_limited"
+                    ) =>
+            {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+            Err(failure) => return Err(failure),
+        }
     }
 }
 

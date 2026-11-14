@@ -143,7 +143,14 @@ jobs:
             cargo-release-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Build release desktop binary
-        run: node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked
+        shell: bash
+        run: |
+          # Older immutable tags predate the distributed CLI; preserve their build contract.
+          if [ -f crates/tiktools-cli/build.rs ]; then
+            node scripts/cargo-with-linker.mjs build -p tiktools-desktop -p tiktools-cli --features tiktools-cli/remote-control --release --locked
+          else
+            node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked
+          fi
 
       - name: Install pinned cargo-packager
         run: cargo install cargo-packager --version 0.11.8 --locked
@@ -245,8 +252,10 @@ jobs:
           WEBKIT_DISABLE_DMABUF_RENDERER: '1'
         run: |
           version="${RELEASE_TAG#v}"
+          cli_flags=()
+          if [ -f crates/tiktools-cli/build.rs ]; then cli_flags=(--require-cli); fi
           dbus-run-session -- xvfb-run -a bun "$RUNNER_TEMP/tiktools-recovery-tooling/scripts/smoke-appimage.ts" \
-            "$GITHUB_WORKSPACE/release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version" --extracted-mode
+            "$GITHUB_WORKSPACE/release/TikTools-${version}-linux-x86_64-installer.AppImage" "$version" --extracted-mode "${cli_flags[@]}"
 
       # Keep a failed GUI candidate for local investigation without repeating
       # the Rust build. Diagnostic artifacts never bypass the successful build

@@ -80,6 +80,10 @@ impl AppCore {
                 "http": cfg!(feature = "http"),
                 "napiVmNodeApi": cfg!(all(feature = "napi-vm-node-api", not(target_os = "android"))),
             },
+            "remoteCapabilities": {
+                "gatewayAvailable": self.collaboration_gateway_available.load(Ordering::Acquire),
+                "nativePeerAvailable": self.collaboration_peer_available.load(Ordering::Acquire),
+            },
             "home": self.db.paths().root.display().to_string(),
             "dataDir": self.db.paths().data.display().to_string(),
             "pid": std::process::id(),

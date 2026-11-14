@@ -10,6 +10,8 @@ use tiktools_cloud_auth::{CloudAuth, LoginBegin, OsTokenStore, TokenStore};
 use crate::events::{DomainEvent, EventBus};
 use crate::paths::AppPaths;
 
+pub use tiktools_cloud_auth::resolve_cloud_origin;
+
 pub use tiktools_cloud_auth::{AccountState, AccountStatus, AuthError, Persistence};
 
 pub(crate) struct CloudAccount {

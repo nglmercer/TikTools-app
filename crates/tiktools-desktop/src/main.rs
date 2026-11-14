@@ -21,6 +21,40 @@ mod webview;
 mod window;
 
 fn main() {
+    // AppImage/portable entry point for the matching companion CLI. Dispatch
+    // before controller parsing, logging, locks and any GUI initialization.
+    if let Some(arguments) = startup::cli_arguments(std::env::args_os().skip(1)) {
+        let executable = std::env::current_exe().ok().and_then(|path| {
+            path.parent().map(|parent| {
+                parent.join(if cfg!(windows) {
+                    "tiktools.exe"
+                } else {
+                    "tiktools"
+                })
+            })
+        });
+        let Some(executable) = executable.filter(|path| path.is_file()) else {
+            eprintln!("The matching TikTools CLI is missing from this installation");
+            std::process::exit(127);
+        };
+        let mut command = std::process::Command::new(executable);
+        command.args(arguments);
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let failure = command.exec();
+            eprintln!("TikTools CLI could not start: {failure}");
+            std::process::exit(127);
+        }
+        #[cfg(not(unix))]
+        {
+            let status = command
+                .status()
+                .map(|status| status.code().unwrap_or(1))
+                .unwrap_or(127);
+            std::process::exit(status);
+        }
+    }
     let mode = match startup::Mode::parse(std::env::args().skip(1)) {
         Ok(mode) => mode,
         Err(error) => {

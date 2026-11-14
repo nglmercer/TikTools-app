@@ -136,6 +136,11 @@ impl ProfileManager {
     pub fn system() -> Result<Self, ClientError> {
         Self::new(default_directory()?, Arc::new(OsCredentialStore))
     }
+    /// Create the private profile root before another service creates a child
+    /// (notably the Cloud account sidecar). Existing unsafe roots fail closed.
+    pub fn prepare_directory(&self) -> Result<(), ClientError> {
+        directory::check_directory(&self.directory, true)
+    }
     pub fn directory(&self) -> &std::path::Path {
         &self.directory
     }

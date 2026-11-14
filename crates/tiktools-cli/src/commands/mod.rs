@@ -24,6 +24,7 @@ pub mod publishers;
 pub mod rankings;
 pub mod raw;
 pub mod system;
+pub mod teams;
 pub mod template;
 pub mod workflows;
 
@@ -73,6 +74,7 @@ pub enum Plan {
     System(system::Command),
     Template(template::Command),
     Api(api::Command),
+    Teams(teams::Command),
     Rpc {
         method: String,
         params: Value,
@@ -141,6 +143,7 @@ pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
     let head = args[0].as_str();
     let rest = &args[1..];
     let plan = match head {
+        "teams" => Plan::Teams(teams::parse(rest)?),
         "plugin" => Plan::Plugins(plugins::parse(rest)?),
         #[cfg(feature = "cloud-auth")]
         "cloud" => Plan::Cloud(cloud::parse(rest)?),
@@ -239,6 +242,7 @@ pub async fn execute_plan(client: &TikToolsClient, plan: Plan) -> Result<Output,
             template::execute(client, command).await?,
         )),
         Plan::Api(command) => api::execute(client, command).await,
+        Plan::Teams(command) => teams::execute(client, command).await,
         Plan::Rpc { method, params } => Ok(Output::new(
             "rpc",
             client.call_value(&method, params).await?,

@@ -1,0 +1,4 @@
+{
+  "nativeClientKind": "agent",
+  "nativeGrant": { "capabilities": ["live.read"] }
+}
