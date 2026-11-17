@@ -13,6 +13,15 @@ const field = (patch: Partial<SchemaFieldDescriptor> = {}): SchemaFieldDescripto
   monospace: false, template: false, advanced: false, ...patch,
 });
 
+it('keeps an empty text value empty instead of casting it to boolean true', () => {
+  // JsonValue starts with `null | boolean`; without `string` first in the
+  // prop type Vue casts `''` to `true`, which renders as the text "true".
+  const wrapper = mountWithPlugins(SchemaFieldControl, {
+    props: { field: field({ placeholder: 'Search text' }), value: '', controlId: 'empty-text' },
+  });
+  expect((wrapper.get('input').element as HTMLInputElement).value).toBe('');
+});
+
 it('anchors variable suggestions to the control and inserts into the current text', async () => {
   const wrapper = mountWithPlugins(SchemaFieldControl, { attachTo: document.body, props: {
     field: field({ template: true }), value: 'Hello ', controlId: 'text-field',

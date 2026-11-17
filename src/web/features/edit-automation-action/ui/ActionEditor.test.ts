@@ -46,6 +46,35 @@ function mountEditor(optionErrors: Record<string, string>) {
   });
 }
 
+const emptyTextType = {
+  id: 'plugin.search-play',
+  title: text('Search and play'),
+  description: text('Searches and plays a match.'),
+  tag: 'music',
+  source: { kind: 'plugin', pluginId: 'plugin' },
+  requiredCapabilities: [],
+  fields: [
+    { key: 'text', label: text('Search text'), kind: 'text', value: '', template: true, placeholder: 'Daft Punk' },
+  ],
+} as unknown as ActionTypeDefinition;
+
+it('renders an empty default for a templated text field as empty, not "true"', async () => {
+  const wrapper = mountWithPlugins(ActionEditor, {
+    attachTo: document.body,
+    props: {
+      action: { schemaVersion: 2, id: 'a2', name: 'Search and play', enabled: true, typeId: 'plugin.search-play', config: { text: '', kind: 'song' } },
+      actionTypes: [emptyTextType],
+      testRuns: [],
+      globals: {},
+      actionOptions: {},
+      actionOptionErrors: {},
+    },
+  });
+  await flushPromises();
+  const input = wrapper.findAll('input').find((el) => (el.element as HTMLInputElement).placeholder === 'Daft Punk');
+  expect((input?.element as HTMLInputElement).value).toBe('');
+});
+
 describe('ActionEditor option errors', () => {
   it('shows one compact row without an inline details section', async () => {
     const wrapper = mountEditor({ 'host.gifts': 'HTTP request failed' });
