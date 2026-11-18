@@ -1,3 +1,6 @@
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string): string => testMessage('en', key);
 import { test, expect } from '@playwright/test';
 import { demoLocales, scenarios } from '../../src/web/demo/scenarios.ts';
 import { componentFamilies } from '../../docs/scripts/component-families.ts';
@@ -93,7 +96,7 @@ test('direct component entry owns a working runtime across catalog and workspace
   await expect(page.getByTestId('demo-step')).toBeEnabled();
   await page.getByTestId('demo-step').click();
   await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
-  await page.getByRole('link', { name: 'Live feed', exact: true }).click();
+  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await expect(page.locator('.live-feed')).toContainText('Hello TikTools!');
   await page.getByTestId('demo-more').click();
   await page.getByRole('menuitem', { name: 'Component reference', exact: true }).click();

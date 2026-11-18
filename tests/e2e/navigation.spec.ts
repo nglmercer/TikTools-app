@@ -19,7 +19,7 @@ test('boots to the feed with named navigation and an active tab marker', async (
   await waitForFrontend(page);
 
   await expect(page.getByRole('navigation', { name: 'Main Navigation' })).toBeVisible();
-  const feedTab = page.getByRole('link', { name: 'Live feed' });
+  const feedTab = page.getByRole('link', { name: t('navigation.feed') });
   await expect(feedTab).toBeVisible();
   await expect(feedTab).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('link', { name: 'Plugins' })).toBeVisible();

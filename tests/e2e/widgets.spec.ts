@@ -1,3 +1,6 @@
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string): string => testMessage('en', key);
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { assertNoUnhandledCalls, installFakeHost, readHostState, waitForFrontend } from './fixtures/tiktools-host.ts';
@@ -24,7 +27,7 @@ test('layer text edits update the preview, save, and survive navigation', async 
   await page.getByRole('button', { name: 'Save design', exact: true }).click();
   await expect(page.getByText('Design saved.', { exact: true })).toBeVisible();
   expect((await readHostState(page)).calls.some((call) => call.method === 'app.state.set' && call.params['key'] === 'widgets.design.follow')).toBe(true);
-  await page.getByRole('link', { name: 'Live feed', exact: true }).click();
+  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await page.getByRole('link', { name: 'Overlays', exact: true }).click();
   await layers(page).getByRole('option', { name: /Message Text/ }).click();
   await expect(content).toHaveValue('Thanks {{name}}!');

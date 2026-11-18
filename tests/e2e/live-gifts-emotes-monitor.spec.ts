@@ -1,3 +1,6 @@
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string): string => testMessage('en', key);
 import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, waitForFrontend, writeHostState, readHostState } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
@@ -16,7 +19,7 @@ test('gift identities, hidden-page backfill, metadata search and broken artwork 
   await page.getByRole('link', { name: 'Connections', exact: true }).click();
   await expect(page.locator('.connections-page')).toBeVisible();
   await writeHostState(page, { ...await readHostState(page), feedJournal: [{ cursor: 4, event: gift }, { cursor: 5, event: gift }] });
-  await page.getByRole('link', { name: 'Live feed', exact: true }).click();
+  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await expect(page.locator('.event-row--gift')).toHaveCount(4);
   await expect(page.locator('.event-row--gift img.event-row__gift')).toHaveCount(0);
   await page.locator('.live-feed__search input').fill('Rose');
@@ -51,7 +54,7 @@ test('monitor configuration survives page navigation and stops through the host'
   await page.getByRole('main').getByRole('button', { name: 'Connect', exact: true }).click();
   await expect(page.getByText('LIVE monitor: Waiting for LIVE')).toBeVisible();
   await expect(page.locator('#live-handle')).toBeDisabled();
-  await page.getByRole('link', { name: 'Live feed', exact: true }).click();
+  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await emitTopic(page, 'live.monitor', { status: { enabled: true, uniqueId: 'alice', phase: 'live', pollIntervalSeconds: 30, checks: 2, failures: 0, lastCheckedAt: Date.now(), nextCheckAt: null, lastError: null } });
   await page.getByRole('link', { name: 'Connections', exact: true }).click();
   await expect(page.getByText('LIVE monitor: Connected; monitoring remains active')).toBeVisible();

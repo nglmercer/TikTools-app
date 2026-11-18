@@ -1,3 +1,6 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
+
+const t = (key: string): string => testMessage('en', key);
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { defineComponent, markRaw } from 'vue';
@@ -15,7 +18,7 @@ const sections: NavigationSection[] = [
     id: 'workspace',
     label: 'Workspace',
     items: [
-      { id: 'feed', label: 'Live feed', icon: markRaw(IconChat), to: '/feed' },
+      { id: 'feed', label: t('navigation.feed'), icon: markRaw(IconChat), to: '/feed' },
       { id: 'settings', label: 'Settings', icon: markRaw(IconGear), to: '/settings' },
     ],
   },
@@ -36,7 +39,7 @@ describe('AppNavigation', () => {
     expect(wrapper.get('nav').attributes('aria-label')).toBe('Main navigation');
     expect(wrapper.get('h2').text()).toBe('Workspace');
     const links = wrapper.findAll('a');
-    expect(links.map((link) => link.text())).toEqual(['Live feed', 'Settings']);
+    expect(links.map((link) => link.text())).toEqual([t('navigation.feed'), 'Settings']);
     expect(links[1]!.attributes('aria-current')).toBe('page');
     expect(links[0]!.attributes('aria-current')).toBeUndefined();
   });
@@ -55,6 +58,6 @@ describe('AppNavigation', () => {
     expect(wrapper.get('nav').classes()).toContain('app-navigation--collapsed');
     expect(wrapper.findAll('.app-navigation__label')).toHaveLength(0);
     const links = wrapper.findAll('a');
-    expect(links.map((link) => link.attributes('aria-label'))).toEqual(['Live feed', 'Settings']);
+    expect(links.map((link) => link.attributes('aria-label'))).toEqual([t('navigation.feed'), 'Settings']);
   });
 });
