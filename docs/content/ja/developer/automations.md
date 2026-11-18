@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
-translationRevision: "42835015c312a2f0ab5603c7406b60b50850ad8b577c1ee531b27468dcfeb386"
+sourceRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
+translationRevision: "000141c29cd17b95559883f5a453a17e86c565a397a7e380845283d29c845576"
 order: 150
 ---
 
@@ -33,7 +33,31 @@ bun scripts/task.ts contracts --check
 bun scripts/task.ts test bun automation
 ```
 
-[生成契約ディレクトリ](https://github.com/nglmercer/TikTools-app/tree/remake/src/automation/contracts/generated) がフロントエンドのイベント型、レジストリ情報、サンプルを所有します。フィールドを公開する際は Rust 契約を拡張して同時に再生成します。
+## CLI での検証 {#cli-verification}
+
+ローカルホストが稼働中なら、CLI は IPC で接続します。エージェントは LIVE チャットに触れずにルールを検証できます。
+
+```sh
+target/debug/tiktools automation list --kind event
+target/debug/tiktools automation get <id>
+target/debug/tiktools automation context --event-type tiktok.chat
+```
+
+ドライランはフィルターを評価し、各アクションの動作を報告しますが、実行はしません。レスポンスには `eventSource`（`live`、`sample`、`custom`）、`eventData`（実際に使われたペイロード）、`pinned`（フィルターからサンプルへコピーされた値）が含まれます。
+
+```sh
+target/debug/tiktools --json automation test --id <id>
+target/debug/tiktools --json automation test --id <id> --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}'
+```
+
+実際の発火はイベントをライブパイプラインへ配信し、**アクションを実行します**。操作者が求めた場合のみ使用し、先にドライランで確認してください。
+
+```sh
+target/debug/tiktools --json automation fire --trigger tiktok.chat --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}'
+target/debug/tiktools --json automation fire --trigger tiktok.chat --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}' --record '<editor draft json>'
+```
+
+`api call automation.fire '<params>' --dry-run` は発火せずにパラメーターを検証します。`api discover` と `api schema <method>` で現在の契約を確認できます。
 
 ## スクリプトの境界 {#script-boundary}
 

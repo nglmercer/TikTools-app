@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
-translationRevision: "419a220f5757155a6730637608349020f3437af2747f159ab0165080cf04d74a"
+sourceRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
+translationRevision: "2b0765b867c9fdda742bf5f258147adb9ae68c3b28edb0e27cb12aaedde7d2d0"
 order: 150
 ---
 
@@ -33,7 +33,31 @@ bun scripts/task.ts contracts --check
 bun scripts/task.ts test bun automation
 ```
 
-Le [répertoire des contrats générés](https://github.com/nglmercer/TikTools-app/tree/remake/src/automation/contracts/generated) possède les types d’événements de l’interface, les métadonnées du registre et les échantillons. Étendez les contrats Rust et régénérez ensemble lorsque vous exposez un autre champ.
+## Vérification depuis la CLI {#cli-verification}
+
+Avec un hôte local en cours d’exécution, la CLI communique via IPC. Un agent peut vérifier une règle sans toucher au chat en direct.
+
+```sh
+target/debug/tiktools automation list --kind event
+target/debug/tiktools automation get <id>
+target/debug/tiktools automation context --event-type tiktok.chat
+```
+
+Un essai à blanc évalue les filtres et indique ce que chaque action ferait, sans rien exécuter. La réponse contient `eventSource` (`live`, `sample`, `custom`), `eventData` (la charge réellement utilisée) et `pinned` (valeurs copiées des filtres vers l’échantillon).
+
+```sh
+target/debug/tiktools --json automation test --id <id>
+target/debug/tiktools --json automation test --id <id> --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}'
+```
+
+Un déclenchement réel publie l’événement dans le pipeline temps réel et **exécute les actions**. Ne l’utilisez qu’à la demande de l’opérateur ; vérifiez d’abord l’essai à blanc.
+
+```sh
+target/debug/tiktools --json automation fire --trigger tiktok.chat --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}'
+target/debug/tiktools --json automation fire --trigger tiktok.chat --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}' --record '<editor draft json>'
+```
+
+`api call automation.fire '<params>' --dry-run` valide les paramètres sans déclencher ; `api discover` et `api schema <method>` affichent le contrat actuel.
 
 ## Frontière des scripts {#script-boundary}
 

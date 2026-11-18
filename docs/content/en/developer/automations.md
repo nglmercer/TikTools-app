@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
-translationRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
+sourceRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
+translationRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
 order: 150
 ---
 
@@ -33,7 +33,31 @@ bun scripts/task.ts contracts --check
 bun scripts/task.ts test bun automation
 ```
 
-The [generated contract directory](https://github.com/nglmercer/TikTools-app/tree/remake/src/automation/contracts/generated) owns frontend event types, registry metadata and samples. Extend Rust contracts and regenerate together when exposing another field.
+## Verify from the CLI {#cli-verification}
+
+With a local host running, the CLI talks to it over IPC. An agent can check a rule without touching a LIVE chat.
+
+```sh
+target/debug/tiktools automation list --kind event
+target/debug/tiktools automation get <id>
+target/debug/tiktools automation context --event-type tiktok.chat
+```
+
+A dry run evaluates filters and reports what each action would do; it executes nothing. The response includes `eventSource` (`live`, `sample`, `custom`), `eventData` (the payload actually used) and `pinned` (values copied from filters into a sample).
+
+```sh
+target/debug/tiktools --json automation test --id <id>
+target/debug/tiktools --json automation test --id <id> --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}'
+```
+
+A real fire publishes the event through the live pipeline and **executes the actions**. Use it only when the operator asks for it; check the dry run first.
+
+```sh
+target/debug/tiktools --json automation fire --trigger tiktok.chat --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}'
+target/debug/tiktools --json automation fire --trigger tiktok.chat --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}' --record '<editor draft json>'
+```
+
+`api call automation.fire '<params>' --dry-run` validates parameters without firing; `api discover` and `api schema <method>` show the current contract.
 
 ## Script boundary {#script-boundary}
 

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "57cc664e4ef2ff26fafb31df6458da439f075c673fbb3e06e635fa03c1032f42"
-translationRevision: "d88f93af40511c7816bef4799d955a4b51f68eae4b7a55ef9913d404ab186eda"
+sourceRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
+translationRevision: "2b7fe0a5e451594c7bd76482312a8ba8dde0f69cc5475fa71698e1aa86ed7fb9"
 order: 150
 ---
 
@@ -33,7 +33,31 @@ bun scripts/task.ts contracts --check
 bun scripts/task.ts test bun automation
 ```
 
-[生成的契约目录](https://github.com/nglmercer/TikTools-app/tree/remake/src/automation/contracts/generated)负责前端事件类型、注册元数据及样例。公开额外字段时，同时扩展 Rust 契约并重新生成。
+## 通过 CLI 验证 {#cli-verification}
+
+本地主机运行时，CLI 通过 IPC 与其通信。代理可以在不接触直播聊天的情况下验证规则。
+
+```sh
+target/debug/tiktools automation list --kind event
+target/debug/tiktools automation get <id>
+target/debug/tiktools automation context --event-type tiktok.chat
+```
+
+试运行会评估过滤器并报告每个操作将执行什么，但不实际执行。响应包含 `eventSource`（`live`、`sample`、`custom`）、`eventData`（实际使用的负载）和 `pinned`（从过滤器复制到样本的值）。
+
+```sh
+target/debug/tiktools --json automation test --id <id>
+target/debug/tiktools --json automation test --id <id> --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}'
+```
+
+真实触发会将事件发布到实时管道并**执行操作**。仅在操作者要求时使用；请先查看试运行结果。
+
+```sh
+target/debug/tiktools --json automation fire --trigger tiktok.chat --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}'
+target/debug/tiktools --json automation fire --trigger tiktok.chat --event '{"type":"tiktok.chat","data":{"comment":"!play Daft Punk"}}' --record '<editor draft json>'
+```
+
+`api call automation.fire '<params>' --dry-run` 仅验证参数而不触发；`api discover` 和 `api schema <method>` 可查看当前契约。
 
 ## 脚本边界 {#script-boundary}
 
