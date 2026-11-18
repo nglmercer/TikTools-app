@@ -1,9 +1,11 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLiveFeedState } from './live-feed-state.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 
 function callbacks(systemAuthor: string) {
-  return { systemAuthor: () => systemAuthor, discontinuityText: () => 'Feed resumed. Events received while hidden were skipped.' };
+  return { systemAuthor: () => systemAuthor, discontinuityText: () => t('feed.resumed') };
 }
 
 const frameQueue: Array<() => void> = [];

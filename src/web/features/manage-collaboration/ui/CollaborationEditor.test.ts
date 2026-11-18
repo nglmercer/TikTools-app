@@ -96,7 +96,7 @@ describe('owner collaboration panel', () => {
     await flushPromises();
     expect(calls.some((c) => c.method === 'collaboration.invites.create')).toBe(false);
     await wrapper.get('button[aria-label="+ New invitation, Points: None"]').trigger('click');
-    await wrapper.findAll('[role="radio"]').find((node) => node.text() === 'Manage')!.trigger('click');
+    await wrapper.findAll('[role="radio"]').find((node) => node.text() === t('collaboration.levels.manage'))!.trigger('click');
     await button(t('collaboration.create')).trigger('click'); await flushPromises();
     const sent = calls.find((c) => c.method === 'collaboration.invites.create')?.params?.['grant'] as { capabilities: string[] };
     expect(sent.capabilities).toEqual(expect.arrayContaining(['live.read', 'points.read', 'points.adjust', 'commands.read']));
@@ -107,7 +107,7 @@ describe('owner collaboration panel', () => {
     expect(toCanvas).not.toHaveBeenCalled();
     await button(t('collaboration.qr')).trigger('click'); await vi.waitFor(() => expect(toCanvas).toHaveBeenCalledOnce());
     const target = toCanvas.mock.calls[0]?.[0] as HTMLCanvasElement | undefined;
-    await button('Done').trigger('click'); await flushPromises();
+    await button(t('collaboration.done')).trigger('click'); await flushPromises();
     expect(wrapper.find('#collaboration-link').exists()).toBe(false); expect(wrapper.find('canvas').exists()).toBe(false);
     expect(target?.width).toBe(0); expect(target?.height).toBe(0);
   });
@@ -127,7 +127,7 @@ describe('owner collaboration panel', () => {
     expect(calls.some((c) => c.method === 'collaboration.requests.approve')).toBe(false);
     expect(dialog().text()).toContain(request.requestId);
     expect(dialog().text()).toContain('live.read');
-    await dialog().findAll('button').find((b) => b.text() === 'Apply')!.trigger('click'); await flushPromises();
+    await dialog().findAll('button').find((b) => b.text() === t('common.apply'))!.trigger('click'); await flushPromises();
     expect(calls.filter((c) => c.method === 'collaboration.requests.approve')).toEqual([{ method: 'collaboration.requests.approve', params: { id: request.requestId } }]);
     expect(wrapper.findAll('button').some((b) => b.text() === t('collaboration.approve'))).toBe(false);
   });
@@ -144,14 +144,14 @@ describe('owner collaboration panel', () => {
     await flushPromises();
     await cell('Moderator PC, Points: None').trigger('click'); await flushPromises();
     expect(button(t('collaboration.grantSave')).attributes('disabled')).toBeDefined();
-    await wrapper.findAll('[role="radio"]').find((node) => node.text() === 'Manage')!.trigger('click');
+    await wrapper.findAll('[role="radio"]').find((node) => node.text() === t('collaboration.levels.manage'))!.trigger('click');
     expect(cell('Moderator PC, Points: Manage').exists()).toBe(true);
     expect(wrapper.get('.access-matrix__row--unsaved').text()).toContain('Moderator PC');
     expect(calls.some((c) => c.method === 'collaboration.grants.set')).toBe(false);
     await button(t('collaboration.grantSave')).trigger('click'); await flushPromises();
     expect(dialog().text()).toContain('points.adjust');
     expect(calls.some((c) => c.method === 'collaboration.grants.set')).toBe(false);
-    await dialog().findAll('button').find((b) => b.text() === 'Apply')!.trigger('click'); await flushPromises();
+    await dialog().findAll('button').find((b) => b.text() === t('common.apply'))!.trigger('click'); await flushPromises();
     const write = calls.find((c) => c.method === 'collaboration.grants.set');
     expect(write?.params?.['expectedRevision']).toBe('1');
     expect((write?.params?.['grant'] as { capabilities: string[] }).capabilities).toEqual(expect.arrayContaining(['live.read', 'points.read', 'points.adjust', 'commands.read']));
