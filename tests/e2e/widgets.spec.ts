@@ -38,11 +38,11 @@ test('layer text edits update the preview, save, and survive navigation', async 
 test('every widget exposes its default layers in the inspector and preview', async ({ page }) => {
   const capture = await openOverlays(page);
   for (const [kind, fields] of [
-    ['Follow alert', ['Viewer name', 'Username', 'Message']],
-    ['Gift alert', ['Viewer name', 'Message', 'Gift count', 'Diamonds']],
-    ['Chat overlay', ['Viewer name', 'Message']],
-    ['Share alert', ['Viewer name', 'Username', 'Message']],
-    ['Subscribe alert', ['Viewer name', 'Username', 'Message']],
+    ['Follow alert', [t('overlays.editor.fields.name'), 'Username', 'Message']],
+    ['Gift alert', [t('overlays.editor.fields.name'), 'Message', 'Gift count', 'Diamonds']],
+    ['Chat overlay', [t('overlays.editor.fields.name'), 'Message']],
+    ['Share alert', [t('overlays.editor.fields.name'), 'Username', 'Message']],
+    ['Subscribe alert', [t('overlays.editor.fields.name'), 'Username', 'Message']],
   ] as const) {
     await page.getByRole('option', { name: kind, exact: true }).click();
     for (const field of fields) {

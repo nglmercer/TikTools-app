@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -8,6 +9,7 @@ import type { SchemaFieldDescriptor } from './lib/schema-fields.ts';
 import SchemaFieldControl from './SchemaFieldControl.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 const field = (patch: Partial<SchemaFieldDescriptor> = {}): SchemaFieldDescriptor => ({
   key: 'value', kind: 'text', label: 'Value', hint: '', options: [], arrayJson: false,
   monospace: false, template: false, advanced: false, ...patch,
@@ -25,7 +27,7 @@ it('keeps an empty text value empty instead of casting it to boolean true', () =
 it('anchors variable suggestions to the control and inserts into the current text', async () => {
   const wrapper = mountWithPlugins(SchemaFieldControl, { attachTo: document.body, props: {
     field: field({ template: true }), value: 'Hello ', controlId: 'text-field',
-    suggestions: [{ value: 'event.user.uniqueId', label: 'Viewer name' }],
+    suggestions: [{ value: 'event.user.uniqueId', label: t('overlays.editor.fields.name') }],
   } });
   await wrapper.get('button').trigger('click');
   expect(wrapper.getComponent(BaseMenu).props('anchor')).toBeInstanceOf(HTMLElement);
