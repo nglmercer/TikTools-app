@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
@@ -8,6 +9,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginServersPanel from './PluginServersPanel.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const plugin = (id: string, name: string) => ({
   installed: true,
@@ -88,7 +90,7 @@ describe('PluginServersPanel', () => {
   it('shows the connection status and the probe action in the panel header', async () => {
     const { wrapper } = mountPanel('peak');
     expect(wrapper.text()).toContain('Connected in 4 ms');
-    const testButton = wrapper.findAll('button').find((button) => button.text() === 'Test');
+    const testButton = wrapper.findAll('button').find((button) => button.text() === t('connections.servers.test'));
     expect(testButton).toBeDefined();
     await testButton!.trigger('click');
     expect(wrapper.text()).toContain('Testing…');

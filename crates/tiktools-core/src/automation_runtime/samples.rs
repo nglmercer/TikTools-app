@@ -555,7 +555,7 @@ mod tests {
                 {"path": "event.data.repeatEnd", "operator": "eq", "value": "true"},
                 {"path": "event.user.uniqueId", "operator": "eq", "value": "luna_dev"},
                 {"path": "event.data.diamondCount", "operator": "gte", "value": "100"},
-                {"path": "event.data.giftId", "operator": "contains", "value": "56"},
+                {"path": "event.data.giftId", "operator": "neq", "value": "56"},
             ]
         });
         let pinned = pin_event_to_record(&mut event, &record);
@@ -572,9 +572,42 @@ mod tests {
         assert_eq!(event["data"]["comboCount"], 7);
         assert_eq!(event["data"]["repeatEnd"], true);
         assert_eq!(event["user"]["uniqueId"], "luna_dev");
-        // Non-eq operators never pin.
+        // Ranges and inequality never pin: they stay truthful and can fail.
         assert_eq!(event["data"]["diamondCount"], 1);
         assert_eq!(event["data"]["giftId"], "5655");
+    }
+
+    #[test]
+    fn pinning_applies_string_membership_and_boolean_operators() {
+        let mut event = sample_automation_event("tiktok.chat");
+        let record = serde_json::json!({
+            "trigger": "tiktok.chat",
+            "filters": [
+                {"path": "event.data.comment", "operator": "starts-with", "value": "!play"},
+                {"path": "event.user.nickname", "operator": "contains", "value": "Demo"},
+                {"path": "event.type", "operator": "in", "values": ["tiktok.chat"]},
+                {"path": "event.data.isHistory", "operator": "is-false", "value": ""},
+                {"path": "event.user.userId", "operator": "is-true", "value": ""},
+            ]
+        });
+        let pinned = pin_event_to_record(&mut event, &record);
+        assert_eq!(
+            pinned,
+            vec![
+                "event.data.comment='!play'",
+                "event.user.nickname='Demo'",
+                "event.type='tiktok.chat'",
+                "event.data.isHistory='false'",
+                "event.user.userId='true'",
+            ]
+        );
+        assert_eq!(event["data"]["comment"], "!play");
+        assert_eq!(event["user"]["nickname"], "Demo");
+        assert_eq!(event["type"], "tiktok.chat");
+        assert_eq!(event["data"]["isHistory"], false);
+        assert_eq!(event["user"]["userId"], true);
+        // The pinned values are exactly the filter operands, so the matcher
+        // (exercised by the shared filter corpus) passes every row above.
     }
 
     #[test]

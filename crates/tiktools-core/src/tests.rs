@@ -648,7 +648,9 @@ async fn test_event_names_sample_data_on_mismatch() {
             "name": "Mismatch",
             "enabled": true,
             "trigger": "tiktok.chat",
-            "filters": [{"path": "event.data.comment", "operator": "contains", "value": "zzz-no-match"}],
+            // Ranges are never pinned, so the generic sample genuinely fails
+            // and the summary still has to name the fired sample data.
+            "filters": [{"path": "event.data.msgId", "operator": "gte", "value": "99999"}],
             "cooldownMs": 0,
             "cooldownScope": "user",
             "actionIds": [],
@@ -887,6 +889,39 @@ async fn fire_synthetic_event_pins_sample_to_draft_filters() {
     );
     let summary = result["summary"].as_str().unwrap_or_default();
     assert!(summary.contains("'Rose gate'"), "{summary}");
+    assert!(summary.contains("pinned from filters"), "{summary}");
+}
+
+#[tokio::test]
+async fn fire_synthetic_event_pins_string_operator_filters() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    // A `comment starts with !play` rule must exercise its own command on the
+    // synthetic sample instead of failing against the generic "Hello there".
+    let draft = serde_json::json!({
+        "id": "evt-play-vaundy",
+        "name": "!play vaundy",
+        "enabled": true,
+        "trigger": "tiktok.chat",
+        "filters": [{"path": "event.data.comment", "operator": "starts-with", "value": "!play"}],
+        "cooldownMs": 0,
+        "cooldownScope": "user",
+        "actionIds": [],
+        "runMode": "all"
+    });
+    let result = core
+        .fire_synthetic_event("tiktok.chat", None, Some(&draft))
+        .await;
+    assert_eq!(result["status"], "ok", "{result}");
+    assert_eq!(result["matched"], 1);
+    assert_eq!(result["draftMatched"], true);
+    assert_eq!(result["eventSource"], "sample");
+    assert_eq!(
+        result["pinned"],
+        serde_json::json!(["event.data.comment='!play'"])
+    );
+    let summary = result["summary"].as_str().unwrap_or_default();
+    assert!(summary.contains("'!play vaundy'"), "{summary}");
     assert!(summary.contains("pinned from filters"), "{summary}");
 }
 

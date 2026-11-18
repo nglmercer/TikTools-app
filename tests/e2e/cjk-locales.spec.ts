@@ -7,7 +7,7 @@ import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 
 for (const { locale, name, label } of [
   { locale: 'zh', name: '简体中文', label: '界面语言' },
-  { locale: 'ja', name: '日本語', label: '表示言語' },
+  { locale: 'ja', name: t('menu.languages.ja'), label: '表示言語' },
 ]) {
   test(`${locale}: the real app switches language and preserves it after reload`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -42,7 +42,7 @@ test('the real startup accepts jp preferences and migrates them to canonical ja'
   await page.goto('/#/settings');
   await waitForFrontend(page);
   await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
-  await expect(page.getByRole('combobox', { name: '表示言語', exact: true })).toHaveValue('日本語');
+  await expect(page.getByRole('combobox', { name: '表示言語', exact: true })).toHaveValue(t('menu.languages.ja'));
   expect(await page.evaluate(() => localStorage.getItem('tiktok-live-locale'))).toBe('ja');
   capture.assertClean();
 });

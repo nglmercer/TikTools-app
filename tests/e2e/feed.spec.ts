@@ -37,7 +37,7 @@ test('feed appends only format new cards and still update locale, search, and cl
 
   await page.getByRole('menuitem', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Language', exact: true }).hover();
-  await page.getByRole('menuitemcheckbox', { name: 'Español' }).click();
+  await page.getByRole('menuitemcheckbox', { name: t('menu.languages.es') }).click();
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
   await expect.poll(() => page.evaluate(() => (window as typeof window & { feedFormatCalls: number }).feedFormatCalls)).toBe(3);
   await page.locator('.live-feed__search input').fill('message 2');
