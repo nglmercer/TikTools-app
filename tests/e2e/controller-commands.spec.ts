@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test';
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import type { ControllerStatus, WorkflowRow } from '../../src/web/features/controller/model/controller.ts';
 
 for (const locale of ['en', 'es'] as const) {
   test(`controller confirms commands and reviews unknown outcomes (${locale})`, async ({ page }) => {
     await page.setViewportSize({ width: locale === 'es' ? 390 : 1100, height: 900 });
+    // Fixture URL, not a translated UI string.
+    // eslint-disable-next-line no-restricted-syntax
     const origin = locale === 'es' ? 'https://moderator-owner-with-a-long-public-hostname.example' : 'https://host.example';
     const status: ControllerStatus = { epoch: '1', viewRevision: '1', phase: 'ready', profile: 'desk', origin, errorCode: null,
       hello: { hostId: '11111111-1111-4111-8111-111111111111', principalId: 'moderator', sessionId: 'device', hostInstanceId: 'instance', capabilities: ['workflows.read', 'workflows.toggle', 'workflows.edit', 'commands.read'], features: { workflowDisable: true, workflowDelete: true } },
@@ -47,8 +50,18 @@ for (const locale of ['en', 'es'] as const) {
     }, { initial: { status, rows }, locale });
     await page.goto('/');
     await page.getByRole('button', { name: 'Hosted workflow · 1', exact: true }).click();
-    const text = locale === 'es' ? { disable: 'Desactivar workflow', remove: 'Eliminar workflow', cancel: 'Cancelar', draft: 'Borrador local', confirm: 'Confirmado por el anfitrión', check: 'Consultar resultado', review: 'Revisar resultado incierto', acknowledge: 'Conservar como incierto', reviewed: 'Resultado incierto revisado' } :
-      { disable: 'Disable workflow', remove: 'Delete workflow', cancel: 'Cancel', draft: 'Local draft', confirm: 'Confirmed by host', check: 'Check outcome', review: 'Review unknown outcome', acknowledge: 'Keep outcome unknown', reviewed: 'Reviewed unknown outcome' };
+    const t = (key: string, params?: Record<string, string | number>): string => testMessage(locale, key, params);
+    const text = {
+      disable: t('controller.root.commands.disable'),
+      remove: t('controller.root.commands.delete'),
+      cancel: t('common.cancel'),
+      draft: t('controller.root.labels.draft'),
+      confirm: t('controller.root.commands.outcome.succeeded'),
+      check: t('controller.root.commands.check'),
+      review: t('controller.root.commands.review'),
+      acknowledge: t('controller.root.commands.reviewed'),
+      reviewed: t('controller.root.commands.outcome.reviewed-unknown'),
+    };
     await page.getByRole('textbox', { name: text.draft, exact: true }).fill('local draft retained');
     await page.getByRole('button', { name: text.disable, exact: true }).click();
     const dialog = page.getByRole('dialog');

@@ -4,8 +4,10 @@ import { nextTick } from 'vue';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { AutomationEdit, AutomationReview } from '../model/automation-editor.ts';
 import AutomationEditorReview from './AutomationEditorReview.vue';
+import { testMessage } from '@/shared/i18n/test-message.ts';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const base = { schemaVersion: 2, id: 'same', name: 'Starting event', enabled: true, trigger: 'tiktok.gift' };
 const candidate = { ...base, name: 'My retained draft' };
@@ -33,9 +35,9 @@ describe('AutomationEditorReview', () => {
     await nextTick();
     expect(wrapper.findAll('tbody tr')).toHaveLength(5);
     expect(wrapper.findAll('.review-table__action')).toHaveLength(5);
-    expect(wrapper.text()).toContain('Starting version');
-    expect(wrapper.text()).toContain('Your draft');
-    expect(wrapper.text()).toContain('Current host version');
+    expect(wrapper.text()).toContain(t('automations.conflict.base'));
+    expect(wrapper.text()).toContain(t('automations.conflict.candidate'));
+    expect(wrapper.text()).toContain(t('automations.conflict.current'));
     expect(wrapper.find('a.review-docs-link').attributes('href')).toContain('developer/automations.html#expected-result-and-status');
   });
 
@@ -43,8 +45,8 @@ describe('AutomationEditorReview', () => {
     const wrapper = mountReview({ edit: { ...edit, base: null }, review: { current: { record: null, revision: '2' } } });
     await nextTick();
     expect(wrapper.findAll('tbody tr')).toHaveLength(5);
-    expect(wrapper.text()).toContain('New record');
-    expect(wrapper.text()).toContain('The record is absent on the host.');
+    expect(wrapper.text()).toContain(t('automations.conflict.absent'));
+    expect(wrapper.text()).toContain(t('automations.conflict.deleted'));
   });
 
   it('shows the exact pretty JSON of each version inside the source dialog', async () => {

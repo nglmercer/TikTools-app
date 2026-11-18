@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { hostMessageContract } from '../../../../../scripts/lib/host-message-contract.ts';
 import { activateLocale, i18n, localizedText, mergePluginMessages } from '../i18n.ts';
+import { testMessage } from '../test-message.ts';
 import zh from './zh.ts';
 import ja from './ja.ts';
 
@@ -26,6 +27,6 @@ for (const [locale, messages] of Object.entries({ zh, ja }) as Array<['zh' | 'ja
     // It must not erase the loaded CJK strings or change the descriptor identity.
     mergePluginMessages({ en: source });
     expect(localizedText({ default: 'Write to the log', i18key: 'automation.action.core.log.title' }))
-      .toBe(locale === 'zh' ? '写入日志' : 'メッセージをログに記録');
+      .toBe(testMessage(locale, 'automation.action.core.log.title'));
   });
 }

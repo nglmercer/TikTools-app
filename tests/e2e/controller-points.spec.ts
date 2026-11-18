@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import type { ControllerStatus, PointsPage } from '../../src/web/features/controller/model/controller.ts';
 
 for (const locale of ['en', 'es'] as const) {
@@ -40,8 +41,19 @@ for (const locale of ['en', 'es'] as const) {
       } };
     }, { status, points, locale });
     await page.goto('/');
-    const text = locale === 'es' ? { search: 'Buscar visor por ID', find: 'Consultar visor', feed: 'Consultar puntos de @alice', amount: 'Cantidad a sumar o restar (Gems)', adjust: 'Ajustar puntos', cancel: 'Cancelar', create: 'El ajuste creará uno.', history: 'Historial reciente de comandos', requested: 'Cantidad solicitada: 3 Gems', effective: 'Ajuste aplicado: 3.75 Gems' } :
-      { search: 'Find viewer by ID', find: 'Look up viewer', feed: 'Look up points for @alice', amount: 'Amount to add or subtract (Gems)', adjust: 'Adjust points', cancel: 'Cancel', create: 'The adjustment will create one.', history: 'Recent command history', requested: 'Requested amount: 3 Gems', effective: 'Applied adjustment: 3.75 Gems' };
+    const t = (key: string, params?: Record<string, string | number>): string => testMessage(locale, key, params);
+    const text = {
+      search: t('controller.root.points.search'),
+      find: t('controller.root.points.find'),
+      feed: t('controller.liveFeed.text.pointsFor', { id: 'alice' }),
+      amount: `${t('controller.root.points.amount')} (Gems)`,
+      adjust: t('controller.root.points.adjust'),
+      cancel: t('common.cancel'),
+      create: t('controller.root.points.create'),
+      history: t('controller.root.commands.history'),
+      requested: `${t('controller.root.commands.requested')}: 3 Gems`,
+      effective: `${t('controller.root.commands.effective')}: 3.75 Gems`,
+    };
     await page.getByRole('button', { name: text.feed, exact: true }).click();
     await expect(page.getByRole('textbox', { name: text.search, exact: true })).toHaveValue('alice');
     expect(await page.evaluate(() => (window as unknown as { __POINTS_FIXTURE__: { calls: Array<{ method: string }> } }).__POINTS_FIXTURE__.calls.some((call) => call.method === 'controller.points.command'))).toBe(false);

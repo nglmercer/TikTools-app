@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { templateVariables, variableScopeFor } from './template-variables.ts';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
+import { testMessage } from '@/shared/i18n/test-message.ts';
 
 afterEach(async () => { await activateLocale('en'); });
 
@@ -31,7 +32,7 @@ describe('template variables', () => {
     await activateLocale(locale);
     const values = templateVariables({ trigger: 'tiktok.gift', scope: 'all', locale, globals: { score: '1' } });
     const nickname = values.find((item) => item.value === 'event.user.nickname');
-    expect(nickname?.label).toBe(locale === 'zh' ? '昵称' : 'ニックネーム');
+    expect(nickname?.label).toBe(testMessage(locale, 'automation.event.field.event.user.nickname.label'));
     expect(nickname?.detail).toBe('event.user.nickname');
     expect(values.at(-1)).toEqual({ value: 'globals.score', label: 'score', detail: 'globals.score' });
   });

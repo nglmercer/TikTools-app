@@ -60,6 +60,20 @@ export default tseslint.config(
     rules: Object.assign({}, ...vue.configs['flat/recommended'].map((config) => config.rules ?? {})),
   },
   {
+    // Tests must resolve translated UI text from the catalogs via
+    // testMessage(locale, key), never from a locale ternary with literals.
+    files: ['tests/**/*.ts', 'src/**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: `ConditionalExpression[test.type="BinaryExpression"][test.left.name="locale"] > Literal[raw=/^['"]/]`,
+          message: 'Use testMessage(locale, key) instead of a hardcoded translated string.',
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.vue'],
     languageOptions: {
       parser: vueParser,

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { ControllerStatus } from '../../src/web/features/controller/model/controller.ts';
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 
 for (const locale of ['en', 'es'] as const) {
   test(`a moderator selects visible host actions for a disabled event (${locale})`, async ({ page }) => {
@@ -32,8 +33,27 @@ for (const locale of ['en', 'es'] as const) {
       } };
     }, { status, locale });
     await page.goto('/');
-    const labels = locale === 'es' ? { title:'Propuestas de automatización', family:'Tipo de propuesta', id:'ID de la propuesta', start:'Preparar propuesta nueva', builder:'Crear una propuesta con campos', name:'Nombre', trigger:'Cuándo ocurre', giftContains:'El nombre del regalo contiene (opcional)', cooldown:'Espera entre ejecuciones (ms)', scope:'A quién se aplica la espera', actions:'Acciones visibles en el anfitrión', search:'Buscar acción visible', useId:'Usar ID', actionId:'ID de acción (opcional)', add:'Agregar acción', runMode:'Cómo ejecutar las acciones', prepare:'Preparar borrador', apply:'Usar este borrador' } :
-      { title:'Automation proposals', family:'Proposal type', id:'Proposal ID', start:'Prepare new proposal', builder:'Create a proposal with fields', name:'Name', trigger:'When it happens', giftContains:'Gift name contains (optional)', cooldown:'Delay between runs (ms)', scope:'Who the delay applies to', actions:'Actions visible on the host', search:'Search visible actions', useId:'Use ID', actionId:'Action ID (optional)', add:'Add action', runMode:'How to run the actions', prepare:'Prepare draft', apply:'Use this draft' };
+    const t = (key: string, params?: Record<string, string | number>): string => testMessage(locale, key, params);
+    const labels = {
+      title: t('controller.proposals.labels.title'),
+      family: t('controller.proposals.labels.family'),
+      id: t('controller.proposals.labels.id'),
+      start: t('controller.proposals.labels.start'),
+      builder: t('controller.proposalBuilder.labels.title'),
+      name: t('controller.proposalBuilder.labels.name'),
+      trigger: t('controller.proposalBuilder.labels.trigger'),
+      giftContains: t('controller.proposalBuilder.labels.giftContains'),
+      cooldown: t('controller.proposalBuilder.labels.cooldown'),
+      scope: t('controller.proposalBuilder.labels.cooldownScope'),
+      actions: t('controller.proposalBuilder.labels.availableActions'),
+      search: t('controller.proposalBuilder.labels.actionSearch'),
+      useId: t('controller.proposalBuilder.labels.selectAction'),
+      actionId: t('controller.proposalBuilder.labels.actionId'),
+      add: t('controller.proposalBuilder.labels.addAction'),
+      runMode: t('controller.proposalBuilder.labels.runMode'),
+      prepare: t('controller.proposalBuilder.labels.generate'),
+      apply: t('controller.proposalBuilder.labels.apply'),
+    };
     const region = page.getByRole('region', { name: labels.title, exact: true });
     await region.getByRole('combobox', { name: labels.family, exact: true }).selectOption('event');
     await region.getByLabel(labels.id, { exact: true }).fill('new.event');
@@ -95,8 +115,24 @@ for (const locale of ['en', 'es'] as const) {
       } };
     }, { status, locale });
     await page.goto('/');
-    const labels = locale === 'es' ? { title: 'Propuestas de automatización', id: 'ID de la propuesta', start: 'Preparar propuesta nueva', save: 'Guardar propuesta en esta PC', consent: 'valores sensibles', builder: 'Crear una propuesta con campos', name: 'Nombre', message: 'Mensaje', actionType: 'Tipo de acción', viewer: 'ID exacto del espectador', viewerTarget: 'Espectador que recibe el ajuste', delta: 'Cambio de puntos', prepare: 'Preparar borrador', use: 'Usar este borrador', warning: 'No se guardará ni enviará todavía' } :
-      { title: 'Automation proposals', id: 'Proposal ID', start: 'Prepare new proposal', save: 'Save proposal on this PC', consent: 'sensitive values', builder: 'Create a proposal with fields', name: 'Name', message: 'Message', actionType: 'Action type', viewer: 'Exact viewer ID', viewerTarget: 'Viewer receiving the adjustment', delta: 'Points change', prepare: 'Prepare draft', use: 'Use this draft', warning: 'It will not be saved or sent yet' };
+    const t = (key: string, params?: Record<string, string | number>): string => testMessage(locale, key, params);
+    const labels = {
+      title: t('controller.proposals.labels.title'),
+      id: t('controller.proposals.labels.id'),
+      start: t('controller.proposals.labels.start'),
+      save: t('controller.proposals.labels.save'),
+      consent: t('controller.proposals.labels.saveNote'),
+      builder: t('controller.proposalBuilder.labels.title'),
+      name: t('controller.proposalBuilder.labels.name'),
+      message: t('controller.proposalBuilder.labels.message'),
+      actionType: t('controller.proposalBuilder.labels.actionType'),
+      viewer: t('controller.proposalBuilder.labels.viewer'),
+      viewerTarget: t('controller.proposalBuilder.labels.viewerTarget'),
+      delta: t('controller.proposalBuilder.labels.delta'),
+      prepare: t('controller.proposalBuilder.labels.generate'),
+      use: t('controller.proposalBuilder.labels.apply'),
+      warning: t('controller.proposalBuilder.labels.warning'),
+    };
     const region = page.getByRole('region', { name: labels.title, exact: true });
     await region.getByLabel(labels.id, { exact: true }).fill('same'); await region.getByRole('button', { name: labels.start, exact: true }).click();
     await region.getByText(labels.builder, { exact: true }).click();

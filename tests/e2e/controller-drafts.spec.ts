@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { ControllerStatus, WorkflowRow } from '../../src/web/features/controller/model/controller.ts';
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 
 for (const locale of ['en', 'es'] as const) {
   test(`controller explicitly saves, compares and restores a local draft (${locale})`, async ({ page }) => {
@@ -38,8 +39,17 @@ for (const locale of ['en', 'es'] as const) {
         void native(request).then((response) => window.__webview_on_message__?.(response));
       } };
     }, { locale });
-    const text = locale === 'es' ? { draft: 'Borrador local', save: 'Guardar borrador en esta PC', cancel: 'Cancelar', consent: 'incluidos los valores sensibles', matches: 'Este texto coincide con la copia guardada en esta PC.', current: 'Versión actual del anfitrión', rebase: 'Usar la revisión actual para esta combinación local · 2', discard: 'Descartar borrador' } :
-      { draft: 'Local draft', save: 'Save draft on this PC', cancel: 'Cancel', consent: 'including any sensitive values', matches: 'This text matches the saved copy on this PC.', current: 'Current host version', rebase: 'Use the current revision for this local merge · 2', discard: 'Discard draft' };
+    const t = (key: string, params?: Record<string, string | number>): string => testMessage(locale, key, params);
+    const text = {
+      draft: t('controller.root.labels.draft'),
+      save: t('controller.root.drafts.save'),
+      cancel: t('common.cancel'),
+      consent: t('controller.root.drafts.consent'),
+      matches: t('controller.root.drafts.matches'),
+      current: t('controller.root.drafts.compare'),
+      rebase: `${t('controller.root.drafts.rebase')} · 2`,
+      discard: t('controller.root.labels.discard'),
+    };
     await page.goto('/'); await page.getByRole('button', { name: 'Hosted workflow · 1', exact: true }).click();
     const editor = page.getByRole('textbox', { name: text.draft, exact: true }); await editor.fill('private unfinished fixture draft');
     const save = () => page.getByRole('button', { name: text.save, exact: true });

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { ControllerStatus } from '../../src/web/features/controller/model/controller.ts';
 import type { AutomationRow } from '../../src/web/features/controller/model/automations.ts';
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 
 for (const locale of ['en', 'es'] as const) {
   test(`controller confirms whole events and preserves unknown outcomes (${locale})`, async ({ page }, testInfo) => {
@@ -37,8 +38,15 @@ for (const locale of ['en', 'es'] as const) {
       } };
     }, { status, rows, locale });
     await page.goto('/');
-    const text = locale === 'es' ? { board: 'Automatizaciones del anfitrión', disable: 'Desactivar evento', remove: 'Eliminar evento', cancel: 'Cancelar', revision: 'Revisión 1', unknown: 'las nuevas modificaciones están bloqueadas', history: 'Comandos de este perfil' } :
-      { board: 'Host automations', disable: 'Disable event', remove: 'Delete event', cancel: 'Cancel', revision: 'Revision 1', unknown: 'new changes are blocked', history: 'Commands for this profile' };
+    const t = (key: string, params?: Record<string, string | number>): string => testMessage(locale, key, params);
+    const text = {
+      board: t('controller.automations.text.title'),
+      disable: t('controller.automations.text.disable'),
+      remove: t('controller.automations.text.delete'),
+      cancel: t('common.cancel'),
+      unknown: t('controller.root.commands.unknown'),
+      history: t('controller.root.commands.journal'),
+    };
     const board = page.getByRole('region', { name: text.board, exact: true });
     await expect(board.getByRole('listitem')).toHaveCount(2);
     await expect(board.getByRole('listitem').nth(1).getByRole('button')).toHaveCount(0);

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, readHostState, waitForFrontend, writeHostState } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 
 for (const locale of ['en', 'es'] as const) {
   test(`owner editor retains conflicts and reviews recreation (${locale})`, async ({ page }, info) => {
@@ -22,23 +23,21 @@ for (const locale of ['en', 'es'] as const) {
     (host.automationSnapshot['events'] as Array<Record<string, unknown>>)[0]!['name'] = 'Host changed name';
     host.automationVersions = { 'action:same': '1', 'event:same': '2' };
     await writeHostState(page, host); await emitTopic(page, 'workflow.changed', { kind: 'event', id: 'same', change: 'updated' });
-    await expect(page.getByText(locale === 'en'
-      ? 'The host record changed since you opened it. Your starting version and draft are retained.'
-      : 'El registro del anfitrión cambió desde que lo abriste. Tu versión inicial y tu borrador se conservan.')).toBeVisible();
+    const t = (key: string): string => testMessage(locale, key);
+    await expect(page.getByText(t('automations.conflict.hostChanged'))).toBeVisible();
     await expect(name).toHaveValue('My retained draft');
-    const save = page.getByRole('button', { name: locale === 'en' ? 'Save' : 'Guardar', exact: true });
+    const save = page.getByRole('button', { name: t('automations.editor.save'), exact: true });
     await save.click();
     await expect(save).toBeDisabled();
     const failed = await readHostState(page);
     expect(failed.calls.find((r) => r.method === 'automation.update')?.meta?.['expectedRevision']).toBe('1');
-    await page.getByRole('button', { name: locale === 'en' ? 'Compare with host' : 'Comparar con el anfitrión', exact: true }).click();
+    await page.getByRole('button', { name: t('automations.conflict.compare'), exact: true }).click();
     const dialog = page.getByRole('dialog').filter({ has: page.locator('.review-table') });
     await expect(dialog.locator('tbody tr')).toHaveCount(5);
-    const labels = locale === 'en'
-      ? ['Starting version', 'Your draft', 'Current host version'] as const
-      : ['Versión inicial', 'Tu borrador', 'Versión actual del anfitrión'] as const;
-    for (const label of labels) await expect(dialog).toContainText(label);
-    const closeLabel = locale === 'en' ? 'Close' : 'Cerrar';
+    for (const key of ['automations.conflict.base', 'automations.conflict.candidate', 'automations.conflict.current']) {
+      await expect(dialog).toContainText(t(key));
+    }
+    const closeLabel = t('common.close');
     const sourceButtons = dialog.locator('.review-table__action');
     for (const index of [0, 1, 2]) {
       await sourceButtons.nth(index).click();
@@ -54,7 +53,7 @@ for (const locale of ['en', 'es'] as const) {
       expect(await button.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
     }
     await page.screenshot({ path: info.outputPath(`owner-automation-review-${locale}.png`) });
-    await dialog.getByRole('button', { name: locale === 'en' ? 'Use this version as the draft base' : 'Usar esta versión como base del borrador', exact: true }).click();
+    await dialog.getByRole('button', { name: t('automations.conflict.useBase'), exact: true }).click();
     await expect(dialog).not.toBeVisible();
     expect((await readHostState(page)).calls.filter((r) => r.method === 'automation.update')).toHaveLength(1);
     await expect(name).toHaveValue('My retained draft'); await save.click();
@@ -66,9 +65,9 @@ for (const locale of ['en', 'es'] as const) {
     await writeHostState(page, afterSave); await emitTopic(page, 'workflow.changed', { kind: 'event', id: 'same', change: 'deleted' });
     await name.fill('Draft after deletion'); await save.click();
     await expect(save).toBeDisabled();
-    await page.getByRole('button', { name: locale === 'en' ? 'Compare with host' : 'Comparar con el anfitrión', exact: true }).click();
-    await expect(dialog).toContainText(locale === 'en' ? 'The record is absent on the host.' : 'El registro no existe en el anfitrión.');
-    await dialog.getByRole('button', { name: locale === 'en' ? 'Prepare recreation with this draft' : 'Preparar recreación con este borrador', exact: true }).click();
+    await page.getByRole('button', { name: t('automations.conflict.compare'), exact: true }).click();
+    await expect(dialog).toContainText(t('automations.conflict.deleted'));
+    await dialog.getByRole('button', { name: t('automations.conflict.prepareRecreate'), exact: true }).click();
     expect((await readHostState(page)).calls.some((r) => r.method === 'automation.create')).toBe(false);
     await save.click();
     await expect.poll(async () => (await readHostState(page)).automationVersions?.['event:same']).toBe('5');
