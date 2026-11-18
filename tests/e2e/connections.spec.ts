@@ -1,3 +1,4 @@
+import { HOST_MESSAGES } from '../../src/web/shared/testing/host-messages.ts';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 
 const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
@@ -100,7 +101,7 @@ test('REPO imports a token through the shared card without showing the secret', 
     title: { default: 'Connection' }, sections: [{ kind: 'connection' }],
     source: { kind: 'plugin', pluginId: id } }];
   state.pluginSettings[id] = { schema: manifest.settings.schema, values: { serverUrl: 'http://127.0.0.1:17453' } };
-  state.pluginHealth[id] = { ok: false, latencyMs: 1, error: 'API token missing.' };
+  state.pluginHealth[id] = { ok: false, latencyMs: 1, error: HOST_MESSAGES.apiTokenMissing };
   const capture = await installFakeHost(page, state);
   await page.goto('/');
   await waitForFrontend(page);
@@ -130,7 +131,7 @@ async function repoAutomaticState() {
   state.automationSnapshot.pluginPages = [{ id: 'connection', pluginId: manifest.id,
     title: { default: 'Connection' }, sections: [{ kind: 'connection' }], source: { kind: 'plugin', pluginId: manifest.id } }];
   state.pluginSettings[manifest.id] = { schema: manifest.settings.schema, values: { serverUrl: 'http://127.0.0.1:17453' } };
-  state.pluginHealth[manifest.id] = { ok: false, latencyMs: 1, error: 'API token missing.' };
+  state.pluginHealth[manifest.id] = { ok: false, latencyMs: 1, error: HOST_MESSAGES.apiTokenMissing };
   return state;
 }
 
@@ -141,7 +142,7 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
     { id: '1122334455667788', label: 'Mod profile: Stream' },
   ] };
   state.pluginSetupEndpoints = { 'repo.game': 'http://127.0.0.1:18053' };
-  state.pluginSetupHealth = { 'repo.game': { ok: false, reachable: true, gameplayReady: false, latencyMs: 1, error: 'API reachable; gameplay unavailable.' } };
+  state.pluginSetupHealth = { 'repo.game': { ok: false, reachable: true, gameplayReady: false, latencyMs: 1, error: HOST_MESSAGES.apiReachableGameplayUnavailable } };
   const capture = await installFakeHost(page, state);
   await page.goto('/');
   await waitForFrontend(page);
@@ -169,7 +170,7 @@ test('REPO setup offers a folder picker when automatic discovery finds nothing',
   await openConnections(page);
   await page.getByRole('button', { name: /R.E.P.O. Game/ }).click();
   await page.getByRole('button', { name: t('plugins.connection.actions.auto'), exact: true }).click();
-  await expect(page.getByText('No configuration found. Select the game folder.')).toBeVisible();
+  await expect(page.getByText(HOST_MESSAGES.noConfiguration)).toBeVisible();
   await page.getByRole('button', { name: t('plugins.connection.actions.folder'), exact: true }).click();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/connection-editor__details--ok/);

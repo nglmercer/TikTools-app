@@ -12,6 +12,7 @@ test('opens the exact plugin event without recording another entry', async () =>
   vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
   diagnosticLog.record({ source:'plugins', entityId:'other', code:'failed', message:'other failure', level:'error' });
   const entry = diagnosticLog.record({ source:'plugins', entityId:'game', code:'failed', message:'game failure', level:'error' });
+  // Fixture label supplied by the caller, not a translated catalog string.
   const wrapper = mountWithPlugins(DiagnosticStatusAction, { props:{ source:'plugins', entityId:'game', label:'Connection failed' } });
   expect(wrapper.get('button').attributes('aria-label')).toContain(t('diagnostics.viewLogs'));
   await wrapper.get('button').trigger('click');

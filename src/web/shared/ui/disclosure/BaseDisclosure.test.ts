@@ -7,7 +7,7 @@ enableAutoUnmount(afterEach);
 
 it('owns its state, seeds it from initiallyOpen and keeps the body in the DOM', async () => {
   const wrapper = mountWithPlugins(BaseDisclosure, {
-    props: { title: 'Show changes', initiallyOpen: true },
+    props: { title: 'Show changes', initiallyOpen: true }, // fixture title, not a catalog string
     slots: { default: '<p class="body">content</p>' },
   });
   const toggle = wrapper.get('button');

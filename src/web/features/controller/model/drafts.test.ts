@@ -22,7 +22,8 @@ function fixture() {
       return reply;
     }
     if (method === 'controller.drafts.save' || method === 'controller.drafts.delete') {
-      if (params?.['expectedStoreRevision'] !== revision) throw new ControlCallError('draft_conflict', 'Review saved copy');
+      if (params?.['expectedStoreRevision'] !== revision) // Host-supplied error text, not a catalog string.
+    throw new ControlCallError('draft_conflict', 'Review saved copy');
       revision = String(Number(revision) + 1);
       stored = method === 'controller.drafts.delete' ? null : { id: String(params?.['id']), baseRevision: String(params?.['baseRevision']), text: String(params?.['text']), updatedAt: 1 };
       if (loseSave) { loseSave = false; throw new ControlCallError('transport', 'Save not confirmed; review the saved copy'); }

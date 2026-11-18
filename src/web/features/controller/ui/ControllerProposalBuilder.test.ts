@@ -460,6 +460,7 @@ it('prepares a literal-viewer points proposal only after explicit preview', asyn
     f.model.edit('existing private draft');
     await f.wrapper.get('select').setValue('core.points');
     const inputs = f.wrapper.findAll('input');
+    // User-typed fixture text, not a translated UI label.
     await inputs[0]!.setValue('Adjust points');
     await inputs[1]!.setValue('alice');
     await inputs[2]!.setValue('-12.5');

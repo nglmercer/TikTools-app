@@ -105,6 +105,30 @@ release tags or manually, not on PRs. No dependency-review workflow is
 versioned here; externally administered checks depend on repository policy.
 Do not wait for a check this checkout does not configure.
 
+## Test text conventions
+
+Tests must not hardcode translated UI copy: a wording change in any locale
+would break unrelated assertions. Use `testMessage(locale, key)` from
+`src/web/shared/i18n/test-message.ts` for text rendered by the app, including
+labels, tooltips, dialog buttons and table headers. It resolves the six real
+catalogs (plus CJK host messages), interpolates parameters and throws on an
+unknown key. ESLint rejects string literals inside `locale === ...` ternaries
+in test files.
+
+Strings that do NOT belong in that helper:
+
+- values owned by the host, a plugin or a native bridge (error texts, setup
+  messages, descriptors) — put them in `src/web/shared/testing/host-messages.ts`
+  with an explicit comment about their origin;
+- fixture data such as record names, user-typed text, CSS selectors and
+  JSON/protocol literals — keep them literal, preferably with a short comment
+  explaining they are fixtures rather than UI copy;
+- self-tests of the i18n system itself, which intentionally assert exact
+  translations.
+
+Prefer structural assertions (`code`, result objects, roles) over exact
+message matching when the text comes from outside this repository.
+
 ## Documentation and demo maintenance
 
 Temporary agent plans, handoff notes, audit results and benchmark logs belong

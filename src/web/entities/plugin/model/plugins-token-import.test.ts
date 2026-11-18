@@ -1,3 +1,4 @@
+import { HOST_MESSAGES } from '@/shared/testing/host-messages.ts';
 import { expect, test } from 'vitest';
 import { usePlugins } from './plugins-state.ts';
 import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
@@ -48,10 +49,10 @@ test('cancelled import stays quiet and does not re-probe or overwrite settings',
 });
 
 test('failed imports display safe errors and disposed requests cannot update UI', async () => {
-  const state = harness(Promise.resolve({ pluginId: 'repo.game', ok: false, error: 'Token entry was not found.' }));
+  const state = harness(Promise.resolve({ pluginId: 'repo.game', ok: false, error: HOST_MESSAGES.tokenNotFound }));
   state.plugins.handleImportPluginToken('repo.game');
   await flush();
-  expect(state.plugins.pluginProvision.value['repo.game']?.message).toBe('Token entry was not found.');
+  expect(state.plugins.pluginProvision.value['repo.game']?.message).toBe(HOST_MESSAGES.tokenNotFound);
   expect(state.calls).toHaveLength(1);
   state.plugins.dispose();
   let finish!: (value: unknown) => void;

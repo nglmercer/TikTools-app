@@ -1,3 +1,4 @@
+import { HOST_MESSAGES } from '@/shared/testing/host-messages.ts';
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -90,14 +91,14 @@ describe('BaseImportDialog', () => {
     const wrapper = mountDialog({ maxBytes: 1024 * 1024 });
     const drop = wrapper.getComponent(BaseFileDrop);
     expect(drop.props('maxBytes')).toBe(1024 * 1024);
-    expect(drop.props('tooLargeLabel')).toBe('That file is larger than 1 MB.');
+    expect(drop.props('tooLargeLabel')).toBe(HOST_MESSAGES.fileTooLarge);
     const input = wrapper.get('input[type="file"]');
     const big = new File(['x'.repeat(2048)], 'big.json', { type: 'application/json' });
     Object.defineProperty(big, 'size', { value: 2 * 1024 * 1024 });
     Object.defineProperty(input.element, 'files', { value: [big], configurable: true });
     await input.trigger('change');
     await flushPromises();
-    expect(wrapper.emitted('error')).toEqual([['That file is larger than 1 MB.']]);
+    expect(wrapper.emitted('error')).toEqual([[HOST_MESSAGES.fileTooLarge]]);
     expect(wrapper.emitted('content')).toBeUndefined();
   });
 

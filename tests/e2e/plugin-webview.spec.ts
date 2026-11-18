@@ -1,3 +1,4 @@
+import { HOST_MESSAGES } from '../../src/web/shared/testing/host-messages.ts';
 const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
@@ -29,7 +30,7 @@ test('legacy TTS section degrades to a status note without plugin UI', async ({ 
   await waitForFrontend(page);
   await openTts(page);
 
-  await expect(page.getByText('This panel moved to the plugin view.')).toBeVisible();
+  await expect(page.getByText(HOST_MESSAGES.panelMoved)).toBeVisible();
   await expect(page.getByLabel('Default voice')).toHaveCount(0);
   await expect(page.getByLabel('Voice', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('Text', { exact: true })).toHaveCount(0);

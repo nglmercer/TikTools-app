@@ -1,3 +1,4 @@
+import { HOST_MESSAGES } from '../../src/web/shared/testing/host-messages.ts';
 import { expect, test } from '@playwright/test';
 
 import { readHostState, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
@@ -98,6 +99,6 @@ test('the Plugins button explains why it is disabled when sync is off', async ({
   await waitForFrontend(page);
   const button = page.getByRole('button', { name: t('syncChanges.button') });
   await expect(button).toBeDisabled();
-  await expect(button).toHaveAttribute('aria-description', 'Turn on Cloud sync in Settings, Account & Cloud.');
+  await expect(button).toHaveAttribute('aria-description', HOST_MESSAGES.turnOnCloudSync);
   capture.assertClean();
 });

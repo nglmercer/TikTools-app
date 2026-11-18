@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import { testMessage } from './test-message.ts';
 
 test('resolves the same key in every locale from the real catalogs', () => {
+  // Self-test of the catalog resolver: expected values must be literal.
   expect(testMessage('en', 'automations.conflict.base')).toBe('Starting version');
   expect(testMessage('es', 'automations.conflict.base')).toBe('Versión inicial');
   expect(testMessage('fr', 'automations.conflict.base')).toBeTruthy();
