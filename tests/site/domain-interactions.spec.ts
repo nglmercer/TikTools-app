@@ -103,7 +103,7 @@ test('plugin settings discard, save and reopen preserve the saved values', async
   await volume.fill('65');
   await volume.press('Enter');
   await expect(save).toBeEnabled();
-  await settings.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await settings.getByRole('button', { name: t('plugins.settings.discard'), exact: true }).click();
   await expect(volume).toHaveValue('50');
   await expect(save).toBeDisabled();
 
@@ -245,7 +245,7 @@ test('Variables fence unsaved edits, then resolve to the reviewed Cloud value', 
   const changes = page.getByRole('button', { name: /^Sync changes(?:, \d+ pending)?$/ });
   await expect(changes).toBeDisabled();
   await expect(changes).toHaveAttribute('title', 'Save or discard your Variables edits first.');
-  await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await page.getByRole('button', { name: t('plugins.settings.discard'), exact: true }).click();
   const dialog = await variableChanges(page);
   await expect(dialog.locator('.sync-panel__conflict')).toContainText('Choose the version to use.');
   await dialog.getByRole('button', { name: t('syncChanges.applyCloud'), exact: true }).click();
