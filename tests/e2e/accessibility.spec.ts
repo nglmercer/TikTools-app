@@ -1,3 +1,6 @@
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
 import { expect, test } from '@playwright/test';
 
 import {
@@ -19,15 +22,15 @@ test('navigation exposes named buttons and the active tab marker', async ({ page
   const buttons = nav.getByRole('link');
   expect(await buttons.count()).toBeGreaterThanOrEqual(7);
   for (const name of [
-    'Live feed',
+    t('navigation.feed'),
     'Points',
-    'Connections',
+    t('navigation.connections'),
     'Plugins',
     'Text to Speech',
   ]) {
     await expect(nav.getByRole('link', { name })).toBeVisible();
   }
-  await expect(nav.getByRole('link', { name: 'Live feed' })).toHaveAttribute(
+  await expect(nav.getByRole('link', { name: t('navigation.feed') })).toHaveAttribute(
     'aria-current',
     'page',
   );

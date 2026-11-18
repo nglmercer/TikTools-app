@@ -3,6 +3,9 @@ import { expect, test } from '@playwright/test';
 import { readHostState, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState, sonicboomConnectedState } from './fixtures/states.ts';
 import { SONICBOOM_ID } from './fixtures/plugins.ts';
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
 
 /**
  * The Changes panel opens from a button in each section's toolbar and only shows that section's
@@ -21,29 +24,29 @@ test('the Events tab lists what changed since the last snapshot and asks before 
   await page.goto('/#/automations');
   await waitForFrontend(page);
 
-  const button = page.getByRole('button', { name: 'Sync changes, 3 pending' });
+  const button = page.getByRole('button', { name: t('syncChanges.buttonCount', { count: 3 }) });
   await expect(button).toBeVisible();
   await button.click();
-  const panel = page.getByRole('dialog', { name: 'Changes · Events' });
+  const panel = page.getByRole('dialog', { name: `${t('syncChanges.title')} · Events` });
   await expect(panel.getByRole('listitem')).toHaveCount(3);
   // Automations have no Cloud transport yet, so only reset and mark as reviewed are offered.
-  await expect(panel.locator('.sync-panel__status')).toContainText('reference copy, not with Cloud. Nothing is sent.');
-  await expect(panel.getByRole('button', { name: 'Fetch changes from Cloud' })).toHaveCount(0);
-  await expect(panel.getByRole('button', { name: 'Sync', exact: true })).toHaveCount(0);
-  await panel.getByRole('button', { name: 'View Greeting renamed' }).click();
+  await expect(panel.locator('.sync-panel__status')).toContainText(t('syncChanges.automationsNotice'));
+  await expect(panel.getByRole('button', { name: t('syncChanges.fetch') })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: t('syncChanges.sync'), exact: true })).toHaveCount(0);
+  await panel.getByRole('button', { name: t('syncChanges.pickElement', { name: 'Greeting renamed' }) }).click();
   await expect(panel.locator('.base-json-diff__line--added').first()).toContainText('Greeting renamed');
-  await panel.getByRole('button', { name: 'Reset to the synced version' }).click();
+  await panel.getByRole('button', { name: t('syncChanges.reset') }).click();
   await expect(panel.getByRole('alertdialog')).toContainText('Greeting renamed');
-  await panel.getByRole('button', { name: 'Cancel' }).click();
+  await panel.getByRole('button', { name: t('common.cancel') }).click();
   await expect(panel.getByRole('alertdialog')).toHaveCount(0);
   expect((await readHostState(page)).calls.some((call) => call.method === 'automation.update')).toBe(false);
 
   // Marking the section as reviewed asks first, then makes the current records the reference copy.
-  await panel.getByRole('button', { name: 'Mark as reviewed' }).click();
-  await expect(panel.getByRole('alertdialog')).toContainText('Nothing is sent to Cloud');
-  await panel.getByRole('button', { name: 'Confirm' }).click();
+  await panel.getByRole('button', { name: t('syncChanges.markReviewed') }).click();
+  await expect(panel.getByRole('alertdialog')).toContainText(t('syncChanges.confirmMarkReviewed'));
+  await panel.getByRole('button', { name: t('syncChanges.confirm') }).click();
   await expect(panel.getByRole('listitem')).toHaveCount(0);
-  await expect(panel.getByRole('button', { name: 'Mark as reviewed' })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: t('syncChanges.markReviewed') })).toBeDisabled();
   const reference = await page.evaluate(() => JSON.parse(localStorage.getItem('tiktools.sync.snapshot.automation-events') ?? '{}'));
   expect(Object.keys(reference).sort()).toEqual(['greet', 'new']);
   expect((await readHostState(page)).calls.some((call) => call.method === 'automation.update')).toBe(false);
@@ -67,21 +70,21 @@ test('Plugins send the whole pass and resolve a conflict through the v2 contract
   await page.goto('/#/plugins');
   await waitForFrontend(page);
 
-  await page.getByRole('button', { name: 'Sync changes, 2 pending' }).click();
-  const panel = page.getByRole('dialog', { name: /Changes · Plugins/ });
-  await expect(panel.locator('.sync-panel__group').first()).toContainText('To send');
-  await panel.getByRole('button', { name: 'View other.plugin' }).click();
+  await page.getByRole('button', { name: t('syncChanges.buttonCount', { count: 2 }) }).click();
+  const panel = page.getByRole('dialog', { name: new RegExp(`${t('syncChanges.title')} · Plugins`) });
+  await expect(panel.locator('.sync-panel__group').first()).toContainText(t('syncChanges.toSend'));
+  await panel.getByRole('button', { name: t('syncChanges.pickElement', { name: 'other.plugin' }) }).click();
   await expect(panel.locator('.sync-panel__keys')).toContainText('Changed settings: apiKey, volume');
   await expect(panel.locator('.base-json-diff')).toHaveCount(0);
-  await panel.getByRole('button', { name: 'View SonicBoom Server' }).click();
-  await expect(panel.locator('.sync-panel__group').nth(1)).toContainText('Conflicts');
-  await expect(panel.getByRole('button', { name: 'Sync', exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: t('syncChanges.pickElement', { name: 'SonicBoom Server' }) }).click();
+  await expect(panel.locator('.sync-panel__group').nth(1)).toContainText(t('syncChanges.conflicts'));
+  await expect(panel.getByRole('button', { name: t('syncChanges.sync'), exact: true })).toBeVisible();
   // No selective send, no force and no history on this section.
-  await expect(panel.getByRole('button', { name: 'Send the selected elements' })).toHaveCount(0);
-  await expect(panel.getByRole('button', { name: 'More actions' })).toHaveCount(0);
-  await panel.getByRole('button', { name: 'All Cloud' }).click();
+  await expect(panel.getByRole('button', { name: t('syncChanges.push') })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: t('syncChanges.more') })).toHaveCount(0);
+  await panel.getByRole('button', { name: t('syncChanges.allCloud') }).click();
   await expect.poll(async () => (await readHostState(page)).sync?.resolved).toEqual(['takeCloud']);
-  await panel.getByRole('button', { name: 'Sync', exact: true }).click();
+  await panel.getByRole('button', { name: t('syncChanges.sync'), exact: true }).click();
   await expect.poll(async () => (await readHostState(page)).calls.some((call) => call.method === 'sync.v2.now')).toBe(true);
   capture.assertClean();
 });
@@ -93,7 +96,7 @@ test('the Plugins button explains why it is disabled when sync is off', async ({
   const capture = await installFakeHost(page, state);
   await page.goto('/#/plugins');
   await waitForFrontend(page);
-  const button = page.getByRole('button', { name: 'Sync changes' });
+  const button = page.getByRole('button', { name: t('syncChanges.button') });
   await expect(button).toBeDisabled();
   await expect(button).toHaveAttribute('aria-description', 'Turn on Cloud sync in Settings, Account & Cloud.');
   capture.assertClean();

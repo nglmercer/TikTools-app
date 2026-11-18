@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
@@ -13,6 +14,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginsPage from './PluginsPage.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const text = (value: string) => ({ default: value, i18key: '' });
 
@@ -233,12 +235,12 @@ describe('PluginsPage', () => {
   it('opens the plugin preferences inside the same panel from the shared actions menu and goes back', async () => {
     const { wrapper } = await mountPage();
     expect(wrapper.find('.plugin-preferences').exists()).toBe(false);
-    await buttonByLabel(wrapper, 'More actions').trigger('click');
-    menuItem('Preferences').click();
+    await buttonByLabel(wrapper, t('syncChanges.more')).trigger('click');
+    menuItem(t('plugins.catalog.preferences')).click();
     await flushPromises();
     expect(wrapper.find('.plugin-catalog').exists()).toBe(false);
-    expect(wrapper.get('.plugin-preferences .base-panel__title').text()).toBe('Preferences');
-    expect(wrapper.get('.plugin-preferences').text()).toContain('Allow local package installation');
+    expect(wrapper.get('.plugin-preferences .base-panel__title').text()).toBe(t('plugins.catalog.preferences'));
+    expect(wrapper.get('.plugin-preferences').text()).toContain(t('packages.sources.allowSideload'));
     expect(wrapper.find('#plugin-update-policy-channel').exists()).toBe(true);
     await buttonByLabel(wrapper, 'Back').trigger('click');
     expect(wrapper.find('.plugin-preferences').exists()).toBe(false);
@@ -273,15 +275,15 @@ describe('PluginsPage', () => {
 
   it('shows one navigation area with icon tabs, a search field and icon tools', async () => {
     const { wrapper } = await mountPage();
-    expect(tabNames(wrapper)).toEqual(['Explore', 'Installed 1', 'Updates', 'Processors']);
+    expect(tabNames(wrapper)).toEqual(['Explore', 'Installed 1', 'Updates', t('plugins.views.processors')]);
     expect(wrapper.find('.plugins-page__toolbar').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Plugins bring an external dependency');
     expect(wrapper.get('h2').text()).toBe('Plugins');
-    expect(wrapper.get('input[type="search"]').attributes('aria-label')).toBe('Search plugins…');
-    expect(buttonByLabel(wrapper, 'Install .plugin…').exists()).toBe(true);
-    expect(buttonByLabel(wrapper, 'Check for updates').exists()).toBe(false);
+    expect(wrapper.get('input[type="search"]').attributes('aria-label')).toBe(t('plugins.catalog.search'));
+    expect(buttonByLabel(wrapper, t('plugins.install.package')).exists()).toBe(true);
+    expect(buttonByLabel(wrapper, t('plugins.catalog.checkUpdates')).exists()).toBe(false);
     // No master/detail, so no placeholder waiting for a selection either.
-    expect(wrapper.text()).not.toContain('Select a plugin to see its details.');
+    expect(wrapper.text()).not.toContain(t('plugins.details.empty'));
     expect(wrapper.find('.master-detail').exists()).toBe(false);
   });
 
@@ -289,7 +291,7 @@ describe('PluginsPage', () => {
     const { wrapper } = await mountPage();
     const sync = wrapper.get('button[aria-label^="Sync changes"]');
     expect(sync.attributes('disabled')).toBeDefined();
-    expect(sync.attributes('aria-description')).toBe('Sign in to Cloud to sync (Settings, Account & Cloud).');
+    expect(sync.attributes('aria-description')).toBe(t('syncChanges.signedOut'));
   });
 
   it('lists installed plugins with a switch and counters, and flags only the ones that cannot load', async () => {
@@ -300,8 +302,8 @@ describe('PluginsPage', () => {
     expect(rows[0]!.text()).toContain('Plugin package · 1.2.0');
     expect(rows[0]!.get('[role="img"][aria-label="Actions: 1"]').text()).toBe('1');
     expect(rows[1]!.get('[role="img"][aria-label="Events: 1"]').text()).toBe('1');
-    expect(rows[0]!.text()).not.toContain('Unavailable');
-    expect(rows[1]!.text()).toContain('Unavailable');
+    expect(rows[0]!.text()).not.toContain(t('plugins.catalog.unavailable'));
+    expect(rows[1]!.text()).toContain(t('plugins.catalog.unavailable'));
     // One status per fact: the switch says enabled, so no "Active" text beside it.
     expect(wrapper.text()).not.toContain('Active');
     await rows[0]!.get('input[role="switch"]').setValue(false);
@@ -327,8 +329,8 @@ describe('PluginsPage', () => {
     expect(tabNames(wrapper)).toContain('Updates 1');
     await openTab(wrapper, 'Updates');
     expect(wrapper.get('.plugin-catalog__row').text()).toContain('1.2.0 → 1.3.0');
-    expect(buttonByLabel(wrapper, 'Check for updates').exists()).toBe(true);
-    expect(buttonByLabel(wrapper, 'Update all').attributes('disabled')).toBeUndefined();
+    expect(buttonByLabel(wrapper, t('plugins.catalog.checkUpdates')).exists()).toBe(true);
+    expect(buttonByLabel(wrapper, t('plugins.catalog.updateAll')).attributes('disabled')).toBeUndefined();
     await buttonByLabel(wrapper, 'Update DECK').trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.packages.update')?.params).toEqual({ pluginId: 'deck', version: '1.3.0' });
@@ -361,12 +363,12 @@ describe('PluginsPage', () => {
     const builtin = plugin('core', {}, { source: 'builtin' });
     const { wrapper } = await mountPage([server, builtin]);
     await selectPlugin(wrapper, 'SRV');
-    expect(tabNames(wrapper)).toEqual(['General', 'Settings', 'Connection', 'Versions']);
+    expect(tabNames(wrapper)).toEqual(['General', 'Settings', t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions')]);
     expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(4);
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Connection')!.trigger('click');
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('plugins.details.tabs.connection'))!.trigger('click');
     // The same editor the Connections page uses, with its own status and test button.
     expect(wrapper.find('.connection-editor--sections').exists()).toBe(true);
-    expect(wrapper.text()).toContain('Not configured');
+    expect(wrapper.text()).toContain(t('connections.servers.notConfigured'));
     await buttonByLabel(wrapper, 'Back').trigger('click');
     await selectPlugin(wrapper, 'CORE');
     expect(tabNames(wrapper)).toEqual(['General']);
@@ -377,7 +379,7 @@ describe('PluginsPage', () => {
     await selectPlugin(wrapper, 'DECK');
     const columns = wrapper.findAll('.plugin-details__column');
     expect(columns).toHaveLength(2);
-    expect(columns[0]!.text()).toContain('Plugin package');
+    expect(columns[0]!.text()).toContain(t('plugins.details.sources.user'));
     expect(columns[0]!.text()).toContain('Local server');
     expect(columns[0]!.text()).toContain('network');
     expect(columns[1]!.text()).toContain('Switch scene');
@@ -394,7 +396,7 @@ describe('PluginsPage', () => {
   it('confirms uninstall with the action usage', async () => {
     const { wrapper, calls } = await mountPage();
     await selectPlugin(wrapper, 'DECK');
-    await buttonByLabel(wrapper, 'Uninstall…').trigger('click');
+    await buttonByLabel(wrapper, t('plugins.details.uninstall')).trigger('click');
     await nextTick();
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
     const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Uninstall')!;
@@ -407,14 +409,14 @@ describe('PluginsPage', () => {
     const { wrapper, calls } = await mountPage();
     await openItemMenu(wrapper, 'DECK');
     expect(menuItems().map((item) => item.textContent?.trim())).toEqual([
-      'Open', 'Enabled', 'Settings', 'Connection', 'Versions', 'Test connection', 'Uninstall…',
+      'Open', 'Enabled', 'Settings', t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions'), t('plugins.settings.test'), t('plugins.details.uninstall'),
     ]);
     menuItem('Enabled').click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.disable')?.params).toEqual({ pluginId: 'deck' });
 
     await openItemMenu(wrapper, 'DECK');
-    menuItem('Uninstall…').click();
+    menuItem(t('plugins.details.uninstall')).click();
     await flushPromises();
     expect(detailsTitle(wrapper)).toBe('DECK');
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
@@ -426,46 +428,46 @@ describe('PluginsPage', () => {
   it('opens a details tab from the context menu', async () => {
     const { wrapper } = await mountPage([plugin('deck'), plugin('vts')]);
     await openItemMenu(wrapper, 'VTS');
-    menuItem('Versions').click();
+    menuItem(t('plugins.details.tabs.versions')).click();
     await flushPromises();
     expect(detailsTitle(wrapper)).toBe('VTS');
-    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Versions');
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('plugins.details.tabs.versions'));
   });
 
   it('removes non-package plugins from the installed list instead of uninstalling', async () => {
     const dev = plugin('devkit', { available: false, enabled: false }, { source: 'development' });
     const { wrapper, calls } = await mountPage([dev]);
     await selectPlugin(wrapper, 'DEVKIT');
-    expect(buttonByLabel(wrapper, 'Uninstall…').exists()).toBe(false);
-    await buttonByLabel(wrapper, 'Remove from installed').trigger('click');
+    expect(buttonByLabel(wrapper, t('plugins.details.uninstall')).exists()).toBe(false);
+    await buttonByLabel(wrapper, t('plugins.menu.remove')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.install.set')?.params).toEqual({ pluginId: 'devkit', installed: false });
 
     await buttonByLabel(wrapper, 'Back').trigger('click');
     await openItemMenu(wrapper, 'DEVKIT');
-    expect(menuItems().map((item) => item.textContent?.trim())).toContain('Remove from installed');
-    expect(menuItems().map((item) => item.textContent?.trim())).not.toContain('Uninstall…');
+    expect(menuItems().map((item) => item.textContent?.trim())).toContain(t('plugins.menu.remove'));
+    expect(menuItems().map((item) => item.textContent?.trim())).not.toContain(t('plugins.details.uninstall'));
   });
 
   it('activates a bundled plugin', async () => {
     const { wrapper, calls } = await mountPage();
     await openTab(wrapper, 'Explore');
     await selectPlugin(wrapper, 'TTS');
-    await buttonByText(wrapper, 'Activate').trigger('click');
+    await buttonByText(wrapper, t('plugins.details.activate')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.install.set')?.params).toEqual({ pluginId: 'tts', installed: true });
   });
 
   it('reviews a package file and requires sideload consent before installing', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByLabel(wrapper, 'Install .plugin…').trigger('click');
+    await buttonByLabel(wrapper, t('plugins.install.package')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.packages.inspect')?.params).toEqual({
       spec: { kind: 'file', path: 'C:/x.plugin' },
     });
     expect(wrapper.text()).toContain('Install X Demo');
-    expect(wrapper.text()).toContain('Play audio');
-    expect(wrapper.text()).toContain('Not signed');
+    expect(wrapper.text()).toContain(t('packages.access.audio_output'));
+    expect(wrapper.text()).toContain(t('packages.signature.unsigned'));
     expect(buttonByText(wrapper, 'Install').attributes('disabled')).toBeDefined();
     await wrapper.findAll('input[type="checkbox"]').at(-1)!.setValue(true);
     await buttonByText(wrapper, 'Install').trigger('click');
@@ -483,7 +485,7 @@ describe('PluginsPage', () => {
     await flushPromises();
     expect(calls.find((call) => call.method === 'registry.package')?.params).toEqual({ id: 'acme.tts', registry: 'official' });
     expect(wrapper.text()).toContain('Reads chat aloud.');
-    await buttonByText(wrapper, 'Review and install').trigger('click');
+    await buttonByText(wrapper, t('packages.remote.install')).trigger('click');
     await flushPromises();
     expect(calls.filter((call) => call.method === 'plugins.packages.inspect').at(-1)?.params).toEqual({
       spec: { kind: 'registry', id: 'acme.tts', version: '1.2.0', registry: 'official' },
@@ -492,8 +494,8 @@ describe('PluginsPage', () => {
 
   it('blocks remote review when current status is missing or the key is revoked', async () => {
     for (const [liveStatuses, expected] of [
-      [{}, 'Current status unavailable'],
-      [{ '1.2.0': 'key-revoked' }, 'Signing key revoked'],
+      [{}, t('packages.liveStatus.unknown')],
+      [{ '1.2.0': 'key-revoked' }, t('packages.liveStatus.key-revoked')],
     ] as const) {
       // The previous round's saved selection would reopen its details instead of the tabs.
       localStorage.clear();
@@ -502,8 +504,8 @@ describe('PluginsPage', () => {
       await selectPlugin(wrapper, 'Acme TTS');
       await flushPromises();
       expect(wrapper.text()).toContain(expected);
-      expect(buttonByText(wrapper, 'Review and install').attributes('disabled')).toBeDefined();
-      await buttonByText(wrapper, 'Review and install').trigger('click');
+      expect(buttonByText(wrapper, t('packages.remote.install')).attributes('disabled')).toBeDefined();
+      await buttonByText(wrapper, t('packages.remote.install')).trigger('click');
       expect(calls.some((call) => call.method === 'plugins.packages.inspect')).toBe(false);
       wrapper.unmount();
     }
@@ -512,14 +514,14 @@ describe('PluginsPage', () => {
   it('explains that the marketplace is unpublished when no registry is available', async () => {
     const { wrapper, calls } = await mountPage(undefined, []);
     await openTab(wrapper, 'Explore');
-    expect(wrapper.text()).toContain("The official marketplace isn't published yet.");
+    expect(wrapper.text()).toContain(t('plugins.catalog.marketplaceUnavailable'));
     expect(wrapper.find('input[type="search"]').exists()).toBe(false);
     expect(calls.map((call) => call.method)).toContain('registry.list');
   });
 
   it('shows processor metrics and runs a test', async () => {
     const { wrapper, calls } = await mountPage();
-    await openTab(wrapper, 'Processors');
+    await openTab(wrapper, t('plugins.views.processors'));
     expect(calls.map((call) => call.method)).toContain('processors.status');
     const entry = wrapper.get('.processors__row');
     expect(entry.text()).toContain('enrich');
@@ -533,7 +535,7 @@ describe('PluginsPage', () => {
     expect(detailsTitle(wrapper)).toBe('enrich');
     expect(wrapper.get('.base-panel__status').text()).toContain('Ready');
     expect(wrapper.text()).toContain('boom');
-    await buttonByText(wrapper, 'Test with sample event').trigger('click');
+    await buttonByText(wrapper, t('plugins.processors.test')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'processors.test')?.params).toMatchObject({ pluginId: 'deck', processorId: 'enrich' });
     expect(wrapper.text()).toContain('Succeeded in 3 ms');
@@ -555,7 +557,7 @@ describe('PluginsPage', () => {
       const { wrapper, calls } = await unified();
       expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
       expect(wrapper.find('.explore-toolbar').exists()).toBe(false);
-      expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toContain('Installed');
+      expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toContain(t('packages.versions.current'));
       expect(wrapper.find('button[aria-label="Cloud catalog"]').exists()).toBe(false);
       expect(calls.some((call) => call.method === 'catalog.items')).toBe(false);
     });
@@ -572,7 +574,7 @@ describe('PluginsPage', () => {
     it('does not write the implicit view as a choice', async () => {
       const { wrapper } = await unified();
       expect(savedView()).toBeUndefined();
-      await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Processors')!.trigger('click');
+      await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('plugins.views.processors'))!.trigger('click');
       await new Promise((resolve) => setTimeout(resolve, 400));
       expect(savedView()).toBe('processors');
     });
@@ -632,7 +634,7 @@ describe('PluginsPage', () => {
         return undefined;
       });
       await openTab(wrapper, 'Explore');
-      expect(wrapper.text()).toContain('The Cloud catalog is not available');
+      expect(wrapper.text()).toContain(t('exploreCatalog.unavailable'));
       expect(wrapper.find('button[aria-label="Try again"]').exists()).toBe(true);
       expect(wrapper.text()).not.toMatch(/marketplace/i);
     });
@@ -643,7 +645,7 @@ describe('PluginsPage', () => {
         : undefined));
       await openTab(wrapper, 'Explore');
       expect(names(wrapper)).toEqual([]);
-      expect(wrapper.text()).toContain('Nothing published yet');
+      expect(wrapper.text()).toContain(t('exploreCatalog.nothingPublished'));
       expect(wrapper.text()).not.toContain('Published plugins, templates and profiles');
       expect(wrapper.text()).not.toContain('not available');
     });
@@ -678,14 +680,14 @@ describe('PluginsPage', () => {
 
   it('keeps only the update policy in the plugin preferences: no registry can be added, enabled or disabled', async () => {
     const { wrapper } = await mountPage();
-    await buttonByLabel(wrapper, 'More actions').trigger('click');
-    menuItem('Preferences').click();
+    await buttonByLabel(wrapper, t('syncChanges.more')).trigger('click');
+    menuItem(t('plugins.catalog.preferences')).click();
     await flushPromises();
     const panel = wrapper.get('.plugin-preferences');
     expect(panel.find('#plugin-update-policy-channel').exists()).toBe(true);
     expect(panel.find('#plugin-update-policy-auto').exists()).toBe(true);
     expect(panel.find('#plugin-update-policy-interval').exists()).toBe(true);
-    expect(panel.text()).toContain('Allow local package installation');
+    expect(panel.text()).toContain(t('packages.sources.allowSideload'));
     expect(panel.findAll('input[type="url"], input[type="text"][placeholder*="http"]')).toHaveLength(0);
     expect(panel.findAll('button').map((button) => button.attributes('aria-label') ?? button.text())).not.toEqual(expect.arrayContaining([expect.stringMatching(/add|remove|enable|disable|source|registry/i)]));
     expect(panel.text()).not.toMatch(/registr|source/i);

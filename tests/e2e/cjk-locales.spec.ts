@@ -1,3 +1,6 @@
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
 import { expect, test } from '@playwright/test';
 import { emptyState } from './fixtures/states.ts';
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
@@ -11,7 +14,7 @@ for (const { locale, name, label } of [
     const capture = await installFakeHost(page, emptyState());
     await page.goto('/#/settings');
     await waitForFrontend(page);
-    const picker = page.getByRole('combobox', { name: 'Interface language', exact: true });
+    const picker = page.getByRole('combobox', { name: t('settings.language.label'), exact: true });
     await picker.fill(locale);
     await page.getByRole('option', { name: new RegExp(name) }).click();
     await expect(page.locator('html')).toHaveAttribute('lang', locale);

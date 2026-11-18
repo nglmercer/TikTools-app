@@ -1,3 +1,6 @@
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
 import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
@@ -25,7 +28,7 @@ test('connections page shows empty servers state without plugins', async ({ page
   await waitForFrontend(page);
   await openConnections(page);
 
-  await expect(page.getByText('No server connections yet')).toBeVisible();
+  await expect(page.getByText(t('connections.servers.emptyTitle'))).toBeVisible();
 
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
@@ -43,7 +46,7 @@ test('server connection success shows latency and stays editable', async ({ page
 
   // The detail opens inside the server panel: the header carries the probe
   // status while the body keeps the connection fields editable.
-  await expect(page.getByText('Connected in 12 ms')).toBeVisible();
+  await expect(page.getByText(t('connections.servers.connectedIn', { ms: 12 }))).toBeVisible();
   const urlField = page.locator('.plugin-servers__detail input').first();
   await expect(urlField).toBeEnabled();
   await expect(urlField).toHaveValue('http://127.0.0.1:17842');
@@ -68,7 +71,7 @@ test('server connection failure shows the error without an app-wide crash', asyn
   // reports the failure while the body keeps the host error.
   // SonicBoom cards label the probe as a connect action.
   await page.getByRole('button', { name: /Connect SonicBoom/ }).click();
-  await expect(page.getByText('Connection failed')).toBeVisible();
+  await expect(page.getByText(t('connections.servers.failed'))).toBeVisible();
   await expect(page.getByText('connection refused', { exact: false }).first()).toBeVisible();
 
   // Settings remain editable after a failed probe.
@@ -103,13 +106,13 @@ test('REPO imports a token through the shared card without showing the secret', 
   await waitForFrontend(page);
   await openConnections(page);
   await page.getByRole('button', { name: /R.E.P.O. Game/ }).click();
-  const importButton = page.getByRole('button', { name: 'Import', exact: true });
+  const importButton = page.getByRole('button', { name: t('plugins.connection.actions.import'), exact: true });
   await expect(importButton).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Get API token…' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: t('plugins.connection.getToken') })).toHaveCount(0);
   await importButton.click();
-  await expect(page.getByText('API token imported and saved.')).toBeVisible();
-  await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
-  await expect(page.getByText('Connected in 1 ms')).toBeVisible();
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText(t('connections.servers.connectedIn', { ms: 1 }))).toBeVisible();
   await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
@@ -144,14 +147,14 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
   await waitForFrontend(page);
   await openConnections(page);
   await page.getByRole('button', { name: /R.E.P.O. Game/ }).click();
-  await page.getByRole('button', { name: 'Automatic', exact: true }).click();
+  await page.getByRole('button', { name: t('plugins.connection.actions.auto'), exact: true }).click();
   await expect(page.getByText('Steam — Local installation')).toBeVisible();
   await expect(page.getByText('Mod profile: Stream')).toBeVisible();
-  await expect(page.getByText('API token imported and saved.')).toHaveCount(0);
-  await page.locator('.connection-editor__candidate-list li').filter({ hasText: 'Mod profile: Stream' }).getByRole('button', { name: 'Use this configuration' }).click();
-  await expect(page.getByText('API token imported and saved.')).toBeVisible();
-  await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
-  await expect(page.getByText('API connected · gameplay not ready', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveCount(0);
+  await page.locator('.connection-editor__candidate-list li').filter({ hasText: 'Mod profile: Stream' }).getByRole('button', { name: t('plugins.connection.useConfiguration') }).click();
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText(t('connections.servers.apiNotReady'), { exact: true }).first()).toBeVisible();
   await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
   await expect(page.locator('.connection-editor input').first()).toHaveValue('http://127.0.0.1:18053');
   await assertNoUnhandledCalls(page);
@@ -165,12 +168,12 @@ test('REPO setup offers a folder picker when automatic discovery finds nothing',
   await waitForFrontend(page);
   await openConnections(page);
   await page.getByRole('button', { name: /R.E.P.O. Game/ }).click();
-  await page.getByRole('button', { name: 'Automatic', exact: true }).click();
+  await page.getByRole('button', { name: t('plugins.connection.actions.auto'), exact: true }).click();
   await expect(page.getByText('No configuration found. Select the game folder.')).toBeVisible();
-  await page.getByRole('button', { name: 'Folder', exact: true }).click();
-  await expect(page.getByText('API token imported and saved.')).toBeVisible();
-  await expect(page.getByText('API token imported and saved.')).toHaveClass(/connection-editor__details--ok/);
-  await expect(page.getByText('Connected in 1 ms')).toBeVisible();
+  await page.getByRole('button', { name: t('plugins.connection.actions.folder'), exact: true }).click();
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText(t('connections.servers.connectedIn', { ms: 1 }))).toBeVisible();
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });

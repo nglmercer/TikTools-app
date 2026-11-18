@@ -1,3 +1,6 @@
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
 import { expect, test } from '@playwright/test';
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
@@ -21,7 +24,7 @@ test('feed appends only format new cards and still update locale, search, and cl
   });
   await page.goto('/');
   await waitForFrontend(page);
-  await expect(page.getByText('No live events yet.', { exact: false })).toBeVisible();
+  await expect(page.getByText(t('feed.empty'), { exact: false })).toBeVisible();
   const emitChat = (index: number) => emitTopic(page, 'live.ui-event', {
     event: { kind: 'chat', author: 'alice', text: `feed message ${index}`, msgId: `feed-${index}` },
   });
@@ -77,7 +80,7 @@ test('hidden feed makes no commits and resumes with a discontinuity', async ({ p
     (window as unknown as { __tiktools_benchmark_controls__: { setTab(tab: string): void } }).__tiktools_benchmark_controls__.setTab('feed');
   });
   await expect(page.locator('.event-row')).toHaveCount(2);
-  await expect(page.locator('.event-row').last()).toContainText('Feed resumed');
+  await expect(page.locator('.event-row').last()).toContainText(t('feed.resumed'));
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
@@ -134,7 +137,7 @@ test('pinned feed renders 100 while pause and search expose all 300 buffered eve
       data: { event: { kind: 'chat', author: 'alice', text: `buffer ${index}`, msgId: `buffer-${index}` } } } })));
   });
   await expect(page.locator('.event-row')).toHaveCount(100);
-  await expect(page.locator('.live-feed__hint')).toContainText('newest 100 shown');
+  await expect(page.locator('.live-feed__hint')).toContainText(t('feed.windowed', { count: 100 }));
   await page.locator('.live-feed__search input').fill('buffer 0');
   await expect(page.locator('.event-row')).toHaveCount(1);
   await expect(page.locator('.event-row')).toContainText('buffer 0');

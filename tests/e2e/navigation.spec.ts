@@ -1,3 +1,6 @@
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
+
+const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
 import { expect, test } from '@playwright/test';
 
 import {
@@ -20,7 +23,7 @@ test('boots to the feed with named navigation and an active tab marker', async (
   await expect(feedTab).toBeVisible();
   await expect(feedTab).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('link', { name: 'Plugins' })).toBeVisible();
-  await expect(page.getByText('No live events yet.', { exact: false })).toBeVisible();
+  await expect(page.getByText(t('feed.empty'), { exact: false })).toBeVisible();
 
   const state = await readHostState(page);
   expect(state.frontendReady).toBe(true);
