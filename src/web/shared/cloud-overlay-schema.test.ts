@@ -1,3 +1,6 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
+
+const t = (key: string): string => testMessage('en', key);
 import { describe, expect, it } from 'vitest';
 import { addElement, emptyOverlay, needsLiveRead, readOverlayDocument, toWire, updateElement, validateOverlay } from '../../shared/cloud-overlay-schema.ts';
 
@@ -5,7 +8,7 @@ const asset = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
 
 describe('overlay schema', () => {
   it('accepts a plain overlay and reports problems in the Cloud codes', () => {
-    const doc = emptyOverlay('gift', 'Gift alert');
+    const doc = emptyOverlay('gift', t('overlays.kinds.gift.name'));
     expect(validateOverlay(doc)).toEqual([]);
     expect(validateOverlay({ ...doc, canvas: { width: 100, height: 100 } })).toEqual(['invalidCanvas']);
     expect(validateOverlay({ ...doc, title: '   ' })).toEqual(['invalidTitle']);
@@ -48,7 +51,7 @@ describe('overlay schema', () => {
 
 describe('readOverlayDocument', () => {
   it('returns a valid document and refuses everything else without throwing', () => {
-    const doc = addElement(emptyOverlay('gift', 'Gift'), 'text');
+    const doc = addElement(emptyOverlay('gift', t('cloudOverlays.kinds.gift')), 'text');
     expect(readOverlayDocument(doc)).toEqual(doc);
     expect(readOverlayDocument(null)).toBeNull();
     expect(readOverlayDocument('text')).toBeNull();
