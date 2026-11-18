@@ -41,7 +41,7 @@ describe('CloudAccountEditor', () => {
   it('shows only a sign-in button when signed out, with no technical details', async () => {
     const wrapper = setup({ origin: 'https://cloud.example', state: 'signed-out', persistence: 'keychain' });
     await flushPromises();
-    expect(wrapper.text()).toContain('Sign in');
+    expect(wrapper.text()).toContain(t('account.signIn'));
     expect(wrapper.text()).not.toContain('cloud.example');
     expect(wrapper.text()).not.toContain('TIKTOOLS_CLOUD_ORIGIN');
   });
@@ -62,7 +62,7 @@ describe('CloudAccountEditor', () => {
     const wrapper = setup(signedIn());
     await flushPromises();
     expect(wrapper.text()).toContain('user@example.com');
-    expect(wrapper.text()).toContain('Signed in');
+    expect(wrapper.text()).toContain(t('account.signedIn'));
     expect(wrapper.text()).not.toContain('127.0.0.1');
   });
 
@@ -84,7 +84,7 @@ describe('CloudAccountEditor', () => {
   });
 
   it('shows manual login and cancellation', async () => {
-    const [signIn, cancel, manual] = ['Sign in', t('common.cancel'), "If your browser didn't open, visit:"] as const;
+    const [signIn, cancel, manual] = [t('account.signIn'), t('common.cancel'), t('account.openManually')] as const;
     let finish!: (status: AccountStatus) => void;
     const pending = new Promise<AccountStatus>((resolve) => { finish = resolve; });
     const out: AccountStatus = { origin: 'https://cloud.example', state: 'signed-out', persistence: 'keychain' };

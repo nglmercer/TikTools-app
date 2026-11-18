@@ -169,7 +169,7 @@ describe('ExploreList', () => {
 
     it('a ready catalog with no results is a plain empty state', async () => {
       const { wrapper } = await mountList(() => ({ items: [], nextCursor: null, dataState: 'ready' }));
-      expect(wrapper.text()).toContain('No results');
+      expect(wrapper.text()).toContain(t('exploreCatalog.noResults'));
       expect(wrapper.text()).not.toContain(t('exploreCatalog.nothingPublished'));
     });
   });

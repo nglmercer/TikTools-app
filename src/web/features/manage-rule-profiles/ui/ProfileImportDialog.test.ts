@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, expect, test } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
@@ -6,7 +7,8 @@ import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import BaseFileDrop from '@/shared/ui/file-drop/BaseFileDrop.vue';
 import ProfileImportDialog from './ProfileImportDialog.vue';
 
-enableAutoUnmount(afterEach); afterEach(() => activateLocale('en'));
+enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key); afterEach(() => activateLocale('en'));
 test('profile aggregate failure stays in the import dialog with its staged file and editable parameters', async () => {
   const template = { templateVersion: 1, id: 'bounded-template', title: 'Bounded', params: { type: 'object', properties: { value: { type: 'string', title: 'Valor', default: 'small' } } },
     actions: Array.from({ length: 4 }, (_, index) => ({ name: `Log ${index}`, typeId: 'core.log', config: { message: '{{ params.value }}' } })), event: { name: 'Chat', trigger: 'tiktok.chat' } };
@@ -30,7 +32,7 @@ test('profile import is one manual source: no tab bar, a staged profile with cle
   expect(drop.props('maxBytes')).toBeGreaterThan(0);
   expect(wrapper.get('.base-button--primary').attributes('disabled')).toBeDefined();
   drop.vm.$emit('content', '{"nope":true}', 'bad.json'); await flushPromises();
-  expect(wrapper.get('[role="alert"]').text()).toBe('That file is not a rule profile.');
+  expect(wrapper.get('[role="alert"]').text()).toBe(t('automations.import.notProfile'));
   const profile = { profileVersion: 1, id: 'p1', name: 'Starter', description: '', params: {}, templates: [{ template: { templateVersion: 1, id: 't1', title: 'T', actions: [{ name: 'Log', typeId: 'core.log', config: {} }], event: { name: 'Chat', trigger: 'tiktok.chat' } }, params: {} }] };
   drop.vm.$emit('content', JSON.stringify(profile), 'starter.tikprofile.json'); await flushPromises();
   expect(wrapper.get('.base-import-dialog__staged').text()).toContain('Profile “Starter” · 1 rules');

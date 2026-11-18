@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { expect, it } from 'vitest';
@@ -15,7 +17,7 @@ it('shows the authorized host connection without exposing remote controls', asyn
   const wrapper = mount(ControllerLiveStatus, { props: { model }, global: { plugins: [i18n] } });
   try {
     await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
-    expect(wrapper.text()).toContain('Connected to LIVE');
+    expect(wrapper.text()).toContain(t('controller.liveStatus.text.connected'));
     expect(wrapper.text()).toContain('Creator: creator');
     expect(wrapper.findAll('button')).toHaveLength(0);
     status.value.phase = 'reconnecting'; await model.refresh(status.value, 1); await wrapper.vm.$nextTick();

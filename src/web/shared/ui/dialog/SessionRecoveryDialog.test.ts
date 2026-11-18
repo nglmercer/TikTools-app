@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
@@ -6,6 +7,7 @@ import { createSessionRecovery, sessionRecoveryKey } from '@/shared/api/session-
 import SessionRecoveryDialog from './SessionRecoveryDialog.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 function mountDialog(backoff: readonly number[] = [60_000]) {
   const retry = vi.fn().mockResolvedValue('unavailable');
@@ -34,9 +36,9 @@ describe('SessionRecoveryDialog', () => {
     const { wrapper, recovery, retry } = mountDialog();
     recovery.report('expired');
     await nextTick();
-    expect(wrapper.get('h2').text()).toBe('Session expired');
+    expect(wrapper.get('h2').text()).toBe(t('sessionRecovery.expiredTitle'));
     const buttons = wrapper.findAll('footer button');
-    expect(buttons.map((button) => button.text())).toEqual(['Pair again', 'Retry now']);
+    expect(buttons.map((button) => button.text())).toEqual([t('sessionRecovery.pair'), t('sessionRecovery.retry')]);
     await buttons[1]!.trigger('click');
     expect(retry).toHaveBeenCalledOnce();
   });
@@ -46,7 +48,7 @@ describe('SessionRecoveryDialog', () => {
     await exhaust(recovery);
     expect(wrapper.get('h2').text()).toBe('Host unavailable');
     const buttons = wrapper.findAll('footer button');
-    expect(buttons.map((button) => button.text())).toEqual(['Retry now', 'Pair again']);
+    expect(buttons.map((button) => button.text())).toEqual([t('sessionRecovery.retry'), t('sessionRecovery.pair')]);
     await buttons[0]!.trigger('click');
     expect(retry).toHaveBeenCalled();
   });
@@ -61,6 +63,6 @@ describe('SessionRecoveryDialog', () => {
     // A new failure is a new event: the dialog comes back.
     recovery.report('expired');
     await nextTick();
-    expect(wrapper.get('h2').text()).toBe('Session expired');
+    expect(wrapper.get('h2').text()).toBe(t('sessionRecovery.expiredTitle'));
   });
 });

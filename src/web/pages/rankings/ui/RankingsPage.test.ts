@@ -56,13 +56,13 @@ describe('rankings management', () => {
     await visualization.setValue('donut');
     const percentages = wrapper.findAll('label').find((label) => label.text().includes('Show percentages'))!;
     await percentages.get('input').setValue(true);
-    await button(wrapper, 'Copy OBS URL').trigger('click');
+    await button(wrapper, t('rankingsPage.detail.copyUrl')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'widgets.copyObsUrl')?.params).toEqual({ widget: 'ranking', rankingId: 'top', visualization: 'donut', showLabels: true, showPercentages: true, showLegend: true });
   });
   it('creates a backend definition from the metric controls', async () => {
     const { wrapper, calls } = await setup();
-    await button(wrapper, 'New ranking').trigger('click');
+    await button(wrapper, t('rankingsPage.list.new')).trigger('click');
     const inputs = wrapper.findAll('input');
     await inputs[0]!.setValue('new-rank');
     await inputs[1]!.setValue('creator');
@@ -84,7 +84,7 @@ describe('rankings management', () => {
   });
   it('configures bounded per-user contribution rules', async () => {
     const { wrapper, calls } = await setup();
-    await button(wrapper, 'New ranking').trigger('click');
+    await button(wrapper, t('rankingsPage.list.new')).trigger('click');
     const inputs = wrapper.findAll('input');
     await inputs[0]!.setValue('limited'); await inputs[1]!.setValue('creator'); await inputs[2]!.setValue('room');
     await button(wrapper, t('rankingsPage.form.addMetric')).trigger('click');
@@ -98,7 +98,7 @@ describe('rankings management', () => {
   });
   it('configures per-gift multipliers on a gift source', async () => {
     const { wrapper, calls } = await setup();
-    await button(wrapper, 'New ranking').trigger('click');
+    await button(wrapper, t('rankingsPage.list.new')).trigger('click');
     const inputs = wrapper.findAll('input');
     await inputs[0]!.setValue('gifts'); await inputs[1]!.setValue('creator'); await inputs[2]!.setValue('room');
     const metric = wrapper.findAll('select').find((item) => item.find(`option[value='${JSON.stringify(['tiktok.gift', 'gift.diamonds'])}']`).exists())!;

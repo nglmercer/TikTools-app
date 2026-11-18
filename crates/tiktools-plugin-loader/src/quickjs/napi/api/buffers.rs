@@ -20,9 +20,9 @@ fn layout(len: usize) -> Layout {
     Layout::from_size_align(len.max(1), 1).expect("byte layouts are always valid")
 }
 
-// quickjs-ng invokes the realloc hook with `size == 0` to release a fixed-size
-// buffer (we always pass `max_len == 0`); any other size is a resize request
-// that is never issued here, so it is refused by returning null.
+// quickjs-ng calls the realloc hook with `size == 0` to release a fixed-size
+// buffer (`max_len == 0` below); any other size is a resize request we never
+// support, so it is refused by returning null.
 unsafe extern "C" fn free_owned(
     _rt: *mut qjs::JSRuntime,
     opaque: *mut c_void,

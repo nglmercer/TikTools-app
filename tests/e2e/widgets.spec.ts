@@ -25,7 +25,7 @@ test('layer text edits update the preview, save, and survive navigation', async 
   await content.fill('Thanks {{name}}!');
   await expect(page.locator('.widget-layer-text.is-message')).toHaveText('Thanks Viewer Name!');
   await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
-  await expect(page.getByText('Design saved.', { exact: true })).toBeVisible();
+  await expect(page.getByText(t('overlays.editor.saved'), { exact: true })).toBeVisible();
   expect((await readHostState(page)).calls.some((call) => call.method === 'app.state.set' && call.params['key'] === 'widgets.design.follow')).toBe(true);
   await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await page.getByRole('link', { name: 'Overlays', exact: true }).click();
@@ -78,13 +78,13 @@ test('card styles preview, discard, save per widget, and reset', async ({ page }
   await background.fill('#112233');
   await background.press('Enter');
   await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(17, 34, 51)');
-  await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
+  await page.getByRole('button', { name: t('overlays.editor.discard'), exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Discard', exact: true }).click();
   await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await background.fill('#112233');
   await background.press('Enter');
   await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
-  await expect(page.getByText('Design saved.', { exact: true })).toBeVisible();
+  await expect(page.getByText(t('overlays.editor.saved'), { exact: true })).toBeVisible();
   await page.getByRole('option', { name: 'Gift alert', exact: true }).click();
   await expect(page.locator('.gift-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await page.getByRole('option', { name: t('overlays.kinds.follow.name'), exact: true }).click();

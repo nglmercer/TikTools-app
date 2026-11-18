@@ -20,7 +20,7 @@ describe('eventText', () => {
     expect(eventText(event({ kind: 'like', i18nKey: 'likeSent', likeCount: 5, likeUserTotal: 35, i18nParams: { count: 5 } }), t)).toBe(
       'sent 35 likes',
     );
-    expect(eventText(event({ kind: 'member', i18nKey: 'joinedLive' }), t)).toBe('joined the LIVE');
+    expect(eventText(event({ kind: 'member', i18nKey: 'joinedLive' }), t)).toBe(t('feed.events.joined'));
     expect(eventText(event({ i18nKey: 'chatMessage', i18nParams: { comment: 'hola' } }), t)).toBe('hola');
     expect(eventText(event({ i18nKey: 'unknown', text: 'raw' }), t)).toBe('raw');
   });

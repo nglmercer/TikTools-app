@@ -20,10 +20,10 @@ describe('CloudTeams', () => {
     const wrapper = mountWithPlugins(CloudTeams, { global: { plugins: storePlugins(client) } });
     await flushPromises();
     expect(wrapper.findComponent(TeamAccessForms).exists()).toBe(false);
-    await wrapper.findAll('[role="tab"]').find(tab => tab.text() === 'Join a team')!.trigger('click');
+    await wrapper.findAll('[role="tab"]').find(tab => tab.text() === t('cloudTeams.join'))!.trigger('click');
     expect(wrapper.findComponent(TeamAccessForms).exists()).toBe(true);
     expect(wrapper.find('[data-guide="createTeam"]').exists()).toBe(false);
-    await wrapper.findAll('[role="tab"]').find(tab => tab.text() === 'My teams')!.trigger('click');
+    await wrapper.findAll('[role="tab"]').find(tab => tab.text() === t('cloudTeams.myTeams'))!.trigger('click');
     expect(wrapper.find('[data-guide="createTeam"]').exists()).toBe(true);
   });
 

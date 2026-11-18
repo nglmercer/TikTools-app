@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { afterEach, expect, test, vi } from 'vitest';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
@@ -5,6 +6,7 @@ import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import DiagnosticsLog from './DiagnosticsLog.vue';
 import { diagnosticLog, diagnosticView } from './log.ts';
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 afterEach(() => { diagnosticLog.clear(); diagnosticView.source.value = ''; diagnosticView.entityId.value = ''; diagnosticView.selectedId.value = ''; vi.restoreAllMocks(); });
 test('shows the contextual entry once, including an older selection beyond the recent page', () => {
   const first = diagnosticLog.record({ source: 'plugins', entityId: 'game', level: 'error', code: 'test.error', message: 'selected failure', details: 'safe technical details' });
@@ -31,7 +33,7 @@ test('copies redacted selected details and clearing history preserves domain-ind
   const entry = diagnosticLog.record({ source: 'plugins', entityId: 'game', level: 'error', code: 'failed', message: 'password=private-secret', details: 'token=another-secret' });
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
-  await wrapper.findAll('button').find(button => button.text() === 'Copy entry')!.trigger('click');
+  await wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyEntry'))!.trigger('click');
   expect(writeText).toHaveBeenCalledOnce();
   expect(writeText.mock.calls[0]![0]).not.toContain('private-secret');
   expect(writeText.mock.calls[0]![0]).not.toContain('another-secret');
@@ -70,7 +72,7 @@ test('does not repeat identical details but preserves the full export text', asy
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog);
   expect(wrapper.find('pre').exists()).toBe(false);
-  await wrapper.findAll('button').find(button => button.text() === 'Copy entry')!.trigger('click');
+  await wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyEntry'))!.trigger('click');
   expect(writeText.mock.calls[0]?.[0]).toContain('Not supported');
 });
 test('keeps clipboard fallback redacted when clipboard access fails', async () => {

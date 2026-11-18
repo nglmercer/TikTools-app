@@ -51,7 +51,7 @@ test('inline plugin frame exposes a keyboard-operable pop-out', async ({ page })
   await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
 
   // Keyboard: the pop-out action is reachable and operable by keyboard.
-  const popOut = page.getByRole('button', { name: 'Open in separate window' });
+  const popOut = page.getByRole('button', { name: t('plugins.page.openWindow') });
   await popOut.focus();
   await expect(popOut).toBeFocused();
   await page.keyboard.press('Enter');

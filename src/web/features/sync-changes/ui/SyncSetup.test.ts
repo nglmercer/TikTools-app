@@ -49,7 +49,7 @@ it('requires explicit confirmation of the reviewed inventory and rechecks migrat
   await flushPromises();
   const click = async (label: string) => { await wrapper.findAll('button').find(button => button.text() === label)!.trigger('click'); await flushPromises(); };
   await click(t('syncChanges.prepare'));
-  await click('Review missing packages');
+  await click(t('syncChanges.inventoryReview'));
   expect(wrapper.text()).toContain('missing.plugin');
   expect(wrapper.text()).toContain('pending changes are kept');
   expect(calls.some(call => call.method === 'sync.v2.inventory.repair')).toBe(false);

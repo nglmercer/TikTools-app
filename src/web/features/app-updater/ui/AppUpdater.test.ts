@@ -22,7 +22,7 @@ describe('AppUpdater', () => {
     store.error = 'desktop application updater is unavailable in this host';
     const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
     expect(wrapper.get('.diagnostic-action').classes()).toContain('diagnostic-action--info');
-    expect(wrapper.text()).toContain('Automatic updates unavailable here');
+    expect(wrapper.text()).toContain(t('diagnostics.updaterUnavailable'));
     expect(wrapper.text()).not.toContain('desktop application updater is unavailable');
     expect(wrapper.find('a.app-updater__url').exists()).toBe(true);
   });
@@ -39,7 +39,7 @@ describe('AppUpdater', () => {
     const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
     expect(wrapper.text()).toContain('4.0.0');
     expect(wrapper.get('a.app-updater__url').attributes('href')).toBe('https://github.com/nglmercer/TikTools-app/releases');
-    expect(wrapper.text()).not.toContain('Download update');
+    expect(wrapper.text()).not.toContain(t('appUpdater.download'));
     wrapper.findComponent(BaseComboBox).vm.$emit('update:modelValue', 'beta');
     await flushPromises();
     await flushPromises();
@@ -141,7 +141,7 @@ describe('AppUpdater', () => {
     wrapper.findComponent(BaseComboBox).vm.$emit('update:modelValue', 'stable');
     await flushPromises();
     expect(wrapper.text()).not.toContain(t('appUpdater.install'));
-    expect(wrapper.text()).toContain('Check for updates');
+    expect(wrapper.text()).toContain(t('appUpdater.check'));
   });
 
   it('offers a retry after a download failure', async () => {
@@ -153,7 +153,7 @@ describe('AppUpdater', () => {
     const harness = createStoreHarness(client);
     await harness.use(useAppUpdaterStore).initialize();
     const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
-    const retry = wrapper.findAll('button').find((button) => button.text().includes('Retry download'));
+    const retry = wrapper.findAll('button').find((button) => button.text().includes(t('appUpdater.retryDownload')));
     expect(retry).toBeDefined();
     await retry!.trigger('click');
     expect(calls.some((call) => call.method === 'app.update.download')).toBe(true);

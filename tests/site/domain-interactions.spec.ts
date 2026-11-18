@@ -152,7 +152,7 @@ test('built-in overlay library selection changes the real preview without contac
   await expect(card).toHaveCount(1);
   await card.click();
   await expect(card).toHaveAttribute('aria-pressed', 'true');
-  await library.getByRole('button', { name: 'Open in editor', exact: true }).click();
+  await library.getByRole('button', { name: t('overlayLibrary.open'), exact: true }).click();
   await expect(library).not.toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Browser source URL', exact: true })).toHaveValue(/\/widgets\/chat\//);
   await expect(page.getByRole('button', { name: t('overlays.preview.replay'), exact: true })).toBeEnabled();
@@ -171,9 +171,9 @@ test('Cloud overlay creation, revision and library reopen retain the edited docu
   await editor.getByRole('textbox', { name: 'Text', exact: true }).fill('Hello fictional viewers');
   const width = editor.getByRole('textbox', { name: 'Canvas width', exact: true });
   await width.fill('100');
-  await expect(editor.getByRole('button', { name: 'Create overlay', exact: true })).toBeDisabled();
+  await expect(editor.getByRole('button', { name: t('cloudOverlays.create'), exact: true })).toBeDisabled();
   await width.fill('1920');
-  await editor.getByRole('button', { name: 'Create overlay', exact: true }).click();
+  await editor.getByRole('button', { name: t('cloudOverlays.create'), exact: true }).click();
   await expect(editor).toContainText(/Saved as .+, revision 1\./);
 
   await editor.getByRole('textbox', { name: 'Name', exact: true }).fill('Fictional audience card revised');
@@ -184,7 +184,7 @@ test('Cloud overlay creation, revision and library reopen retain the edited docu
   const card = library.locator('.overlay-library__card').filter({ hasText: 'Fictional audience card revised' });
   await expect(card).toContainText('Revision 2');
   await card.click();
-  await library.getByRole('button', { name: 'Open in editor', exact: true }).click();
+  await library.getByRole('button', { name: t('overlayLibrary.open'), exact: true }).click();
   await expect(editor.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Fictional audience card revised');
   await expect(editor.getByRole('textbox', { name: 'Text', exact: true })).toHaveValue('Welcome fictional viewers');
   await expect(editor).toContainText(/revision 2\./);
@@ -206,7 +206,7 @@ test('collaboration approval and identity revocation require confirmation and re
   await expect(approval).not.toBeVisible();
   await expect(reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true })).toHaveCount(0);
   await reviewer.getByRole('button', { name: 'Revoke', exact: true }).click();
-  const revoke = page.getByRole('dialog', { name: 'Revoke access?', exact: true });
+  const revoke = page.getByRole('dialog', { name: t('collaboration.revokeTitle'), exact: true });
   await expect(revoke).toContainText('demo-reviewer');
   await revoke.getByRole('button', { name: t('common.cancel'), exact: true }).click();
   await expect(reviewer).toBeVisible();
@@ -225,11 +225,11 @@ test('private invitation creation and revocation close the transient masked-link
   await expect(invitation, 'A newly issued fictional invitation must not already be expired').toBeVisible();
   await expect(invitation.locator('#collaboration-link')).toHaveAttribute('type', 'password');
   await expect(invitation.locator('#collaboration-link')).toHaveAttribute('readonly', '');
-  await invitation.getByRole('button', { name: 'Revoke invitation', exact: true }).click();
-  const revoke = page.getByRole('dialog', { name: 'Revoke access?', exact: true });
+  await invitation.getByRole('button', { name: t('collaboration.revokeInvite'), exact: true }).click();
+  const revoke = page.getByRole('dialog', { name: t('collaboration.revokeTitle'), exact: true });
   await revoke.getByRole('button', { name: t('common.cancel'), exact: true }).click();
   await expect(invitation).toBeVisible();
-  await invitation.getByRole('button', { name: 'Revoke invitation', exact: true }).click();
+  await invitation.getByRole('button', { name: t('collaboration.revokeInvite'), exact: true }).click();
   await revoke.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(invitation).not.toBeVisible();
   await expect(revoke).not.toBeVisible();
@@ -280,15 +280,15 @@ test('updater preferences work locally while native checking and installation re
   await expect(updater).toContainText('Automatic installation is unavailable. Download a release manually:');
   await expect(updater.getByRole('link')).toHaveAttribute('href', 'https://github.com/nglmercer/TikTools-app/releases');
 
-  await updater.getByRole('combobox', { name: 'Update channel', exact: true }).click();
+  await updater.getByRole('combobox', { name: t('appUpdater.channel'), exact: true }).click();
   await page.getByRole('option', { name: 'Beta', exact: true }).click();
   await updater.getByRole('switch', { name: t('appUpdater.automaticChecks'), exact: true }).uncheck();
-  await updater.getByRole('switch', { name: 'Notify me about updates', exact: true }).uncheck();
+  await updater.getByRole('switch', { name: t('appUpdater.notifications'), exact: true }).uncheck();
   await page.getByRole('tab', { name: 'Account & Cloud', exact: true }).click();
   await page.getByRole('tab', { name: 'General', exact: true }).click();
-  await expect(updater.getByRole('combobox', { name: 'Update channel', exact: true })).toContainText('Beta');
+  await expect(updater.getByRole('combobox', { name: t('appUpdater.channel'), exact: true })).toContainText('Beta');
   await expect(updater.getByRole('switch', { name: t('appUpdater.automaticChecks'), exact: true })).not.toBeChecked();
-  await expect(updater.getByRole('switch', { name: 'Notify me about updates', exact: true })).not.toBeChecked();
+  await expect(updater.getByRole('switch', { name: t('appUpdater.notifications'), exact: true })).not.toBeChecked();
   await expect(updater.getByRole('button', { name: 'Check for updates', exact: true })).toBeDisabled();
   await expect(updater).not.toContainText('TikTools is up to date.');
   await settled(page);

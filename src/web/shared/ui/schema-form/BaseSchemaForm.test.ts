@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defineComponent, h, ref } from 'vue';
@@ -6,6 +7,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import BaseSchemaForm from './BaseSchemaForm.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const schema: JsonObject = {
   properties: {
@@ -45,7 +47,7 @@ describe('BaseSchemaForm', () => {
     const labels = wrapper.findAll('label').map((label) => label.text());
     expect(labels).toEqual(expect.arrayContaining(['Name', 'Enabled', 'Mode']));
     expect(wrapper.text()).not.toContain('Server URL');
-    expect(wrapper.text()).toContain('Advanced options');
+    expect(wrapper.text()).toContain(t('schemaForm.advanced'));
   });
 
   it('writes typed values back to the model', async () => {

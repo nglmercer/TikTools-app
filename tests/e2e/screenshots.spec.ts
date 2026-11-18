@@ -58,7 +58,7 @@ test('connections page', async ({ page }) => {
   await waitForFrontend(page);
   await freezeClock(page);
   await page.getByRole('link', { name: t('navigation.connections') }).click();
-  await expect(page.getByText('Server connections')).toBeVisible();
+  await expect(page.getByText(t('connections.servers.title'))).toBeVisible();
   await expect(page).toHaveScreenshot('connections.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
@@ -195,7 +195,7 @@ test('connection-only plugin page is hidden from nav', async ({ page }) => {
   await freezeClock(page);
   await expect(page.getByRole('link', { name: 'Connection', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: t('navigation.connections') }).click();
-  await expect(page.getByText('Server connections')).toBeVisible();
+  await expect(page.getByText(t('connections.servers.title'))).toBeVisible();
   await expect(page).toHaveScreenshot('connections-only-hidden.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

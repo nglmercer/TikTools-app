@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import type { EventFilter } from '../../../../automation/behavior/types.ts';
 import {
@@ -57,8 +59,8 @@ describe('conditions', () => {
 
   it('describes a filter as a phrase', () => {
     expect(describeFilter(filter({ value: 'hi' }), 'Comment', 'is')).toBe('Comment is hi');
-    expect(describeFilter(filter({ operator: 'in', values: ['a', 'b'] }), '', 'is one of')).toBe('comment is one of a, b');
-    expect(describeFilter(filter({ operator: 'is-true' }), 'Flag', 'is true')).toBe('Flag is true');
+    expect(describeFilter(filter({ operator: 'in', values: ['a', 'b'] }), '', t('automations.operators.in'))).toBe('comment is one of a, b');
+    expect(describeFilter(filter({ operator: 'is-true' }), 'Flag', t('automations.operators.is-true'))).toBe('Flag is true');
     expect(describeFilter(filter({}), 'Comment', 'is')).toBe('Comment is …');
   });
 });

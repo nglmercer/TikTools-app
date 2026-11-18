@@ -50,7 +50,7 @@ test('monitor configuration survives page navigation and stops through the host'
   await page.getByRole('link', { name: t('navigation.connections'), exact: true }).click();
   await page.locator('#live-handle').fill('alice');
   // Monitoring is a switch; Connect then starts it instead of connecting directly.
-  await page.getByRole('switch', { name: 'Monitor and auto-connect' }).check();
+  await page.getByRole('switch', { name: t('connections.monitor.start') }).check();
   await page.getByRole('main').getByRole('button', { name: t('connection.connect'), exact: true }).click();
   await expect(page.getByText('LIVE monitor: Waiting for LIVE')).toBeVisible();
   await expect(page.locator('#live-handle')).toBeDisabled();
@@ -60,7 +60,7 @@ test('monitor configuration survives page navigation and stops through the host'
   await expect(page.getByText('LIVE monitor: Connected; monitoring remains active')).toBeVisible();
   await page.getByRole('button', { name: 'Stop monitoring', exact: true }).click();
   await expect(page.locator('#live-handle')).toBeEnabled();
-  await expect(page.getByRole('switch', { name: 'Monitor and auto-connect' })).toBeEnabled();
+  await expect(page.getByRole('switch', { name: t('connections.monitor.start') })).toBeEnabled();
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });

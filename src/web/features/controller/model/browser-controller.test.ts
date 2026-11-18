@@ -170,17 +170,17 @@ test('browser controller screen displays the scoped view and clears it on discon
   try {
     await flushPromises();
     expect(wrapper.text()).toContain('Original');
-    expect(wrapper.text()).toContain('Available actions depend on the permissions granted.');
-    expect(wrapper.text()).not.toContain('Saved profiles');
-    expect(wrapper.text()).not.toContain('Connect to another PC');
+    expect(wrapper.text()).toContain(t('controller.root.availableActions'));
+    expect(wrapper.text()).not.toContain(t('controller.root.labels.profiles'));
+    expect(wrapper.text()).not.toContain(t('controller.root.labels.pair'));
     expect(wrapper.text()).not.toContain(t('controller.root.commands.disable'));
     await wrapper.findAll('button').find((button) => button.text().includes('Original'))!.trigger('click');
     expect(wrapper.get('textarea').attributes('readonly')).toBeDefined();
-    expect(wrapper.text()).toContain('Workflow details');
+    expect(wrapper.text()).toContain(t('controller.root.workflowDetails'));
     f.emit(event('1')); await flushPromises();
     expect(wrapper.text()).toContain('Updated');
     f.lose(); await flushPromises();
     expect(wrapper.text()).not.toContain('Updated');
-    expect(wrapper.text()).toContain('Connection failed');
+    expect(wrapper.text()).toContain(t('controller.root.labels.failed'));
   } finally { wrapper.unmount(); }
 });

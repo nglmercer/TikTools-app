@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mount, flushPromises } from '@vue/test-utils';
 import { expect, it } from 'vitest';
 import { i18n } from '@/shared/i18n/i18n.ts';
@@ -77,7 +79,7 @@ it('opens a permitted LIVE author in points without carrying an earlier amount o
     const feed = wrapper.get('.live-feed');
     const buttons = feed.findAll('button');
     expect(buttons.map((button) => button.text())).toEqual(['Look up points for @bob']);
-    expect(feed.text()).toContain('The author ID cannot be confirmed; look it up manually.');
+    expect(feed.text()).toContain(t('controller.liveFeed.text.ambiguousViewer'));
     await buttons[0]!.trigger('click'); await flushPromises();
     expect((wrapper.get('.controller__pointSearch input').element as HTMLInputElement).value).toBe('bob');
     expect(wrapper.get('.controller__pointTarget').text()).toContain('Selected viewer: bob');

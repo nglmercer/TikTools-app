@@ -77,7 +77,7 @@ it('renders requested points separately from verified results and includes the u
     expect(wrapper.text()).toContain('Requested amount: 2 Gems');
     expect(wrapper.text()).toContain('Applied adjustment: 2.5 Gems');
     expect(wrapper.text()).toContain('Confirmed balance: 7.5 Gems');
-    await wrapper.findAll('button').find((node) => node.text() === 'Review unknown outcome')!.trigger('click');
+    await wrapper.findAll('button').find((node) => node.text() === t('controller.root.commands.review'))!.trigger('click');
     await flushPromises();
     expect(wrapper.get('dialog[open]').text()).toContain('alice');
     expect(wrapper.get('dialog[open]').text()).toContain('Requested amount: -3 Gems');
@@ -98,7 +98,7 @@ it('offers Cloud onboarding without manual HTTPS or certificate setup', async ()
   const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
   try {
     await flushPromises();
-    expect(wrapper.text()).toContain('Connect through Cloud');
+    expect(wrapper.text()).toContain(t('controller.cloud.title'));
     expect(wrapper.find('input[type="url"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('fingerprint');
     expect(calls.every((call) => call.method.startsWith('controller.'))).toBe(true);
@@ -133,10 +133,10 @@ it('sends an authorized change once and blocks changes until an unknown command 
     expect(button(t('controller.root.commands.delete')).attributes('disabled')).toBeDefined();
     expect(wrapper.text()).toContain('new changes are blocked');
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('private local draft');
-    await button('Review unknown outcome').trigger('click'); await flushPromises();
+    await button(t('controller.root.commands.review')).trigger('click'); await flushPromises();
     expect(wrapper.get('dialog[open]').text()).toContain('does not undo the change or prove it failed');
-    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Keep outcome unknown')!.trigger('click'); await flushPromises();
-    expect(wrapper.text()).toContain('Reviewed unknown outcome');
+    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === t('controller.root.commands.reviewed'))!.trigger('click'); await flushPromises();
+    expect(wrapper.text()).toContain(t('controller.root.commands.outcome.reviewed-unknown'));
     expect(calls.find((c) => c.method === 'controller.command.review')?.params?.['acknowledgeUnknown']).toBe(true);
     expect(calls.filter((c) => c.method === 'controller.workflow.command')).toHaveLength(1);
     expect(calls.some((c) => c.method === 'controller.forward' || !c.method.startsWith('controller.'))).toBe(false);

@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, expect, it } from 'vitest';
 import type { PackagePreview } from '@/entities/plugin-package/api/package-types.ts';
@@ -7,6 +8,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import InstallPluginDialog from './InstallPluginDialog.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const preview: PackagePreview = {
   id: 'demo', name: 'Demo', version: '2.0.0', installedVersion: '1.0.0',
@@ -24,7 +26,7 @@ it('requires fresh consent for a changed preview and prevents confirming incompa
   const wrapper = mountWithPlugins(InstallPluginDialog, { global: { plugins: stores.plugins } });
   const confirm = () => wrapper.findAll('button').find((button) => button.text() === 'Update')!;
   expect(wrapper.get('.install-dialog__name').text()).toContain('Demo');
-  expect(wrapper.get('.install-dialog__added').text()).toContain('Play audio');
+  expect(wrapper.get('.install-dialog__added').text()).toContain(t('packages.access.audio_output'));
   expect(wrapper.get('.install-dialog__removed').text()).toContain('old.permission');
   expect(confirm().attributes('disabled')).toBeDefined();
   await wrapper.get('input[type="checkbox"]').setValue(true);

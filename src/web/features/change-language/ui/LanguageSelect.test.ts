@@ -27,7 +27,7 @@ const optionLabels = () => Array.from(document.querySelectorAll('[role="option"]
 describe('LanguageSelect', () => {
   it('shows the current language by its own name', () => {
     expect((mountSelect().get('input').element as HTMLInputElement).value).toBe('English');
-    expect((mountSelect(undefined, 'pt').get('input').element as HTMLInputElement).value).toBe('Português (Brasil)');
+    expect((mountSelect(undefined, 'pt').get('input').element as HTMLInputElement).value).toBe(t('menu.languages.pt'));
   });
 
   it('lists every offered locale, with native names even when the catalog has none', async () => {

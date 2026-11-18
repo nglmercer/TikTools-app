@@ -50,12 +50,12 @@ test('Explore shows a neutral retry state when the Cloud is unreachable, and "no
   await waitForFrontend(page);
   await page.getByRole('tab', { name: /Explore/ }).click();
   await expect(page.getByText('The Cloud catalog is not available')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+  await expect(page.getByRole('button', { name: t('exploreCatalog.retry') })).toBeVisible();
   delete state.catalog!.error;
   state.catalog!.items = [];
   state.catalog!.dataState = 'noActiveGeneration';
   await page.evaluate((next) => Object.assign((window as unknown as { __TIKTOOLS_E2E_STATE__: object }).__TIKTOOLS_E2E_STATE__, { catalog: next }), state.catalog);
-  await page.getByRole('button', { name: 'Try again' }).click();
+  await page.getByRole('button', { name: t('exploreCatalog.retry') }).click();
   await expect(page.getByText('Nothing published yet')).toBeVisible();
 });
 

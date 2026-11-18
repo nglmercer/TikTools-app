@@ -69,16 +69,16 @@ test('a random pick previews a candidate and never connects on its own', async (
   await page.getByRole('button', { name: 'Explore', exact: true }).first().click();
   await expect(page.getByText('@creator_one')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Choose a random room' }).click();
-  await expect(page.getByText('Random pick — review before connecting:')).toBeVisible();
+  await page.getByRole('button', { name: t('connections.explore.random') }).click();
+  await expect(page.getByText(t('connections.explore.randomPreview'))).toBeVisible();
 
   // Previewing must not connect by itself.
   expect(await discoveryCalls(page, 'live.connect')).toHaveLength(0);
 
   await page.getByRole('button', { name: 'Dismiss' }).click();
-  await expect(page.getByText('Random pick — review before connecting:')).toHaveCount(0);
+  await expect(page.getByText(t('connections.explore.randomPreview'))).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Choose a random room' }).click();
+  await page.getByRole('button', { name: t('connections.explore.random') }).click();
   await page.locator('.live-explorer__random').getByRole('button', { name: t('connection.connect') }).click();
   await expect.poll(async () => (await discoveryCalls(page, 'live.connect')).length).toBe(1);
 
@@ -97,7 +97,7 @@ test('a sign-in refusal reads as an auth requirement, not an empty list', async 
   await page.getByRole('button', { name: 'Explore', exact: true }).first().click();
 
   await expect(page.getByText('TikTok requires a signed-in session for LIVE search.')).toBeVisible();
-  await expect(page.getByText('No live rooms matched.')).toHaveCount(0);
+  await expect(page.getByText(t('connections.explore.noMatches'))).toHaveCount(0);
 
   await assertNoUnhandledCalls(page);
   capture.assertClean();
@@ -111,7 +111,7 @@ test('an empty page reads as no matches, with a retry affordance', async ({ page
 
   await page.getByRole('button', { name: 'Explore', exact: true }).first().click();
 
-  await expect(page.getByText('No live rooms matched.')).toBeVisible();
+  await expect(page.getByText(t('connections.explore.noMatches'))).toBeVisible();
   await assertNoUnhandledCalls(page);
   capture.assertClean();
 });
