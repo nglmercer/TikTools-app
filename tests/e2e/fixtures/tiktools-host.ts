@@ -306,6 +306,16 @@ const INIT_SCRIPT = `
     'globals.list': () => ({ globals: {} }),
     'processors.status': () => ({ processors: state.processors }),
     'widgets.status': () => ({ state: 'missing', port: 17452, error: null }),
+    'rpc.discover': () => ({ methods: (state.announcedMethods ?? []).map((name) => ({ name })) }),
+    // Owner library is mounted once by the app shell; answer its read calls so
+    // unrelated specs do not report unhandled RPCs.
+    'automation.library.get': () => ({ hostId: 'e2e-host', hostInstanceId: 'e2e-instance', pending: null, recent: [] }),
+    'automation.library.snapshot': () => ({
+      hostId: 'e2e-host', hostInstanceId: 'e2e-instance', revision: '1', definitionDigest: 'a'.repeat(64),
+      catalog: { packs: [], activeId: 'default', templates: [] },
+      definitions: { actions: [], events: [], plugins: [], actionTypes: [] },
+      resourceVersions: [],
+    }),
     'app.state.get': () => ({ state: { ...state.appState } }),
     'app.state.set': (params) => {
       state.appState[params.key] = params.value;
