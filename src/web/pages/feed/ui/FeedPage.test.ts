@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp, nextTick } from 'vue';
@@ -12,6 +13,7 @@ import { rankingSnapshot } from '@/entities/ranking/model/feed-rankings.test.ts'
 import FeedPage from './FeedPage.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 beforeEach(() => {
   localStorage.clear();
@@ -74,7 +76,7 @@ describe('FeedPage', () => {
     expect(wrapper.findAll('.event-row')).toHaveLength(2);
     expect(wrapper.text()).toContain('sent 2× Rose');
     expect(wrapper.text()).toContain('2 events');
-    await wrapper.findAll('.base-segmented__option').find((option) => option.text() === 'Gifts')!.trigger('click');
+    await wrapper.findAll('.base-segmented__option').find((option) => option.text() === t('feed.filters.gift'))!.trigger('click');
     expect(wrapper.findAll('.event-row')).toHaveLength(1);
     await wrapper.findAll('.base-segmented__option')[0]!.trigger('click');
     await wrapper.get('input[type="search"]').setValue('hola');
@@ -95,13 +97,13 @@ describe('FeedPage', () => {
     await nextTick();
     expect(wrapper.find('.top-likes__row').exists()).toBe(false);
     const likesFilter = wrapper.findAll('.feed-inspector__viewer-filter button')
-      .find((button) => button.text() === 'Likes');
+      .find((button) => button.text() === t('feed.filters.like'));
     expect(likesFilter).toBeDefined();
     await likesFilter!.trigger('click');
     expect(wrapper.findAll('.top-likes__row')).toHaveLength(2);
     expect(wrapper.find('.top-likes__row').text()).toContain('164');
     await wrapper.find('.top-likes__row').trigger('click');
-    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Profile');
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('feed.inspector.profile'));
     expect(wrapper.text()).toContain('Alice');
   });
 
@@ -123,12 +125,12 @@ describe('FeedPage', () => {
     await flushPromises();
     await nextTick();
 
-    expect(wrapper.text()).toContain('Diamonds ranking for this LIVE');
+    expect(wrapper.text()).toContain(t('feed.viewers.sourceRanking'));
     expect(wrapper.findAll('.top-viewers__row').map((row) => row.text())).toEqual([
       expect.stringContaining('900'),
       expect.stringContaining('30'),
     ]);
-    await wrapper.findAll('.feed-inspector__viewer-filter button').find((button) => button.text() === 'Likes')!.trigger('click');
+    await wrapper.findAll('.feed-inspector__viewer-filter button').find((button) => button.text() === t('feed.filters.like'))!.trigger('click');
     expect(wrapper.findAll('.top-likes__row')).toHaveLength(1);
     expect(wrapper.get('.top-likes__row').text()).toContain('5,000');
 
@@ -143,11 +145,11 @@ describe('FeedPage', () => {
     await push({ kind: 'chat', author: 'luna', nickname: 'Luna', text: 'first', msgId: 'a' });
     await push({ kind: 'chat', author: 'luna', nickname: 'Luna', text: 'second', msgId: 'b' });
     await wrapper.findAll('.event-row__content')[0]!.trigger('click');
-    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Details');
-    expect(wrapper.text()).toContain('Message ID');
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('feed.inspector.details'));
+    expect(wrapper.text()).toContain(t('feed.details.messageId'));
     expect(wrapper.findAll('.event-row')[0]!.classes()).toContain('event-row--selected');
     await wrapper.findAll('.event-row__author')[1]!.trigger('click');
-    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Profile');
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('feed.inspector.profile'));
     expect(wrapper.findAll('.feed-inspector__message').map((item) => item.text())).toEqual([
       expect.stringContaining('second'),
       expect.stringContaining('first'),

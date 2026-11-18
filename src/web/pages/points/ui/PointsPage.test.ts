@@ -66,7 +66,7 @@ describe('PointsPage', () => {
     expect(rows[0]!.text()).toContain('#1');
     expect(rows[0]!.text()).toContain('@luna');
     expect(rows[0]!.text()).toContain(t('points.leaderboard.subscriber'));
-    expect(wrapper.findAll('th').map((th) => th.text())).toContain('Points');
+    expect(wrapper.findAll('th').map((th) => th.text())).toContain(t('navigation.points'));
     expect(wrapper.text()).toContain('2 viewers');
   });
 
@@ -90,7 +90,7 @@ describe('PointsPage', () => {
     expect(calls.find((call) => call.method === 'points.config.set')?.params).toMatchObject({ currencyName: 'Live Gems' });
     expect(wrapper.findAll('th').map((th) => th.text())).toContain('Live Gems');
     expect(calls.some((call) => call.method.startsWith('live.'))).toBe(false);
-    expect(button(wrapper, 'Reset all points').attributes('disabled')).toBeDefined();
+    expect(button(wrapper, t('points.actions.resetAll')).attributes('disabled')).toBeDefined();
   });
 
   it('reloads clean rules from the store and preserves unsaved edits', async () => {
@@ -102,7 +102,7 @@ describe('PointsPage', () => {
     store.pointsConfig = { ...store.pointsConfig, currencyName: 'Stars' };
     await nextTick();
     expect((wrapper.get('#points-currency').element as HTMLInputElement).value).toBe('Draft Gems');
-    await button(wrapper, 'Discard').trigger('click');
+    await button(wrapper, t('points.rules.discard')).trigger('click');
     expect((wrapper.get('#points-currency').element as HTMLInputElement).value).toBe('Stars');
   });
 
@@ -120,10 +120,10 @@ describe('PointsPage', () => {
 
   it('confirms before resetting every viewer', async () => {
     const { wrapper, calls } = await mountPage();
-    await button(wrapper, 'Reset all points').trigger('click');
+    await button(wrapper, t('points.actions.resetAll')).trigger('click');
     await flushPromises();
     expect(document.querySelector('dialog[open]')?.textContent).toContain('cannot be undone');
-    documentButton('Reset').click();
+    documentButton(t('points.reset.confirm')).click();
     await flushPromises();
     expect(calls.some((call) => call.method === 'points.reset' && JSON.stringify(call.params) === '{}')).toBe(true);
   });

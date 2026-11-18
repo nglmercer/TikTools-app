@@ -58,7 +58,7 @@ describe('BaseImportDialog', () => {
   it('draws a tab per source with tab semantics and shows only the selected body', async () => {
     const wrapper = mountDialog({ tab: 'local' });
     const list = wrapper.get('[role="tablist"]');
-    expect(list.attributes('aria-label')).toBe('Import sources');
+    expect(list.attributes('aria-label')).toBe(t('importDialog.tabs'));
     const found = wrapper.findAll('[role="tab"]');
     expect(found.map((tab) => tab.text())).toEqual(['Local', t('importDialog.cloudTab'), 'Manual']);
     expect(found.map((tab) => tab.attributes('aria-selected'))).toEqual(['true', 'false', 'false']);

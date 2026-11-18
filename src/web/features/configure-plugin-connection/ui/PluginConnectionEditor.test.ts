@@ -26,9 +26,9 @@ function mountEditor(required: boolean, authorized: boolean) {
 test('a local server without authentication stays connected while downloading its model', () => {
   const wrapper = mountEditor(false, true);
   expect(wrapper.text()).toContain('Connected to http://127.0.0.1:17842');
-  expect(wrapper.text()).toContain('Downloading model');
+  expect(wrapper.text()).toContain(t('plugins.connection.model.downloading'));
   expect(wrapper.text()).toContain(t('plugins.connection.noTokenNeeded'));
-  expect(wrapper.text()).not.toContain('Sign in to connect');
+  expect(wrapper.text()).not.toContain(t('plugins.connection.authorize'));
   expect(wrapper.find('input[type="password"]').exists()).toBe(false);
 });
 
@@ -91,7 +91,7 @@ test('the sectioned layout keeps connection fields and gameplay defaults side by
     connection: { ok: false, latencyMs: 0, at: 1 },
   } });
   const sections = wrapper.findAll('section.base-section');
-  expect(sections.map(section => section.get('.base-section__title').text())).toEqual(['Connection', 'Defaults']);
+  expect(sections.map(section => section.get('.base-section__title').text())).toEqual([t('plugins.connection.sections.connection'), t('plugins.connection.sections.defaults')]);
   expect(sections[0]!.find('input[type="password"]').exists()).toBe(true);
   expect(sections[0]!.find('input[role="spinbutton"]').exists()).toBe(false);
   expect(sections[1]!.find('input[role="spinbutton"]').exists()).toBe(true);
