@@ -5,4 +5,5 @@ export default {
   lineAdded: 'Linha adicionada', lineRemoved: 'Linha removida', stats: '{added} adicionadas, {removed} removidas, {changed} alteradas',
   draftChanges: 'Alterações do seu rascunho desde a versão inicial', hostChanges: 'Alterações no anfitrião desde a versão inicial', showChanges: 'Mostrar alterações',
   reviewTable: { index: '#', event: 'Evento', action: 'Ação', record: 'Registro', type: 'Tipo', change: 'Alteração', source: 'Código', actions: 'Ações', copy: 'Copiar', docs: 'Guia', add: 'Adicionado', remove: 'Removido', changeShort: 'Alterado', same: 'Sem alterações', version: 'Versão', diff: 'Diferenças', revision: 'Revisão {revision}', records: '{count} registos', },
+  editor: { label: 'Documento JSON', edit: 'Editar', preview: 'Pré-visualização', empty: 'Introduza um objeto JSON.', objectRequired: 'O documento deve ser um objeto JSON.', tooLarge: 'O documento é demasiado grande para ser editado aqui.', },
 };

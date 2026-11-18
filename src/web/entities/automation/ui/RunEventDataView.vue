@@ -24,11 +24,46 @@ const { t } = useI18n();
 
 const run = computed(() => props.runs[props.index]);
 const hasData = computed(() => run.value?.eventData !== undefined && run.value.eventData !== null);
+const sourceLabel = computed(() => {
+  const source = run.value?.eventSource;
+  return source ? String(t(`automations.test.sources.${source}`)) : '';
+});
+
+// Empty arrays/objects/null are noise in a payload preview (e.g. `emotes: []`).
+const EMPTY = Symbol('empty');
+function compact(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    const items = value.map(compact).filter((item) => item !== EMPTY);
+    return items.length ? items : EMPTY;
+  }
+  if (value && typeof value === 'object') {
+    const record: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const next = compact(item);
+      if (next !== EMPTY) record[key] = next;
+    }
+    return Object.keys(record).length ? record : EMPTY;
+  }
+  return value === null || value === '' ? EMPTY : value;
+}
+const viewValue = computed(() => {
+  const value = compact(run.value?.eventData);
+  return value === EMPTY ? null : value;
+});
 </script>
 
 <template>
   <div class="run-event-data">
-    <div class="run-event-data__nav">
+    <div
+      class="run-event-data__nav"
+      tabindex="0"
+      @keydown.left.prevent="index > 0 && emit('navigate', index - 1)"
+      @keydown.right.prevent="index < runs.length - 1 && emit('navigate', index + 1)"
+    >
+      <span
+        v-if="sourceLabel"
+        class="run-event-data__source"
+      >{{ sourceLabel }}</span>
       <BaseIconButton
         :label="t('automations.eventData.previous')"
         size="sm"
@@ -63,7 +98,7 @@ const hasData = computed(() => run.value?.eventData !== undefined && run.value.e
     </p>
     <BaseJsonView
       v-else
-      :value="run?.eventData"
+      :value="viewValue"
       :label="t('automations.eventData.label')"
       max-height="240px"
       line-numbers
@@ -89,6 +124,14 @@ const hasData = computed(() => run.value?.eventData !== undefined && run.value.e
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.run-event-data__source {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-control);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
 }
 
 .run-event-data__position {

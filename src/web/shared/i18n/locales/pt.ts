@@ -845,6 +845,7 @@ export default {
       fire: 'Executar evento real',
       custom: 'Editar dados e executar',
       customTitle: 'Dados de teste personalizados',
+      useLast: 'Usar dados do último teste',
       invalidJson: 'Introduza um objeto JSON válido.',
     },
     eventData: {

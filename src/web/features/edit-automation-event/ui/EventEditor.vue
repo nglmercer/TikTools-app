@@ -5,11 +5,12 @@ import type { HotkeyStatusData } from '../../../../shared/messages.ts';
 import { cloneRecord } from '@/entities/automation/lib/automation-records.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import TestRunList from '@/entities/automation/ui/TestRunList.vue';
-import { sampleEventForType } from '../../../../automation/event-registry.ts';
+import { blankEventForType } from '../../../../automation/event-registry.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
+import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconCode from '@/shared/ui/icon/icons/IconCode.vue';
 import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
@@ -21,7 +22,7 @@ import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
 import BaseSection from '@/shared/ui/section/BaseSection.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
-import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
+import BaseJsonEditor from '@/shared/ui/json/BaseJsonEditor.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
 import EventConditionsSection from './EventConditionsSection.vue';
@@ -73,7 +74,13 @@ const runMenu = computed<MenuEntry[]>(() => [
 ]);
 const customOpen = ref(false);
 const customText = ref('');
+const customValue = shallowRef<Record<string, unknown> | undefined>(undefined);
 const customError = ref('');
+
+function onCustomValidation(result: { value?: Record<string, unknown>; error: string }): void {
+  customValue.value = result.value;
+  customError.value = result.error;
+}
 const changed = computed(() => props.isNew || JSON.stringify(draft.value) !== JSON.stringify(props.baseline ?? props.event));
 const triggerOptions = computed(() =>
   triggers(props.eventTypes).map((option) => ({
@@ -113,25 +120,25 @@ function pickRun(action: MenuAction): void {
   if (action.id === 'test') emit('test', cloneRecord(draft.value));
   else if (action.id === 'fire') emit('fire', cloneRecord(draft.value));
   else if (action.id === 'custom') {
-    // Prefill from the registry so every trigger starts from a valid shape.
-    customText.value = JSON.stringify(sampleEventForType(draft.value.trigger), null, 2);
+    // Start from the contract shape without the sample-only sentinels.
+    customText.value = JSON.stringify(blankEventForType(draft.value.trigger), null, 2);
+    customValue.value = undefined;
     customError.value = '';
     customOpen.value = true;
   }
 }
 
+function useLastTestData(): void {
+  const lastData = [...props.testRuns].reverse().find((run) => run.eventData !== undefined)?.eventData;
+  if (lastData === undefined) return;
+  customText.value = JSON.stringify(lastData, null, 2);
+}
+
 function runCustom(kind: 'test' | 'fire'): void {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(customText.value);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('object');
-  } catch {
-    customError.value = t('automations.runMenu.invalidJson');
-    return;
-  }
+  if (!customValue.value || customError.value) return;
   customOpen.value = false;
-  if (kind === 'test') emit('test', cloneRecord(draft.value), parsed);
-  else emit('fire', cloneRecord(draft.value), parsed);
+  if (kind === 'test') emit('test', cloneRecord(draft.value), customValue.value);
+  else emit('fire', cloneRecord(draft.value), customValue.value);
 }
 </script>
 
@@ -251,43 +258,6 @@ function runCustom(kind: 'test' | 'fire'): void {
         </div>
       </div>
 
-      <BaseSection
-        v-if="customOpen"
-        :title="t('automations.runMenu.customTitle')"
-      >
-        <BaseTextArea
-          v-model="customText"
-          class="event-editor__custom-json"
-          :rows="10"
-          monospace
-          :invalid="Boolean(customError)"
-          :aria-label="t('automations.runMenu.customTitle')"
-          @input="customError = ''"
-        />
-        <p
-          v-if="customError"
-          class="event-editor__custom-error"
-        >
-          {{ customError }}
-        </p>
-        <div class="event-editor__custom-actions">
-          <BaseButton
-            variant="primary"
-            size="sm"
-            @click="runCustom('test')"
-          >{{ t('automations.runMenu.test') }}</BaseButton>
-          <BaseButton
-            size="sm"
-            @click="runCustom('fire')"
-          >{{ t('automations.runMenu.fire') }}</BaseButton>
-          <BaseButton
-            variant="ghost"
-            size="sm"
-            @click="customOpen = false"
-          >{{ t('automations.editor.discard') }}</BaseButton>
-        </div>
-      </BaseSection>
-
       <TestRunList :runs="testRuns" />
     </div>
     <BaseMenu
@@ -296,6 +266,37 @@ function runCustom(kind: 'test' | 'fire'): void {
       :anchor="runMenuAnchor"
       @select="pickRun"
     />
+    <BaseDialog
+      v-model:open="customOpen"
+      :title="t('automations.runMenu.customTitle')"
+      :width="720"
+      mobile-fullscreen
+    >
+      <BaseJsonEditor
+        v-model="customText"
+        :label="t('automations.runMenu.customTitle')"
+        :rows="14"
+        @validation="onCustomValidation"
+      />
+      <BaseButton
+        v-if="testRuns.some((run) => run.eventData !== undefined)"
+        variant="ghost"
+        size="sm"
+        class="event-editor__custom-reuse"
+        @click="useLastTestData"
+      >{{ t('automations.runMenu.useLast') }}</BaseButton>
+      <template #footer>
+        <BaseButton
+          variant="primary"
+          :disabled="!customValue || Boolean(customError)"
+          @click="runCustom('test')"
+        >{{ t('automations.runMenu.test') }}</BaseButton>
+        <BaseButton
+          :disabled="!customValue || Boolean(customError)"
+          @click="runCustom('fire')"
+        >{{ t('automations.runMenu.fire') }}</BaseButton>
+      </template>
+    </BaseDialog>
     <BaseConfirmDialog
       v-model:open="deleteOpen"
       :title="t('automations.editor.deleteEventTitle')"

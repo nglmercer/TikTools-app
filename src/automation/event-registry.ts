@@ -195,6 +195,21 @@ export function sampleEventForType(eventType: string): AutomationEvent {
 }
 
 /**
+ * Fresh custom-test template: same field shape as the registry sample, but
+ * without the sample-only sentinels (`WebcastSampleMessage`, msgId "1",
+ * empty emotes). Editing this never leaves fake metadata in a fired event.
+ */
+export function blankEventForType(eventType: string): AutomationEvent {
+  const event = sampleEventForType(eventType);
+  event.id = 'custom-event';
+  const data = event.data as Record<string, unknown>;
+  for (const key of ['method', 'msgId', 'emotes']) {
+    if (key in data) delete data[key];
+  }
+  return event;
+}
+
+/**
  * True when the registry documents a path for a trigger (drift guard).
  * Reads the raw contract: availability gating must never make a documented
  * path look undocumented.

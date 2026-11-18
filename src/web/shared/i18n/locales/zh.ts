@@ -843,6 +843,7 @@ export default {
       fire: '触发真实事件',
       custom: '编辑数据并触发',
       customTitle: '自定义测试数据',
+      useLast: '使用上次测试的数据',
       invalidJson: '请输入有效的 JSON 对象。',
     },
     eventData: {

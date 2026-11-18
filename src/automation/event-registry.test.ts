@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   EVENT_REGISTRY_VERSION,
   allRegistryFields,
+  blankEventForType,
   fieldsForEventType,
   pluginEventTypes,
   registryEntryFor,
@@ -249,4 +250,15 @@ describe('plugin event-type overlay', () => {
     expect(registryEventTypes()).toEqual(ALL_TYPES);
     expect(pluginEventTypes()).toEqual([]);
   });
+});
+
+test('blankEventForType keeps the contract shape without sample sentinels', () => {
+  const blank = blankEventForType('tiktok.chat');
+  const data = blank.data as Record<string, unknown>;
+  expect(data).toHaveProperty('comment');
+  expect(data).not.toHaveProperty('method');
+  expect(data).not.toHaveProperty('msgId');
+  expect(data).not.toHaveProperty('emotes');
+  expect(blank.id).toBe('custom-event');
+  expect(blankEventForType('tiktok.gift').data).toHaveProperty('giftName');
 });

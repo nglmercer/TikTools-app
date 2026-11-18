@@ -5,4 +5,5 @@ export default {
   lineAdded: 'Added line', lineRemoved: 'Removed line', stats: '{added} added, {removed} removed, {changed} changed',
   draftChanges: 'Changes in your draft since the starting version', hostChanges: 'Changes on the host since the starting version', showChanges: 'Show changes',
   reviewTable: { index: '#', event: 'Event', action: 'Action', record: 'Record', type: 'Type', change: 'Change', source: 'Source', actions: 'Actions', copy: 'Copy', docs: 'Guide', add: 'Added', remove: 'Removed', changeShort: 'Changed', same: 'Unchanged', version: 'Version', diff: 'Diff', revision: 'Revision {revision}', records: '{count} records', },
+  editor: { label: 'JSON document', edit: 'Edit', preview: 'Preview', empty: 'Enter a JSON object.', objectRequired: 'The document must be a JSON object.', tooLarge: 'The document is too large to edit here.', },
 };

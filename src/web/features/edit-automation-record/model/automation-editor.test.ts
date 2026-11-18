@@ -182,3 +182,20 @@ describe('automatic resolution (default)', () => {
     expect(host.save).toHaveBeenCalledTimes(1);
   });
 });
+
+test('clears the auto-resolve notice once the user edits again', async () => {
+  let current = { record: action, revision: '1' };
+  const host = gateway();
+  host.read = vi.fn(async () => current);
+  host.save = vi.fn(async () => {
+    current = { record: { ...action, name: 'Host saved' }, revision: '2' };
+    throw new ControlCallError('revision_conflict', 'Host changed');
+  });
+  const editor = useAutomationEditor(host);
+  editor.open('action', action, '1');
+  editor.change({ ...action, name: 'My draft' });
+  await editor.save();
+  await vi.waitFor(() => expect(editor.state.value?.autoResolved).toBe(true));
+  editor.change({ ...action, name: 'Next edit' });
+  expect(editor.state.value?.autoResolved).toBe(false);
+});

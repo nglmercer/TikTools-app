@@ -4,13 +4,15 @@ import { useI18n } from 'vue-i18n';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import IconClose from '@/shared/ui/icon/icons/IconClose.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     title: string;
     width?: number;
     closable?: boolean;
+    /** Take over the viewport on phones; keep the normal width on desktop. */
+    mobileFullscreen?: boolean;
   }>(),
-  { width: 480, closable: true },
+  { width: 480, closable: true, mobileFullscreen: false },
 );
 
 const open = defineModel<boolean>('open', { default: false });
@@ -37,6 +39,7 @@ onMounted(() => sync(open.value));
   <dialog
     ref="dialog"
     class="base-dialog"
+    :class="{ 'base-dialog--fullscreen': props.mobileFullscreen }"
     :aria-labelledby="titleId"
     :style="{ width: `${width}px` }"
     @cancel="onCancel($event, closable)"
@@ -96,6 +99,20 @@ onMounted(() => sync(open.value));
 
 .base-dialog::backdrop {
   background: rgb(0 0 0 / 45%);
+}
+
+@media (width < 640px) {
+  .base-dialog--fullscreen {
+    position: fixed;
+    inset: 0;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh;
+    max-height: 100dvh !important;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
 }
 
 .base-dialog__header {

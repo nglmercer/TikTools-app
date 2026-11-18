@@ -60,7 +60,9 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
   function change(record: AutomationRecord): void {
     const current = state.value;
     if (!current || disposed || record.id !== current.candidate.id || equal(record, current.candidate)) return;
-    state.value = { ...current, candidate: cloneRecord(record), generation: current.generation + 1 };
+    // A fresh local edit supersedes the "record changed" notice: the user has
+    // seen it and is now working on the current version.
+    state.value = { ...current, candidate: cloneRecord(record), generation: current.generation + 1, autoResolved: false };
   }
   function fail(captured: AutomationEdit, failure: unknown): void {
     const current = state.value;
@@ -85,7 +87,7 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
       state.value = { ...current, base: cloneRecord(result.record), revision: result.revision,
         ...(result.host !== undefined ? { host: result.host && { ...result.host } } : {}), create: false,
         candidate: current.generation === captured.generation ? cloneRecord(result.record) : current.candidate,
-        busy: false, reviewRequired: false, failure: null, message: '' };
+        busy: false, reviewRequired: false, autoResolved: false, failure: null, message: '' };
       review.value = null;
     } catch (failure) { fail(captured, failure); }
   }
