@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
 import { assertNoUnhandledCalls, emitTopic, installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
@@ -32,7 +34,7 @@ test('feed rows stay badge-free and open details in the shared panel', async ({ 
   await row.locator('.event-row__content').click();
   await expect(page.locator('.event-details')).toBeVisible();
   await expect(page.locator('.event-details')).toContainText('Level');
-  await expect(page.locator('.event-details')).toContainText('Points earned');
+  await expect(page.locator('.event-details')).toContainText(t('feed.details.points'));
   await expect(page.locator('.event-details')).toContainText('Rose');
 
   // Escape closes the panel and returns focus to the row's control.

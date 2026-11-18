@@ -96,7 +96,7 @@ test('a sign-in refusal reads as an auth requirement, not an empty list', async 
 
   await page.getByRole('button', { name: 'Explore', exact: true }).first().click();
 
-  await expect(page.getByText('TikTok requires a signed-in session for LIVE search.')).toBeVisible();
+  await expect(page.getByText(t('connections.explore.authRequired'))).toBeVisible();
   await expect(page.getByText(t('connections.explore.noMatches'))).toHaveCount(0);
 
   await assertNoUnhandledCalls(page);

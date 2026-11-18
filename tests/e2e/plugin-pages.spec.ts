@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
 import {
@@ -31,7 +33,7 @@ test('declarative form page renders and saves settings', async ({ page }) => {
   const urlField = page.locator('input').first();
   await expect(urlField).toBeVisible();
   await urlField.fill('http://127.0.0.1:19999');
-  await page.getByRole('button', { name: 'Save settings' }).click();
+  await page.getByRole('button', { name: t('plugins.page.save') }).click();
 
   await expect
     .poll(async () => {

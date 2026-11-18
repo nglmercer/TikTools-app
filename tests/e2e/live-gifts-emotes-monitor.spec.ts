@@ -58,7 +58,7 @@ test('monitor configuration survives page navigation and stops through the host'
   await emitTopic(page, 'live.monitor', { status: { enabled: true, uniqueId: 'alice', phase: 'live', pollIntervalSeconds: 30, checks: 2, failures: 0, lastCheckedAt: Date.now(), nextCheckAt: null, lastError: null } });
   await page.getByRole('link', { name: t('navigation.connections'), exact: true }).click();
   await expect(page.getByText('LIVE monitor: Connected; monitoring remains active')).toBeVisible();
-  await page.getByRole('button', { name: 'Stop monitoring', exact: true }).click();
+  await page.getByRole('button', { name: t('connections.monitor.stop'), exact: true }).click();
   await expect(page.locator('#live-handle')).toBeEnabled();
   await expect(page.getByRole('switch', { name: t('connections.monitor.start') })).toBeEnabled();
   await assertNoUnhandledCalls(page);

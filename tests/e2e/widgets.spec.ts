@@ -39,7 +39,7 @@ test('every widget exposes its default layers in the inspector and preview', asy
   const capture = await openOverlays(page);
   for (const [kind, fields] of [
     [t('overlays.kinds.follow.name'), [t('overlays.editor.fields.name'), 'Username', 'Message']],
-    ['Gift alert', [t('overlays.editor.fields.name'), 'Message', 'Gift count', 'Diamonds']],
+    ['Gift alert', [t('overlays.editor.fields.name'), 'Message', t('overlays.editor.fields.count'), 'Diamonds']],
     [t('overlays.kinds.chat.name'), [t('overlays.editor.fields.name'), 'Message']],
     [t('overlays.kinds.share.name'), [t('overlays.editor.fields.name'), 'Username', 'Message']],
     [t('overlays.kinds.subscribe.name'), [t('overlays.editor.fields.name'), 'Username', 'Message']],
@@ -59,7 +59,7 @@ test('gift layers can be removed, undone, and restored with redo', async ({ page
   const capture = await openOverlays(page);
   await page.getByRole('option', { name: 'Gift alert', exact: true }).click();
   await layers(page).getByRole('option', { name: /Diamonds Text/ }).click();
-  await page.getByRole('button', { name: 'Remove layer', exact: true }).click();
+  await page.getByRole('button', { name: t('overlays.editor.removeLayer'), exact: true }).click();
   await expect(layers(page).getByRole('option', { name: /Diamonds Text/ })).toHaveCount(0);
   await expect(page.locator('.widget-layer-text.is-diamonds, .gift-diamonds')).toHaveCount(0);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
@@ -89,8 +89,8 @@ test('card styles preview, discard, save per widget, and reset', async ({ page }
   await expect(page.locator('.gift-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await page.getByRole('option', { name: t('overlays.kinds.follow.name'), exact: true }).click();
   await expect(background).toHaveValue('#112233');
-  await page.getByRole('button', { name: 'Design options', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Reset whole design', exact: true }).click();
+  await page.getByRole('button', { name: t('overlays.editor.options'), exact: true }).click();
+  await page.getByRole('menuitem', { name: t('overlays.editor.resetDesign'), exact: true }).click();
   await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
   await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await assertNoUnhandledCalls(page);
@@ -155,7 +155,7 @@ test('all widget previews render locally without a gateway and replay', async ({
   await page.goto('/');
   await waitForFrontend(page);
   await page.getByRole('link', { name: 'Overlays', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Copy URL', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: t('overlays.source.copy'), exact: true })).toBeDisabled();
   for (const [label, kind, selector] of [
     [t('overlays.kinds.follow.name'), 'follow', '.follow-card'],
     ['Gift alert', 'gift', '.gift-card'],

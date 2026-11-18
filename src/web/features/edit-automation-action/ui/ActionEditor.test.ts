@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActionTypeDefinition, LiveAction } from '../../../../automation/behavior/types.ts';
@@ -5,6 +6,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import ActionEditor from './ActionEditor.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 beforeEach(() => {
   localStorage.clear();
@@ -79,7 +81,7 @@ describe('ActionEditor option errors', () => {
   it('shows one compact row without an inline details section', async () => {
     const wrapper = mountEditor({ 'host.gifts': 'HTTP request failed' });
     await flushPromises();
-    expect(wrapper.find('.base-alert__title').text()).toBe('Could not load the option list');
+    expect(wrapper.find('.base-alert__title').text()).toBe(t('automations.action.optionsFailed').trim());
     expect(wrapper.find('.base-alert').classes()).toContain('base-alert--compact');
     expect(wrapper.find('.base-disclosure').exists()).toBe(false);
   });

@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
 import {
@@ -84,7 +86,7 @@ test('inline page pops out through desktop host messages', async ({ page }) => {
   const frame = page.frameLocator('.plugin-frame');
   await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
 
-  await page.getByRole('button', { name: 'Open in separate window' }).click();
+  await page.getByRole('button', { name: t('plugins.page.openWindow') }).click();
   await expect
     .poll(async () => (await readHostState(page)).legacyMessages.length)
     .toBe(1);

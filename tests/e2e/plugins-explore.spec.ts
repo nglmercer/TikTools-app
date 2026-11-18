@@ -49,25 +49,25 @@ test('Explore shows a neutral retry state when the Cloud is unreachable, and "no
   await page.goto('/#/plugins');
   await waitForFrontend(page);
   await page.getByRole('tab', { name: /Explore/ }).click();
-  await expect(page.getByText('The Cloud catalog is not available')).toBeVisible();
+  await expect(page.getByText(t('exploreCatalog.unavailable'))).toBeVisible();
   await expect(page.getByRole('button', { name: t('exploreCatalog.retry') })).toBeVisible();
   delete state.catalog!.error;
   state.catalog!.items = [];
   state.catalog!.dataState = 'noActiveGeneration';
   await page.evaluate((next) => Object.assign((window as unknown as { __TIKTOOLS_E2E_STATE__: object }).__TIKTOOLS_E2E_STATE__, { catalog: next }), state.catalog);
   await page.getByRole('button', { name: t('exploreCatalog.retry') }).click();
-  await expect(page.getByText('Nothing published yet')).toBeVisible();
+  await expect(page.getByText(t('exploreCatalog.nothingPublished'))).toBeVisible();
 });
 
 test('the templates dialog has Templates, Cloud and Import tabs, and ?view=cloud opens the Cloud one', async ({ page }) => {
   const capture = await installFakeHost(page, catalogState());
   await page.goto('/#/automations?view=cloud');
   await waitForFrontend(page);
-  const dialog = page.getByRole('dialog', { name: 'Rule templates' });
+  const dialog = page.getByRole('dialog', { name: t('automations.templates.title') });
   await expect(dialog.getByRole('tab', { name: t('importDialog.cloudTab'), selected: true })).toBeVisible();
   await expect(dialog.getByText(t('automations.builtinTemplates.giftSoundTitle'))).toBeVisible();
   await expect(page.locator('.automation-library').getByRole('tab', { name: t('importDialog.cloudTab') })).toHaveCount(0);
   await dialog.getByRole('tab', { name: 'Import' }).click();
-  await expect(dialog.getByText('Drop a file here')).toBeVisible();
+  await expect(dialog.getByText(t('importDialog.dropTitle'))).toBeVisible();
   capture.assertClean();
 });

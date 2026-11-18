@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test, type Page } from '@playwright/test';
 
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
@@ -52,19 +54,19 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('creates a gift ranking prefilled from the live room and copies its OBS URL', async ({ page }) => {
-  await page.getByRole('button', { name: 'New ranking' }).click();
-  await expect(page.getByLabel('Creator ID')).toHaveValue('creator');
-  await page.getByLabel('Ranking ID').fill('top-gifts');
+  await page.getByRole('button', { name: t('rankingsPage.list.new') }).click();
+  await expect(page.getByLabel(t('rankingsPage.form.creator'))).toHaveValue('creator');
+  await page.getByLabel(t('rankingsPage.form.id')).fill('top-gifts');
   await page.getByRole('button', { name: '+ Gift value (diamonds)' }).click();
   await page.getByRole('radio', { name: 'Daily' }).click();
-  await page.getByRole('button', { name: 'Create ranking' }).click();
+  await page.getByRole('button', { name: t('rankingsPage.form.create') }).click();
 
-  await expect(page.getByText('Ranking created.')).toBeVisible();
+  await expect(page.getByText(t('rankingsPage.form.created'))).toBeVisible();
   const [created] = await calls(page, 'rankings.create');
   expect(created).toMatchObject({ id: 'top-gifts', creatorId: 'creator', roomId: 'room', window: { type: 'daily' }, sources: [{ source: 'tiktok.gift', metric: 'gift.diamonds' }] });
   await expect(page.getByText('Ana — 30')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Copy OBS URL' }).click();
+  await page.getByRole('button', { name: t('rankingsPage.detail.copyUrl') }).click();
   expect(await calls(page, 'widgets.copyObsUrl')).toEqual([expect.objectContaining({ widget: 'ranking', rankingId: 'top-gifts' })]);
 });
 
@@ -78,16 +80,16 @@ test('creates a leaderboard challenge without options', async ({ page }) => {
   await page.reload();
   await waitForFrontend(page);
   await page.getByRole('tab', { name: 'Competitions' }).click();
-  await page.getByRole('button', { name: 'New competition' }).click();
+  await page.getByRole('button', { name: t('competitionsPanel.list.new') }).click();
   await page.getByRole('combobox', { name: 'Type' }).selectOption('leaderboard_challenge');
   await page.getByLabel('Name').fill('Top gifter');
-  await page.getByLabel('Competition ID').fill('challenge');
+  await page.getByLabel(t('competitionsPanel.form.id')).fill('challenge');
   await page.getByRole('combobox', { name: 'Ranking', exact: true }).selectOption('top-gifts');
-  await page.getByLabel('Target score (0 for none)').fill('500');
+  await page.getByLabel(t('competitionsPanel.form.targetScore')).fill('500');
   await expect(page.getByText('Options', { exact: true })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Create competition' }).click();
+  await page.getByRole('button', { name: t('competitionsPanel.form.create') }).click();
 
-  await expect(page.getByText('Competition created.')).toBeVisible();
+  await expect(page.getByText(t('competitionsPanel.form.created'))).toBeVisible();
   const [created] = await calls(page, 'competitions.create');
   expect(created).toMatchObject({ id: 'challenge', kind: 'leaderboard_challenge', rankingId: 'top-gifts', options: [], targetScore: 500, selectionMode: 'highest_score' });
 });

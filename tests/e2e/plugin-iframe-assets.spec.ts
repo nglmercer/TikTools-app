@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 /**
  * Plugin iframe asset loading: the production failure mode the inline
  * broker fixture cannot reproduce.
@@ -130,7 +132,7 @@ async function expectScrollableInlineUi(
   await waitForFrontend(page);
 
   // Narrow windows collapse navigation into the sidebar drawer.
-  await page.getByRole('button', { name: 'Toggle sidebar' }).click();
+  await page.getByRole('button', { name: t('navigation.toggleSidebar') }).click();
   const tab = page.getByRole('link', { name: 'Text to Speech' });
   await expect(tab).toBeVisible();
   await tab.click();

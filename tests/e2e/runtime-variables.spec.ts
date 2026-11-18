@@ -61,7 +61,7 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
   await expect(panel).not.toContainText('local-browser-private-value');
   await expect(panel.getByRole('checkbox')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('variables-changes-secret.png') });
-  await panel.getByRole('button', { name: 'Remove from Cloud', exact: true }).click();
+  await panel.getByRole('button', { name: t('syncChanges.withdraw'), exact: true }).click();
   expect(await countCalls(page, 'sync.v2.variables.withdraw')).toBe(0);
   await panel.getByRole('alertdialog').getByRole('button', { name: t('syncChanges.confirm'), exact: true }).click();
   await expect.poll(() => countCalls(page, 'sync.v2.variables.withdraw')).toBe(1);

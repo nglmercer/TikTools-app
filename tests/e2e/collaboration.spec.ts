@@ -69,7 +69,7 @@ test('owner reviews access, shares local QR, changes grants and revokes one devi
   await editor.getByRole('button', { name: t('collaboration.grantSave'), exact: true }).click();
   await expect(dialog).toContainText('workflows.read'); await expect(dialog).not.toContainText('live.read');
   await dialog.getByRole('button', { name: t('common.apply'), exact: true }).click(); await expect(editor).toHaveCount(0);
-  await page.getByRole('button', { name: 'Device sessions', exact: true }).click();
+  await page.getByRole('button', { name: t('collaboration.tabs.sessions'), exact: true }).click();
   const device = page.locator('article').filter({ hasText: '44444444-4444-4444-8444-444444444444' });
   await expect(device).toContainText('Connected (1)');
   await device.getByRole('button', { name: 'Revoke', exact: true }).click(); await expect(dialog).toContainText('Only this device session');
