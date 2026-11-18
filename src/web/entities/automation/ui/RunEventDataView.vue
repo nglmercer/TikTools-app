@@ -44,7 +44,7 @@ function compact(value: unknown): unknown {
     }
     return Object.keys(record).length ? record : EMPTY;
   }
-  return value === null || value === '' ? EMPTY : value;
+  return value === null ? EMPTY : value;
 }
 const viewValue = computed(() => {
   const value = compact(run.value?.eventData);

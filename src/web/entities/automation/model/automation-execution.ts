@@ -18,6 +18,13 @@ export interface AutomationFireResult {
   eventData?: unknown;
 }
 
+/** Accept both a full envelope and a bare `data` object in the custom editor. */
+export function asEnvelope(custom: unknown, trigger: string): unknown {
+  if (!custom || typeof custom !== 'object' || Array.isArray(custom)) return custom;
+  const value = custom as Record<string, unknown>;
+  return 'data' in value ? value : { type: trigger, data: value };
+}
+
 export function createAutomationExecution(control: ControlClient, context: {
   isDisposed: () => boolean;
   error: Ref<string>;
@@ -33,7 +40,7 @@ export function createAutomationExecution(control: ControlClient, context: {
     context.clearError();
     behaviorTestRuns.value = [];
     void control
-      .call<BehaviorRun>('automation.test', { record, kind, trigger, ...(customEvent === undefined ? {} : { event: customEvent }) })
+      .call<BehaviorRun>('automation.test', { record, kind, trigger, ...(customEvent === undefined ? {} : { event: asEnvelope(customEvent, trigger ?? '') }) })
       .then((run) => {
         if (context.isDisposed()) return;
         behaviorTestRuns.value = [run];
@@ -51,7 +58,7 @@ export function createAutomationExecution(control: ControlClient, context: {
       .call<AutomationFireResult>('automation.fire', {
         trigger: event.trigger,
         record: event,
-        ...(customEvent === undefined ? {} : { event: customEvent }),
+        ...(customEvent === undefined ? {} : { event: asEnvelope(customEvent, event.trigger) }),
       })
       .then((result) => {
         if (context.isDisposed()) return;

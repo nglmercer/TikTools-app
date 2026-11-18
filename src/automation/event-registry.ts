@@ -195,18 +195,27 @@ export function sampleEventForType(eventType: string): AutomationEvent {
 }
 
 /**
- * Fresh custom-test template: same field shape as the registry sample, but
- * without the sample-only sentinels (`WebcastSampleMessage`, msgId "1",
- * empty emotes). Editing this never leaves fake metadata in a fired event.
+ * Minimal custom-test template for a trigger: the envelope plus the documented
+ * data fields with neutral values. No sample user, intel or sentinel metadata
+ * (`WebcastSampleMessage`, msgId "1", empty emotes) leaks into a fired event.
  */
 export function blankEventForType(eventType: string): AutomationEvent {
-  const event = sampleEventForType(eventType);
-  event.id = 'custom-event';
-  const data = event.data as Record<string, unknown>;
-  for (const key of ['method', 'msgId', 'emotes']) {
-    if (key in data) delete data[key];
+  const sample = sampleEventForType(eventType);
+  const data = sample.data as Record<string, unknown>;
+  const clean: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (['method', 'msgId', 'emotes', 'isHistory'].includes(key)) continue;
+    if (typeof value === 'string') clean[key] = '';
+    else if (Array.isArray(value)) clean[key] = [];
+    else if (value && typeof value === 'object') clean[key] = {};
+    else clean[key] = value;
   }
-  return event;
+  return {
+    id: 'custom-event',
+    type: eventType,
+    timestamp: sample.timestamp,
+    data: clean,
+  } as AutomationEvent;
 }
 
 /**

@@ -131,7 +131,8 @@ function pickRun(action: MenuAction): void {
 function useLastTestData(): void {
   const lastData = [...props.testRuns].reverse().find((run) => run.eventData !== undefined)?.eventData;
   if (lastData === undefined) return;
-  customText.value = JSON.stringify(lastData, null, 2);
+  // Run snapshots are the `data` object; the RPC expects a full envelope.
+  customText.value = JSON.stringify({ type: draft.value.trigger, data: lastData }, null, 2);
 }
 
 function runCustom(kind: 'test' | 'fire'): void {

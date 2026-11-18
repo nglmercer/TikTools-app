@@ -260,5 +260,8 @@ test('blankEventForType keeps the contract shape without sample sentinels', () =
   expect(data).not.toHaveProperty('msgId');
   expect(data).not.toHaveProperty('emotes');
   expect(blank.id).toBe('custom-event');
+  expect(data.comment).toBe('');
+  expect(blank).not.toHaveProperty('user');
+  expect(blank).not.toHaveProperty('intel');
   expect(blankEventForType('tiktok.gift').data).toHaveProperty('giftName');
 });
