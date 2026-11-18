@@ -209,7 +209,7 @@ describe('SyncPanel view lifecycle', () => {
 describe('SyncPanel history view', () => {
   it('lists operations, shows the changed elements and diff of the selected one', async () => {
     const { wrapper, spies } = await open(allCapabilities);
-    await byText(wrapper, 'History')!.trigger('click');
+    await byText(wrapper, t('syncChanges.history'))!.trigger('click');
     await flushPromises();
     expect(spies.history).toHaveBeenCalled();
     expect(wrapper.findAll('.sync-panel__left [role="listitem"]')).toHaveLength(2);
@@ -222,7 +222,7 @@ describe('SyncPanel history view', () => {
 
   it('confirms before restoring one element or reverting the operation', async () => {
     const { wrapper, spies } = await open(allCapabilities);
-    await byText(wrapper, 'History')!.trigger('click');
+    await byText(wrapper, t('syncChanges.history'))!.trigger('click');
     await flushPromises();
     await wrapper.findAll('[aria-label="Restore this version"]')[0]!.trigger('click');
     expect(spies.restore).not.toHaveBeenCalled();
@@ -238,7 +238,7 @@ describe('SyncPanel history view', () => {
 
   it('has no History view without the history capability', async () => {
     const { wrapper } = await open({ ...allCapabilities, history: false });
-    expect(byText(wrapper, 'History')).toBeUndefined();
+    expect(byText(wrapper, t('syncChanges.history'))).toBeUndefined();
   });
 });
 

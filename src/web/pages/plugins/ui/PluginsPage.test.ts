@@ -399,7 +399,7 @@ describe('PluginsPage', () => {
     await buttonByLabel(wrapper, t('plugins.details.uninstall')).trigger('click');
     await nextTick();
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
-    const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Uninstall')!;
+    const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === t('plugins.details.uninstallConfirm'))!;
     confirm.click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
@@ -420,7 +420,7 @@ describe('PluginsPage', () => {
     await flushPromises();
     expect(detailsTitle(wrapper)).toBe('DECK');
     expect(document.body.textContent).toContain('2 actions use it and will stop working.');
-    Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Uninstall')!.click();
+    Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === t('plugins.details.uninstallConfirm'))!.click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.uninstall')?.params).toEqual({ pluginId: 'deck', purgeData: false });
   });

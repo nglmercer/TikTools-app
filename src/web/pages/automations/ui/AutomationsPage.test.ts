@@ -370,7 +370,7 @@ describe('AutomationsPage', () => {
   it('confirms deleting an event', async () => {
     const { wrapper, calls } = await mountPage();
     await selectRow(wrapper, 'Chat hello');
-    await buttonByText(wrapper, 'Delete…').trigger('click');
+    await buttonByText(wrapper, t('automations.editor.delete')).trigger('click');
     await nextTick();
     documentButton('Delete').click();
     await flushPromises();
@@ -591,7 +591,7 @@ describe('AutomationsPage', () => {
       ? Promise.reject(new ControlCallError('revision_conflict', 'Changed before delete')) : undefined);
     await selectRow(wrapper, 'Chat hello');
     await wrapper.get('.event-editor input[type="text"]').setValue('Keep after delete failed');
-    await buttonByText(wrapper, 'Delete…').trigger('click'); await nextTick(); documentButton('Delete').click(); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.delete')).trigger('click'); await nextTick(); documentButton('Delete').click(); await flushPromises();
     expect(wrapper.find('.event-editor').exists()).toBe(true);
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Keep after delete failed');
     expect(wrapper.text()).toContain('revision_conflict');
