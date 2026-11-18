@@ -47,6 +47,7 @@ pub enum Command {
         record: Option<Value>,
         kind: String,
         trigger: Option<String>,
+        event: Option<Value>,
     },
     Fire {
         trigger: String,
@@ -108,6 +109,9 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
                 record,
                 kind: kind(),
                 trigger: flag_value(rest, "--trigger"),
+                event: flag_value(rest, "--event")
+                    .map(|raw| parse_json_value(&raw))
+                    .transpose()?,
             })
         }
         "fire" => {
@@ -206,6 +210,7 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
             record,
             kind,
             trigger,
+            event,
         } => result_value(
             client
                 .automation_test(AutomationTestParams {
@@ -213,7 +218,7 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     record,
                     kind: Some(kind),
                     trigger,
-                    event: None,
+                    event,
                 })
                 .await?,
         ),
