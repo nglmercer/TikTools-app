@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { libraryCurrentPreview, libraryPreview } from '@/entities/rule-template/model/library-preview.ts';
@@ -7,10 +7,8 @@ import { libraryTarget } from '@/entities/rule-template/model/library-contracts.
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
-import BaseJsonDiff from '@/shared/ui/json/BaseJsonDiff.vue';
-import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
-import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
-import OwnerLibraryChanges from './OwnerLibraryChanges.vue';
+import type { ReviewRow } from '../../review-shared/model/review-rows.ts';
+import ReviewComparisonTable from '../../review-shared/ui/ReviewComparisonTable.vue';
 
 /**
  * The one review of an Owner library change. It is mounted once by the app shell, so an
@@ -18,7 +16,6 @@ import OwnerLibraryChanges from './OwnerLibraryChanges.vue';
  * review: the request settles only when the owner confirms or discards it.
  */
 const { t } = useI18n(); const journal = libraryJournal(useControlClient());
-const historyPanel = ref<{ openHistory: () => void } | null>(null);
 const busy = computed(() => journal.busy.value || journal.gate.busy.value);
 const draft = journal.draft;
 const reviewOpen = computed({ get: () => !!draft.value, set: (value) => { if (!value) journal.dismiss(); } });
@@ -40,6 +37,59 @@ const descriptor = computed(() => {
   const id = mutation.operation === 'assign-record' ? mutation.profileId : libraryTarget(mutation);
   return draft.value!.context.catalog.packs.find((pack) => pack.id === id)?.name ?? id;
 });
+
+/** One row per planned record, with a stable id so hover/tap rename works. */
+const plannedRows = computed<ReviewRow[]>(() => planned.value.map((row, index) => ({
+  id: `planned-${index}`,
+  name: row.name,
+  kind: row.kind,
+  change: row.after === null ? 'remove' : row.before === null ? 'add' : 'change',
+  before: row.before,
+  after: row.after,
+  editable: row.before === null && row.after !== null,
+})));
+
+function titleOf(value: { title?: unknown; id?: string } | null | undefined): string {
+  const title = value?.title;
+  if (typeof title === 'string') return title;
+  if (title && typeof title === 'object' && 'default' in title && typeof (title as { default?: unknown }).default === 'string') {
+    return (title as { default: string }).default;
+  }
+  return value?.id ?? '';
+}
+
+const templateRows = computed<ReviewRow[]>(() => changedTemplates.value.map((entry, index) => ({
+  id: `template-${index}`,
+  name: titleOf(entry.after ?? entry.before),
+  change: entry.after === null ? 'remove' : entry.before === null ? 'add' : 'change',
+  before: entry.before,
+  after: entry.after,
+})));
+
+const currentRows = computed<ReviewRow[]>(() => {
+  const comparison = journal.comparison.value;
+  if (!comparison) return [];
+  const rows: ReviewRow[] = [];
+  for (const pack of comparison.catalog.packs) {
+    rows.push({ id: `pack-${pack.id}`, name: pack.name, kind: 'event', change: 'same', after: pack });
+  }
+  for (const template of comparison.catalog.templates) {
+    const title = typeof template.title === 'string' ? template.title : template.title.default;
+    rows.push({ id: `template-current-${template.id}`, name: title, change: 'same', after: template });
+  }
+  for (const row of current.value) {
+    rows.push({ id: `current-${row.name}-${rows.length}`, name: row.name, kind: row.kind, change: 'same', before: row.before });
+  }
+  return rows;
+});
+
+function onRename(id: string, name: string): void {
+  const match = /^planned-(\d+)$/.exec(id);
+  if (!match) return;
+  const row = planned.value[Number(match[1])];
+  if (!row?.after) return;
+  journal.renameRecord(row.kind, row.after.id, name);
+}
 </script>
 
 <template>
@@ -68,64 +118,18 @@ const descriptor = computed(() => {
       <p v-if="draft.mutation.operation === 'assign-record'">
         {{ t('libraryRecovery.membership') }}
       </p>
-      <ol
-        class="library-changes__rows"
+      <ReviewComparisonTable
+        v-if="plannedRows.length"
+        :rows="plannedRows"
         data-test="library-review-records"
-      >
-        <li
-          v-for="(row, index) in planned"
-          :key="index"
-        >
-          <BaseTextField
-            v-if="row.before === null && row.after"
-            :model-value="row.name"
-            :aria-label="t('automations.editor.name')"
-            data-test="library-record-name"
-            :data-kind="row.kind"
-            :data-id="row.after.id"
-            @update:model-value="journal.renameRecord(row.kind, row.after!.id, $event)"
-          />
-          <strong v-else>{{ row.name }}</strong> · {{ t(`definitionRecovery.${row.kind}`) }} · {{ t(row.after === null ? 'libraryRecovery.remove' : row.before === null ? 'libraryRecovery.add' : 'libraryRecovery.change') }}
-          <details>
-            <summary>{{ t('libraryRecovery.source') }}</summary>
-            <BaseJsonDiff
-              v-if="row.before && row.after"
-              :before="row.before"
-              :after="row.after"
-              :context="2"
-              max-height="280px"
-            />
-            <BaseJsonView
-              v-else
-              :value="row.after ?? row.before"
-              max-height="280px"
-            />
-          </details>
-        </li>
-      </ol>
-      <ol class="library-changes__rows">
-        <li
-          v-for="(entry, index) in changedTemplates"
-          :key="index"
-        >
-          <strong>{{ (entry.after ?? entry.before)?.id }}</strong>
-          <details>
-            <summary>{{ t('libraryRecovery.source') }}</summary>
-            <BaseJsonDiff
-              v-if="entry.before && entry.after"
-              :before="entry.before"
-              :after="entry.after"
-              :context="2"
-              max-height="280px"
-            />
-            <BaseJsonView
-              v-else
-              :value="entry.after ?? entry.before"
-              max-height="280px"
-            />
-          </details>
-        </li>
-      </ol>
+        docs-path="user/cloud/changes.html"
+        docs-anchor="review-changes-by-area"
+        @rename="onRename"
+      />
+      <ReviewComparisonTable
+        v-if="templateRows.length"
+        :rows="templateRows"
+      />
       <p
         v-if="draft.error"
         role="alert"
@@ -152,46 +156,10 @@ const descriptor = computed(() => {
       >
         <h3>{{ t('libraryRecovery.currentTitle') }}</h3>
         <p>{{ t('libraryRecovery.currentCounts', { events: journal.comparison.value.definitions.events.length, actions: journal.comparison.value.definitions.actions.length }) }}</p>
-        <ul>
-          <li
-            v-for="pack in journal.comparison.value.catalog.packs"
-            :key="pack.id"
-          >
-            <strong>{{ pack.name }}</strong> · {{ pack.eventIds.length }} / {{ pack.actionIds.length }}<details>
-              <summary>{{ t('libraryRecovery.source') }}</summary>
-              <BaseJsonView
-                :value="pack"
-                max-height="280px"
-              />
-            </details>
-          </li>
-        </ul>
-        <ul>
-          <li
-            v-for="template in journal.comparison.value.catalog.templates"
-            :key="template.id"
-          >
-            <strong>{{ typeof template.title === 'string' ? template.title : template.title.default }}</strong><details>
-              <summary>{{ t('libraryRecovery.source') }}</summary>
-              <BaseJsonView
-                :value="template"
-                max-height="280px"
-              />
-            </details>
-          </li>
-        </ul>
-        <ul>
-          <li
-            v-for="(row, index) in current"
-            :key="index"
-          >
-            <strong>{{ row.name }}</strong>
-            <BaseJsonView
-              :value="row.before"
-              max-height="280px"
-            />
-          </li>
-        </ul>
+        <ReviewComparisonTable
+          v-if="currentRows.length"
+          :rows="currentRows"
+        />
         <BaseButton
           v-if="!draft.submitted"
           :disabled="busy"
@@ -201,13 +169,6 @@ const descriptor = computed(() => {
           {{ t('libraryRecovery.useCurrent') }}
         </BaseButton>
       </section>
-      <BaseButton
-        v-if="draft.submitted"
-        :disabled="busy"
-        @click="historyPanel?.openHistory()"
-      >
-        {{ t('libraryRecovery.history') }}
-      </BaseButton>
     </template>
     <template #footer>
       <BaseButton
@@ -227,16 +188,8 @@ const descriptor = computed(() => {
       </BaseButton>
     </template>
   </BaseDialog>
-  <!-- Only a submitted change whose outcome is unknown points to the history, so it is mounted for that case. -->
-  <OwnerLibraryChanges
-    v-if="draft?.submitted"
-    ref="historyPanel"
-    hide-triggers
-  />
 </template>
 
 <style scoped>
 .library-changes :deep(.base-dialog__body) { display: grid; gap: 12px; min-width: 0; }
-.library-changes p, .library-changes li { overflow-wrap: anywhere; }
-.library-changes__rows { display: grid; gap: 12px; padding-inline-start: 22px; }
 </style>

@@ -70,6 +70,13 @@ export default tseslint.config(
     rules: {
       // A few render-function modules intentionally export several primitives.
       'vue/one-component-per-file': 'off',
+      // One disclosure primitive everywhere: BaseDisclosure. Native summaries
+      // cannot be styled consistently and cannot be placed inline in a row.
+      'no-restricted-syntax': [
+        'error',
+        { selector: 'VElement[name="details"]', message: 'Use <BaseDisclosure> instead of <details>.' },
+        { selector: 'VElement[name="summary"]', message: 'Use <BaseDisclosure> instead of <summary>.' },
+      ],
     },
   },
 );

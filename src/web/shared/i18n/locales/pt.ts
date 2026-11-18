@@ -661,6 +661,7 @@ export default {
       missingRevision: 'A revisão do registro não está disponível. Leia e compare a versão atual do host antes de salvar.',
       waiting: 'Aguardando o host. Você pode continuar editando; alterações mais recentes permanecerão não salvas.',
       changed: 'A alteração não foi aceita. Seu rascunho foi mantido. Leia e revise a versão do host antes de enviar outra vez.',
+      autoResolved: 'O registo guardado mudou. O rascunho foi rebaseado automaticamente; nenhuma ação foi repetida.',
       unconfirmed: 'O resultado no host não foi confirmado. Seu rascunho foi mantido. Leia e revise o registro atual antes de enviar outra vez.',
       hostChanged: 'O registro do host mudou desde que você o abriu. Sua versão inicial e seu rascunho foram mantidos.',
       reading: 'Lendo a versão atual do host…',

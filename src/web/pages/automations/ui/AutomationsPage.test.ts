@@ -1,3 +1,4 @@
+import { resetResolutionPreference } from '@/features/review-shared/model/resolution-preference.ts';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { enableAutoUnmount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,13 +7,11 @@ import { createMemoryHistory, createRouter } from 'vue-router';
 import type { ActionTypeDefinition, BehaviorSnapshot, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
-import { definitionJournal } from '@/entities/automation/model/definition-journal.ts';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { ControlCallError, type ControlCallOptions, type RequestMetadata, type RpcParams } from '@/shared/api/control-client.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
-import { proposalFixture } from '@/features/review-automation-proposal/testing/fixture.ts';
 import OwnerLibraryReview from '@/features/recover-owner-library/ui/OwnerLibraryReview.vue';
 import AutomationsPage from './AutomationsPage.vue';
 
@@ -20,7 +19,9 @@ enableAutoUnmount(afterEach);
 
 beforeEach(() => {
   localStorage.clear();
+  resetResolutionPreference('manual');
 });
+afterEach(() => resetResolutionPreference('automatic'));
 
 const text = (value: string) => ({ default: value, i18key: '' });
 
@@ -147,13 +148,6 @@ function buttonByLabel(wrapper: VueWrapper, label: string) {
 async function goBack(wrapper: VueWrapper) {
   await buttonByLabel(wrapper, 'Back').trigger('click');
   await nextTick();
-}
-
-// Histories and reviews live in one toolbar menu; returns the menu entry with this label.
-async function historyEntry(wrapper: VueWrapper, label: string): Promise<HTMLElement | undefined> {
-  await wrapper.get('[data-test="history-menu"]').trigger('click');
-  await nextTick();
-  return Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((entry) => entry.textContent?.trim() === label);
 }
 
 function documentButton(label: string): HTMLButtonElement {
@@ -453,7 +447,7 @@ describe('AutomationsPage', () => {
       removeListener: () => {},
     }));
     try {
-      const { wrapper, client } = await mountPage();
+      const { wrapper } = await mountPage();
       expect(wrapper.find('.automations-page__sheet').exists()).toBe(false);
       await selectRow(wrapper, 'Big gifts');
       const sheet = wrapper.find('.automations-page__sheet');
@@ -463,24 +457,6 @@ describe('AutomationsPage', () => {
       expect(wrapper.find('.automations-page__sheet .event-editor').exists()).toBe(true);
       // On narrow screens the library stays underneath the sheet.
       expect(wrapper.find('.automation-library').exists()).toBe(true);
-      const original = client.call.bind(client);
-      let release!: () => void;
-      const loading = new Promise<void>((resolve) => { release = resolve; });
-      const calls = vi.spyOn(client, 'call').mockImplementation((async (method, params, options) => {
-        if (method === 'automation.definition.get' || method === 'automation.library.get') await loading;
-        return original(method, params, options);
-      }) as typeof client.call);
-      const definitions = definitionJournal(client); const library = libraryJournal(client);
-      const refreshing = Promise.all([definitions.refresh(), library.refresh()]); await nextTick();
-      expect(sheet.get('[data-test="definition-history"]').attributes('disabled')).toBeDefined();
-      expect(sheet.get('[data-test="library-history"]').attributes('disabled')).toBeDefined();
-      release(); await refreshing; await flushPromises();
-      expect(sheet.get('[data-test="definition-history"]').attributes('disabled')).toBeUndefined();
-      expect(sheet.get('[data-test="library-history"]').attributes('disabled')).toBeUndefined();
-      await sheet.get('[data-test="definition-history"]').trigger('click'); await flushPromises();
-      expect(wrapper.findAll('.definition-recovery[open]')).toHaveLength(1);
-      await wrapper.get('.definition-recovery [aria-label="Close"]').trigger('click'); await flushPromises();
-      calls.mockRestore();
       await goBack(wrapper);
       await nextTick();
       expect(wrapper.find('.automations-page__sheet').exists()).toBe(false);
@@ -505,7 +481,11 @@ describe('AutomationsPage', () => {
     expect((buttonByText(wrapper, 'Save').element as HTMLButtonElement).disabled).toBe(true);
     await buttonByText(wrapper, 'Compare with host').trigger('click'); await flushPromises();
     expect(document.body.textContent).toContain('Starting version');
+    const sources = Array.from(document.querySelectorAll('.base-dialog .review-table .review-table__action')) as HTMLElement[];
+    expect(sources).toHaveLength(5);
+    sources[2]!.click(); await flushPromises();
     expect(document.body.textContent).toContain('Edited on host');
+    sources[1]!.click(); await flushPromises();
     expect(document.body.textContent).toContain('My draft');
     const writes = calls.filter((call) => call.method === 'automation.update').length;
     documentButton('Use this version as the draft base').click(); await flushPromises();
@@ -637,32 +617,4 @@ describe('AutomationsPage', () => {
     expect(requests.filter((r) => r.method === 'automation.disable').at(-1)?.meta?.expectedRevision).toBe('2');
   });
 
-  it('reviews saved owner authority and adopts without saving, replacing or enabling the unsaved editor candidate', async () => {
-    const native = proposalFixture();
-    native.source.id = 'e1';
-    native.source.record = structuredClone(giftEvent) as unknown as Record<string, unknown>;
-    native.source.dependencies = [{ id: 'a1', record: structuredClone(logAction) as unknown as Record<string, unknown>,
-      provenance: { authority: { kind: 'owner' }, generation: '1' } }];
-    native.versions.splice(0, native.versions.length,
-      { kind: 'automation', scope: 'event', id: 'e1', revision: '1' },
-      { kind: 'automation', scope: 'action', id: 'a1', revision: '1' });
-    const { wrapper, calls } = await mountPage((method, params, options) =>
-      method === 'automation.review' || method === 'automation.approval.get' || method.startsWith('automation.adoption.') ? native.handle(method, params, options) : undefined);
-    // No record is open yet: the menu offers the histories but not the record review.
-    expect(await historyEntry(wrapper, 'Review saved authority')).toBeUndefined();
-    expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((entry) => entry.textContent?.trim())).toContain('Adoption history');
-    await wrapper.get('[data-test="history-menu"]').trigger('click'); await nextTick();
-    await selectRow(wrapper, 'Big gifts');
-    await wrapper.get('.event-editor input[type="text"]').setValue('My untouched unsaved draft');
-    (await historyEntry(wrapper, 'Review saved authority'))!.click(); await flushPromises();
-    const review = wrapper.get('.proposal-dialog');
-    expect(review.text()).toContain('Big gifts');
-    expect(review.text()).not.toContain('My untouched unsaved draft');
-    await review.get('[data-test="adoption-acknowledge"]').setValue(true);
-    await review.get('[data-test="adoption-submit"]').trigger('click'); await flushPromises();
-    expect(calls.filter((r) => r.method === 'automation.adoption.submit')).toHaveLength(1);
-    expect(calls.some((r) => ['automation.update', 'automation.create', 'automation.enable'].includes(r.method))).toBe(false);
-    expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My untouched unsaved draft');
-    expect(wrapper.text()).toContain('Unsaved changes');
-  });
 });

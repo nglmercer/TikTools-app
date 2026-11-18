@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef, watch } from 'vue';
 import { ControlCallError, errorMessage, type ControlClient } from '@/shared/api/control-client.ts';
 import { ownerMutationGate } from '@/shared/api/owner-mutation-gate.ts';
+import { manualReview } from '@/features/review-shared/model/resolution-preference.ts';
 import { parseDefinitionState, parsePeerState } from '@/entities/automation/model/definition-contracts.ts';
 import { checkLibraryMutation, libraryTarget, parseLibrarySnapshot, parseLibraryState, parseLibrarySubmission, sameLibraryHost,
   type LibraryAcknowledgement, type LibraryCloudProvenance, type LibraryMutation, type LibrarySnapshot, type LibraryState } from './library-contracts.ts';
@@ -15,13 +16,19 @@ function createLibrary(control: ControlClient) {
   const snapshot = shallowRef<LibrarySnapshot | null>(null);
   const busy = ref(false); const unavailable = ref(true); const error = ref(''); const recoveryEpoch = ref(0);
   const draft = shallowRef<LibraryDraft | null>(null); const comparison = shallowRef<LibrarySnapshot | null>(null); const reading = ref(false);
-  let refreshing: Promise<void> | null = null; let token = 0;
+  let refreshing: Promise<void> | null = null; let token = 0; let resolving = false;
   let snapshotEpoch = 0; let installedEpoch = 0;
   let stateEpoch = 0;
   const snapshots = new WeakMap<LibrarySnapshot, number>();
   let completion: { resolve: () => void; reject: (failure: unknown) => void } | null = null;
   const sameFence = (a: LibrarySnapshot, b: LibrarySnapshot) => sameLibraryHost(a, b) && a.revision === b.revision && a.definitionDigest === b.definitionDigest;
-  function invalidate(): void { if (draft.value && !draft.value.busy) draft.value = { ...draft.value, reviewRequired: true }; comparison.value = null; }
+  function invalidate(): void {
+    if (draft.value && !draft.value.busy) {
+      draft.value = { ...draft.value, reviewRequired: manualReview.value };
+      if (!manualReview.value) void autoResolveLibrary();
+    }
+    comparison.value = null;
+  }
   watch(gate.owner, (owner) => { if (owner && owner !== 'library') invalidate(); }, { flush: 'sync' });
   async function fetchState(): Promise<LibraryState> {
     const epoch = ++stateEpoch;
@@ -112,7 +119,10 @@ function createLibrary(control: ControlClient) {
       comparison.value = null; const pending = completion; completion = null;
       pending?.resolve();
     } catch (failure) {
-      if (draft.value?.token === captured.token) draft.value = { ...draft.value, busy: false, reviewRequired: true, error: errorMessage(failure) };
+      if (draft.value?.token === captured.token) {
+        draft.value = { ...draft.value, busy: false, reviewRequired: manualReview.value, error: errorMessage(failure) };
+        if (!manualReview.value) void autoResolveLibrary();
+      }
     }
   }
   function renameRecord(kind: 'action' | 'event', id: string, name: string): void {
@@ -138,6 +148,23 @@ function createLibrary(control: ControlClient) {
     if (!draft.value || !comparison.value || draft.value.busy || draft.value.submitted) return;
     const context = comparison.value; draft.value = { ...draft.value, context: clone(context), reviewRequired: false, error: '' }; comparison.value = null;
     installSnapshot(context);
+  }
+
+  /** Default mode: rebase a stale preview on the current library snapshot.
+   * A submitted operation whose outcome is unknown is never replayed; its
+   * error stays visible and the owner can still inspect the journal. */
+  async function autoResolveLibrary(): Promise<void> {
+    const captured = draft.value;
+    if (!captured || captured.busy || manualReview.value || captured.submitted || resolving) return;
+    resolving = true;
+    const token = captured.token;
+    try {
+      await readForReview();
+      if (draft.value?.token !== token) return;
+      useReviewed();
+    } finally {
+      resolving = false;
+    }
   }
   function dismiss(): void {
     if (!draft.value || draft.value.busy) return;

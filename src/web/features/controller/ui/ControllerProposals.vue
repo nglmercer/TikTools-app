@@ -5,6 +5,7 @@ import type { MessageSchema } from '@/shared/i18n/i18n.ts';
 import type { ProposalModel, ProposalConfirmation } from '../model/proposals.ts';
 import type { AutomationModel } from '../model/automations.ts';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 import ControllerProposalBuilder from './ControllerProposalBuilder.vue';
 const props = defineProps<{ model: ProposalModel; automation?: AutomationModel }>();
 const { tm } = useI18n();
@@ -66,8 +67,11 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
         {{ labels.start }}
       </button>
     </form>
-    <details v-if="model.rows.value.length">
-      <summary>{{ labels.stored }}</summary><ul>
+    <BaseDisclosure
+      v-if="model.rows.value.length"
+      :title="labels.stored"
+    >
+      <ul>
         <li
           v-for="item in model.rows.value"
           :key="`${item.kind}:${item.id}`"
@@ -81,7 +85,7 @@ const dialogLabel = computed(() => dialog.value?.operation === 'send' ? labels.v
           </button>
         </li>
       </ul>
-    </details>
+    </BaseDisclosure>
     <template v-if="model.editable.value">
       <h3>{{ model.kind.value === 'action' ? labels.action : labels.event }} · {{ model.id.value }}</h3>
       <p>{{ labels.mode }}: {{ model.mode.value === 'create' ? labels.create : labels.update }} · {{ labels.base }} {{ model.baseRevision.value }}</p>

@@ -834,7 +834,7 @@ must not silently reinterpret an old cursor/state as v2.
 | 1. Native contracts and instance policy | crates/cloud-client, backend-owned portable contracts, crates/tiktools-cloud-auth/src/origin.rs; typed v2 validation, one release origin, independent pins and explicit dev policy |
 | 2. Durable v2 engine and cutover | crates/tiktools-cloud-sync, crates/tiktools-core/src/cloud_sync.rs and control/cloud_sync.rs; identity-partitioned state, stage/pull/push/rebuild/conflict/migration/apply-outcome operations |
 | 3. Product catalog and removal of selectors | core plugin_packages.rs and control/plugin_packages.rs, control-api modules/registry.rs, client/CLI registry wrappers, plugin-package store/types, PluginsPage and SettingsPage; fixed-origin discovery and verified install |
-| 4. Cloud documents and local application | Native library/document adapters; entities/rule-template and entities/cloud-*; RuleTemplateDialog, ProfileImportDialog and OwnerLibraryChanges; exact remote revision review into the native atomic library |
+| 4. Cloud documents and local application | Native library/document adapters; entities/rule-template and entities/cloud-*; RuleTemplateDialog and ProfileImportDialog; exact remote revision review into the native atomic library |
 | 5. Settings and conflict experience | cloud-sync sync-types/store/CloudSyncEditor, cloud-account identity handling, native portable preference/settings adapters and locales; collection-aware comparison, unapplied backlog, retry/recovery/export |
 | 6. End-to-end acceptance | Separate backend fixture plus two real Desktop instances/homes, real local adapters and current packaged Vue; the scenarios below |
 

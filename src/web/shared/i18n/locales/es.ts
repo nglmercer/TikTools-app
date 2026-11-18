@@ -662,6 +662,7 @@ export default {
       waiting: 'Esperando al anfitrión. Puedes seguir editando; los cambios posteriores quedarán sin guardar.',
       changed: 'El cambio no fue aceptado. Tu borrador se conserva. Lee y revisa la versión del anfitrión antes de volver a enviar.',
       unconfirmed: 'El resultado del anfitrión no está confirmado. Tu borrador se conserva. Lee y revisa el registro actual antes de volver a enviar.',
+      autoResolved: 'El registro guardado cambió. Tu borrador se rebaseó automáticamente sobre él; no se repitió ninguna acción.',
       hostChanged: 'El registro del anfitrión cambió desde que lo abriste. Tu versión inicial y tu borrador se conservan.',
       reading: 'Leyendo la versión actual del anfitrión…',
       readCurrent: 'Leer versión actual del anfitrión',

@@ -4,4 +4,5 @@ export default {
   moreItems: '{count} entrées de plus non affichées', sideBySide: 'Côte à côte', unified: 'Unifiée', noChanges: 'Aucune différence', before: 'Avant', after: 'Après',
   lineAdded: 'Ligne ajoutée', lineRemoved: 'Ligne supprimée', stats: '{added} ajoutées, {removed} supprimées, {changed} modifiées',
   draftChanges: 'Modifications de votre brouillon depuis la version initiale', hostChanges: 'Modifications de l’hôte depuis la version initiale', showChanges: 'Afficher les modifications',
+  reviewTable: { index: '#', event: 'Événement', action: 'Action', record: 'Enregistrement', type: 'Type', change: 'Changement', source: 'Source', actions: 'Actions', copy: 'Copier', docs: 'Guide', add: 'Ajouté', remove: 'Supprimé', changeShort: 'Modifié', same: 'Inchangé', version: 'Version', diff: 'Différences', revision: 'Révision {revision}', records: '{count} enregistrements', },
 };

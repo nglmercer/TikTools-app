@@ -3,6 +3,7 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
 import IconPause from '@/shared/ui/icon/icons/IconPause.vue';
@@ -196,12 +197,13 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         :data-status="guideState"
       >{{ guideLabel }}</span>
     </div>
-    <details
+    <BaseDisclosure
       v-if="!embed"
       class="demo-toolbar__expected"
+      :title="copy.success"
     >
-      <summary>{{ copy.success }}</summary><p>{{ currentTask.result }}</p>
-    </details>
+      <p>{{ currentTask.result }}</p>
+    </BaseDisclosure>
     <output
       data-testid="demo-metrics"
       aria-live="off"

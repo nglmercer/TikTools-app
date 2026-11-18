@@ -22,7 +22,7 @@ const items: MenuEntry[] = [
   { id: 'lock', label: 'Lock', checked: true },
 ];
 
-function mountMenu() {
+function mountMenu(menuItems: readonly MenuEntry[] = items) {
   const selected: MenuAction[] = [];
   const open = ref(false);
   const trigger = document.createElement('button');
@@ -30,7 +30,7 @@ function mountMenu() {
   const wrapper = mount(
     defineComponent(() => () =>
       h(BaseMenu, {
-        items,
+        items: menuItems,
         anchor: trigger,
         open: open.value,
         focusFirst: true,
@@ -115,6 +115,25 @@ describe('BaseMenu', () => {
     await nextTick();
     document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     expect(open.value).toBe(false);
+  });
+
+  it('renders every entry when the menu has many items', async () => {
+    const many: MenuEntry[] = Array.from({ length: 40 }, (_, index) => ({ id: `item-${index}`, label: `Item ${index}` }));
+    const { open, selected } = mountMenu(many);
+    open.value = true;
+    await nextTick();
+    const rendered = menus()[0]!.querySelectorAll('[role="menuitem"]');
+    expect(rendered).toHaveLength(many.length);
+    (rendered[rendered.length - 1] as HTMLElement).click();
+    expect(selected.map((action) => action.id)).toEqual(['item-39']);
+  });
+
+  it('shows the full text of a long label instead of clipping it', async () => {
+    const label = 'Revisar autoridad guardada y ejecución delegada con un nombre de biblioteca extremadamente largo que no cabe en una sola línea';
+    const { open } = mountMenu([{ id: 'long', label }]);
+    open.value = true;
+    await nextTick();
+    expect(menus()[0]!.querySelector('.menu-list__label')?.textContent).toBe(label);
   });
 });
 

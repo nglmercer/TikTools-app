@@ -9,6 +9,7 @@ import ProposalActionFields from './ProposalActionFields.vue';
 import ProposalEventFields from './ProposalEventFields.vue';
 import ProposalActionSelection from './ProposalActionSelection.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 
 const props = defineProps<{ model: ProposalModel; automation?: AutomationModel }>();
 const { tm } = useI18n();
@@ -36,8 +37,10 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
 </script>
 
 <template>
-  <details class="proposal-builder">
-    <summary>{{ labels.title }}</summary>
+  <BaseDisclosure
+    class="proposal-builder"
+    :title="labels.title"
+  >
     <p>{{ labels.note }}</p>
     <p>{{ labels.loadFieldsHint }}</p>
     <button
@@ -120,7 +123,7 @@ watch(() => [props.model.identityKey.value, props.model.kind.value, props.model.
     >
       {{ labels.generate }}
     </button>
-  </details>
+  </BaseDisclosure>
   <BaseConfirmDialog
     v-model:open="open"
     :title="labels.confirm"

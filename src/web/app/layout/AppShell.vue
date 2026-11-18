@@ -9,6 +9,8 @@ import { computed, defineAsyncComponent } from 'vue';
 const DiagnosticsPanel = defineAsyncComponent(() => import('@/shared/diagnostics/DiagnosticsPanel.vue'));
 const diagnosticsOpen = computed(() => diagnosticView.open.value);
 import { useI18n } from 'vue-i18n';
+import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { loadResolutionPreference } from '@/features/review-shared/model/resolution-preference.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
@@ -28,6 +30,7 @@ import AppNotifications from './AppNotifications.vue';
 
 useAppRuntime();
 useDiagnostics();
+void loadResolutionPreference(useControlClient());
 const diagnosticNavigation = useDiagnosticNavigation();
 const { unread } = diagnosticLog;
 

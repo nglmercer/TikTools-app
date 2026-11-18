@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 import { exampleText, familyTitle } from '../../../../docs/examples/text.ts';
 import { catalogCopy } from './copy.ts';
 import { demoLocales, type DemoLocale } from '../scenarios.ts';
@@ -60,7 +61,9 @@ const guideUrl = computed(() => new URL(`../${locale.value}/developer/components
         :locale="locale"
       />
     </section>
-    <details><summary>{{ copy.source }}</summary><pre><code>{{ text }}</code></pre></details>
+    <BaseDisclosure :title="copy.source">
+      <pre><code>{{ text }}</code></pre>
+    </BaseDisclosure>
   </section>
 </template>
 <style scoped>
@@ -73,9 +76,9 @@ const guideUrl = computed(() => new URL(`../${locale.value}/developer/components
 .component-catalog__toolbar label > span { font-size:12px; color:var(--color-text-muted); }
 .component-catalog__toolbar a { margin-left:auto; align-self:center; color:var(--color-text); font-size:13px; text-underline-offset:3px; }
 .component-catalog__preview { margin:24px 0; min-height:90px; }
-.component-catalog details { border-top:1px solid var(--color-border); padding:16px 0; }
-.component-catalog summary { cursor:pointer; font-size:13px; }
+.component-catalog :deep(.base-disclosure) { border-top:1px solid var(--color-border); padding:16px 0; }
+.component-catalog :deep(.base-disclosure__toggle) { cursor:pointer; font-size:13px; }
 .component-catalog pre { overflow:auto; max-height:460px; font-size:12px; line-height:1.6; padding:16px; background:var(--color-bg-panel); border:1px solid var(--color-border); }
-.component-catalog a:focus-visible,.component-catalog summary:focus-visible { outline:2px solid var(--color-border-focus); outline-offset:4px; }
+.component-catalog a:focus-visible,.component-catalog :deep(.base-disclosure__toggle:focus-visible) { outline:2px solid var(--color-border-focus); outline-offset:4px; }
 @media(max-width:600px) { .component-catalog { padding:16px 12px; } .component-catalog__header { flex-wrap:wrap; } .component-catalog__toolbar label { flex:1 1 180px; min-width:0; } .component-catalog__toolbar a { margin-left:0; } }
 </style>

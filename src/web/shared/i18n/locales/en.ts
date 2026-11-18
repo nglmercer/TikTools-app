@@ -660,6 +660,7 @@ export default {
       waiting: 'Waiting for the host. You can continue editing; newer changes will stay unsaved.',
       changed: 'The change was not accepted. Your draft is retained. Read and review the host version before another submission.',
       unconfirmed: 'The host outcome is unconfirmed. Your draft is retained. Read and review the current record before another submission.',
+      autoResolved: 'The saved record changed. Your draft was rebased on it automatically; no action was replayed.',
       hostChanged: 'The host record changed since you opened it. Your starting version and draft are retained.',
       reading: 'Reading the current host version…',
       readCurrent: 'Read current host version',

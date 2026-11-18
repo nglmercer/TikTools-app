@@ -225,6 +225,9 @@ const INIT_SCRIPT = `
     },
     'processors.status': () => ({ processors: state.processors }),
     'widgets.status': () => ({ state: 'missing', port: 17452, error: null }),
+    // The Owner library journal is mounted once in the app shell; give it a
+    // stable empty state so unrelated specs do not report an unhandled call.
+    'automation.library.get': () => ({ hostId: 'e2e-host', hostInstanceId: 'e2e-instance', pending: null, recent: [] }),
     'app.state.get': () => ({ state: { ...state.appState } }),
     'app.state.set': (params) => {
       state.appState[params.key] = params.value;

@@ -1,18 +1,69 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AutomationEdit, AutomationReview } from '../model/automation-editor.ts';
+import type { ReviewRow } from '../../review-shared/model/review-rows.ts';
+import ReviewComparisonTable from '../../review-shared/ui/ReviewComparisonTable.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
-import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
-import BaseJsonDiff from '@/shared/ui/json/BaseJsonDiff.vue';
-import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
 
-defineProps<{ edit: AutomationEdit | null; review: AutomationReview | null; busy: boolean; error: string; canAdopt: boolean }>();
+const props = defineProps<{ edit: AutomationEdit | null; review: AutomationReview | null; busy: boolean; error: string; canAdopt: boolean }>();
 const open = defineModel<boolean>('open', { default: false });
 defineEmits<{ adopt: []; refresh: [] }>();
 const { t } = useI18n();
-const changesOpen = ref(false);
+
+/** One view-model for the three versions and their two diffs. Both diffs used
+ * to re-run diffJson on the same base; the table now renders them from here. */
+const rows = computed<ReviewRow[]>(() => {
+  const edit = props.edit;
+  const review = props.review;
+  if (!edit || !review) return [];
+  const current = review.current.record;
+  const result: ReviewRow[] = [
+    {
+      id: 'base',
+      name: t('automations.conflict.base'),
+      kind: 'version',
+      change: 'version',
+      revision: edit.revision ?? t('automations.conflict.memory'),
+      note: edit.base ? undefined : t('automations.conflict.absent'),
+      after: edit.base ?? undefined,
+    },
+    {
+      id: 'candidate',
+      name: t('automations.conflict.candidate'),
+      kind: 'version',
+      change: 'version',
+      after: edit.candidate,
+    },
+    {
+      id: 'current',
+      name: t('automations.conflict.current'),
+      kind: 'version',
+      change: current ? 'version' : 'remove',
+      revision: review.current.revision ?? t('automations.conflict.memory'),
+      note: current ? undefined : t('automations.conflict.deleted'),
+      after: current ?? undefined,
+    },
+    {
+      id: 'draft-diff',
+      name: t('jsonView.draftChanges'),
+      kind: 'diff',
+      change: 'diff',
+      before: edit.base ?? undefined,
+      after: edit.candidate,
+    },
+    {
+      id: 'host-diff',
+      name: t('jsonView.hostChanges'),
+      kind: 'diff',
+      change: 'diff',
+      before: edit.base ?? undefined,
+      after: current ?? undefined,
+    },
+  ];
+  return result;
+});
 </script>
 
 <template>
@@ -35,67 +86,13 @@ const changesOpen = ref(false);
     >
       {{ error }}
     </p>
-    <div
+    <ReviewComparisonTable
       v-if="edit && review"
-      class="automation-review"
-    >
-      <section>
-        <h3>{{ t('automations.conflict.base') }} · {{ edit.revision ?? t('automations.conflict.memory') }}</h3>
-        <BaseJsonView
-          v-if="edit.base"
-          :value="edit.base"
-          max-height="48vh"
-        />
-        <p v-else>
-          {{ t('automations.conflict.absent') }}
-        </p>
-      </section>
-      <section>
-        <h3>{{ t('automations.conflict.candidate') }}</h3>
-        <BaseJsonView
-          :value="edit.candidate"
-          max-height="48vh"
-        />
-      </section>
-      <section>
-        <h3>{{ t('automations.conflict.current') }} · {{ review.current.revision ?? t('automations.conflict.memory') }}</h3>
-        <BaseJsonView
-          v-if="review.current.record"
-          :value="review.current.record"
-          max-height="48vh"
-        />
-        <p v-else>
-          {{ t('automations.conflict.deleted') }}
-        </p>
-      </section>
-    </div>
-    <BaseDisclosure
-      v-if="edit && review"
-      v-model:open="changesOpen"
-      :title="t('jsonView.showChanges')"
-    >
-      <div
-        v-if="changesOpen"
-        class="automation-review automation-review--diffs"
-      >
-        <section>
-          <h3>{{ t('jsonView.draftChanges') }}</h3>
-          <BaseJsonDiff
-            :before="edit.base ?? undefined"
-            :after="edit.candidate"
-            max-height="40vh"
-          />
-        </section>
-        <section>
-          <h3>{{ t('jsonView.hostChanges') }}</h3>
-          <BaseJsonDiff
-            :before="edit.base ?? undefined"
-            :after="review.current.record ?? undefined"
-            max-height="40vh"
-          />
-        </section>
-      </div>
-    </BaseDisclosure>
+      :rows="rows"
+      data-test="automation-review-table"
+      docs-path="developer/automations.html"
+      docs-anchor="expected-result-and-status"
+    />
     <p v-if="review && !review.current.record">
       {{ t('automations.conflict.recreateLead') }}
     </p>
@@ -123,18 +120,7 @@ const changesOpen = ref(false);
 </template>
 
 <style scoped>
-.automation-review {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-.automation-review section { min-width: 0; }
-.automation-review h3 { font-size: var(--font-size-md); overflow-wrap: anywhere; }
-.automation-review--diffs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (width < 800px) {
-  .automation-review { grid-template-columns: 1fr; }
-  .automation-review--diffs { grid-template-columns: 1fr; }
-  .automation-review :deep(.base-json__scroll) { max-height: 28vh; }
   .automation-review-dialog :deep(.base-dialog__footer) { flex-direction: column; align-items: stretch; }
   .automation-review-dialog :deep(.base-dialog__spacer) { display: none; }
   .automation-review-dialog :deep(.base-dialog__footer .base-button) {

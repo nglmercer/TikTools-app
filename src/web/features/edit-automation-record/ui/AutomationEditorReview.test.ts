@@ -20,32 +20,49 @@ function mountReview(props: Record<string, unknown> = {}) {
   });
 }
 
+async function openSource(wrapper: ReturnType<typeof mountReview>, index: number): Promise<string> {
+  const buttons = wrapper.findAll('.review-table__action');
+  await buttons[index]!.trigger('click');
+  await nextTick();
+  return wrapper.get('.review-source-dialog').text();
+}
+
 describe('AutomationEditorReview', () => {
-  it('shows the base, candidate and current record each as one pre with the exact pretty JSON', async () => {
+  it('shows the three versions and the two diffs as five numbered rows', async () => {
     const wrapper = mountReview();
     await nextTick();
-    const blocks = wrapper.findAll('pre');
-    expect(blocks.map((block) => block.element.textContent)).toEqual([base, candidate, current].map((record) => JSON.stringify(record, null, 2)));
+    expect(wrapper.findAll('tbody tr')).toHaveLength(5);
+    expect(wrapper.findAll('.review-table__action')).toHaveLength(5);
+    expect(wrapper.text()).toContain('Starting version');
+    expect(wrapper.text()).toContain('Your draft');
+    expect(wrapper.text()).toContain('Current host version');
+    expect(wrapper.find('a.review-docs-link').attributes('href')).toContain('developer/automations.html#expected-result-and-status');
   });
 
-  it('keeps text for an absent base and a deleted host record and offers no diff until asked', async () => {
+  it('keeps text for an absent base and a deleted host record in the numbered table', async () => {
     const wrapper = mountReview({ edit: { ...edit, base: null }, review: { current: { record: null, revision: '2' } } });
     await nextTick();
-    expect(wrapper.findAll('pre')).toHaveLength(1);
-    expect(wrapper.text()).toContain('New record')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(5);
+    expect(wrapper.text()).toContain('New record');
     expect(wrapper.text()).toContain('The record is absent on the host.');
-    expect(wrapper.find('.base-json-diff').exists()).toBe(false);
   });
 
-  it('compares the starting version with the draft and with the host when changes are shown', async () => {
+  it('shows the exact pretty JSON of each version inside the source dialog', async () => {
     const wrapper = mountReview();
     await nextTick();
-    expect(wrapper.find('.base-json-diff').exists()).toBe(false);
-    await wrapper.get('button[aria-expanded="false"]').trigger('click');
-    const diffs = wrapper.findAll('.base-json-diff');
-    expect(diffs).toHaveLength(2);
-    expect(diffs[0]!.text()).toContain('My retained draft');
-    expect(diffs[1]!.text()).toContain('Host changed name');
-    expect(wrapper.findAll('pre')).toHaveLength(3);
+    for (const [index, record] of [base, candidate, current].entries()) {
+      const text = await openSource(wrapper, index);
+      expect(text).toContain(JSON.stringify(record, null, 2));
+    }
+  });
+
+  it('compares the starting version with the draft and with the host in diff rows', async () => {
+    const wrapper = mountReview();
+    await nextTick();
+    const draftDiff = await openSource(wrapper, 3);
+    const hostDiff = await openSource(wrapper, 4);
+    expect(draftDiff).toContain('My retained draft');
+    expect(hostDiff).toContain('Host changed name');
+    expect(wrapper.findAll('.base-json-diff')).toHaveLength(1);
   });
 });

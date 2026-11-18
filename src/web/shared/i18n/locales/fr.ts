@@ -661,6 +661,7 @@ export default {
       missingRevision: 'La révision de l’enregistrement est indisponible. Lisez et comparez la version actuelle de l’hôte avant d’enregistrer.',
       waiting: 'En attente de l’hôte. Vous pouvez continuer à modifier ; les modifications plus récentes resteront non enregistrées.',
       changed: 'La modification n’a pas été acceptée. Votre brouillon est conservé. Lisez et examinez la version de l’hôte avant un nouvel envoi.',
+      autoResolved: 'L’enregistrement enregistré a changé. Votre brouillon y a été rebasé automatiquement ; aucune action n’a été rejouée.',
       unconfirmed: 'Le résultat sur l’hôte n’est pas confirmé. Votre brouillon est conservé. Lisez et examinez l’enregistrement actuel avant un nouvel envoi.',
       hostChanged: 'L’enregistrement de l’hôte a changé depuis son ouverture. Votre version de départ et votre brouillon sont conservés.',
       reading: 'Lecture de la version actuelle de l’hôte…',

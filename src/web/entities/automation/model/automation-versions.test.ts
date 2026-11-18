@@ -1,11 +1,15 @@
+import { resetResolutionPreference } from '@/features/review-shared/model/resolution-preference.ts';
 import { useAutomationEditor } from '@/features/edit-automation-record/model/automation-editor.ts';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
-import { expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import { watch } from 'vue';
 import type { BehaviorSnapshot, LiveAction } from '../../../../automation/behavior/types.ts';
 import { ControlCallError, type ControlCallOptions, type RpcParams } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
 import { useAutomation } from './automation-state.ts';
+
+beforeEach(() => resetResolutionPreference('manual'));
+afterEach(() => resetResolutionPreference('automatic'));
 
 const original: LiveAction = { id: 'same', name: 'Initial', schemaVersion: 2, enabled: true, typeId: 'core.log', config: {} };
 function fixture() {

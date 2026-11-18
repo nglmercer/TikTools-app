@@ -4,6 +4,7 @@ import type { ControllerModel } from '../model/controller.ts';
 import { useControllerLabels } from '../lib/use-controller-labels.ts';
 import type { WorkflowOperation } from '../model/controller.ts';
 import type { ControllerWorkflowDrafts } from '../model/use-controller-workflow-drafts.ts';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 const props = defineProps<{ browserMode?: boolean; model: Pick<ControllerModel, 'status' | 'rows' | 'ready' | 'canChange' | 'draft' | 'draftStorage' | 'edit' | 'editRetainedDraft' | 'discard' | 'rebaseDraft'>; drafts: ControllerWorkflowDrafts }>();
 const { status, rows, ready } = props.model;
 const { selected, row, retainedDrafts, draftText, conflict, savedDraft, draftMatches, draftsSupported, draftError, draftBusy, draftLoading, draftErrorText } = props.drafts;
@@ -167,10 +168,13 @@ const emit = defineEmits<{ change: [operation: WorkflowOperation]; saveDraft: []
           >
             {{ draftMatches ? dft.matches : dft.unsaved }}
           </p>
-          <details v-if="savedDraft">
-            <summary class="controller__summary">
+          <BaseDisclosure
+            v-if="savedDraft"
+            toggle-class="controller__summary"
+          >
+            <template #summary>
               {{ dft.saved }} · {{ savedDraft.baseRevision }}
-            </summary>
+            </template>
             <textarea
               class="controller__textarea"
               :value="savedDraft.text"
@@ -185,14 +189,15 @@ const emit = defineEmits<{ change: [operation: WorkflowOperation]; saveDraft: []
             >
               {{ dft.remove }}
             </button>
-          </details>
+          </BaseDisclosure>
         </section>
       </div>
     </div>
-    <details>
-      <summary class="controller__summary">
+    <BaseDisclosure toggle-class="controller__summary">
+      <template #summary>
         {{ props.browserMode ? t('controller.root.availableHere') : labels.rights }}
-      </summary><ul>
+      </template>
+      <ul>
         <li
           v-for="capability in status.hello?.capabilities"
           :key="capability"
@@ -200,7 +205,7 @@ const emit = defineEmits<{ change: [operation: WorkflowOperation]; saveDraft: []
           {{ capability }}
         </li>
       </ul>
-    </details>
+    </BaseDisclosure>
   </section>
   <p
     v-else-if="!ready && !['idle', 'pairing', 'failed'].includes(status.phase)"

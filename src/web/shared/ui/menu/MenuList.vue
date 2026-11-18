@@ -205,6 +205,12 @@ onBeforeUnmount(() => {
 .menu-list {
   z-index: var(--z-popover);
   min-width: 180px;
+  /* Keep the popup inside the viewport at any width; long labels wrap instead of clipping. */
+  max-width: min(360px, calc(100vw - 2rem));
+  max-height: min(70vh, 480px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   margin: 0;
   padding: var(--space-1) 0;
   border: var(--border-width) solid var(--color-border-strong);
@@ -223,12 +229,11 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  height: var(--control-height-md);
+  min-height: var(--control-height-md);
   margin: 0 var(--space-1);
-  padding: 0 var(--space-4) 0 var(--space-3);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
   border: var(--border-width) solid transparent;
   border-radius: var(--radius-sm);
-  white-space: nowrap;
   cursor: default;
   outline: none;
 }
@@ -254,11 +259,16 @@ onBeforeUnmount(() => {
 
 .menu-list__label {
   flex: 1;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .menu-list__shortcut {
+  flex: none;
   padding-left: var(--space-7);
   color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 .menu-list__item--active .menu-list__shortcut {

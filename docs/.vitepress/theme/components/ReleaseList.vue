@@ -4,6 +4,7 @@ import { useData } from 'vitepress';
 import { documentLocale } from '../../../locales.ts';
 import { experienceCopy } from '../../../experience/copy.ts';
 import snapshot from '../../../experience/releases.json';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 const { lang } = useData();
 const locale = computed(() => documentLocale(lang.value));
 const t = computed(() => experienceCopy[locale.value].releases);
@@ -21,7 +22,7 @@ const assets = (release: typeof snapshot.releases[number]) => release.assets.fil
     </div>
     <article v-for="release in snapshot.releases" :key="release.tag" class="release-card">
       <header><div><span class="release-card__channel" :class="{ 'release-card__channel--pre': release.prerelease }">{{ release.prerelease ? t.prerelease : t.stable }}</span><h2>{{ release.name }}</h2></div><time :datetime="release.publishedAt">{{ date(release.publishedAt) }}</time></header>
-      <details v-if="release.highlights.length" class="release-card__notes" :open="release.tag === snapshot.releases[0]?.tag"><summary>{{ t.highlights }}</summary><ul lang="en"><li v-for="line in release.highlights" :key="line">{{ line }}</li></ul></details>
+      <BaseDisclosure v-if="release.highlights.length" class="release-card__notes" :title="t.highlights" :initially-open="release.tag === snapshot.releases[0]?.tag"><ul lang="en"><li v-for="line in release.highlights" :key="line">{{ line }}</li></ul></BaseDisclosure>
       <div class="release-card__assets">
         <a v-for="asset in assets(release)" :key="asset.name" :href="asset.url"><span aria-hidden="true">↓</span><span>{{ asset.name }}<small>{{ (asset.size / 1048576).toFixed(1) }} MB</small></span></a>
         <p v-if="!assets(release).length">{{ t.noDownloads }}</p>

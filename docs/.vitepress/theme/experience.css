@@ -13,7 +13,7 @@
 .release-card__channel { font-size:10px; font-weight:600; padding:4px 8px; border-radius:4px; color:var(--vp-c-green-1); background:var(--vp-c-green-soft); }
 .release-card__channel--pre { color:var(--vp-c-yellow-1); background:var(--vp-c-yellow-soft); }
 .release-card__notes { font-size:13px; margin:16px 0; }
-.release-card__notes summary { cursor:pointer; color:var(--vp-c-text-2); }
+.release-card__notes .base-disclosure__toggle { cursor:pointer; color:var(--vp-c-text-2); }
 .release-card__notes li { overflow-wrap:anywhere; }
 .release-card__assets { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:20px 0; }
 .release-card__assets a { display:flex; gap:10px; padding:10px 12px; border:1px solid var(--vp-c-divider); background:var(--vp-c-bg); border-radius:7px; text-decoration:none; overflow-wrap:anywhere; font-size:11px; line-height:1.6; }

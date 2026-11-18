@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n';
 import type { ControllerModel } from '../model/controller.ts';
 import { useControllerLabels } from '../lib/use-controller-labels.ts';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 const props = defineProps<{ browserMode?: boolean; model: Pick<ControllerModel, 'status' | 'busy' | 'commandSending' | 'canResolve' | 'canReview' | 'resolveCommand'> }>();
 const { status, busy, commandSending } = props.model;
 const { t } = useI18n();
@@ -94,10 +95,10 @@ const emit = defineEmits<{ reviewStorage: []; reviewCommand: [] }>();
       >
         {{ cmd.outcome[status.commandJournal.recent[0].outcome] }} · {{ status.commandJournal.recent[0].intent.resourceId }}
       </p>
-      <details>
-        <summary class="controller__summary">
+      <BaseDisclosure toggle-class="controller__summary">
+        <template #summary>
           {{ cmd.history }}
-        </summary>
+        </template>
         <article
           v-for="record in status.commandJournal.recent"
           :key="record.intent.commandId"
@@ -131,7 +132,7 @@ const emit = defineEmits<{ reviewStorage: []; reviewCommand: [] }>();
             {{ record.errorCode }}
           </p>
         </article>
-      </details>
+      </BaseDisclosure>
     </template>
   </section>
 </template>

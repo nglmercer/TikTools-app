@@ -17,6 +17,7 @@ import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
 import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
+import ReviewModeSetting from '@/features/review-shared/ui/ReviewModeSetting.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 
 /**
@@ -76,6 +77,15 @@ const locale = computed<Locale>({
                 v-model="locale"
                 class="settings-page__control"
               />
+            </SettingsRow>
+          </BaseGroupBox>
+          <BaseGroupBox :title="t('settingsLayout.resolution.group')">
+            <SettingsRow
+              for="settings-review-mode"
+              :label="t('settingsLayout.resolution.label')"
+              :description="t('settingsLayout.resolution.hint')"
+            >
+              <ReviewModeSetting id="settings-review-mode" />
             </SettingsRow>
           </BaseGroupBox>
           <AppUpdater />

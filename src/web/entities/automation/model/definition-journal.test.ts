@@ -1,4 +1,5 @@
-import { describe, expect, test, vi } from 'vitest';
+import { resetResolutionPreference } from '@/features/review-shared/model/resolution-preference.ts';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { LiveAction } from '../../../../automation/behavior/types.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { createFakeControlClient } from '@/shared/lib/testing/fake-control-client.ts';
@@ -27,6 +28,8 @@ function fixture() {
 }
 
 describe('native Owner definition journal', () => {
+  beforeEach(() => resetResolutionPreference('manual'));
+  afterEach(() => resetResolutionPreference('automatic'));
   test('fresh acknowledgement advances only the matching editor, lost reply recovers metadata without resubmitting', async () => {
     const f = fixture();
     const editor = useAutomationEditor({ read: async () => ({ record: f.record(), revision: f.revision() }),

@@ -3,6 +3,7 @@ import { nextTick, onMounted, onUnmounted, ref, useId, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useControllerCloud, type CloudConnectionModel } from '../model/use-controller-cloud.ts';
+import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 const props = defineProps<{ model: CloudConnectionModel }>();
 const { t } = useI18n(); const id = useId(); const mode = ref<'teams' | 'join'>('join');
 const cloud = useControllerCloud(useControlClient(), props.model);
@@ -61,11 +62,15 @@ onMounted(() => { void cloud.start(); }); onUnmounted(cloud.stop);
           {{ t('controller.cloud.cancel') }}
         </button>
       </div>
-      <details v-if="browserUrl">
-        <summary class="controller__summary">
+      <BaseDisclosure
+        v-if="browserUrl"
+        toggle-class="controller__summary"
+      >
+        <template #summary>
           {{ t('controller.cloud.loginLink') }}
-        </summary><code class="controller__code">{{ browserUrl }}</code>
-      </details>
+        </template>
+        <code class="controller__code">{{ browserUrl }}</code>
+      </BaseDisclosure>
     </template>
     <template v-else-if="!signedIn">
       <p class="controller__text">

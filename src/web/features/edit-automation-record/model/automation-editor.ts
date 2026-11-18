@@ -1,4 +1,5 @@
 import { computed, shallowRef } from 'vue';
+import { manualReview } from '../../review-shared/model/resolution-preference.ts';
 import { cloneRecord } from '@/entities/automation/lib/automation-records.ts';
 import type { AutomationHost, AutomationKind, AutomationRecord, AutomationRecordVersion, AutomationRevision, AutomationWriteBase } from '@/entities/automation/model/record-versions.ts';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
@@ -19,6 +20,8 @@ export interface AutomationEdit {
   create: boolean;
   busy: boolean;
   reviewRequired: boolean;
+  /** True when the conflict/outcome was rebased automatically (default mode). */
+  autoResolved: boolean;
   failure: 'conflict' | 'unconfirmed' | 'rejected' | null;
   message: string;
 }
@@ -37,6 +40,7 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
   const readError = shallowRef('');
   let token = 0;
   let readEpoch = 0;
+  let resolving = false;
   let disposed = false;
   const dirty = computed(() => !!state.value && (state.value.create || state.value.busy || state.value.reviewRequired || !equal(state.value.base, state.value.candidate)));
   const saveBlocked = computed(() => !state.value || state.value.busy || state.value.reviewRequired || state.value.revision === undefined);
@@ -51,7 +55,7 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
     if (disposed) return;
     close();
     state.value = { token, generation: 0, kind, candidate: cloneRecord(record), base: create ? null : cloneRecord(record),
-      revision, ...(host !== undefined ? { host: host && { ...host } } : {}), create, busy: false, reviewRequired: false, failure: null, message: '' };
+      revision, ...(host !== undefined ? { host: host && { ...host } } : {}), create, busy: false, reviewRequired: false, autoResolved: false, failure: null, message: '' };
   }
   function change(record: AutomationRecord): void {
     const current = state.value;
@@ -64,7 +68,8 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
     const code = failure instanceof ControlCallError ? failure.code : '';
     const outcome = ['revision_conflict', 'automation_not_found', 'not_found'].includes(code) ? 'conflict' :
       ['invalid_params', 'capability_unavailable', 'overloaded', 'unsafe_source', 'command_pending'].includes(code) ? 'rejected' : 'unconfirmed';
-    state.value = { ...current, busy: false, reviewRequired: true, failure: outcome, message: errorMessage(failure) };
+    state.value = { ...current, busy: false, reviewRequired: manualReview.value, autoResolved: !manualReview.value, failure: outcome, message: errorMessage(failure) };
+    if (!manualReview.value) void autoResolve();
   }
   async function save(): Promise<void> {
     const captured = state.value;
@@ -94,7 +99,7 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
       const current = state.value;
       if (disposed || current?.token !== captured.token) return;
       if (current.generation === captured.generation) close();
-      else state.value = { ...current, busy: false, reviewRequired: true, failure: 'conflict', message: '' };
+      else state.value = { ...current, busy: false, reviewRequired: manualReview.value, autoResolved: !manualReview.value, failure: 'conflict', message: '' };
     } catch (failure) { fail(captured, failure); }
   }
   async function readForReview(): Promise<void> {
@@ -123,10 +128,34 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
   }
   function requireRecoveryReview(): void {
     const current = state.value;
-    if (!current || disposed) return;
+    if (!current || disposed || resolving) return;
+    // Idempotent: the host watcher runs with flush:'sync' and re-fires on every
+    // state write, so a second call would loop forever in automatic mode.
+    if (current.reviewRequired || current.autoResolved || current.failure === 'unconfirmed') return;
     ++readEpoch; review.value = null; reading.value = false;
-    state.value = { ...current, reviewRequired: true, failure: 'unconfirmed' };
+    state.value = { ...current, reviewRequired: manualReview.value, autoResolved: !manualReview.value, failure: 'unconfirmed' };
+    if (!manualReview.value) void autoResolve();
   }
+
+  /** Default resolution: re-read the saved record and rebase the draft on it.
+   * The original action is never replayed — a timeout is not proof of success. */
+  async function autoResolve(): Promise<void> {
+    const captured = state.value;
+    if (!captured || captured.reviewRequired || captured.busy || disposed || resolving) return;
+    resolving = true;
+    const token = captured.token;
+    try {
+      await readForReview();
+      if (disposed || state.value?.token !== token) return;
+      if (adoptReview()) {
+        const current = state.value;
+        if (current) state.value = { ...current, autoResolved: true, failure: null, message: '' };
+      }
+    } finally {
+      resolving = false;
+    }
+  }
+
   function dispose(): void { close(); disposed = true; }
   return { state, review, reading, readError, dirty, saveBlocked, canAdoptReview, open, close, change, save, remove, readForReview, adoptReview, requireRecoveryReview, dispose };
 }

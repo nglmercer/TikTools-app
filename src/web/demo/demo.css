@@ -65,7 +65,7 @@ html[data-demo-panel="connection"] .demo-toolbar__status { display:none; }
 .demo-toolbar__recovery { margin:8px 0 0; padding:8px 10px; border-left:2px solid var(--color-warning); background:var(--color-bg-panel); color:var(--color-text-muted); font-size:11px; line-height:1.6; }
 .demo-toolbar__limit { display:none; }
 .demo-toolbar__expected { margin-top:4px; color:var(--color-text-muted); font-size:11px; }
-.demo-toolbar__expected summary { cursor:pointer; width:max-content; max-width:100%; }
+.demo-toolbar__expected .base-disclosure__toggle { cursor:pointer; width:max-content; max-width:100%; }
 .demo-toolbar__expected p { margin:4px 0 0; max-width:100ch; line-height:1.6; }
 @media(min-width:851px) {
  .demo-toolbar { padding:10px 20px; }

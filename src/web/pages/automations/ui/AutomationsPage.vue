@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useAutomationHistory } from '@/widgets/automation-history-menu/model/use-automation-history.ts';
 import { useAutomationLibraryData } from '../model/use-automation-library-data.ts';
 import { useAutomationRecordSession } from '../model/use-automation-record-session.ts';
 import AutomationSheetToolbar from './AutomationSheetToolbar.vue';
@@ -14,16 +13,12 @@ import { useAutomationSyncAdapters } from '@/features/manage-automations/model/u
 import SyncButton from '@/features/sync-changes/ui/SyncButton.vue';
 import AutomationEditorReview from '@/features/edit-automation-record/ui/AutomationEditorReview.vue';
 import AutomationEditNotice from '@/features/edit-automation-record/ui/AutomationEditNotice.vue';
-import AutomationProposalReview from '@/features/review-automation-proposal/ui/AutomationProposalReview.vue';
-import AutomationApprovalReview from '@/features/review-automation-approval/ui/AutomationApprovalReview.vue';
 import RuntimeGlobalsEditor from '@/features/edit-runtime-globals/ui/RuntimeGlobalsEditor.vue';
 import { useVariableSyncAdapter } from '@/features/edit-runtime-globals/model/use-variable-sync-adapter.ts';
-import OwnerLibraryChanges from '@/features/recover-owner-library/ui/OwnerLibraryChanges.vue';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
-import OwnerDefinitionRecovery from '@/features/recover-owner-definition/ui/OwnerDefinitionRecovery.vue';
 import {
   isRecordSort,
   type RecordSort,
@@ -45,7 +40,6 @@ import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import { isLibraryTab, type LibraryArea, type LibraryExtraArea, type LibraryTab } from '@/widgets/automation-library/model/library-tab.ts';
-import AutomationHistoryMenu from '@/widgets/automation-history-menu/ui/AutomationHistoryMenu.vue';
 import AutomationLibrary from '@/widgets/automation-library/ui/AutomationLibrary.vue';
 import AutomationRunsPanel from '@/widgets/automation-runs/ui/AutomationRunsPanel.vue';
 
@@ -69,8 +63,6 @@ const eventQuery = ref(saved?.eventQuery ?? '');
 const actionQuery = ref(saved?.actionQuery ?? '');
 const eventSort = ref<RecordSort>(isRecordSort(saved?.eventSort) ? saved.eventSort : 'name');
 const actionSort = ref<RecordSort>(isRecordSort(saved?.actionSort) ? saved.actionSort : 'name');
-const proposalReviewOpen = ref(false);
-const approvalReviewOpen = ref(false);
 const pickerOpen = ref(false);
 const templatesOpen = ref(false);
 const templatesTab = ref<RuleTemplateTab>('templates');
@@ -98,12 +90,10 @@ const isNarrow = useMediaQuery('(width < 900px)');
 const session = useAutomationRecordSession(automation, { tab, area, selected }, library.state);
 const {
   editor, discardOpen, confirmDiscard, toggle, observedDefinitionState, reviewOpen,
-  editing, proposalTarget, proposalVersions, hostChanged, librarySelected, libraryTab,
+  editing, hostChanged, librarySelected, libraryTab,
   closeEditor, newEvent, newAction, saveEvent, saveAction, removeRecord, setEnabled,
-  compare, recoveredDefinition, useReviewedBase, switchProfile,
+  compare, useReviewedBase, switchProfile,
 } = session;
-const history = useAutomationHistory(automation, () => proposalTarget.value);
-const { historyItems, historyAttention, openHistory } = history;
 const snapshot = computed(() => automation.snapshot.value);
 const guideTaskState = () => {
   const owner = automation.sourceHost.value;
@@ -122,7 +112,7 @@ const { packs, events, actions, eventTypes, availableTypes, gifts, viewers } = u
 function onSheetKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || event.defaultPrevented) return;
   if (!isNarrow.value || !editing.value) return;
-  if (discardOpen.value || pickerOpen.value || templatesOpen.value || profileImportOpen.value || reviewOpen.value || proposalReviewOpen.value || approvalReviewOpen.value || toggle.open.value) return;
+  if (discardOpen.value || pickerOpen.value || templatesOpen.value || profileImportOpen.value || reviewOpen.value || toggle.open.value) return;
   closeEditor();
 }
 
@@ -210,43 +200,6 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
       >
         <IconPlus />
       </BaseIconButton>
-      <AutomationProposalReview
-        v-if="automation.persistent.value === true"
-        :ref="history.proposalReviewPanel"
-        v-model:open="proposalReviewOpen"
-        hide-triggers
-        :target="proposalTarget"
-        :host-versions="proposalVersions"
-      />
-      <OwnerDefinitionRecovery
-        v-if="automation.persistent.value === true || automation.sourceHost.value !== null"
-        :ref="history.definitionRecoveryPanel"
-        hide-triggers
-        :selection-key="`${tab}:${selected ?? ''}:${editor.state.value?.candidate.id ?? ''}`"
-        @recovered="recoveredDefinition"
-        @observed="observedDefinitionState = $event"
-      />
-      <OwnerLibraryChanges
-        v-if="automation.persistent.value !== false"
-        :ref="history.libraryPanel"
-        hide-triggers
-        :selection-key="`${tab}:${selected ?? ''}:${editor.state.value?.candidate.id ?? ''}`"
-        @recovered="recoveredDefinition"
-      />
-      <AutomationApprovalReview
-        v-if="automation.persistent.value === true"
-        :ref="history.approvalReviewPanel"
-        v-model:open="approvalReviewOpen"
-        hide-triggers
-        :target="proposalTarget"
-        :host-versions="proposalVersions"
-      />
-      <AutomationHistoryMenu
-        v-if="historyItems.length"
-        :items="historyItems"
-        :attention="historyAttention"
-        @select="openHistory"
-      />
       <span class="automations-page__spacer" />
       <HotkeyIndicator
         :plugins="snapshot.plugins"
@@ -340,8 +293,6 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
             v-if="isNarrow"
             :editing="editing"
             :automation="automation"
-            :proposal-target="proposalTarget"
-            :history="history"
             @close="closeEditor"
           />
           <div class="automations-page__sheet-body">

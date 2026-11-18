@@ -6,6 +6,8 @@ for (const locale of ['en', 'es'] as const) {
   test(`owner editor retains conflicts and reviews recreation (${locale})`, async ({ page }, info) => {
     if (locale === 'es') await page.setViewportSize({ width: 390, height: 844 });
     const state = emptyState();
+    // This spec exercises the opt-in advanced review flow.
+    state.appState['app.resolution.mode'] = 'manual';
     state.automationSnapshot = {
       actions: [{ schemaVersion: 2, id: 'same', name: 'Local action', enabled: false, typeId: 'core.log', config: { message: 'fixture only' } }],
       events: [{ schemaVersion: 1, id: 'same', name: 'Starting event', enabled: false, trigger: 'tiktok.chat', filters: [], cooldownMs: 0, cooldownScope: 'user', runMode: 'all', actionIds: ['same'] }],
@@ -30,9 +32,23 @@ for (const locale of ['en', 'es'] as const) {
     const failed = await readHostState(page);
     expect(failed.calls.find((r) => r.method === 'automation.update')?.meta?.['expectedRevision']).toBe('1');
     await page.getByRole('button', { name: locale === 'en' ? 'Compare with host' : 'Comparar con el anfitrión', exact: true }).click();
-    const dialog = page.getByRole('dialog').filter({ has: page.locator('.automation-review') });
-    await expect(dialog.locator('pre')).toHaveCount(3);
-    await expect(dialog).toContainText('Starting event'); await expect(dialog).toContainText('My retained draft'); await expect(dialog).toContainText('Host changed name');
+    const dialog = page.getByRole('dialog').filter({ has: page.locator('.review-table') });
+    await expect(dialog.locator('tbody tr')).toHaveCount(5);
+    const labels = locale === 'en'
+      ? ['Starting version', 'Your draft', 'Current host version'] as const
+      : ['Versión inicial', 'Tu borrador', 'Versión actual del anfitrión'] as const;
+    for (const label of labels) await expect(dialog).toContainText(label);
+    const closeLabel = locale === 'en' ? 'Close' : 'Cerrar';
+    const sourceButtons = dialog.locator('.review-table__action');
+    for (const index of [0, 1, 2]) {
+      await sourceButtons.nth(index).click();
+      const source = page.locator('.review-source-dialog');
+      await expect(source).toBeVisible();
+      await source.getByRole('button', { name: closeLabel }).click();
+    }
+    await sourceButtons.nth(2).click();
+    await expect(page.locator('.review-source-dialog')).toContainText('Host changed name');
+    await page.locator('.review-source-dialog').getByRole('button', { name: closeLabel }).click();
     expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
     for (const button of await dialog.locator('.base-dialog__footer .base-button__label').all()) {
       expect(await button.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);

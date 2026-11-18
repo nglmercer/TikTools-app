@@ -1,4 +1,5 @@
-import { describe, expect, test, vi } from 'vitest';
+import { resetResolutionPreference } from '@/features/review-shared/model/resolution-preference.ts';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import type { AutomationRecordVersion } from '@/entities/automation/model/record-versions.ts';
@@ -18,6 +19,8 @@ function gateway(): AutomationEditorGateway {
 }
 
 describe('automation editor base and outcome fencing', () => {
+  beforeEach(() => resetResolutionPreference('manual'));
+  afterEach(() => resetResolutionPreference('automatic'));
   test('two editors retain their opening revision: one wins and the other preserves its candidate', async () => {
     let current = { record: action, revision: '1' };
     const host = gateway();
@@ -155,5 +158,27 @@ describe('automation editor base and outcome fencing', () => {
     expect(host.save).not.toHaveBeenCalled();
     editor.open('event', event, null, true); await editor.save();
     expect(host.save).toHaveBeenCalledWith('event', event, { revision: null, create: true });
+  });
+});
+
+describe('automatic resolution (default)', () => {
+  beforeEach(() => resetResolutionPreference('automatic'));
+  afterEach(() => resetResolutionPreference('automatic'));
+
+  test('rebases a conflicting draft on the current record without a review gate or a replay', async () => {
+    let current = { record: action, revision: '1' };
+    const host = gateway();
+    host.read = vi.fn(async () => current);
+    host.save = vi.fn(async () => {
+      current = { record: { ...action, name: 'Host saved' }, revision: '2' };
+      throw new ControlCallError('revision_conflict', 'Host changed');
+    });
+    const editor = useAutomationEditor(host);
+    editor.open('action', action, '1');
+    editor.change({ ...action, name: 'My draft' });
+    await editor.save();
+    await vi.waitFor(() => expect(editor.state.value?.autoResolved).toBe(true));
+    expect(editor.state.value).toMatchObject({ reviewRequired: false, revision: '2', candidate: { name: 'My draft' } });
+    expect(host.save).toHaveBeenCalledTimes(1);
   });
 });
