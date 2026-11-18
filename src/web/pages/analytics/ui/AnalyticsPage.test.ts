@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -10,6 +11,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AnalyticsPage from './AnalyticsPage.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 beforeEach(() => {
   localStorage.clear();
@@ -95,7 +97,7 @@ describe('AnalyticsPage', () => {
     await wrapper.findAll('.base-segmented__option')[0]!.trigger('click');
     await flushPromises();
     expect(calls.at(-1)?.params).toMatchObject({ startDay: today, endDay: today });
-    expect(wrapper.text()).toContain('Today timeline');
+    expect(wrapper.text()).toContain(t('analytics.activity.today'));
   });
 
   it('filters contributors from the panel search', async () => {
@@ -106,7 +108,7 @@ describe('AnalyticsPage', () => {
 
   it('explains when there is no data', async () => {
     const { wrapper } = await mountPage(false);
-    expect(wrapper.text()).toContain('No analytics yet');
+    expect(wrapper.text()).toContain(t('analytics.empty.title'));
     expect(wrapper.find('.kpi-strip').exists()).toBe(false);
   });
 });

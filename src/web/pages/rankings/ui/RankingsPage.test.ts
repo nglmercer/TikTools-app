@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake-control-client.ts';
@@ -5,6 +6,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import RankingsPage from './RankingsPage.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 const definition = { schemaVersion: 1, id: 'top', creatorId: 'creator', roomId: 'room', groupBy: 'user', window: { type: 'session' }, sources: [{ source: 'tiktok.like', metric: 'like.count', weight: 1, enabled: true }], limit: 10, capacity: 100000 };
 const snapshot = { rankingId: 'top', schemaVersion: 1, creatorId: 'creator', roomId: 'room', revision: 1, integrityStatus: 'unknown', paused: false, entries: [{ key: '42', label: 'Alice', rank: 1, score: 5 }], totalScore: 5, totalParticipants: 1 };
 async function setup(paused = false) {
@@ -65,7 +67,7 @@ describe('rankings management', () => {
     await inputs[0]!.setValue('new-rank');
     await inputs[1]!.setValue('creator');
     await inputs[2]!.setValue('room');
-    await button(wrapper, 'Add metric').trigger('click');
+    await button(wrapper, t('rankingsPage.form.addMetric')).trigger('click');
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(calls.find((call) => call.method === 'rankings.create')?.params).toMatchObject({ id: 'new-rank', creatorId: 'creator', roomId: 'room', sources: [{ source: 'tiktok.like', metric: 'like.count', weight: 1, enabled: true }] });
@@ -74,8 +76,8 @@ describe('rankings management', () => {
     const { wrapper, calls } = await setup(true);
     await wrapper.get('[data-item="top"]').trigger('click');
     await flushPromises();
-    await button(wrapper, 'Edit definition').trigger('click');
-    const topEntries = wrapper.findAll('label').find((label) => label.text().startsWith('Top entries'))!;
+    await button(wrapper, t('rankingsPage.detail.edit')).trigger('click');
+    const topEntries = wrapper.findAll('label').find((label) => label.text().startsWith(t('rankingsPage.form.topEntries')))!;
     await wrapper.get(`input[id="${topEntries.attributes('for')}"]`).setValue(5);
     await wrapper.get('form').trigger('submit'); await flushPromises();
     expect(calls.find((call) => call.method === 'rankings.update')?.params).toEqual({ definition: { ...definition, limit: 5 }, reset: false });
@@ -85,8 +87,8 @@ describe('rankings management', () => {
     await button(wrapper, 'New ranking').trigger('click');
     const inputs = wrapper.findAll('input');
     await inputs[0]!.setValue('limited'); await inputs[1]!.setValue('creator'); await inputs[2]!.setValue('room');
-    await button(wrapper, 'Add metric').trigger('click');
-    await wrapper.findAll('label').find((label) => label.text().includes('Limit contributions per user'))!.get('input').setValue(true);
+    await button(wrapper, t('rankingsPage.form.addMetric')).trigger('click');
+    await wrapper.findAll('label').find((label) => label.text().includes(t('rankingsPage.form.limitUsers')))!.get('input').setValue(true);
     const maximum = wrapper.findAll('label').find((label) => label.text().startsWith('Maximum contributions'))!;
     await wrapper.get(`input[id="${maximum.attributes('for')}"]`).setValue(3);
     const cooldown = wrapper.findAll('label').find((label) => label.text().startsWith('Cooldown per user'))!;
@@ -101,8 +103,8 @@ describe('rankings management', () => {
     await inputs[0]!.setValue('gifts'); await inputs[1]!.setValue('creator'); await inputs[2]!.setValue('room');
     const metric = wrapper.findAll('select').find((item) => item.find(`option[value='${JSON.stringify(['tiktok.gift', 'gift.diamonds'])}']`).exists())!;
     await metric.setValue(JSON.stringify(['tiktok.gift', 'gift.diamonds']));
-    await button(wrapper, 'Add metric').trigger('click');
-    await button(wrapper, 'Add gift override').trigger('click');
+    await button(wrapper, t('rankingsPage.form.addMetric')).trigger('click');
+    await button(wrapper, t('rankingsPage.form.addGiftOverride')).trigger('click');
     const giftId = wrapper.get('.gift-rule label').attributes('for');
     await wrapper.get(`input[id="${giftId}"]`).setValue('42');
     await wrapper.find('.gift-rule input[type="number"]').setValue(3);

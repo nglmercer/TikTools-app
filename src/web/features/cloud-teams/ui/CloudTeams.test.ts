@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
@@ -8,6 +9,7 @@ import CloudTeams from './CloudTeams.vue';
 import TeamAccessForms from './TeamAccessForms.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 afterEach(async () => { await activateLocale('en'); });
 
 const team = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
@@ -39,9 +41,9 @@ describe('CloudTeams', () => {
     await flushPromises();
     const text = wrapper.text();
     expect(text).toContain('Invitations');
-    expect(text).toContain('Join requests');
-    expect(text).toContain('Grants');
-    expect(text).toContain('Open sessions');
+    expect(text).toContain(t('cloudTeams.requests'));
+    expect(text).toContain(t('cloudTeams.grants'));
+    expect(text).toContain(t('cloudTeams.sessions'));
   });
 });
 
@@ -61,6 +63,6 @@ it('restores the session before loading teams and offers a contextual setup guid
   const wrapper = mountWithPlugins(CloudTeams, { global: { plugins: storePlugins(client) } });
   await flushPromises();
   expect(calls.findIndex(call => call.method === 'cloud.restore')).toBeLessThan(calls.findIndex(call => call.method === 'teams.hosts.list'));
-  expect(wrapper.getComponent(GuideButton).props('steps')?.[0]?.description).toBe('Create or select a team below.');
+  expect(wrapper.getComponent(GuideButton).props('steps')?.[0]?.description).toBe(t('cloudTeams.guideSteps.createTeam'));
   expect(wrapper.get('[aria-label="Show guide"]').text()).toBe('?');
 });

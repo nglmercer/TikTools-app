@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent } from 'vue';
@@ -10,6 +11,7 @@ import SettingsPage from './SettingsPage.vue';
 import { collaborationStatus, emptyCollaborationPage } from '@/shared/lib/testing/collaboration.ts';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 /** Every Cloud feature the host can announce; none of them may surface inside Settings except teams. */
 const announced = ['teams.hosts.list', 'integrations.connections', 'bundles.packages.preflight', 'bundles.overlays.create', 'catalog.items'];
@@ -45,14 +47,14 @@ describe('SettingsPage', () => {
     const { wrapper } = await mountPage();
     expect(selectedTab(wrapper)).toBe('General');
     expect(wrapper.get('legend').text()).toBe('Language');
-    expect((wrapper.get('#settings-language').element as HTMLInputElement).value).toBe('English');
+    expect((wrapper.get('#settings-language').element as HTMLInputElement).value).toBe(t('menu.languages.en'));
     expect(wrapper.find('#app-update-automatic[role=switch]').exists()).toBe(true);
     expect(wrapper.get('#app-update-automatic').attributes('aria-label')).toBeTruthy();
   });
 
   it('lists only application-level sections as icon and label, without subtitles or a repeated heading', async () => {
     const { wrapper } = await mountPage();
-    expect(tabNames(wrapper)).toEqual(['General', 'Account & Cloud', 'Collaboration']);
+    expect(tabNames(wrapper)).toEqual(['General', t('settingsLayout.labels.account'), 'Collaboration']);
     expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(3);
     expect(wrapper.find('h1, small, select').exists()).toBe(false);
   });
@@ -68,9 +70,9 @@ describe('SettingsPage', () => {
 
   it('keeps the account, sync and diagnostics together in Account & Cloud', async () => {
     const { wrapper } = await mountPage('?section=account');
-    expect(selectedTab(wrapper)).toBe('Account & Cloud');
+    expect(selectedTab(wrapper)).toBe(t('settingsLayout.labels.account'));
     expect(wrapper.findAll('legend').length).toBeGreaterThanOrEqual(2);
-    expect(wrapper.text()).toContain('Cloud session details');
+    expect(wrapper.text()).toContain(t('settingsLayout.diagnostics'));
   });
 
   it('no longer hosts the areas that moved to their own pages', async () => {
@@ -79,8 +81,8 @@ describe('SettingsPage', () => {
       expect(wrapper.find('.plugin-update-policy, #plugin-update-policy-channel').exists()).toBe(false);
       expect(wrapper.find('.globals-editor').exists()).toBe(false);
       expect(wrapper.find('.cloud-overlays, .cloud-bundles, .cloud-connections').exists()).toBe(false);
-      expect(wrapper.text()).not.toContain('Allow local package installation');
-      expect(wrapper.text()).not.toContain('Runtime variables');
+      expect(wrapper.text()).not.toContain(t('packages.sources.allowSideload'));
+      expect(wrapper.text()).not.toContain(t('settingsLayout.variables'));
     }
   });
 
@@ -96,7 +98,7 @@ describe('SettingsPage', () => {
     expect(without.wrapper.find('.cloud-teams').exists()).toBe(false);
     const withTeams = await mountPage('?section=collaboration', ['teams.hosts.list']);
     expect(withTeams.wrapper.find('.cloud-teams').exists()).toBe(false);
-    await withTeams.wrapper.findAll('[role="tab"]').find(tab => tab.text() === 'Teams')!.trigger('click');
+    await withTeams.wrapper.findAll('[role="tab"]').find(tab => tab.text() === t('cloudTeams.title'))!.trigger('click');
     await flushPromises();
     expect(withTeams.router.currentRoute.value.query.section).toBe('teams');
     expect(withTeams.wrapper.find('.cloud-teams').exists()).toBe(true);
@@ -109,7 +111,7 @@ describe('SettingsPage', () => {
     await wrapper.get('#settings-language').trigger('click');
     await flushPromises();
     Array.from(document.querySelectorAll<HTMLElement>('[role="option"]'))
-      .find((option) => option.querySelector('.base-search-select__label')?.textContent?.trim() === 'Español')
+      .find((option) => option.querySelector('.base-search-select__label')?.textContent?.trim() === t('menu.languages.es'))
       ?.click();
     await vi.waitFor(() => expect(i18n.global.locale.value).toBe('es'));
     expect(localStorage.getItem('tiktok-live-locale')).toBe('es');
@@ -120,6 +122,6 @@ describe('SettingsPage', () => {
 
 it('keeps synchronization controls out of account settings', async () => {
   const { wrapper } = await mountPage('?section=account');
-  expect(wrapper.text()).not.toContain('Sync plugin selections');
+  expect(wrapper.text()).not.toContain(t('sync.toggle'));
   expect(wrapper.findComponent({ name: 'CloudSyncEditor' }).exists()).toBe(false);
 });

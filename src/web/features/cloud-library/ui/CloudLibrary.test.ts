@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
@@ -194,23 +196,23 @@ describe('CloudLibrary', () => {
 
     it('opens the owner review without leaving the library, and shows the result only after the owner confirms', async () => {
       const f = await ownerLibrary();
-      await button(f.wrapper, 'Import into library').trigger('click'); await flushPromises();
+      await button(f.wrapper, t('cloudLibrary.import')).trigger('click'); await flushPromises();
       expect(f.journal.draft.value?.provenance).toMatchObject({ origin: 'https://cloud.example', accountId: 'alice', documentId: firstId, revision: '9007199254740993', sha256: 'a'.repeat(64) });
-      expect(f.wrapper.text()).not.toContain('Imported into the library.');
-      expect(button(f.wrapper, 'Import into library').attributes('disabled')).toBeDefined();
+      expect(f.wrapper.text()).not.toContain(t('cloudLibrary.staged'));
+      expect(button(f.wrapper, t('cloudLibrary.import')).attributes('disabled')).toBeDefined();
       expect(f.calls.filter((call) => call.method === 'cloudLibrary.read')).toHaveLength(1);
       await f.journal.confirm(); await flushPromises();
-      expect(f.wrapper.text()).toContain('Imported into the library.');
-      expect(button(f.wrapper, 'Import into library').attributes('disabled')).toBeUndefined();
+      expect(f.wrapper.text()).toContain(t('cloudLibrary.staged'));
+      expect(button(f.wrapper, t('cloudLibrary.import')).attributes('disabled')).toBeUndefined();
       expect(f.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
       f.wrapper.unmount();
     });
 
     it('frees the import when the review is discarded and reports no error', async () => {
       const f = await ownerLibrary();
-      await button(f.wrapper, 'Import into library').trigger('click'); await flushPromises();
+      await button(f.wrapper, t('cloudLibrary.import')).trigger('click'); await flushPromises();
       f.journal.dismiss(); await flushPromises();
-      expect(button(f.wrapper, 'Import into library').attributes('disabled')).toBeUndefined();
+      expect(button(f.wrapper, t('cloudLibrary.import')).attributes('disabled')).toBeUndefined();
       expect(f.wrapper.find('[role="alert"]').exists()).toBe(false);
       expect(f.calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
       f.wrapper.unmount();
@@ -220,7 +222,7 @@ describe('CloudLibrary', () => {
       let release!: () => void;
       const held = new Promise<void>((resolve) => { release = resolve; });
       const f = await ownerLibrary({ snapshot: held });
-      await button(f.wrapper, 'Import into library').trigger('click'); await flushPromises();
+      await button(f.wrapper, t('cloudLibrary.import')).trigger('click'); await flushPromises();
       f.account.working = true;
       f.account.status = { origin: 'https://cloud.example', state: 'signed-in', accountId: 'bob', persistence: 'memory-only' };
       f.account.working = false;

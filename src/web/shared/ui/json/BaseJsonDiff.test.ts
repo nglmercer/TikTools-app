@@ -1,9 +1,11 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import BaseJsonDiff from './BaseJsonDiff.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const before = { id: 'a', name: 'Old name', enabled: true, tags: ['x'] };
 const after = { id: 'a', name: 'New name', enabled: true, tags: ['x', 'y'] };
@@ -16,9 +18,9 @@ describe('BaseJsonDiff unified', () => {
     expect(removed).toHaveLength(2);
     expect(added).toHaveLength(3);
     expect(removed[0]!.get('.base-json-diff__marker').text()).toContain('-');
-    expect(removed[0]!.get('.base-json-diff__marker').text()).toContain('Removed line');
+    expect(removed[0]!.get('.base-json-diff__marker').text()).toContain(t('jsonView.lineRemoved'));
     expect(added[0]!.get('.base-json-diff__marker').text()).toContain('+');
-    expect(added[0]!.get('.base-json-diff__marker').text()).toContain('Added line');
+    expect(added[0]!.get('.base-json-diff__marker').text()).toContain(t('jsonView.lineAdded'));
     const numbers = removed[0]!.findAll('.base-json-diff__number').map((n) => n.text());
     expect(numbers).toEqual(['3', '']);
     expect(added[0]!.findAll('.base-json-diff__number').map((n) => n.text())).toEqual(['', '3']);
@@ -62,7 +64,7 @@ describe('BaseJsonDiff unified', () => {
 
   it('says so when nothing differs and offers the content behind a fold', () => {
     const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before: { a: [1, 2, 3, 4, 5, 6] }, after: { a: [1, 2, 3, 4, 5, 6] } } });
-    expect(wrapper.text()).toContain('No differences');
+    expect(wrapper.text()).toContain(t('jsonView.noChanges'));
     expect(wrapper.findAll('.base-json-diff__line--added, .base-json-diff__line--removed')).toHaveLength(0);
   });
 
@@ -80,7 +82,7 @@ describe('BaseJsonDiff unified', () => {
     });
     const region = wrapper.get('[role="region"]');
     expect(region.attributes('tabindex')).toBe('0');
-    expect(region.attributes('aria-label')).toBe('JSON changes');
+    expect(region.attributes('aria-label')).toBe(t('jsonView.diffRegion'));
     expect(region.attributes('style')).toContain('20rem');
     expect(wrapper.text()).toContain('only the first part is shown');
   });
@@ -88,7 +90,7 @@ describe('BaseJsonDiff unified', () => {
 
 describe('BaseJsonDiff side by side', () => {
   it('pairs old and new lines in two columns with their own numbers and headings', () => {
-    const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before, after, layout: 'side-by-side', beforeLabel: 'Base', afterLabel: 'Cloud', context: 10 } });
+    const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before, after, layout: 'side-by-side', beforeLabel: t('syncChanges.base'), afterLabel: 'Cloud', context: 10 } });
     expect(wrapper.get('.base-json-diff__heads').text()).toBe('BaseCloud');
     const changed = wrapper.findAll('.base-json-diff__split').find((row) => row.text().includes('Old name'))!;
     const halves = changed.findAll('.base-json-diff__half');

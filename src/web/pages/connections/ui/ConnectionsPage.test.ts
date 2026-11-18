@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
@@ -10,6 +11,7 @@ import type { ConnectionStatus, LiveChannel } from '@/types.ts';
 import ConnectionsPage from './ConnectionsPage.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 beforeEach(() => {
   localStorage.clear();
@@ -24,7 +26,7 @@ async function mountPage(status: ConnectionStatus = 'idle', announce: string[] =
   const { client, calls } = createFakeControlClient((method) => {
     if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
     if (method === 'integrations.connections') return { items: [] };
-    if (method === 'live.channels') return { rooms, fetchedAt: Date.now(), source: 'test' };
+    if (method === 'live.channels') return { rooms, fetchedAt: Date.now(), source: t('automations.runs.testBadge') };
     if (method === 'live.connect' || method === 'live.pick') return { connected: true, uniqueId: 'luna', roomId: '1', connectionId: 'c', native: true };
     return {};
   });
@@ -119,8 +121,8 @@ describe('ConnectionsPage', () => {
 
   it('points to plugins when no server connection exists', async () => {
     const { wrapper } = await mountPage();
-    expect(wrapper.text()).toContain('No server connections yet');
-    expect(buttonByText(wrapper, 'Open plugins').exists()).toBe(true);
+    expect(wrapper.text()).toContain(t('connections.servers.emptyTitle'));
+    expect(buttonByText(wrapper, t('connections.servers.openPlugins')).exists()).toBe(true);
   });
 
   it('keeps Cloud webhooks inside the bottom panel and out of the page otherwise', async () => {
@@ -134,7 +136,7 @@ describe('ConnectionsPage', () => {
     await flushPromises();
     const servers = announced.wrapper.get('.connections-page__servers');
     expect(servers.find('.cloud-connections').exists()).toBe(true);
-    expect(servers.get('.base-panel__title').text()).toBe('Webhooks');
+    expect(servers.get('.base-panel__title').text()).toBe(t('connections.tabs.webhooks'));
     // The same panel switched area: no third panel was stacked.
     expect(announced.wrapper.findAll('.base-panel')).toHaveLength(panels);
     expect(announced.calls.some((call) => call.method === 'integrations.connections')).toBe(true);

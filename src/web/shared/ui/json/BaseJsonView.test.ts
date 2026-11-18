@@ -1,11 +1,13 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import BaseJsonView from './BaseJsonView.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
-const value = { name: 'Gift alert', enabled: true, count: 3, none: null, list: [1, { deep: 'x' }], empty: {} };
+const value = { name: t('overlays.kinds.gift.name'), enabled: true, count: 3, none: null, list: [1, { deep: 'x' }], empty: {} };
 const pretty = JSON.stringify(value, null, 2);
 
 describe('BaseJsonView code mode', () => {
@@ -29,10 +31,10 @@ describe('BaseJsonView code mode', () => {
     const wrapper = mountWithPlugins(BaseJsonView, { props: { value, maxHeight: '12rem' } });
     const region = wrapper.get('[role="region"]');
     expect(region.attributes('tabindex')).toBe('0');
-    expect(region.attributes('aria-label')).toBe('JSON document');
+    expect(region.attributes('aria-label')).toBe(t('jsonView.region'));
     expect(region.attributes('style')).toContain('--base-json-max-height: 12rem');
-    const custom = mountWithPlugins(BaseJsonView, { props: { value, label: 'Saved source', maxHeight: 200 } });
-    expect(custom.get('[role="region"]').attributes('aria-label')).toBe('Saved source');
+    const custom = mountWithPlugins(BaseJsonView, { props: { value, label: t('automationProposal.source'), maxHeight: 200 } });
+    expect(custom.get('[role="region"]').attributes('aria-label')).toBe(t('automationProposal.source'));
     expect(custom.get('[role="region"]').attributes('style')).toContain('200px');
   });
 

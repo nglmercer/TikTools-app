@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ControlCallError } from '@/shared/api/control-client.ts';
@@ -9,6 +10,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import ExploreList from './ExploreList.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const imports = vi.hoisted(() => ({ importTemplate: vi.fn(), importProfile: vi.fn() }));
 vi.mock('@/entities/cloud-bundles/model/use-library-import.ts', () => ({ useLibraryImport: () => imports }));
@@ -56,11 +58,11 @@ const rowTitles = (wrapper: Awaited<ReturnType<typeof mountList>>['wrapper']) =>
 describe('ExploreList', () => {
   it('renders plugins, templates and profiles as rows with their own action', async () => {
     const { wrapper, calls } = await mountList(() => ({
-      items: [wire('plugin', 'acme.tts', 'Acme TTS'), wire('template', 'tpl-1', 'Gift alert'), wire('profile', 'prof-1', 'Starter pack')],
+      items: [wire('plugin', 'acme.tts', 'Acme TTS'), wire('template', 'tpl-1', t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')],
       nextCursor: null,
     }));
     expect(calls.find((call) => call.method === 'catalog.items')?.params).toMatchObject({ limit: 25 });
-    expect(rowTitles(wrapper)).toEqual(['Acme TTS', 'Gift alert', 'Starter pack']);
+    expect(rowTitles(wrapper)).toEqual(['Acme TTS', t('overlays.kinds.gift.name'), 'Starter pack']);
     const [plugin, template, profile] = wrapper.findAll('.explore-list__row');
     expect(plugin!.get('[role="img"]').attributes('aria-label')).toBe('Plugin');
     expect(template!.get('[role="img"]').attributes('aria-label')).toBe('Template');
@@ -94,8 +96,8 @@ describe('ExploreList', () => {
   });
 
   it('does not repeat plugins the page already lists itself', async () => {
-    const { wrapper } = await mountList(() => ({ items: [wire('plugin', 'bundled.tts', 'Bundled'), wire('template', 'bundled.tts', 'Same id template')], nextCursor: null }));
-    expect(rowTitles(wrapper)).toEqual(['Bundled', 'Same id template']);
+    const { wrapper } = await mountList(() => ({ items: [wire('plugin', 'bundled.tts', t('plugins.catalog.bundled')), wire('template', 'bundled.tts', 'Same id template')], nextCursor: null }));
+    expect(rowTitles(wrapper)).toEqual([t('plugins.catalog.bundled'), 'Same id template']);
     await wrapper.setProps({ hiddenIds: new Set(['bundled.tts']) });
     expect(rowTitles(wrapper)).toEqual(['Same id template']);
   });
@@ -103,7 +105,7 @@ describe('ExploreList', () => {
   it('imports a template or a profile through the single library import', async () => {
     imports.importTemplate.mockResolvedValue(undefined);
     imports.importProfile.mockResolvedValue(undefined);
-    const { wrapper } = await mountList(() => ({ items: [wire('template', 'tpl-1', 'Gift alert'), wire('profile', 'prof-1', 'Starter pack')], nextCursor: null }));
+    const { wrapper } = await mountList(() => ({ items: [wire('template', 'tpl-1', t('overlays.kinds.gift.name')), wire('profile', 'prof-1', 'Starter pack')], nextCursor: null }));
     await wrapper.get('button[aria-label="Import template Gift alert"]').trigger('click');
     await flushPromises();
     expect(imports.importTemplate).toHaveBeenCalledWith({ id: 'tpl-1', revision: 3 });
@@ -115,10 +117,10 @@ describe('ExploreList', () => {
 
   it('asks to sign in when the import needs an account', async () => {
     imports.importTemplate.mockRejectedValue(new ControlCallError('signed_out', 'not signed in'));
-    const { wrapper } = await mountList(() => ({ items: [wire('template', 'tpl-1', 'Gift alert')], nextCursor: null }));
+    const { wrapper } = await mountList(() => ({ items: [wire('template', 'tpl-1', t('overlays.kinds.gift.name'))], nextCursor: null }));
     await wrapper.get('button[aria-label="Import template Gift alert"]').trigger('click');
     await flushPromises();
-    expect(wrapper.text()).toContain('Sign in to Cloud to import this.');
+    expect(wrapper.text()).toContain(t('exploreCatalog.signInToImport'));
   });
 
   describe('when the backend is not available', () => {
@@ -128,7 +130,7 @@ describe('ExploreList', () => {
         if (!healthy) throw new ControlCallError('unavailable', 'cloud down', { cloud: { code: 'offline' } });
         return { items: [wire('plugin', 'acme.tts', 'Acme TTS')], nextCursor: null };
       });
-      expect(wrapper.text()).toContain('The Cloud catalog is not available');
+      expect(wrapper.text()).toContain(t('exploreCatalog.unavailable'));
       expect(wrapper.text()).toContain('The PC is offline');
       expect(wrapper.text()).not.toMatch(/marketplace/i);
       expect(wrapper.find('.explore-list__row').exists()).toBe(false);
@@ -143,7 +145,7 @@ describe('ExploreList', () => {
       const { wrapper } = await mountList(() => {
         throw new ControlCallError('unavailable', 'no session', { cloud: { code: 'unauthorized' } });
       });
-      expect(wrapper.text()).toContain('Sign in to Cloud again.');
+      expect(wrapper.text()).toContain(t('cloudFailure.unauthorized'));
       expect(wrapper.find('button[aria-label="Sign in to Cloud"]').exists()).toBe(true);
     });
   });
@@ -151,24 +153,24 @@ describe('ExploreList', () => {
   describe('when no plugin registry is active', () => {
     it('says nothing is published yet when there is nothing at all', async () => {
       const { wrapper } = await mountList(() => ({ items: [], nextCursor: null, dataState: 'noActiveGeneration' }));
-      expect(wrapper.text()).toContain('Nothing published yet');
+      expect(wrapper.text()).toContain(t('exploreCatalog.nothingPublished'));
       expect(wrapper.text()).not.toContain('not available');
       expect(wrapper.find('button[aria-label="Try again"]').exists()).toBe(false);
     });
 
     it('still renders templates and profiles, with a neutral note for the plugins', async () => {
       const { wrapper } = await mountList(() => ({
-        items: [wire('template', 'tpl-1', 'Gift alert')], nextCursor: null, dataState: 'noActiveGeneration',
+        items: [wire('template', 'tpl-1', t('overlays.kinds.gift.name'))], nextCursor: null, dataState: 'noActiveGeneration',
       }));
-      expect(rowTitles(wrapper)).toEqual(['Gift alert']);
-      expect(wrapper.text()).toContain('No plugins are published yet.');
+      expect(rowTitles(wrapper)).toEqual([t('overlays.kinds.gift.name')]);
+      expect(wrapper.text()).toContain(t('exploreCatalog.noPlugins'));
       expect(wrapper.text()).not.toContain('not available');
     });
 
     it('a ready catalog with no results is a plain empty state', async () => {
       const { wrapper } = await mountList(() => ({ items: [], nextCursor: null, dataState: 'ready' }));
       expect(wrapper.text()).toContain('No results');
-      expect(wrapper.text()).not.toContain('Nothing published yet');
+      expect(wrapper.text()).not.toContain(t('exploreCatalog.nothingPublished'));
     });
   });
 
@@ -182,7 +184,7 @@ describe('ExploreList', () => {
     await stale;
     await flushPromises();
     expect(rowTitles(wrapper)).toEqual(['New plugin']);
-    expect(wrapper.text()).not.toContain('No plugins are published yet.');
+    expect(wrapper.text()).not.toContain(t('exploreCatalog.noPlugins'));
     expect(wrapper.find('button[aria-label="Load more"]').exists()).toBe(false);
   });
 

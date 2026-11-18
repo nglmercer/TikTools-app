@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
@@ -11,6 +12,7 @@ import type { ConnectionStatus } from '@/types.ts';
 import PointsPage from './PointsPage.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 beforeEach(() => {
   localStorage.clear();
@@ -63,16 +65,16 @@ describe('PointsPage', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]!.text()).toContain('#1');
     expect(rows[0]!.text()).toContain('@luna');
-    expect(rows[0]!.text()).toContain('SUB');
+    expect(rows[0]!.text()).toContain(t('points.leaderboard.subscriber'));
     expect(wrapper.findAll('th').map((th) => th.text())).toContain('Points');
     expect(wrapper.text()).toContain('2 viewers');
   });
 
   it('saves edited rules and disables saving until something changes', async () => {
     const { wrapper, calls } = await mountPage();
-    expect(button(wrapper, 'Save rules').attributes('disabled')).toBeDefined();
+    expect(button(wrapper, t('points.rules.save')).attributes('disabled')).toBeDefined();
     await wrapper.get('#points-currency').setValue('Gems');
-    await button(wrapper, 'Save rules').trigger('click');
+    await button(wrapper, t('points.rules.save')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'points.config.set')?.params).toMatchObject({ currencyName: 'Gems' });
     expect(wrapper.findAll('th').map((th) => th.text())).toContain('Gems');
@@ -82,7 +84,7 @@ describe('PointsPage', () => {
     const { wrapper, calls } = await mountPage(status);
     expect(wrapper.get('#points-currency').attributes('disabled')).toBeUndefined();
     await wrapper.get('#points-currency').setValue('Live Gems');
-    await button(wrapper, 'Save rules').trigger('click');
+    await button(wrapper, t('points.rules.save')).trigger('click');
     await flushPromises();
     expect(calls.filter((call) => call.method === 'points.config.set')).toHaveLength(1);
     expect(calls.find((call) => call.method === 'points.config.set')?.params).toMatchObject({ currencyName: 'Live Gems' });
@@ -93,9 +95,9 @@ describe('PointsPage', () => {
 
   it('reloads clean rules from the store and preserves unsaved edits', async () => {
     const { wrapper, store } = await mountPage('connected');
-    store.pointsConfig = { ...store.pointsConfig, currencyName: 'Coins' };
+    store.pointsConfig = { ...store.pointsConfig, currencyName: t('feed.profile.stats.coins') };
     await nextTick();
-    expect((wrapper.get('#points-currency').element as HTMLInputElement).value).toBe('Coins');
+    expect((wrapper.get('#points-currency').element as HTMLInputElement).value).toBe(t('feed.profile.stats.coins'));
     await wrapper.get('#points-currency').setValue('Draft Gems');
     store.pointsConfig = { ...store.pointsConfig, currencyName: 'Stars' };
     await nextTick();
@@ -108,10 +110,10 @@ describe('PointsPage', () => {
     const { wrapper, calls } = await mountPage();
     await wrapper.get('button[aria-label="Actions for @mango"]').trigger('click');
     await nextTick();
-    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) => item.textContent?.includes('Deduct points'))!.click();
+    Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) => item.textContent?.includes(t('points.adjust.confirmDeduct')))!.click();
     await flushPromises();
     expect(document.querySelector('dialog h2')?.textContent).toContain('@mango');
-    documentButton('Deduct points').click();
+    documentButton(t('points.adjust.confirmDeduct')).click();
     await flushPromises();
     expect(calls.at(-1)).toEqual({ method: 'points.adjust', params: { uniqueId: 'mango', delta: -50 } });
   });

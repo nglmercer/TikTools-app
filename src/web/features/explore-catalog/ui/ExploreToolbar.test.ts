@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCatalogStore } from '@/entities/catalog/model/catalog-store.ts';
@@ -7,6 +8,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import ExploreToolbar from './ExploreToolbar.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -28,10 +30,10 @@ const queries = (calls: { method: string; params?: unknown }[]) =>
 describe('ExploreToolbar', () => {
   it('has a search box and one toggle per kind and for the own library, all with accessible names', async () => {
     const { wrapper } = await mountToolbar();
-    expect(wrapper.get('input[type="search"]').attributes('aria-label')).toBe('Search the Cloud catalog…');
+    expect(wrapper.get('input[type="search"]').attributes('aria-label')).toBe(t('exploreCatalog.search'));
     const group = wrapper.get('[role="group"]');
     expect(group.attributes('aria-label')).toBe('Show');
-    expect(group.findAll('button').map((button) => button.attributes('aria-label'))).toEqual(['Plugins', 'Templates', 'Profiles', 'My library']);
+    expect(group.findAll('button').map((button) => button.attributes('aria-label'))).toEqual(['Plugins', 'Templates', 'Profiles', t('exploreCatalog.mine')]);
     expect(group.findAll('button').every((button) => button.attributes('aria-pressed') === 'false')).toBe(true);
   });
 

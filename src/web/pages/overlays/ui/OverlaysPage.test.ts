@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
@@ -7,6 +8,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import OverlaysPage from './OverlaysPage.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 beforeEach(() => {
   localStorage.clear();
@@ -49,7 +51,7 @@ describe('OverlaysPage', () => {
 
   it('does not expose the obsolete portable package dialog', async () => {
     const { wrapper } = await mountPage();
-    expect(wrapper.text()).not.toContain('Portable packages');
+    expect(wrapper.text()).not.toContain(t('overlays.portablePackages'));
     expect(wrapper.find('.overlays-page__portable').exists()).toBe(false);
   });
 
@@ -76,19 +78,19 @@ describe('OverlaysPage', () => {
     const { wrapper } = await mountPage(['bundles.packages.preflight']);
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     expect(wrapper.find('.cloud-overlays').exists()).toBe(false);
-    await buttonByText(wrapper, 'Images & packages').trigger('click');
+    await buttonByText(wrapper, t('overlayLibrary.images')).trigger('click');
     expect(wrapper.find('.cloud-bundles').exists()).toBe(true);
   });
 
   it('filters library cards and opens the selected widget without losing the workspace', async () => {
     const { wrapper } = await mountPage(['bundles.overlays.create']);
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
-    expect(buttonByText(wrapper, 'Open in editor').attributes('disabled')).toBeDefined();
+    expect(buttonByText(wrapper, t('overlayLibrary.open')).attributes('disabled')).toBeDefined();
     await wrapper.get('.overlay-library input[type="search"]').setValue('gift');
     expect(wrapper.findAll('.overlay-library__card')).toHaveLength(1);
     await wrapper.get('.overlay-library__card').trigger('click');
-    expect(buttonByText(wrapper, 'Open in editor').attributes('disabled')).toBeUndefined();
-    await buttonByText(wrapper, 'Open in editor').trigger('click');
+    expect(buttonByText(wrapper, t('overlayLibrary.open')).attributes('disabled')).toBeUndefined();
+    await buttonByText(wrapper, t('overlayLibrary.open')).trigger('click');
     expect(wrapper.find('.overlay-library__card').exists()).toBe(false);
     expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toContain('/widgets/gift/');
   });
@@ -98,13 +100,13 @@ describe('OverlaysPage', () => {
     await wrapper.get('button[aria-label="Cloud"]').trigger('click');
     await wrapper.findAll('.overlay-library__card')[0]!.trigger('click');
     await wrapper.get('.overlay-library input[type="search"]').setValue('no matching widget');
-    expect(wrapper.get('.overlay-library').text()).toContain('No matching overlays');
-    expect(buttonByText(wrapper, 'Open in editor').attributes('disabled')).toBeDefined();
+    expect(wrapper.get('.overlay-library').text()).toContain(t('overlayLibrary.empty'));
+    expect(buttonByText(wrapper, t('overlayLibrary.open')).attributes('disabled')).toBeDefined();
   });
 
   it('copies the source url through the host', async () => {
     const { wrapper, calls } = await mountPage();
-    await buttonByText(wrapper, 'Copy URL').trigger('click');
+    await buttonByText(wrapper, t('overlays.source.copy')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'widgets.copyObsUrl')?.params).toEqual({ widget: 'follow' });
     expect(buttonByText(wrapper, 'Copied').exists()).toBe(true);
@@ -112,25 +114,25 @@ describe('OverlaysPage', () => {
 
   it('edits and saves the selected design', async () => {
     const { wrapper, calls } = await mountPage();
-    expect(buttonByText(wrapper, 'Save design').attributes('disabled')).toBeDefined();
-    await buttonByText(wrapper, 'Card').trigger('click');
+    expect(buttonByText(wrapper, t('overlays.editor.save')).attributes('disabled')).toBeDefined();
+    await buttonByText(wrapper, t('overlays.editor.sections.card')).trigger('click');
     const shadow = wrapper.findAll('.design-inspector input[type="checkbox"]')[0]!;
     await shadow.setValue(false);
-    expect(buttonByText(wrapper, 'Save design').attributes('disabled')).toBeUndefined();
-    await buttonByText(wrapper, 'Save design').trigger('click');
+    expect(buttonByText(wrapper, t('overlays.editor.save')).attributes('disabled')).toBeUndefined();
+    await buttonByText(wrapper, t('overlays.editor.save')).trigger('click');
     await flushPromises();
     const saved = calls.find((call) => call.method === 'app.state.set');
     expect(saved?.params).toMatchObject({ key: 'widgets.design.follow' });
     expect(JSON.parse(String(saved?.params?.value))).toMatchObject({ radius: 24 });
-    expect(wrapper.text()).toContain('Design saved.');
+    expect(wrapper.text()).toContain(t('overlays.editor.saved'));
   });
 
   it('asks before switching away from unsaved changes', async () => {
     const { wrapper } = await mountPage();
-    await buttonByText(wrapper, 'Card').trigger('click');
+    await buttonByText(wrapper, t('overlays.editor.sections.card')).trigger('click');
     await wrapper.findAll('.design-inspector input[type="checkbox"]')[0]!.setValue(false);
-    await selectKind(wrapper, 'Gift alert');
-    expect(document.body.textContent).toContain('Discard design changes?');
+    await selectKind(wrapper, t('overlays.kinds.gift.name'));
+    expect(document.body.textContent).toContain(t('overlays.editor.discardTitle'));
     Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.textContent?.trim() === 'Discard')!.click();
     await nextTick();
     expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toContain('/widgets/gift/');
@@ -138,7 +140,7 @@ describe('OverlaysPage', () => {
 
   it('switches directly when nothing changed and remembers the choice', async () => {
     const { wrapper } = await mountPage();
-    await selectKind(wrapper, 'Chat overlay');
+    await selectKind(wrapper, t('overlays.kinds.chat.name'));
     expect((wrapper.get('#overlay-source-url').element as HTMLInputElement).value).toContain('/widgets/chat/');
     expect(JSON.parse(localStorage.getItem('tiktok-live-view-state') ?? '{}').widgets).toEqual({ selectedKind: 'chat' });
   });

@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
@@ -6,6 +7,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import CloudConnections from './CloudConnections.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 afterEach(async () => { await activateLocale('en'); });
 
 const id = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
@@ -30,11 +32,11 @@ describe('CloudConnections', () => {
   it('keeps create disabled for an invalid label and shows the secret once', async () => {
     const { wrapper, calls } = mount();
     await flushPromises();
-    expect(button(wrapper, 'Create webhook').attributes('disabled')).toBeDefined();
+    expect(button(wrapper, t('cloudConnections.create')).attributes('disabled')).toBeDefined();
 
     await wrapper.get('input').setValue('New');
     await flushPromises();
-    expect(button(wrapper, 'Create webhook').attributes('disabled')).toBeUndefined();
+    expect(button(wrapper, t('cloudConnections.create')).attributes('disabled')).toBeUndefined();
 
     await wrapper.get('form').trigger('submit');
     await flushPromises();
@@ -52,7 +54,7 @@ describe('CloudConnections', () => {
     await flushPromises();
     await button(wrapper, 'Disconnect').trigger('click');
     expect(calls.some((call) => call.method === 'integrations.disconnect')).toBe(false);
-    await button(wrapper, 'Confirm disconnect').trigger('click');
+    await button(wrapper, t('cloudConnections.confirmDisconnect')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'integrations.disconnect')?.params).toEqual({ id });
   });
@@ -60,6 +62,6 @@ describe('CloudConnections', () => {
   it('shows the empty state when there are no connections', async () => {
     const { wrapper } = mount([]);
     await flushPromises();
-    expect(wrapper.text()).toContain('No connections yet.');
+    expect(wrapper.text()).toContain(t('cloudConnections.empty'));
   });
 });
