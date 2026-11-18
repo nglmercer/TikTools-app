@@ -27,7 +27,7 @@ it('reviews a complete event and retains uncertain command identity', async () =
     throw new Error(`Unexpected native call ${method}`);
   });
   const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
-  const words = { disable: 'Disable event', cancel: t('common.cancel'), unknown: 'new changes are blocked', action: 'Action · same', revision: 'Revision 1', started: 'Already started actions may finish.' };
+  const words = { disable: t('controller.automations.text.disable'), cancel: t('common.cancel'), unknown: 'new changes are blocked', action: 'Action · same', revision: 'Revision 1', started: 'Already started actions may finish.' };
   try {
     await flushPromises();
     const board = wrapper.get('.automation-board');
@@ -93,7 +93,7 @@ it('shows enable buttons for disabled action and event when reusable activation 
   const model = createControllerModel(client); await model.start();
   const wrapper = mount(ControllerAutomations, { props: { model: model.automation, epoch: '1', busy: false }, global: { plugins: [i18n] } });
   try {
-    const button = wrapper.findAll('li')[1]!.findAll('button').find((item) => item.text() === 'Enable')!;
+    const button = wrapper.findAll('li')[1]!.findAll('button').find((item) => item.text() === t('controller.automations.text.activate'))!;
     expect(button.attributes('disabled')).toBeUndefined();
     await button.trigger('click'); await flushPromises();
     expect(calls.find((call) => call.method === 'controller.automation.command')?.params).toMatchObject({ operation: 'enable-action', id: 'same' });

@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mount, flushPromises } from '@vue/test-utils';
 import { expect, it, vi } from 'vitest';
 import { ref } from 'vue';
@@ -21,7 +23,7 @@ it('reviews source storage, sends once and clears private text after permission 
   const send = vi.fn<(method: string, params: Record<string, unknown>) => Promise<boolean>>(async () => true);
   const model = createProposalModel(client, { status, blocked: () => false, journalMatches: () => true, send }); await model.refresh();
   const wrapper = mount(ControllerProposals, { props: { model }, global: { plugins: [i18n] } });
-  const labels = { start: 'Prepare new proposal', inspect: 'Inspect current status', send: 'Save and send for review', consent: 'sensitive values' };
+  const labels = { start: t('controller.proposals.labels.start'), inspect: t('controller.proposals.labels.inspect'), send: t('controller.proposals.labels.saveSend'), consent: 'sensitive values' };
   const button = (label: string) => wrapper.findAll('button').find((b) => b.text() === label)!;
   try {
     await wrapper.get('input').setValue('same'); await wrapper.get('form').trigger('submit');
@@ -56,7 +58,7 @@ it('applies a saved active definition without a repeated approval dialog', async
   await model.refresh(); model.select('action', 'same'); await model.inspect(); await model.confirm(model.prepare('save')!);
   const wrapper = mount(ControllerProposals, { props: { model }, global: { plugins: [i18n] } });
   try {
-    await wrapper.findAll('button').find((button) => button.text() === 'Apply active')!.trigger('click'); await flushPromises();
+    await wrapper.findAll('button').find((button) => button.text() === t('controller.proposals.labels.sendActive'))!.trigger('click'); await flushPromises();
     expect(send).toHaveBeenCalledExactlyOnceWith('controller.proposals.submit', expect.objectContaining({ active: true, kind: 'action', id: 'same' }));
     expect(wrapper.find('dialog[open]').exists()).toBe(false);
   } finally { wrapper.unmount(); model.stop(); }
@@ -75,17 +77,17 @@ it('previews explicitly shared source before replacing the open editor', async (
   const model = createProposalModel(client, { status, blocked: () => false, journalMatches: () => true, send: async () => true }); await model.refresh(); model.select('action', 'same');
   const before = model.text.value; const wrapper = mount(ControllerProposals, { props: { model }, global: { plugins: [i18n] } });
   try {
-    await wrapper.findAll('button').find((button) => button.text() === 'Read shared definition')!.trigger('click'); await flushPromises();
+    await wrapper.findAll('button').find((button) => button.text() === t('controller.proposals.labels.shared'))!.trigger('click'); await flushPromises();
     expect(wrapper.text()).toContain('shared value'); expect(model.text.value).toBe(before);
-    await wrapper.findAll('button').find((button) => button.text() === 'Use this definition')!.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === t('controller.proposals.labels.useShared'))!.trigger('click');
     expect(JSON.parse(model.text.value)).toMatchObject({ name: 'Owner definition', enabled: false });
     expect(model.baseRevision.value).toBe('2'); expect(model.mode.value).toBe('update');
     const builder = wrapper.get('.proposal-builder');
-    await builder.findAll('button').find((button) => button.text() === 'Load fields from open text')!.trigger('click');
+    await builder.findAll('button').find((button) => button.text() === t('controller.proposalBuilder.labels.loadFields'))!.trigger('click');
     expect((builder.findAll('input')[1]!.element as HTMLInputElement).value).toBe('shared value');
     await builder.findAll('input')[1]!.setValue('changed through fields');
-    await builder.findAll('button').find((button) => button.text() === 'Prepare draft')!.trigger('click');
-    await wrapper.get('dialog[open]').findAll('button').find((button) => button.text() === 'Use this draft')!.trigger('click');
+    await builder.findAll('button').find((button) => button.text() === t('controller.proposalBuilder.labels.generate'))!.trigger('click');
+    await wrapper.get('dialog[open]').findAll('button').find((button) => button.text() === t('controller.proposalBuilder.labels.apply'))!.trigger('click');
     expect(JSON.parse(model.text.value)).toMatchObject({ name: 'Owner definition', enabled: false, config: { message: 'changed through fields' } });
     expect(model.baseRevision.value).toBe('2');
   } finally { wrapper.unmount(); model.stop(); }
