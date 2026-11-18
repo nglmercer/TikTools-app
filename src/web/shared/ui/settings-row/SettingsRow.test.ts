@@ -12,6 +12,6 @@ test('labels the input and gives its group a stable description without hiding d
   expect(label.attributes('for')).toBe(wrapper.get('input').attributes('id'));
   expect(wrapper.get('[role="group"]').attributes('aria-labelledby')).toBe(label.attributes('id'));
   expect(wrapper.get('[role="group"]').attributes('aria-describedby')).toBe(wrapper.get('.settings-row__description').attributes('id'));
-  expect(wrapper.text()).toContain('Advanced options');
+  expect(wrapper.text()).toContain(t('schemaForm.advanced'));
   expect(wrapper.text()).toContain('Available');
 });

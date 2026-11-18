@@ -21,7 +21,7 @@ test('owner reviews access, shares local QR, changes grants and revokes one devi
   const consoleCapture = await installFakeHost(page, fixture, { locale: 'en' });
   const network: string[] = []; page.on('request', (request) => network.push(request.url()));
   await page.goto('/#/settings?section=collaboration'); await waitForFrontend(page);
-  const invitations = page.getByRole('group', { name: 'Invite a controller', exact: true });
+  const invitations = page.getByRole('group', { name: t('collaboration.invites'), exact: true });
   await expect(page.getByText(t('collaboration.running'), { exact: true })).toBeVisible();
   await invitations.getByRole('button', { name: t('collaboration.presetWorkflow'), exact: true }).click();
   await invitations.getByText(t('collaboration.scopes'), { exact: true }).click();
@@ -33,7 +33,7 @@ test('owner reviews access, shares local QR, changes grants and revokes one devi
   await invitations.getByRole('button', { name: t('collaboration.create') }).click();
   await expect(page.locator('#collaboration-link')).toHaveAttribute('type', 'password');
   await invitations.getByRole('button', { name: t('collaboration.qr') }).click();
-  const qr = invitations.getByRole('img', { name: 'Private join link' }); await expect(qr).toBeVisible();
+  const qr = invitations.getByRole('img', { name: t('collaboration.privateLink') }); await expect(qr).toBeVisible();
   await expect.poll(() => qr.evaluate((node) => {
     const canvas = node as HTMLCanvasElement;
     const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -62,10 +62,10 @@ test('owner reviews access, shares local QR, changes grants and revokes one devi
   c.status.activeSessions = 2; c.status.gateway.connections = 2;
   c.status.gateway.sessionConnections = Object.fromEntries(c.sessions.map((s) => [s.sessionId, 1]));
   await writeHostState(page, approved);
-  await page.getByRole('button', { name: 'People & agents', exact: true }).click();
+  await page.getByRole('button', { name: t('collaboration.tabs.principals'), exact: true }).click();
   await page.getByRole('button', { name: t('collaboration.editGrant'), exact: true }).click();
   const editor = page.getByRole('group', { name: t('collaboration.editGrant'), exact: true });
-  await editor.getByRole('checkbox', { name: 'Read LIVE status', exact: true }).uncheck();
+  await editor.getByRole('checkbox', { name: t('collaboration.capLive'), exact: true }).uncheck();
   await editor.getByRole('button', { name: t('collaboration.grantSave'), exact: true }).click();
   await expect(dialog).toContainText('workflows.read'); await expect(dialog).not.toContainText('live.read');
   await dialog.getByRole('button', { name: t('common.apply'), exact: true }).click(); await expect(editor).toHaveCount(0);

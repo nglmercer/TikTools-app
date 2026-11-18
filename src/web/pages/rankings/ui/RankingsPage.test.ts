@@ -54,7 +54,7 @@ describe('rankings management', () => {
     expect(wrapper.text()).toContain('Alice — 5');
     const visualization = wrapper.findAll('select').find((item) => item.find('option[value="donut"]').exists())!;
     await visualization.setValue('donut');
-    const percentages = wrapper.findAll('label').find((label) => label.text().includes('Show percentages'))!;
+    const percentages = wrapper.findAll('label').find((label) => label.text().includes(t('rankingsPage.detail.showPercentages')))!;
     await percentages.get('input').setValue(true);
     await button(wrapper, t('rankingsPage.detail.copyUrl')).trigger('click');
     await flushPromises();

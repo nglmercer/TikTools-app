@@ -46,7 +46,7 @@ describe('SessionRecoveryDialog', () => {
   it('offers retry first when the host is unreachable', async () => {
     const { wrapper, recovery, retry } = mountDialog([0]);
     await exhaust(recovery);
-    expect(wrapper.get('h2').text()).toBe('Host unavailable');
+    expect(wrapper.get('h2').text()).toBe(t('sessionRecovery.unavailableTitle'));
     const buttons = wrapper.findAll('footer button');
     expect(buttons.map((button) => button.text())).toEqual([t('sessionRecovery.retry'), t('sessionRecovery.pair')]);
     await buttons[0]!.trigger('click');

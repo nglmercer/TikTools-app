@@ -78,7 +78,7 @@ describe('AnalyticsPage', () => {
     expect(tiles[2]!.text()).toContain('6,400');
     expect(tiles[3]!.text()).toContain('Diamonds');
     expect(tiles[3]!.text()).toContain('900');
-    expect(tiles[4]!.text()).toContain('Peak viewers');
+    expect(tiles[4]!.text()).toContain(t('analytics.facts.peakViewers'));
     expect(tiles[4]!.text()).toContain('210');
     expect(wrapper.text()).toContain('3 sessions');
     expect(wrapper.findAll('tbody tr')).toHaveLength(2);

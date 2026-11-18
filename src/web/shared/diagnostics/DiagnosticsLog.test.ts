@@ -38,7 +38,7 @@ test('copies redacted selected details and clearing history preserves domain-ind
   expect(writeText.mock.calls[0]![0]).not.toContain('private-secret');
   expect(writeText.mock.calls[0]![0]).not.toContain('another-secret');
   await wrapper.get('button[aria-label="Clear history"]').trigger('click');
-  expect(wrapper.text()).toContain('No entries yet.');
+  expect(wrapper.text()).toContain(t('diagnostics.emptyHistory'));
 });
 
 test('filters collapse without losing state and copy scopes stay distinct', async () => {
@@ -55,7 +55,7 @@ test('filters collapse without losing state and copy scopes stay distinct', asyn
   await wrapper.get('button[aria-label="Copy filtered"]').trigger('click');
   expect(writeText.mock.calls.at(-1)?.[0]).toContain('plugin failure');
   expect(writeText.mock.calls.at(-1)?.[0]).not.toContain('sync complete');
-  await wrapper.findAll('button').find(button => button.text() === 'Copy all')!.trigger('click');
+  await wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyAll'))!.trigger('click');
   expect(writeText.mock.calls.at(-1)?.[0]).toContain('sync complete');
   await wrapper.get('.logs__filters').trigger('keydown', { key: 'Escape' });
   expect(toggle.attributes('aria-expanded')).toBe('false');
@@ -89,7 +89,7 @@ test('offers only one visible reset when a selected entry is filtered out', asyn
   diagnosticView.selectedId.value = entry.id;
   const wrapper = mountWithPlugins(DiagnosticsLog, { attachTo: document.body });
   await wrapper.get('input[type=search]').setValue('unmatched');
-  const resets = () => wrapper.findAll('button').filter(button => button.text() === 'Clear filters' && button.isVisible());
+  const resets = () => wrapper.findAll('button').filter(button => button.text() === t('diagnostics.resetFilters') && button.isVisible());
   expect(resets()).toHaveLength(1);
   await wrapper.get('.logs__filter-button').trigger('click');
   expect(resets()).toHaveLength(1);

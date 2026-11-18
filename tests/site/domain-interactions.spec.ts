@@ -275,7 +275,7 @@ test('updater preferences work locally while native checking and installation re
   await openDemo(page, 'settings', 'settings-updater');
   const updater = page.locator('.app-updater');
   await expect(updater).toContainText('Installed version: 4.2.2');
-  await expect(updater.getByRole('button', { name: 'Check for updates', exact: true })).toBeDisabled();
+  await expect(updater.getByRole('button', { name: t('appUpdater.check'), exact: true })).toBeDisabled();
   await expect(updater.getByRole('button', { name: /^(Download update|Install and restart)$/ })).toHaveCount(0);
   await expect(updater).toContainText('Automatic installation is unavailable. Download a release manually:');
   await expect(updater.getByRole('link')).toHaveAttribute('href', 'https://github.com/nglmercer/TikTools-app/releases');
@@ -289,7 +289,7 @@ test('updater preferences work locally while native checking and installation re
   await expect(updater.getByRole('combobox', { name: t('appUpdater.channel'), exact: true })).toContainText('Beta');
   await expect(updater.getByRole('switch', { name: t('appUpdater.automaticChecks'), exact: true })).not.toBeChecked();
   await expect(updater.getByRole('switch', { name: t('appUpdater.notifications'), exact: true })).not.toBeChecked();
-  await expect(updater.getByRole('button', { name: 'Check for updates', exact: true })).toBeDisabled();
+  await expect(updater.getByRole('button', { name: t('appUpdater.check'), exact: true })).toBeDisabled();
   await expect(updater).not.toContainText('TikTools is up to date.');
   await settled(page);
 });

@@ -36,7 +36,7 @@ describe('AppNavigation', () => {
     await router.push('/settings');
     const wrapper = mountWithPlugins(AppNavigation, { props: { sections }, global: { plugins: [router] } });
     await flushPromises();
-    expect(wrapper.get('nav').attributes('aria-label')).toBe('Main navigation');
+    expect(wrapper.get('nav').attributes('aria-label')).toBe(t('navigation.label'));
     expect(wrapper.get('h2').text()).toBe('Workspace');
     const links = wrapper.findAll('a');
     expect(links.map((link) => link.text())).toEqual([t('navigation.feed'), t('navigation.settings')]);

@@ -53,7 +53,7 @@ it('requires explicit confirmation of the reviewed inventory and rechecks migrat
   expect(wrapper.text()).toContain('missing.plugin');
   expect(wrapper.text()).toContain('pending changes are kept');
   expect(calls.some(call => call.method === 'sync.v2.inventory.repair')).toBe(false);
-  await click('Confirm local repair');
+  await click(t('syncChanges.inventoryRepair'));
   expect(calls.find(call => call.method === 'sync.v2.inventory.repair')?.params).toEqual({ review });
   expect(calls.filter(call => call.method === 'sync.v2.preview')).toHaveLength(2);
   expect(calls.some(call => call.method === 'sync.v2.migrate')).toBe(false);
