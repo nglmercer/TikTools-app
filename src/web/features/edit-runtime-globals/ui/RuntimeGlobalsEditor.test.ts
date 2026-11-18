@@ -68,7 +68,7 @@ describe('RuntimeGlobalsEditor', () => {
     const { wrapper } = await mountEditor(() => ({ globals: { commandPort: '46665' } }));
     expect(wrapper.findAll('header button').map((button) => button.text())).toEqual(['', '', '']);
     expect(wrapper.findAll('header button').map((button) => button.attributes('aria-label'))).toEqual([
-      'Add global', 'Discard changes', t('globals.save'),
+      t('globals.add'), t('globals.discard'), t('globals.save'),
     ]);
     expect(wrapper.get('header [role="img"]').attributes('aria-label')).toContain('{{ globals.key }}');
   });

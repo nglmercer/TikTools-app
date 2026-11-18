@@ -60,8 +60,8 @@ const templateJson = (id: string, title: string) => ({
 test('the templates modal has Templates, Cloud and Import tabs and starts on the local templates', async () => {
   await activateLocale('en');
   const wrapper = mountTemplates();
-  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Templates', t('importDialog.cloudTab'), 'Import']);
-  expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Templates');
+  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([t('importDialog.templatesTab'), t('importDialog.cloudTab'), t('importDialog.manualTab')]);
+  expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('importDialog.templatesTab'));
   expect(wrapper.findAll('.rule-templates__card').length).toBeGreaterThan(0);
   // The old "Import templates…" button is the third tab now, never a second control.
   expect(wrapper.findAll('button').some((button) => button.text() === t('automations.templates.import'))).toBe(false);
@@ -76,7 +76,7 @@ test('the Cloud tab shows the Cloud library without its own title box and import
   expect(wrapper.find('.cloud-library').exists()).toBe(true);
   expect(wrapper.find('.cloud-library__filters').exists()).toBe(true);
   expect(wrapper.find('.rule-templates__card').exists()).toBe(false);
-  expect(wrapper.text()).not.toContain('Browse Cloud documents. Viewing a document does not import or activate it.');
+  expect(wrapper.text()).not.toContain(t('cloudLibrary.description'));
 });
 
 test('the Import tab stages a template file, reports problems and emits the import with a done callback', async () => {
@@ -124,7 +124,7 @@ test('configuring a template replaces the tabs and goes back to the list', async
   expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
   expect(wrapper.find('.rule-templates__card').exists()).toBe(false);
   await wrapper.findAll('.base-dialog__footer button').at(-1)!.trigger('click');
-  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Templates', t('importDialog.cloudTab'), 'Import']);
+  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([t('importDialog.templatesTab'), t('importDialog.cloudTab'), t('importDialog.manualTab')]);
   expect(wrapper.findAll('.rule-templates__card').length).toBeGreaterThan(0);
 });
 
