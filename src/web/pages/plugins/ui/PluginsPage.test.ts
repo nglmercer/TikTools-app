@@ -363,7 +363,7 @@ describe('PluginsPage', () => {
     const builtin = plugin('core', {}, { source: 'builtin' });
     const { wrapper } = await mountPage([server, builtin]);
     await selectPlugin(wrapper, 'SRV');
-    expect(tabNames(wrapper)).toEqual(['General', 'Settings', t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions')]);
+    expect(tabNames(wrapper)).toEqual([t('plugins.details.tabs.general'), t('plugins.details.tabs.settings'), t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions')]);
     expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(4);
     await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === t('plugins.details.tabs.connection'))!.trigger('click');
     // The same editor the Connections page uses, with its own status and test button.
@@ -371,7 +371,7 @@ describe('PluginsPage', () => {
     expect(wrapper.text()).toContain(t('connections.servers.notConfigured'));
     await buttonByLabel(wrapper, t('common.back')).trigger('click');
     await selectPlugin(wrapper, 'CORE');
-    expect(tabNames(wrapper)).toEqual(['General']);
+    expect(tabNames(wrapper)).toEqual([t('plugins.details.tabs.general')]);
   });
 
   it('lays the general tab out as origin and permissions beside what the plugin adds', async () => {
@@ -409,9 +409,9 @@ describe('PluginsPage', () => {
     const { wrapper, calls } = await mountPage();
     await openItemMenu(wrapper, 'DECK');
     expect(menuItems().map((item) => item.textContent?.trim())).toEqual([
-      'Open', 'Enabled', 'Settings', t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions'), t('plugins.settings.test'), t('plugins.details.uninstall'),
+      'Open', t('plugins.details.enabled'), t('plugins.details.tabs.settings'), t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions'), t('plugins.settings.test'), t('plugins.details.uninstall'),
     ]);
-    menuItem('Enabled').click();
+    menuItem(t('plugins.details.enabled')).click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.disable')?.params).toEqual({ pluginId: 'deck' });
 

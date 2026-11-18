@@ -45,7 +45,7 @@ const selectedTab = (wrapper: Wrapper) => wrapper.get('[role="tab"][aria-selecte
 describe('SettingsPage', () => {
   it('opens the general section with the language picker and app updates', async () => {
     const { wrapper } = await mountPage();
-    expect(selectedTab(wrapper)).toBe('General');
+    expect(selectedTab(wrapper)).toBe(t('settingsLayout.labels.general'));
     expect(wrapper.get('legend').text()).toBe('Language');
     expect((wrapper.get('#settings-language').element as HTMLInputElement).value).toBe(t('menu.languages.en'));
     expect(wrapper.find('#app-update-automatic[role=switch]').exists()).toBe(true);
@@ -54,7 +54,7 @@ describe('SettingsPage', () => {
 
   it('lists only application-level sections as icon and label, without subtitles or a repeated heading', async () => {
     const { wrapper } = await mountPage();
-    expect(tabNames(wrapper)).toEqual(['General', t('settingsLayout.labels.account'), 'Collaboration']);
+    expect(tabNames(wrapper)).toEqual([t('settingsLayout.labels.general'), t('settingsLayout.labels.account'), 'Collaboration']);
     expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(3);
     expect(wrapper.find('h1, small, select').exists()).toBe(false);
   });
@@ -89,7 +89,7 @@ describe('SettingsPage', () => {
   it('falls back to General for sections that moved (the router redirects their links)', async () => {
     for (const section of ['plugins', 'advanced', 'globals', 'updates', 'nonsense']) {
       const { wrapper } = await mountPage(`?section=${section}`);
-      expect(selectedTab(wrapper)).toBe('General');
+      expect(selectedTab(wrapper)).toBe(t('settingsLayout.labels.general'));
     }
   });
 

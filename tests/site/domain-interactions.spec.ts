@@ -91,7 +91,7 @@ for (const copy of [
 test('plugin settings discard, save and reopen preserve the saved values', async ({ page }) => {
   await openDemo(page, 'plugins', 'plugin-settings');
   const details = await audioDetails(page);
-  await details.getByRole('tab', { name: 'Settings', exact: true }).click();
+  await details.getByRole('tab', { name: t('plugins.details.tabs.settings'), exact: true }).click();
   const settings = details.locator('.plugin-settings');
   const volume = settings.getByRole('spinbutton', { name: 'volume', exact: true });
   const enabled = settings.getByRole('checkbox', { name: 'enabled', exact: true });
@@ -115,7 +115,7 @@ test('plugin settings discard, save and reopen preserve the saved values', async
   await expect(save).toBeDisabled();
   await details.getByRole('button', { name: t('common.back'), exact: true }).click();
   const reopened = await audioDetails(page);
-  await reopened.getByRole('tab', { name: 'Settings', exact: true }).click();
+  await reopened.getByRole('tab', { name: t('plugins.details.tabs.settings'), exact: true }).click();
   await expect(reopened.getByRole('spinbutton', { name: 'volume', exact: true })).toHaveValue('72');
   await expect(reopened.getByRole('checkbox', { name: 'enabled', exact: true })).not.toBeChecked();
   await settled(page);

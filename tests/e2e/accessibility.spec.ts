@@ -23,7 +23,7 @@ test('navigation exposes named buttons and the active tab marker', async ({ page
   expect(await buttons.count()).toBeGreaterThanOrEqual(7);
   for (const name of [
     t('navigation.feed'),
-    'Points',
+    t('navigation.points'),
     t('navigation.connections'),
     t('navigation.plugins'),
     'Text to Speech',
