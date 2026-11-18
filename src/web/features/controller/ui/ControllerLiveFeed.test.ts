@@ -1,3 +1,7 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
+
+const t = (key: string): string => testMessage('en', key);
+const te = (key: string): string => testMessage('es', key);
 import { mount } from '@vue/test-utils';
 import { ref } from 'vue';
 import { expect, it } from 'vitest';
@@ -20,7 +24,7 @@ it('renders untrusted activity as text and clears it on revocation', async () =>
     await model.refresh(status.value, 1); await wrapper.vm.$nextTick();
     expect(wrapper.text()).toContain('<script>unsafe</script>'); expect(wrapper.find('script').exists()).toBe(false);
     expect(wrapper.text()).toContain('Se perdió parte de la actividad'); expect(wrapper.findAll('button')).toHaveLength(0);
-    expect(wrapper.findAll('.kind').map((element) => element.text())).toEqual(['Chat', 'Regalo', 'Me gusta', 'Ingreso', 'Social']);
+    expect(wrapper.findAll('.kind').map((element) => element.text())).toEqual([te('controller.liveFeed.text.kinds.chat'), te('controller.liveFeed.text.kinds.gift'), te('controller.liveFeed.text.kinds.like'), te('controller.liveFeed.text.kinds.member'), te('controller.liveFeed.text.kinds.social')]);
     await wrapper.find('select').setValue('gift');
     expect(wrapper.findAll('.kind').map((element) => element.text())).toEqual(['Regalo']);
     await wrapper.find('input').setValue('does not match');
@@ -30,7 +34,7 @@ it('renders untrusted activity as text and clears it on revocation', async () =>
     await wrapper.find('select').setValue('all');
     await wrapper.find('input').setValue('');
     i18n.global.locale.value = 'en'; await wrapper.vm.$nextTick();
-    expect(wrapper.findAll('.kind').map((element) => element.text())).toEqual(['Chat', 'Gift', 'Like', 'Join', 'Social']);
+    expect(wrapper.findAll('.kind').map((element) => element.text())).toEqual([t('controller.liveFeed.text.kinds.chat'), t('controller.liveFeed.text.kinds.gift'), t('controller.liveFeed.text.kinds.like'), t('controller.liveFeed.text.kinds.member'), t('controller.liveFeed.text.kinds.social')]);
     await wrapper.find('select').setValue('chat');
     await wrapper.find('input').setValue('previous host');
     status.value.hello!.connectionId = 'replacement';

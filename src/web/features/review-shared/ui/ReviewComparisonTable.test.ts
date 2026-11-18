@@ -1,9 +1,11 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
+
+const t = (key: string): string => testMessage('en', key);
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, expect, test } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import type { ReviewRow } from '../model/review-rows.ts';
 import ReviewComparisonTable from './ReviewComparisonTable.vue';
-import { testMessage } from '@/shared/i18n/test-message.ts';
 
 enableAutoUnmount(afterEach);
 
@@ -24,7 +26,10 @@ test('renders a numbered table with a docs link and no inline source column', ()
   const bodyRows = wrapper.findAll('tbody tr');
   expect(bodyRows).toHaveLength(2);
   expect(bodyRows.map((row) => row.get('td').text())).toEqual(['1', '2']);
-  expect(wrapper.get('table').findAll('th').map((th) => th.text())).toEqual(['#', 'Record', 'Type', 'Change', 'Actions']);
+  expect(wrapper.get('table').findAll('th').map((th) => th.text())).toEqual([
+    t('jsonView.reviewTable.index'), t('jsonView.reviewTable.record'), t('jsonView.reviewTable.type'),
+    t('jsonView.reviewTable.change'), t('jsonView.reviewTable.actions'),
+  ]);
   expect(wrapper.text()).not.toContain(testMessage('en', 'libraryRecovery.source'));
   expect(wrapper.findAll('.base-json-diff').length).toBe(0);
   const link = wrapper.get('a.review-docs-link');
