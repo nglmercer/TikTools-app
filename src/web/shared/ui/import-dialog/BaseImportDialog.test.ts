@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { defineComponent, h, ref } from 'vue';
@@ -7,10 +8,11 @@ import BaseImportDialog from './BaseImportDialog.vue';
 import type { ImportTab, StagedImportItem } from './import-types.ts';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const tabs: ImportTab[] = [
   { value: 'local', label: 'Local' },
-  { value: 'cloud', label: 'Cloud' },
+  { value: 'cloud', label: t('importDialog.cloudTab') },
   { value: 'manual', label: 'Manual' },
 ];
 
@@ -58,7 +60,7 @@ describe('BaseImportDialog', () => {
     const list = wrapper.get('[role="tablist"]');
     expect(list.attributes('aria-label')).toBe('Import sources');
     const found = wrapper.findAll('[role="tab"]');
-    expect(found.map((tab) => tab.text())).toEqual(['Local', 'Cloud', 'Manual']);
+    expect(found.map((tab) => tab.text())).toEqual(['Local', t('importDialog.cloudTab'), 'Manual']);
     expect(found.map((tab) => tab.attributes('aria-selected'))).toEqual(['true', 'false', 'false']);
     const panel = wrapper.get('[role="tabpanel"]');
     expect(panel.attributes('aria-labelledby')).toBe(found[0]!.attributes('id'));

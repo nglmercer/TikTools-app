@@ -90,7 +90,7 @@ describe('BaseJsonDiff unified', () => {
 
 describe('BaseJsonDiff side by side', () => {
   it('pairs old and new lines in two columns with their own numbers and headings', () => {
-    const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before, after, layout: 'side-by-side', beforeLabel: t('syncChanges.base'), afterLabel: 'Cloud', context: 10 } });
+    const wrapper = mountWithPlugins(BaseJsonDiff, { props: { before, after, layout: 'side-by-side', beforeLabel: t('syncChanges.base'), afterLabel: t('syncChanges.cloud'), context: 10 } });
     expect(wrapper.get('.base-json-diff__heads').text()).toBe('BaseCloud');
     const changed = wrapper.findAll('.base-json-diff__split').find((row) => row.text().includes('Old name'))!;
     const halves = changed.findAll('.base-json-diff__half');

@@ -148,7 +148,7 @@ function buttonByLabel(wrapper: VueWrapper, label: string) {
 
 // The open record replaces the library; this is the way back (it asks first when the draft is dirty).
 async function goBack(wrapper: VueWrapper) {
-  await buttonByLabel(wrapper, 'Back').trigger('click');
+  await buttonByLabel(wrapper, t('common.back')).trigger('click');
   await nextTick();
 }
 
@@ -242,8 +242,8 @@ describe('AutomationsPage', () => {
     const dialog = document.querySelector('dialog[open]')!;
     expect(dialog).not.toBeNull();
     const tabs = Array.from(dialog.querySelectorAll('[role="tab"]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([t('importDialog.templatesTab'), 'Cloud', 'Import']);
-    expect(tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent?.trim()).toBe('Cloud');
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([t('importDialog.templatesTab'), t('importDialog.cloudTab'), 'Import']);
+    expect(tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent?.trim()).toBe(t('importDialog.cloudTab'));
     expect(dialog.textContent).toContain('Library');
     // The page is still the library: no Cloud tab in its own bar.
     expect(wrapper.findAll('.automation-library [role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
@@ -331,7 +331,7 @@ describe('AutomationsPage', () => {
     const { wrapper, calls } = await mountPage();
     await buttonByText(wrapper, t('automations.library.newEvent')).trigger('click');
     await wrapper.get('.event-editor input[type="text"]').setValue('Followers');
-    await buttonByText(wrapper, 'Save').trigger('click');
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'create',
       kind: 'event',
@@ -347,7 +347,7 @@ describe('AutomationsPage', () => {
     Array.from(document.querySelectorAll<HTMLButtonElement>('.type-picker__card'))[0]!.click();
     await nextTick();
     expect(wrapper.find('.action-editor').exists()).toBe(true);
-    await buttonByText(wrapper, 'Save').trigger('click');
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'create',
       kind: 'action',
@@ -477,10 +477,10 @@ describe('AutomationsPage', () => {
     await automation.refresh(); await flushPromises();
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
     expect(wrapper.text()).toContain('changed since you opened it');
-    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
     expect(requests.find((call) => call.method === 'automation.update')?.meta).toEqual({ expectedRevision: '1' });
     expect(wrapper.text()).toContain('Your draft is retained');
-    expect((buttonByText(wrapper, 'Save').element as HTMLButtonElement).disabled).toBe(true);
+    expect((buttonByText(wrapper, t('automations.editor.save')).element as HTMLButtonElement).disabled).toBe(true);
     await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click'); await flushPromises();
     expect(document.body.textContent).toContain(t('automations.conflict.base'));
     const sources = Array.from(document.querySelectorAll('.base-dialog .review-table .review-table__action')) as HTMLElement[];
@@ -493,7 +493,7 @@ describe('AutomationsPage', () => {
     documentButton(t('automations.conflict.useBase')).click(); await flushPromises();
     expect(calls.filter((call) => call.method === 'automation.update')).toHaveLength(writes);
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
-    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
     expect(requests.filter((call) => call.method === 'automation.update').at(-1)?.meta).toEqual({ expectedRevision: '2' });
     expect(versions.get('event:e1')).toBe('3');
     expect(wrapper.text()).not.toContain(t('automations.editor.unsaved'));
@@ -506,7 +506,7 @@ describe('AutomationsPage', () => {
     await automation.refresh(); await flushPromises();
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Edited from old base');
-    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
     expect(requests.find((r) => r.method === 'automation.update')?.meta?.expectedRevision).toBe('1');
   });
 
@@ -517,13 +517,13 @@ describe('AutomationsPage', () => {
     snapshot.events.splice(0, 1); versions.set('event:e1', '2');
     await automation.refresh(); await flushPromises();
     expect(wrapper.find('.event-editor').exists()).toBe(true);
-    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
     expect(calls.some((r) => r.method === 'automation.create')).toBe(false);
     await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click'); await flushPromises();
     expect(document.body.textContent).toContain('This ID is absent');
     documentButton(t('automations.conflict.prepareRecreate')).click(); await flushPromises();
     expect(calls.some((r) => r.method === 'automation.create')).toBe(false);
-    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
     expect(requests.find((r) => r.method === 'automation.create')?.meta?.expectedRevision).toBe('2');
     expect(snapshot.events.some((r) => r.id === 'e1' && r.name === 'Keep this text')).toBe(true);
   });
@@ -535,7 +535,7 @@ describe('AutomationsPage', () => {
     });
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Unconfirmed draft');
-    await buttonByText(wrapper, 'Save').trigger('click'); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
     expect(wrapper.text()).toContain('outcome is unconfirmed');
     expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
     expect(calls.filter((r) => r.method === 'automation.definition.submit' && r.params?.operation === 'update')).toHaveLength(1);
@@ -556,13 +556,13 @@ describe('AutomationsPage', () => {
     });
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Submitted text');
-    await buttonByText(wrapper, 'Save').trigger('click');
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await wrapper.get('.event-editor input[type="text"]').setValue('Newer text');
     snapshot.events[0] = submitted; versions.set('event:e1', '2'); finish(submitted);
     await flushPromises();
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Newer text');
     expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
-    expect((buttonByText(wrapper, 'Save').element as HTMLButtonElement).disabled).toBe(false);
+    expect((buttonByText(wrapper, t('automations.editor.save')).element as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('a delayed acknowledgement cannot select or clear another editor after explicit navigation', async () => {
@@ -577,7 +577,7 @@ describe('AutomationsPage', () => {
     });
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Pending first edit');
-    await buttonByText(wrapper, 'Save').trigger('click');
+    await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
     await goBack(wrapper); documentButton('Discard').click(); await flushPromises();
     await selectRow(wrapper, 'Chat hello');
     await wrapper.get('.event-editor input[type="text"]').setValue('Second draft');
@@ -600,7 +600,7 @@ describe('AutomationsPage', () => {
   it('canceling enablement restores the committed checkbox without a write', async () => {
     const { wrapper, calls } = await mountPage();
     await wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').setValue(false);
-    await nextTick(); documentButton('Cancel').click(); await flushPromises();
+    await nextTick(); documentButton(t('common.cancel')).click(); await flushPromises();
     expect((wrapper.findAll('.automation-library tbody tr')[1]!.get('input[type="checkbox"]').element as HTMLInputElement).checked).toBe(true);
     expect(calls.some((r) => r.method === 'automation.disable')).toBe(false);
   });

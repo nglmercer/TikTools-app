@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
@@ -82,7 +84,7 @@ describe('CloudAccountEditor', () => {
   });
 
   it('shows manual login and cancellation', async () => {
-    const [signIn, cancel, manual] = ['Sign in', 'Cancel', "If your browser didn't open, visit:"] as const;
+    const [signIn, cancel, manual] = ['Sign in', t('common.cancel'), "If your browser didn't open, visit:"] as const;
     let finish!: (status: AccountStatus) => void;
     const pending = new Promise<AccountStatus>((resolve) => { finish = resolve; });
     const out: AccountStatus = { origin: 'https://cloud.example', state: 'signed-out', persistence: 'keychain' };

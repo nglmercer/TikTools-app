@@ -256,7 +256,7 @@ it('creates a disabled action only after preview, retaining the open text on can
     await f.button(t('controller.proposalBuilder.labels.generate')).trigger('click');
     expect(f.wrapper.get('dialog[open]').text()).toContain('The open text will be replaced');
     expect(f.wrapper.get('dialog[open]').text()).toContain('Welcome message');
-    await f.dialogButton('Cancel').trigger('click');
+    await f.dialogButton(t('common.cancel')).trigger('click');
     expect(f.model.text.value).toBe(original);
     await f.button(t('controller.proposalBuilder.labels.generate')).trigger('click');
     await f.dialogButton(t('controller.proposalBuilder.labels.apply')).trigger('click');
@@ -360,7 +360,7 @@ it('prepares several ordered actions and invalidates a preview when their order 
     expect(f.dialogButton(t('controller.proposalBuilder.labels.apply')).attributes('disabled')).toBeDefined();
     await f.dialogButton(t('controller.proposalBuilder.labels.apply')).trigger('click');
     expect(f.model.text.value).toBe(original);
-    await f.dialogButton('Cancel').trigger('click');
+    await f.dialogButton(t('common.cancel')).trigger('click');
     await f.button(t('controller.proposalBuilder.labels.generate')).trigger('click');
     await f.dialogButton(t('controller.proposalBuilder.labels.apply')).trigger('click');
     expect(JSON.parse(f.model.text.value)).toMatchObject({ enabled:false, runMode:'random',

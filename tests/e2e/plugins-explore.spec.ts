@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
 import { installFakeHost, waitForFrontend } from './fixtures/tiktools-host.ts';
@@ -62,9 +64,9 @@ test('the templates dialog has Templates, Cloud and Import tabs, and ?view=cloud
   await page.goto('/#/automations?view=cloud');
   await waitForFrontend(page);
   const dialog = page.getByRole('dialog', { name: 'Rule templates' });
-  await expect(dialog.getByRole('tab', { name: 'Cloud', selected: true })).toBeVisible();
+  await expect(dialog.getByRole('tab', { name: t('importDialog.cloudTab'), selected: true })).toBeVisible();
   await expect(dialog.getByText('Gift sound alert')).toBeVisible();
-  await expect(page.locator('.automation-library').getByRole('tab', { name: 'Cloud' })).toHaveCount(0);
+  await expect(page.locator('.automation-library').getByRole('tab', { name: t('importDialog.cloudTab') })).toHaveCount(0);
   await dialog.getByRole('tab', { name: 'Import' }).click();
   await expect(dialog.getByText('Drop a file here')).toBeVisible();
   capture.assertClean();

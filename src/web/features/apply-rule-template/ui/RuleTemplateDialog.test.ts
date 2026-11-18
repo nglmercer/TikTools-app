@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, expect, test } from 'vitest';
 import type { ActionTypeDefinition, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
@@ -10,7 +11,8 @@ import BaseSchemaForm from '@/shared/ui/schema-form/BaseSchemaForm.vue';
 import type { RuleTemplateTab } from '../model/template-tab.ts';
 import RuleTemplateDialog from './RuleTemplateDialog.vue';
 
-enableAutoUnmount(afterEach); afterEach(() => activateLocale('en'));
+enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key); afterEach(() => activateLocale('en'));
 test('oversized expansion reports an error while retaining the configured template and parameters, then allows a bounded correction', async () => {
   await activateLocale('en');
   const parsed = parseRuleTemplate({ templateVersion: 1, id: 'bounded-template', title: 'Bounded template', params: { type: 'object', properties: { value: { type: 'string', title: 'Value', default: 'small' } } },
@@ -58,7 +60,7 @@ const templateJson = (id: string, title: string) => ({
 test('the templates modal has Templates, Cloud and Import tabs and starts on the local templates', async () => {
   await activateLocale('en');
   const wrapper = mountTemplates();
-  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Templates', 'Cloud', 'Import']);
+  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Templates', t('importDialog.cloudTab'), 'Import']);
   expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Templates');
   expect(wrapper.findAll('.rule-templates__card').length).toBeGreaterThan(0);
   // The old "Import templates…" button is the third tab now, never a second control.
@@ -70,7 +72,7 @@ test('the Cloud tab shows the Cloud library without its own title box and import
   await activateLocale('en');
   const wrapper = mountTemplates({ tab: 'cloud' });
   await flushPromises();
-  expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Cloud');
+  expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('importDialog.cloudTab'));
   expect(wrapper.find('.cloud-library').exists()).toBe(true);
   expect(wrapper.find('.cloud-library__filters').exists()).toBe(true);
   expect(wrapper.find('.rule-templates__card').exists()).toBe(false);
@@ -122,7 +124,7 @@ test('configuring a template replaces the tabs and goes back to the list', async
   expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
   expect(wrapper.find('.rule-templates__card').exists()).toBe(false);
   await wrapper.findAll('.base-dialog__footer button').at(-1)!.trigger('click');
-  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Templates', 'Cloud', 'Import']);
+  expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Templates', t('importDialog.cloudTab'), 'Import']);
   expect(wrapper.findAll('.rule-templates__card').length).toBeGreaterThan(0);
 });
 

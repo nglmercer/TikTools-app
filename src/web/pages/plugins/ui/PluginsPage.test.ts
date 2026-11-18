@@ -242,7 +242,7 @@ describe('PluginsPage', () => {
     expect(wrapper.get('.plugin-preferences .base-panel__title').text()).toBe(t('plugins.catalog.preferences'));
     expect(wrapper.get('.plugin-preferences').text()).toContain(t('packages.sources.allowSideload'));
     expect(wrapper.find('#plugin-update-policy-channel').exists()).toBe(true);
-    await buttonByLabel(wrapper, 'Back').trigger('click');
+    await buttonByLabel(wrapper, t('common.back')).trigger('click');
     expect(wrapper.find('.plugin-preferences').exists()).toBe(false);
     expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
   });
@@ -250,7 +250,7 @@ describe('PluginsPage', () => {
   it('opens the preferences straight from the legacy Settings link', async () => {
     const { wrapper, router } = await mountPage(undefined, undefined, undefined, [], [], '?view=preferences');
     expect(wrapper.find('.plugin-preferences').exists()).toBe(true);
-    await buttonByLabel(wrapper, 'Back').trigger('click');
+    await buttonByLabel(wrapper, t('common.back')).trigger('click');
     await flushPromises();
     expect(router.currentRoute.value.query).toEqual({});
     expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
@@ -263,7 +263,7 @@ describe('PluginsPage', () => {
       await selectPlugin(wrapper, 'DECK');
       expect(detailsTitle(wrapper)).toBe('DECK');
       expect(wrapper.find('.plugin-catalog').exists()).toBe(false);
-      await buttonByLabel(wrapper, 'Back').trigger('click');
+      await buttonByLabel(wrapper, t('common.back')).trigger('click');
       expect(wrapper.find('.plugin-catalog').exists()).toBe(true);
       expect(wrapper.find('.plugin-details').exists()).toBe(false);
       await selectPlugin(wrapper, 'DECK');
@@ -369,7 +369,7 @@ describe('PluginsPage', () => {
     // The same editor the Connections page uses, with its own status and test button.
     expect(wrapper.find('.connection-editor--sections').exists()).toBe(true);
     expect(wrapper.text()).toContain(t('connections.servers.notConfigured'));
-    await buttonByLabel(wrapper, 'Back').trigger('click');
+    await buttonByLabel(wrapper, t('common.back')).trigger('click');
     await selectPlugin(wrapper, 'CORE');
     expect(tabNames(wrapper)).toEqual(['General']);
   });
@@ -443,7 +443,7 @@ describe('PluginsPage', () => {
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.install.set')?.params).toEqual({ pluginId: 'devkit', installed: false });
 
-    await buttonByLabel(wrapper, 'Back').trigger('click');
+    await buttonByLabel(wrapper, t('common.back')).trigger('click');
     await openItemMenu(wrapper, 'DEVKIT');
     expect(menuItems().map((item) => item.textContent?.trim())).toContain(t('plugins.menu.remove'));
     expect(menuItems().map((item) => item.textContent?.trim())).not.toContain(t('plugins.details.uninstall'));
@@ -539,7 +539,7 @@ describe('PluginsPage', () => {
     await flushPromises();
     expect(calls.find((call) => call.method === 'processors.test')?.params).toMatchObject({ pluginId: 'deck', processorId: 'enrich' });
     expect(wrapper.text()).toContain('Succeeded in 3 ms');
-    await buttonByLabel(wrapper, 'Back').trigger('click');
+    await buttonByLabel(wrapper, t('common.back')).trigger('click');
     expect(wrapper.find('.processors__row').exists()).toBe(true);
   });
 

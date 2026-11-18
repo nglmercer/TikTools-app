@@ -16,7 +16,7 @@ import {
 } from './fixtures/states.ts';
 
 async function openConnections(page: Parameters<typeof installFakeHost>[0]) {
-  const tab = page.getByRole('link', { name: 'Connections' });
+  const tab = page.getByRole('link', { name: t('navigation.connections') });
   await expect(tab).toBeVisible();
   await tab.click();
   await expect(tab).toHaveAttribute('aria-current', 'page');
@@ -77,7 +77,7 @@ test('server connection failure shows the error without an app-wide crash', asyn
   // Settings remain editable after a failed probe.
   const urlField = page.locator('.plugin-servers__detail input').first();
   await expect(urlField).toBeEnabled();
-  await expect(page.getByRole('link', { name: 'Connections' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: t('navigation.connections') })).toHaveAttribute(
     'aria-current',
     'page',
   );

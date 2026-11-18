@@ -48,7 +48,7 @@ test('every public scenario loads real pages without external or native requests
 test('connect → event → automation → result, then reset and direct refresh', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en&instance=flow');
   await page.getByRole('textbox').first().fill('demo_creator');
-  await page.getByRole('button', { name: 'Connect', exact: true }).first().click();
+  await page.getByRole('button', { name: t('connection.connect'), exact: true }).first().click();
   await page.getByTestId('demo-step').click();
   await page.getByRole('link', { name: 'Automations', exact: true }).click();
   await expect(page.locator('body')).toContainText('Hello Luna');

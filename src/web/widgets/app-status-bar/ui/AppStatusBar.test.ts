@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import AppStatusBar from './AppStatusBar.vue';
@@ -28,7 +30,7 @@ describe('AppStatusBar', () => {
   it('reports retry progress and allows cancellation while busy', async () => {
     const wrapper = mountStatusBar({ status: 'retrying', reconnectAttempt: 2, maxReconnectAttempts: 5 });
     expect(wrapper.get('[role="status"]').text()).toBe('Reconnecting 2/5…');
-    expect(wrapper.get('button').text()).toBe('Cancel');
+    expect(wrapper.get('button').text()).toBe(t('common.cancel'));
     expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
     await wrapper.get('button').trigger('click');
     expect(wrapper.emitted('disconnect')).toHaveLength(1);

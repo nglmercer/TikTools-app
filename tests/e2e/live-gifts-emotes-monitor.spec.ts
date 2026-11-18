@@ -16,7 +16,7 @@ test('gift identities, hidden-page backfill, metadata search and broken artwork 
   await emitTopic(page, 'live.ui-event', { cursor: 2, event: { ...gift, msgId: '42' } });
   await emitTopic(page, 'live.ui-event', { cursor: 3, event: gift });
   await expect(page.locator('.event-row--gift')).toHaveCount(2);
-  await page.getByRole('link', { name: 'Connections', exact: true }).click();
+  await page.getByRole('link', { name: t('navigation.connections'), exact: true }).click();
   await expect(page.locator('.connections-page')).toBeVisible();
   await writeHostState(page, { ...await readHostState(page), feedJournal: [{ cursor: 4, event: gift }, { cursor: 5, event: gift }] });
   await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
@@ -47,16 +47,16 @@ test('monitor configuration survives page navigation and stops through the host'
   const capture = await installFakeHost(page, emptyState());
   await page.goto('/');
   await waitForFrontend(page);
-  await page.getByRole('link', { name: 'Connections', exact: true }).click();
+  await page.getByRole('link', { name: t('navigation.connections'), exact: true }).click();
   await page.locator('#live-handle').fill('alice');
   // Monitoring is a switch; Connect then starts it instead of connecting directly.
   await page.getByRole('switch', { name: 'Monitor and auto-connect' }).check();
-  await page.getByRole('main').getByRole('button', { name: 'Connect', exact: true }).click();
+  await page.getByRole('main').getByRole('button', { name: t('connection.connect'), exact: true }).click();
   await expect(page.getByText('LIVE monitor: Waiting for LIVE')).toBeVisible();
   await expect(page.locator('#live-handle')).toBeDisabled();
   await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await emitTopic(page, 'live.monitor', { status: { enabled: true, uniqueId: 'alice', phase: 'live', pollIntervalSeconds: 30, checks: 2, failures: 0, lastCheckedAt: Date.now(), nextCheckAt: null, lastError: null } });
-  await page.getByRole('link', { name: 'Connections', exact: true }).click();
+  await page.getByRole('link', { name: t('navigation.connections'), exact: true }).click();
   await expect(page.getByText('LIVE monitor: Connected; monitoring remains active')).toBeVisible();
   await page.getByRole('button', { name: 'Stop monitoring', exact: true }).click();
   await expect(page.locator('#live-handle')).toBeEnabled();

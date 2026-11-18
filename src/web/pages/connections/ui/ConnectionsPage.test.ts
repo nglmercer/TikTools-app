@@ -50,10 +50,10 @@ function buttonByText(wrapper: VueWrapper, text: string) {
 describe('ConnectionsPage', () => {
   it('connects to the typed creator', async () => {
     const { wrapper, connection, calls } = await mountPage();
-    expect(buttonByText(wrapper, 'Connect').attributes('disabled')).toBeDefined();
+    expect(buttonByText(wrapper, t('connection.connect')).attributes('disabled')).toBeDefined();
     await wrapper.get('#live-handle').setValue('luna');
     expect(connection.uniqueId).toBe('luna');
-    await buttonByText(wrapper, 'Connect').trigger('click');
+    await buttonByText(wrapper, t('connection.connect')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'live.connect')?.params).toMatchObject({ uniqueId: 'luna' });
   });
@@ -94,14 +94,14 @@ describe('ConnectionsPage', () => {
   it.each<ConnectionStatus>(['connecting', 'retrying'])('cancels while %s and unlocks the form', async (status) => {
     const { wrapper, connection, calls } = await mountPage(status);
     expect(wrapper.get('#live-handle').attributes('disabled')).toBeDefined();
-    const cancel = buttonByText(wrapper, 'Cancel');
+    const cancel = buttonByText(wrapper, t('common.cancel'));
     expect(cancel.attributes('disabled')).toBeUndefined();
     await cancel.trigger('click');
     await flushPromises();
     expect(calls.filter((call) => call.method === 'live.disconnect')).toHaveLength(1);
     expect(connection.status).toBe('disconnected');
     expect(wrapper.get('#live-handle').attributes('disabled')).toBeUndefined();
-    expect(buttonByText(wrapper, 'Connect')).toBeDefined();
+    expect(buttonByText(wrapper, t('connection.connect'))).toBeDefined();
   });
 
   it('keeps the explorer visible but only browses after explicit request', async () => {

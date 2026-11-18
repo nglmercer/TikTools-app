@@ -122,7 +122,7 @@ describe('SyncPanel destructive confirmation', () => {
     await wrapper.findAll('[role="menuitem"]').find((item) => item.text() === label)!.trigger('click');
     expect(spies[spy]).not.toHaveBeenCalled();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true);
-    await byText(wrapper, 'Cancel')!.trigger('click');
+    await byText(wrapper, t('common.cancel'))!.trigger('click');
     await flushPromises();
     expect(spies[spy]).not.toHaveBeenCalled();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
@@ -199,7 +199,7 @@ describe('SyncPanel view lifecycle', () => {
     await wrapper.setProps({ open: true });
     await flushPromises();
     expect(spies.resolve).not.toHaveBeenCalled();
-    expect(wrapper.findAll('.sync-panel__choice[aria-checked="true"]').every(choice => choice.text().includes('Cloud'))).toBe(true);
+    expect(wrapper.findAll('.sync-panel__choice[aria-checked="true"]').every(choice => choice.text().includes(t('syncChanges.cloud')))).toBe(true);
     await byText(wrapper, t('syncChanges.applyMerge'))!.trigger('click');
     await flushPromises();
     expect(spies.resolve).toHaveBeenCalledWith('e4', { choice: 'merged', value: { name: 'Theirs', volume: 9, color: 'red' } });
@@ -264,7 +264,7 @@ describe('SyncPanel mark as reviewed', () => {
     await byLabel(wrapper, REVIEW).trigger('click');
     expect(spies.markReviewed).not.toHaveBeenCalled();
     expect(wrapper.get('[role="alertdialog"]').text()).toContain('Reset will no longer go back to the old one');
-    await byText(wrapper, 'Cancel')!.trigger('click');
+    await byText(wrapper, t('common.cancel'))!.trigger('click');
     await flushPromises();
     expect(spies.markReviewed).not.toHaveBeenCalled();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
@@ -324,7 +324,7 @@ describe('SyncPanel status strip', () => {
   it('keeps the Cloud label for sections that compare with Cloud', async () => {
     const { adapter } = fakeAdapter({ sync: true });
     const { wrapper } = await openAdapter({ ...adapter, requiresCloud: true });
-    expect(wrapper.get('.sync-panel__status strong').text()).toBe('Cloud');
+    expect(wrapper.get('.sync-panel__status strong').text()).toBe(t('syncChanges.cloud'));
   });
 });
 

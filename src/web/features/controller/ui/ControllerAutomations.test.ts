@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mount, flushPromises } from '@vue/test-utils';
 import { expect, it } from 'vitest';
 import { i18n, activateLocale } from '@/shared/i18n/i18n.ts';
@@ -25,7 +27,7 @@ it('reviews a complete event and retains uncertain command identity', async () =
     throw new Error(`Unexpected native call ${method}`);
   });
   const wrapper = mount(ControllerRoot, { global: { plugins: [i18n], provide: { [controlClientKey as symbol]: client } } });
-  const words = { disable: 'Disable event', cancel: 'Cancel', unknown: 'new changes are blocked', action: 'Action · same', revision: 'Revision 1', started: 'Already started actions may finish.' };
+  const words = { disable: 'Disable event', cancel: t('common.cancel'), unknown: 'new changes are blocked', action: 'Action · same', revision: 'Revision 1', started: 'Already started actions may finish.' };
   try {
     await flushPromises();
     const board = wrapper.get('.automation-board');

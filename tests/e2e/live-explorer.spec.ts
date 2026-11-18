@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
 import {
@@ -9,7 +11,7 @@ import {
 } from './fixtures/tiktools-host.ts';
 
 async function openConnections(page: Parameters<typeof installFakeHost>[0]): Promise<void> {
-  const tab = page.getByRole('link', { name: 'Connections' });
+  const tab = page.getByRole('link', { name: t('navigation.connections') });
   await expect(tab).toBeVisible();
   await tab.click();
   await expect(tab).toHaveAttribute('aria-current', 'page');
@@ -46,7 +48,7 @@ test('the explorer stays inert until opened, then connects only the chosen room'
   await expect(page.getByRole('cell', { name: '1,200', exact: true })).toBeVisible();
 
   const row = page.getByRole('row').filter({ hasText: '@creator_two' });
-  await row.getByRole('button', { name: 'Connect' }).click();
+  await row.getByRole('button', { name: t('connection.connect') }).click();
 
   await expect.poll(async () => (await discoveryCalls(page, 'live.connect')).length).toBe(1);
   const connect = (await discoveryCalls(page, 'live.connect'))[0];
@@ -77,7 +79,7 @@ test('a random pick previews a candidate and never connects on its own', async (
   await expect(page.getByText('Random pick — review before connecting:')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Choose a random room' }).click();
-  await page.locator('.live-explorer__random').getByRole('button', { name: 'Connect' }).click();
+  await page.locator('.live-explorer__random').getByRole('button', { name: t('connection.connect') }).click();
   await expect.poll(async () => (await discoveryCalls(page, 'live.connect')).length).toBe(1);
 
   await assertNoUnhandledCalls(page);

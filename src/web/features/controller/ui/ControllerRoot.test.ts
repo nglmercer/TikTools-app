@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mount, flushPromises } from '@vue/test-utils';
 import { expect, it } from 'vitest';
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
@@ -44,7 +46,7 @@ it('requires confirmation before forgetting a reviewed local profile', async () 
     expect(dialog.text()).toContain('credentials, drafts and command history');
     expect(dialog.text()).toContain('Existing connections may remain active until they expire or the owner revokes host access');
     expect(dialog.text()).toContain('https://host.example');
-    await dialog.findAll('button').find((node) => node.text() === 'Cancel')!.trigger('click');
+    await dialog.findAll('button').find((node) => node.text() === t('common.cancel'))!.trigger('click');
     expect(calls.some((call) => call.method === 'controller.profile.forget')).toBe(false);
     await button('Forget profile').trigger('click');
     await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Forget profile')!.trigger('click');

@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
 // Exercise the production Vue controls through the public demo transport. No
@@ -93,7 +95,7 @@ test('plugin settings discard, save and reopen preserve the saved values', async
   const settings = details.locator('.plugin-settings');
   const volume = settings.getByRole('spinbutton', { name: 'volume', exact: true });
   const enabled = settings.getByRole('checkbox', { name: 'enabled', exact: true });
-  const save = settings.getByRole('button', { name: 'Save', exact: true });
+  const save = settings.getByRole('button', { name: t('plugins.settings.save'), exact: true });
   await expect(volume).toHaveValue('50');
   await expect(enabled).toBeChecked();
   await expect(save).toBeDisabled();
@@ -111,7 +113,7 @@ test('plugin settings discard, save and reopen preserve the saved values', async
   await save.click();
   await expect(settings.getByRole('status')).toHaveText('Settings saved.');
   await expect(save).toBeDisabled();
-  await details.getByRole('button', { name: 'Back', exact: true }).click();
+  await details.getByRole('button', { name: t('common.back'), exact: true }).click();
   const reopened = await audioDetails(page);
   await reopened.getByRole('tab', { name: 'Settings', exact: true }).click();
   await expect(reopened.getByRole('spinbutton', { name: 'volume', exact: true })).toHaveValue('72');
@@ -131,7 +133,7 @@ test('plugin enablement and reversible installation round-trip through catalog a
   await details.getByRole('button', { name: 'Remove from installed', exact: true }).click();
   await expect(details.getByRole('button', { name: 'Install', exact: true })).toBeVisible();
   await expect(details.getByRole('switch', { name: 'Enabled', exact: true })).toHaveCount(0);
-  await details.getByRole('button', { name: 'Back', exact: true }).click();
+  await details.getByRole('button', { name: t('common.back'), exact: true }).click();
   await page.getByRole('tab', { name: /^Installed/ }).click();
   await expect(page.locator('.plugin-catalog__open').filter({ hasText: 'Demo Audio' })).toHaveCount(0);
   await page.getByRole('tab', { name: 'Explore', exact: true }).click();
@@ -197,7 +199,7 @@ test('collaboration approval and identity revocation require confirmation and re
   await reviewer.getByRole('button', { name: 'Approve device', exact: true }).click();
   const approval = page.getByRole('dialog', { name: 'Approve this device?', exact: true });
   await expect(approval).toContainText('demo-request');
-  await approval.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await approval.getByRole('button', { name: t('common.cancel'), exact: true }).click();
   await expect(reviewer.getByRole('button', { name: 'Approve device', exact: true })).toBeVisible();
   await reviewer.getByRole('button', { name: 'Approve device', exact: true }).click();
   await approval.getByRole('button', { name: 'Apply', exact: true }).click();
@@ -206,7 +208,7 @@ test('collaboration approval and identity revocation require confirmation and re
   await reviewer.getByRole('button', { name: 'Revoke', exact: true }).click();
   const revoke = page.getByRole('dialog', { name: 'Revoke access?', exact: true });
   await expect(revoke).toContainText('demo-reviewer');
-  await revoke.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await revoke.getByRole('button', { name: t('common.cancel'), exact: true }).click();
   await expect(reviewer).toBeVisible();
   await reviewer.getByRole('button', { name: 'Revoke', exact: true }).click();
   await revoke.getByRole('button', { name: 'Apply', exact: true }).click();
@@ -225,7 +227,7 @@ test('private invitation creation and revocation close the transient masked-link
   await expect(invitation.locator('#collaboration-link')).toHaveAttribute('readonly', '');
   await invitation.getByRole('button', { name: 'Revoke invitation', exact: true }).click();
   const revoke = page.getByRole('dialog', { name: 'Revoke access?', exact: true });
-  await revoke.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await revoke.getByRole('button', { name: t('common.cancel'), exact: true }).click();
   await expect(invitation).toBeVisible();
   await invitation.getByRole('button', { name: 'Revoke invitation', exact: true }).click();
   await revoke.getByRole('button', { name: 'Apply', exact: true }).click();
