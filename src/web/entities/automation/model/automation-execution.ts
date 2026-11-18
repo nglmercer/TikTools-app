@@ -28,11 +28,12 @@ export function createAutomationExecution(control: ControlClient, context: {
     kind: AutomationKind,
     record: LiveAction | LiveEvent,
     trigger?: string,
+    customEvent?: unknown,
   ): void => {
     context.clearError();
     behaviorTestRuns.value = [];
     void control
-      .call<BehaviorRun>('automation.test', { record, kind, trigger })
+      .call<BehaviorRun>('automation.test', { record, kind, trigger, ...(customEvent === undefined ? {} : { event: customEvent }) })
       .then((run) => {
         if (context.isDisposed()) return;
         behaviorTestRuns.value = [run];
@@ -43,11 +44,15 @@ export function createAutomationExecution(control: ControlClient, context: {
       });
   };
 
-  const handleFireEvent = (event: LiveEvent): void => {
+  const handleFireEvent = (event: LiveEvent, customEvent?: unknown): void => {
     context.clearError();
     behaviorTestRuns.value = [];
     void control
-      .call<AutomationFireResult>('automation.fire', { trigger: event.trigger, record: event })
+      .call<AutomationFireResult>('automation.fire', {
+        trigger: event.trigger,
+        record: event,
+        ...(customEvent === undefined ? {} : { event: customEvent }),
+      })
       .then((result) => {
         if (context.isDisposed()) return;
         behaviorTestRuns.value = [

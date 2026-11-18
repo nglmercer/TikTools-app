@@ -213,6 +213,7 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     record,
                     kind: Some(kind),
                     trigger,
+                    event: None,
                 })
                 .await?,
         ),

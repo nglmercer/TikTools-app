@@ -1,22 +1,27 @@
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue';
+import { computed, markRaw, ref, shallowRef, useId, watch } from 'vue';
 import type { BehaviorRun, LiveAction, LiveEvent, PluginEventType } from '../../../../automation/behavior/types.ts';
 import type { HotkeyStatusData } from '../../../../shared/messages.ts';
 import { cloneRecord } from '@/entities/automation/lib/automation-records.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import TestRunList from '@/entities/automation/ui/TestRunList.vue';
+import { sampleEventForType } from '../../../../automation/event-registry.ts';
+import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
+import IconCode from '@/shared/ui/icon/icons/IconCode.vue';
 import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
-import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
+import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
+import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
 import BaseSection from '@/shared/ui/section/BaseSection.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
+import BaseTextArea from '@/shared/ui/text-area/BaseTextArea.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 
 import EventConditionsSection from './EventConditionsSection.vue';
@@ -45,8 +50,8 @@ const emit = defineEmits<{
   save: [event: LiveEvent];
   change: [event: LiveEvent];
   delete: [id: string];
-  test: [event: LiveEvent];
-  fire: [event: LiveEvent];
+  test: [event: LiveEvent, customEvent?: unknown];
+  fire: [event: LiveEvent, customEvent?: unknown];
 }>();
 
 const dirty = defineModel<boolean>('dirty', { default: false });
@@ -55,6 +60,20 @@ const { t, triggers } = useAutomationText();
 const id = useId();
 const draft = ref<LiveEvent>(cloneRecord(props.event));
 const deleteOpen = ref(false);
+
+// One grouped menu for the three ways to exercise a record: dry-run, fire
+// with the host-resolved event, or fire with an edited custom envelope.
+const runMenuOpen = ref(false);
+const runMenuAnchor = shallowRef<HTMLElement | null>(null);
+const runMenu = computed<MenuEntry[]>(() => [
+  { id: 'test', label: t('automations.runMenu.test'), icon: IconFlask },
+  { id: 'fire', label: t('automations.runMenu.fire') },
+  { type: 'separator', id: 'separator' },
+  { id: 'custom', label: t('automations.runMenu.custom'), icon: IconCode },
+]);
+const customOpen = ref(false);
+const customText = ref('');
+const customError = ref('');
 const changed = computed(() => props.isNew || JSON.stringify(draft.value) !== JSON.stringify(props.baseline ?? props.event));
 const triggerOptions = computed(() =>
   triggers(props.eventTypes).map((option) => ({
@@ -84,6 +103,36 @@ function confirmDelete(): void {
 function discard(): void {
   draft.value = cloneRecord(props.baseline ?? props.event);
 }
+
+function openRunMenu(event: MouseEvent): void {
+  runMenuAnchor.value = markRaw(event.currentTarget as HTMLElement);
+  runMenuOpen.value = true;
+}
+
+function pickRun(action: MenuAction): void {
+  if (action.id === 'test') emit('test', cloneRecord(draft.value));
+  else if (action.id === 'fire') emit('fire', cloneRecord(draft.value));
+  else if (action.id === 'custom') {
+    // Prefill from the registry so every trigger starts from a valid shape.
+    customText.value = JSON.stringify(sampleEventForType(draft.value.trigger), null, 2);
+    customError.value = '';
+    customOpen.value = true;
+  }
+}
+
+function runCustom(kind: 'test' | 'fire'): void {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(customText.value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('object');
+  } catch {
+    customError.value = t('automations.runMenu.invalidJson');
+    return;
+  }
+  customOpen.value = false;
+  if (kind === 'test') emit('test', cloneRecord(draft.value), parsed);
+  else emit('fire', cloneRecord(draft.value), parsed);
+}
 </script>
 
 <template>
@@ -101,22 +150,15 @@ function discard(): void {
     </template>
     <template #actions>
       <BaseIconButton
-        :label="t('automations.editor.test')"
-        :hint="t('automations.editor.testHint')"
+        :label="t('automations.runMenu.label')"
+        :hint="t('automations.runMenu.hint')"
         variant="default"
         size="sm"
-        @click="emit('test', draft)"
+        aria-haspopup="menu"
+        :aria-expanded="runMenuOpen"
+        @click="openRunMenu"
       >
         <IconFlask />
-      </BaseIconButton>
-      <BaseIconButton
-        :label="t('automations.editor.fire')"
-        :hint="t('automations.editor.fireHint')"
-        variant="default"
-        size="sm"
-        @click="emit('fire', draft)"
-      >
-        <IconZap />
       </BaseIconButton>
       <span
         class="event-editor__divider"
@@ -209,8 +251,51 @@ function discard(): void {
         </div>
       </div>
 
+      <BaseSection
+        v-if="customOpen"
+        :title="t('automations.runMenu.customTitle')"
+      >
+        <BaseTextArea
+          v-model="customText"
+          class="event-editor__custom-json"
+          :rows="10"
+          monospace
+          :invalid="Boolean(customError)"
+          :aria-label="t('automations.runMenu.customTitle')"
+          @input="customError = ''"
+        />
+        <p
+          v-if="customError"
+          class="event-editor__custom-error"
+        >
+          {{ customError }}
+        </p>
+        <div class="event-editor__custom-actions">
+          <BaseButton
+            variant="primary"
+            size="sm"
+            @click="runCustom('test')"
+          >{{ t('automations.runMenu.test') }}</BaseButton>
+          <BaseButton
+            size="sm"
+            @click="runCustom('fire')"
+          >{{ t('automations.runMenu.fire') }}</BaseButton>
+          <BaseButton
+            variant="ghost"
+            size="sm"
+            @click="customOpen = false"
+          >{{ t('automations.editor.discard') }}</BaseButton>
+        </div>
+      </BaseSection>
+
       <TestRunList :runs="testRuns" />
     </div>
+    <BaseMenu
+      v-model:open="runMenuOpen"
+      :items="runMenu"
+      :anchor="runMenuAnchor"
+      @select="pickRun"
+    />
     <BaseConfirmDialog
       v-model:open="deleteOpen"
       :title="t('automations.editor.deleteEventTitle')"

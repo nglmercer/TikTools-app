@@ -655,13 +655,40 @@ async fn test_event_names_sample_data_on_mismatch() {
             "cooldownScope": "user",
             "actionIds": [],
             "runMode": "all"
-        }))
+        }), None)
         .await;
     assert_eq!(result["status"], "error");
     assert_eq!(result["eventSource"], "sample");
     let summary = result["summary"].as_str().unwrap_or_default();
     assert!(summary.contains("the sample event"), "{summary}");
     assert!(summary.contains("Hello there"), "{summary}");
+}
+
+#[tokio::test]
+async fn test_event_uses_custom_event_override() {
+    let emitter = Arc::new(RecordingEmitter::default());
+    let core = Arc::new(AppCore::new(emitter));
+    let record = serde_json::json!({
+        "id": "evt-custom",
+        "name": "Custom",
+        "enabled": true,
+        "trigger": "tiktok.chat",
+        "filters": [{"path": "event.data.comment", "operator": "starts-with", "value": "!play"}],
+        "cooldownMs": 0,
+        "cooldownScope": "user",
+        "actionIds": [],
+        "runMode": "all"
+    });
+    let custom = serde_json::json!({
+        "id": "pasted",
+        "type": "tiktok.gift",
+        "data": {"comment": "!play vaundy", "method": "WebcastChatMessage", "msgId": "1", "isHistory": false}
+    });
+    let result = core.test_event(&record, Some(&custom)).await;
+    assert_eq!(result["eventSource"], "custom");
+    assert_eq!(result["eventData"]["comment"], "!play vaundy");
+    // The trigger under test wins over the type pasted in the custom envelope.
+    assert_eq!(result["eventName"], "tiktok.chat");
 }
 
 #[tokio::test]
@@ -707,7 +734,7 @@ async fn test_event_replays_last_live_event_of_its_trigger() {
             "cooldownScope": "user",
             "actionIds": [],
             "runMode": "all"
-        }))
+        }), None)
         .await;
     // No saved actions: the filter matched (live data), the harness just has
     // nothing to run. A sample replay would have failed the Galaxy filter.

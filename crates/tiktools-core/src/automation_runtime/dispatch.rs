@@ -206,7 +206,11 @@ impl AppCore {
         pinned
     }
 
-    pub(crate) async fn test_event(self: &Arc<Self>, record: &Value) -> Value {
+    pub(crate) async fn test_event(
+        self: &Arc<Self>,
+        record: &Value,
+        event_override: Option<&Value>,
+    ) -> Value {
         let Some(matched) = self.automation.manual_record(record) else {
             return json!({"status":"error","test":true,"error":"authority_required","summary":"Definition requires explicit owner adoption or delegated execution approval."});
         };
@@ -215,7 +219,17 @@ impl AppCore {
             .get("trigger")
             .and_then(Value::as_str)
             .unwrap_or("tiktok.chat");
-        let (mut event, source) = self.test_event_for(trigger, Some(record));
+        let (mut event, source) = match event_override {
+            Some(custom) if custom.is_object() => (custom.clone(), "custom"),
+            _ => self.test_event_for(trigger, Some(record)),
+        };
+        if source == "custom" {
+            // Same normalization as the fire path: fresh identity and the
+            // trigger being tested wins over whatever the pasted event carried.
+            event["id"] = Value::String("test-event".to_owned());
+            event["timestamp"] = Value::from(now_millis());
+            event["type"] = Value::String(trigger.to_owned());
+        }
         let pinned = self.pin_sample_to_record(&mut event, source, record);
 
         if !self.automation.runtime_event_record_matches(record, &event) {

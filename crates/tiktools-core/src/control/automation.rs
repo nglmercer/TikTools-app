@@ -247,8 +247,12 @@ impl AppCore {
         self.automation_set_enablement_versioned(updates)
             .map(|v| v.value)
     }
-    pub async fn test_automation_event(self: &Arc<Self>, record: &Value) -> Value {
-        self.test_event(record).await
+    pub async fn test_automation_event(
+        self: &Arc<Self>,
+        record: &Value,
+        event: Option<&Value>,
+    ) -> Value {
+        self.test_event(record, event).await
     }
 
     pub async fn fire_automation_event(

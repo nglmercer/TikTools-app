@@ -303,7 +303,7 @@ impl AppCore {
             }
             PageMessage::TestEvent { event } => {
                 self.emit(HostMessage::BehaviorTestResult {
-                    runs: vec![self.test_automation_event(&event).await],
+                    runs: vec![self.test_automation_event(&event, None).await],
                 });
             }
             PageMessage::TestProcessor {

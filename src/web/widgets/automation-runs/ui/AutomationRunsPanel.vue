@@ -71,7 +71,7 @@ const rows = computed(() =>
       </BaseIconButton>
     </template>
     <BaseTable
-      v-if="open"
+      v-if="open && selected < 0"
       class="automation-runs__table"
       :columns="columns"
       :rows="rows"
@@ -121,6 +121,7 @@ const rows = computed(() =>
       v-if="open && selected >= 0"
       :runs="runs"
       :index="selected"
+      back
       @navigate="selected = $event"
       @close="selected = -1"
     />

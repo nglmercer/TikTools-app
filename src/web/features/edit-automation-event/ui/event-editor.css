@@ -75,3 +75,19 @@
   display: flex;
   gap: var(--space-2);
 }
+
+.event-editor__custom-json {
+  width: 100%;
+}
+
+.event-editor__custom-error {
+  margin: 0;
+  color: var(--color-danger-hover);
+  font-size: var(--font-size-sm);
+}
+
+.event-editor__custom-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

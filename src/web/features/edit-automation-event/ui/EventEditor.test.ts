@@ -67,3 +67,19 @@ it('configures a condition template and discards it with the other unsaved edits
   expect(wrapper.emitted('change')!.at(-1)![0]).toEqual(event);
   expect(wrapper.emitted('update:dirty')!.at(-1)).toEqual([false]);
 });
+
+it('groups dry-run, real fire and custom data behind the flask menu', async () => {
+  const { wrapper } = mountEditor();
+  await button(wrapper, 'automations.runMenu.label').trigger('click');
+  await nextTick();
+  // MenuList teleports to body.
+  const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  const labels = items.map((item) => item.textContent ?? '');
+  expect(labels).toContain(t('automations.runMenu.test'));
+  expect(labels).toContain(t('automations.runMenu.fire'));
+  expect(labels).toContain(t('automations.runMenu.custom'));
+  const dryRun = items.find((item) => item.textContent === t('automations.runMenu.test'))!;
+  dryRun.click();
+  await nextTick();
+  expect(wrapper.emitted('test')).toHaveLength(1);
+});

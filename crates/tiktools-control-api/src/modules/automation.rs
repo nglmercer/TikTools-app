@@ -201,6 +201,9 @@ pub struct AutomationTestParams {
     /// Sample trigger for inline action tests (default `tiktok.chat`).
     #[serde(default)]
     pub trigger: Option<String>,
+    /// Optional custom event envelope to dry-run the record against.
+    #[serde(default)]
+    pub event: Option<Value>,
 }
 
 fn parse_kind(raw: Option<&str>, default: AutomationKind) -> Result<AutomationKind, ApiError> {
@@ -552,7 +555,9 @@ pub fn register(router: &mut ControlRouter) {
                 ));
             }
             Ok::<Value, ApiError>(match kind {
-                AutomationKind::Event => core.test_automation_event(&record).await,
+                AutomationKind::Event => {
+                    core.test_automation_event(&record, params.event.as_ref()).await
+                }
                 AutomationKind::Action => {
                     core.test_automation_action(&record, params.trigger.as_deref())
                         .await

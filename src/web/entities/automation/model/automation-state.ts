@@ -194,8 +194,8 @@ export function useAutomation(control: ControlClient) {
   const handleSetEventEnabled = (id: string, enabled: boolean, revision: AutomationRevision, host?: AutomationHost | null): Promise<void> => {
     return setRecordEnabled('event', id, enabled, revision, host);
   };
-  const handleTestEvent = (event: LiveEvent): void => {
-    testRecord('event', event);
+  const handleTestEvent = (event: LiveEvent, customEvent?: unknown): void => {
+    testRecord('event', event, undefined, customEvent);
   };
   const handleApplyRuleTemplate = async (actions: LiveAction[], event: LiveEvent): Promise<void> => {
     if (persistent.value !== false) {

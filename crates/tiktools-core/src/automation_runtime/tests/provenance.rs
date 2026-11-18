@@ -444,7 +444,7 @@ async fn assert_corrupt_runtime_quarantined(core: &Arc<AppCore>, record: &Value,
             .await["error"],
         "authority_required"
     );
-    assert_eq!(core.test_event(record).await["error"], "authority_required");
+    assert_eq!(core.test_event(record, None).await["error"], "authority_required");
     for test in [false, true] {
         assert_eq!(
             core.execute_action(action, &input(), None, test).await["error"],

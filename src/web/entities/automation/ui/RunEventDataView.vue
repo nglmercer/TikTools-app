@@ -13,10 +13,12 @@ import BaseJsonView from '@/shared/ui/json/BaseJsonView.vue';
  * that owns the runs (no dialog), navigates between runs with the same
  * controls for every trigger, and delegates rendering/bounds to BaseJsonView.
  */
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   runs: readonly BehaviorRun[];
   index: number;
-}>();
+  /** The list is hidden while inspecting: label the exit as "back to list". */
+  back?: boolean;
+}>(), { back: false });
 const emit = defineEmits<{ navigate: [index: number]; close: [] }>();
 const { t } = useI18n();
 
@@ -45,11 +47,12 @@ const hasData = computed(() => run.value?.eventData !== undefined && run.value.e
         <IconChevronRight />
       </BaseIconButton>
       <BaseIconButton
-        :label="t('automations.eventData.hide')"
+        :label="t(back ? 'automations.eventData.back' : 'automations.eventData.hide')"
         size="sm"
         @click="emit('close')"
       >
-        <IconClose />
+        <IconChevronLeft v-if="back" />
+        <IconClose v-else />
       </BaseIconButton>
     </div>
     <p

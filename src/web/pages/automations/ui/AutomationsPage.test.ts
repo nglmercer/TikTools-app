@@ -396,22 +396,16 @@ describe('AutomationsPage', () => {
     expect(calls.some((call) => call.method === 'automation.create')).toBe(false);
   });
 
-  it('explains Run test and Fire now on hover', async () => {
+  it('explains the grouped run menu on hover', async () => {
     const { wrapper } = await mountPage();
     await selectRow(wrapper, 'Big gifts');
     vi.useFakeTimers();
     try {
-      const runTest = buttonByText(wrapper, t('automations.editor.test'));
-      runTest.element.dispatchEvent(new Event('focusin', { bubbles: true }));
+      const runMenu = buttonByText(wrapper, t('automations.runMenu.label'));
+      runMenu.element.dispatchEvent(new Event('focusin', { bubbles: true }));
       vi.advanceTimersByTime(600);
       expect(document.getElementById('app-tooltip')?.textContent).toBe(
-        t('automations.editor.testHint'),
-      );
-      runTest.element.dispatchEvent(new Event('focusout', { bubbles: true }));
-      buttonByText(wrapper, t('automations.editor.fire')).element.dispatchEvent(new Event('focusin', { bubbles: true }));
-      vi.advanceTimersByTime(600);
-      expect(document.getElementById('app-tooltip')?.textContent).toBe(
-        t('automations.editor.fireHint'),
+        t('automations.runMenu.hint'),
       );
     } finally {
       vi.useRealTimers();
