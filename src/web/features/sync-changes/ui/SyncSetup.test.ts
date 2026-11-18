@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, expect, it } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
@@ -5,6 +6,7 @@ import { createFakeControlClient, storePlugins } from '@/shared/lib/testing/fake
 import SyncSetup from './SyncSetup.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 it('retains the migration blocker and never migrates without a successful review', async () => {
   let enabled = false;
   const { client, calls } = createFakeControlClient((method) => {
@@ -19,7 +21,7 @@ it('retains the migration blocker and never migrates without a successful review
   const wrapper = mountWithPlugins(SyncSetup, { global: { plugins: storePlugins(client) } });
   await flushPromises();
   expect(calls.some(call => call.method === 'sync.enable')).toBe(false);
-  await wrapper.findAll('button').find(button => button.text() === 'Prepare Cloud sync')!.trigger('click');
+  await wrapper.findAll('button').find(button => button.text() === t('syncChanges.prepare'))!.trigger('click');
   await flushPromises();
   expect(wrapper.text()).toContain('installed_plugin_missing');
   expect(calls.some(call => call.method === 'sync.v2.migrate')).toBe(false);
@@ -46,7 +48,7 @@ it('requires explicit confirmation of the reviewed inventory and rechecks migrat
   const wrapper = mountWithPlugins(SyncSetup, { global: { plugins: storePlugins(client) } });
   await flushPromises();
   const click = async (label: string) => { await wrapper.findAll('button').find(button => button.text() === label)!.trigger('click'); await flushPromises(); };
-  await click('Prepare Cloud sync');
+  await click(t('syncChanges.prepare'));
   await click('Review missing packages');
   expect(wrapper.text()).toContain('missing.plugin');
   expect(wrapper.text()).toContain('pending changes are kept');

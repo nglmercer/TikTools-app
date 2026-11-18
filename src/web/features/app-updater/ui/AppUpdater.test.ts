@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { flushPromises } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
@@ -135,10 +137,10 @@ describe('AppUpdater', () => {
     const harness = createStoreHarness(client);
     await harness.use(useAppUpdaterStore).initialize();
     const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
-    expect(wrapper.text()).toContain('Install and restart');
+    expect(wrapper.text()).toContain(t('appUpdater.install'));
     wrapper.findComponent(BaseComboBox).vm.$emit('update:modelValue', 'stable');
     await flushPromises();
-    expect(wrapper.text()).not.toContain('Install and restart');
+    expect(wrapper.text()).not.toContain(t('appUpdater.install'));
     expect(wrapper.text()).toContain('Check for updates');
   });
 
@@ -170,7 +172,7 @@ describe('AppUpdater', () => {
     window.ipc = { postMessage };
     try {
       const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
-      const button = wrapper.findAll('button').find((item) => item.text().includes('Install and restart'));
+      const button = wrapper.findAll('button').find((item) => item.text().includes(t('appUpdater.install')));
       expect(button).toBeDefined();
       await button!.trigger('click');
       expect(JSON.parse(postMessage.mock.calls[0]![0] as string)).toEqual({ type: 'app-update-install', locale: 'en' });

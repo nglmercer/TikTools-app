@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import type { ActionTypeDefinition, BehaviorRun, LiveAction, LiveEvent, PluginStatus } from '../../../../automation/behavior/types.ts';
 import {
@@ -46,8 +48,8 @@ describe('automation records', () => {
 
   it('matches every query word', () => {
     expect(matchesQuery('', 'anything')).toBe(true);
-    expect(matchesQuery('gift WEB', 'Gift to webhook')).toBe(true);
-    expect(matchesQuery('gift chat', 'Gift to webhook')).toBe(false);
+    expect(matchesQuery('gift WEB', t('automations.builtinTemplates.giftWebhookTitle'))).toBe(true);
+    expect(matchesQuery('gift chat', t('automations.builtinTemplates.giftWebhookTitle'))).toBe(false);
   });
 
   it('offers built-in types and those of enabled plugins', () => {

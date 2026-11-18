@@ -1,9 +1,11 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mount } from '@vue/test-utils';
 import { expect, test } from 'vitest';
 import SettingsRow from './SettingsRow.vue';
 test('labels the input and gives its group a stable description without hiding details', () => {
   const wrapper = mount(SettingsRow, {
-    props: { label:'Background updates', for:'updates', description:'Check automatically' },
+    props: { label:'Background updates', for:'updates', description:t('appUpdater.automaticChecks') },
     slots: { default:'<input id="updates" type="checkbox">', status:'<span>Available</span>', details:'<p>Advanced options</p>' },
   });
   const label = wrapper.get('label');

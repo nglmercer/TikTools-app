@@ -55,7 +55,7 @@ async function overlayLibrary(page: Page): Promise<Locator> {
 }
 
 function greetingRow(page: Page): Locator {
-  return page.getByRole('table', { name: 'Runtime globals', exact: true }).getByRole('row', { name: /^greeting / });
+  return page.getByRole('table', { name: t('globals.title'), exact: true }).getByRole('row', { name: /^greeting / });
 }
 
 async function variableChanges(page: Page): Promise<Locator> {
@@ -155,8 +155,8 @@ test('built-in overlay library selection changes the real preview without contac
   await library.getByRole('button', { name: 'Open in editor', exact: true }).click();
   await expect(library).not.toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Browser source URL', exact: true })).toHaveValue(/\/widgets\/chat\//);
-  await expect(page.getByRole('button', { name: 'Replay preview', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Replay preview', exact: true }).click();
+  await expect(page.getByRole('button', { name: t('overlays.preview.replay'), exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: t('overlays.preview.replay'), exact: true }).click();
   await expect(page.locator('.overlay-preview')).toBeVisible();
   await settled(page);
 });
@@ -196,15 +196,15 @@ test('collaboration approval and identity revocation require confirmation and re
   const matrix = page.getByRole('table', { name: 'Who can access this host', exact: true });
   const reviewer = matrix.getByRole('row').filter({ hasText: 'Demo reviewer' });
   await expect(reviewer, 'The seeded pending request must remain usable at the current date').toBeVisible();
-  await reviewer.getByRole('button', { name: 'Approve device', exact: true }).click();
+  await reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true }).click();
   const approval = page.getByRole('dialog', { name: 'Approve this device?', exact: true });
   await expect(approval).toContainText('demo-request');
   await approval.getByRole('button', { name: t('common.cancel'), exact: true }).click();
-  await expect(reviewer.getByRole('button', { name: 'Approve device', exact: true })).toBeVisible();
-  await reviewer.getByRole('button', { name: 'Approve device', exact: true }).click();
+  await expect(reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true })).toBeVisible();
+  await reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true }).click();
   await approval.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(approval).not.toBeVisible();
-  await expect(reviewer.getByRole('button', { name: 'Approve device', exact: true })).toHaveCount(0);
+  await expect(reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true })).toHaveCount(0);
   await reviewer.getByRole('button', { name: 'Revoke', exact: true }).click();
   const revoke = page.getByRole('dialog', { name: 'Revoke access?', exact: true });
   await expect(revoke).toContainText('demo-reviewer');
@@ -213,14 +213,14 @@ test('collaboration approval and identity revocation require confirmation and re
   await reviewer.getByRole('button', { name: 'Revoke', exact: true }).click();
   await revoke.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(reviewer).toHaveCount(0);
-  await expect(matrix.getByRole('button', { name: 'Create private invitation', exact: true })).toBeEnabled();
+  await expect(matrix.getByRole('button', { name: t('collaboration.create'), exact: true })).toBeEnabled();
   await settled(page);
 });
 
 test('private invitation creation and revocation close the transient masked-link dialog', async ({ page }) => {
   await openDemo(page, 'collaboration', 'collaboration-invite');
   await page.getByRole('button', { name: 'Workflow reviewer', exact: true }).click();
-  await page.getByRole('button', { name: 'Create private invitation', exact: true }).click();
+  await page.getByRole('button', { name: t('collaboration.create'), exact: true }).click();
   const invitation = page.getByRole('dialog', { name: 'Invitation ready', exact: true });
   await expect(invitation, 'A newly issued fictional invitation must not already be expired').toBeVisible();
   await expect(invitation.locator('#collaboration-link')).toHaveAttribute('type', 'password');
@@ -233,7 +233,7 @@ test('private invitation creation and revocation close the transient masked-link
   await revoke.getByRole('button', { name: 'Apply', exact: true }).click();
   await expect(invitation).not.toBeVisible();
   await expect(revoke).not.toBeVisible();
-  await expect(page.getByRole('button', { name: 'Create private invitation', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: t('collaboration.create'), exact: true })).toBeEnabled();
   await settled(page);
 });
 
@@ -248,12 +248,12 @@ test('Variables fence unsaved edits, then resolve to the reviewed Cloud value', 
   await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
   const dialog = await variableChanges(page);
   await expect(dialog.locator('.sync-panel__conflict')).toContainText('Choose the version to use.');
-  await dialog.getByRole('button', { name: 'Use Cloud on this device', exact: true }).click();
-  await expect(dialog).toContainText('Everything is synced');
+  await dialog.getByRole('button', { name: t('syncChanges.applyCloud'), exact: true }).click();
+  await expect(dialog).toContainText(t('syncChanges.empty'));
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(greeting.getByRole('textbox', { name: 'Value', exact: true })).toHaveValue('Welcome');
   await expect(page.getByRole('button', { name: 'Save globals', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Sync changes', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: t('syncChanges.button'), exact: true })).toBeEnabled();
   await settled(page);
 });
 
@@ -263,11 +263,11 @@ test('Variables local resolution clears only the comparison and preserves the sa
   await expect(dialog.getByRole('button', { name: /Force send|Force fetch|Reset everything/ })).toHaveCount(0);
   await expect(dialog.getByRole('switch', { name: 'Auto', exact: true })).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Send saved value', exact: true }).click();
-  await expect(dialog).toContainText('Everything is synced');
+  await expect(dialog).toContainText(t('syncChanges.empty'));
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(greetingRow(page).getByRole('textbox', { name: 'Value', exact: true })).toHaveValue('Hello');
-  await page.getByRole('button', { name: 'Sync changes', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Changes · Variables', exact: true })).toContainText('Everything is synced');
+  await page.getByRole('button', { name: t('syncChanges.button'), exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Changes · Variables', exact: true })).toContainText(t('syncChanges.empty'));
   await settled(page);
 });
 
@@ -282,12 +282,12 @@ test('updater preferences work locally while native checking and installation re
 
   await updater.getByRole('combobox', { name: 'Update channel', exact: true }).click();
   await page.getByRole('option', { name: 'Beta', exact: true }).click();
-  await updater.getByRole('switch', { name: 'Check automatically', exact: true }).uncheck();
+  await updater.getByRole('switch', { name: t('appUpdater.automaticChecks'), exact: true }).uncheck();
   await updater.getByRole('switch', { name: 'Notify me about updates', exact: true }).uncheck();
   await page.getByRole('tab', { name: 'Account & Cloud', exact: true }).click();
   await page.getByRole('tab', { name: 'General', exact: true }).click();
   await expect(updater.getByRole('combobox', { name: 'Update channel', exact: true })).toContainText('Beta');
-  await expect(updater.getByRole('switch', { name: 'Check automatically', exact: true })).not.toBeChecked();
+  await expect(updater.getByRole('switch', { name: t('appUpdater.automaticChecks'), exact: true })).not.toBeChecked();
   await expect(updater.getByRole('switch', { name: 'Notify me about updates', exact: true })).not.toBeChecked();
   await expect(updater.getByRole('button', { name: 'Check for updates', exact: true })).toBeDisabled();
   await expect(updater).not.toContainText('TikTools is up to date.');

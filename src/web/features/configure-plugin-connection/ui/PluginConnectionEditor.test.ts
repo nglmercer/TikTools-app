@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { AUTOSAVE_DEBOUNCE_MS } from '@/entities/plugin/lib/connection-settings.ts';
@@ -5,6 +6,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginConnectionEditor from './PluginConnectionEditor.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 const settings = {
   schema: { type: 'object', properties: {
     serverUrl: { type: 'string', format: 'uri', title: 'Server URL', default: 'http://127.0.0.1:17842' },
@@ -25,7 +27,7 @@ test('a local server without authentication stays connected while downloading it
   const wrapper = mountEditor(false, true);
   expect(wrapper.text()).toContain('Connected to http://127.0.0.1:17842');
   expect(wrapper.text()).toContain('Downloading model');
-  expect(wrapper.text()).toContain('No token needed');
+  expect(wrapper.text()).toContain(t('plugins.connection.noTokenNeeded'));
   expect(wrapper.text()).not.toContain('Sign in to connect');
   expect(wrapper.find('input[type="password"]').exists()).toBe(false);
 });
@@ -38,7 +40,7 @@ test('connect opens the admin login when the server requires authorization', asy
   const username = document.querySelector<HTMLInputElement>('#provision-user');
   expect(username?.value).toBe('admin');
   expect(document.querySelector('#provision-password')).not.toBeNull();
-  expect(wrapper.text()).not.toContain('No token needed');
+  expect(wrapper.text()).not.toContain(t('plugins.connection.noTokenNeeded'));
 });
 
 test('the sign-in dialog outlives the authorization button when the server becomes authorized', async () => {
@@ -58,7 +60,7 @@ test('the sign-in dialog outlives the authorization button when the server becom
 test('manual token entry is available under advanced settings and preserves the saved value', async () => {
   const wrapper = mountEditor(true, false);
   expect(wrapper.find('input[type="password"]').exists()).toBe(false);
-  await wrapper.findAll('button').find(button => button.text() === 'Advanced settings')!.trigger('click');
+  await wrapper.findAll('button').find(button => button.text() === t('plugins.connection.advanced'))!.trigger('click');
   expect(wrapper.find('input[type="password"]').exists()).toBe(true);
   expect(wrapper.emitted('save')).toBeUndefined();
 });
@@ -100,7 +102,7 @@ test('an unreachable server keeps recovery guidance and moves technical details 
   await wrapper.setProps({ connection: { ok: false, reachable: false, error: 'raw network failure', latencyMs: 5, at: 2 } });
   expect(wrapper.text()).toContain('Open SonicBoom on this computer');
   expect(wrapper.text()).not.toContain('raw network failure');
-  await wrapper.findAll('button').find(button => button.text() === 'Advanced settings')!.trigger('click');
+  await wrapper.findAll('button').find(button => button.text() === t('plugins.connection.advanced'))!.trigger('click');
   expect(wrapper.text()).not.toContain('raw network failure');
   expect(wrapper.find('button[aria-label="Connection failed. View logs"]').exists()).toBe(true);
 });
@@ -133,7 +135,7 @@ describe.each(['stacked', 'sections'] as const)('credentials and authorization i
     await auto!.trigger('click');
     await folder!.trigger('click');
     await buttons.find(button => button.attributes('title')?.startsWith('Select the game or server configuration file'))!.trigger('click');
-    await buttons.filter(button => button.text() === 'Use this configuration')[1]!.trigger('click');
+    await buttons.filter(button => button.text() === t('plugins.connection.useConfiguration'))[1]!.trigger('click');
     expect(wrapper.emitted('importToken')).toEqual([
       ['peak.game', { mode: 'auto' }],
       ['peak.game', { mode: 'folder' }],
@@ -151,7 +153,7 @@ describe.each(['stacked', 'sections'] as const)('credentials and authorization i
     const wrapper = mountCredentials({ provisionState: { working: true, ok: false, message: '', candidates: [{ id: 'c1', label: 'Config A' }] } });
     const actions = wrapper.findAll('button').filter(button =>
       /^(Finds installed games|Select the game or server)/.test(button.attributes('title') ?? '')
-      || button.text() === 'Use this configuration' || button.text() === 'Get API token…');
+      || button.text() === t('plugins.connection.useConfiguration') || button.text() === t('plugins.connection.getToken'));
     expect(actions.length).toBeGreaterThanOrEqual(4);
     for (const button of actions) expect(button.attributes('disabled')).toBeDefined();
   });
@@ -161,7 +163,7 @@ describe.each(['stacked', 'sections'] as const)('credentials and authorization i
     expect(wrapper.findAllComponents({ name: 'ProvisionTokenDialog' })).toHaveLength(1);
     expect(wrapper.findAll('dialog')).toHaveLength(1);
     expect(document.querySelectorAll('#provision-user')).toHaveLength(0);
-    await wrapper.findAll('button').find(button => button.text() === 'Get API token…')!.trigger('click');
+    await wrapper.findAll('button').find(button => button.text() === t('plugins.connection.getToken'))!.trigger('click');
     expect(document.querySelectorAll('#provision-user')).toHaveLength(1);
     expect(wrapper.findAll('dialog')).toHaveLength(1);
     expect(wrapper.findAllComponents({ name: 'ProvisionTokenDialog' })).toHaveLength(1);

@@ -46,7 +46,7 @@ it('combines action ordering, run mode and cooldown edits into one draft before 
 
 it('configures a condition template and discards it with the other unsaved edits', async () => {
   const { event, wrapper } = mountEditor();
-  await wrapper.get('input[placeholder="' + t('automations.editor.name') + '"]').setValue('Moderation');
+  await wrapper.get('input[placeholder="' + t('automations.editor.name') + '"]').setValue(t('packages.categories.moderation'));
   await button(wrapper, 'automations.conditions.templates').trigger('click');
   const choice = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
     .find((item) => item.textContent?.trim() === t('automations.moderation.high'))!;
@@ -56,7 +56,7 @@ it('configures a condition template and discards it with the other unsaved edits
   await dialog.get('input').setValue('0.75');
   await dialog.findAll('button').find((item) => item.text() === t('automations.conditions.apply'))!.trigger('click');
   const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
-  expect(changed.name).toBe('Moderation');
+  expect(changed.name).toBe(t('packages.categories.moderation'));
   expect(changed.filters).toEqual([
     { path: 'event.intel.comment.composition.repetitionScore', operator: 'gte', value: '0.75' },
     { path: 'event.intel.comment.spam.detected', operator: 'is-true', value: '' },

@@ -201,14 +201,17 @@ pub(crate) fn sample_automation_event(event_type: &str) -> Value {
     event
 }
 
-/// Pins a synthetic event to an event record's `eq` filters so firing or
-/// testing the record exercises its own configuration (a `giftName = Rose`
-/// filter fires a Rose, not whatever the generic sample carries).
+/// Pins a synthetic event to filters whose configured value can be written
+/// straight into the sample and satisfy the predicate: `eq`, `starts-with`,
+/// `contains`, `in`, `is-true` and `is-false`. That way firing or testing a
+/// `comment ^= !play` rule exercises its own configuration (the sample
+/// comment becomes `!play`) instead of failing against "Hello there".
 ///
-/// Only exact pins apply: ranges and string operators still evaluate
-/// against the data, so they can genuinely fail. Values coerce to the
-/// pinned field's JSON type (numbers stay numbers). Returns display-ready
-/// `path='value'` entries for honest reporting.
+/// Ranges and `neq` are deliberately never pinned: a boundary or inequality
+/// has no value that is both honest and guaranteed to pass, so those filters
+/// still evaluate against the real sample and can genuinely fail. Values
+/// coerce to the pinned field's JSON type (numbers stay numbers). Returns
+/// display-ready `path='value'` entries for honest reporting.
 ///
 /// Callers must only pin synthetic (sample) envelopes: live and custom
 /// data stay truthful even when they match nothing.
@@ -218,23 +221,45 @@ pub(crate) fn pin_event_to_record(event: &mut Value, record: &Value) -> Vec<Stri
     };
     let mut pinned = Vec::new();
     for filter in filters {
-        if filter.get("operator").and_then(Value::as_str) != Some("eq") {
-            continue;
-        }
+        let operator = filter
+            .get("operator")
+            .and_then(Value::as_str)
+            .unwrap_or("eq");
         let Some(path) = filter.get("path").and_then(Value::as_str) else {
             continue;
         };
-        let Some(value) = filter.get("value").and_then(Value::as_str) else {
-            continue;
+        let (value, label) = match operator {
+            "eq" | "starts-with" | "contains" => {
+                let Some(value) = filter.get("value").and_then(Value::as_str) else {
+                    continue;
+                };
+                (Value::String(value.to_owned()), value.to_owned())
+            }
+            "in" => {
+                let Some(value) = filter
+                    .get("values")
+                    .and_then(Value::as_array)
+                    .and_then(|values| values.first())
+                    .and_then(Value::as_str)
+                else {
+                    continue;
+                };
+                (Value::String(value.to_owned()), value.to_owned())
+            }
+            "is-true" => (Value::Bool(true), "true".to_owned()),
+            "is-false" => (Value::Bool(false), "false".to_owned()),
+            // Ranges and inequality stay truthful: a pinned boundary would
+            // hide a genuinely failing comparison.
+            _ => continue,
         };
-        if pin_event_path(event, path, value) {
-            pinned.push(format!("{path}='{value}'"));
+        if pin_event_value(event, path, value) {
+            pinned.push(format!("{path}='{label}'"));
         }
     }
     pinned
 }
 
-fn pin_event_path(event: &mut Value, path: &str, value: &str) -> bool {
+fn pin_event_value(event: &mut Value, path: &str, value: Value) -> bool {
     let mut parts: Vec<&str> = path
         .trim()
         .trim_start_matches("{{")
@@ -263,7 +288,12 @@ fn pin_event_path(event: &mut Value, path: &str, value: &str) -> bool {
     if !current.is_object() {
         return false;
     }
-    current[*leaf] = coerce_pin_value(current.get(*leaf), value);
+    let existing = current.get(*leaf);
+    current[*leaf] = match value {
+        Value::Bool(flag) => Value::Bool(flag),
+        Value::String(text) => coerce_pin_value(existing, &text),
+        other => other,
+    };
     true
 }
 

@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 
 import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
@@ -154,7 +156,7 @@ it('native board snapshots supersede slow board RPCs while config refresh still 
   const original = control.call;
   let resolveBoard!: (value: unknown) => void;
   control.call = <T,>(method: string, params?: RpcParams): Promise<T> => {
-    if (method === 'points.config.get') return Promise.resolve({ ...defaultPointsConfig, currencyName: 'Coins' } as T);
+    if (method === 'points.config.get') return Promise.resolve({ ...defaultPointsConfig, currencyName: t('feed.profile.stats.coins') } as T);
     if (method === 'points.leaderboard') return new Promise((resolve) => { resolveBoard = resolve as (value: unknown) => void; });
     return original<T>(method, params);
   };
@@ -164,7 +166,7 @@ it('native board snapshots supersede slow board RPCs while config refresh still 
   resolveBoard({ viewers: [viewer('alice', 10)] });
   await refreshing;
   expect(points.leaderboard.value[0]?.points).toBe(25);
-  expect(points.pointsConfig.value.currencyName).toBe('Coins');
+  expect(points.pointsConfig.value.currencyName).toBe(t('feed.profile.stats.coins'));
   points.dispose();
 });
 

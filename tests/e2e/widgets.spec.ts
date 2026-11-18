@@ -24,7 +24,7 @@ test('layer text edits update the preview, save, and survive navigation', async 
   await expect(content).toHaveValue('just followed!');
   await content.fill('Thanks {{name}}!');
   await expect(page.locator('.widget-layer-text.is-message')).toHaveText('Thanks Viewer Name!');
-  await page.getByRole('button', { name: 'Save design', exact: true }).click();
+  await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
   await expect(page.getByText('Design saved.', { exact: true })).toBeVisible();
   expect((await readHostState(page)).calls.some((call) => call.method === 'app.state.set' && call.params['key'] === 'widgets.design.follow')).toBe(true);
   await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
@@ -38,11 +38,11 @@ test('layer text edits update the preview, save, and survive navigation', async 
 test('every widget exposes its default layers in the inspector and preview', async ({ page }) => {
   const capture = await openOverlays(page);
   for (const [kind, fields] of [
-    ['Follow alert', [t('overlays.editor.fields.name'), 'Username', 'Message']],
+    [t('overlays.kinds.follow.name'), [t('overlays.editor.fields.name'), 'Username', 'Message']],
     ['Gift alert', [t('overlays.editor.fields.name'), 'Message', 'Gift count', 'Diamonds']],
-    ['Chat overlay', [t('overlays.editor.fields.name'), 'Message']],
-    ['Share alert', [t('overlays.editor.fields.name'), 'Username', 'Message']],
-    ['Subscribe alert', [t('overlays.editor.fields.name'), 'Username', 'Message']],
+    [t('overlays.kinds.chat.name'), [t('overlays.editor.fields.name'), 'Message']],
+    [t('overlays.kinds.share.name'), [t('overlays.editor.fields.name'), 'Username', 'Message']],
+    [t('overlays.kinds.subscribe.name'), [t('overlays.editor.fields.name'), 'Username', 'Message']],
   ] as const) {
     await page.getByRole('option', { name: kind, exact: true }).click();
     for (const field of fields) {
@@ -83,15 +83,15 @@ test('card styles preview, discard, save per widget, and reset', async ({ page }
   await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await background.fill('#112233');
   await background.press('Enter');
-  await page.getByRole('button', { name: 'Save design', exact: true }).click();
+  await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
   await expect(page.getByText('Design saved.', { exact: true })).toBeVisible();
   await page.getByRole('option', { name: 'Gift alert', exact: true }).click();
   await expect(page.locator('.gift-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
-  await page.getByRole('option', { name: 'Follow alert', exact: true }).click();
+  await page.getByRole('option', { name: t('overlays.kinds.follow.name'), exact: true }).click();
   await expect(background).toHaveValue('#112233');
   await page.getByRole('button', { name: 'Design options', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Reset whole design', exact: true }).click();
-  await page.getByRole('button', { name: 'Save design', exact: true }).click();
+  await page.getByRole('button', { name: t('overlays.editor.save'), exact: true }).click();
   await expect(page.locator('.follow-card')).toHaveCSS('background-color', 'rgb(22, 22, 29)');
   await assertNoUnhandledCalls(page);
   capture.assertClean();
@@ -128,11 +128,11 @@ test('rapid replay and tab changes never place alert cards side by side', async 
     sample();
     target.stopWidgetMonitor = () => cancelAnimationFrame(frame);
   });
-  for (const label of ['Follow alert', 'Gift alert', 'Share alert', 'Subscribe alert', 'Follow alert']) {
+  for (const label of [t('overlays.kinds.follow.name'), 'Gift alert', t('overlays.kinds.share.name'), t('overlays.kinds.subscribe.name'), t('overlays.kinds.follow.name')]) {
     await page.getByRole('option', { name: label, exact: true }).click();
     await expect(page.locator('.widget-host [role="alert"]')).toBeVisible();
     for (let index = 0; index < 3; index++) {
-      await page.getByRole('button', { name: 'Replay preview' }).click();
+      await page.getByRole('button', { name: t('overlays.preview.replay') }).click();
       await page.waitForTimeout(150);
     }
   }
@@ -157,16 +157,16 @@ test('all widget previews render locally without a gateway and replay', async ({
   await page.getByRole('link', { name: 'Overlays', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Copy URL', exact: true })).toBeDisabled();
   for (const [label, kind, selector] of [
-    ['Follow alert', 'follow', '.follow-card'],
+    [t('overlays.kinds.follow.name'), 'follow', '.follow-card'],
     ['Gift alert', 'gift', '.gift-card'],
-    ['Chat overlay', 'chat', '.chat-message'],
-    ['Share alert', 'share', '.share-card'],
-    ['Subscribe alert', 'subscribe', '.subscribe-card'],
+    [t('overlays.kinds.chat.name'), 'chat', '.chat-message'],
+    [t('overlays.kinds.share.name'), 'share', '.share-card'],
+    [t('overlays.kinds.subscribe.name'), 'subscribe', '.subscribe-card'],
   ]) {
     await page.getByRole('option', { name: label, exact: true }).click();
     await expect(page.locator('.widget-host')).toHaveAttribute('data-widget', kind!);
     await expect(page.locator(selector!).first()).toBeVisible();
-    await page.getByRole('button', { name: 'Replay preview' }).click();
+    await page.getByRole('button', { name: t('overlays.preview.replay') }).click();
     await expect(page.locator(selector!).first()).toBeVisible();
     await expect(page.locator('.widget-host')).toHaveCount(1);
   }

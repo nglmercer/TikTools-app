@@ -64,7 +64,7 @@ test('the templates modal has Templates, Cloud and Import tabs and starts on the
   expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Templates');
   expect(wrapper.findAll('.rule-templates__card').length).toBeGreaterThan(0);
   // The old "Import templates…" button is the third tab now, never a second control.
-  expect(wrapper.findAll('button').some((button) => button.text() === 'Import templates…')).toBe(false);
+  expect(wrapper.findAll('button').some((button) => button.text() === t('automations.templates.import'))).toBe(false);
   expect(wrapper.find('.cloud-library').exists()).toBe(false);
 });
 

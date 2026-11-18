@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { expect, test } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { ControlCallError, type ControlCallOptions } from '@/shared/api/control-client.ts';
@@ -171,7 +173,7 @@ test('browser controller screen displays the scoped view and clears it on discon
     expect(wrapper.text()).toContain('Available actions depend on the permissions granted.');
     expect(wrapper.text()).not.toContain('Saved profiles');
     expect(wrapper.text()).not.toContain('Connect to another PC');
-    expect(wrapper.text()).not.toContain('Disable workflow');
+    expect(wrapper.text()).not.toContain(t('controller.root.commands.disable'));
     await wrapper.findAll('button').find((button) => button.text().includes('Original'))!.trigger('click');
     expect(wrapper.get('textarea').attributes('readonly')).toBeDefined();
     expect(wrapper.text()).toContain('Workflow details');

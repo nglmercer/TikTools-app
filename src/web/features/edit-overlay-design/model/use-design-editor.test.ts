@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { describe, expect, it } from 'vitest';
 import { ref } from 'vue';
 import type { WidgetStyle } from '../../../../widgets/sdk/template.ts';
@@ -13,7 +15,7 @@ function setup(kind: WidgetKind = 'follow', design: WidgetStyle = {}) {
   const editor = useDesignEditor(ref(kind), source, {
     layer: (seed) => seed.field ?? seed.kind,
     newLayer: (layerKind) => layerKind,
-    newText: () => 'New text',
+    newText: () => t('overlays.editor.newText'),
   });
   return { editor, source };
 }
@@ -72,7 +74,7 @@ describe('useDesignEditor', () => {
     const { editor } = setup('follow');
     const initial = editor.layers.value.length;
     const id = editor.addLayer('text', 'top');
-    expect(editor.layers.value[0]).toMatchObject({ id, kind: 'text', name: 'text 1', text: 'New text' });
+    expect(editor.layers.value[0]).toMatchObject({ id, kind: 'text', name: 'text 1', text: t('overlays.editor.newText') });
     editor.moveLayer(id, 1);
     expect(editor.layers.value[1]?.id).toBe(id);
     editor.editLayer(id, 'name', { name: 'Shout' });

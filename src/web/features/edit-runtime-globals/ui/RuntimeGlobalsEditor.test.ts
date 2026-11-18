@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
@@ -8,6 +9,7 @@ import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import RuntimeGlobalsEditor from './RuntimeGlobalsEditor.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 async function mountEditor(handler: Parameters<typeof createFakeControlClient>[0], typed = false) {
   const { client, calls } = createFakeControlClient((method, params, options) => method === 'rpc.discover'
@@ -66,7 +68,7 @@ describe('RuntimeGlobalsEditor', () => {
     const { wrapper } = await mountEditor(() => ({ globals: { commandPort: '46665' } }));
     expect(wrapper.findAll('header button').map((button) => button.text())).toEqual(['', '', '']);
     expect(wrapper.findAll('header button').map((button) => button.attributes('aria-label'))).toEqual([
-      'Add global', 'Discard changes', 'Save globals',
+      'Add global', 'Discard changes', t('globals.save'),
     ]);
     expect(wrapper.get('header [role="img"]').attributes('aria-label')).toContain('{{ globals.key }}');
   });

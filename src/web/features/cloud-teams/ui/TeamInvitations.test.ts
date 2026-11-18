@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, expect, it, vi } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
@@ -6,6 +7,7 @@ import { useTeamsStore } from '@/entities/cloud-teams/model/teams-store.ts';
 import TeamInvitations from './TeamInvitations.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 afterEach(() => vi.useRealTimers());
 it('requires an unambiguous nickname result and binds the invitation to its account', async () => {
   vi.useFakeTimers();
@@ -19,7 +21,7 @@ it('requires an unambiguous nickname result and binds the invitation to its acco
   const teams = useTeamsStore();
   teams.selectedId = '3f2c9a1e-8b7d-4c6e-9a0b-1d2e3f4a5b6c';
   await flushPromises();
-  const create = () => wrapper.findAll('button').find(button => button.text() === 'Create invitation')!;
+  const create = () => wrapper.findAll('button').find(button => button.text() === t('cloudTeams.createInvitation'))!;
   expect(create().attributes('disabled')).toBeDefined();
   const input = wrapper.get('input[role="combobox"]');
   await input.setValue('use');
@@ -52,5 +54,5 @@ it('discards a delayed search when the selected team changes', async () => {
   await flushPromises();
   finish({ items: [{ id: 'private-account', nickname: 'user', ambiguous: false }] });
   await flushPromises();
-  expect(wrapper.findAll('button').find(button => button.text() === 'Create invitation')!.attributes('disabled')).toBeDefined();
+  expect(wrapper.findAll('button').find(button => button.text() === t('cloudTeams.createInvitation'))!.attributes('disabled')).toBeDefined();
 });

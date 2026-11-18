@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
@@ -6,6 +7,7 @@ import { i18n } from '@/shared/i18n/i18n.ts';
 import LanguageSelect from './LanguageSelect.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 afterEach(() => { document.body.innerHTML = ''; });
 
 // More languages than the app ships today: the picker must be driven by the list, not by what exists now.
@@ -33,7 +35,7 @@ describe('LanguageSelect', () => {
     await wrapper.get('input').trigger('click');
     await nextTick();
     expect(optionLabels()).toHaveLength(12);
-    expect(optionLabels()).toEqual(expect.arrayContaining(['English', 'Español', 'Français', 'Deutsch', '日本語', 'Nederlands']));
+    expect(optionLabels()).toEqual(expect.arrayContaining(['English', t('menu.languages.es'), 'Français', 'Deutsch', t('menu.languages.ja'), 'Nederlands']));
   });
 
   it('filters a long list by name or code', async () => {
@@ -44,7 +46,7 @@ describe('LanguageSelect', () => {
     expect(optionLabels()).toEqual(['Deutsch']);
     await input.setValue('ja');
     await nextTick();
-    expect(optionLabels()).toEqual(['日本語']);
+    expect(optionLabels()).toEqual([t('menu.languages.ja')]);
     await input.setValue('zzz');
     await nextTick();
     expect(optionLabels()).toEqual([]);

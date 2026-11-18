@@ -41,15 +41,15 @@ it('requires confirmation before forgetting a reviewed local profile', async () 
   const button = (name: string) => wrapper.findAll('button').find((node) => node.text() === name)!;
   try {
     await flushPromises();
-    await button('Forget profile').trigger('click');
+    await button(t('controller.root.forget.action')).trigger('click');
     const dialog = wrapper.get('dialog[open]');
     expect(dialog.text()).toContain('credentials, drafts and command history');
     expect(dialog.text()).toContain('Existing connections may remain active until they expire or the owner revokes host access');
     expect(dialog.text()).toContain('https://host.example');
     await dialog.findAll('button').find((node) => node.text() === t('common.cancel'))!.trigger('click');
     expect(calls.some((call) => call.method === 'controller.profile.forget')).toBe(false);
-    await button('Forget profile').trigger('click');
-    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === 'Forget profile')!.trigger('click');
+    await button(t('controller.root.forget.action')).trigger('click');
+    await wrapper.get('dialog[open]').findAll('button').find((node) => node.text() === t('controller.root.forget.action'))!.trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'controller.profile.forget')?.params).toEqual({ profile: 'desk', profileId: 'instance-1', origin: 'https://host.example', hostId: 'host-A', confirm: true });
     expect(wrapper.text()).not.toContain('https://host.example');
@@ -127,10 +127,10 @@ it('sends an authorized change once and blocks changes until an unknown command 
     await flushPromises(); await button('Owner workflow · 1').trigger('click');
     await wrapper.get('textarea').setValue('private local draft');
     expect(calls.some((c) => c.method === 'controller.workflow.command')).toBe(false);
-    await button('Delete workflow').trigger('click'); await flushPromises();
+    await button(t('controller.root.commands.delete')).trigger('click'); await flushPromises();
     expect(calls.filter((c) => c.method === 'controller.workflow.command')).toHaveLength(1);
     expect(calls.find((c) => c.method === 'controller.workflow.command')?.params).toEqual({ epoch: '1', viewRevision: '1', id: 'welcome', expectedRevision: '1', operation: 'delete' });
-    expect(button('Delete workflow').attributes('disabled')).toBeDefined();
+    expect(button(t('controller.root.commands.delete')).attributes('disabled')).toBeDefined();
     expect(wrapper.text()).toContain('new changes are blocked');
     expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('private local draft');
     await button('Review unknown outcome').trigger('click'); await flushPromises();

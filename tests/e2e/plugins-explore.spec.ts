@@ -23,8 +23,8 @@ function catalogState() {
   const state = emptyState();
   state.announcedMethods = ['catalog.items', 'catalog.mine', 'catalog.item', 'cloudLibrary.list'];
   state.catalog = {
-    items: [wire('plugin', 'tiktools.tts', 'Voice reader'), wire('template', 'tpl-gift', 'Gift sound alert'), wire('profile', 'prof-1', 'Giftwall starter')],
-    library: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'template', slug: 'gift', revision: '3', title: 'Gift sound alert', sha256: sha, status: 'published' }],
+    items: [wire('plugin', 'tiktools.tts', 'Voice reader'), wire('template', 'tpl-gift', t('automations.builtinTemplates.giftSoundTitle')), wire('profile', 'prof-1', 'Giftwall starter')],
+    library: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'template', slug: 'gift', revision: '3', title: t('automations.builtinTemplates.giftSoundTitle'), sha256: sha, status: 'published' }],
   };
   return state;
 }
@@ -38,7 +38,7 @@ test('Explore shows plugins, templates and profiles from the Cloud catalog and f
   await expect(page.getByText('marketplace', { exact: false })).toHaveCount(0);
   await page.getByRole('button', { name: 'Templates' }).click();
   await expect(page.locator('.explore-list__row')).toHaveCount(1);
-  await expect(page.locator('.explore-list__row')).toContainText('Gift sound alert');
+  await expect(page.locator('.explore-list__row')).toContainText(t('automations.builtinTemplates.giftSoundTitle'));
   capture.assertClean();
 });
 
@@ -65,7 +65,7 @@ test('the templates dialog has Templates, Cloud and Import tabs, and ?view=cloud
   await waitForFrontend(page);
   const dialog = page.getByRole('dialog', { name: 'Rule templates' });
   await expect(dialog.getByRole('tab', { name: t('importDialog.cloudTab'), selected: true })).toBeVisible();
-  await expect(dialog.getByText('Gift sound alert')).toBeVisible();
+  await expect(dialog.getByText(t('automations.builtinTemplates.giftSoundTitle'))).toBeVisible();
   await expect(page.locator('.automation-library').getByRole('tab', { name: t('importDialog.cloudTab') })).toHaveCount(0);
   await dialog.getByRole('tab', { name: 'Import' }).click();
   await expect(dialog.getByText('Drop a file here')).toBeVisible();

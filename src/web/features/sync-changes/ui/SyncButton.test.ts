@@ -1,3 +1,4 @@
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AccountStatus } from '@/entities/cloud-account/api/account-types.ts';
@@ -9,6 +10,7 @@ import { allCapabilities, fakeAdapter } from '../testing/fake-adapter.ts';
 import SyncButton from './SyncButton.vue';
 
 enableAutoUnmount(afterEach);
+const t = (key: string): string => testMessage('en', key);
 
 const account = (state: AccountStatus['state']): AccountStatus => ({ origin: 'http://127.0.0.1:3000', state, accountId: 'tester', persistence: 'memory-only', error: null });
 const status = (enabled: boolean): SyncStatus => ({ enabled, signedIn: true, syncing: false, pending: 0, conflicts: [], lastError: null, lastSyncedAt: null });
@@ -43,7 +45,7 @@ describe('SyncButton', () => {
     const { adapter } = fakeAdapter(allCapabilities, []);
     const wrapper = await mount(adapter);
     expect(wrapper.find('.sync-button__badge').exists()).toBe(false);
-    expect(wrapper.get('button').attributes('aria-label')).toBe('Sync changes');
+    expect(wrapper.get('button').attributes('aria-label')).toBe(t('syncChanges.button'));
   });
 
   it('is disabled with the reason when the account is signed out', async () => {
@@ -65,7 +67,7 @@ describe('SyncButton', () => {
     await flushPromises();
     expect(wrapper.get('h2').text()).toBe('Changes · Events');
     expect(wrapper.findAll('dialog')).toHaveLength(1);
-    expect(wrapper.text()).toContain('Prepare Cloud sync');
+    expect(wrapper.text()).toContain(t('syncChanges.prepare'));
   });
 
   it('is enabled once signed in and opted in', async () => {

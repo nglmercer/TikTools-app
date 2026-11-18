@@ -39,7 +39,7 @@ it('reviews a complete event and retains uncertain command identity', async () =
     await board.findAll('button').find((b) => b.text() === words.disable)!.trigger('click'); await flushPromises();
     expect(calls.filter((c) => c.method === 'controller.automation.command')).toHaveLength(1);
     expect(wrapper.text()).toContain(words.unknown); expect(wrapper.get('.controller__journal').text()).toContain(words.disable);
-    expect(wrapper.get('.controller__journal').text()).not.toContain('Disable workflow');
+    expect(wrapper.get('.controller__journal').text()).not.toContain(t('controller.root.commands.disable'));
     expect(wrapper.get('.controller__journal').text()).toContain('native-original');
     expect(board.findAll('button').every((b) => b.attributes('disabled') !== undefined)).toBe(true);
   } finally { wrapper.unmount(); }
