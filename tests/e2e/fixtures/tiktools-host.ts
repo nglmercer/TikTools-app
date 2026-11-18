@@ -13,10 +13,152 @@
  */
 
 import type { Page } from '@playwright/test';
+import type { CollaborationStatus, Invitation, InvitationSecret, PairingRequest, Principal, Session, AuditEntry } from '../../../src/web/entities/collaboration/api/types.ts';
+import type { VariableComparison } from '../../../src/web/features/edit-runtime-globals/model/variable-sync-adapter.ts';
+import type { RuntimeVariable } from '../../../src/web/entities/runtime-global/lib/runtime-variable.ts';
 
-import { baseHostState, type MemoryHostState as E2EHostState } from '../../../src/web/demo/fixtures/base-host.ts';
-export { baseHostState };
-export type { E2EHostState };
+export interface E2EHostState {
+  collaboration?: {
+    status: CollaborationStatus;
+    invitations: Invitation[]; issued: InvitationSecret; requests: PairingRequest[];
+    principals: Principal[]; sessions: Session[]; audit: AuditEntry[];
+  };
+  /** Methods announced through `rpc.discover`; none by default, so optional Cloud areas stay hidden. */
+  announcedMethods?: string[];
+  /** Cloud account and v2 workspace served to the sync panel (`cloud.status`, `sync.status`, `sync.v2.*`). */
+  sync?: {
+    signedIn: boolean;
+    enabled: boolean;
+    lastSyncedAt?: number | null;
+    entries: Array<Record<string, unknown>>;
+    resolved: string[];
+  };
+  /** Cloud catalog served by `catalog.items` / `catalog.mine` / `catalog.item` (wire items). */
+  catalog?: {
+    items: Array<Record<string, unknown>>;
+    mine?: Array<Record<string, unknown>>;
+    library?: Array<Record<string, unknown>>;
+    dataState?: 'ready' | 'noActiveGeneration';
+    error?: { code: string; message: string; data?: unknown };
+  };
+  /** Runtime globals served by `globals.list` and written by `globals.set`. */
+  globals?: Record<string, string>;
+  typedGlobals?: Record<string, RuntimeVariable>;
+  typedGlobalsRevision?: string;
+  variableComparisons?: VariableComparison[];
+  /** Behavior snapshot served for `automation.snapshot`. */
+  automationSnapshot: Record<string, unknown>;
+  automationVersions?: Record<string, string>;
+  automationDelayMs?: number;
+  automationRuns: Array<Record<string, unknown>>;
+  pointsConfig: Record<string, unknown>;
+  leaderboard: Array<Record<string, unknown>>;
+  creator: Record<string, unknown> | null;
+  recentCreators: Array<Record<string, unknown>>;
+  gifts: Array<Record<string, unknown>>;
+  processors: Array<Record<string, unknown>>;
+  /** `plugins.settings.get/set` store, keyed by plugin id. */
+  pluginSettings: Record<
+    string,
+    { schema: Record<string, unknown>; uiHints?: Record<string, unknown>; values: Record<string, unknown> }
+  >;
+  /** `plugins.options` store, keyed by source id. */
+  pluginOptions: Record<string, { options: Array<{ value: string; label: string }>; selected?: string | null }>;
+  /** `plugins.health` results, keyed by plugin id. */
+  pluginHealth: Record<string, { ok: boolean; latencyMs: number; error?: string | null; reachable?: boolean; gameplayReady?: boolean }>;
+  pluginTokenCandidates?: Record<string, Array<{ id: string; label: string }>>;
+  pluginSetupEndpoints?: Record<string, string>;
+  pluginSetupHealth?: E2EHostState['pluginHealth'];
+  /** `plugins.action.execute` results, keyed by action type. */
+  actionOutcomes: Record<
+    string,
+    { ok: boolean; summary: string; logs?: string[]; error?: string | null }
+  >;
+  /** `app.state.*` key/value store. */
+  appState: Record<string, string>;
+  /** Authoritative `live.status`/`live.connect`/`live.disconnect` result. */
+  liveStatus: {
+    connected: boolean;
+    uniqueId: string | null;
+    roomId: string | null;
+    connectionId: string | null;
+    native: boolean;
+  };
+  /** Page served for `live.channels` (read-only LIVE browse). */
+  liveMonitor?: Record<string, unknown>;
+  feedJournal?: Array<{ cursor: number; event: Record<string, unknown> }>;
+  liveChannels: { rooms: Array<Record<string, unknown>>; nextOffset?: number };
+  /** Methods forced to fail: method -> message, or `{ code, message }` to
+   *  exercise a specific JSON-RPC error code. */
+  failures: Record<string, string | { code: string; message: string }>;
+  /** Artificial delay (ms) for `plugins.action.execute` responses. */
+  actionDelayMs: number;
+  /** Every RPC call received, in order. */
+  calls: Array<{ method: string; params: Record<string, unknown>; meta?: Record<string, unknown> }>;
+  /** Calls with no fake handler — must stay empty. */
+  unhandled: string[];
+  /** Legacy `type:` messages (plugin-ui-open/close), in order. */
+  legacyMessages: Array<Record<string, unknown>>;
+  frontendReady: boolean;
+}
+
+export function baseHostState(overrides: Partial<E2EHostState> = {}): E2EHostState {
+  return {
+    automationSnapshot: {
+      actions: [],
+      events: [],
+      plugins: [],
+      actionTypes: [],
+      eventTypes: [],
+      pluginTemplates: [],
+      pluginPages: [],
+      translations: {},
+    },
+    automationRuns: [],
+    pointsConfig: {
+      currencyName: 'Points',
+      pointsPerCoin: 1.0,
+      pointsPerCoinEnabled: true,
+      pointsPerShare: 3.0,
+      pointsPerShareEnabled: true,
+      pointsPerChat: 1.0,
+      pointsPerChatEnabled: true,
+      pointsPerLike: 0.1,
+      pointsPerLikeEnabled: true,
+      pointsPerFollow: 5.0,
+      pointsPerFollowEnabled: true,
+      pointsPerJoin: 0.5,
+      pointsPerJoinEnabled: false,
+      subBonusMultiplier: 0.0,
+      pointsPerLevel: 100,
+    },
+    leaderboard: [],
+    creator: null,
+    recentCreators: [],
+    gifts: [],
+    processors: [],
+    pluginSettings: {},
+    pluginOptions: {},
+    pluginHealth: {},
+    actionOutcomes: {},
+    appState: {},
+    liveStatus: {
+      connected: false,
+      uniqueId: null,
+      roomId: null,
+      connectionId: null,
+      native: true,
+    },
+    liveChannels: { rooms: [] },
+    failures: {},
+    actionDelayMs: 0,
+    calls: [],
+    unhandled: [],
+    legacyMessages: [],
+    frontendReady: false,
+    ...overrides,
+  };
+}
 
 const INIT_SCRIPT = `
 (() => {
@@ -79,57 +221,8 @@ const INIT_SCRIPT = `
     return behaviorEnvelope(record, [behaviorMeta(kind, id)]);
   };
 
-  const catalogPage = (items, params) => {
-    if (state.catalog?.error) throw state.catalog.error;
-    const text = String(params.query || '').toLowerCase();
-    const rows = (items || []).filter((item) => (!params.kind || item.identity.kind === params.kind)
-      && (!text || String(item.presentation?.title || '').toLowerCase().includes(text)));
-    return { items: rows, nextCursor: null, ...(state.catalog?.dataState ? { dataState: state.catalog.dataState } : {}) };
-  };
-
   const handlers = {
-    // The fake host serves automation.snapshot from memory, so it reports
-    // the same non-persistent feature set a memory-only host would.
-    'system.info': () => ({ name: 'tiktools', features: { persistence: false } }),
-    'rpc.discover': () => ({ methods: (state.announcedMethods ?? []).map((name) => ({ name })) }),
-    // The fake host is memory-backed and has no Owner library; answer the
-    // optional read with a capability error instead of leaving it unknown.
-    'automation.library.snapshot': () => {
-      throw { code: 'capability_unavailable', message: 'The fake host has no Owner library.' };
-    },
-    'cloud.status': () => ({ origin: 'http://127.0.0.1:3000', state: state.sync?.signedIn ? 'signed-in' : 'signed-out', accountId: 'tester', persistence: 'memory-only', error: null }),
-    'sync.status': () => ({ enabled: state.sync?.enabled ?? false, signedIn: state.sync?.signedIn ?? false, syncing: false, pending: state.sync?.entries.filter((entry) => entry.pending).length ?? 0, conflicts: [], lastError: null, lastSyncedAt: state.sync?.lastSyncedAt ?? null }),
-    'sync.v2.stagePluginSettings': () => null,
-    'sync.v2.selected': () => true,
-    'sync.v2.changes.list': () => state.sync?.entries ?? [],
-    'sync.v2.variables.review': () => ({ changes: state.variableComparisons ?? [] }),
-    'sync.v2.variables.fetch': () => ({ conflicts: [] }),
-    'sync.v2.variables.send': (params) => {
-      if (!state.variableComparisons?.some((row) => row.review === params.review)) throw { code: 'conflict', message: 'comparison changed' };
-      state.variableComparisons = state.variableComparisons.filter((row) => row.review !== params.review);
-      return { conflicts: [] };
-    },
-    'sync.v2.variables.withdraw': (params) => {
-      if (!state.variableComparisons?.some((row) => row.review === params.review)) throw { code: 'conflict', message: 'comparison changed' };
-      state.variableComparisons = state.variableComparisons.filter((row) => row.review !== params.review);
-      return { conflicts: [] };
-    },
-    'sync.v2.variables.apply': (params) => {
-      const row = state.variableComparisons?.find((candidate) => candidate.review === params.review);
-      if (!row) throw { code: 'conflict', message: 'comparison changed' };
-      state.typedGlobals ??= {};
-      if (row.cloud) state.typedGlobals[row.name] = structuredClone(row.cloud);
-      else delete state.typedGlobals[row.name];
-      state.typedGlobalsRevision = (BigInt('0x' + (state.typedGlobalsRevision ?? 'a'.repeat(64))) + 1n).toString(16).padStart(64, '0');
-      state.variableComparisons = state.variableComparisons?.filter((candidate) => candidate.review !== params.review);
-      return null;
-    },
-    'sync.v2.now': () => {
-      if (state.sync) state.sync.lastSyncedAt = 1_700_000_000;
-      return { pushed: 0, pulled: 0, workspacePending: 0, availableRecords: 0, conflicts: [], moreQueued: false };
-    },
-    'sync.v2.conflict.review': (params) => ({ handle: 'a'.repeat(64), collection: params.collection, key: params.key }),
-    'sync.v2.conflict.resolve': (params) => { state.sync?.resolved.push(String(params.choice)); return 'resolved'; },
+    'system.info': () => ({ name: 'tiktools', features: { persistence: true } }),
     'collaboration.status': () => state.collaboration.status,
     'collaboration.configure': (params) => {
       const c = state.collaboration;
@@ -210,24 +303,9 @@ const INIT_SCRIPT = `
     'creators.get': () => ({ creator: state.creator }),
     'creators.recent': () => ({ creators: state.recentCreators }),
     'gifts.list': () => ({ gifts: state.gifts }),
-    'globals.list': () => ({ globals: { ...(state.globals ?? {}) } }),
-    'globals.typed.list': () => ({ revision: state.typedGlobalsRevision ?? 'a'.repeat(64), variables: state.typedGlobals ?? Object.fromEntries(Object.entries(state.globals ?? {}).map(([name, value]) => [name, { type: 'text', value }])) }),
-    'globals.typed.replace': (params) => {
-      if (params.expectedRevision !== (state.typedGlobalsRevision ?? 'a'.repeat(64))) throw { code: 'conflict', message: 'runtime variables changed; reload before saving' };
-      state.typedGlobals = structuredClone(params.variables);
-      state.typedGlobalsRevision = (BigInt('0x' + params.expectedRevision) + 1n).toString(16).padStart(64, '0');
-      state.globals = Object.fromEntries(Object.entries(state.typedGlobals).map(([name, variable]) => [name, variable.type === 'number' && variable.numberText !== undefined ? variable.numberText : typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)]));
-      return { revision: state.typedGlobalsRevision, variables: state.typedGlobals };
-    },
-    'globals.set': (params) => {
-      (state.globals ||= {})[params.key] = params.value;
-      return { ok: true };
-    },
+    'globals.list': () => ({ globals: {} }),
     'processors.status': () => ({ processors: state.processors }),
     'widgets.status': () => ({ state: 'missing', port: 17452, error: null }),
-    // The Owner library journal is mounted once in the app shell; give it a
-    // stable empty state so unrelated specs do not report an unhandled call.
-    'automation.library.get': () => ({ hostId: 'e2e-host', hostInstanceId: 'e2e-instance', pending: null, recent: [] }),
     'app.state.get': () => ({ state: { ...state.appState } }),
     'app.state.set': (params) => {
       state.appState[params.key] = params.value;
@@ -249,18 +327,9 @@ const INIT_SCRIPT = `
     },
     'rankings.snapshot': (params) => ({ id: params.id, entries: [], total: 0, revision: 0 }),
     'registry.list': () => ({ registries: [] }),
-    // Cloud catalog (Plugins, Explore): one page per call, filtered by kind and text like the host does.
-    'catalog.items': (params) => catalogPage(state.catalog?.items, params),
-    'catalog.mine': (params) => catalogPage(state.catalog?.mine ?? [], params),
-    'cloudLibrary.list': () => ({ items: state.catalog?.library ?? [], nextCursor: null }),
-    'catalog.item': (params) => {
-      const found = (state.catalog?.items ?? []).find((item) => item.identity.kind === params.kind && item.identity.id === params.id);
-      if (!found) throw { code: 'not_found', message: 'catalog item not found' };
-      return found;
-    },
     'registry.defaults.get': () => ({ channel: 'stable', autoUpdate: 'notify', checkIntervalHours: 12, allowSideload: true }),
     'app.update.status': () => ({
-      currentVersion: '4.1.0', availableVersion: null, channel: 'stable', state: 'idle',
+      currentVersion: '4.2.2', availableVersion: null, channel: 'stable', state: 'idle',
       installationType: 'development', installSupported: false, checkSupported: false,
       downloadedBytes: 0, totalBytes: null, progress: null, releaseNotes: null, lastChecked: null, error: null,
     }),

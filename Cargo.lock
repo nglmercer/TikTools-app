@@ -1073,9 +1073,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "1.1.1"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
+checksum = "e0921b3876b3a1df8a1c9f912e7f94342458022c2e84288015893d83c4d62a79"
 
 [[package]]
 name = "clipboard-win"
@@ -3039,7 +3039,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "serde",
- "simple-dns",
+ "simple-dns 0.12.0",
  "smallvec",
  "strum",
  "time",
@@ -3086,7 +3086,7 @@ dependencies = [
  "portable-atomic",
  "rand 0.10.3",
  "rustls",
- "simple-dns",
+ "simple-dns 0.12.0",
  "strum",
  "tokio",
  "tracing",
@@ -3095,9 +3095,9 @@ dependencies = [
 
 [[package]]
 name = "iroh-metrics"
-version = "1.0.2"
+version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ede55536349842337f7cdc63012ec33dc637945f3259c98a0763aac364cdf09"
+checksum = "e136dab0f56d67ae1e8e4de75f84e271b6b2ccf0cdbed1be79936783247c1590"
 dependencies = [
  "http-body-util",
  "hyper",
@@ -3751,9 +3751,9 @@ dependencies = [
 
 [[package]]
 name = "n0-dns-resolver"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "535c99c9a786bee714155d2ee4fc2477405c2c43536e1bc6a51de09a0d1448f7"
+checksum = "0381996935dc55768ae8b13e7db69d3a90f13afb51dde80f870484027968bcd2"
 dependencies = [
  "derive_more",
  "ipconfig",
@@ -3766,7 +3766,7 @@ dependencies = [
  "reqwest 0.13.5",
  "rustc-hash",
  "rustls",
- "simple-dns",
+ "simple-dns 0.13.1",
  "system-configuration",
  "tokio",
  "tokio-rustls",
@@ -4120,9 +4120,9 @@ dependencies = [
 
 [[package]]
 name = "noq-udp"
-version = "1.4.0"
+version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d0160422832eea1cc11c34be04ee6d5a046452b0b46cfb14695d55a1f24c954"
+checksum = "1ef64126fa6c095c0f5afb2d06d24c94e468208bff4008225980840c7add6fe3"
 dependencies = [
  "cfg_aliases",
  "libc",
@@ -5109,9 +5109,9 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "plist"
-version = "1.10.3"
+version = "1.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "327a4cb2ad49dc48adfdc9da89e22c64d488b508c67a044d71ba729e4521a285"
+checksum = "d86a77b7d9cdebd9643c180c158748db7d894b24a3935ed4b5843e698ae086eb"
 dependencies = [
  "base64 0.23.1",
  "indexmap",
@@ -6000,12 +6000,32 @@ dependencies = [
 
 [[package]]
 name = "rquickjs"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e04e4eedfb060b503b5f0a2644abb890b0b3620d3fb674f9455f230014964e4"
+dependencies = [
+ "rquickjs-core 0.12.2",
+]
+
+[[package]]
+name = "rquickjs"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0a22bf72f515cc4189dd7c63d016f6de92a11eee98ddf7dd64794198f6eb34e"
 dependencies = [
- "rquickjs-core",
+ "rquickjs-core 0.14.0",
  "rquickjs-macro",
+]
+
+[[package]]
+name = "rquickjs-core"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16e4f499ac5b943d97ee6dbc44f23c2c10426f420f7d2f1793d6318911b6608c"
+dependencies = [
+ "hashbrown 0.17.1",
+ "relative-path",
+ "rquickjs-sys 0.12.2",
 ]
 
 [[package]]
@@ -6017,7 +6037,7 @@ dependencies = [
  "async-lock",
  "hashbrown 0.17.1",
  "relative-path",
- "rquickjs-sys",
+ "rquickjs-sys 0.14.0",
 ]
 
 [[package]]
@@ -6031,8 +6051,17 @@ dependencies = [
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
- "rquickjs-core",
+ "rquickjs-core 0.14.0",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "rquickjs-sys"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a13ac243b86a74120814ef7e9e30ad5a2c1199b7b9963b1cf7c84e4cdc1cad99"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -7010,6 +7039,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "simple-dns"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8aea2b78df6bbe38fb98d2c8140ada65fb63a314246a0c38626140dd21c69ff7"
+dependencies = [
+ "bitflags 2.13.2",
+]
+
+[[package]]
 name = "simple_asn1"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7777,7 +7815,7 @@ dependencies = [
  "libc",
  "reqwest 0.13.5",
  "ring",
- "rquickjs",
+ "rquickjs 0.14.0",
  "rusqlite",
  "ryu-js",
  "schemars",
@@ -7914,7 +7952,7 @@ name = "tiktools-plugin-loader"
 version = "4.2.2"
 dependencies = [
  "libloading 0.9.0",
- "rquickjs",
+ "rquickjs 0.14.0",
  "semver",
  "serde",
  "serde_json",
@@ -8043,7 +8081,7 @@ dependencies = [
  "httpdate",
  "prost",
  "reqwest 0.13.5",
- "rquickjs",
+ "rquickjs 0.14.0",
  "rustls",
  "serde",
  "serde_json",
@@ -8212,6 +8250,22 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edc5f74e248dc973e0dbb7b74c7e0d6fcc301c694ff50049504004ef4d0cdcd9"
+dependencies = [
+ "futures-util",
+ "log",
+ "rustls",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls",
+ "tungstenite 0.24.0",
+ "webpki-roots 0.26.11",
+]
+
+[[package]]
+name = "tokio-tungstenite"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f72a05e828585856dacd553fba484c242c46e391fb0e58917c942ee9202915c"
@@ -8236,7 +8290,6 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tungstenite 0.30.0",
- "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -8522,9 +8575,9 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 [[package]]
 name = "ttl-live-discovery"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
 dependencies = [
- "reqwest 0.13.5",
+ "reqwest 0.12.28",
  "serde_json",
  "thiserror 2.0.21",
  "tracing",
@@ -8534,9 +8587,9 @@ dependencies = [
 [[package]]
 name = "ttl-live-events"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
 dependencies = [
- "base64 0.23.1",
+ "base64 0.22.1",
  "prost",
  "serde",
  "serde_json",
@@ -8559,13 +8612,13 @@ dependencies = [
 [[package]]
 name = "ttl-live-ws"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
 dependencies = [
  "flate2",
  "futures-util",
  "thiserror 2.0.21",
  "tokio",
- "tokio-tungstenite 0.30.0",
+ "tokio-tungstenite 0.24.0",
  "tracing",
  "ttl-sign-core",
 ]
@@ -8573,9 +8626,9 @@ dependencies = [
 [[package]]
 name = "ttl-sign-core"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
 dependencies = [
- "rand 0.10.3",
+ "rand 0.8.8",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -8584,10 +8637,10 @@ dependencies = [
 [[package]]
 name = "ttl-sign-embedded"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
 dependencies = [
- "rand 0.10.3",
- "rquickjs",
+ "rand 0.8.8",
+ "rquickjs 0.12.2",
  "thiserror 2.0.21",
  "tokio",
  "ttl-live-discovery",
@@ -8596,12 +8649,32 @@ dependencies = [
 [[package]]
 name = "ttl-sign-headless"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
 dependencies = [
- "reqwest 0.13.5",
+ "reqwest 0.12.28",
  "tracing",
  "ttl-live-discovery",
  "ttl-sign-core",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e5b8366ee7a95b16d32197d0b2604b43a0be89dc5fac9f8e96ccafbaedda8a"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "data-encoding",
+ "http",
+ "httparse",
+ "log",
+ "rand 0.8.8",
+ "rustls",
+ "rustls-pki-types",
+ "sha1 0.10.7",
+ "thiserror 1.0.69",
+ "utf-8",
 ]
 
 [[package]]
@@ -8713,6 +8786,12 @@ dependencies = [
  "serde",
  "serde_derive",
 ]
+
+[[package]]
+name = "utf-8"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
 name = "utf8_iter"
