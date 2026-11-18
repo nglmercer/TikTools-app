@@ -1,4 +1,5 @@
 const t = (key: string): string => testMessage('en', key);
+const te = (key: string): string => testMessage('es', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 
@@ -35,7 +36,7 @@ test('main feed empty state', async ({ page }) => {
   await page.goto('/');
   await waitForFrontend(page);
   await freezeClock(page);
-  await expect(page.getByText('No live events yet.', { exact: false })).toBeVisible();
+  await expect(page.getByText(t('feed.empty'), { exact: false })).toBeVisible();
   await expect(page).toHaveScreenshot('feed-empty.png', { fullPage: true });
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();
@@ -180,7 +181,7 @@ test('Spanish locale inline frame', async ({ page }) => {
   await waitForFrontend(page);
   await freezeClock(page);
   await page.getByRole('link', { name: 'Text to Speech' }).click();
-  await expect(page.getByRole('button', { name: 'Abrir en ventana aparte' })).toBeVisible();
+  await expect(page.getByRole('button', { name: te('plugins.page.openWindow') })).toBeVisible();
   const frame = page.frameLocator('.plugin-frame');
   await expect(frame.locator('#server')).toHaveText('http://127.0.0.1:17842', { timeout: 10_000 });
   await expect(page).toHaveScreenshot('plugin-inline-es.png', { fullPage: true });

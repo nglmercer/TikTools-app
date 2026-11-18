@@ -1,3 +1,5 @@
+const te = (key: string): string => testMessage('es', key);
+import { testMessage } from '@/shared/i18n/test-message.ts';
 import { mount, flushPromises } from '@vue/test-utils';
 import { ref } from 'vue';
 import { expect, it, vi } from 'vitest';
@@ -25,11 +27,11 @@ it('shows approved teams and requests Cloud access without an HTTPS address or h
     expect(wrapper.text()).toContain('Mi LIVE');
     expect(wrapper.findAll('input[type="radio"]')).toHaveLength(1);
     expect(wrapper.find('input[type="url"]').exists()).toBe(false);
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Unirme a un equipo')!.trigger('click');
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === te('controller.cloud.join'))!.trigger('click');
     await wrapper.get('input[pattern]').setValue('desk');
     await wrapper.get('input[type="password"]').setValue(secret);
     await wrapper.get('form').trigger('submit'); await flushPromises();
-    expect(wrapper.text()).toContain('Esperando aprobación');
+    expect(wrapper.text()).toContain(te('controller.root.labels.pairing'));
     expect(wrapper.html()).not.toContain(secret);
     expect(calls.find((call) => call.method === 'controller.cloud.join')?.params?.['token']).toBe(secret);
     expect(calls.every((call) => call.method.startsWith('controller.cloud.'))).toBe(true);

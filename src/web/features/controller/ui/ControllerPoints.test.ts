@@ -36,7 +36,7 @@ it('reviews host, unit, signed amount and viewer creation, then blocks all write
     await flushPromises();
     await wrapper.get('.controller__pointSearch input').setValue('@new-viewer');
     await wrapper.get('.controller__pointSearch').trigger('submit'); await flushPromises();
-    expect(wrapper.text()).toContain('The adjustment will create one.');
+    expect(wrapper.text()).toContain(t('controller.root.points.create'));
     await wrapper.get('input[type=number]').setValue('-3');
     await wrapper.get('.controller__pointTarget form').trigger('submit'); await flushPromises();
     expect(calls.filter((c) => c.method === 'controller.points.command')).toHaveLength(1);
