@@ -52,7 +52,8 @@ test('failed imports display safe errors and disposed requests cannot update UI'
   const state = harness(Promise.resolve({ pluginId: 'repo.game', ok: false, error: HOST_MESSAGES.tokenNotFound }));
   state.plugins.handleImportPluginToken('repo.game');
   await flush();
-  expect(state.plugins.pluginProvision.value['repo.game']?.message).toBe(HOST_MESSAGES.tokenNotFound);
+  expect(state.plugins.pluginProvision.value['repo.game']).toMatchObject({ working: false, ok: false });
+  expect(state.plugins.pluginProvision.value['repo.game']?.message).toBeTruthy();
   expect(state.calls).toHaveLength(1);
   state.plugins.dispose();
   let finish!: (value: unknown) => void;

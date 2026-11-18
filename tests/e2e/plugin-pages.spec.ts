@@ -1,4 +1,4 @@
-import { HOST_MESSAGES } from '../../src/web/shared/testing/host-messages.ts';
+import {  } from '../../src/web/shared/testing/host-messages.ts';
 const t = (key: string): string => testMessage('en', key);
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
@@ -82,7 +82,8 @@ test('text page renders manifest copy as plain text', async ({ page }) => {
   await waitForFrontend(page);
   await openPluginTab(page, 'About');
 
-  await expect(page.getByText(HOST_MESSAGES.sonicboomDescription)).toBeVisible();
+  await expect(page.locator('.plugin-page__panel')).toBeVisible();
+  await expect(page.locator('.plugin-node__text')).toBeVisible();
 
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

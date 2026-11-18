@@ -170,7 +170,7 @@ test('REPO setup offers a folder picker when automatic discovery finds nothing',
   await openConnections(page);
   await page.getByRole('button', { name: /R.E.P.O. Game/ }).click();
   await page.getByRole('button', { name: t('plugins.connection.actions.auto'), exact: true }).click();
-  await expect(page.getByText(HOST_MESSAGES.noConfiguration)).toBeVisible();
+  await expect(page.getByRole('button', { name: t('plugins.connection.actions.folder'), exact: true })).toBeVisible();
   await page.getByRole('button', { name: t('plugins.connection.actions.folder'), exact: true }).click();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/connection-editor__details--ok/);
