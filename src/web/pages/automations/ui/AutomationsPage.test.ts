@@ -187,7 +187,7 @@ describe('AutomationsPage', () => {
     Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((entry) => entry.textContent?.trim() === t('automations.profile.create'))!.click();
     await flushPromises();
     await f.wrapper.get('input[maxlength="80"]').setValue('Ready profile');
-    documentButton('Create').click(); await flushPromises();
+    documentButton(t('automations.profile.createConfirm')).click(); await flushPromises();
     const library = libraryJournal(f.client);
     expect(library.draft.value?.context.definitions.actions[0]?.name).toBe('Log gift');
     expect(library.draft.value?.mutation).toMatchObject({ operation: 'create-profile', name: 'Ready profile' });
@@ -213,7 +213,7 @@ describe('AutomationsPage', () => {
     await tab(t('automations.library.variables')).trigger('click');
     await flushPromises();
     await wrapper.findAll('.globals-editor input')[1]!.setValue('25575');
-    await tab('Actions').trigger('click');
+    await tab(t('automations.library.actions')).trigger('click');
     await tab(t('automations.library.variables')).trigger('click');
     expect((wrapper.findAll('.globals-editor input')[1]!.element as HTMLInputElement).value).toBe('25575');
     await buttonByLabel(wrapper, t('globals.save')).trigger('click');
@@ -242,9 +242,9 @@ describe('AutomationsPage', () => {
     const dialog = document.querySelector('dialog[open]')!;
     expect(dialog).not.toBeNull();
     const tabs = Array.from(dialog.querySelectorAll('[role="tab"]'));
-    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([t('importDialog.templatesTab'), t('importDialog.cloudTab'), 'Import']);
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual([t('importDialog.templatesTab'), t('importDialog.cloudTab'), t('importDialog.manualTab')]);
     expect(tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')?.textContent?.trim()).toBe(t('importDialog.cloudTab'));
-    expect(dialog.textContent).toContain('Library');
+    expect(dialog.textContent).toContain(t('overlayLibrary.library'));
     // The page is still the library: no Cloud tab in its own bar.
     expect(wrapper.findAll('.automation-library [role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
     expect(router.currentRoute.value.query.view).toBe('cloud');
@@ -288,7 +288,7 @@ describe('AutomationsPage', () => {
     await flushPromises();
     expect(wrapper.get('dialog h2').text()).toBe('Changes · Events');
     await wrapper.get('dialog button[aria-label="Close"]').trigger('click');
-    await tab('Actions').trigger('click');
+    await tab(t('automations.library.actions')).trigger('click');
     await flushPromises();
     await button().trigger('click');
     await flushPromises();
@@ -341,7 +341,7 @@ describe('AutomationsPage', () => {
 
   it('picks an action type and saves the new action', async () => {
     const { wrapper, calls } = await mountPage();
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith('Actions'))!.trigger('click');
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith(t('automations.library.actions')))!.trigger('click');
     await buttonByText(wrapper, t('automations.library.newAction')).trigger('click');
     await nextTick();
     Array.from(document.querySelectorAll<HTMLButtonElement>('.type-picker__card'))[0]!.click();
@@ -361,7 +361,7 @@ describe('AutomationsPage', () => {
     await wrapper.get('.event-editor input[type="text"]').setValue('Renamed');
     await goBack(wrapper);
     expect(document.body.textContent).toContain(t('automations.editor.discardTitle'));
-    documentButton('Discard').click();
+    documentButton(t('automations.editor.discardConfirm')).click();
     await nextTick();
     await selectRow(wrapper, 'Chat hello');
     expect(wrapper.get('.event-editor .base-panel__title').text()).toBe('Chat hello');
@@ -372,7 +372,7 @@ describe('AutomationsPage', () => {
     await selectRow(wrapper, 'Chat hello');
     await buttonByText(wrapper, t('automations.editor.delete')).trigger('click');
     await nextTick();
-    documentButton('Delete').click();
+    documentButton(t('automations.editor.deleteConfirm')).click();
     await flushPromises();
     expect(calls.find((call) => call.method === 'automation.definition.submit')?.params).toMatchObject({ operation: 'delete', id: 'e2', kind: 'event', expectedRevision: '1' });
   });
@@ -420,7 +420,7 @@ describe('AutomationsPage', () => {
 
   it('shows one type icon per action row', async () => {
     const { wrapper } = await mountPage();
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith('Actions'))!.trigger('click');
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text().startsWith(t('automations.library.actions')))!.trigger('click');
     await nextTick();
     expect(wrapper.findAll('.automation-library tbody tr')).toHaveLength(1);
     expect(wrapper.findAll('.automation-library__type-icon')).toHaveLength(1);
@@ -578,7 +578,7 @@ describe('AutomationsPage', () => {
     await selectRow(wrapper, 'Big gifts');
     await wrapper.get('.event-editor input[type="text"]').setValue('Pending first edit');
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click');
-    await goBack(wrapper); documentButton('Discard').click(); await flushPromises();
+    await goBack(wrapper); documentButton(t('automations.editor.discardConfirm')).click(); await flushPromises();
     await selectRow(wrapper, 'Chat hello');
     await wrapper.get('.event-editor input[type="text"]').setValue('Second draft');
     snapshot.events[0] = submitted; versions.set('event:e1', '2'); finish(submitted); await flushPromises();
@@ -591,7 +591,7 @@ describe('AutomationsPage', () => {
       ? Promise.reject(new ControlCallError('revision_conflict', 'Changed before delete')) : undefined);
     await selectRow(wrapper, 'Chat hello');
     await wrapper.get('.event-editor input[type="text"]').setValue('Keep after delete failed');
-    await buttonByText(wrapper, t('automations.editor.delete')).trigger('click'); await nextTick(); documentButton('Delete').click(); await flushPromises();
+    await buttonByText(wrapper, t('automations.editor.delete')).trigger('click'); await nextTick(); documentButton(t('automations.editor.deleteConfirm')).click(); await flushPromises();
     expect(wrapper.find('.event-editor').exists()).toBe(true);
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('Keep after delete failed');
     expect(wrapper.text()).toContain('revision_conflict');

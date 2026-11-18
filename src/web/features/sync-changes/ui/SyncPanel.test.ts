@@ -31,7 +31,7 @@ describe('SyncPanel capabilities', () => {
     expect(byLabel(wrapper, t('syncChanges.fetch')).exists()).toBe(false);
     expect(byLabel(wrapper, t('syncChanges.push')).exists()).toBe(false);
     expect(byLabel(wrapper, t('syncChanges.more')).exists()).toBe(false);
-    expect(byText(wrapper, 'Sync')).toBeUndefined();
+    expect(byText(wrapper, t('syncChanges.sync'))).toBeUndefined();
     expect(wrapper.find('[role="switch"]').exists()).toBe(false);
     expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false);
     expect(byLabel(wrapper, t('syncChanges.reset')).exists()).toBe(false);
@@ -44,7 +44,7 @@ describe('SyncPanel capabilities', () => {
     const full = await open(allCapabilities);
     expect(byLabel(full.wrapper, t('syncChanges.fetch')).exists()).toBe(true);
     expect(byLabel(full.wrapper, t('syncChanges.push')).exists()).toBe(true);
-    expect(byText(full.wrapper, 'Sync')).toBeDefined();
+    expect(byText(full.wrapper, t('syncChanges.sync'))).toBeDefined();
     expect(full.wrapper.find('[role="switch"]').exists()).toBe(true);
     await byLabel(full.wrapper, t('syncChanges.more')).trigger('click');
     expect(full.wrapper.findAll('[role="menuitem"]').map((item) => item.text())).toEqual([
@@ -103,7 +103,7 @@ describe('SyncPanel changes view', () => {
 
   it('syncs and fetches through the adapter without confirmation', async () => {
     const { wrapper, spies } = await open(allCapabilities);
-    await byText(wrapper, 'Sync')!.trigger('click');
+    await byText(wrapper, t('syncChanges.sync'))!.trigger('click');
     await byLabel(wrapper, t('syncChanges.fetch')).trigger('click');
     await flushPromises();
     expect(spies.sync).toHaveBeenCalledOnce();
@@ -280,7 +280,7 @@ describe('SyncPanel mark as reviewed', () => {
     let reviewed = false;
     const changes: SyncChange[] = [{ id: 'a', kind: 'event', name: 'Greeting', status: 'modified', side: 'local', before: { n: 1 }, after: { n: 2 } }];
     const adapter = defineSyncAdapter({
-      scope: { id: 'events', label: 'Events' },
+      scope: { id: 'events', label: t('syncChanges.scopes.events') },
       capabilities: { markReviewed: true },
       requiresCloud: false,
       kindLabel: (kind) => kind,

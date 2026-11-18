@@ -275,7 +275,7 @@ describe('PluginsPage', () => {
 
   it('shows one navigation area with icon tabs, a search field and icon tools', async () => {
     const { wrapper } = await mountPage();
-    expect(tabNames(wrapper)).toEqual([t('plugins.catalog.browse'), 'Installed 1', 'Updates', t('plugins.views.processors')]);
+    expect(tabNames(wrapper)).toEqual([t('plugins.catalog.browse'), 'Installed 1', t('plugins.catalog.updates'), t('plugins.views.processors')]);
     expect(wrapper.find('.plugins-page__toolbar').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Plugins bring an external dependency');
     expect(wrapper.get('h2').text()).toBe(t('navigation.plugins'));
@@ -327,7 +327,7 @@ describe('PluginsPage', () => {
     const update = { id: 'deck', registry: 'official', current: '1.2.0', latest: '1.3.0', channel: 'stable', pinned: false, permissionDiff: {}, autoApplicable: false, currentStatus: 'approved', latestStatus: 'approved' };
     const { wrapper, calls } = await mountPage(undefined, undefined, undefined, [], [update]);
     expect(tabNames(wrapper)).toContain('Updates 1');
-    await openTab(wrapper, 'Updates');
+    await openTab(wrapper, t('plugins.catalog.updates'));
     expect(wrapper.get('.plugin-catalog__row').text()).toContain('1.2.0 → 1.3.0');
     expect(buttonByLabel(wrapper, t('plugins.catalog.checkUpdates')).exists()).toBe(true);
     expect(buttonByLabel(wrapper, t('plugins.catalog.updateAll')).attributes('disabled')).toBeUndefined();
@@ -409,7 +409,7 @@ describe('PluginsPage', () => {
     const { wrapper, calls } = await mountPage();
     await openItemMenu(wrapper, 'DECK');
     expect(menuItems().map((item) => item.textContent?.trim())).toEqual([
-      'Open', t('plugins.details.enabled'), t('plugins.details.tabs.settings'), t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions'), t('plugins.settings.test'), t('plugins.details.uninstall'),
+      t('plugins.menu.open'), t('plugins.details.enabled'), t('plugins.details.tabs.settings'), t('plugins.details.tabs.connection'), t('plugins.details.tabs.versions'), t('plugins.settings.test'), t('plugins.details.uninstall'),
     ]);
     menuItem(t('plugins.details.enabled')).click();
     await flushPromises();
@@ -468,9 +468,9 @@ describe('PluginsPage', () => {
     expect(wrapper.text()).toContain('Install X Demo');
     expect(wrapper.text()).toContain(t('packages.access.audio_output'));
     expect(wrapper.text()).toContain(t('packages.signature.unsigned'));
-    expect(buttonByText(wrapper, 'Install').attributes('disabled')).toBeDefined();
+    expect(buttonByText(wrapper, t('plugins.details.install')).attributes('disabled')).toBeDefined();
     await wrapper.findAll('input[type="checkbox"]').at(-1)!.setValue(true);
-    await buttonByText(wrapper, 'Install').trigger('click');
+    await buttonByText(wrapper, t('plugins.details.install')).trigger('click');
     await flushPromises();
     expect(calls.find((call) => call.method === 'plugins.packages.install')?.params).toEqual({
       spec: { kind: 'file', path: 'C:/x.plugin' },
@@ -527,13 +527,13 @@ describe('PluginsPage', () => {
     expect(entry.text()).toContain('enrich');
     expect(entry.text()).toContain('DECK');
     // A healthy processor needs no status in the list; its detail has one.
-    expect(entry.text()).not.toContain('Ready');
+    expect(entry.text()).not.toContain(t('plugins.progress.ready'));
     await entry.get('.processors__open').trigger('click');
     // The detail replaces the list and the tabs, with a way back.
     expect(wrapper.find('.processors').exists()).toBe(false);
     expect(wrapper.find('[role="tablist"]').exists()).toBe(false);
     expect(detailsTitle(wrapper)).toBe('enrich');
-    expect(wrapper.get('.base-panel__status').text()).toContain('Ready');
+    expect(wrapper.get('.base-panel__status').text()).toContain(t('plugins.progress.ready'));
     expect(wrapper.text()).toContain('boom');
     await buttonByText(wrapper, t('plugins.processors.test')).trigger('click');
     await flushPromises();
