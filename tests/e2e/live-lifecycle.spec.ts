@@ -79,7 +79,7 @@ test('100 Feed to Plugins navigation cycles actually mount both views and releas
   }).__tiktools_frontend_diagnostics__());
   await expect.poll(async () => (await read()).control.pending).toBe(0);
   // Warm the lazy route's development styles before measuring retained DOM.
-  await page.getByRole('link', { name: 'Plugins', exact: true }).click();
+  await page.getByRole('link', { name: t('navigation.plugins'), exact: true }).click();
   await expect(page.locator('.plugins-page')).toBeVisible();
   await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await expect(page.locator('.live-feed__stream')).toBeVisible();

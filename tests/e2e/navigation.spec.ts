@@ -22,7 +22,7 @@ test('boots to the feed with named navigation and an active tab marker', async (
   const feedTab = page.getByRole('link', { name: t('navigation.feed') });
   await expect(feedTab).toBeVisible();
   await expect(feedTab).toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('link', { name: 'Plugins' })).toBeVisible();
+  await expect(page.getByRole('link', { name: t('navigation.plugins') })).toBeVisible();
   await expect(page.getByText(t('feed.empty'), { exact: false })).toBeVisible();
 
   const state = await readHostState(page);
@@ -53,11 +53,11 @@ test('dynamic plugin tab appears, renders, and falls back when removed', async (
   await writeHostState(page, dropped);
   await emitTopic(page, 'plugin.uninstalled', { pluginId: 'sonicboom.server' });
   await expect(page.getByRole('link', { name: 'Text to Speech' })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Plugins' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: t('navigation.plugins') })).toHaveAttribute(
     'aria-current',
     'page',
   );
-  await expect(page.getByRole('heading', { name: 'Plugins' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: t('navigation.plugins') }).first()).toBeVisible();
 
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

@@ -1,3 +1,5 @@
+const t = (key: string): string => testMessage('en', key);
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { expect, test } from '@playwright/test';
 import { countCalls, installFakeHost, readHostState, waitForFrontend } from './fixtures/tiktools-host.ts';
 import { emptyState } from './fixtures/states.ts';
@@ -17,13 +19,13 @@ test('Variables preserves explicit types and keeps local secrets masked', async 
   const table = page.getByRole('table', { name: 'Runtime globals' });
   const rows = table.getByRole('row');
   await expect(rows).toHaveCount(5);
-  await expect(table.getByRole('columnheader')).toHaveText(['Key', 'Type', 'Value', '']);
+  await expect(table.getByRole('columnheader')).toHaveText(['Key', 'Type', t('globals.value'), '']);
   const port = rows.nth(1);
   const secret = rows.nth(2);
   await expect(secret.locator('input[aria-label="Value"]')).toHaveAttribute('type', 'password');
-  await expect(rows.nth(3).getByRole('combobox', { name: 'Value' })).toHaveValue('true');
+  await expect(rows.nth(3).getByRole('combobox', { name: t('globals.value') })).toHaveValue('true');
   await port.getByRole('combobox', { name: 'Type' }).selectOption('number');
-  await port.getByRole('textbox', { name: 'Value' }).fill('46665');
+  await port.getByRole('textbox', { name: t('globals.value') }).fill('46665');
   await page.getByRole('button', { name: 'Save globals' }).click();
   await expect.poll(async () => (await readHostState(page)).typedGlobals?.commandPort).toEqual({ type: 'number', value: 46665 });
   await expect(page.getByRole('button', { name: 'Save globals' })).toBeDisabled();
@@ -52,7 +54,7 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
   await panel.getByRole('button', { name: 'View port', exact: true }).click();
   await panel.getByRole('button', { name: 'Use Cloud on this device', exact: true }).click();
   await expect.poll(() => countCalls(page, 'sync.v2.variables.apply')).toBe(0);
-  await panel.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click();
+  await panel.getByRole('alertdialog').getByRole('button', { name: t('syncChanges.confirm'), exact: true }).click();
   await expect.poll(async () => (await readHostState(page)).typedGlobals?.port).toEqual({ type: 'number', value: 46665 });
   await panel.getByRole('button', { name: 'View ordinary', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Use Cloud on this device', exact: true })).toHaveCount(0);
@@ -61,7 +63,7 @@ test('Variables Changes adopts a reviewed value and withdraws a secret without r
   await page.screenshot({ path: testInfo.outputPath('variables-changes-secret.png') });
   await panel.getByRole('button', { name: 'Remove from Cloud', exact: true }).click();
   expect(await countCalls(page, 'sync.v2.variables.withdraw')).toBe(0);
-  await panel.getByRole('alertdialog').getByRole('button', { name: 'Confirm', exact: true }).click();
+  await panel.getByRole('alertdialog').getByRole('button', { name: t('syncChanges.confirm'), exact: true }).click();
   await expect.poll(() => countCalls(page, 'sync.v2.variables.withdraw')).toBe(1);
   expect((await readHostState(page)).typedGlobals?.ordinary).toEqual({ type: 'secret', value: 'local-browser-private-value' });
   expect(await countCalls(page, 'sync.v2.now')).toBe(0);
@@ -80,13 +82,13 @@ test('editing another variable retains the exact native integer', async ({ page 
   await page.goto('/#/automations?view=variables');
   await waitForFrontend(page);
   const rows = page.getByRole('table', { name: 'Runtime globals' }).getByRole('row');
-  await expect(rows.nth(1).getByRole('textbox', { name: 'Value' })).toHaveValue('9223372036854775807');
-  await rows.nth(2).getByRole('textbox', { name: 'Value' }).fill('after');
+  await expect(rows.nth(1).getByRole('textbox', { name: t('globals.value') })).toHaveValue('9223372036854775807');
+  await rows.nth(2).getByRole('textbox', { name: t('globals.value') }).fill('after');
   await page.getByRole('button', { name: 'Save globals' }).click();
   await expect.poll(async () => (await readHostState(page)).typedGlobals?.label?.value).toBe('after');
   expect((await readHostState(page)).typedGlobals?.counter).toMatchObject({ type: 'number', numberText: '9223372036854775807' });
   expect((await readHostState(page)).globals?.counter).toBe('9223372036854775807');
-  await expect(rows.nth(1).getByRole('textbox', { name: 'Value' })).toHaveValue('9223372036854775807');
+  await expect(rows.nth(1).getByRole('textbox', { name: t('globals.value') })).toHaveValue('9223372036854775807');
   expect(await countCalls(page, 'globals.set')).toBe(0);
   capture.assertClean();
 });

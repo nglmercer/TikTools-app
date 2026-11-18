@@ -275,10 +275,10 @@ describe('PluginsPage', () => {
 
   it('shows one navigation area with icon tabs, a search field and icon tools', async () => {
     const { wrapper } = await mountPage();
-    expect(tabNames(wrapper)).toEqual(['Explore', 'Installed 1', 'Updates', t('plugins.views.processors')]);
+    expect(tabNames(wrapper)).toEqual([t('plugins.catalog.browse'), 'Installed 1', 'Updates', t('plugins.views.processors')]);
     expect(wrapper.find('.plugins-page__toolbar').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Plugins bring an external dependency');
-    expect(wrapper.get('h2').text()).toBe('Plugins');
+    expect(wrapper.get('h2').text()).toBe(t('navigation.plugins'));
     expect(wrapper.get('input[type="search"]').attributes('aria-label')).toBe(t('plugins.catalog.search'));
     expect(buttonByLabel(wrapper, t('plugins.install.package')).exists()).toBe(true);
     expect(buttonByLabel(wrapper, t('plugins.catalog.checkUpdates')).exists()).toBe(false);
@@ -315,7 +315,7 @@ describe('PluginsPage', () => {
   it('lists installed plugins apart from bundled and registry plugins', async () => {
     const { wrapper, calls } = await mountPage();
     expect(wrapper.findAll('.plugin-catalog__row').map((item) => item.text())).toEqual([expect.stringContaining('DECK')]);
-    await openTab(wrapper, 'Explore');
+    await openTab(wrapper, t('plugins.catalog.browse'));
     expect(calls.map((call) => call.method)).toContain('registry.search');
     const rows = wrapper.findAll('.plugin-catalog__row');
     expect(rows.map((item) => item.text())).toEqual([expect.stringContaining('TTS'), expect.stringContaining('Acme TTS')]);
@@ -451,7 +451,7 @@ describe('PluginsPage', () => {
 
   it('activates a bundled plugin', async () => {
     const { wrapper, calls } = await mountPage();
-    await openTab(wrapper, 'Explore');
+    await openTab(wrapper, t('plugins.catalog.browse'));
     await selectPlugin(wrapper, 'TTS');
     await buttonByText(wrapper, t('plugins.details.activate')).trigger('click');
     await flushPromises();
@@ -480,7 +480,7 @@ describe('PluginsPage', () => {
 
   it('reviews registry plugins from the browse tab', async () => {
     const { wrapper, calls } = await mountPage();
-    await openTab(wrapper, 'Explore');
+    await openTab(wrapper, t('plugins.catalog.browse'));
     await selectPlugin(wrapper, 'Acme TTS');
     await flushPromises();
     expect(calls.find((call) => call.method === 'registry.package')?.params).toEqual({ id: 'acme.tts', registry: 'official' });
@@ -500,7 +500,7 @@ describe('PluginsPage', () => {
       // The previous round's saved selection would reopen its details instead of the tabs.
       localStorage.clear();
       const { wrapper, calls } = await mountPage(undefined, undefined, liveStatuses);
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       await selectPlugin(wrapper, 'Acme TTS');
       await flushPromises();
       expect(wrapper.text()).toContain(expected);
@@ -513,7 +513,7 @@ describe('PluginsPage', () => {
 
   it('explains that the marketplace is unpublished when no registry is available', async () => {
     const { wrapper, calls } = await mountPage(undefined, []);
-    await openTab(wrapper, 'Explore');
+    await openTab(wrapper, t('plugins.catalog.browse'));
     expect(wrapper.text()).toContain(t('plugins.catalog.marketplaceUnavailable'));
     expect(wrapper.find('input[type="search"]').exists()).toBe(false);
     expect(calls.map((call) => call.method)).toContain('registry.list');
@@ -597,7 +597,7 @@ describe('PluginsPage', () => {
     it('renders the Cloud catalog when the host announces it, without touching the registries', async () => {
       const { wrapper, calls } = await explore();
       expect(methods(calls)).not.toContain('catalog.items');
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       expect(names(wrapper)).toEqual(['Acme TTS']);
       expect(wrapper.find('.explore-toolbar__filters').exists()).toBe(false);
       expect(calls.filter(call => call.method === 'catalog.items').every(call => (call.params as { kind?: string })?.kind === 'plugin')).toBe(true);
@@ -610,7 +610,7 @@ describe('PluginsPage', () => {
 
     it('falls back to the registry search when the host does not announce the catalog', async () => {
       const { wrapper, calls } = await explore(undefined, REGISTRY_HOST);
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       expect(methods(calls)).toContain('registry.search');
       expect(methods(calls)).toContain('registry.list');
       expect(methods(calls)).not.toContain('catalog.items');
@@ -620,7 +620,7 @@ describe('PluginsPage', () => {
 
     it('keeps calling the catalog while discovery has not answered', async () => {
       const { wrapper, calls } = await explore(undefined, []);
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       expect(methods(calls)).toContain('catalog.items');
       expect(methods(calls)).not.toContain('registry.search');
       expect(names(wrapper)).toEqual(['Acme TTS']);
@@ -633,7 +633,7 @@ describe('PluginsPage', () => {
         if (method === 'catalog.items') throw new ControlCallError('unavailable', 'cloud down', { cloud: { code: 'temporaryFailure' } });
         return undefined;
       });
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       expect(wrapper.text()).toContain(t('exploreCatalog.unavailable'));
       expect(wrapper.find('button[aria-label="Try again"]').exists()).toBe(true);
       expect(wrapper.text()).not.toMatch(/marketplace/i);
@@ -643,7 +643,7 @@ describe('PluginsPage', () => {
       const { wrapper } = await explore((method) => (method === 'catalog.items'
         ? { items: [wire('template', 'tpl-1', 'Gift alert')], nextCursor: null, dataState: 'noActiveGeneration' }
         : undefined));
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       expect(names(wrapper)).toEqual([]);
       expect(wrapper.text()).toContain(t('exploreCatalog.nothingPublished'));
       expect(wrapper.text()).not.toContain('Published plugins, templates and profiles');
@@ -652,7 +652,7 @@ describe('PluginsPage', () => {
 
     it('opens the remote details of a catalog plugin and reviews it through the signed package', async () => {
       const { wrapper, calls } = await explore();
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       await wrapper.get('.explore-list__row button.explore-list__open').trigger('click');
       await flushPromises();
       expect(calls.find((call) => call.method === 'registry.package')?.params).toEqual({ id: 'acme.tts', registry: 'official' });
@@ -661,10 +661,10 @@ describe('PluginsPage', () => {
 
     it('offers no manual install strip for an id or an https address', async () => {
       const { wrapper } = await explore();
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       expect(wrapper.find('input[placeholder="Plugin id or https address"]').exists()).toBe(false);
       const legacy = await mountPage(undefined, undefined, undefined, REGISTRY_HOST);
-      await openTab(legacy.wrapper, 'Explore');
+      await openTab(legacy.wrapper, t('plugins.catalog.browse'));
       expect(legacy.wrapper.find('input[placeholder="Plugin id or https address"]').exists()).toBe(false);
     });
 
@@ -672,7 +672,7 @@ describe('PluginsPage', () => {
       const { wrapper } = await explore((method) => (method === 'catalog.items'
         ? { items: [wire('plugin', 'tts', 'Bundled TTS in Cloud'), wire('template', 'tpl-1', 'Gift alert')], nextCursor: null }
         : undefined));
-      await openTab(wrapper, 'Explore');
+      await openTab(wrapper, t('plugins.catalog.browse'));
       expect(wrapper.findAll('.plugin-catalog__row').map((item) => item.text())).toEqual([expect.stringContaining('TTS')]);
       expect(names(wrapper)).toEqual([]);
     });

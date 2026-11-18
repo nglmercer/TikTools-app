@@ -33,7 +33,7 @@ test('the old globals link lands on Automations > Variables and saves through th
   await waitForFrontend(page);
   await expect(page).toHaveURL(/#\/automations/);
   await expect(page.getByRole('tab', { name: t('automations.library.variables') })).toHaveAttribute('aria-selected', 'true');
-  const value = page.getByRole('textbox', { name: 'Value' });
+  const value = page.getByRole('textbox', { name: t('globals.value') });
   await expect(value).toHaveValue('46665');
   await value.fill('25575');
   await page.getByRole('button', { name: t('globals.save') }).click();

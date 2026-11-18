@@ -107,8 +107,8 @@ describe('ConnectionsPage', () => {
   it('keeps the explorer visible but only browses after explicit request', async () => {
     const { wrapper, calls } = await mountPage();
     expect(calls).toHaveLength(0);
-    expect(buttonByText(wrapper, 'Explore').isVisible()).toBe(true);
-    await buttonByText(wrapper, 'Explore').trigger('click');
+    expect(buttonByText(wrapper, t('connections.explore.open')).isVisible()).toBe(true);
+    await buttonByText(wrapper, t('connections.explore.open')).trigger('click');
     await flushPromises();
     expect(calls[0]?.method).toBe('live.channels');
     const rows = wrapper.findAll('.live-explorer tbody tr');

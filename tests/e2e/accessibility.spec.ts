@@ -25,7 +25,7 @@ test('navigation exposes named buttons and the active tab marker', async ({ page
     t('navigation.feed'),
     'Points',
     t('navigation.connections'),
-    'Plugins',
+    t('navigation.plugins'),
     'Text to Speech',
   ]) {
     await expect(nav.getByRole('link', { name })).toBeVisible();

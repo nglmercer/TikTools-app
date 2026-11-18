@@ -129,7 +129,7 @@ describe('SyncPanel destructive confirmation', () => {
 
     await byLabel(wrapper, t('syncChanges.more')).trigger('click');
     await wrapper.findAll('[role="menuitem"]').find((item) => item.text() === label)!.trigger('click');
-    await byText(wrapper, 'Confirm')!.trigger('click');
+    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(spies[spy]).toHaveBeenCalledOnce();
   });
@@ -139,7 +139,7 @@ describe('SyncPanel destructive confirmation', () => {
     await byLabel(wrapper, t('syncChanges.reset')).trigger('click');
     expect(spies.reset).not.toHaveBeenCalled();
     expect(wrapper.get('[role="alertdialog"]').text()).toContain('Greeting');
-    await byText(wrapper, 'Confirm')!.trigger('click');
+    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(spies.reset).toHaveBeenCalledWith('e1');
   });
@@ -226,12 +226,12 @@ describe('SyncPanel history view', () => {
     await flushPromises();
     await wrapper.findAll('[aria-label="Restore this version"]')[0]!.trigger('click');
     expect(spies.restore).not.toHaveBeenCalled();
-    await byText(wrapper, 'Confirm')!.trigger('click');
+    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(spies.restore).toHaveBeenCalledWith('op1', 'e1');
     await byLabel(wrapper, t('syncChanges.revert')).trigger('click');
     expect(spies.restore).toHaveBeenCalledTimes(1);
-    await byText(wrapper, 'Confirm')!.trigger('click');
+    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(spies.restore).toHaveBeenLastCalledWith('op1');
   });
@@ -270,7 +270,7 @@ describe('SyncPanel mark as reviewed', () => {
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
 
     await byLabel(wrapper, REVIEW).trigger('click');
-    await byText(wrapper, 'Confirm')!.trigger('click');
+    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(spies.markReviewed).toHaveBeenCalledOnce();
     expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false);
@@ -291,7 +291,7 @@ describe('SyncPanel mark as reviewed', () => {
     const visibleChips = () => wrapper.findAll('.sync-panel__status .sync-panel__chip').filter((chip) => chip.isVisible()).map((chip) => chip.text());
     expect(visibleChips()).toEqual(['1']);
     await byLabel(wrapper, REVIEW).trigger('click');
-    await byText(wrapper, 'Confirm')!.trigger('click');
+    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(visibleChips()).toEqual([]);
     expect(wrapper.findAll('[role="listitem"]')).toHaveLength(0);
@@ -302,7 +302,7 @@ describe('SyncPanel mark as reviewed', () => {
     const { wrapper, spies } = await open({ markReviewed: true });
     spies.markReviewed.mockRejectedValueOnce(new Error('storage blocked'));
     await byLabel(wrapper, REVIEW).trigger('click');
-    await byText(wrapper, 'Confirm')!.trigger('click');
+    await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('storage blocked');
     expect(wrapper.findAll('[role="listitem"]')).toHaveLength(4);
