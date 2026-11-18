@@ -838,6 +838,14 @@ export default {
       error: 'Error',
       testBadge: 'prueba',
     },
+    eventData: {
+      show: 'Ver datos del evento',
+      hide: 'Ocultar datos del evento',
+      previous: 'Ejecución anterior',
+      next: 'Ejecución siguiente',
+      empty: 'Esta ejecución no tiene datos de evento.',
+      label: 'Datos del evento',
+    },
     hotkeys: {
       title: 'Atajos globales',
       states: {

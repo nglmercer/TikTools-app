@@ -836,6 +836,14 @@ export default {
       error: 'Error',
       testBadge: 'test',
     },
+    eventData: {
+      show: 'View event data',
+      hide: 'Hide event data',
+      previous: 'Previous run',
+      next: 'Next run',
+      empty: 'This run has no event data.',
+      label: 'Event data',
+    },
     hotkeys: {
       title: 'Global hotkeys',
       states: {

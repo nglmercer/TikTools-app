@@ -836,6 +836,14 @@ export default {
       error: "エラー",
       testBadge: "テスト",
     },
+    eventData: {
+      show: 'イベントデータを表示',
+      hide: 'イベントデータを非表示',
+      previous: '前の実行',
+      next: '次の実行',
+      empty: 'この実行にはイベントデータがありません。',
+      label: 'イベントデータ',
+    },
     hotkeys: {
       title: "グローバルホットキー",
       states: {

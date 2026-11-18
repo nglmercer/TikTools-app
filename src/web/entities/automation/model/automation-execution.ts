@@ -14,6 +14,8 @@ export interface AutomationFireResult {
   status: 'ok' | 'error';
   summary: string;
   durationMs: number;
+  /** Bounded `event.data` snapshot returned by the host for the inspector. */
+  eventData?: unknown;
 }
 
 export function createAutomationExecution(control: ControlClient, context: {
@@ -60,6 +62,7 @@ export function createAutomationExecution(control: ControlClient, context: {
             test: true,
             logs: [],
             eventSource: result.eventSource,
+            eventData: result.eventData,
             ...(result.status === 'error' ? { error: result.summary } : {}),
           },
         ];

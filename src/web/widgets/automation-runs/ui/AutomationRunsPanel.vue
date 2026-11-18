@@ -7,8 +7,10 @@ import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
+import IconCode from '@/shared/ui/icon/icons/IconCode.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
+import RunEventDataView from '@/entities/automation/ui/RunEventDataView.vue';
 import type { TableColumn } from '@/shared/ui/table/table-types.ts';
 
 const RUN_LIMIT = 50;
@@ -20,6 +22,11 @@ const props = defineProps<{
 const { t, locale } = useI18n();
 // The log is always at hand but can be folded away to give the workspace the full height.
 const open = ref(true);
+// Selected run for the inline event-data inspector; navigation stays in this panel.
+const selected = ref(-1);
+function toggle(index: number): void {
+  selected.value = selected.value === index ? -1 : index;
+}
 
 // Phones keep the columns that identify a run; the result text needs room.
 const isPhone = useMediaQuery('(width < 600px)');
@@ -32,7 +39,7 @@ const columns = computed<TableColumn[]>(() => [
 ]);
 
 const rows = computed(() =>
-  props.runs.slice(0, RUN_LIMIT).map((run) => ({
+  props.runs.slice(0, RUN_LIMIT).map((run, index) => ({
     id: run.id,
     status: run.status,
     test: run.test,
@@ -40,6 +47,8 @@ const rows = computed(() =>
     event: run.eventName ?? '—',
     action: run.actionName,
     result: run.error ?? run.summary,
+    hasData: run.eventData !== undefined,
+    index,
   })),
 );
 </script>
@@ -80,6 +89,18 @@ const rows = computed(() =>
           {{ row.status === 'ok' ? t('automations.runs.ok') : t('automations.runs.error') }}
         </span>
       </template>
+      <template #cell-event="{ row }">
+        {{ row.event }}
+        <BaseIconButton
+          v-if="row.hasData"
+          :label="selected === row.index ? t('automations.eventData.hide') : t('automations.eventData.show')"
+          size="sm"
+          :aria-expanded="selected === row.index"
+          @click="toggle(row.index)"
+        >
+          <IconCode />
+        </BaseIconButton>
+      </template>
       <template #cell-action="{ row }">
         {{ row.action }}
         <span
@@ -96,6 +117,13 @@ const rows = computed(() =>
         </p>
       </template>
     </BaseTable>
+    <RunEventDataView
+      v-if="open && selected >= 0"
+      :runs="runs"
+      :index="selected"
+      @navigate="selected = $event"
+      @close="selected = -1"
+    />
   </BasePanel>
 </template>
 

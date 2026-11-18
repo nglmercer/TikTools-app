@@ -258,6 +258,8 @@ export interface BehaviorRun {
   error?: string;
   /** What the test ran against: last live envelope, sample, or custom JSON. Absent on old hosts. */
   eventSource?: 'live' | 'sample' | 'custom';
+  /** Bounded `event.data` snapshot for the run inspector. Absent on old hosts. */
+  eventData?: unknown;
 }
 
 export interface BehaviorSnapshot {

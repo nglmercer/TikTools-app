@@ -1,12 +1,20 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BehaviorRun } from '../../../../automation/behavior/types.ts';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import IconCode from '@/shared/ui/icon/icons/IconCode.vue';
+import RunEventDataView from './RunEventDataView.vue';
 
 defineProps<{
   runs: readonly BehaviorRun[];
 }>();
 
 const { t } = useI18n();
+const selected = ref(-1);
+function toggle(index: number): void {
+  selected.value = selected.value === index ? -1 : index;
+}
 </script>
 
 <template>
@@ -29,7 +37,7 @@ const { t } = useI18n();
       role="log"
     >
       <li
-        v-for="run in runs"
+        v-for="(run, index) in runs"
         :key="run.id"
         class="test-runs__item"
         :class="`test-runs__item--${run.status}`"
@@ -45,12 +53,28 @@ const { t } = useI18n();
             class="test-runs__source"
           >{{ t(`automations.test.sources.${run.eventSource}`) }}</span>
           <span class="test-runs__duration">{{ t('automations.test.duration', { ms: run.durationMs }) }}</span>
+          <BaseIconButton
+            v-if="run.eventData !== undefined"
+            :label="selected === index ? t('automations.eventData.hide') : t('automations.eventData.show')"
+            size="sm"
+            :aria-expanded="selected === index"
+            @click="toggle(index)"
+          >
+            <IconCode />
+          </BaseIconButton>
         </span>
         <span class="test-runs__summary">{{ run.error ?? run.summary }}</span>
         <pre
           v-if="run.logs.length"
           class="test-runs__logs"
         >{{ run.logs.join('\n') }}</pre>
+        <RunEventDataView
+          v-if="selected === index"
+          :runs="runs"
+          :index="index"
+          @navigate="selected = $event"
+          @close="selected = -1"
+        />
       </li>
     </ul>
   </section>

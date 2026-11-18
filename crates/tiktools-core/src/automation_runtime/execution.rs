@@ -90,6 +90,9 @@ impl AppCore {
             "summary": summary,
             "durationMs": now_millis().saturating_sub(started),
             "test": test,
+            // `event` is already projected for delegated contexts above, so
+            // the inspector never exposes private fields from an approved run.
+            "eventData": super::dispatch::event_data_snapshot(event),
             "logs": logs.into_iter().take(40).collect::<Vec<_>>(),
             "error": error
         });

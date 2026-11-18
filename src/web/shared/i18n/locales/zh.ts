@@ -836,6 +836,14 @@ export default {
       error: "错误",
       testBadge: "测试",
     },
+    eventData: {
+      show: '查看事件数据',
+      hide: '隐藏事件数据',
+      previous: '上一次执行',
+      next: '下一次执行',
+      empty: '此次执行没有事件数据。',
+      label: '事件数据',
+    },
     hotkeys: {
       title: "全局快捷键",
       states: {

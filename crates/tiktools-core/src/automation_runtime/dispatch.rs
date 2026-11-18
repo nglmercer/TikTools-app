@@ -171,6 +171,7 @@ impl AppCore {
             "draftMatched": draft_matched,
             "status": "ok",
             "summary": summary,
+            "eventData": event_data_snapshot(enriched),
             "durationMs": now_millis().saturating_sub(started),
         })
     }
@@ -244,6 +245,7 @@ impl AppCore {
                 "test": true,
                 "eventSource": source,
                 "pinned": pinned,
+                "eventData": event_data_snapshot(&event),
                 "logs": [],
                 "error": summary
             });
@@ -263,6 +265,7 @@ impl AppCore {
                 "test": true,
                 "eventSource": source,
                 "pinned": pinned,
+                "eventData": event_data_snapshot(&event),
                 "logs": [],
                 "error": summary
             });
@@ -310,6 +313,7 @@ impl AppCore {
             "test": true,
             "eventSource": source,
             "pinned": pinned,
+            "eventData": event_data_snapshot(&event),
             "logs": [],
             "actions": runs
         });
@@ -568,6 +572,45 @@ impl AppCore {
     }
 }
 
+/// Bounded copy of an event's `data` object for the run inspector. Every event
+/// type is inspected through the same JSON viewer, so the snapshot keeps the
+/// payload shape (including nested objects from `plugin.emit`) while capping
+/// long strings and wide containers to keep run history small.
+pub(crate) fn event_data_snapshot(event: &Value) -> Value {
+    const MAX_STRING_CHARS: usize = 2048;
+    const MAX_ITEMS: usize = 64;
+    const MAX_DEPTH: usize = 8;
+
+    fn cap(value: &Value, depth: usize) -> Value {
+        match value {
+            Value::String(text) if text.chars().count() > MAX_STRING_CHARS => {
+                let head: String = text.chars().take(MAX_STRING_CHARS).collect();
+                Value::String(format!("{head}… [truncated]"))
+            }
+            Value::Array(items) if depth < MAX_DEPTH => Value::Array(
+                items
+                    .iter()
+                    .take(MAX_ITEMS)
+                    .map(|item| cap(item, depth + 1))
+                    .collect(),
+            ),
+            Value::Object(map) if depth < MAX_DEPTH => Value::Object(
+                map.iter()
+                    .take(MAX_ITEMS)
+                    .map(|(key, item)| (key.clone(), cap(item, depth + 1)))
+                    .collect(),
+            ),
+            Value::Array(_) | Value::Object(_) => Value::String("[nested too deep]".to_owned()),
+            other => other.clone(),
+        }
+    }
+
+    match event.get("data") {
+        Some(data) => cap(data, 0),
+        None => Value::Object(Default::default()),
+    }
+}
+
 /// Compact JSON preview of event data for mismatch summaries, truncated
 /// on a character boundary: live chat routinely carries emoji and CJK
 /// text, so slicing at a byte offset would panic.
@@ -611,13 +654,14 @@ fn fire_no_match(
         "draftMatched": false,
         "status": "error",
         "summary": summary,
+        "eventData": event_data_snapshot(event),
         "durationMs": now_millis().saturating_sub(started),
     })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::event_data_preview;
+    use super::{event_data_preview, event_data_snapshot};
     use serde_json::json;
 
     #[test]
@@ -636,5 +680,25 @@ mod tests {
         let exact = json!("x".repeat(118));
         assert_eq!(event_data_preview(&exact).chars().count(), 120);
         assert!(!event_data_preview(&exact).ends_with('…'));
+    }
+
+    #[test]
+    fn event_data_snapshot_keeps_any_shape_and_caps_large_values() {
+        let event = json!({
+            "type": "plugin.emit",
+            "data": {
+                "emitType": "demo.emit",
+                "payload": {"nested": ["a", "b"]},
+                "text": "x".repeat(3000)
+            }
+        });
+        let snapshot = event_data_snapshot(&event);
+        assert_eq!(snapshot["emitType"], "demo.emit");
+        assert_eq!(snapshot["payload"]["nested"][1], "b");
+        let text = snapshot["text"].as_str().expect("capped string");
+        assert!(text.ends_with("… [truncated]"), "{text}");
+        assert!(text.chars().count() <= 2048 + 14);
+        // Missing data still yields an inspectable (empty) object.
+        assert_eq!(event_data_snapshot(&json!({"type": "tiktok.like"})), json!({}));
     }
 }
