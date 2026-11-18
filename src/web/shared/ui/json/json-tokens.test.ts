@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { linesText, plainTextLines, prettyJson, tokenizeJson, tokenizeJsonSource } from './json-tokens.ts';
+import { expectPrettyJson } from './json-test-helpers.ts';
 
 const sample = {
   name: 'Gift alert',
@@ -13,9 +14,9 @@ const sample = {
 
 describe('tokenizeJson', () => {
   it('prints exactly what JSON.stringify prints with two-space indentation', () => {
-    expect(linesText(tokenizeJson(sample).lines)).toBe(JSON.stringify(sample, null, 2));
+    expectPrettyJson(sample, linesText(tokenizeJson(sample).lines));
     for (const value of [0, 'text', true, null, [], {}, [[]], [{}], { a: [] }, [1, [2, [3]]], 12345678901234, 1e21, -0]) {
-      expect(linesText(tokenizeJson(value).lines), JSON.stringify(value)).toBe(JSON.stringify(value, null, 2));
+      expectPrettyJson(value, linesText(tokenizeJson(value).lines));
     }
   });
 
@@ -37,9 +38,9 @@ describe('tokenizeJson', () => {
 
   it('keeps keys in the order they were given and optionally sorts them', () => {
     const value = { b: 1, a: { d: 1, c: 2 } };
-    expect(linesText(tokenizeJson(value).lines)).toBe(JSON.stringify(value, null, 2));
-    expect(linesText(tokenizeJson(value, { sortKeys: true }).lines)).toBe(JSON.stringify({ a: { c: 2, d: 1 }, b: 1 }, null, 2));
-    expect(prettyJson(value, { sortKeys: true })).toBe(JSON.stringify({ a: { c: 2, d: 1 }, b: 1 }, null, 2));
+    expectPrettyJson(value, linesText(tokenizeJson(value).lines));
+    expectPrettyJson({ a: { c: 2, d: 1 }, b: 1 }, linesText(tokenizeJson(value, { sortKeys: true }).lines));
+    expectPrettyJson({ a: { c: 2, d: 1 }, b: 1 }, prettyJson(value, { sortKeys: true }));
   });
 
   it('follows JSON.stringify for unsupported values', () => {
@@ -59,7 +60,7 @@ describe('tokenizeJson', () => {
 
   it('does not treat a repeated (non-cyclic) object as a cycle', () => {
     const shared = { x: 1 };
-    expect(linesText(tokenizeJson({ a: shared, b: shared }).lines)).toBe(JSON.stringify({ a: shared, b: shared }, null, 2));
+    expectPrettyJson({ a: shared, b: shared }, linesText(tokenizeJson({ a: shared, b: shared }).lines));
   });
 
   it('stops at maxLines and reports truncation', () => {
