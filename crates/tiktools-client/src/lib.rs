@@ -47,8 +47,6 @@ pub mod settings;
 #[cfg(feature = "cloud-auth")]
 pub mod sync;
 pub mod system;
-#[cfg(feature = "cloud-auth")]
-pub mod teams;
 pub mod ui;
 pub mod updates;
 pub mod validate;
@@ -194,8 +192,6 @@ impl TikToolsClient {
             publishers::METHODS,
             #[cfg(feature = "cloud-auth")]
             integrations::METHODS,
-            #[cfg(feature = "cloud-auth")]
-            teams::METHODS,
             #[cfg(feature = "cloud-auth")]
             bundles::METHODS,
             points::METHODS,

@@ -5,8 +5,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDiagnostics.vue';
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
-import CloudTeams from '@/features/cloud-teams/ui/CloudTeams.vue';
-import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import CollaborationEditor from '@/features/manage-collaboration/ui/CollaborationEditor.vue';
 import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
 import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
@@ -24,28 +22,25 @@ import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
  * Settings keeps what belongs to the application itself. Plugin preferences, overlays, webhooks,
  * variables and cloud documents live in the area they configure.
  */
-type SettingsSection = 'general' | 'account' | 'collaboration' | 'teams';
+type SettingsSection = 'general' | 'account' | 'collaboration';
 
 const sections: ReadonlyArray<{ id: SettingsSection; icon: typeof IconGear }> = [
   { id: 'general', icon: markRaw(IconGear) },
   { id: 'account', icon: markRaw(IconGlobe) },
   { id: 'collaboration', icon: markRaw(IconUser) },
-  { id: 'teams', icon: markRaw(IconUser) },
 ];
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
-const capabilities = useCapabilityStore();
 const localeStore = useLocaleStore();
 // Teams are part of remote collaboration; without the host's announcement they stay hidden.
-const teamsAvailable = computed(() => capabilities.supports('teams.hosts.list') === true);
 
-const tabs = computed(() => sections.filter(entry => entry.id !== 'teams' || teamsAvailable.value).map((entry) => ({ value: entry.id, label: entry.id === 'teams' ? t('cloudTeams.title') : t(`settingsLayout.labels.${entry.id}`), icon: entry.icon })));
+const tabs = computed(() => sections.map((entry) => ({ value: entry.id, label: t(`settingsLayout.labels.${entry.id}`), icon: entry.icon })));
 
 // An unknown (or moved) section lands on General; the router redirects the links of moved areas.
 const section = computed<SettingsSection>({
-  get: () => sections.find((entry) => entry.id === String(route.query.section ?? '') && (entry.id !== 'teams' || teamsAvailable.value))?.id ?? 'general',
+  get: () => sections.find((entry) => entry.id === String(route.query.section ?? ''))?.id ?? 'general',
   set: (value) => void router.replace({ query: { ...route.query, section: value } }),
 });
 
@@ -64,7 +59,7 @@ const locale = computed<Locale>({
     >
       <section
         class="settings-page__content"
-        :aria-label="section === 'teams' ? t('cloudTeams.title') : t(`settingsLayout.labels.${section}`)"
+        :aria-label="t(`settingsLayout.labels.${section}`)"
       >
         <template v-if="section === 'general'">
           <BaseGroupBox :title="t('settings.language.group')">
@@ -98,9 +93,7 @@ const locale = computed<Locale>({
         </template>
         <CollaborationEditor
           v-else-if="section === 'collaboration'"
-          @teams="section = 'teams'"
         />
-        <CloudTeams v-else-if="teamsAvailable" />
       </section>
     </BaseTabs>
   </div>

@@ -4,27 +4,77 @@
   "name": "Remote Control",
   "version": "1.0.0",
   "publisher": "tiktools",
-  "metadata": { "publisher": "tiktools" },
+  "metadata": {
+    "publisher": "tiktools"
+  },
   "license": "MIT",
-  "engines": { "tiktools": ">=4.2.3, <5.0.0" },
+  "engines": {
+    "tiktools": ">=4.2.3, <5.0.0"
+  },
   "repository": "https://github.com/nglmercer/plugins-example-tiktools",
   "description": "Remote control gateway owned by the user, with host-mediated command execution.",
   "longDescription": "Runs its own listener and dispatches received commands through the host's capability-gated host.call API. Never receives a bearer token or ControlApi.",
   "icon": "network",
-  "tags": ["remote", "control"],
+  "tags": [
+    "remote",
+    "control"
+  ],
   "runtime": "process",
   "trust": "trusted",
   "entry": "tiktools-remote-control-plugin",
   "protocolVersion": 1,
-  "capabilities": ["events.subscribe", "events.publish", "host.call"],
-  "eventSubscriptions": ["cloud.login.code", "*"],
+  "capabilities": [
+    "events.subscribe",
+    "events.publish",
+    "host.call"
+  ],
+  "eventSubscriptions": [
+    "cloud.login.code",
+    "*"
+  ],
   "actionTypes": [
     {
       "id": "tiktools.remote-control.test",
       "version": 1,
-      "title": { "default": "Test remote control" },
-      "description": { "default": "Checks the host call channel." },
-      "requiredCapabilities": ["host.call"]
+      "title": {
+        "default": "Test remote control"
+      },
+      "description": {
+        "default": "Checks the host call channel."
+      },
+      "requiredCapabilities": [
+        "host.call"
+      ]
+    },
+    {
+      "id": "tiktools.remote-control.start",
+      "version": 1,
+      "title": {
+        "default": "Start gateway"
+      },
+      "description": {
+        "default": "Start the remote-control listener."
+      }
+    },
+    {
+      "id": "tiktools.remote-control.stop",
+      "version": 1,
+      "title": {
+        "default": "Stop gateway"
+      },
+      "description": {
+        "default": "Stop the remote-control listener."
+      }
+    },
+    {
+      "id": "tiktools.remote-control.status",
+      "version": 1,
+      "title": {
+        "default": "Refresh status"
+      },
+      "description": {
+        "default": "Show gateway and host status."
+      }
     }
   ],
   "cliCommands": [
@@ -32,6 +82,94 @@
       "id": "test",
       "actionType": "tiktools.remote-control.test",
       "description": "Test the remote-control host call channel (dry run unless --live)"
+    },
+    {
+      "id": "start",
+      "actionType": "tiktools.remote-control.start",
+      "description": "Start the remote-control gateway"
+    },
+    {
+      "id": "stop",
+      "actionType": "tiktools.remote-control.stop",
+      "description": "Stop the remote-control gateway"
+    },
+    {
+      "id": "status",
+      "actionType": "tiktools.remote-control.status",
+      "description": "Show gateway and host status"
     }
-  ]
+  ],
+  "ui": {
+    "apiVersion": 1,
+    "mode": "declarative",
+    "pages": [
+      {
+        "id": "main",
+        "title": {
+          "default": "Remote Control",
+          "i18key": "plugin.remoteControl.title"
+        },
+        "body": {
+          "type": "stack",
+          "children": [
+            {
+              "type": "text",
+              "key": "status",
+              "text": {
+                "default": "Gateway stopped",
+                "i18key": "plugin.remoteControl.status"
+              }
+            },
+            {
+              "type": "separator"
+            },
+            {
+              "type": "button",
+              "label": {
+                "default": "Start gateway",
+                "i18key": "plugin.remoteControl.start"
+              },
+              "action": {
+                "type": "plugin-action",
+                "actionType": "tiktools.remote-control.start"
+              }
+            },
+            {
+              "type": "button",
+              "label": {
+                "default": "Stop gateway",
+                "i18key": "plugin.remoteControl.stop"
+              },
+              "action": {
+                "type": "plugin-action",
+                "actionType": "tiktools.remote-control.stop"
+              }
+            },
+            {
+              "type": "button",
+              "label": {
+                "default": "Refresh status",
+                "i18key": "plugin.remoteControl.refresh"
+              },
+              "action": {
+                "type": "plugin-action",
+                "actionType": "tiktools.remote-control.status"
+              }
+            },
+            {
+              "type": "button",
+              "label": {
+                "default": "Test host channel",
+                "i18key": "plugin.remoteControl.test"
+              },
+              "action": {
+                "type": "plugin-action",
+                "actionType": "tiktools.remote-control.test"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
 }

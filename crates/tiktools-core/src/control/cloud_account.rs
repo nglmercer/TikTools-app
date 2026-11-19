@@ -151,6 +151,19 @@ impl AppCore {
         &self.cloud
     }
 
+    /// Cloud auth broker for host-mediated host calls (never exposed to plugins).
+    #[cfg(feature = "cloud-auth")]
+    pub fn cloud_auth(&self) -> &tiktools_cloud_auth::CloudAuth {
+        self.cloud.auth()
+    }
+
+    /// Cloud Teams API used by the host to mint relay tickets for the
+    /// installable remote-control plugin. The plugin never gets a session.
+    #[cfg(all(feature = "cloud-auth", feature = "http"))]
+    pub fn teams_api(&self) -> &crate::cloud_teams::CloudTeams {
+        &self.teams
+    }
+
     pub async fn cloud_status(&self) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
         Ok(self.cloud().auth().status().await)
     }

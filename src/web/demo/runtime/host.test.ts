@@ -4,7 +4,6 @@ import { createDemoHost } from './host.ts';
 import { parseDemoOptions, scenarios } from '../scenarios.ts';
 import { createLiveFeedState } from '@/entities/live-event/model/live-feed-state.ts';
 import { flushPromises } from '@vue/test-utils';
-import { parseHosts, parseDevices, parseAccessibleTeams } from '@/entities/cloud-teams/api/teams-api.ts';
 import type { AnalyticsTotals, GiftCatalogEntry, UiEvent } from '../../../shared/messages.ts';
 import { DEMO_ACTIVITY_LENGTH } from '../fixtures/audience.ts';
 
@@ -75,15 +74,6 @@ describe('public demo host', () => {
     host.step(); host.step(); host.step();
     expect(host.state.automationRuns.at(-1)).toMatchObject({ status: 'ok' });
     host.dispose();
-  });
-  it('keeps experimental Teams readable and states the native boundary explicitly', async () => {
-    const host = createDemoHost('collaboration'); const client = createControlClient({ transport: host.transport }); client.attach();
-    expect(parseHosts(await client.call('teams.hosts.list'))).toEqual([]);
-    expect(parseDevices(await client.call('teams.devices.list'))).toEqual([]);
-    expect(parseAccessibleTeams(await client.call('teams.accessible.list'))).toEqual([]);
-    await expect(client.call('teams.hosts.create', { name: 'Fictional team' })).rejects.toMatchObject({ code: 'demo_unsupported' });
-    expect(host.wasSuccessful('teams.hosts.create')).toBe(false);
-    client.detach(); host.dispose();
   });
   it('feeds the real application state through its current topic and journal contract', async () => {
     const host = createDemoHost('feed'); const client = createControlClient({ transport: host.transport }); client.attach();

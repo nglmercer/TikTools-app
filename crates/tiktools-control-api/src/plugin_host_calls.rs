@@ -266,6 +266,34 @@ impl HostCallHandler for PluginHostCalls {
                     .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
                     .map_err(|error| error.to_string());
             }
+            // The host mints a short-lived controller relay ticket with its
+            // own Cloud session. The plugin never sees a bearer token; the
+            // ticket alone authenticates its WSS connection to the backend.
+            "remote.controller.ticket" => {
+                let host_id = params
+                    .get("hostId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| !value.is_empty() && value.len() <= 128)
+                    .ok_or_else(|| "hostId is required".to_owned())?
+                    .to_owned();
+                let device_id = params
+                    .get("deviceId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| !value.is_empty() && value.len() <= 128)
+                    .ok_or_else(|| "deviceId is required".to_owned())?
+                    .to_owned();
+                let core = self.api.core();
+                let issued = self.handle.block_on(
+                    core.teams_api().issue_ticket_as(
+                        core.cloud_auth(),
+                        "controller",
+                        &host_id,
+                        &device_id,
+                    ),
+                );
+                let ticket = issued.map_err(|error| error.to_string())?;
+                return Ok(serde_json::json!({"ticket": ticket}));
+            }
             "remote.command.dispatch" => {
                 // The plugin supplies only a command id, operation and args.
                 // Expiry, policy revision and identity are host-owned, so a

@@ -5,7 +5,6 @@ import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { useSyncStore } from '@/entities/cloud-sync/model/sync-store.ts';
 import { useCatalogStore } from '@/entities/catalog/model/catalog-store.ts';
-import { useTeamsStore } from '@/entities/cloud-teams/model/teams-store.ts';
 import { useIntegrationsStore } from '@/entities/cloud-integrations/model/integrations-store.ts';
 import { useBundlesStore } from '@/entities/cloud-bundles/model/bundles-store.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
@@ -24,7 +23,6 @@ export function useDiagnostics(): void {
   const sync = useSyncStore();
   const updater = useAppUpdaterStore();
   const catalog = useCatalogStore();
-  const teams = useTeamsStore();
   const integrations = useIntegrationsStore();
   const bundles = useBundlesStore();
   const packages = usePackagesStore();
@@ -55,8 +53,6 @@ export function useDiagnostics(): void {
   watch(() => sync.error, (message) => error('sync', 'cloud.sync', message), { immediate: true, flush: 'sync' });
   // Technical detail of the Cloud surfaces lives here; the panels keep a short, actionable message.
   watch(() => [catalog.error, catalog.errorDetail] as const, ([message, detail]) => error('catalog', 'catalog.error', message, detail), { immediate: true, flush: 'sync' });
-  watch(() => [teams.error, teams.errorDetail] as const, ([message, detail]) => error('collaboration', 'teams.error', message, detail), { immediate: true, flush: 'sync' });
-  watch(() => teams.link.lastError, (message) => error('relay', 'relay.link', message), { immediate: true, flush: 'sync' });
   watch(() => [integrations.error, integrations.errorDetail] as const, ([message, detail]) => error('integrations', 'integrations.error', message, detail), { immediate: true, flush: 'sync' });
   watch(() => [bundles.error, bundles.errorDetail] as const, ([message, detail]) => error('install', 'bundles.error', message, detail), { immediate: true, flush: 'sync' });
   watch(() => packages.searchError, (message) => error('install', 'registry.search', message), { immediate: true, flush: 'sync' });
