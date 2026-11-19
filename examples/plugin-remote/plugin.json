@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "tiktools.remote-control",
   "name": "Remote Control",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "tiktools",
   "metadata": {
     "publisher": "tiktools"
@@ -13,7 +13,7 @@
   },
   "repository": "https://github.com/nglmercer/plugins-example-tiktools",
   "description": "Remote control gateway owned by the user, with host-mediated command execution.",
-  "longDescription": "Runs its own listener and dispatches received commands through the host's capability-gated host.call API. Never receives a bearer token or ControlApi.",
+  "longDescription": "Owns a WSS relay connection to RemakeBackend using a host-minted controller ticket. Executes every received command through the capability-gated host.call API. Never receives a bearer token, ControlApi or raw settings.",
   "icon": "network",
   "tags": [
     "remote",
@@ -54,7 +54,23 @@
       },
       "description": {
         "default": "Start the remote-control listener."
-      }
+      },
+      "fields": [
+        {
+          "key": "hostId",
+          "type": "string",
+          "title": {
+            "default": "Host ID"
+          }
+        },
+        {
+          "key": "deviceId",
+          "type": "string",
+          "title": {
+            "default": "Controller device ID"
+          }
+        }
+      ]
     },
     {
       "id": "tiktools.remote-control.stop",

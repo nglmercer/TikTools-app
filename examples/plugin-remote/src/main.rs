@@ -1,199 +1,133 @@
-//! Installable remote-control plugin.
+//! Installable remote-control plugin: sole owner of remote control.
 //!
-//! Owns its listener and executes host operations through `host.call`. It
-//! never receives a bearer token, ControlApi, cookies or raw settings. The
-//! transport below is a bounded loopback JSON-lines gateway; a production
-//! build upgrades it to WSS using a relay ticket obtained from the host via
-//! `remote.controller.ticket` (no token enters the plugin).
+//! Owns its WSS relay transport (see `relay.rs`) and executes every received
+//! command through the host's capability-gated `host.call`. It never receives
+//! a bearer token, ControlApi, cookies or raw settings.
 
-use std::{
-    io::{BufRead, BufReader, Write},
-    net::{TcpListener, TcpStream},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-    thread::JoinHandle,
-    time::Duration,
-};
+mod relay;
+
+use std::sync::Mutex;
 
 use serde_json::{json, Value};
 use tiktools_plugin_sdk::{
     host_remote_execute, run_process_plugin, ActionCall, ActionResult, DomainEventEnvelope,
     Plugin, PluginContext, PluginError, PluginResult,
 };
+use tokio::sync::oneshot;
 
-const DEFAULT_BIND: &str = "127.0.0.1:18452";
-const MAX_FRAME: usize = 64 * 1024;
+#[derive(Debug, Clone)]
+pub(crate) struct GatewayConfig {
+    pub(crate) host_id: String,
+    pub(crate) device_id: String,
+}
 
 #[derive(Default)]
 struct RemoteControl {
-    gateway: Arc<Mutex<Option<Gateway>>>,
-}
-
-struct Gateway {
-    stop: Arc<AtomicBool>,
-    thread: Option<JoinHandle<()>>,
-    address: String,
-}
-
-impl Drop for Gateway {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-    }
+    runtime: Mutex<Option<tokio::runtime::Runtime>>,
+    stop: Mutex<Option<oneshot::Sender<()>>>,
 }
 
 impl RemoteControl {
-    fn start_gateway(&self, bind: &str) -> PluginResult<String> {
-        let mut slot = self
-            .gateway
+    fn start_relay(&self, host_id: String, device_id: String) -> PluginResult<()> {
+        let mut runtime_slot = self
+            .runtime
             .lock()
             .map_err(|error| PluginError::other(error.to_string()))?;
-        if slot.is_some() {
-            return Ok(slot.as_ref().unwrap().address.clone());
+        if runtime_slot.is_some() {
+            return Err(PluginError::other("relay already running"));
         }
-        let listener = TcpListener::bind(bind)
-            .map_err(|error| PluginError::other(format!("could not bind {bind}: {error}")))?;
-        listener
-            .set_nonblocking(true)
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
             .map_err(|error| PluginError::other(error.to_string()))?;
-        let address = listener
-            .local_addr()
-            .map_err(|error| PluginError::other(error.to_string()))?
-            .to_string();
-        let stop = Arc::new(AtomicBool::new(false));
-        let thread_stop = Arc::clone(&stop);
-        let thread = std::thread::Builder::new()
-            .name("remote-control-gateway".to_owned())
-            .spawn(move || serve(listener, thread_stop))
-            .map_err(|error| PluginError::other(error.to_string()))?;
-        *slot = Some(Gateway {
-            stop,
-            thread: Some(thread),
-            address: address.clone(),
+        let (stop_tx, stop_rx) = oneshot::channel();
+        let config = GatewayConfig {
+            host_id,
+            device_id,
+        };
+        runtime.spawn(async move {
+            if let Err(error) = relay::run(config, stop_rx).await {
+                eprintln!("remote-control relay stopped: {error}");
+            }
         });
-        Ok(address)
+        *runtime_slot = Some(runtime);
+        *self
+            .stop
+            .lock()
+            .map_err(|error| PluginError::other(error.to_string()))? = Some(stop_tx);
+        Ok(())
     }
 
-    fn stop_gateway(&self) -> PluginResult<()> {
-        let mut slot = self
-            .gateway
+    fn stop_relay(&self) -> PluginResult<()> {
+        let stop = self
+            .stop
             .lock()
-            .map_err(|error| PluginError::other(error.to_string()))?;
-        *slot = None;
+            .map_err(|error| PluginError::other(error.to_string()))?
+            .take();
+        if let Some(stop) = stop {
+            let _ = stop.send(());
+        }
+        if let Some(runtime) = self
+            .runtime
+            .lock()
+            .map_err(|error| PluginError::other(error.to_string()))?
+            .take()
+        {
+            runtime.shutdown_timeout(std::time::Duration::from_secs(5));
+        }
         Ok(())
     }
 }
 
-/// Serve one JSON object per line: `{"op":"status"|"command", ...}`. A command
-/// is executed only through the host's allowlisted `remote.command.dispatch`,
-/// so the plugin never executes remote content itself.
-fn serve(listener: TcpListener, stop: Arc<AtomicBool>) {
-    for stream in listener.incoming() {
-        if stop.load(Ordering::Relaxed) {
-            break;
-        }
-        let stream: TcpStream = match stream {
-            Ok(stream) => stream,
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                std::thread::sleep(Duration::from_millis(20));
-                continue;
-            }
-            Err(_) => break,
-        };
-        let _ = std::thread::Builder::new()
-            .name("remote-control-client".to_owned())
-            .spawn(move || handle_client(stream));
-    }
-}
-
-fn handle_client(stream: TcpStream) {
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
-    let mut reader = BufReader::new(match stream.try_clone() {
-        Ok(clone) => clone,
-        Err(_) => return,
-    });
-    let mut writer = match stream.try_clone() {
-        Ok(clone) => clone,
-        Err(_) => return,
-    };
-    let mut line = String::new();
-    loop {
-        line.clear();
-        let read = match reader.read_line(&mut line) {
-            Ok(size) => size,
-            Err(_) => return,
-        };
-        if read == 0 || line.len() > MAX_FRAME {
-            return;
-        }
-        let request: Value = match serde_json::from_str(line.trim()) {
-            Ok(value) => value,
-            Err(_) => continue,
-        };
-        let response = match request.get("op").and_then(Value::as_str) {
-            Some("status") => json!({"ok": true, "transport": "loopback-jsonl"}),
-            Some("command") => {
-                let command_id = request
-                    .get("commandId")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_owned();
-                let operation = request
-                    .get("operation")
-                    .and_then(Value::as_str)
-                    .unwrap_or("")
-                    .to_owned();
-                let args = request.get("args").cloned().unwrap_or(json!({}));
-                match host_remote_execute(
-                    "remote.command.dispatch",
-                    json!({"commandId": command_id, "operation": operation, "args": args}),
-                ) {
-                    Ok(value) => value,
-                    Err(error) => json!({"ok": false, "error": error.to_string()}),
-                }
-            }
-            _ => json!({"ok": false, "error": "unknown op"}),
-        };
-        if writeln!(writer, "{}", response).is_err() {
-            return;
-        }
-        let _ = writer.flush();
+impl Drop for RemoteControl {
+    fn drop(&mut self) {
+        let _ = self.stop_relay();
     }
 }
 
 impl Plugin for RemoteControl {
     fn initialize(&mut self, _context: &PluginContext) -> PluginResult<()> {
-        self.start_gateway(DEFAULT_BIND)?;
+        // Auto-start requires a paired host/device. Operators start the relay
+        // explicitly after pairing via `start`; `events.subscribe` guarantees
+        // this plugin process is running when a login code arrives.
         Ok(())
     }
 
     fn action(&mut self, _context: &PluginContext, call: ActionCall) -> PluginResult<ActionResult> {
+        let config = call.config();
         match call.action_type() {
             Some("tiktools.remote-control.test") => {
                 let status = host_remote_execute("cloud.status", json!({}))?;
                 Ok(ActionResult::summary(format!("host channel OK: {status}")))
             }
             Some("tiktools.remote-control.start") => {
-                let address = self.start_gateway(DEFAULT_BIND)?;
-                Ok(ActionResult::summary(format!("gateway listening on {address}")))
+                let host_id = config
+                    .get("hostId")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| PluginError::other("hostId is required"))?
+                    .to_owned();
+                let device_id = config
+                    .get("deviceId")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| PluginError::other("deviceId is required"))?
+                    .to_owned();
+                self.start_relay(host_id, device_id)?;
+                Ok(ActionResult::summary("relay started"))
             }
             Some("tiktools.remote-control.stop") => {
-                self.stop_gateway()?;
-                Ok(ActionResult::summary("gateway stopped"))
+                self.stop_relay()?;
+                Ok(ActionResult::summary("relay stopped"))
             }
             Some("tiktools.remote-control.status") => {
-                let address = self
-                    .gateway
+                let running = self
+                    .runtime
                     .lock()
                     .map_err(|error| PluginError::other(error.to_string()))?
-                    .as_ref()
-                    .map(|gateway| gateway.address.clone())
-                    .unwrap_or_else(|| "stopped".to_owned());
-                Ok(ActionResult::summary(format!("gateway: {address}")))
+                    .is_some();
+                Ok(ActionResult::summary(format!(
+                    "relay: {}",
+                    if running { "running" } else { "stopped" }
+                )))
             }
             other => Err(PluginError::other(format!("unknown action {other:?}"))),
         }
@@ -201,9 +135,9 @@ impl Plugin for RemoteControl {
 
     fn event(&mut self, _context: &PluginContext, event: DomainEventEnvelope) -> PluginResult<()> {
         if event.topic == "cloud.login.code" {
-            // Display-only: never log or persist the code. A real UI binds
-            // this to its login-code panel and calls
-            // `host_remote_execute("cloud.login.code.submit", ...)`.
+            // The code is shown by the plugin UI and submitted through
+            // `host_remote_execute("cloud.login.code.submit", ...)`. It is
+            // never logged or persisted here.
         }
         Ok(())
     }
