@@ -19,7 +19,7 @@ tokio-tungstenite.workspace = true
 url.workspace = true
 futures-util = "0.3"
 async-trait = "0.1"
-base64 = "0.22"
+base64 = "0.23"
 uuid = { version = "1", features = ["v4", "serde"] }
 rustls.workspace = true
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
