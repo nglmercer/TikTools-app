@@ -57,13 +57,17 @@ try {
     appImageTools ? { ...packagingEnv, NO_STRIP: '1', PATH: `${appImageTools}:${process.env.PATH ?? ''}` } : packagingEnv);
   const files = await readdir(output);
   const extensions = platform === 'windows-x86_64' ? ['.exe'] : ['.deb', '.AppImage'];
+  // AppImage names must not contain "linux": every AppImage targets Linux, so
+  // the architecture alone identifies the build. Other formats keep the full
+  // platform name.
+  const assetTarget = (extension: string) => extension === '.AppImage' ? platform.replace(/^linux-/, '') : platform;
   const validated: Array<{ source: string; destination: string }> = [];
   for (const extension of extensions) {
     const matches = files.filter((file) => file.endsWith(extension));
     if (matches.length !== 1) throw new Error(`expected one ${extension} installer, found ${matches.length}`);
     const format = extension === '.exe' ? 'nsis' : extension === '.deb' ? 'deb' : 'appimage';
     await verifyInstaller(staging, join(output, matches[0] as string), format, version);
-    const destination = join(releaseDir, `TikTools-${version}-${platform}-installer${extension}`);
+    const destination = join(releaseDir, `TikTools-${version}-${assetTarget(extension)}-installer${extension}`);
     if (await lstat(destination).then(() => true, () => false)) throw new Error(`installer already exists: ${destination}`);
     validated.push({ source: join(output, matches[0] as string), destination });
   }

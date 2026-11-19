@@ -24,7 +24,7 @@ describe('signed release metadata', () => {
         TIKTOOLS_UPDATE_PUBLIC_KEY: await readFile(join(dir, 'fixture-key.pub'), 'utf8'),
       };
       const windows = join(dir, `TikTools-${version}-windows-x86_64-installer.exe`);
-      const linux = join(dir, `TikTools-${version}-linux-x86_64-installer.AppImage`);
+      const linux = join(dir, `TikTools-${version}-x86_64-installer.AppImage`);
       await writeFile(windows, 'windows fixture');
       await writeFile(linux, 'linux fixture');
       const script = ['bun', 'scripts/generate-update-manifest.ts'];

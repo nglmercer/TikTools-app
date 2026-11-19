@@ -29,11 +29,13 @@ await run([process.execPath, 'scripts/check-version.ts'], safeEnv);
 const directory = resolve(directoryArg);
 const names = await readdir(directory);
 const specs = [
-  { target: 'windows-x86_64', extension: '.exe', format: 'nsis' },
-  { target: 'linux-x86_64', extension: '.AppImage', format: 'appimage' },
+  { target: 'windows-x86_64', asset: 'windows-x86_64', extension: '.exe', format: 'nsis' },
+  // The AppImage asset omits "linux" (all AppImages target Linux); the update
+  // platform key keeps the full target for existing clients.
+  { target: 'linux-x86_64', asset: 'x86_64', extension: '.AppImage', format: 'appimage' },
 ] as const;
 const selected = await Promise.all(specs.map(async (spec) => {
-  const prefix = `TikTools-${version}-${spec.target}-installer`;
+  const prefix = `TikTools-${version}-${spec.asset}-installer`;
   const matches = names.filter((name) => name === `${prefix}${spec.extension}`);
   if (matches.length !== 1) throw new Error(`missing or ambiguous ${spec.target} update artifact`);
   const path = join(directory, matches[0] as string);

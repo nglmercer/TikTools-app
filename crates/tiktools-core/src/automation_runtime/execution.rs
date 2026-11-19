@@ -79,6 +79,13 @@ impl AppCore {
             Ok(summary) => ("ok", summary, None),
             Err(error) => ("error", error.clone(), Some(error)),
         };
+        // The inspector must see the same event the action actually rendered.
+        // Approved executions only receive public scalar fields; recording the
+        // raw event here leaked private tokens and unapproved object values
+        // into run history, serialized observer snapshots and action results.
+        let recorded_event = context
+            .projected_event(event)
+            .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()));
         let run = json!({
             "id": self.automation.next_run_id(if test { "test-action" } else { "run" }, started),
             "at": started,
@@ -90,9 +97,7 @@ impl AppCore {
             "summary": summary,
             "durationMs": now_millis().saturating_sub(started),
             "test": test,
-            // `event` is already projected for delegated contexts above, so
-            // the inspector never exposes private fields from an approved run.
-            "eventData": super::dispatch::event_data_snapshot(event),
+            "eventData": super::dispatch::event_data_snapshot(&recorded_event),
             "logs": logs.into_iter().take(40).collect::<Vec<_>>(),
             "error": error
         });

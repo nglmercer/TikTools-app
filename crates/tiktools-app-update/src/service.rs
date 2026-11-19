@@ -374,7 +374,7 @@ mod tests {
             InstallationType::AppImage,
             |_| {},
         );
-        let metadata = br#"{"version":"4.1.0","platforms":{"linux-x86_64":{"url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0/TikTools-4.1.0-linux-x86_64-installer.AppImage","signature":"signed","format":"appimage"}}}"#;
+        let metadata = br#"{"version":"4.1.0","platforms":{"linux-x86_64":{"url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0/TikTools-4.1.0-x86_64-installer.AppImage","signature":"signed","format":"appimage"}}}"#;
         let release = crate::validate_manifest(
             metadata,
             "linux-x86_64",

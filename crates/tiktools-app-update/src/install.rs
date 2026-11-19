@@ -394,7 +394,7 @@ mod tests {
         let signature =
             std::fs::read_to_string(root.path().join("candidate.AppImage.sig")).unwrap();
         let manifest = serde_json::json!({"version":"4.0.0", "platforms": {"linux-x86_64": {
-            "url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.0.0/TikTools-4.0.0-linux-x86_64-installer.AppImage",
+            "url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.0.0/TikTools-4.0.0-x86_64-installer.AppImage",
             "signature":signature.trim(), "format":"appimage"
         }}}).to_string();
         let manifest_path = root.path().join("manifest.json");

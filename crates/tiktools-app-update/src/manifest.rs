@@ -77,8 +77,15 @@ pub fn validate_manifest(
         "linux-x86_64" => "AppImage",
         _ => return Err(ManifestError::UnsupportedPlatform),
     };
+    // Linux AppImage assets omit "linux": every AppImage targets Linux, so
+    // the URL carries only the architecture. The platform key stays full.
+    let asset_target = if target == "linux-x86_64" {
+        "x86_64"
+    } else {
+        target
+    };
     let expected_file = format!(
-        "TikTools-{}-{target}-installer.{extension}",
+        "TikTools-{}-{asset_target}-installer.{extension}",
         release.version
     );
     let expected_path = format!("{}{expected_file}", expected_prefix.path());
@@ -184,7 +191,7 @@ mod tests {
 
     #[test]
     fn accepts_encoded_semver_build_metadata_in_release_urls() {
-        let json = br#"{"version":"4.1.0+build.1","platforms":{"linux-x86_64":{"url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0%2Bbuild.1/TikTools-4.1.0%2Bbuild.1-linux-x86_64-installer.AppImage","signature":"signed","format":"appimage"}}}"#;
+        let json = br#"{"version":"4.1.0+build.1","platforms":{"linux-x86_64":{"url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.1.0%2Bbuild.1/TikTools-4.1.0%2Bbuild.1-x86_64-installer.AppImage","signature":"signed","format":"appimage"}}}"#;
         assert!(validate_manifest(
             json,
             "linux-x86_64",
