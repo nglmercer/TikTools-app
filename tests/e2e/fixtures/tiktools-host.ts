@@ -196,6 +196,14 @@ const INIT_SCRIPT = `
   };
   const behaviorMeta = (kind, id) => ({ kind: 'automation', scope: kind, id, revision: behaviorRevision(kind, id) });
   const behaviorEnvelope = (value, versions) => ({ __e2e_value: value, __e2e_meta: { resourceVersions: versions } });
+  const catalogPage = (items, params) => {
+    if (state.catalog?.error) throw state.catalog.error;
+    const query = String(params.query || '').toLowerCase();
+    const rows = (items || []).filter((item) => (!params.kind || item.identity.kind === params.kind)
+      && (!query || String(item.presentation?.title || '').toLowerCase().includes(query)));
+    return { items: rows, nextCursor: null, ...(state.catalog?.dataState ? { dataState: state.catalog.dataState } : {}) };
+  };
+
   const writeBehavior = (method, params, meta) => {
     const kind = params.kind || 'event'; const id = params.id || params.record?.id;
     const rows = behaviorRows(kind); const index = rows.findIndex((r) => r.id === id);
@@ -222,7 +230,7 @@ const INIT_SCRIPT = `
   };
 
   const handlers = {
-    'system.info': () => ({ name: 'tiktools', features: { persistence: true } }),
+    'system.info': () => ({ name: 'tiktools', features: { persistence: false } }),
     'collaboration.status': () => state.collaboration.status,
     'collaboration.configure': (params) => {
       const c = state.collaboration;
@@ -303,19 +311,74 @@ const INIT_SCRIPT = `
     'creators.get': () => ({ creator: state.creator }),
     'creators.recent': () => ({ creators: state.recentCreators }),
     'gifts.list': () => ({ gifts: state.gifts }),
-    'globals.list': () => ({ globals: {} }),
+    'globals.list': () => ({ globals: { ...(state.globals ?? {}) } }),
+    'globals.typed.list': () => ({ revision: state.typedGlobalsRevision ?? 'a'.repeat(64), variables: state.typedGlobals ?? Object.fromEntries(Object.entries(state.globals ?? {}).map(([name, value]) => [name, { type: 'text', value }])) }),
+    'globals.typed.replace': (params) => {
+      if (params.expectedRevision !== (state.typedGlobalsRevision ?? 'a'.repeat(64))) throw { code: 'conflict', message: 'runtime variables changed; reload before saving' };
+      state.typedGlobals = structuredClone(params.variables);
+      state.typedGlobalsRevision = (BigInt('0x' + params.expectedRevision) + 1n).toString(16).padStart(64, '0');
+      state.globals = Object.fromEntries(Object.entries(state.typedGlobals).map(([name, variable]) => [name, variable.type === 'number' && variable.numberText !== undefined ? variable.numberText : typeof variable.value === 'string' ? variable.value : JSON.stringify(variable.value)]));
+      return { revision: state.typedGlobalsRevision, variables: state.typedGlobals };
+    },
+    'globals.set': (params) => {
+      (state.globals ||= {})[params.key] = params.value;
+      return { ok: true };
+    },
     'processors.status': () => ({ processors: state.processors }),
     'widgets.status': () => ({ state: 'missing', port: 17452, error: null }),
+    // Staging calls are fire-and-forget in the app; accept them silently.
+    'catalog.items': (params) => catalogPage(state.catalog?.items, params),
+    'catalog.mine': (params) => catalogPage(state.catalog?.mine ?? [], params),
+    'cloudLibrary.list': () => ({ items: state.catalog?.library ?? [], nextCursor: null }),
+    'catalog.item': (params) => {
+      const found = (state.catalog?.items ?? []).find((item) => item.identity.kind === params.kind && item.identity.id === params.id);
+      if (!found) throw { code: 'not_found', message: 'catalog item not found' };
+      return found;
+    },
+    'cloud.status': () => ({ origin: 'http://127.0.0.1:3000', state: state.sync?.signedIn ? 'signed-in' : 'signed-out', accountId: 'tester', persistence: 'memory-only', error: null }),
+    'sync.status': () => ({ enabled: state.sync?.enabled ?? false, signedIn: state.sync?.signedIn ?? false, syncing: false, pending: state.sync?.entries.filter((entry) => entry.pending).length ?? 0, conflicts: [], lastError: null, lastSyncedAt: state.sync?.lastSyncedAt ?? null }),
+    'sync.v2.stagePreferences': () => null,
+    'sync.v2.stagePluginSettings': () => null,
+    'sync.v2.selected': () => true,
+    'sync.v2.section': () => null,
+    'sync.v2.changes.list': () => state.sync?.entries ?? [],
+    'sync.v2.variables.review': () => ({ changes: state.variableComparisons ?? [] }),
+    'sync.v2.variables.fetch': () => ({ conflicts: [] }),
+    'sync.v2.variables.send': (params) => {
+      if (!state.variableComparisons?.some((row) => row.review === params.review)) throw { code: 'conflict', message: 'comparison changed' };
+      state.variableComparisons = state.variableComparisons.filter((row) => row.review !== params.review);
+      return { conflicts: [] };
+    },
+    'sync.v2.variables.withdraw': (params) => {
+      if (!state.variableComparisons?.some((row) => row.review === params.review)) throw { code: 'conflict', message: 'comparison changed' };
+      state.variableComparisons = state.variableComparisons.filter((row) => row.review !== params.review);
+      return { conflicts: [] };
+    },
+    'sync.v2.variables.apply': (params) => {
+      const row = state.variableComparisons?.find((candidate) => candidate.review === params.review);
+      if (!row) throw { code: 'conflict', message: 'comparison changed' };
+      state.typedGlobals ??= {};
+      if (row.cloud) state.typedGlobals[row.name] = structuredClone(row.cloud);
+      else delete state.typedGlobals[row.name];
+      state.typedGlobalsRevision = (BigInt('0x' + (state.typedGlobalsRevision ?? 'a'.repeat(64))) + 1n).toString(16).padStart(64, '0');
+      state.variableComparisons = state.variableComparisons?.filter((candidate) => candidate.review !== params.review);
+      return null;
+    },
+    'sync.v2.now': () => {
+      if (state.sync) state.sync.lastSyncedAt = 1_700_000_000;
+      return { pushed: 0, pulled: 0, workspacePending: 0, availableRecords: 0, conflicts: [], moreQueued: false };
+    },
+    'sync.v2.conflict.review': (params) => ({ handle: 'a'.repeat(64), collection: params.collection, key: params.key }),
+    'sync.v2.conflict.resolve': (params) => { state.sync?.resolved.push(String(params.choice)); return 'resolved'; },
     'rpc.discover': () => ({ methods: (state.announcedMethods ?? []).map((name) => ({ name })) }),
     // Owner library is mounted once by the app shell; answer its read calls so
     // unrelated specs do not report unhandled RPCs.
     'automation.library.get': () => ({ hostId: 'e2e-host', hostInstanceId: 'e2e-instance', pending: null, recent: [] }),
-    'automation.library.snapshot': () => ({
-      hostId: 'e2e-host', hostInstanceId: 'e2e-instance', revision: '1', definitionDigest: 'a'.repeat(64),
-      catalog: { packs: [], activeId: 'default', templates: [] },
-      definitions: { actions: [], events: [], plugins: [], actionTypes: [] },
-      resourceVersions: [],
-    }),
+    // The fake host is memory-backed and has no Owner library; answer the
+    // optional read with a capability error instead of leaving it unknown.
+    'automation.library.snapshot': () => {
+      throw { code: 'capability_unavailable', message: 'The fake host has no Owner library.' };
+    },
     'app.state.get': () => ({ state: { ...state.appState } }),
     'app.state.set': (params) => {
       state.appState[params.key] = params.value;

@@ -49,7 +49,7 @@ for (const locale of ['en', 'es'] as const) {
     };
     const board = page.getByRole('region', { name: text.board, exact: true });
     await expect(board.getByRole('listitem')).toHaveCount(2);
-    await expect(board.getByRole('listitem').nth(1).getByRole('button')).toHaveCount(0);
+    await expect(board.getByRole('listitem').nth(1).getByRole('button')).toBeDisabled();
     await expect(page.getByRole('textbox')).toHaveCount(0);
     await board.getByRole('button', { name: text.disable, exact: true }).click();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

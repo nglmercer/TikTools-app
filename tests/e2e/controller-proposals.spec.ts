@@ -163,12 +163,18 @@ for (const locale of ['en', 'es'] as const) {
     await expect(region.locator('textarea')).toHaveValue(/event.user.uniqueId/);
     expect(await page.evaluate(() => (window as unknown as { __PROPOSAL_FIXTURE__: { calls: string[] } }).__PROPOSAL_FIXTURE__.calls.some((method) => method === 'controller.proposals.save' || method === 'controller.proposals.submit'))).toBe(false);
     const text = JSON.stringify({ id: 'same', enabled: false, typeId: 'core.log', config: { message: 'private proposal fixture 🧡' } }, null, 2);
+    // Saving is a local, private operation: the consent notice is shown in the
+    // panel and the full text is retained there, but no confirmation dialog or
+    // host submission takes place.
+    await expect(region.getByText(labels.consent, { exact: true })).toBeVisible();
     await region.locator('textarea').fill(text); await region.getByRole('button', { name: labels.save, exact: true }).click();
-    const dialog = page.getByRole('dialog'); await expect(dialog).toContainText(status.origin!); await expect(dialog).toContainText('host-A'); await expect(dialog).toContainText(labels.consent); await expect(dialog.locator('pre')).toHaveText(text);
+    await expect.poll(async () => (await page.evaluate(() => (window as unknown as { __PROPOSAL_FIXTURE__: { calls: string[] } }).__PROPOSAL_FIXTURE__.calls)).some((method) => method === 'controller.proposals.save')).toBe(true);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { __PROPOSAL_FIXTURE__: { calls: string[] } }).__PROPOSAL_FIXTURE__.calls)).not.toContain('controller.proposals.submit');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`proposal-consent-${locale}.png`) });
     await page.evaluate(() => { const state = (window as unknown as { __PROPOSAL_FIXTURE__: { status: ControllerStatus } }).__PROPOSAL_FIXTURE__; state.status.hello!.capabilities = []; state.status.hello!.grantRevision = '2'; });
-    await expect(dialog).toHaveCount(0); await expect(region).toHaveCount(0);
+    await expect(region).toHaveCount(0);
     expect(await page.evaluate(() => [...Object.values(localStorage), ...Object.values(sessionStorage)].some((v) => v.includes('private proposal fixture')))).toBe(false);
     expect(errors).toEqual([]);
   });

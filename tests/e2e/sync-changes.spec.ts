@@ -56,7 +56,7 @@ test('the Events tab lists what changed since the last snapshot and asks before 
 
 test('Plugins send the whole pass and resolve a conflict through the v2 contract', async ({ page }) => {
   const state = sonicboomConnectedState();
-  state.announcedMethods = ['cloud.status', 'sync.status', 'sync.v2.selected', 'sync.v2.changes.list', 'sync.v2.now', 'sync.v2.conflict.review', 'sync.v2.conflict.resolve'];
+  state.announcedMethods = ['cloud.status', 'sync.status', 'sync.v2.section', 'sync.v2.selected', 'sync.v2.changes.list', 'sync.v2.now', 'sync.v2.conflict.review', 'sync.v2.conflict.resolve'];
   const value = (enabled: boolean, revision: number) => ({ state: 'present', revision, version: '1.0.0', enabled, value: { schemaVersion: 1, pluginId: SONICBOOM_ID, version: '1.0.0', enabled } });
   const hidden = (revision: number | null) => ({ state: 'present', revision, version: null, enabled: null, value: null });
   state.sync = {
@@ -86,19 +86,21 @@ test('Plugins send the whole pass and resolve a conflict through the v2 contract
   await panel.getByRole('button', { name: t('syncChanges.allCloud') }).click();
   await expect.poll(async () => (await readHostState(page)).sync?.resolved).toEqual(['takeCloud']);
   await panel.getByRole('button', { name: t('syncChanges.sync'), exact: true }).click();
-  await expect.poll(async () => (await readHostState(page)).calls.some((call) => call.method === 'sync.v2.now')).toBe(true);
+  await expect.poll(async () => (await readHostState(page)).calls.some((call) => call.method === 'sync.v2.section')).toBe(true);
   capture.assertClean();
 });
 
 test('the Plugins button explains why it is disabled when sync is off', async ({ page }) => {
   const state = sonicboomConnectedState();
-  state.announcedMethods = ['cloud.status', 'sync.status', 'sync.v2.changes.list'];
+  state.announcedMethods = ['cloud.status', 'sync.status', 'sync.v2.section', 'sync.v2.changes.list'];
   state.sync = { signedIn: true, enabled: false, entries: [], resolved: [] };
   const capture = await installFakeHost(page, state);
   await page.goto('/#/plugins');
   await waitForFrontend(page);
   const button = page.getByRole('button', { name: t('syncChanges.button') });
-  await expect(button).toBeDisabled();
-  await expect(button).toHaveAttribute('aria-description', /Cloud sync/);
+  await expect(button).toBeEnabled();
+  await button.click();
+  const panel = page.getByRole('dialog', { name: new RegExp(t('syncChanges.title')) });
+  await expect(panel).toContainText(/Prepare Cloud sync/);
   capture.assertClean();
 });

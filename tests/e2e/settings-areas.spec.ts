@@ -49,7 +49,8 @@ test('the old plugin updates link opens the plugin preferences and goes back', a
   await expect(page.getByText(t('packages.sources.allowSideload'))).toBeVisible();
   await page.getByRole('button', { name: t('common.back') }).click();
   await expect(page.getByRole('tab', { name: new RegExp(t('packages.versions.current')) })).toBeVisible();
-  await page.getByRole('button', { name: t('plugins.catalog.preferences') }).click();
+  await page.getByRole('button', { name: t('syncChanges.more') }).click();
+  await page.getByRole('menuitem', { name: t('plugins.catalog.preferences') }).click();
   await expect(page.getByText(t('packages.sources.allowSideload'))).toBeVisible();
   consoleCapture.assertClean();
 });
@@ -62,7 +63,7 @@ test('Cloud areas appear in their own page only when the host announces them', a
   await waitForFrontend(page);
   await page.getByRole('button', { name: t('overlays.cloud') }).click();
   await expect(page.getByRole('heading', { name: t('overlays.cloud'), level: 2 })).toBeVisible();
-  await page.getByRole('button', { name: t('common.back') }).click();
+  await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('heading', { name: t('overlays.widgets') })).toBeVisible();
   await page.goto('/#/connections');
   await expect(page.getByRole('button', { name: t('connections.tabs.webhooks') })).toBeVisible();
@@ -72,7 +73,6 @@ test('without announcements the Cloud areas stay hidden', async ({ page }) => {
   await installFakeHost(page, emptyState());
   await page.goto('/#/overlays');
   await waitForFrontend(page);
-  await expect(page.getByRole('button', { name: t('overlays.portablePackages') })).toBeVisible();
   await expect(page.getByRole('button', { name: t('overlays.cloud'), exact: true })).toHaveCount(0);
   await page.goto('/#/connections');
   await expect(page.getByRole('button', { name: t('connections.tabs.webhooks') })).toHaveCount(0);

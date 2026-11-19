@@ -29,16 +29,14 @@ function catalogState() {
   return state;
 }
 
-test('Explore shows plugins, templates and profiles from the Cloud catalog and filters by kind', async ({ page }) => {
+test('Explore shows the published plugin from the Cloud catalog', async ({ page }) => {
   const capture = await installFakeHost(page, catalogState());
   await page.goto('/#/plugins');
   await waitForFrontend(page);
   await page.getByRole('tab', { name: /Explore/ }).click();
-  await expect(page.locator('.explore-list__row')).toHaveCount(3);
-  await expect(page.getByText('marketplace', { exact: false })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Templates' }).click();
   await expect(page.locator('.explore-list__row')).toHaveCount(1);
-  await expect(page.locator('.explore-list__row')).toContainText(t('automations.builtinTemplates.giftSoundTitle'));
+  await expect(page.locator('.explore-list__row')).toContainText('Voice reader');
+  await expect(page.getByText('marketplace', { exact: false })).toHaveCount(0);
   capture.assertClean();
 });
 

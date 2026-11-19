@@ -129,7 +129,7 @@ button.level:disabled { cursor: default; opacity: .65; }
   .level__area { display: inline; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 }
 @media (width < 900px) {
-  .connection { grid-template-columns: minmax(0, 1fr); }
+  .collaboration-editor form.connection { grid-template-columns: minmax(0, 1fr); }
 }
 @media (width < 600px) {
   .connection__pair, .connection__modes, .invite-dialog__body { grid-template-columns: minmax(0, 1fr); }

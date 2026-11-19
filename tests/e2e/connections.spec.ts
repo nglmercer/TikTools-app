@@ -112,7 +112,7 @@ test('REPO imports a token through the shared card without showing the secret', 
   await expect(page.getByRole('button', { name: t('plugins.connection.getToken') })).toHaveCount(0);
   await importButton.click();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
-  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText(t('connections.servers.connectedIn', { ms: 1 }))).toBeVisible();
   await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
   await assertNoUnhandledCalls(page);
@@ -152,9 +152,9 @@ test('automatic REPO setup chooses a profile and distinguishes API availability 
   await expect(page.getByText('Steam — Local installation')).toBeVisible();
   await expect(page.getByText('Mod profile: Stream')).toBeVisible();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveCount(0);
-  await page.locator('.connection-editor__candidate-list li').filter({ hasText: 'Mod profile: Stream' }).getByRole('button', { name: t('plugins.connection.useConfiguration') }).click();
+  await page.locator('.credentials__candidate-list li').filter({ hasText: 'Mod profile: Stream' }).getByRole('button', { name: t('plugins.connection.useConfiguration') }).click();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
-  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText(t('connections.servers.apiNotReady'), { exact: true }).first()).toBeVisible();
   await expect(page.locator('.plugin-servers__detail input[type="password"]')).toHaveValue('••••••••');
   await expect(page.locator('.connection-editor input').first()).toHaveValue('http://127.0.0.1:18053');
@@ -173,7 +173,7 @@ test('REPO setup offers a folder picker when automatic discovery finds nothing',
   await expect(page.getByRole('button', { name: t('plugins.connection.actions.folder'), exact: true })).toBeVisible();
   await page.getByRole('button', { name: t('plugins.connection.actions.folder'), exact: true }).click();
   await expect(page.getByText(t('plugins.messages.tokenImported'))).toBeVisible();
-  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/connection-editor__details--ok/);
+  await expect(page.getByText(t('plugins.messages.tokenImported'))).toHaveClass(/credentials__details--ok/);
   await expect(page.getByText(t('connections.servers.connectedIn', { ms: 1 }))).toBeVisible();
   await assertNoUnhandledCalls(page);
   capture.assertClean();

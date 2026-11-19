@@ -16,24 +16,29 @@ function ownerState(): E2EHostState {
   return state;
 }
 
-test('owner reviews access, shares local QR, changes grants and revokes one device', async ({ page }, testInfo) => {
+test('owner reviews access, shares local QR, changes grants and revokes one identity', async ({ page }, testInfo) => {
   const fixture = ownerState(); const privateSecret = fixture.collaboration!.issued.secret;
   const consoleCapture = await installFakeHost(page, fixture, { locale: 'en' });
   const network: string[] = []; page.on('request', (request) => network.push(request.url()));
   await page.goto('/#/settings?section=collaboration'); await waitForFrontend(page);
-  const invitations = page.getByRole('group', { name: t('collaboration.invites'), exact: true });
+  const matrix = page.getByRole('table', { name: t('collaboration.accessTitle') });
+  const inspector = page.getByRole('region', { name: t('collaboration.editing') });
   await expect(page.getByText(t('collaboration.running'), { exact: true })).toBeVisible();
-  await invitations.getByRole('button', { name: t('collaboration.presetWorkflow'), exact: true }).click();
-  await invitations.getByText(t('collaboration.scopes'), { exact: true }).click();
-  await invitations.getByRole('combobox', { name: /^Workflows/ }).selectOption('selected');
-  await invitations.getByRole('textbox', { name: /^Workflows — Exact IDs/ }).fill('welcome');
-  await invitations.getByRole('checkbox', { name: t('collaboration.capAutomation'), exact: true }).check();
-  await invitations.getByRole('combobox', { name: /^Automations/ }).selectOption('selected');
-  await invitations.getByRole('textbox', { name: /^Automations — Exact IDs/ }).fill('event:welcome\naction:welcome');
-  await invitations.getByRole('button', { name: t('collaboration.create') }).click();
+
+  // Build a new invitation from the workflow preset, narrowed to exact IDs.
+  await page.getByRole('group', { name: t('collaboration.presetsLabel'), exact: true }).getByRole('button', { name: t('collaboration.presetWorkflow'), exact: true }).click();
+  await matrix.getByRole('button', { name: /New invitation.*Workflows/ }).click();
+  await inspector.getByRole('radio', { name: t('collaboration.levels.view'), exact: true }).click();
+  await inspector.getByRole('radio', { name: t('collaboration.onlyIds'), exact: true }).click();
+  await inspector.getByRole('textbox', { name: `${t('collaboration.areas.workflows')} — ${t('collaboration.ids')}`, exact: true }).fill('welcome');
+  await matrix.getByRole('button', { name: /New invitation.*Automations/ }).click();
+  await inspector.getByRole('radio', { name: t('collaboration.levels.view'), exact: true }).click();
+  await inspector.getByRole('radio', { name: t('collaboration.onlyIds'), exact: true }).click();
+  await inspector.getByRole('textbox', { name: `${t('collaboration.areas.automations')} — ${t('collaboration.ids')}`, exact: true }).fill('event:welcome, action:welcome');
+  await page.getByRole('button', { name: t('collaboration.create'), exact: true }).click();
   await expect(page.locator('#collaboration-link')).toHaveAttribute('type', 'password');
-  await invitations.getByRole('button', { name: t('collaboration.qr') }).click();
-  const qr = invitations.getByRole('img', { name: t('collaboration.privateLink') }); await expect(qr).toBeVisible();
+  await page.getByRole('button', { name: t('collaboration.qr'), exact: true }).click();
+  const qr = page.getByRole('img', { name: t('collaboration.privateLink') }); await expect(qr).toBeVisible();
   await expect.poll(() => qr.evaluate((node) => {
     const canvas = node as HTMLCanvasElement;
     const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -41,8 +46,10 @@ test('owner reviews access, shares local QR, changes grants and revokes one devi
     return ink;
   })).toBeGreaterThan(100);
   expect(network.some((url) => url.includes(privateSecret))).toBe(false);
-  await invitations.getByRole('button', { name: t('collaboration.hide') }).click();
+  await page.getByRole('button', { name: t('collaboration.hideQr'), exact: true }).click();
   await expect(qr).toHaveCount(0);
+  await page.getByRole('button', { name: t('collaboration.done'), exact: true }).click();
+
   const issued = await readHostState(page);
   const granted = issued.collaboration!.invitations[0]!.grant;
   expect(granted.resources.workflow).toEqual(['welcome']);
@@ -62,20 +69,21 @@ test('owner reviews access, shares local QR, changes grants and revokes one devi
   c.status.activeSessions = 2; c.status.gateway.connections = 2;
   c.status.gateway.sessionConnections = Object.fromEntries(c.sessions.map((s) => [s.sessionId, 1]));
   await writeHostState(page, approved);
-  await page.getByRole('button', { name: t('collaboration.tabs.principals'), exact: true }).click();
-  await page.getByRole('button', { name: t('collaboration.editGrant'), exact: true }).click();
-  const editor = page.getByRole('group', { name: t('collaboration.editGrant'), exact: true });
-  await editor.getByRole('checkbox', { name: t('collaboration.capLive'), exact: true }).uncheck();
-  await editor.getByRole('button', { name: t('collaboration.grantSave'), exact: true }).click();
+
+  // Edit the identity's LIVE permission through its matrix cell; the write waits for confirmation.
+  await matrix.getByRole('button', { name: /Moderator PC, LIVE/ }).click();
+  await inspector.getByRole('radio', { name: t('collaboration.levels.none'), exact: true }).click();
+  await page.getByRole('button', { name: t('collaboration.grantSave'), exact: true }).click();
   await expect(dialog).toContainText('workflows.read'); await expect(dialog).not.toContainText('live.read');
-  await dialog.getByRole('button', { name: t('common.apply'), exact: true }).click(); await expect(editor).toHaveCount(0);
-  await page.getByRole('button', { name: t('collaboration.tabs.sessions'), exact: true }).click();
-  const device = page.locator('article').filter({ hasText: '44444444-4444-4444-8444-444444444444' });
-  await expect(device).toContainText('Connected (1)');
-  await device.getByRole('button', { name: 'Revoke', exact: true }).click(); await expect(dialog).toContainText('Only this device session');
-  await dialog.getByRole('button', { name: t('common.apply'), exact: true }).click(); await expect(device).toContainText('Revoked');
+  await dialog.getByRole('button', { name: t('common.apply'), exact: true }).click(); await expect(inspector).toHaveCount(0);
+
+  // Revoking the identity also revokes every one of its device sessions.
+  await matrix.getByRole('button', { name: t('collaboration.revoke'), exact: true }).click();
+  await expect(dialog).toContainText(t('collaboration.revokePrincipalMessage'));
+  await dialog.getByRole('button', { name: t('common.apply'), exact: true }).click();
   const final = await readHostState(page);
-  expect(final.collaboration!.sessions.map((s) => s.revoked)).toEqual([true, false]);
+  expect(final.collaboration!.principals.map((p) => p.revoked)).toEqual([true]);
+  expect(final.collaboration!.sessions.map((s) => s.revoked)).toEqual([true, true]);
   expect(final.liveStatus.connected).toBe(true);
   expect(final.calls.filter((c) => c.method === 'collaboration.grants.set')[0]?.params['expectedRevision']).toBe('1');
   expect(final.calls.some((c) => ['live.disconnect', 'live.connect', 'sync.enable', 'sync.disable'].includes(c.method))).toBe(false);
@@ -93,18 +101,23 @@ test('Spanish setup remains usable in a narrow window and never enables itself o
   await page.goto('/#/settings?section=collaboration'); await waitForFrontend(page);
   await expect(page.getByText(te('collaboration.stopped'), { exact: true })).toBeVisible();
   expect((await readHostState(page)).calls.some((call) => call.method === 'collaboration.configure')).toBe(false);
-  await page.getByRole('checkbox', { name: te('collaboration.enabled'), exact: true }).check();
+  await page.getByRole('button', { name: te('collaboration.connectionSettings'), exact: true }).first().click();
+  await page.getByRole('switch', { name: te('collaboration.enabled'), exact: true }).check();
   await page.getByLabel(te('collaboration.bind'), { exact: true }).fill('0.0.0.0:8788');
   await page.getByLabel(te('collaboration.origin'), { exact: true }).fill('https://pc-a.example:8788');
   await page.getByLabel(te('collaboration.certificate'), { exact: true }).fill('/host/cert.pem');
   await page.getByLabel(te('collaboration.privateKey'), { exact: true }).fill('/host/key.pem');
   await page.getByRole('button', { name: te('collaboration.save'), exact: true }).click();
+  await page.getByRole('button', { name: te('collaboration.backToAccess'), exact: true }).click();
   await expect(page.getByText(te('collaboration.running'), { exact: true })).toBeVisible();
   const configured = await readHostState(page);
   expect(configured.calls.find((call) => call.method === 'collaboration.configure')?.params['expectedRevision']).toBe('0');
-  await page.getByRole('button', { name: te('collaboration.disable'), exact: true }).click();
+  await page.getByRole('button', { name: te('collaboration.connectionSettings'), exact: true }).first().click();
+  await page.getByRole('switch', { name: te('collaboration.enabled'), exact: true }).uncheck();
+  await page.getByRole('button', { name: te('collaboration.save'), exact: true }).click();
   const dialog = page.getByRole('dialog'); await expect(dialog).toContainText(te('collaboration.disableMessage'));
   await dialog.getByRole('button', { name: te('common.apply'), exact: true }).click();
+  await page.getByRole('button', { name: te('collaboration.backToAccess'), exact: true }).click();
   await expect(page.getByText(te('collaboration.stopped'), { exact: true })).toBeVisible();
   const disabled = await readHostState(page);
   expect(disabled.collaboration!.status.configuration.enabled).toBe(false); expect(disabled.liveStatus.connected).toBe(true);
