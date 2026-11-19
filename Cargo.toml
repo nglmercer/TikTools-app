@@ -8,6 +8,8 @@ members = [
     "crates/tiktools-cli",
     "crates/tiktools-desktop",
     "crates/tiktools-core",
+    "crates/tiktools-peer",
+    "crates/tiktools-rtc",
     "crates/tiktools-plugin-api",
     "crates/tiktools-plugin-sdk",
     "crates/tiktools-plugin-macros",

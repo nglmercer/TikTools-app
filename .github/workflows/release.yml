@@ -81,9 +81,20 @@ jobs:
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 30
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
+          set -euo pipefail
+          # Avoid hanging indefinitely on an unresponsive Ubuntu package mirror.
+          apt_opts=(
+            -o Acquire::Retries=2
+            -o Acquire::http::Timeout=30
+            -o Acquire::https::Timeout=30
+          )
+          echo "::group::Refresh APT indexes"
+          time sudo apt-get "${apt_opts[@]}" update
+          echo "::endgroup::"
+          echo "::group::Install native build dependencies"
+          time sudo DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install --no-install-recommends -y \
             libasound2-dev \
             libappindicator3-dev \
             libgtk-3-dev \
@@ -95,6 +106,7 @@ jobs:
             xvfb xauth \
             mold \
             pkg-config
+          echo "::endgroup::"
 
       - name: Install current Rust
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal

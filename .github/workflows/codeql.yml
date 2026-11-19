@@ -1,21 +1,67 @@
 name: CodeQL
 
 on:
-  # Same trigger as release.yml: runs only when a release tag is pushed.
+  # Final verification only. CodeQL must not race CI or the release: it runs
+  # when both have passed for the same commit, whichever finishes last.
   # Manual runs remain available from the Actions tab.
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: [CI, Release]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 env:
   RUSTUP_TOOLCHAIN: 1.99.1
 
 jobs:
+  gate:
+    name: require CI and release to pass
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check the other workflow passed for the same commit
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRIGGER: ${{ github.event.workflow_run.name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = workflow_dispatch ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$TRIGGER" in
+            CI) other=release.yml ;;
+            Release) other=ci.yml ;;
+            *) echo "should_run=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          # If this workflow finished first, the other may still be running.
+          # A short grace period lets the last completion see a final result.
+          conclusion=""
+          for _ in 1 2 3 4 5 6; do
+            conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${other}/runs?head_sha=${HEAD_SHA}&per_page=1" --jq '.workflow_runs[0].conclusion // empty')
+            [ "$conclusion" = success ] && break
+            [ -n "$conclusion" ] && [ "$conclusion" != queued ] && [ "$conclusion" != in_progress ] && break
+            sleep 10
+          done
+          if [ "$conclusion" = success ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skipping CodeQL: ${other} has not passed for ${HEAD_SHA} (result: ${conclusion:-none})"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   analyze:
+    needs: gate
+    if: needs.gate.outputs.should_run == 'true'
     name: analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
     permissions:
@@ -31,6 +77,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Install Rust and Linux dependencies
         if: matrix.language == 'rust'

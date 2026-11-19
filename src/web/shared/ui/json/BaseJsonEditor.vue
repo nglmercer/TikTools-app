@@ -19,7 +19,7 @@ const props = withDefaults(defineProps<{
   rows?: number;
   maxChars?: number;
   placeholder?: string;
-}>(), { rows: 10, maxChars: 200_000 });
+}>(), { rows: 10, maxChars: 200_000, label: undefined, placeholder: undefined });
 
 const text = defineModel<string>({ default: '' });
 const emit = defineEmits<{
@@ -62,13 +62,17 @@ const tr = (key: string): string => String(t(`jsonView.editor.${key}`));
         size="sm"
         :variant="mode === 'edit' ? 'primary' : 'default'"
         @click="mode = 'edit'"
-      >{{ tr('edit') }}</BaseButton>
+      >
+        {{ tr('edit') }}
+      </BaseButton>
       <BaseButton
         size="sm"
         :variant="mode === 'preview' ? 'primary' : 'default'"
         :disabled="Boolean(error)"
         @click="mode = 'preview'"
-      >{{ tr('preview') }}</BaseButton>
+      >
+        {{ tr('preview') }}
+      </BaseButton>
       <BaseIconButton
         :label="copied ? t('jsonView.copied') : t('jsonView.copy')"
         size="sm"

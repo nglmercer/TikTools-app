@@ -643,19 +643,22 @@ async fn test_event_names_sample_data_on_mismatch() {
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter));
     let result = core
-        .test_event(&serde_json::json!({
-            "id": "evt-1",
-            "name": "Mismatch",
-            "enabled": true,
-            "trigger": "tiktok.chat",
-            // Ranges are never pinned, so the generic sample genuinely fails
-            // and the summary still has to name the fired sample data.
-            "filters": [{"path": "event.data.msgId", "operator": "gte", "value": "99999"}],
-            "cooldownMs": 0,
-            "cooldownScope": "user",
-            "actionIds": [],
-            "runMode": "all"
-        }), None)
+        .test_event(
+            &serde_json::json!({
+                "id": "evt-1",
+                "name": "Mismatch",
+                "enabled": true,
+                "trigger": "tiktok.chat",
+                // Ranges are never pinned, so the generic sample genuinely fails
+                // and the summary still has to name the fired sample data.
+                "filters": [{"path": "event.data.msgId", "operator": "gte", "value": "99999"}],
+                "cooldownMs": 0,
+                "cooldownScope": "user",
+                "actionIds": [],
+                "runMode": "all"
+            }),
+            None,
+        )
         .await;
     assert_eq!(result["status"], "error");
     assert_eq!(result["eventSource"], "sample");
@@ -724,17 +727,20 @@ async fn test_event_replays_last_live_event_of_its_trigger() {
         Some(&serde_json::Value::String("live-gift-1".to_owned())),
     );
     let result = core
-        .test_event(&serde_json::json!({
-            "id": "evt-gift",
-            "name": "Galaxy gate",
-            "enabled": true,
-            "trigger": "tiktok.gift",
-            "filters": [{"path": "event.data.giftName", "operator": "eq", "value": "Galaxy"}],
-            "cooldownMs": 0,
-            "cooldownScope": "user",
-            "actionIds": [],
-            "runMode": "all"
-        }), None)
+        .test_event(
+            &serde_json::json!({
+                "id": "evt-gift",
+                "name": "Galaxy gate",
+                "enabled": true,
+                "trigger": "tiktok.gift",
+                "filters": [{"path": "event.data.giftName", "operator": "eq", "value": "Galaxy"}],
+                "cooldownMs": 0,
+                "cooldownScope": "user",
+                "actionIds": [],
+                "runMode": "all"
+            }),
+            None,
+        )
         .await;
     // No saved actions: the filter matched (live data), the harness just has
     // nothing to run. A sample replay would have failed the Galaxy filter.

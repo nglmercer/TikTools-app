@@ -556,7 +556,8 @@ pub fn register(router: &mut ControlRouter) {
             }
             Ok::<Value, ApiError>(match kind {
                 AutomationKind::Event => {
-                    core.test_automation_event(&record, params.event.as_ref()).await
+                    core.test_automation_event(&record, params.event.as_ref())
+                        .await
                 }
                 AutomationKind::Action => {
                     core.test_automation_action(&record, params.trigger.as_deref())

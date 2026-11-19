@@ -285,17 +285,23 @@ function runCustom(kind: 'test' | 'fire'): void {
         size="sm"
         class="event-editor__custom-reuse"
         @click="useLastTestData"
-      >{{ t('automations.runMenu.useLast') }}</BaseButton>
+      >
+        {{ t('automations.runMenu.useLast') }}
+      </BaseButton>
       <template #footer>
         <BaseButton
           variant="primary"
           :disabled="!customValue || Boolean(customError)"
           @click="runCustom('test')"
-        >{{ t('automations.runMenu.test') }}</BaseButton>
+        >
+          {{ t('automations.runMenu.test') }}
+        </BaseButton>
         <BaseButton
           :disabled="!customValue || Boolean(customError)"
           @click="runCustom('fire')"
-        >{{ t('automations.runMenu.fire') }}</BaseButton>
+        >
+          {{ t('automations.runMenu.fire') }}
+        </BaseButton>
       </template>
     </BaseDialog>
     <BaseConfirmDialog

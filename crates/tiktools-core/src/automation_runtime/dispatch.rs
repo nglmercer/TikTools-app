@@ -713,6 +713,9 @@ mod tests {
         assert!(text.ends_with("… [truncated]"), "{text}");
         assert!(text.chars().count() <= 2048 + 14);
         // Missing data still yields an inspectable (empty) object.
-        assert_eq!(event_data_snapshot(&json!({"type": "tiktok.like"})), json!({}));
+        assert_eq!(
+            event_data_snapshot(&json!({"type": "tiktok.like"})),
+            json!({})
+        );
     }
 }

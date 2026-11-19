@@ -7883,7 +7883,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-peer"
-version = "4.2.2"
+version = "4.2.3"
 dependencies = [
  "iroh",
  "serde",
@@ -8051,7 +8051,7 @@ dependencies = [
 
 [[package]]
 name = "tiktools-rtc"
-version = "4.2.2"
+version = "4.2.3"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
