@@ -3,12 +3,18 @@
 //! These are intentionally outside `PluginContext`: WASM and native ABI
 //! plugins do not necessarily have meaningful process paths.
 
-use std::{env, ffi::OsString, io, path::PathBuf};
+use std::{
+    cell::RefCell,
+    env,
+    ffi::OsString,
+    io::{self, BufReader, BufWriter, Stdin, Stdout},
+    path::PathBuf,
+};
 
 use serde_json::Value;
 use tiktools_plugin_api::{
-    read_frame, write_frame, FrameError, PluginRequest, PluginResponse, METHOD_CALL,
-    TIKTOOLS_PLUGIN_PROTOCOL_VERSION,
+    read_frame, write_frame, FrameError, HostCallRequest, PluginFrame, PluginRequest,
+    PluginResponse, METHOD_CALL, METHOD_HOST_CALL, TIKTOOLS_PLUGIN_PROTOCOL_VERSION,
 };
 
 use crate::{dispatch_plugin_call, Plugin, PluginCall, PluginContext, PluginError, PluginResult};
@@ -73,25 +79,105 @@ where
     run_process_plugin_with(&mut plugin, &context)
 }
 
+struct ProcessChannel {
+    reader: BufReader<StdinLock<'static>>,
+    writer: BufWriter<StdoutLock<'static>>,
+}
+
+type StdinLock<'a> = io::StdinLock<'a>;
+type StdoutLock<'a> = io::StdoutLock<'a>;
+
+thread_local! {
+    /// Shared by the dispatch loop and `host_remote_execute`. All access is on
+    /// the same thread, and a reverse call happens while the loop is awaiting
+    /// the plugin's answer, so frames can never interleave.
+    static CHANNEL: RefCell<Option<ProcessChannel>> = const { RefCell::new(None) };
+}
+
+fn with_channel<T>(action: impl FnOnce(&mut ProcessChannel) -> T) -> T {
+    CHANNEL.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if slot.is_none() {
+            let stdin: &'static Stdin = Box::leak(Box::new(io::stdin()));
+            let stdout: &'static Stdout = Box::leak(Box::new(io::stdout()));
+            *slot = Some(ProcessChannel {
+                reader: BufReader::new(stdin.lock()),
+                writer: BufWriter::new(stdout.lock()),
+            });
+        }
+        action(slot.as_mut().expect("channel was just initialized"))
+    })
+}
+
+/// Ask the host to execute one allowlisted operation on this plugin's behalf.
+///
+/// The host validates the plugin's `host.call` capability against its own
+/// manifest catalog and applies its remote policy. No token, `ControlApi` or
+/// other host handle is returned to the plugin: only the RPC result.
+pub fn host_remote_execute(method: &str, params: Value) -> PluginResult<Value> {
+    if method.is_empty() || method.len() > 128 {
+        return Err(PluginError::other("invalid host call method".to_owned()));
+    }
+    let payload = serde_json::to_value(HostCallRequest {
+        method: method.to_owned(),
+        params,
+    })
+    .map_err(|error| PluginError::other(error.to_string()))?;
+    let id = format!("host-{}", next_host_call_id());
+    let request = PluginRequest::new(id.clone(), METHOD_HOST_CALL, payload);
+    with_channel(|channel| {
+        write_frame(&mut channel.writer, &request)
+            .map_err(|error| PluginError::other(error.to_string()))?;
+        let response = read_frame::<_, PluginResponse>(&mut channel.reader)
+            .map_err(|error| PluginError::other(error.to_string()))?;
+        if response.protocol_version != TIKTOOLS_PLUGIN_PROTOCOL_VERSION || response.id != id {
+            return Err(PluginError::other(
+                "host returned a mismatched call response".to_owned(),
+            ));
+        }
+        if !response.ok {
+            return Err(PluginError::other(
+                response
+                    .error
+                    .unwrap_or_else(|| "host rejected the call".to_owned()),
+            ));
+        }
+        Ok(response.result.unwrap_or(Value::Null))
+    })
+}
+
+fn next_host_call_id() -> u64 {
+    thread_local! {
+        static NEXT: RefCell<u64> = const { RefCell::new(0) };
+    }
+    NEXT.with(|next| {
+        let mut next = next.borrow_mut();
+        let value = *next;
+        *next = next.saturating_add(1);
+        value
+    })
+}
+
 pub fn run_process_plugin_with<P>(plugin: &mut P, context: &PluginContext) -> PluginResult<()>
 where
     P: Plugin,
 {
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-    let mut reader = io::BufReader::new(stdin.lock());
-    let mut writer = io::BufWriter::new(stdout.lock());
-
     let loop_result = loop {
-        let request = match read_frame::<_, PluginRequest>(&mut reader) {
-            Ok(request) => request,
-            Err(FrameError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {
-                break Ok(())
-            }
-            Err(error) => break Err(PluginError::other(error.to_string())),
-        };
+        let request =
+            match with_channel(|channel| read_frame::<_, PluginFrame>(&mut channel.reader)) {
+                Ok(PluginFrame::Request(request)) => request,
+                Ok(PluginFrame::Response(_)) => {
+                    break Err(PluginError::other(
+                        "host sent a response without a request".to_owned(),
+                    ))
+                }
+                Err(FrameError::Io(error)) if error.kind() == io::ErrorKind::UnexpectedEof => {
+                    break Ok(())
+                }
+                Err(error) => break Err(PluginError::other(error.to_string())),
+            };
         let response = handle_process_request(plugin, context, request);
-        write_frame(&mut writer, &response)
+        with_channel(|channel| write_frame(&mut channel.writer, &response))
             .map_err(|error| PluginError::other(error.to_string()))?;
     };
     let shutdown = plugin.shutdown(context);

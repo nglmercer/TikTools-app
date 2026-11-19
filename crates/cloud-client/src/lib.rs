@@ -22,12 +22,17 @@ use transport::retry_delay;
 use transport::{decode, decode_with_limit, parse_origin};
 
 mod login;
+mod login_code;
 mod store;
 mod workspace;
 mod workspace_state;
 mod workspace_store;
 pub use cloud_contracts::{WorkspaceChanges, WorkspaceRecord, WorkspaceSnapshot};
 pub use login::{LoginAttempt, LoginResult};
+pub use login_code::{
+    redeem as login_code_redeem, relay as login_code_relay, reserve as login_code_reserve,
+    LoginCodeStatus,
+};
 use reqwest::{
     header::{HeaderValue, AUTHORIZATION, IF_MATCH, IF_NONE_MATCH},
     Client, Response, StatusCode,

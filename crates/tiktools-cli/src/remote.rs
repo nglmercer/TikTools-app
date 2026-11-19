@@ -1,5 +1,5 @@
 //! Native profile management never resolves local IPC or constructs AppCore.
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-peer")]
 mod cloud;
 use crate::client::{exit_code_for, print_error};
 use serde_json::{json, Value};

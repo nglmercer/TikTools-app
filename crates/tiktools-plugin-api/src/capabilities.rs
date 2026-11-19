@@ -125,6 +125,14 @@ pub const EVENTS_SUBSCRIBE: &str = "events.subscribe";
 /// unrelated capability (audio, points, storage, HTTP).
 pub const EVENTS_ENRICH: &str = "events.enrich";
 pub const APP_STATE: &str = "app.state";
+/// Lets a first-party, trusted plugin own the remote-control gateway
+/// lifecycle. Declaring it is not a grant: the host still enforces the
+/// remote policy allowlist and session/grant checks on every call.
+pub const REMOTE_CONTROL: &str = "remote.control";
+/// Lets a plugin ask the host to execute one of the narrow, allowlisted
+/// `host.call` operations (e.g. `remote.execute`) through the host's own
+/// authorization. The plugin never receives a bearer token or a ControlApi.
+pub const HOST_CALL: &str = "host.call";
 
 /// Returns true when a manifest explicitly declares a capability or a
 /// documented wildcard covering it. This gates host-owned protocol operations;

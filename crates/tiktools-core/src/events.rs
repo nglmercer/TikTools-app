@@ -31,6 +31,16 @@ pub enum DomainEvent {
     /// it does not authorize displaying a previously fetched private value.
     #[serde(rename = "cloud.context.invalidated")]
     CloudContextInvalidated {},
+    /// A short-lived login code relayed by the Cloud to a connected device.
+    /// Delivered only to plugins subscribed to `cloud.login.code`; the code is
+    /// six digits with a five-minute expiry, never a bearer token.
+    #[serde(rename = "cloud.login.code", rename_all = "camelCase")]
+    CloudLoginCode {
+        reservation_id: String,
+        code: String,
+        expires_at: u64,
+        origin: String,
+    },
     #[serde(rename = "app.update.stateChanged", rename_all = "camelCase")]
     AppUpdateStateChanged { state: Value },
     #[serde(rename = "plugin.installed", rename_all = "camelCase")]

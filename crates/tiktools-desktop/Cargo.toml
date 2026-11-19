@@ -7,9 +7,18 @@ rust-version.workspace = true
 description = "Thin Winit/Wry desktop host for TikTools"
 
 [features]
-default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth", "remote-control", "remote-client"]
+# Remote control is NOT compiled by default: the installable
+# `tiktools.remote-control` plugin is the sole owner. The `remote-control`
+# and `remote-control-plugin` features remain only as explicit rollback
+# switches for builds that deliberately opt into the legacy in-process path.
+default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth", "remote-client"]
 remote-client = ["dep:tiktools-client", "tiktools-client/peer"]
 remote-control = ["persistence", "dep:tiktools-remote"]
+# Opt-in first-party plugin adapter. It is NOT a default feature: building it
+# into the desktop binary costs an extra crate in the dependency graph, so it
+# is built/tested on its own with `bun scripts/task.ts remote-plugin`. When
+# omitted, `remote-control` above runs the gateway directly.
+remote-control-plugin = ["persistence", "dep:tiktools-remote-plugin"]
 remote-browser-app = ["remote-control", "tiktools-remote/browser-app"]
 devtools = ["wry/devtools"]
 live-benchmark = ["tiktools-core/live-benchmark"]
@@ -22,6 +31,7 @@ cloud-auth = ["tiktools-client?/cloud-peer", "tiktools-remote?/cloud-peer", "tik
 tiktools-core = { path = "../tiktools-core", features = ["native-tiktok"] }
 tiktools-client = { path = "../tiktools-client", features = ["remote-profiles"], optional = true }
 tiktools-remote = { path = "../tiktools-remote", optional = true }
+tiktools-remote-plugin = { path = "../tiktools-remote-plugin", optional = true }
 tiktools-control-api = { path = "../tiktools-control-api", features = ["app-update"] }
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
 serde_json.workspace = true

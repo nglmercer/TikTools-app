@@ -32,9 +32,9 @@ impl DatabaseManager {
              WHERE i.intent_id IS NULL LIMIT ?1",
         )?;
         let mut rows = statement.query([(MAX_RETAINED + 1) as i64])?;
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         let mut blocked = BTreeSet::new();
-        #[cfg(not(feature = "cloud-auth"))]
+        #[cfg(not(feature = "cloud-sync"))]
         let blocked = BTreeSet::new();
         let mut count = 0usize;
         while let Some(row) = rows.next()? {
@@ -74,7 +74,7 @@ impl DatabaseManager {
                     "unexpected plugin apply finalization witness".into(),
                 ));
             }
-            #[cfg(feature = "cloud-auth")]
+            #[cfg(feature = "cloud-sync")]
             {
                 use super::plugin_sync_apply::{decode_stored, PluginApplyPhase};
                 let value = decode_stored(&id, (plugin_id, phase, encoded, generation, epoch))?;
@@ -91,7 +91,7 @@ impl DatabaseManager {
                     PluginApplyPhase::Finalized => {}
                 }
             }
-            #[cfg(not(feature = "cloud-auth"))]
+            #[cfg(not(feature = "cloud-sync"))]
             {
                 // This binary cannot validate Cloud journal payloads, so no
                 // plugin may run until a capable native host reconciles them.
@@ -124,7 +124,7 @@ mod tests {
     use super::*;
     use crate::paths::AppPaths;
 
-    #[cfg(feature = "cloud-auth")]
+    #[cfg(feature = "cloud-sync")]
     fn payload(intent_id: &str, plugin_id: &str) -> String {
         use super::super::plugin_sync_apply::{PluginApplyIntent, PluginApplyReason};
         use tiktools_cloud_sync::{PluginSelection, V1Record};
@@ -156,7 +156,7 @@ mod tests {
         .unwrap()
     }
 
-    #[cfg(feature = "cloud-auth")]
+    #[cfg(feature = "cloud-sync")]
     #[test]
     fn uncertain_runtime_is_quarantined_without_changing_saved_activation() {
         let root = std::env::temp_dir().join(format!(
@@ -242,7 +242,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
 
-    #[cfg(not(feature = "cloud-auth"))]
+    #[cfg(not(feature = "cloud-sync"))]
     #[test]
     fn a_build_without_cloud_support_cannot_authorize_any_active_evidence() {
         let root = std::env::temp_dir().join(format!(

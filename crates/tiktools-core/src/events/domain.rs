@@ -6,6 +6,7 @@ impl DomainEvent {
     pub fn topic(&self) -> &'static str {
         match self {
             Self::CloudContextInvalidated {} => "cloud.context.invalidated",
+            Self::CloudLoginCode { .. } => "cloud.login.code",
             Self::AppUpdateStateChanged { .. } => "app.update.stateChanged",
             Self::PluginInstalled { .. } => "plugin.installed",
             Self::PluginUninstalled { .. } => "plugin.uninstalled",

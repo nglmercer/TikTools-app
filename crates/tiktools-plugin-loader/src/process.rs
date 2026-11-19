@@ -2,21 +2,26 @@
 
 use std::{
     env, fs,
-    io::{BufReader, BufWriter, Read},
+    io::{BufReader, BufWriter, Read, Write},
     path::{Path, PathBuf},
     process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio},
-    sync::mpsc,
+    sync::{mpsc, Arc},
     thread::JoinHandle,
     time::{Duration, Instant},
 };
 
 use serde_json::Value;
 use tiktools_plugin_api::{
-    read_frame, write_frame, FrameError, PluginManifest, PluginRequest, PluginResponse,
-    PluginRuntimeKind, TIKTOOLS_PLUGIN_PROTOCOL_VERSION,
+    read_frame, write_frame, FrameError, HostCallRequest, PluginFrame, PluginManifest,
+    PluginRequest, PluginResponse, PluginRuntimeKind, METHOD_HOST_CALL,
+    TIKTOOLS_PLUGIN_PROTOCOL_VERSION,
 };
 
-use crate::{PluginInstance, PluginLoaderError, PluginRuntime};
+use crate::host_call_channel::{HostCallChannel, HostCallGate};
+use crate::{HostCallHandler, PluginInstance, PluginLoaderError, PluginRuntime};
+
+/// Maximum reverse calls a plugin may make during one host→plugin call.
+const MAX_HOST_CALLS_PER_REQUEST: usize = 8;
 
 const PROCESS_CALL_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -131,8 +136,19 @@ impl ProcessPluginRuntime {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| data_directory.join("storage.json"))
         };
+        // Dedicated reverse channel for unsolicited plugin → host calls. A
+        // loopback socket keeps this cross-platform and avoids unsafe fd
+        // inheritance; the one-time token authenticates the child.
+        let (host_call_addr, host_call_token, host_call_gate, host_call_listener) =
+            HostCallChannel::bind().map_err(|error| {
+                PluginLoaderError::Runtime(format!(
+                    "could not bind plugin reverse channel: {error}"
+                ))
+            })?;
         let mut command = Command::new(program);
         command
+            .env("TIKTOOLS_PLUGIN_HOST_CALL_ADDR", &host_call_addr)
+            .env("TIKTOOLS_PLUGIN_HOST_CALL_TOKEN", &host_call_token)
             .args(args)
             .current_dir(&package_root)
             // A process plugin is still trusted executable code, but it does
@@ -220,6 +236,11 @@ impl ProcessPluginRuntime {
             io_thread: None,
             next_request_id: 0,
             terminated: false,
+            host_call_handler: None,
+            host_call_gate: Some(host_call_gate),
+            host_call_listener: Some(host_call_listener),
+            host_call_token: host_call_token.clone(),
+            host_call_channel: None,
         }))
     }
 }
@@ -309,6 +330,16 @@ struct ProcessPluginInstance {
     io_thread: Option<JoinHandle<()>>,
     next_request_id: u64,
     terminated: bool,
+    /// Installed by the host; `None` means the plugin has no host-call grant.
+    host_call_handler: Option<Arc<dyn HostCallHandler>>,
+    /// Gate shared with the dedicated reverse-channel pump.
+    host_call_gate: Option<Arc<HostCallGate>>,
+    /// Listener waiting for the plugin to connect its reverse channel.
+    host_call_listener: Option<std::net::TcpListener>,
+    /// One-time handshake token for the reverse channel.
+    host_call_token: String,
+    /// Owns the pump thread; dropped when the instance is retired.
+    host_call_channel: Option<HostCallChannel>,
 }
 
 impl ProcessPluginInstance {
@@ -335,11 +366,20 @@ impl ProcessPluginInstance {
         })?;
         let (sender, receiver) = mpsc::sync_channel(1);
         let thread_id = self.id.clone();
+        let call_handler = self.host_call_handler.clone();
+        let expected_id = request_id.clone();
         let io_thread = match std::thread::Builder::new()
             .name(format!("tiktools-plugin-io-{thread_id}"))
             .spawn(move || {
-                let result =
-                    write_frame(&mut stdin, &message).and_then(|_| read_frame(&mut stdout));
+                let result = write_frame(&mut stdin, &message).and_then(|()| {
+                    serve_call_io(
+                        &mut stdout,
+                        &mut stdin,
+                        &expected_id,
+                        &thread_id,
+                        call_handler.as_deref(),
+                    )
+                });
                 let _ = sender.send((result, stdin, stdout));
             }) {
             Ok(thread) => thread,
@@ -403,6 +443,21 @@ impl PluginInstance for ProcessPluginInstance {
 
     fn handle_message(&mut self, request: &[u8]) -> Result<Vec<u8>, PluginLoaderError> {
         self.handle_message_with_deadline(request, PROCESS_CALL_TIMEOUT)
+    }
+
+    fn set_host_call_handler(&mut self, handler: Arc<dyn HostCallHandler>) {
+        self.host_call_handler = Some(Arc::clone(&handler));
+        if let (Some(gate), Some(listener)) =
+            (self.host_call_gate.clone(), self.host_call_listener.take())
+        {
+            gate.set_handler(handler);
+            self.host_call_channel = Some(HostCallChannel::spawn(
+                listener,
+                self.host_call_token.clone(),
+                gate,
+                self.id.clone(),
+            ));
+        }
     }
 
     fn handle_message_with_timeout(
@@ -486,6 +541,67 @@ fn wait_for_io<T>(receiver: mpsc::Receiver<T>, timeout: Duration) -> Result<T, P
     }
 }
 
+/// Read one call's frames from a process, answering reverse `host.call`
+/// requests until the original response arrives. Kept generic so the demux can
+/// be tested with in-memory streams instead of spawning a child process.
+fn serve_call_io<R: Read, W: Write>(
+    reader: &mut R,
+    writer: &mut W,
+    expected_id: &str,
+    plugin_id: &str,
+    handler: Option<&dyn HostCallHandler>,
+) -> Result<PluginResponse, FrameError> {
+    let mut reverse_calls = 0usize;
+    loop {
+        match read_frame::<_, PluginFrame>(reader)? {
+            PluginFrame::Response(response) => {
+                if response.id != expected_id {
+                    return Err(invalid_frame_error("response id mismatch"));
+                }
+                return Ok(response);
+            }
+            PluginFrame::Request(reverse) => {
+                reverse_calls += 1;
+                if reverse_calls > MAX_HOST_CALLS_PER_REQUEST {
+                    return Err(invalid_frame_error("too many plugin host calls"));
+                }
+                let answer = match (handler, reverse.method.as_str()) {
+                    (Some(handler), METHOD_HOST_CALL) => {
+                        serde_json::from_value::<HostCallRequest>(reverse.payload)
+                            .map_err(|error| error.to_string())
+                            .and_then(|request| {
+                                handler.call(plugin_id, &request.method, request.params)
+                            })
+                    }
+                    (None, _) => Err("host calls are not granted to this plugin".to_owned()),
+                    (_, method) => Err(format!("unsupported reverse method `{method}`")),
+                };
+                let (ok, value, error) = match answer {
+                    Ok(value) => (true, Some(value), None),
+                    Err(error) => (false, None, Some(error)),
+                };
+                write_frame(
+                    writer,
+                    &PluginResponse {
+                        protocol_version: TIKTOOLS_PLUGIN_PROTOCOL_VERSION,
+                        id: reverse.id,
+                        ok,
+                        result: value,
+                        error,
+                    },
+                )?;
+            }
+        }
+    }
+}
+
+fn invalid_frame_error(message: &str) -> FrameError {
+    // The marker is irrelevant: FrameError::Json is used only to carry a
+    // protocol violation into the existing error path.
+    let _ = message;
+    FrameError::Json(serde_json::from_str::<Value>("invalid").unwrap_err())
+}
+
 fn decode_process_response(
     result: Result<PluginResponse, FrameError>,
     request_id: &str,
@@ -542,6 +658,87 @@ mod tests {
     fn rejects_response_with_wrong_request_id() {
         let error = decode_process_response(Ok(response("other")), "request-1").unwrap_err();
         assert!(error.to_string().contains("different request"));
+    }
+
+    struct EchoHandler;
+
+    impl HostCallHandler for EchoHandler {
+        fn call(&self, plugin_id: &str, method: &str, params: Value) -> Result<Value, String> {
+            assert_eq!(plugin_id, "demo.plugin");
+            assert_eq!(method, "remote.execute");
+            Ok(serde_json::json!({"plugin": plugin_id, "params": params}))
+        }
+    }
+
+    fn host_call_frame(id: &str) -> PluginFrame {
+        PluginFrame::Request(PluginRequest::new(
+            id,
+            METHOD_HOST_CALL,
+            serde_json::to_value(HostCallRequest {
+                method: "remote.execute".to_owned(),
+                params: serde_json::json!({"x": 1}),
+            })
+            .unwrap(),
+        ))
+    }
+
+    #[test]
+    fn reverse_host_call_is_answered_then_original_response_returned() {
+        let mut stream = Vec::new();
+        write_frame(&mut stream, &host_call_frame("host-1")).unwrap();
+        write_frame(&mut stream, &PluginFrame::Response(response("request-1"))).unwrap();
+        let mut reader = std::io::Cursor::new(stream);
+        let mut writer = Vec::new();
+
+        let final_response = serve_call_io(
+            &mut reader,
+            &mut writer,
+            "request-1",
+            "demo.plugin",
+            Some(&EchoHandler),
+        )
+        .unwrap();
+        assert_eq!(final_response.id, "request-1");
+        let answer: PluginResponse = read_frame(&mut std::io::Cursor::new(writer)).unwrap();
+        assert_eq!(answer.id, "host-1");
+        assert!(answer.ok);
+        assert_eq!(answer.result.unwrap()["params"]["x"], serde_json::json!(1));
+    }
+
+    #[test]
+    fn reverse_call_without_a_granted_handler_is_denied_but_call_survives() {
+        let mut stream = Vec::new();
+        write_frame(&mut stream, &host_call_frame("host-2")).unwrap();
+        write_frame(&mut stream, &PluginFrame::Response(response("request-2"))).unwrap();
+        let mut reader = std::io::Cursor::new(stream);
+        let mut writer = Vec::new();
+
+        let final_response =
+            serve_call_io(&mut reader, &mut writer, "request-2", "demo.plugin", None).unwrap();
+        assert_eq!(final_response.id, "request-2");
+        let answer: PluginResponse = read_frame(&mut std::io::Cursor::new(writer)).unwrap();
+        assert!(!answer.ok);
+        assert!(answer.error.unwrap().contains("not granted"));
+    }
+
+    #[test]
+    fn reverse_calls_are_bounded_per_host_request() {
+        let mut stream = Vec::new();
+        for index in 0..MAX_HOST_CALLS_PER_REQUEST + 1 {
+            write_frame(&mut stream, &host_call_frame(&format!("host-{index}"))).unwrap();
+        }
+        write_frame(&mut stream, &PluginFrame::Response(response("request-3"))).unwrap();
+        let mut reader = std::io::Cursor::new(stream);
+        let mut writer = Vec::new();
+
+        assert!(serve_call_io(
+            &mut reader,
+            &mut writer,
+            "request-3",
+            "demo.plugin",
+            Some(&EchoHandler)
+        )
+        .is_err());
     }
 
     #[test]
@@ -667,6 +864,11 @@ mod tests {
             io_thread: None,
             next_request_id: 0,
             terminated: false,
+            host_call_handler: None,
+            host_call_gate: None,
+            host_call_listener: None,
+            host_call_token: String::new(),
+            host_call_channel: None,
         };
         instance.terminate_child();
         assert!(instance.child.try_wait().unwrap().is_some());
@@ -740,6 +942,11 @@ mod tests {
             io_thread: None,
             next_request_id: 0,
             terminated: false,
+            host_call_handler: None,
+            host_call_gate: None,
+            host_call_listener: None,
+            host_call_token: String::new(),
+            host_call_channel: None,
         };
         let request = serde_json::to_vec(&serde_json::json!({"type": "poll"})).unwrap();
         let result = instance.handle_message_with_deadline(&request, Duration::from_millis(150));

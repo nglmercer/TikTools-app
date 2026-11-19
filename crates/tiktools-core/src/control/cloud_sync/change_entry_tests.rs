@@ -1,3 +1,4 @@
+use super::projection::v2_review_value;
 use super::*;
 use cloud_client::{
     WorkspaceEdit, WorkspaceEntry, WorkspaceKey, WorkspaceLocalEdit, WorkspacePending,
@@ -227,4 +228,41 @@ fn unknown_collections_are_reduced_to_metadata() {
     assert!(!serde_json::to_string(&projected)
         .unwrap()
         .contains("PROFILE-NAME"));
+}
+
+#[test]
+fn review_projection_hides_plugin_settings_values_but_keeps_metadata() {
+    let value = V2ConflictValue {
+        state: "present".into(),
+        revision: Some(7),
+        value: Some(json!({"settings": {"apiKey": "SUPER-SECRET"}})),
+        version: Some("1.0.0".into()),
+        enabled: Some(true),
+    };
+
+    let projected = v2_review_value("plugin-settings", value);
+
+    assert_eq!(projected.state, "present");
+    assert_eq!(projected.revision, Some(7));
+    assert!(projected.value.is_none());
+    assert!(projected.version.is_none());
+    assert!(projected.enabled.is_none());
+    let serialized = serde_json::to_string(&projected).unwrap();
+    assert!(!serialized.contains("SUPER-SECRET"));
+    assert!(!serialized.contains("apiKey"));
+}
+
+#[test]
+fn review_projection_keeps_values_for_visible_collections() {
+    let value = V2ConflictValue {
+        state: "present".into(),
+        revision: Some(3),
+        value: Some(json!({"theme": "dark"})),
+        version: Some("2.0.0".into()),
+        enabled: Some(true),
+    };
+
+    assert_eq!(v2_review_value("preferences", value.clone()), value);
+    assert_eq!(v2_review_value("plugin-selections", value.clone()), value);
+    assert_eq!(v2_review_value("variables", value.clone()), value);
 }

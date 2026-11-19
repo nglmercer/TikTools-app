@@ -43,6 +43,22 @@ pub struct CloudLoginReservationResult {
     pub operation_id: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudLoginCodeParams {
+    #[serde(default)]
+    pub operation_id: Option<String>,
+    pub email: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudLoginCodeSubmitParams {
+    #[serde(default)]
+    pub operation_id: Option<String>,
+    pub code: String,
+}
+
 fn map_error(error: OperationError) -> ApiError {
     ApiError::from(error)
 }
@@ -67,6 +83,37 @@ pub fn register(router: &mut ControlRouter) {
             core.cloud_reserve_login()
                 .await
                 .map(|operation_id| CloudLoginReservationResult { operation_id })
+                .map_err(map_error)
+        },
+    );
+    router.register_typed::<CloudLoginCodeParams, tiktools_cloud_auth::LoginCodeStatus, _, _>(
+        "cloud.login.code.send",
+        "Sends a short-lived login code to connected devices (OAuth if no account)",
+        true,
+        |core: Arc<AppCore>, params: CloudLoginCodeParams| async move {
+            core.cloud_start_login_code(params.operation_id.as_deref(), &params.email)
+                .await
+                .map_err(map_error)
+        },
+    );
+    router.register_typed::<CloudLoginOperationParams, tiktools_cloud_auth::LoginCodeStatus, _, _>(
+        "cloud.login.code.resend",
+        "Relays the login code to connected devices again",
+        true,
+        |core: Arc<AppCore>, params: CloudLoginOperationParams| async move {
+            core.cloud_relay_login_code(params.operation_id.as_deref())
+                .await
+                .map_err(map_error)
+        },
+    );
+    router.register_typed::<CloudLoginCodeSubmitParams, CloudStatusResult, _, _>(
+        "cloud.login.code.submit",
+        "Redeems a relayed login code without exposing any credential",
+        true,
+        |core: Arc<AppCore>, params: CloudLoginCodeSubmitParams| async move {
+            core.cloud_redeem_login_code(params.operation_id.as_deref(), &params.code)
+                .await
+                .map(|status| CloudStatusResult { status })
                 .map_err(map_error)
         },
     );

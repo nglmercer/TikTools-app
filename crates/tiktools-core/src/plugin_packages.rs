@@ -15,7 +15,7 @@ use tiktools_plugin_registry::{
     cloud_source, Downloader, RegistryClient, RegistrySource, OFFICIAL_REGISTRY_NAME,
 };
 
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 #[allow(dead_code)] // Native journal orchestration is not enabled in product.
 mod mutation_admission;
 
@@ -316,7 +316,7 @@ pub(crate) fn unavailable(error: &str) -> InstallError {
     )
 }
 
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 pub(crate) fn try_product_mutation_lease(
     core: &crate::AppCore,
 ) -> Result<tiktools_cloud_sync::ProductEmissionLease, InstallError> {
@@ -336,7 +336,7 @@ pub(crate) fn try_product_mutation_lease(
 
 /// Called while holding the invocation and product emission leases. The
 /// dirty marker is durable before package I/O and carries no Cloud identity.
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 pub(crate) fn reserve_package_sync_source(
     core: &crate::AppCore,
     id: &str,
@@ -368,13 +368,13 @@ pub(crate) fn reserve_package_sync_source(
 /// A fresh package operation may be attributed only to the v2 account that
 /// was already selected before filesystem work began. Older untracked work
 /// is never absorbed into that decision.
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 pub(crate) struct PackageSyncAccount {
     context: tiktools_cloud_sync::V2LocalEditContext,
     session: Arc<cloud_client::Session>,
 }
 
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 pub(crate) fn capture_package_sync_account(core: &crate::AppCore) -> Option<PackageSyncAccount> {
     if core.db.has_untracked_plugin_sync().ok()? {
         return None;
@@ -399,7 +399,7 @@ pub(crate) fn capture_package_sync_account(core: &crate::AppCore) -> Option<Pack
 
 /// The invocation and product emission leases remain held by the caller.
 /// An unavailable or changed source leaves its durable marker untouched.
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 pub(crate) fn confirm_package_sync_source(
     core: &crate::AppCore,
     capture: Option<PackageSyncAccount>,
@@ -463,7 +463,7 @@ pub(crate) fn confirm_package_sync_source(
     }
 }
 
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 pub(crate) fn confirm_package_removal_source(
     core: &crate::AppCore,
     capture: Option<PackageSyncAccount>,
@@ -798,7 +798,7 @@ mod tests {
             Arc::new(NoopMediaHost),
             paths.clone(),
         ));
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         {
             core.sync.coordinator().unwrap().set_enabled(false).unwrap();
             assert!(!core
@@ -838,7 +838,7 @@ mod tests {
         core.db
             .set_plugin_state("acme.package", true, true)
             .unwrap();
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         {
             let fence = tiktools_cloud_sync::ProductEmissionFence::open(
                 core.db.paths().data.join("plugin-sync-emission"),
@@ -861,7 +861,7 @@ mod tests {
         db.execute_batch("DROP TRIGGER fail_package_fence;")
             .unwrap();
         drop(db);
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         {
             let db = rusqlite::Connection::open(&database_path).unwrap();
             db.execute_batch("CREATE TRIGGER fail_package_marker BEFORE INSERT ON plugin_sync_untracked_local BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
@@ -875,7 +875,7 @@ mod tests {
         }
         core.install_plugin(&first, false).unwrap();
         assert_eq!(source(), 3);
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         {
             let connection = rusqlite::Connection::open(&database_path).unwrap();
             let marker: i64 = connection.query_row("SELECT generation FROM plugin_sync_untracked_local WHERE plugin_id='acme.package'", [], |row| row.get(0)).unwrap();
@@ -885,7 +885,7 @@ mod tests {
             core.plugins.get("acme.package").unwrap().manifest.version,
             "1.0.0"
         );
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         {
             let fence = tiktools_cloud_sync::ProductEmissionFence::open(
                 core.db.paths().data.join("plugin-sync-emission"),
@@ -947,7 +947,7 @@ mod tests {
         ));
         core.uninstall_plugin("acme.package", false).unwrap();
         assert_eq!(source(), 12);
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         {
             let _invocation = core.plugin_state.invocation_gate.lock().unwrap();
             assert_eq!(
@@ -961,7 +961,7 @@ mod tests {
                 Some(true)
             );
         }
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         {
             let connection = rusqlite::Connection::open(&database_path).unwrap();
             let marker: i64 = connection.query_row("SELECT generation FROM plugin_sync_untracked_local WHERE plugin_id='acme.package'", [], |row| row.get(0)).unwrap();

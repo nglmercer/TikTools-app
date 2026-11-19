@@ -10,7 +10,15 @@ export interface AccountStatus {
   email?: string | null;
   displayName?: string | null;
   persistence: AccountPersistence;
+  loginCode?: LoginCodeStatus | null;
   error?: string | null;
+}
+
+export interface LoginCodeStatus {
+  email: string;
+  expiresAt: number;
+  delivered: number;
+  requiresOauth: boolean;
 }
 
 export interface CloudLoginUrlResult {

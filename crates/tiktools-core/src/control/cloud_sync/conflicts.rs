@@ -2,7 +2,7 @@
 use super::OperationError;
 #[cfg(feature = "persistence")]
 use super::{
-    projection::{v2_value_from_edit, v2_value_from_record},
+    projection::{v2_review_value, v2_value_from_edit, v2_value_from_record},
     v2_change_entry, V2ConflictHandle,
 };
 use super::{
@@ -138,6 +138,12 @@ impl AppCore {
                 local.value = None;
                 cloud.value = None;
             }
+            // Apply the same collection allowlist used by `changes.list` so a
+            // non-portable collection (notably plugin-settings) cannot expose
+            // its values through the one-time review RPC.
+            let base = v2_review_value(collection, base);
+            let local = v2_review_value(collection, local);
+            let cloud = v2_review_value(collection, cloud);
             let has_newer = entry.next.is_some();
             let mut bytes = [0u8; 32];
             getrandom::fill(&mut bytes)

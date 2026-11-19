@@ -42,6 +42,22 @@ pub struct AccountStatus {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
     pub persistence: Persistence,
+    /// Nonsecret state of a login-code attempt: the email and expiry the UI
+    /// needs to show. Never a code or a token.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub login_code: Option<LoginCodeStatus>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+/// Nonsecret progress of a device-relayed login code.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginCodeStatus {
+    pub email: String,
+    pub expires_at: u64,
+    /// Connected devices the code was relayed to; zero means no remote control.
+    pub delivered: usize,
+    /// The account has no Cloud identity: OAuth is required instead of a code.
+    pub requires_oauth: bool,
 }

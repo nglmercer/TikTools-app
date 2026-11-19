@@ -10,7 +10,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use cloud_client::{LoginAttempt, LoginResult, Session, SyncError};
@@ -168,6 +168,15 @@ struct PendingLogin {
     cancel_rx: Option<oneshot::Receiver<()>>,
 }
 
+/// Correlation material kept natively. The code itself is never held here; it
+/// is passed directly to `redeem_login_code`. `expires_at` fences a stale local
+/// attempt before it reaches the network.
+struct PendingLoginCode {
+    reservation_id: String,
+    device_nonce: String,
+    expires_at: u64,
+}
+
 struct Inner {
     origin: Option<String>,
     session: Option<Arc<Session>>,
@@ -177,6 +186,10 @@ struct Inner {
     active_login_reservation: Option<String>,
     active_login_legacy: bool,
     login_reservations: HashMap<String, Instant>,
+    /// Nonsecret progress of a device-relayed login-code attempt.
+    login_code: Option<crate::state::LoginCodeStatus>,
+    /// Correlation material for the in-flight code attempt. Never serialized.
+    pending_code: Option<PendingLoginCode>,
     last_error: Option<String>,
     epoch: u64,
     offline_identity_allowed: bool,
@@ -857,6 +870,8 @@ impl CloudAuth {
                 active_login_reservation: None,
                 active_login_legacy: false,
                 login_reservations: HashMap::new(),
+                login_code: None,
+                pending_code: None,
                 last_error: None,
                 epoch: 0,
                 offline_identity_allowed: true,
@@ -928,6 +943,7 @@ impl CloudAuth {
                 .as_ref()
                 .and_then(|profile| profile.display_name.clone()),
             persistence: self.store.persistence(),
+            login_code: inner.login_code.clone(),
             error: inner.last_error.clone(),
         }
     }
@@ -1186,6 +1202,168 @@ impl CloudAuth {
             .login_reservations
             .insert(id.clone(), now + RESERVATION_TTL);
         Ok(id)
+    }
+
+    /// Start a device-relayed code login. `operation` must be a reservation
+    /// created by [`CloudAuth::reserve_login`]. Reserves the operation, asks the
+    /// backend to relay a 5-minute code to connected devices, and reports only
+    /// nonsecret progress. If the account does not exist, `requires_oauth` is
+    /// returned and no code is sent.
+    pub async fn start_login_code(
+        &self,
+        operation: Option<&str>,
+        email: &str,
+    ) -> Result<crate::state::LoginCodeStatus, AuthError> {
+        let _transition = TransitionGuard::begin(&self.transitions);
+        let invalidation = self.context_invalidation();
+        invalidation.notify();
+        let _identity = self.identity_gate.write().await;
+        let mut inner = self.inner.lock().await;
+        // Consume the reservation the same way begin_login_after does, so a
+        // stale or forged operation id cannot start a code login.
+        if login_waiting(&inner) {
+            return Err(AuthError::AlreadyInProgress);
+        }
+        if let Some(id) = operation {
+            if !inner
+                .login_reservations
+                .remove(id)
+                .is_some_and(|expires| expires > Instant::now())
+            {
+                return Err(AuthError::Cancelled);
+            }
+            inner.active_login_reservation = Some(id.to_owned());
+            inner.active_login_legacy = false;
+        } else {
+            inner.active_login_reservation = Some(fresh_login_id(&inner)?);
+            inner.active_login_legacy = true;
+        }
+        inner.epoch = inner
+            .epoch
+            .checked_add(1)
+            .ok_or(AuthError::Failed("account generation exhausted".into()))?;
+        if inner.session.is_some() {
+            return Err(AuthError::AlreadySignedIn);
+        }
+        let origin = inner.origin.clone().ok_or(AuthError::Unconfigured)?;
+        let url = crate::url_from_origin(&origin)?;
+        let device_nonce = {
+            let mut bytes = [0u8; 24];
+            getrandom::fill(&mut bytes)
+                .map_err(|_| AuthError::Failed("could not create device nonce".into()))?;
+            bytes
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        };
+        let status = cloud_client::login_code_reserve(&url, email, &device_nonce)
+            .await
+            .map_err(map_session_error)?;
+        // "Send" means reserve + relay: the code is actually delivered to the
+        // connected devices before we report progress to the UI.
+        let delivered_at = if status.requires_oauth {
+            status.expires_at
+        } else {
+            cloud_client::login_code_relay(&url, &status.reservation_id, &status.device_nonce)
+                .await
+                .map_err(map_session_error)?
+        };
+        inner.active_login_reservation = operation.map(str::to_owned);
+        inner.active_login_legacy = operation.is_none();
+        inner.cancel_tx = None;
+        inner.pending_code = Some(PendingLoginCode {
+            reservation_id: status.reservation_id.clone(),
+            device_nonce: status.device_nonce.clone(),
+            expires_at: delivered_at,
+        });
+        inner.login_code = Some(crate::state::LoginCodeStatus {
+            email: email.to_owned(),
+            expires_at: delivered_at,
+            delivered: if status.requires_oauth { 0 } else { 1 },
+            requires_oauth: status.requires_oauth,
+        });
+        inner.last_error = None;
+        Ok(inner.login_code.clone().expect("just set"))
+    }
+
+    /// Ask the host to relay the code again (invalidates the previous one).
+    pub async fn relay_login_code(
+        &self,
+        operation: Option<&str>,
+    ) -> Result<crate::state::LoginCodeStatus, AuthError> {
+        let _identity = self.identity_gate.write().await;
+        let mut inner = self.inner.lock().await;
+        check_login_reservation(&inner, operation)?;
+        let origin = inner.origin.clone().ok_or(AuthError::Unconfigured)?;
+        let pending = inner
+            .pending_code
+            .as_ref()
+            .ok_or(AuthError::NoLoginInProgress)?;
+        let url = crate::url_from_origin(&origin)?;
+        let expires_at =
+            cloud_client::login_code_relay(&url, &pending.reservation_id, &pending.device_nonce)
+                .await
+                .map_err(map_session_error)?;
+        let status = inner
+            .login_code
+            .as_mut()
+            .ok_or(AuthError::NoLoginInProgress)?;
+        status.expires_at = expires_at;
+        status.delivered += 1;
+        Ok(status.clone())
+    }
+
+    /// Redeem the code the user read on another device. The code is passed in
+    /// directly and never stored; on success the existing `finish_login()`
+    /// path persists the session only to the OS keychain.
+    pub async fn redeem_login_code(
+        &self,
+        operation: Option<&str>,
+        code: &str,
+    ) -> Result<AccountStatus, AuthError> {
+        let invalidation = self.context_invalidation();
+        let _transition = TransitionGuard::begin(&self.transitions);
+        invalidation.notify();
+        let (origin, pending, epoch) = {
+            let _identity = self.identity_gate.write().await;
+            let mut inner = self.inner.lock().await;
+            check_login_reservation(&inner, operation)?;
+            let origin = inner.origin.clone().ok_or(AuthError::Unconfigured)?;
+            let pending = inner
+                .pending_code
+                .take()
+                .ok_or(AuthError::NoLoginInProgress)?;
+            (origin, pending, inner.epoch)
+        };
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if pending.expires_at <= now {
+            return Err(AuthError::Expired);
+        }
+        let url = crate::url_from_origin(&origin)?;
+        let result = cloud_client::login_code_redeem(
+            &url,
+            &pending.reservation_id,
+            &pending.device_nonce,
+            code,
+        )
+        .await;
+        let finished = self.finish_login(origin, result, epoch).await;
+        let _identity = self.identity_gate.write().await;
+        let mut inner = self.inner.lock().await;
+        if inner.epoch == epoch {
+            inner.pending_code = None;
+            inner.login_code = None;
+            inner.active_login_reservation = None;
+            inner.active_login_legacy = false;
+            inner.cancel_tx = None;
+        }
+        drop(inner);
+        drop(_identity);
+        finished?;
+        Ok(self.status().await)
     }
 
     pub async fn begin_login(&self) -> Result<LoginBegin, AuthError> {

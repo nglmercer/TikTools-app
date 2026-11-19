@@ -9,12 +9,12 @@ use super::*;
 mod approved_observer;
 mod runtime_variables;
 #[cfg(all(
-    feature = "cloud-auth",
+    feature = "cloud-sync",
     feature = "persistence",
     feature = "plugin-install"
 ))]
 mod v2_mutation_integration;
-#[cfg(all(feature = "cloud-auth", feature = "plugin-install"))]
+#[cfg(all(feature = "cloud-sync", feature = "plugin-install"))]
 mod v2_variables_sync;
 use tiktools_plugin_api::{
     AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
@@ -24,7 +24,7 @@ use tiktools_plugin_api::{
 /// through the process-global test home, and the opt-in file has no
 /// inter-test isolation. Async-aware on purpose: the guard is held across
 /// awaits for the whole test body.
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 static SYNC_TEST_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// Isolates the test process data root. `AppCore::new` resolves
@@ -1804,7 +1804,7 @@ async fn fake_hotkey_poll_reaches_domain_automation_and_runs() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 #[tokio::test]
 async fn poll_response_arriving_after_quarantine_is_discarded() {
     let state = Arc::new(FakePluginState::default());
@@ -3278,7 +3278,7 @@ async fn user_winner_action_is_queued_once_for_a_challenge() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 #[tokio::test]
 async fn cloud_sync_enable_disable_round_trip() {
     let _sync_guard = SYNC_TEST_LOCK.lock().await;
@@ -3305,7 +3305,7 @@ async fn cloud_sync_enable_disable_round_trip() {
     restarted.shutdown().await;
 }
 
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 #[tokio::test]
 async fn cloud_sync_without_sign_in_fails_closed() {
     let _sync_guard = SYNC_TEST_LOCK.lock().await;
@@ -3319,7 +3319,7 @@ async fn cloud_sync_without_sign_in_fails_closed() {
     core.shutdown().await;
 }
 
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 #[tokio::test]
 async fn cloud_sync_uncertain_resolution_is_unavailable_without_durable_source_fence() {
     use crate::control::cloud_sync::SyncRecoveryChoice;
@@ -3341,7 +3341,7 @@ async fn cloud_sync_uncertain_resolution_is_unavailable_without_durable_source_f
     core.shutdown().await;
 }
 
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 #[tokio::test]
 async fn plugin_sync_worker_guard_requires_matching_live_selection() {
     let runtime = Arc::new(FakePluginState::default());
@@ -3364,7 +3364,7 @@ async fn plugin_sync_worker_guard_requires_matching_live_selection() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 #[tokio::test]
 async fn durable_local_enable_requires_runtime_success_before_outbox_confirmation() {
     use tiktools_cloud_auth::{CloudAuth, MemoryTokenStore};
@@ -3456,7 +3456,7 @@ async fn durable_local_enable_requires_runtime_success_before_outbox_confirmatio
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 #[tokio::test]
 async fn runtime_outbox_requires_matching_live_selection() {
     use crate::cloud_sync::product_outbox::RuntimeProductOutbox;
@@ -3516,7 +3516,7 @@ async fn runtime_outbox_requires_matching_live_selection() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 #[tokio::test]
 async fn durable_local_enable_does_not_confirm_a_newer_concurrent_source() {
     use crate::cloud_sync::product_outbox::SqliteProductOutbox;
@@ -3589,7 +3589,7 @@ async fn durable_local_enable_does_not_confirm_a_newer_concurrent_source() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 #[tokio::test]
 async fn cloud_sync_defers_remote_selection_and_preserves_local_conflict_choices() {
     use secrecy::SecretString;
@@ -3779,7 +3779,7 @@ async fn cloud_sync_defers_remote_selection_and_preserves_local_conflict_choices
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 #[tokio::test]
 async fn cloud_sync_remote_never_installs_or_stages() {
     let _sync_guard = SYNC_TEST_LOCK.lock().await;
@@ -3799,7 +3799,7 @@ async fn cloud_sync_remote_never_installs_or_stages() {
     core.shutdown().await;
 }
 
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 #[tokio::test]
 async fn cloud_sync_skips_discovered_but_uninstalled_plugin() {
     let runtime = Arc::new(FakePluginState::default());
@@ -3817,7 +3817,7 @@ async fn cloud_sync_skips_discovered_but_uninstalled_plugin() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 #[tokio::test]
 async fn cloud_sync_checks_installed_state_inside_invocation_gate() {
     let runtime = Arc::new(FakePluginState::default());
@@ -3841,7 +3841,7 @@ async fn cloud_sync_checks_installed_state_inside_invocation_gate() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+#[cfg(all(feature = "persistence", feature = "cloud-sync"))]
 #[tokio::test]
 async fn plugin_apply_uncertain_runtime_is_quarantined_after_host_restart() {
     use crate::db::{PluginApplyIntent, PluginApplyReason};
@@ -3936,7 +3936,7 @@ async fn plugin_apply_uncertain_runtime_is_quarantined_after_host_restart() {
     let _ = std::fs::remove_dir_all(corrupt_manager_root);
 }
 
-#[cfg(all(feature = "cloud-auth", unix))]
+#[cfg(all(feature = "cloud-sync", unix))]
 #[tokio::test]
 async fn unusable_cloud_sync_directory_degrades_instead_of_panicking() {
     use std::os::unix::fs::PermissionsExt;
@@ -3973,7 +3973,7 @@ async fn unusable_cloud_sync_directory_degrades_instead_of_panicking() {
     let _ = std::fs::remove_dir_all(root);
 }
 
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 #[test]
 fn v2_sqlite_source_requires_current_runtime_and_acknowledges_only_after_staging() {
     use crate::db::LocalPluginSyncIntent;

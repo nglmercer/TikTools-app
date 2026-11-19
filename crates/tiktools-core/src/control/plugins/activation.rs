@@ -1,14 +1,14 @@
 //! Local installed/enabled state and explicit runtime start/stop operations. Fallbacks retain
 //! the original source-write and invocation boundaries.
 
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 use super::local_sync::LocalMutationProtocol;
 use crate::{control::OperationError, events::DomainEvent, recover_rwlock_read, AppCore};
 
 impl AppCore {
     #[allow(clippy::needless_return)]
     pub fn plugin_set_installed(&self, id: &str, installed: bool) -> Result<(), OperationError> {
-        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
         {
             let attempted = std::cell::Cell::new(false);
             return match self.plugin_set_installed_with_product_intent_for(
@@ -20,7 +20,7 @@ impl AppCore {
                 result => result,
             };
         }
-        #[cfg(not(all(feature = "cloud-auth", feature = "persistence")))]
+        #[cfg(not(all(feature = "cloud-sync", feature = "persistence")))]
         self.plugin_set_installed_untracked(id, installed)
     }
 
@@ -33,7 +33,7 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
-        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
         let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
@@ -42,13 +42,13 @@ impl AppCore {
                 "plugin application needs recovery",
             ));
         }
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         let version = plugin.manifest.version.clone();
-        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        #[cfg(all(feature = "persistence", feature = "cloud-sync"))]
         self.db
             .set_plugin_state_with_untracked_sync(&id, installed, true)
             .map_err(|error| OperationError::internal(error.to_string()))?;
-        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
+        #[cfg(all(feature = "persistence", not(feature = "cloud-sync")))]
         self.db
             .set_plugin_state(&id, installed, true)
             .map_err(|error| OperationError::internal(error.to_string()))?;
@@ -64,7 +64,7 @@ impl AppCore {
         }
         self.rebuild_processor_index();
         self.refresh_automation_snapshot();
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         if installed {
             self.stage_selection(&id, &version, true);
         } else {
@@ -75,7 +75,7 @@ impl AppCore {
 
     #[allow(clippy::needless_return)]
     pub fn plugin_set_enabled(&self, id: &str, enabled: bool) -> Result<(), OperationError> {
-        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
         {
             // Fall back only when admission failed before any source write.
             // An uncertain runtime or SQLite result must never be repeated.
@@ -92,21 +92,21 @@ impl AppCore {
                 result => result,
             };
         }
-        #[cfg(not(all(feature = "cloud-auth", feature = "persistence")))]
+        #[cfg(not(all(feature = "cloud-sync", feature = "persistence")))]
         {
             let plugin = self.require_discovered(id)?;
             let id = plugin.manifest.id.clone();
-            #[cfg(feature = "cloud-auth")]
+            #[cfg(feature = "cloud-sync")]
             let version = plugin.manifest.version.clone();
             self.set_enabled_impl(&id, enabled, false)?;
-            #[cfg(feature = "cloud-auth")]
+            #[cfg(feature = "cloud-sync")]
             self.stage_selection(&id, &version, enabled);
             Ok(())
         }
     }
 
     /// Exercise selected-protocol admission without the public fallback.
-    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
     #[allow(dead_code)]
     pub(crate) fn plugin_set_enabled_with_product_intent(
         &self,
@@ -126,7 +126,7 @@ impl AppCore {
     /// cooperating product emission. No Cloud identity is inferred here.
     /// This remains private until every product emitter uses this fence and
     /// a user-facing reconciliation flow exists.
-    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
     #[allow(dead_code)]
     pub(crate) fn plugin_set_enabled_with_untracked_intent(
         &self,
@@ -185,7 +185,7 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
-        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
         let _source_lease = self.try_plugin_source_lease()?;
         if self.plugin_apply_quarantined(id) {
             return Err(OperationError::unavailable(
@@ -210,7 +210,7 @@ impl AppCore {
                 return Ok(false);
             }
         }
-        #[cfg(all(feature = "persistence", feature = "cloud-auth"))]
+        #[cfg(all(feature = "persistence", feature = "cloud-sync"))]
         if only_installed {
             // Legacy remote application is not a local edit and must not
             // feed the outbound reconciliation marker.
@@ -222,7 +222,7 @@ impl AppCore {
                 .set_plugin_state_with_untracked_sync(id, true, enabled)
                 .map_err(|error| OperationError::internal(error.to_string()))?;
         }
-        #[cfg(all(feature = "persistence", not(feature = "cloud-auth")))]
+        #[cfg(all(feature = "persistence", not(feature = "cloud-sync")))]
         self.db
             .set_plugin_state(id, true, enabled)
             .map_err(|error| OperationError::internal(error.to_string()))?;
@@ -256,7 +256,7 @@ impl AppCore {
     /// Legacy low-level operation, retained only for existing compatibility
     /// tests. It does not bind account, consent, Cloud revision or crash
     /// recovery and must not be called from a product sync path.
-    #[cfg(all(feature = "cloud-auth", test))]
+    #[cfg(all(feature = "cloud-sync", test))]
     pub(crate) fn plugin_apply_remote_selection(
         &self,
         id: &str,
@@ -274,7 +274,7 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
-        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
         let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();
@@ -295,7 +295,7 @@ impl AppCore {
             self.plugin_state.invocation_gate.lock().map_err(|_| {
                 OperationError::unavailable("plugin invocation lease is unavailable")
             })?;
-        #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+        #[cfg(all(feature = "cloud-sync", feature = "persistence"))]
         let _source_lease = self.try_plugin_source_lease()?;
         let plugin = self.require_discovered(id)?;
         let id = plugin.manifest.id.clone();

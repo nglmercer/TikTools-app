@@ -60,6 +60,20 @@ pub enum Command {
         config: BTreeMap<String, Value>,
         live: bool,
     },
+    /// `plugin commands` — list commands contributed by installed plugins.
+    Commands,
+    /// `plugin help [id]` — show one contributed command's description/params.
+    Help {
+        id: Option<String>,
+    },
+    /// `plugin <id> <command> [--params json] [--live]` — invoke a contributed
+    /// command. The host resolves the id and checks ownership.
+    Run {
+        plugin_id: String,
+        command_id: String,
+        config: BTreeMap<String, Value>,
+        live: bool,
+    },
 }
 
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
@@ -137,6 +151,30 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             };
             Ok(Command::Action {
                 action_type: action_type.to_owned(),
+                config: config.into_iter().collect(),
+                live: rest.iter().any(|arg| arg == "--live"),
+            })
+        }
+        "commands" => Ok(Command::Commands),
+        "help" => Ok(Command::Help {
+            id: rest.first().cloned(),
+        }),
+        // Namespaced dynamic dispatch: `plugin <id> <command>` where <id> is a
+        // registered plugin id, not a built-in verb. Packages use `plugin
+        // install/update/...`, so only two-token forms reach this branch.
+        plugin_id if !rest.is_empty() => {
+            let (command_id, rest) =
+                split_first(rest, "plugin <id> <command> [--params json] [--live]")?;
+            let config = flag_value(rest, "--params")
+                .map(|raw| parse_json_value(&raw))
+                .transpose()?
+                .unwrap_or(Value::Object(Default::default()));
+            let Value::Object(config) = config else {
+                return Err("--params must be a JSON object".to_owned().into());
+            };
+            Ok(Command::Run {
+                plugin_id: plugin_id.to_owned(),
+                command_id: command_id.to_owned(),
                 config: config.into_iter().collect(),
                 live: rest.iter().any(|arg| arg == "--live"),
             })
@@ -237,5 +275,77 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                 })
                 .await?,
         ),
+        Command::Commands => {
+            let commands = plugin_commands(client).await?;
+            Ok(serde_json::json!({"commands": commands}))
+        }
+        Command::Help { id } => {
+            let commands = plugin_commands(client).await?;
+            let found: Vec<Value> = commands
+                .into_iter()
+                .filter(|command| match id.as_deref() {
+                    None => true,
+                    Some(wanted) => command
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .map(|value| value == wanted)
+                        .unwrap_or(false),
+                })
+                .collect();
+            if found.is_empty() && id.is_some() {
+                return Err(ClientError::new(
+                    "invalid_params",
+                    format!("unknown plugin command `{}`", id.unwrap_or_default()),
+                ));
+            }
+            Ok(serde_json::json!({"commands": found}))
+        }
+        Command::Run {
+            plugin_id,
+            command_id,
+            config,
+            live,
+        } => {
+            let commands = plugin_commands(client).await?;
+            let entry = commands.into_iter().find(|command| {
+                command.get("pluginId").and_then(Value::as_str) == Some(plugin_id.as_str())
+                    && command.get("id").and_then(Value::as_str) == Some(command_id.as_str())
+            });
+            let Some(entry) = entry else {
+                return Err(ClientError::new(
+                    "invalid_params",
+                    format!(
+                        "unknown plugin command `{plugin_id} {command_id}`; run `plugin commands`"
+                    ),
+                ));
+            };
+            let action_type = entry
+                .get("actionType")
+                .and_then(Value::as_str)
+                .ok_or_else(|| ClientError::new("invalid_params", "command has no actionType"))?
+                .to_owned();
+            result_value(
+                client
+                    .plugins_action_execute(PluginActionParams {
+                        action_type,
+                        config,
+                        live,
+                        // Always scoped: a plugin cannot execute another plugin's action.
+                        plugin_id: Some(plugin_id),
+                    })
+                    .await?,
+            )
+        }
     }
+}
+
+/// Project `pluginCliCommands` from the behavior snapshot. The host only
+/// contributes commands of installed, enabled, available plugins.
+async fn plugin_commands(client: &TikToolsClient) -> Result<Vec<Value>, ClientError> {
+    let snapshot = client.automation_snapshot().await?;
+    Ok(snapshot
+        .get("pluginCliCommands")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default())
 }

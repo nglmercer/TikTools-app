@@ -1,0 +1,17 @@
+[package]
+name = "tiktools-remote-plugin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "First-party plugin adapter that owns the remote-control gateway lifecycle"
+
+[features]
+default = ["peer"]
+peer = ["tiktools-remote/peer"]
+
+[dependencies]
+tiktools-control-api = { path = "../tiktools-control-api" }
+tiktools-plugin-api = { path = "../tiktools-plugin-api" }
+tiktools-remote = { path = "../tiktools-remote" }
+tokio = { workspace = true }

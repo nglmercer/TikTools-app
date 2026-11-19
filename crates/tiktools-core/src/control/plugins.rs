@@ -5,23 +5,23 @@
 
 mod actions;
 mod activation;
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 mod durable;
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 mod local_sync;
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 mod staging;
 #[cfg(test)]
 mod tests;
 mod ui;
 
 #[cfg(all(
-    feature = "cloud-auth",
+    feature = "cloud-sync",
     feature = "persistence",
     feature = "plugin-install"
 ))]
 pub(crate) use local_sync::with_fenced_plugin_removal;
-#[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+#[cfg(all(feature = "cloud-sync", feature = "persistence"))]
 pub(crate) use local_sync::PluginSyncRuntimeGuard;
 
 use super::{clean_plugin_id, OperationError};

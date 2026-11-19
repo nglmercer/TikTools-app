@@ -14,6 +14,17 @@ fn v2_metadata_only(mut value: V2ConflictValue) -> V2ConflictValue {
     value
 }
 
+/// Single source of truth for which collections may expose portable values to
+/// the UI. Used by both the change list and the one-time conflict review: a
+/// collection that is unsafe to list must not become readable through review.
+pub(super) fn v2_review_value(collection: &str, value: V2ConflictValue) -> V2ConflictValue {
+    if VALUE_VISIBLE_COLLECTIONS.contains(&collection) {
+        value
+    } else {
+        v2_metadata_only(value)
+    }
+}
+
 fn settings_map(value: &serde_json::Value) -> Option<&serde_json::Map<String, serde_json::Value>> {
     value.get("settings").and_then(serde_json::Value::as_object)
 }
@@ -45,14 +56,7 @@ fn changed_setting_keys(
 pub(crate) fn v2_change_entry(entry: &cloud_client::WorkspaceEntry) -> V2ChangeEntry {
     use cloud_client::WorkspacePendingStatus;
     let collection = entry.target.collection.as_str();
-    let visible = VALUE_VISIBLE_COLLECTIONS.contains(&collection);
-    let project = |value: V2ConflictValue| {
-        if visible {
-            value
-        } else {
-            v2_metadata_only(value)
-        }
-    };
+    let project = |value: V2ConflictValue| v2_review_value(collection, value);
     V2ChangeEntry {
         collection: entry.target.collection.clone(),
         key: entry.target.key.clone(),

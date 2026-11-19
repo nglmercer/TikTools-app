@@ -187,6 +187,11 @@ pub struct PluginManifest {
     pub targets: Vec<String>,
     /// JSON action descriptors exposed by the plugin, if any.
     pub action_types: Vec<Value>,
+    /// CLI command contributions. Each entry maps a stable command id to an
+    /// action type declared in `action_types`, with the description the CLI
+    /// prints in `plugin commands`. Ownership/invocation stay host-side.
+    #[serde(rename = "cliCommands")]
+    pub cli_commands: Vec<Value>,
     /// JSON event-type descriptors a plugin can publish (hotkeys, timers).
     /// Entries are validated when the host merges its catalog; the raw list
     /// is kept here so discovery never fails on a single bad entry.

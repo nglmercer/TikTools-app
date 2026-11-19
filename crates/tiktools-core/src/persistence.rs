@@ -60,6 +60,7 @@ impl AppCore {
         let mut event_types: std::collections::BTreeMap<String, Value> =
             std::collections::BTreeMap::new();
         let mut plugin_templates = Vec::new();
+        let mut plugin_cli_commands = Vec::new();
         let mut plugin_pages = Vec::new();
         let mut plugin_uis = Vec::new();
         let mut autocomplete = Vec::new();
@@ -149,6 +150,24 @@ impl AppCore {
             // a plugin removes its modal entries and nav tabs on the next
             // snapshot.
             if installed && enabled && plugin.available {
+                // CLI commands are declarative projections of the plugin's own
+                // actions. The host stamps ownership; the CLI resolves
+                // `<pluginId> <commandId>` against this list and invokes the
+                // action through the existing, ownership-checked RPC.
+                for command in &plugin.manifest.cli_commands {
+                    let Some(mut stamped) = command.as_object().cloned() else {
+                        continue;
+                    };
+                    stamped.insert(
+                        "pluginId".to_owned(),
+                        Value::String(plugin.manifest.id.clone()),
+                    );
+                    stamped.insert(
+                        "source".to_owned(),
+                        serde_json::json!({"kind": "plugin", "pluginId": plugin.manifest.id}),
+                    );
+                    plugin_cli_commands.push(Value::Object(stamped));
+                }
                 for template in &plugin.manifest.templates {
                     if tiktools_plugin_api::manifest::validate_plugin_template(template).is_err() {
                         tracing::warn!(plugin = %plugin.manifest.id, "plugin template is invalid; skipped");
@@ -268,6 +287,10 @@ impl AppCore {
         object.insert("eventTypes".to_owned(), Value::Array(event_types));
         object.insert("plugins".to_owned(), Value::Array(plugins));
         object.insert("pluginTemplates".to_owned(), Value::Array(plugin_templates));
+        object.insert(
+            "pluginCliCommands".to_owned(),
+            Value::Array(plugin_cli_commands),
+        );
         object.insert("pluginPages".to_owned(), Value::Array(plugin_pages));
         object.insert("pluginUis".to_owned(), Value::Array(plugin_uis));
         object.insert(

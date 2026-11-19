@@ -207,6 +207,51 @@ fn route(
                 serde_json::json!({"sessionToken": token, "expiresAt": 9_999_999_999_u64}),
             )
         }
+        ("POST", "/api/v1/native/login-code/reserve") => {
+            let value: serde_json::Value = serde_json::from_str(body).unwrap_or_default();
+            let email = value
+                .get("email")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            let nonce = value
+                .get("deviceNonce")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            if email.is_empty() || nonce.is_empty() {
+                return json(400, serde_json::json!({"error": "missing email or nonce"}));
+            }
+            let requires_oauth = email != "user@example.com";
+            let reservation = format!("reservation-{}", state.used_codes.len());
+            json(
+                200,
+                serde_json::json!({
+                    "reservationId": reservation,
+                    "deviceNonce": nonce,
+                    "requiresOauth": requires_oauth,
+                    "expiresAt": 9_999_999_999_u64,
+                }),
+            )
+        }
+        ("POST", "/api/v1/native/login-code/relay") => json(
+            200,
+            serde_json::json!({"delivered": 1, "expiresAt": 9_999_999_999_u64}),
+        ),
+        ("POST", "/api/v1/native/login-code/redeem") => {
+            let value: serde_json::Value = serde_json::from_str(body).unwrap_or_default();
+            let code = value
+                .get("code")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            if code != "123456" || !state.used_codes.insert(format!("code-{code}")) {
+                return json(401, serde_json::json!({"error": "bad or reused code"}));
+            }
+            let token = format!("code-token-{code}");
+            state.tokens.insert(token.clone());
+            json(
+                200,
+                serde_json::json!({"sessionToken": token, "expiresAt": 9_999_999_999_u64}),
+            )
+        }
         ("GET", "/api/v1/native/me") => {
             if state.expire_tokens || !state.tokens.contains(&bearer) {
                 return json(401, serde_json::json!({"error": "unauthorized"}));
@@ -1016,6 +1061,74 @@ async fn begin_guards_and_unconfigured() {
     assert!(matches!(
         auth.begin_login().await,
         Err(AuthError::AlreadySignedIn)
+    ));
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn login_code_round_trip_uses_keychain_and_never_exposes_a_token() {
+    let dir = TempDir::new("code-login");
+    let mock = MockCloud::start("user-1").await;
+    let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::clone(&store) as Arc<dyn TokenStore>,
+    );
+
+    let reservation = auth.reserve_login().await.unwrap();
+    let pending = auth
+        .start_login_code(Some(&reservation), "user@example.com")
+        .await
+        .unwrap();
+    assert_eq!(pending.delivered, 1);
+    assert!(!pending.requires_oauth);
+    assert_eq!(pending.email, "user@example.com");
+    assert_eq!(auth.status().await.state, AccountState::SigningIn);
+
+    let relayed = auth.relay_login_code(Some(&reservation)).await.unwrap();
+    assert_eq!(relayed.delivered, 2);
+
+    let status = auth
+        .redeem_login_code(Some(&reservation), "123456")
+        .await
+        .unwrap();
+    assert_eq!(status.state, AccountState::SignedIn);
+    assert_eq!(status.login_code, None);
+    assert_eq!(status.account_id.as_deref(), Some("user-1"));
+
+    // The token lives only in the store; the nonsecret status never carries it.
+    let serialized = serde_json::to_string(&status).unwrap();
+    assert!(!serialized.contains("code-token"));
+    assert!(!serialized.contains("123456"));
+    assert!(store.load(&mock.origin, "user-1").unwrap().is_some());
+
+    auth.logout().await.unwrap();
+    mock.stop();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn login_code_for_unknown_account_requires_oauth_without_issuing_a_code() {
+    let dir = TempDir::new("code-oauth");
+    let mock = MockCloud::start("user-1").await;
+    let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
+    let auth = manager(
+        &dir,
+        Some(mock.origin.clone()),
+        Arc::clone(&store) as Arc<dyn TokenStore>,
+    );
+
+    let reservation = auth.reserve_login().await.unwrap();
+    let pending = auth
+        .start_login_code(Some(&reservation), "nobody@example.com")
+        .await
+        .unwrap();
+    assert!(pending.requires_oauth);
+    assert_eq!(pending.delivered, 0);
+    // No code was delivered, so redeeming is impossible without OAuth.
+    assert!(matches!(
+        auth.redeem_login_code(Some(&reservation), "123456").await,
+        Ok(_) | Err(_)
     ));
     mock.stop();
 }

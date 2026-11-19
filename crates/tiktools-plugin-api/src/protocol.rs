@@ -10,6 +10,10 @@ pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 pub const METHOD_CALL: &str = "call";
 pub const METHOD_CAPABILITY_REQUEST: &str = "capability.request";
 pub const METHOD_CAPABILITY_RESPONSE: &str = "capability.response";
+/// Plugin → host reverse call. The plugin asks the host to execute one
+/// allowlisted operation on its behalf; the host answers with a
+/// `PluginResponse` carrying the same id. No bearer token crosses the pipe.
+pub const METHOD_HOST_CALL: &str = "host.call";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -41,6 +45,25 @@ pub struct PluginResponse {
     pub result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+/// Payload of a [`METHOD_HOST_CALL`] frame. `method` must be in the host's
+/// capability-gated allowlist; the plugin cannot name arbitrary RPCs.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct HostCallRequest {
+    pub method: String,
+    pub params: Value,
+}
+
+/// Both directions share the same framing. The host sends `Request`, the
+/// plugin answers with `Response`; for reverse calls the plugin sends
+/// `Request` and the host answers with `Response`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum PluginFrame {
+    Request(PluginRequest),
+    Response(PluginResponse),
 }
 
 /// Payload used by process/WASM runtimes when guest code asks the host for a
@@ -114,6 +137,39 @@ mod tests {
         );
         let decoded: PluginRequest = read_frame(&mut bytes.as_slice()).unwrap();
         assert_eq!(decoded, request);
+    }
+
+    #[test]
+    fn reverse_host_call_frames_round_trip_in_both_directions() {
+        let request = PluginRequest::new(
+            "host-1",
+            METHOD_HOST_CALL,
+            serde_json::to_value(HostCallRequest {
+                method: "remote.host.status".to_owned(),
+                params: serde_json::json!({}),
+            })
+            .unwrap(),
+        );
+        let mut bytes = Vec::new();
+        write_frame(&mut bytes, &PluginFrame::Request(request.clone())).unwrap();
+        match read_frame::<_, PluginFrame>(&mut bytes.as_slice()).unwrap() {
+            PluginFrame::Request(decoded) => assert_eq!(decoded, request),
+            other => panic!("expected request frame, got {other:?}"),
+        }
+
+        let response = PluginResponse {
+            protocol_version: crate::TIKTOOLS_PLUGIN_PROTOCOL_VERSION,
+            id: "host-1".to_owned(),
+            ok: true,
+            result: Some(serde_json::json!({"status":"ok"})),
+            error: None,
+        };
+        let mut bytes = Vec::new();
+        write_frame(&mut bytes, &PluginFrame::Response(response.clone())).unwrap();
+        match read_frame::<_, PluginFrame>(&mut bytes.as_slice()).unwrap() {
+            PluginFrame::Response(decoded) => assert_eq!(decoded, response),
+            other => panic!("expected response frame, got {other:?}"),
+        }
     }
 
     #[test]

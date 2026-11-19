@@ -167,6 +167,41 @@ impl AppCore {
             .map_err(auth_error)
     }
 
+    pub async fn cloud_start_login_code(
+        &self,
+        operation: Option<&str>,
+        email: &str,
+    ) -> Result<tiktools_cloud_auth::LoginCodeStatus, OperationError> {
+        self.cloud()
+            .auth()
+            .start_login_code(operation, email)
+            .await
+            .map_err(auth_error)
+    }
+
+    pub async fn cloud_relay_login_code(
+        &self,
+        operation: Option<&str>,
+    ) -> Result<tiktools_cloud_auth::LoginCodeStatus, OperationError> {
+        self.cloud()
+            .auth()
+            .relay_login_code(operation)
+            .await
+            .map_err(auth_error)
+    }
+
+    pub async fn cloud_redeem_login_code(
+        &self,
+        operation: Option<&str>,
+        code: &str,
+    ) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
+        self.cloud()
+            .auth()
+            .redeem_login_code(operation, code)
+            .await
+            .map_err(auth_error)
+    }
+
     pub async fn cloud_begin_login_for(
         &self,
         operation: Option<&str>,

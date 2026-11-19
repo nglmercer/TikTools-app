@@ -18,7 +18,7 @@ pub use contributions::{validate_plugin_page, validate_plugin_template};
 pub use events::{
     declared_event_types, is_valid_event_subscription, is_valid_event_type, validate_event_type,
 };
-pub use fields::{is_safe_relative_path, is_valid_plugin_id};
+pub use fields::{is_safe_relative_path, is_valid_plugin_id, validate_cli_command};
 pub use http_config::validate_http_config;
 pub use native::{
     current_arch, current_napi_target, current_platform, current_target, is_known_napi_target,

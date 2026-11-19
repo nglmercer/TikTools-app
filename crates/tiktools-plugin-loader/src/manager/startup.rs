@@ -194,7 +194,7 @@ impl PluginManager {
                 }
             }
         } else {
-            let instance = match runtime.load(&plugin.manifest, &plugin.directory) {
+            let mut instance = match runtime.load(&plugin.manifest, &plugin.directory) {
                 Ok(instance) => instance,
                 Err(error) => {
                     if matches!(error, PluginLoaderError::StartupUncertain(_)) {
@@ -212,6 +212,9 @@ impl PluginManager {
                     return Err(error);
                 }
             };
+            if let Some(handler) = self.host_call_handler() {
+                instance.set_host_call_handler(handler);
+            }
             let (tx, rx) = mpsc::unbounded_channel();
             let worker_id = id.to_owned();
             let worker = thread::Builder::new()

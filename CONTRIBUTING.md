@@ -43,7 +43,7 @@ its Vite toolchain separate from the application toolchain.
 Choose the appropriate edit loop:
 
 ```sh
-bun run start                 # owned Vite + Wry desktop host
+bun run start                 # owned Vite + Wry desktop host (light build)
 bun run dev                   # headless host + loopback browser adapter + Vite
 bun scripts/task.ts serve     # frontend Vite server only
 ```

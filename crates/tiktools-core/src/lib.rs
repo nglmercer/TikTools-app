@@ -36,7 +36,7 @@ pub mod cloud_publisher;
 pub mod cloud_remote_controller;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_remote_host;
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 pub mod cloud_sync;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_teams;
@@ -259,7 +259,7 @@ pub struct AppCore {
     pub(crate) packages: Result<Arc<plugin_packages::PluginPackages>, String>,
     #[cfg(feature = "cloud-auth")]
     pub(crate) cloud: Arc<cloud_account::CloudAccount>,
-    #[cfg(feature = "cloud-auth")]
+    #[cfg(feature = "cloud-sync")]
     pub(crate) sync: Arc<cloud_sync::CloudSync>,
     #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
     pub(crate) publisher: Arc<cloud_publisher::CloudPublisher>,

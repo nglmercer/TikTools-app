@@ -12,6 +12,7 @@
 
 mod execution;
 mod notifications;
+mod plugin_host_calls;
 mod registration;
 mod remote;
 pub use notifications::{event_notification, gap_notification};

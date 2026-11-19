@@ -11,17 +11,20 @@ name = "tiktools"
 path = "src/main.rs"
 
 [features]
-default = ["cloud-auth", "remote-client"]
+default = ["cloud-auth", "remote-client", "cloud-peer"]
 remote-client = ["tiktools-client/remote-profiles", "tiktools-client/peer", "dep:rpassword", "dep:zeroize", "dep:url"]
 local-web = ["dep:axum", "dep:rand"]
 remote-control = ["dep:tiktools-remote"]
 remote-browser-app = ["remote-control", "tiktools-remote/browser-app"]
+# `cloud-auth` alone stays light: the Cloud peer/controller machinery (peer,
+# rtc, iroh) is a separate opt-in so `bun run dev` does not compile it.
 cloud-auth = [
     "tiktools-remote?/cloud-peer",
     "tiktools-core/cloud-auth",
     "tiktools-control-api/cloud-auth",
-    "tiktools-client/cloud-peer",
+    "tiktools-client/cloud-auth",
 ]
+cloud-peer = ["remote-client", "tiktools-client/cloud-peer"]
 
 [dependencies]
 tiktools-client = { path = "../tiktools-client" }

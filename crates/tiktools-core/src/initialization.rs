@@ -85,7 +85,7 @@ impl AppCore {
             Some(auth) => cloud_account::CloudAccount::with_auth(auth, &events),
             None => cloud_account::CloudAccount::new(&paths, &events),
         });
-        #[cfg(feature = "cloud-auth")]
+        #[cfg(feature = "cloud-sync")]
         let sync = Arc::new(cloud_sync::CloudSync::new(&paths, cloud.auth()));
         #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
         let publisher = Arc::new(cloud_publisher::CloudPublisher::new(&paths));
@@ -273,7 +273,7 @@ impl AppCore {
             packages,
             #[cfg(feature = "cloud-auth")]
             cloud,
-            #[cfg(feature = "cloud-auth")]
+            #[cfg(feature = "cloud-sync")]
             sync,
             #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
             publisher,

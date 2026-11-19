@@ -241,6 +241,9 @@ pub struct PluginManager {
     /// Workers explicitly abandoned past a deadline (outcome unknown).
     abandoned_workers: AtomicU64,
     isolated_admission: Arc<tokio::sync::Semaphore>,
+    /// Host-provided sink for plugin → host reverse calls (capability-gated
+    /// by the host, never by plugin-supplied declarations).
+    host_call_handler: Mutex<Option<Arc<dyn crate::HostCallHandler>>>,
 }
 
 /// Push-bus buffer: burst headroom for guest-emitted events while core
@@ -274,7 +277,24 @@ impl PluginManager {
             stopping: Mutex::new(BTreeMap::new()),
             abandoned_workers: AtomicU64::new(0),
             isolated_admission: Arc::new(tokio::sync::Semaphore::new(16)),
+            host_call_handler: Mutex::new(None),
         }
+    }
+
+    /// Install the host-call sink. Called once at host startup before any
+    /// plugin is started; the handler is cloned into each new instance.
+    pub fn set_host_call_handler(&self, handler: Arc<dyn crate::HostCallHandler>) {
+        *self
+            .host_call_handler
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = Some(handler);
+    }
+
+    fn host_call_handler(&self) -> Option<Arc<dyn crate::HostCallHandler>> {
+        self.host_call_handler
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clone()
     }
 
     /// Lifecycle join bounds in force.

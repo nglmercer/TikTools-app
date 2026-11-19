@@ -50,15 +50,15 @@ mod cloud_account;
 mod cloud_library;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 mod cloud_publisher;
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 pub(crate) mod cloud_sync;
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 pub(crate) mod cloud_variable_review;
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 mod cloud_variables;
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 pub use cloud_variable_review::{VariableSyncApply, VariableSyncChange, VariableSyncReview};
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 mod cloud_workspace;
 mod commands;
 mod competitions;
@@ -131,17 +131,17 @@ pub use cloud_library::{
     CloudLibraryDocument, CloudLibraryDocumentMeta, CloudLibraryKind, CloudLibraryPage,
     CloudLibraryQuery, CloudLibraryRead, CloudLibraryScope, CloudLibraryStatus,
 };
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 pub use cloud_sync::{
     SyncNowResult, SyncRecoveryChoice, SyncRecoveryOutcome, SyncRecoveryReview, SyncRecoveryValue,
     SyncSection, V2ChangeEntry, V2ConflictChoice, V2ConflictOutcome, V2ConflictReview,
     V2ConflictTarget, V2ConflictValue, V2PendingChange, WorkspaceV2SyncResult,
 };
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 pub use cloud_variables::{
     SyncV2StageVariablesParams, SyncV2StageVariablesResult, VariableInput, VariableKind,
 };
-#[cfg(feature = "cloud-auth")]
+#[cfg(feature = "cloud-sync")]
 pub use cloud_workspace::{
     WorkspaceInventoryRepairParams, WorkspaceInventoryReview, WorkspaceV2Discovery,
     WorkspaceV2DiscoveryState, WorkspaceV2Migration, WorkspaceV2Preview,

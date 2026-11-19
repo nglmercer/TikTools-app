@@ -10,6 +10,7 @@ mod context;
 mod decode;
 mod enrich;
 mod error;
+mod host_call;
 #[cfg(feature = "http-client")]
 pub mod http;
 pub mod native;
@@ -31,6 +32,7 @@ pub use decode::{
 };
 pub use enrich::{EventEnrichmentRequest, EventEnrichmentResult, TextPronunciation, TextView};
 pub use error::{PluginError, PluginProtocolError, PluginResult};
+pub use host_call::host_remote_execute;
 pub use plugin::{dispatch_plugin_call, Plugin};
 pub use process::{data_dir, storage_file};
 pub use process::{run_process_plugin, run_process_plugin_with};

@@ -1403,3 +1403,43 @@ fn token_discovery_rejects_traversal_and_invalid_endpoint_mapping() {
     doc["http"]["tokenImport"]["connection"]["portKey"] = serde_json::json!("");
     assert!(PluginManifest::from_value(doc).is_err());
 }
+
+#[test]
+fn cli_commands_must_reference_a_declared_action() {
+    // A command pointing at an action the manifest does not declare is refused:
+    // the host invokes actions from its catalog, so a dangling reference would
+    // be a command that can never work.
+    let json = r#"{
+        "schemaVersion":2,"id":"demo","name":"Demo","version":"1.0.0",
+        "runtime":"process","entry":"demo",
+        "actionTypes":[{"id":"demo.ping"}],
+        "cliCommands":[{"id":"ping","actionType":"demo.ping","description":"Ping"}]
+    }"#;
+    let manifest = PluginManifest::from_json_str(json).unwrap();
+    assert_eq!(manifest.cli_commands.len(), 1);
+    assert_eq!(manifest.cli_commands[0]["id"], "ping");
+
+    let dangling = json.replace(
+        "\"demo.ping\",\"description\"",
+        "\"demo.missing\",\"description\"",
+    );
+    assert!(PluginManifest::from_json_str(&dangling).is_err());
+}
+
+#[test]
+fn cli_command_shape_is_validated() {
+    let base = |command: &str| {
+        format!(
+            r#"{{"schemaVersion":2,"id":"demo","name":"Demo","version":"1.0.0",
+            "runtime":"process","entry":"demo","actionTypes":[{{"id":"demo.ping"}}],
+            "cliCommands":[{command}]}}"#
+        )
+    };
+    assert!(PluginManifest::from_json_str(&base(
+        r#"{"id":"Ping Bad","actionType":"demo.ping","description":"x"}"#
+    ))
+    .is_err());
+    assert!(
+        PluginManifest::from_json_str(&base(r#"{"id":"ping","actionType":"demo.ping"}"#)).is_err()
+    );
+}

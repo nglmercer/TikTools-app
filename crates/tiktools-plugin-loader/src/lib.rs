@@ -8,6 +8,7 @@
 mod artifact;
 mod declarative;
 mod discovery;
+mod host_call_channel;
 mod isolated;
 mod manager;
 mod native;
@@ -33,7 +34,7 @@ pub use quickjs::{
     native_addons_allowed, QuickJsPluginRuntime, QuickJsPluginRuntime as NapiVmPluginRuntime,
 };
 pub use types::{
-    DiscoveredPlugin, EmittedEvent, ManagedWorker, PluginEventSender, PluginInstance,
-    PluginLoaderError, PluginRoot, PluginRuntime, PluginSource, WorkerContext,
+    DiscoveredPlugin, EmittedEvent, HostCallHandler, ManagedWorker, PluginEventSender,
+    PluginInstance, PluginLoaderError, PluginRoot, PluginRuntime, PluginSource, WorkerContext,
 };
 pub use wasm::WasmPluginRuntime;

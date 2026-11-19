@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
 import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
@@ -26,6 +26,9 @@ const handle = computed(() => {
   return email && email !== name.value ? email : null;
 });
 const error = computed(() => friendlyAccountError(account.error, t));
+const showCodeLogin = ref(false);
+const codeEmail = ref('');
+const codeValue = ref('');
 
 onMounted(() => {
   void account.ensureRestored();
@@ -80,6 +83,51 @@ onMounted(() => {
           :label="error"
           source="account"
         />
+        <template v-if="account.loginCode && !account.loginCode.requiresOauth">
+          <p class="cloud-account__muted">
+            Code sent to {{ account.loginCode.delivered }} connected device(s).
+            Enter the 6-digit code shown on the other device.
+          </p>
+          <div class="cloud-account__actions">
+            <input
+              v-model="codeValue"
+              class="cloud-account__code"
+              inputmode="numeric"
+              maxlength="6"
+              placeholder="000000"
+              autocomplete="one-time-code"
+              @keyup.enter="account.submitLoginCode(codeValue)"
+            >
+            <BaseButton
+              variant="primary"
+              :disabled="account.working || !/^\d{6}$/.test(codeValue)"
+              @click="account.submitLoginCode(codeValue)"
+            >
+              Sign in
+            </BaseButton>
+            <BaseButton :disabled="account.working" @click="account.resendLoginCode()">
+              Resend
+            </BaseButton>
+          </div>
+        </template>
+        <template v-else-if="showCodeLogin && state !== 'signing-in' && !account.loginActive">
+          <div class="cloud-account__actions">
+            <input
+              v-model="codeEmail"
+              class="cloud-account__code"
+              type="email"
+              placeholder="you@example.com"
+              @keyup.enter="account.startLoginCode(codeEmail)"
+            >
+            <BaseButton
+              variant="primary"
+              :disabled="account.working || !codeEmail.includes('@')"
+              @click="account.startLoginCode(codeEmail)"
+            >
+              Send code
+            </BaseButton>
+          </div>
+        </template>
         <template v-if="state === 'signing-in' || account.loginActive">
           <p class="cloud-account__muted">
             {{ t('account.waiting') }}
@@ -93,17 +141,24 @@ onMounted(() => {
           </p>
         </template>
         <div class="cloud-account__actions">
-          <BaseButton
-            v-if="state !== 'signing-in' && !account.loginActive"
-            variant="primary"
-            :disabled="account.working"
-            @click="account.startLogin()"
-          >
-            {{ t('account.signIn') }}
-          </BaseButton>
+          <template v-if="state !== 'signing-in' && !account.loginActive && !account.loginCode">
+            <BaseButton
+              variant="primary"
+              :disabled="account.working"
+              @click="account.startLogin()"
+            >
+              {{ t('account.signIn') }}
+            </BaseButton>
+            <BaseButton
+              :disabled="account.working"
+              @click="showCodeLogin = !showCodeLogin"
+            >
+              {{ showCodeLogin ? 'Cancel' : 'Sign in with code' }}
+            </BaseButton>
+          </template>
           <BaseButton
             v-else
-            @click="account.cancelLogin()"
+            @click="account.cancelLogin(); showCodeLogin = false; account.loginCode = null"
           >
             {{ t('account.cancel') }}
           </BaseButton>
@@ -136,5 +191,18 @@ onMounted(() => {
 .cloud-account__actions {
   display: flex;
   gap: var(--space-3);
+  align-items: center;
+}
+
+.cloud-account__code {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.1em;
 }
 </style>

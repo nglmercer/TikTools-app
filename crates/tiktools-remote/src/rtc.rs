@@ -23,7 +23,6 @@ pub struct RtcGateway {
     source: CloudPeerSource,
     device: String,
     endpoint: String,
-    revision: String,
 }
 impl RtcGateway {
     /// Native supervisor entry point. Source/device come from the enrolled
@@ -70,7 +69,6 @@ impl RtcGateway {
             source,
             device,
             endpoint,
-            revision,
         })
     }
     pub fn endpoint_id(&self) -> &str {

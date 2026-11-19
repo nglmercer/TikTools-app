@@ -30,6 +30,12 @@ mod auth_tests;
 
 #[cfg(feature = "account")]
 pub use account::*;
+#[cfg(feature = "account")]
+pub use state::LoginCodeStatus;
+#[cfg(feature = "account")]
+pub(crate) fn url_from_origin(origin: &str) -> Result<url::Url, crate::AuthError> {
+    url::Url::parse(origin).map_err(|_| crate::AuthError::Unconfigured)
+}
 pub use origin::{
     normalize_cloud_origin, resolve_cloud_origin, DEFAULT_CLOUD_ORIGIN, ENV_CLOUD_ORIGIN,
 };

@@ -35,15 +35,34 @@ impl DesktopApp {
         emitter: Arc<crate::event::EventLoopEmitter>,
     ) -> Self {
         let control = Arc::new(ControlApi::new(core.clone()));
+        // Give plugins a capability-gated path back into the host. This is
+        // what lets a user replace remote control with their own plugin: the
+        // plugin owns its listener, the host keeps authorization and tokens.
+        control.install_plugin_host_calls(runtime.clone());
         // Winit constructs this host outside an entered Tokio context.
         // Durable metadata delivery still belongs to the host lifecycle.
         core.start_coordination_worker_on(&runtime);
         #[cfg(feature = "cloud-auth")]
         core.start_cloud_sync_worker_on(&runtime);
-        #[cfg(feature = "remote-control")]
+        // Remote control is owned exclusively by the installable
+        // `tiktools.remote-control` plugin. It starts itself via the
+        // events.subscribe auto-start path and executes host operations
+        // through the capability-gated `host.call` channel installed above.
+        // No compile-time gateway or native adapter runs here.
+        #[cfg(any(feature = "remote-control-plugin", feature = "remote-control"))]
         {
-            core.set_collaboration_gateway_available(true);
-            runtime.spawn(tiktools_remote::supervise(Arc::clone(&control)));
+            // Explicit legacy rollback only: neither feature is a default.
+            #[cfg(feature = "remote-control-plugin")]
+            {
+                let control_for_remote = Arc::clone(&control);
+                let plugin = tiktools_remote_plugin::RemoteControlPlugin::new();
+                runtime.spawn(async move { plugin.supervise(control_for_remote).await });
+            }
+            #[cfg(all(feature = "remote-control", not(feature = "remote-control-plugin")))]
+            {
+                core.set_collaboration_gateway_available(true);
+                runtime.spawn(tiktools_remote::supervise(Arc::clone(&control)));
+            }
         }
         let domain_mailbox = emitter.mailbox.clone();
         // Persistent local IPC shares the desktop's one AppCore: the CLI

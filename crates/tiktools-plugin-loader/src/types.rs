@@ -1,7 +1,20 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
+use serde_json::Value;
 use thiserror::Error;
 use tiktools_plugin_api::{manifest::ManifestError, PluginManifest, PluginRuntimeKind};
+
+/// Host-side implementation of the plugin → host reverse call channel.
+///
+/// The host validates the plugin's declared capability against its own catalog
+/// and applies its own policy. Implementations must never forward tokens or
+/// host handles to the plugin; only the operation result crosses back.
+pub trait HostCallHandler: Send + Sync {
+    fn call(&self, plugin_id: &str, method: &str, params: Value) -> Result<Value, String>;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PluginSource {
@@ -51,6 +64,9 @@ pub enum PluginLoaderError {
 pub trait PluginInstance: Send {
     fn id(&self) -> &str;
     fn handle_message(&mut self, request: &[u8]) -> Result<Vec<u8>, PluginLoaderError>;
+    /// Install the host-call sink. Default no-op for runtimes that do not
+    /// expose a reverse channel (native ABI, WASM, QuickJS).
+    fn set_host_call_handler(&mut self, _handler: Arc<dyn HostCallHandler>) {}
     fn handle_message_with_timeout(
         &mut self,
         request: &[u8],

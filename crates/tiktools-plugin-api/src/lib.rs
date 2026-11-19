@@ -36,9 +36,9 @@ pub use media::{
     CAPABILITY_AUDIO_PLAY, CAPABILITY_MEDIA_PICK, CAPABILITY_MEDIA_READ, MEDIA_REFERENCE_VERSION,
 };
 pub use protocol::{
-    read_frame, write_frame, CapabilityRequest, CapabilityResponse, FrameError, PluginRequest,
-    PluginResponse, MAX_FRAME_BYTES, METHOD_CALL, METHOD_CAPABILITY_REQUEST,
-    METHOD_CAPABILITY_RESPONSE,
+    read_frame, write_frame, CapabilityRequest, CapabilityResponse, FrameError, HostCallRequest,
+    PluginFrame, PluginRequest, PluginResponse, MAX_FRAME_BYTES, METHOD_CALL,
+    METHOD_CAPABILITY_REQUEST, METHOD_CAPABILITY_RESPONSE, METHOD_HOST_CALL,
 };
 pub use text::{
     compose_text, resolve_comment_tts, resolve_nickname_tts, resolve_text, strip_emoji,

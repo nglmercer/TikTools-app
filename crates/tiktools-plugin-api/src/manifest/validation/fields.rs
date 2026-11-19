@@ -64,3 +64,61 @@ pub fn is_safe_relative_path(value: &str) -> bool {
         && normalized != "."
         && parts.iter().all(|part| !part.is_empty() && *part != "..")
 }
+
+/// Validate one `cliCommands` entry. The command must reference an action type
+/// declared by the same manifest: invocation stays host-owned and ownership is
+/// always checked against the host catalog.
+pub fn validate_cli_command(
+    value: &Value,
+    action_types: &[Value],
+) -> Result<(), super::ManifestError> {
+    let object = value
+        .as_object()
+        .ok_or(super::ManifestError::InvalidField("cliCommands"))?;
+    let id = object
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or(super::ManifestError::InvalidField("cliCommands"))?;
+    let valid_id = !id.is_empty()
+        && id.len() <= 64
+        && id.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
+        });
+    if !valid_id {
+        return Err(super::ManifestError::InvalidField("cliCommands"));
+    }
+    let action_type = object
+        .get("actionType")
+        .and_then(Value::as_str)
+        .ok_or(super::ManifestError::InvalidField("cliCommands"))?;
+    if action_type.is_empty()
+        || action_type.len() > 128
+        || !action_types.iter().any(|declared| {
+            declared
+                .as_object()
+                .and_then(|object| object.get("id"))
+                .and_then(Value::as_str)
+                == Some(action_type)
+        })
+    {
+        return Err(super::ManifestError::InvalidField("cliCommands"));
+    }
+    let description = object
+        .get("description")
+        .and_then(Value::as_str)
+        .ok_or(super::ManifestError::InvalidField("cliCommands"))?;
+    if description.is_empty() || description.len() > 256 {
+        return Err(super::ManifestError::InvalidField("cliCommands"));
+    }
+    if let Some(alias) = object.get("alias").and_then(Value::as_str) {
+        if alias.is_empty()
+            || alias.len() > 64
+            || alias
+                .bytes()
+                .any(|byte| !(byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-'))
+        {
+            return Err(super::ManifestError::InvalidField("cliCommands"));
+        }
+    }
+    Ok(())
+}

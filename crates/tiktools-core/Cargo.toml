@@ -34,10 +34,12 @@ cloud-auth = [
     "tiktools-cloud-auth/account",
     "tiktools-cloud-auth/system-browser",
     "tiktools-cloud-auth/os-keychain",
-    "dep:tiktools-cloud-sync",
     "dep:cloud-client",
     "dep:uuid",
 ]
+# The sync engine is a separate opt-in. Enabling `cloud-auth` alone must not
+# link `tiktools-cloud-sync` into a host that only needs sign-in.
+cloud-sync = ["cloud-auth", "dep:tiktools-cloud-sync"]
 persistence = ["dep:rusqlite"]
 http = ["dep:reqwest", "dep:tokio-tungstenite", "tiktools-plugin-sdk/http-client"]
 tiktok-network = ["dep:tokio-tungstenite"]

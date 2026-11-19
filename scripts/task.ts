@@ -4,6 +4,7 @@ import { assertWidgetBundle } from './lib/gateway-widgets.ts';
 import { ProcessCancelled, createProcessRunner, exitCodeForSignal, forwardTerminationSignals } from './lib/process-runner.ts';
 import { fastSuiteCommands, runTargetedTests, verifyRustFilter } from './lib/test-runner.ts';
 import { runSiteTask } from './lib/site-tasks.ts';
+import { getTask, listTasks, registerPluginTasks } from './lib/task-registry.ts';
 
 const root = join(import.meta.dir, '..');
 const bun = process.execPath;
@@ -19,7 +20,7 @@ const USAGE =
   '`test web [filter] [--watch|--changed]`, `test bun <area> [filter]`,\n' +
   '`test plugin <name> [filter]`, `test e2e [filter]`, `test --changed`.\n' +
   'Internal steps used by CI and guides: frontend-lint, frontend-test, frontend-build,\n' +
-  'rust-lint, rust <cargo args>, widgets, plugins <args>, e2e [args], package,\n' +
+  'rust-lint, rust <cargo args>, widgets, plugins <args>, tasks, plugin:<id>:<command>, e2e [args], package,\n' +
   'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins.\n' +
   'Site tasks: docs dev|check|build|test|preview, demo dev|build, site build|preview.';
 
@@ -212,6 +213,12 @@ try {
     case 'plugins':
       await script('build-plugin.ts', ...args);
       break;
+    case 'remote-plugin':
+      // Deprecated: remote control is an installable plugin now. Its commands
+      // come from the manifest via `plugin:<id>:<command>` tasks below.
+      console.error('`remote-plugin` is deprecated; use `bun scripts/task.ts plugin:remote-control:test` or `plugins --plugin remote-control`.');
+      process.exitCode = 2;
+      break;
     case 'e2e':
       await tool('playwright', ...args.length ? args : ['test']);
       break;
@@ -236,9 +243,22 @@ try {
       needNoArgs('prepare-plugins', args);
       await script('prepare-dev-plugins.ts');
       break;
-    default:
+    default: {
+      // Plugin-contributed tasks are registered from installed manifests and
+      // never require editing this file (e.g. `plugin:remote-control:test`).
+      registerPluginTasks();
+      if (command === 'tasks') {
+        for (const task of listTasks()) console.log(`${task.id}\t${task.description}`);
+        break;
+      }
+      const contributed = getTask(command);
+      if (contributed) {
+        await contributed.run(args);
+        break;
+      }
       console.error(command ? `Unknown command: ${command}\n${USAGE}` : USAGE);
       process.exitCode = 2;
+    }
   }
 } catch (error) {
   if (error instanceof ProcessCancelled) {

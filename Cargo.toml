@@ -24,6 +24,7 @@ members = [
     "crates/tiktools-cloud-sync",
     "crates/tiktools-collaboration",
     "crates/tiktools-remote",
+    "crates/tiktools-remote-plugin",
     "crates/tiktools-tiktok",
 ]
 exclude = [

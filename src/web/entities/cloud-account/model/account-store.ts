@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import type { AccountStatus, CloudLoginUrlResult } from '../api/account-types.ts';
+import type { AccountStatus, CloudLoginUrlResult, LoginCodeStatus } from '../api/account-types.ts';
 
 export const useAccountStore = defineStore('cloud-account', () => {
   const client = useControlClient();
@@ -12,6 +12,7 @@ export const useAccountStore = defineStore('cloud-account', () => {
   const loading = ref(false);
   const working = ref(false);
   const loginUrl = ref<string | null>(null);
+  const loginCode = ref<LoginCodeStatus | null>(null);
   const error = ref<string | null>(null);
   const loginActive = ref(false);
   // A late status/login/restore reply must never replace a newer account
@@ -22,6 +23,7 @@ export const useAccountStore = defineStore('cloud-account', () => {
   let loginOperationId: string | null = null;
   let cancelling: Promise<void> | null = null;
   let cancelRequested = false;
+  let codeSubmitter: (() => void) | null = null;
   let restored = false;
   const current = (ticket: number) => ticket === generation;
 
@@ -50,6 +52,7 @@ export const useAccountStore = defineStore('cloud-account', () => {
         if (!current(ticket)) return;
         status.value = next;
         if (next.state !== 'signing-in') loginUrl.value = null;
+        loginCode.value = next.loginCode ?? null;
         error.value = next.error ?? null;
       } catch (failure) {
         if (current(ticket)) error.value = errorMessage(failure);
@@ -182,6 +185,90 @@ export const useAccountStore = defineStore('cloud-account', () => {
     }
   }
 
+  async function startLoginCode(email: string): Promise<void> {
+    if (working.value || loginActive.value || status.value?.state === 'signed-in') return;
+    working.value = true;
+    loginActive.value = true;
+    error.value = null;
+    const ticket = ++generation;
+    let operationId: string | null = null;
+    try {
+      if (reading && current(reading.ticket)) await reading.promise;
+      if (!current(ticket)) return;
+      const reservation = await client.call<{ operationId: string }>('cloud.login.reserve', {});
+      if (!current(ticket)) return;
+      if (typeof reservation.operationId !== 'string' || !/^[0-9a-f]{32}$/.test(reservation.operationId)) {
+        throw new Error('Invalid login reservation');
+      }
+      operationId = reservation.operationId;
+      loginOperationId = operationId;
+      const params = { operationId };
+      const result = await client.call<LoginCodeStatus>('cloud.login.code.send', { ...params, email });
+      if (!current(ticket)) return;
+      loginCode.value = result;
+      if (result.requiresOauth) {
+        // No account: fall back to the browser/OAuth handoff.
+        const begun = await client.call<CloudLoginUrlResult>('cloud.login.begin', params);
+        if (!current(ticket)) return;
+        loginUrl.value = begun.browserUrl;
+        try { await client.call('cloud.login.open', params); } catch { /* manual open remains */ }
+        return;
+      }
+      if (result.delivered === 0) {
+        throw new Error('No connected devices: remote control needs at least one other device');
+      }
+      // Wait for the user to enter the code in the UI; submitLoginCode resolves it.
+      await new Promise<void>((resolve) => { codeSubmitter = resolve; });
+    } catch (failure) {
+      if (!current(ticket)) return;
+      error.value = errorMessage(failure);
+      if (operationId) {
+        try { await client.call<AccountStatus>('cloud.login.cancel', { operationId }); } catch { /* keep Cancel */ }
+      }
+      loginCode.value = null;
+    } finally {
+      if (current(ticket)) {
+        codeSubmitter = null;
+        if (loginActive.value) { working.value = false; }
+      }
+    }
+  }
+
+  async function resendLoginCode(): Promise<void> {
+    if (!loginOperationId || !working.value) return;
+    try {
+      const result = await client.call<LoginCodeStatus>('cloud.login.code.resend', { operationId: loginOperationId });
+      if (current(generation)) { loginCode.value = result; error.value = null; }
+    } catch (failure) {
+      if (current(generation)) error.value = errorMessage(failure);
+    }
+  }
+
+  async function submitLoginCode(code: string): Promise<void> {
+    if (!loginOperationId || !/^\d{6}$/.test(code)) {
+      error.value = 'Enter the 6-digit code';
+      return;
+    }
+    working.value = true;
+    error.value = null;
+    const ticket = generation;
+    try {
+      const next = await client.call<AccountStatus>('cloud.login.code.submit', { operationId: loginOperationId, code });
+      if (!current(ticket)) return;
+      status.value = next;
+      loginCode.value = null;
+      loginUrl.value = null;
+      loginOperationId = null;
+      loginActive.value = false;
+      codeSubmitter?.();
+      error.value = next.error ?? null;
+    } catch (failure) {
+      if (current(ticket)) error.value = errorMessage(failure);
+    } finally {
+      if (current(ticket)) working.value = false;
+    }
+  }
+
   function cancelLogin(): Promise<void> {
     if (cancelling) return cancelling;
     const reservation = loginReservation;
@@ -267,5 +354,9 @@ export const useAccountStore = defineStore('cloud-account', () => {
     }
   }
 
-  return { status, loading, working, loginActive, loginUrl, error, refresh, restore, ensureRestored, startLogin, cancelLogin, logout };
+  return {
+    status, loading, working, loginActive, loginUrl, loginCode, error,
+    refresh, restore, ensureRestored, startLogin, startLoginCode, resendLoginCode,
+    submitLoginCode, cancelLogin, logout,
+  };
 });
