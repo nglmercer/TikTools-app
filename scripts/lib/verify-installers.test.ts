@@ -2,7 +2,7 @@ import { readFile, chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { verifyAppImageWebKit, verifyDebDependencies, verifyInstaller, verifyLinuxDesktop } from './verify-installers.ts';
+import { verifyAppImageAppRun, verifyAppImageWebKit, verifyDebDependencies, verifyInstaller, verifyLinuxDesktop } from './verify-installers.ts';
 
 test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle without bundled plugins and rejects changed web assets', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tiktools-deb-bundle-'));
@@ -64,6 +64,18 @@ describe('Linux installer metadata', () => {
       await expect(verifyLinuxDesktop(root)).resolves.toBeUndefined();
       await writeFile(desktop, '[Desktop Entry]\nType=Application\nExec=other\nIcon=tiktools-desktop\n');
       await expect(verifyLinuxDesktop(root)).rejects.toThrow();
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+  test('requires a world-executable AppRun in the AppImage', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tiktools-appimage-apprun-'));
+    const appRun = join(root, 'AppRun');
+    try {
+      await writeFile(appRun, '#!/bin/sh\n');
+      await expect(verifyAppImageAppRun(root)).rejects.toThrow('world-executable');
+      await chmod(appRun, 0o744);
+      await expect(verifyAppImageAppRun(root)).rejects.toThrow('world-executable');
+      await chmod(appRun, 0o755);
+      await expect(verifyAppImageAppRun(root)).resolves.toBeUndefined();
     } finally { await rm(root, { recursive: true, force: true }); }
   });
   test('requires AppDir-relative WebKit helpers in the AppImage', async () => {

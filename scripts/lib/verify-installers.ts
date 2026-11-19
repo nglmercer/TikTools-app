@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
 async function run(args: string[], cwd: string, timeoutMs = 600_000): Promise<string> {
-  const child = Bun.spawn(args, { cwd, stdout: 'pipe', stderr: 'pipe' });
+  // readelf localizes "Build ID:" (e.g. "ID de Compilación:" in Spanish), so
+  // force the C locale for the build-ID comparison in matchesPatchedElf.
+  const child = Bun.spawn(args, { cwd, env: { ...process.env, LC_ALL: 'C' }, stdout: 'pipe', stderr: 'pipe' });
   const timer = setTimeout(() => child.kill(), timeoutMs);
   const [output, errors, code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]).finally(() => clearTimeout(timer));
   if (code !== 0) throw new Error(`${basename(args[0] as string)} failed: ${errors.slice(-2000)}`);
@@ -148,6 +150,18 @@ export async function verifyAppImageXkb(appDir: string): Promise<void> {
   }
 }
 
+/**
+ * AppRun must be executable by everyone, not just the packager's UID. The
+ * AppImage catalog's appdir-lint rejects an AppRun that is not world-executable,
+ * and sandboxes (e.g. firejail) run AppImages as a different, unprivileged user.
+ */
+export async function verifyAppImageAppRun(appDir: string): Promise<void> {
+  const stat = await lstat(join(appDir, 'AppRun'));
+  if (!stat.isFile() || (stat.mode & 0o111) !== 0o111) {
+    throw new Error(`AppImage AppRun must be a world-executable file (got ${stat.isFile() ? (stat.mode & 0o777).toString(8) : 'non-file'})`);
+  }
+}
+
 /** Check Debian-family runtime names without assuming other distributions use them. */
 export function verifyDebDependencies(dependencies: string): void {
   for (const name of ['libgtk-3-0', 'libwebkit2gtk-4.1-0']) {
@@ -176,6 +190,7 @@ export async function verifyInstaller(staging: string, installer: string, format
     } else if (format === 'appimage') {
       await run([installer, '--appimage-extract'], temp);
       await verifyLinuxDesktop(join(temp, 'squashfs-root'));
+      await verifyAppImageAppRun(join(temp, 'squashfs-root'));
       await verifyAppImageWebKit(join(temp, 'squashfs-root'));
       await verifyAppImageXkb(join(temp, 'squashfs-root'));
       const root = join(temp, 'squashfs-root', 'usr');

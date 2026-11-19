@@ -35,6 +35,14 @@ fi
 APPDIR="$(realpath "$APPDIR")"
 export LC_ALL=C
 
+# cargo-packager copies AppRun from its tool cache with mode 0764 (and
+# appimagetool can narrow it further). The AppImage catalog's appdir-lint
+# requires AppRun to be executable by *other* users, and sandboxes such as
+# firejail run the AppImage under a different UID than the packager, so a
+# group/owner-only AppRun yields "Permission denied" and the app never starts.
+# Make it world-executable in the AppDir before the SquashFS is created.
+chmod 0755 "$APPDIR/AppRun"
+
 libdir="$(pkg-config --variable=libdir webkit2gtk-4.1)"
 helper_dir="$libdir/webkit2gtk-4.1"
 case "$helper_dir" in
