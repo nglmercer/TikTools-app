@@ -44,7 +44,6 @@ const menus = computed<MenuBarMenu[]>(() => [
       { id: 'connect', label: t('connection.connect'), disabled: props.status === 'connected' || isConnectionBusy(props.status) },
       { id: 'reconnect', label: t('connection.reconnect'), disabled: props.status === 'idle' || isConnectionBusy(props.status) },
       { id: 'disconnect', label: t('connection.disconnect'), disabled: props.status !== 'connected' && !isConnectionBusy(props.status) },
-      ...(window.ipc && window.__tiktools_remote_client_available__ ? [{ id: 'remote-controller', label: t('menu.remoteController') }] : []),
       { type: 'separator', id: 'file-separator' },
       { id: 'navigate:settings', label: t('navigation.settings'), icon: markRaw(IconGear) },
     ],
@@ -76,7 +75,6 @@ function onSelect(action: MenuAction): void {
   if (kind === 'connect') emit('connect');
   else if (kind === 'reconnect') emit('reconnect');
   else if (kind === 'disconnect') emit('disconnect');
-  else if (kind === 'remote-controller') window.ipc?.postMessage(JSON.stringify({ type: 'open-controller' }));
   else if (kind === 'navigate' && value) emit('navigate', value);
   else if (kind === 'locale' && value && supportedLocales.includes(value as Locale)) emit('change-locale', value as Locale);
 }

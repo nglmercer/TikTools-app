@@ -6,8 +6,6 @@
 mod app;
 #[cfg(target_os = "linux")]
 mod bundled_media;
-#[cfg(feature = "remote-client")]
-mod controller;
 mod event;
 mod icon;
 mod logging;
@@ -21,13 +19,10 @@ mod webview;
 mod window;
 
 fn main() {
-    let mode = match startup::Mode::parse(std::env::args().skip(1)) {
-        Ok(mode) => mode,
-        Err(error) => {
-            eprintln!("{error}");
-            std::process::exit(2);
-        }
-    };
+    if let Err(error) = startup::Mode::parse(std::env::args().skip(1)) {
+        eprintln!("{error}");
+        std::process::exit(2);
+    }
     // Handle this before logging, the single-instance lock, or GUI initialization.
     // Release CI runs the actual binary and compares this value to its tag.
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--version")) {
@@ -55,16 +50,7 @@ fn main() {
         let _ = rustls::crypto::ring::default_provider().install_default();
     }
 
-    #[cfg(not(feature = "remote-client"))]
-    if matches!(mode, startup::Mode::Controller(_)) {
-        eprintln!("remote controller support is unavailable in this build");
-        std::process::exit(2);
-    }
-    let log_path = match if matches!(mode, startup::Mode::Controller(_)) {
-        logging::init_controller()
-    } else {
-        logging::init()
-    } {
+    let log_path = match logging::init() {
         Ok(path) => path,
         Err(error) => {
             let log_path = tiktools_core::paths::AppPaths::from_environment()
@@ -78,13 +64,7 @@ fn main() {
         }
     };
 
-    let result = match mode {
-        startup::Mode::Local => app::run(log_path.clone()),
-        #[cfg(feature = "remote-client")]
-        startup::Mode::Controller(profile) => controller::run(profile, log_path.clone()),
-        #[cfg(not(feature = "remote-client"))]
-        startup::Mode::Controller(_) => unreachable!(),
-    };
+    let result = app::run(log_path.clone());
     if let Err(error) = result {
         tracing::error!(%error, "TikTools Rust host terminated during startup");
         show_startup_failure(&error.to_string(), &log_path);

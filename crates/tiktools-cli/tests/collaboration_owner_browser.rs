@@ -1,8 +1,6 @@
 //! Opt-in actual UI → local browser adapter → IPC owner → TLS controllers.
 #![cfg(all(
     target_os = "linux",
-    feature = "remote-control",
-    feature = "remote-client",
     feature = "local-web"
 ))]
 use serde_json::{json, Value};

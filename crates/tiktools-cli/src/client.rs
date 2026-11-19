@@ -33,29 +33,13 @@ pub async fn resolve_selected(
     standalone: bool,
     profile: Option<&str>,
 ) -> Result<TikToolsClient, ClientError> {
-    if let Some(profile) = profile {
-        if standalone {
-            return Err(ClientError::new(
-                "invalid_params",
-                "remote profiles cannot use standalone mode",
-            ));
-        }
-        #[cfg(feature = "remote-client")]
-        {
-            return tiktools_client::remote::profiles::ProfileManager::system()?
-                .open(profile)
-                .await
-                .map(TikToolsClient::Remote);
-        }
-        #[cfg(not(feature = "remote-client"))]
-        {
-            let _ = profile;
-            return Err(ClientError::new(
-                "unsupported_remote",
-                "remote client support is unavailable in this build",
-            ));
-        }
+    if profile.is_some() {
+        return Err(ClientError::new(
+            "unsupported_remote",
+            "remote control is provided by the installable tiktools.remote-control plugin",
+        ));
     }
+
     resolve_client(standalone).await
 }
 

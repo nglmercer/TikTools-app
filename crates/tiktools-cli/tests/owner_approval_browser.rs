@@ -1,8 +1,6 @@
 //! Actual packaged owner browser → local adapter → IPC → one Core approval journal.
 #![cfg(all(
     target_os = "linux",
-    feature = "remote-control",
-    feature = "remote-client",
     feature = "local-web"
 ))]
 mod common;

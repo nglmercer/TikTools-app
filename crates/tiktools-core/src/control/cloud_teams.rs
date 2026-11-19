@@ -138,37 +138,23 @@ impl AppCore {
         crate::cloud_teams::revoke_session(self.cloud.auth(), params).await
     }
 
-    /// Starts this PC's outbound link for the team it serves.
-    pub async fn teams_host_start(
-        self: &std::sync::Arc<Self>,
-    ) -> Result<crate::cloud_remote_host::RemoteHostStatus, OperationError> {
-        if self
-            .collaboration_peer_available
-            .load(std::sync::atomic::Ordering::SeqCst)
-        {
-            return self.start_cloud_peer_host().await;
-        }
-        self.remote_host.start(
-            self.cloud.clone(),
-            self.teams.clone(),
-            std::sync::Arc::downgrade(self),
-        )?;
-        Ok(self.remote_host.status())
+    /// Cloud Teams in-app transport was removed: remote control is owned by
+    /// the installable `tiktools.remote-control` plugin. These methods remain
+    /// as explicit errors so old callers fail closed with a clear message.
+    pub async fn teams_host_start(self: &std::sync::Arc<Self>) -> Result<crate::cloud_teams::RemoteHostStatus, OperationError> {
+        Err(OperationError::unavailable(
+            "remote control is provided by the tiktools.remote-control plugin",
+        ))
     }
-    pub fn teams_host_stop(&self) -> crate::cloud_remote_host::RemoteHostStatus {
-        if let Err(error) = self.stop_cloud_peer_host() {
-            return crate::cloud_remote_host::RemoteHostStatus {
-                state: "retrying".into(),
-                host_id: None,
-                last_error: Some(error.message),
-            };
+    pub fn teams_host_stop(&self) -> crate::cloud_teams::RemoteHostStatus {
+        crate::cloud_teams::RemoteHostStatus {
+            state: "unavailable".into(),
+            host_id: None,
+            last_error: Some("remote control is provided by the tiktools.remote-control plugin".into()),
         }
-        self.remote_host.stop();
-        self.remote_host.status()
     }
-    pub fn teams_host_status(&self) -> crate::cloud_remote_host::RemoteHostStatus {
-        self.peer_host_status()
-            .unwrap_or_else(|| self.remote_host.status())
+    pub fn teams_host_status(&self) -> crate::cloud_teams::RemoteHostStatus {
+        self.teams_host_stop()
     }
     /// Redeems an invitation with this PC's controller device.
     pub async fn teams_invitation_redeem(
@@ -178,11 +164,11 @@ impl AppCore {
         let device = self.teams.controller_device()?;
         crate::cloud_teams::redeem_invitation(self.cloud.auth(), &device, params).await
     }
-    /// Sends one command to a team as this PC's viewer and returns the host's result.
-    pub async fn teams_command_run(
-        &self,
-        params: crate::cloud_remote_controller::CommandRunParams,
-    ) -> Result<crate::cloud_remote_controller::CommandOutcome, OperationError> {
-        crate::cloud_remote_controller::run_command(self.cloud.auth(), &self.teams, params).await
+    /// Command dispatch moved to the plugin's `host.call` `remote.command.dispatch`.
+    pub async fn teams_command_run(&self, params: crate::cloud_teams::CommandRunParams) -> Result<crate::cloud_teams::CommandOutcome, OperationError> {
+        let _ = params;
+        Err(OperationError::unavailable(
+            "use the tiktools.remote-control plugin's host.call remote.command.dispatch",
+        ))
     }
 }

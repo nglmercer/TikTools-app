@@ -10,10 +10,6 @@ pub(super) async fn stream_events(
     timeout_secs: Option<u64>,
     max_events: Option<u64>,
 ) -> Result<(), ClientError> {
-    #[cfg(feature = "remote-client")]
-    if let TikToolsClient::Remote(remote) = client {
-        return crate::remote::events(remote.clone(), topics, timeout_secs, max_events).await;
-    }
     eprintln!("tiktools: listening for events (Ctrl-C to stop)");
     let mut events = client.subscribe();
     let deadline = timeout_secs.map(|secs| tokio::time::Instant::now() + Duration::from_secs(secs));

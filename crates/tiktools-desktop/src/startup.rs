@@ -1,69 +1,39 @@
-//! Parse controller selection before logging, host locks, plugin install or GUI.
+//! Startup mode parsing.
+//!
+//! Remote control is owned by the installable `tiktools.remote-control`
+//! plugin. The desktop host always starts as the local host; the controller
+//! window and `--controller`/`--remote-profile` selection were removed with
+//! the remote-client crate.
+
 #[derive(Debug, PartialEq)]
 pub enum Mode {
     Local,
-    Controller(Option<String>),
 }
+
 impl Mode {
     pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Self, &'static str> {
-        let args: Vec<_> = args.into_iter().collect();
-        if !args.iter().any(|s| {
-            s == "--controller" || s == "--remote-profile" || s.starts_with("--remote-profile=")
-        }) {
-            return Ok(Self::Local);
+        let unknown = args
+            .into_iter()
+            .find(|arg| arg.starts_with("--controller") || arg.starts_with("--remote-profile"));
+        match unknown {
+            None => Ok(Self::Local),
+            Some(_) => Err("remote controller support is provided by the remote-control plugin"),
         }
-        let mut profile = None;
-        let mut controller = false;
-        let mut iter = args.into_iter();
-        while let Some(arg) = iter.next() {
-            if arg == "--controller" && !controller {
-                controller = true;
-                continue;
-            }
-            let name = if arg == "--remote-profile" {
-                iter.next().ok_or("remote profile name is required")?
-            } else if let Some(name) = arg.strip_prefix("--remote-profile=") {
-                name.into()
-            } else {
-                return Err(
-                    "controller selection cannot be combined with host or installer options",
-                );
-            };
-            if profile.is_some()
-                || name.is_empty()
-                || name.len() > 64
-                || name.starts_with('-')
-                || !name
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
-            {
-                return Err("invalid or duplicate remote profile selection");
-            }
-            profile = Some(name);
-        }
-        Ok(Self::Controller(profile))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn parse(args: &[&str]) -> Result<Mode, &'static str> {
-        Mode::parse(args.iter().map(|s| s.to_string()))
-    }
+
     #[test]
-    fn remote_selection_is_exclusive_before_host_initialization() {
-        assert_eq!(parse(&["--controller"]), Ok(Mode::Controller(None)));
-        assert_eq!(
-            parse(&["--remote-profile=desk"]),
-            Ok(Mode::Controller(Some("desk".into())))
-        );
-        for args in [
-            vec!["--controller", "--install-plugin", "x.plugin"],
-            vec!["--remote-profile", "--standalone"],
-            vec!["--remote-profile=a", "--remote-profile=b"],
-            vec!["--controller", "https://host#secret"],
-        ] {
-            assert!(parse(&args).is_err());
-        }
+    fn local_is_the_only_mode() {
+        assert_eq!(Mode::parse(["--some-host-option".to_owned()]), Ok(Mode::Local));
+    }
+
+    #[test]
+    fn controller_flags_are_rejected_with_a_plugin_hint() {
+        assert!(Mode::parse(["--controller".to_owned()]).is_err());
+        assert!(Mode::parse(["--remote-profile=phone".to_owned()]).is_err());
     }
 }

@@ -4,8 +4,7 @@
 use std::sync::Arc;
 
 use serde_json::Value;
-pub use tiktools_core::cloud_remote_controller::{CommandOutcome, CommandRunParams};
-pub use tiktools_core::cloud_remote_host::RemoteHostStatus;
+pub use tiktools_core::cloud_teams::{CommandOutcome, CommandRunParams, RemoteHostStatus};
 pub use tiktools_core::cloud_teams::{
     PeerMemberships, TeamCreateParams, TeamDecisionParams, TeamDevice, TeamDeviceList,
     TeamDeviceParams, TeamEnrollParams, TeamGrantList, TeamGrantRevokeParams,

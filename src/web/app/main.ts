@@ -1,13 +1,8 @@
 import { createBrowserTransport, LocalSessionError, touchLocalSession } from '@/shared/api/browser-transport.ts';
-import { createRemoteBrowserTransport } from '@/shared/api/remote-browser-transport.ts';
 import { createSessionRecovery, sessionRecoveryKey, type SessionRecovery } from '@/shared/api/session-recovery.ts';
-import { createBrowserControllerClient } from '@/features/controller/model/browser-controller.ts';
-import { createApp, type App as VueApp } from 'vue';
-import { ControlCallError, createControlClient, notifyFrontendReady } from '@/shared/api/control-client.ts';
-import { controlClientKey } from '@/shared/api/use-control-client.ts';
-import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
+import type { App as VueApp } from 'vue';
+import { createControlClient, notifyFrontendReady } from '@/shared/api/control-client.ts';
 import { detectLocale } from '@/shared/i18n/locale-preference.ts';
-import ControllerRoot from '@/features/controller/ui/ControllerRoot.vue';
 import { mountWorkspace } from './mount-workspace.ts';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -16,48 +11,12 @@ import './styles/responsive.css';
 
 declare global {
   interface Window {
-    __tiktools_controller__?: { profile?: string | null };
-    __tiktools_remote_client_available__?: boolean;
     __tiktools_remount__?: () => Promise<void>;
   }
 }
 
 async function mountApp(): Promise<VueApp> {
   const transportMode = document.querySelector('meta[name="tiktools-transport"]')?.getAttribute('content');
-  if (transportMode === 'remote-web') {
-    const sessionRef: { current?: SessionRecovery } = {};
-    const transport = createRemoteBrowserTransport({ onSessionState: (state) => sessionRef.current?.report(state) });
-    const remote = createControlClient({ transport });
-    const control = createBrowserControllerClient(remote, transport, location.origin);
-    const session = createSessionRecovery({
-      pairUrl: '/remote/v1/join',
-      retry: async () => {
-        try {
-          await control.call('controller.connect', { profile: 'browser' });
-          return 'ok';
-        } catch (error) {
-          return error instanceof ControlCallError && error.code === 'session_expired'
-            ? 'expired'
-            : 'unavailable';
-        }
-      },
-    });
-    sessionRef.current = session;
-    const app = createApp(ControllerRoot, { browserMode: true }).use(i18n)
-      .provide(controlClientKey, control)
-      .provide(sessionRecoveryKey, session);
-    await activateLocale(detectLocale());
-    app.mount('#app');
-    return app;
-  }
-  if (window.__tiktools_controller__) {
-    const app = createApp(ControllerRoot).use(i18n)
-      .provide(controlClientKey, createControlClient());
-    await activateLocale(detectLocale());
-    app.mount('#app');
-    notifyFrontendReady();
-    return app;
-  }
   const browser = transportMode === 'local-web';
   if (browser) document.documentElement.dataset['tiktoolsTransport'] = 'local-web';
   const banner = browser ? document.createElement('div') : null;

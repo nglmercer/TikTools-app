@@ -60,6 +60,35 @@ use crate::{
 
 const PROTOCOL_VERSION: i32 = 1;
 const PROOF_DOMAIN: &str = "tiktools.remote.v1";
+/// Legacy wire types for Cloud Teams. The in-app transport was removed:
+/// remote control is owned by the installable `tiktools.remote-control` plugin.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CommandRunParams {
+    pub host_id: String,
+    pub operation: String,
+    #[serde(default)]
+    pub args: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CommandOutcome {
+    pub command_id: String,
+    pub status: String,
+    pub code: Option<String>,
+    pub result: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteHostStatus {
+    pub state: String,
+    pub host_id: Option<String>,
+    pub last_error: Option<String>,
+}
+
+
 /// HTTP budget for every teams operation: 15 s, 4 MiB of reply.
 const HTTP_LIMITS: Limits = Limits::new(Duration::from_secs(15), 4 * 1024 * 1024);
 const MAX_NAME_CHARS: usize = 80;

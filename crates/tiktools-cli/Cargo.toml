@@ -11,26 +11,20 @@ name = "tiktools"
 path = "src/main.rs"
 
 [features]
-default = ["cloud-auth", "remote-client", "cloud-peer"]
-remote-client = ["tiktools-client/remote-profiles", "tiktools-client/peer", "dep:rpassword", "dep:zeroize", "dep:url"]
+default = ["cloud-auth"]
 local-web = ["dep:axum", "dep:rand"]
-remote-control = ["dep:tiktools-remote"]
-remote-browser-app = ["remote-control", "tiktools-remote/browser-app"]
 # `cloud-auth` alone stays light: the Cloud peer/controller machinery (peer,
 # rtc, iroh) is a separate opt-in so `bun run dev` does not compile it.
 cloud-auth = [
-    "tiktools-remote?/cloud-peer",
     "tiktools-core/cloud-auth",
     "tiktools-control-api/cloud-auth",
     "tiktools-client/cloud-auth",
 ]
-cloud-peer = ["remote-client", "tiktools-client/cloud-peer"]
 
 [dependencies]
 tiktools-client = { path = "../tiktools-client" }
 tiktools-control-api = { path = "../tiktools-control-api", features = ["native-tiktok", "http"] }
 tiktools-core = { path = "../tiktools-core" }
-tiktools-remote = { path = "../tiktools-remote", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["signal"] }

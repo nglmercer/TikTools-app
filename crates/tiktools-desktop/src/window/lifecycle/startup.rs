@@ -45,25 +45,9 @@ impl DesktopApp {
         #[cfg(feature = "cloud-auth")]
         core.start_cloud_sync_worker_on(&runtime);
         // Remote control is owned exclusively by the installable
-        // `tiktools.remote-control` plugin. It starts itself via the
-        // events.subscribe auto-start path and executes host operations
-        // through the capability-gated `host.call` channel installed above.
-        // No compile-time gateway or native adapter runs here.
-        #[cfg(any(feature = "remote-control-plugin", feature = "remote-control"))]
-        {
-            // Explicit legacy rollback only: neither feature is a default.
-            #[cfg(feature = "remote-control-plugin")]
-            {
-                let control_for_remote = Arc::clone(&control);
-                let plugin = tiktools_remote_plugin::RemoteControlPlugin::new();
-                runtime.spawn(async move { plugin.supervise(control_for_remote).await });
-            }
-            #[cfg(all(feature = "remote-control", not(feature = "remote-control-plugin")))]
-            {
-                core.set_collaboration_gateway_available(true);
-                runtime.spawn(tiktools_remote::supervise(Arc::clone(&control)));
-            }
-        }
+        // `tiktools.remote-control` plugin. It starts itself through the
+        // events.subscribe auto-start path and executes host operations via
+        // the capability-gated `host.call` channel installed above.
         let domain_mailbox = emitter.mailbox.clone();
         // Persistent local IPC shares the desktop's one AppCore: the CLI
         // and agents observe the same runtime the WebView drives. The

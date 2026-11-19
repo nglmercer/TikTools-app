@@ -1,8 +1,6 @@
 //! Opt-in actual owner browser → local adapter → IPC → Core authority review.
 #![cfg(all(
     target_os = "linux",
-    feature = "remote-control",
-    feature = "remote-client",
     feature = "local-web"
 ))]
 mod common;

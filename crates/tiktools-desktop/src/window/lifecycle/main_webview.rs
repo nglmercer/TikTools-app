@@ -44,7 +44,7 @@ impl DesktopApp {
             // so the Winit window never sees these keys. The script reloads
             // in-page and asks the host for the inspector.
             .with_initialization_script(crate::webview::MAIN_INIT_SCRIPT)
-            .with_initialization_script(if cfg!(feature = "remote-client") { "window.__tiktools_remote_client_available__ = true;" } else { "window.__tiktools_remote_client_available__ = false;" })
+            .with_initialization_script("window.__tiktools_remote_client_available__ = false;")
             .with_navigation_handler(move |url| {
                 if is_update_releases_url(&url) {
                     if let Err(error) = open::that_detached(UPDATE_RELEASES_URL) {

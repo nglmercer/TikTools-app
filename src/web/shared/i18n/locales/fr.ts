@@ -7,7 +7,6 @@ import collaboration from './collaboration.fr.ts';
 import automationProposal from './automation-proposal.fr.ts';
 import automationApproval from './automation-approval.fr.ts';
 import definitionRecovery from './definition-recovery.fr.ts';
-import controller from './controller.fr.ts';
 import jsonView from './json-view.fr.ts';
 import syncChanges from './sync-changes.fr.ts';
 import exploreCatalog from './explore-catalog.fr.ts';
@@ -15,7 +14,7 @@ import importDialog from './import-dialog.fr.ts';
 import type { MessageSchema } from '../i18n.ts';
 
 export default {
-  controller,
+  
   jsonView,
   syncChanges,
   exploreCatalog,

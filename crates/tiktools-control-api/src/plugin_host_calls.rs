@@ -208,6 +208,64 @@ impl HostCallHandler for PluginHostCalls {
                     .map(|status| serde_json::to_value(status).unwrap_or(Value::Null))
                     .map_err(|error| error.to_string());
             }
+            // Pairing/grants are host-confirmed: the plugin can only list and
+            // request, never self-approve. Revocation goes through the host's
+            // owner-audited core method with a host-owned reason.
+            "remote.pair.list" => {
+                let host_id = params
+                    .get("hostId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| !value.is_empty() && value.len() <= 128)
+                    .ok_or_else(|| "hostId is required".to_owned())?
+                    .to_owned();
+                return self
+                    .handle
+                    .block_on(self.api.core().teams_sessions(host_id))
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.grant.list" => {
+                let host_id = params
+                    .get("hostId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| !value.is_empty() && value.len() <= 128)
+                    .ok_or_else(|| "hostId is required".to_owned())?
+                    .to_owned();
+                return self
+                    .handle
+                    .block_on(self.api.core().teams_grants(host_id))
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.grant.revoke" => {
+                let grant_id = params
+                    .get("grantId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| !value.is_empty() && value.len() <= 128)
+                    .ok_or_else(|| "grantId is required".to_owned())?
+                    .to_owned();
+                let host_id = params
+                    .get("hostId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| !value.is_empty() && value.len() <= 128)
+                    .ok_or_else(|| "hostId is required".to_owned())?
+                    .to_owned();
+                let expected_revision = params
+                    .get("revision")
+                    .and_then(serde_json::Value::as_i64)
+                    .ok_or_else(|| "revision is required".to_owned())?;
+                return self
+                    .handle
+                    .block_on(self.api.core().teams_grant_revoke(
+                        tiktools_core::cloud_teams::TeamGrantRevokeParams {
+                            host_id,
+                            grant_id,
+                            expected_revision,
+                        },
+                    ))
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
             "remote.command.dispatch" => {
                 // The plugin supplies only a command id, operation and args.
                 // Expiry, policy revision and identity are host-owned, so a

@@ -29,13 +29,10 @@ mod cloud_http;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_integrations;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
-pub mod cloud_peer_host;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 pub mod cloud_publisher;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
-pub mod cloud_remote_controller;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
-pub mod cloud_remote_host;
 #[cfg(feature = "cloud-sync")]
 pub mod cloud_sync;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
@@ -265,6 +262,4 @@ pub struct AppCore {
     pub(crate) publisher: Arc<cloud_publisher::CloudPublisher>,
     #[cfg(all(feature = "cloud-auth", feature = "http"))]
     pub(crate) teams: Arc<cloud_teams::CloudTeams>,
-    #[cfg(all(feature = "cloud-auth", feature = "http"))]
-    pub(crate) remote_host: Arc<cloud_remote_host::RemoteHostLink>,
 }

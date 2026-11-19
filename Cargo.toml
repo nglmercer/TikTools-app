@@ -8,8 +8,6 @@ members = [
     "crates/tiktools-cli",
     "crates/tiktools-desktop",
     "crates/tiktools-core",
-    "crates/tiktools-peer",
-    "crates/tiktools-rtc",
     "crates/tiktools-plugin-api",
     "crates/tiktools-plugin-sdk",
     "crates/tiktools-plugin-macros",
@@ -23,11 +21,11 @@ members = [
     "crates/tiktools-cloud-auth",
     "crates/tiktools-cloud-sync",
     "crates/tiktools-collaboration",
-    "crates/tiktools-remote",
-    "crates/tiktools-remote-plugin",
     "crates/tiktools-tiktok",
 ]
 exclude = [
+    # Installable-plugin example: built on its own, not part of the app workspace.
+    "examples/plugin-remote",
     "vendor/ttl-live-proto",
     # napi-rs fixture for the napi-vm native addon tests. Built on demand by
     # the integration test with its own lockfile, never by the workspace.

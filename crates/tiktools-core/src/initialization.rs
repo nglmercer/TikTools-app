@@ -92,7 +92,6 @@ impl AppCore {
         #[cfg(all(feature = "cloud-auth", feature = "http"))]
         let teams = Arc::new(cloud_teams::CloudTeams::new(&paths));
         #[cfg(all(feature = "cloud-auth", feature = "http"))]
-        let remote_host = Arc::new(cloud_remote_host::RemoteHostLink::default());
         #[cfg(feature = "plugin-install")]
         if let Err(error) = &packages {
             tracing::warn!(%error, "plugin package management is unavailable");
@@ -279,8 +278,6 @@ impl AppCore {
             publisher,
             #[cfg(all(feature = "cloud-auth", feature = "http"))]
             teams,
-            #[cfg(all(feature = "cloud-auth", feature = "http"))]
-            remote_host,
         };
         #[cfg(feature = "http")]
         if let Some(message) = core.http_client_error.clone() {

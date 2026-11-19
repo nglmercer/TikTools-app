@@ -42,8 +42,6 @@ pub mod processors;
 pub mod publishers;
 pub mod rankings;
 pub mod registry;
-#[cfg(feature = "remote")]
-pub mod remote;
 pub mod rpc;
 pub mod settings;
 #[cfg(feature = "cloud-auth")]
@@ -83,15 +81,12 @@ static NEXT_DIRECT_ID: AtomicI64 = AtomicI64::new(1);
 /// tests); `Connected` wraps an IPC [`ControlClient`] (CLI against a
 /// running host). Both backends expose identical typed methods and one
 /// [`ControlEvent`] stream shape.
-/// With `remote`, `Remote` uses an authenticated HTTPS/WSS connection. Remote
 /// identity and permissions are always enforced by that host; no local fallback
 /// or automatic business-call retry is performed.
 #[derive(Clone)]
 pub enum TikToolsClient {
     Direct(Arc<ControlApi>),
     Connected(ControlClient),
-    #[cfg(feature = "remote")]
-    Remote(remote::RemoteClient),
 }
 
 impl TikToolsClient {
@@ -113,8 +108,6 @@ impl TikToolsClient {
         match self {
             Self::Direct(api) => api.subscribe_broadcast(),
             Self::Connected(client) => client.subscribe(),
-            #[cfg(feature = "remote")]
-            Self::Remote(client) => client.subscribe(),
         }
     }
 
@@ -171,8 +164,6 @@ impl TikToolsClient {
         match self {
             Self::Direct(api) => call_direct(api, method, params, meta).await,
             Self::Connected(client) => client.call_value_with_meta(method, params, meta).await,
-            #[cfg(feature = "remote")]
-            Self::Remote(client) => client.call_value_with_meta(method, params, meta).await,
         }
     }
 

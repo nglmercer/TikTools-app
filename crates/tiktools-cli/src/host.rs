@@ -60,11 +60,6 @@ async fn run_until_shutdown(
     let api = std::sync::Arc::new(api);
     let ipc = ownership.is_some();
     let core = std::sync::Arc::clone(api.core());
-    #[cfg(feature = "remote-control")]
-    let remote_task = {
-        core.set_collaboration_gateway_available(true);
-        tokio::spawn(tiktools_remote::supervise(std::sync::Arc::clone(&api)))
-    };
     #[cfg(unix)]
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
     let signal = async {
@@ -98,7 +93,5 @@ async fn run_until_shutdown(
         }
     };
     core.shutdown().await;
-    #[cfg(feature = "remote-control")]
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(7), remote_task).await;
     result
 }

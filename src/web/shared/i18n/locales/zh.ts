@@ -7,13 +7,12 @@ import collaboration from './collaboration.zh.ts';
 import automationProposal from './automation-proposal.zh.ts';
 import automationApproval from './automation-approval.zh.ts';
 import definitionRecovery from './definition-recovery.zh.ts';
-import controller from './controller.zh.ts';
 import jsonView from './json-view.zh.ts';
 import syncChanges from './sync-changes.zh.ts';
 import exploreCatalog from './explore-catalog.zh.ts';
 import importDialog from './import-dialog.zh.ts';
 export default {
-  controller,
+  
   jsonView,
   syncChanges,
   exploreCatalog,

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "id": "tiktools.remote-control",
+  "name": "Remote Control",
+  "version": "1.0.0",
+  "publisher": "tiktools",
+  "metadata": { "publisher": "tiktools" },
+  "license": "MIT",
+  "engines": { "tiktools": ">=4.2.3, <5.0.0" },
+  "repository": "https://github.com/nglmercer/plugins-example-tiktools",
+  "description": "Remote control gateway owned by the user, with host-mediated command execution.",
+  "longDescription": "Runs its own listener and dispatches received commands through the host's capability-gated host.call API. Never receives a bearer token or ControlApi.",
+  "icon": "network",
+  "tags": ["remote", "control"],
+  "runtime": "process",
+  "trust": "trusted",
+  "entry": "tiktools-remote-control-plugin",
+  "protocolVersion": 1,
+  "capabilities": ["events.subscribe", "events.publish", "host.call"],
+  "eventSubscriptions": ["cloud.login.code", "*"],
+  "actionTypes": [
+    {
+      "id": "tiktools.remote-control.test",
+      "version": 1,
+      "title": { "default": "Test remote control" },
+      "description": { "default": "Checks the host call channel." },
+      "requiredCapabilities": ["host.call"]
+    }
+  ],
+  "cliCommands": [
+    {
+      "id": "test",
+      "actionType": "tiktools.remote-control.test",
+      "description": "Test the remote-control host call channel (dry run unless --live)"
+    }
+  ]
+}
