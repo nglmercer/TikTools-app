@@ -58,6 +58,9 @@ async fn run_until_shutdown(
     ownership: Option<tiktools_control_api::ownership::ControlHostGuard>,
 ) -> std::io::Result<()> {
     let api = std::sync::Arc::new(api);
+    // Plugins reach the host through this reverse channel (host calls). The desktop
+    // installs it too; without it every plugin call that needs the host hangs.
+    api.install_plugin_host_calls(tokio::runtime::Handle::current());
     let ipc = ownership.is_some();
     let core = std::sync::Arc::clone(api.core());
     #[cfg(unix)]

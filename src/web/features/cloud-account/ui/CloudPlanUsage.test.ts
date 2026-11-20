@@ -25,12 +25,17 @@ function mountWith(plan: () => unknown) {
 }
 
 describe('CloudPlanUsage', () => {
-  it('shows the plan name and each meter against its ceiling, in bytes where needed', async () => {
+  it('shows the plan badge, three groups and a count and storage meter in each', async () => {
     const { wrapper, calls } = mountWith(() => freePlan);
     await flushPromises();
     expect(calls.map((call) => call.method)).toContain('cloud.plan.get');
-    expect(wrapper.text()).toContain(`${t('account.plan.plan')}: free`);
-    expect(wrapper.text()).toContain(`3 ${t('account.plan.of')} 1000`);
+    expect(wrapper.find('.cloud-plan__badge').text()).toBe('Free');
+    expect(wrapper.findAll('.cloud-plan__group-title').map((node) => node.text())).toEqual([
+      t('account.plan.workspace'),
+      t('account.plan.assets'),
+      t('account.plan.overlays'),
+    ]);
+    expect(wrapper.text()).toContain(`3 ${t('account.plan.of')} 1,000`);
     expect(wrapper.text()).toContain(`120 B ${t('account.plan.of')} 8.0 MB`);
     expect(wrapper.text()).toContain(`1 ${t('account.plan.of')} 200`);
     expect(wrapper.text()).toContain(`5 B ${t('account.plan.of')} 32.0 MB`);

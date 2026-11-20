@@ -56,11 +56,11 @@ describe('SettingsPage', () => {
     expect(wrapper.find('h1, small, select').exists()).toBe(false);
   });
 
-  it('keeps the account, sync and diagnostics together in Account & Cloud', async () => {
+  it('keeps the account in Account & Cloud; technical details live in the diagnostics panel', async () => {
     const { wrapper } = await mountPage('?section=account');
     expect(selectedTab(wrapper)).toBe(t('settingsLayout.labels.account'));
-    expect(wrapper.findAll('legend').length).toBeGreaterThanOrEqual(2);
-    expect(wrapper.text()).toContain(t('settingsLayout.diagnostics'));
+    expect(wrapper.findAll('legend').length).toBeGreaterThanOrEqual(1);
+    expect(wrapper.text()).not.toContain(t('settingsLayout.diagnostics'));
   });
 
   it('no longer hosts the areas that moved to their own pages', async () => {

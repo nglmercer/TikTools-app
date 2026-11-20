@@ -142,13 +142,14 @@ export default {
     storedInMemory: 'Mémoire uniquement (reconnectez-vous après un redémarrage)',
     plan: {
       title: 'Forfait et stockage',
-      plan: 'Forfait',
-      records: 'Enregistrements de l’espace de travail',
+      loading: 'Lecture de votre forfait…',
+      unavailable: 'Impossible de lire le forfait pour le moment.',
+      workspace: 'Espace de travail',
       assets: 'Ressources',
       overlays: 'Overlays',
+      count: 'Éléments',
       storage: 'Stockage',
       of: 'sur',
-      unavailable: 'Impossible de lire le forfait pour le moment.',
     },
     errors: {
       unreachable: 'Impossible de joindre TikTools Cloud. Il démarre peut-être ; réessayez dans un instant.',

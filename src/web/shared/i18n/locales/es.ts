@@ -142,13 +142,14 @@ export default {
     storedInMemory: 'Solo en memoria (vuelve a iniciar sesión tras reiniciar)',
     plan: {
       title: 'Plan y almacenamiento',
-      plan: 'Plan',
-      records: 'Registros del espacio de trabajo',
+      loading: 'Leyendo tu plan…',
+      unavailable: 'No se pudo leer el plan ahora.',
+      workspace: 'Espacio de trabajo',
       assets: 'Recursos',
       overlays: 'Overlays',
+      count: 'Elementos',
       storage: 'Almacenamiento',
       of: 'de',
-      unavailable: 'No se pudo leer el plan ahora.',
     },
     errors: {
       unreachable: 'No se pudo contactar con TikTools Cloud. Puede estar iniciándose; inténtalo de nuevo en un momento.',

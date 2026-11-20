@@ -74,7 +74,7 @@ async fn ndjson_framing_carries_responses_and_events() {
             .unwrap_or_default()
     ));
     std::env::set_var("TIKTOOLS_HOME", &home);
-    let core = std::sync::Arc::new(tiktools_core::AppCore::new(std::sync::Arc::new(Emitter)));
+    let core = std::sync::Arc::new({ tiktools_tls::ensure_default_crypto_provider(); tiktools_core::AppCore::new(std::sync::Arc::new(Emitter)) });
     let api = ControlApi::new(std::sync::Arc::clone(&core));
     let (client, server) = tokio::io::duplex(64 * 1024);
     let (server_read, server_write) = tokio::io::split(server);
@@ -156,7 +156,7 @@ fn gap_test_core(tag: &str) -> (std::sync::Arc<tiktools_core::AppCore>, std::pat
     ));
     std::env::set_var("TIKTOOLS_HOME", &home);
     (
-        std::sync::Arc::new(tiktools_core::AppCore::new(std::sync::Arc::new(Emitter))),
+        std::sync::Arc::new({ tiktools_tls::ensure_default_crypto_provider(); tiktools_core::AppCore::new(std::sync::Arc::new(Emitter)) }),
         home,
     )
 }
@@ -254,7 +254,7 @@ async fn burst_lags_connection_with_gap_but_stays_alive() {
             .unwrap_or_default()
     ));
     std::env::set_var("TIKTOOLS_HOME", &home);
-    let core = std::sync::Arc::new(tiktools_core::AppCore::new(std::sync::Arc::new(Emitter)));
+    let core = std::sync::Arc::new({ tiktools_tls::ensure_default_crypto_provider(); tiktools_core::AppCore::new(std::sync::Arc::new(Emitter)) });
     let api = ControlApi::new(std::sync::Arc::clone(&core));
     // Tiny duplex: the server blocks writing the burst, guaranteeing
     // the connection subscription lags while the test is not reading.
@@ -457,7 +457,7 @@ async fn oversized_request_errors_with_its_id_and_framing_survives() {
             .unwrap_or_default()
     ));
     std::env::set_var("TIKTOOLS_HOME", &home);
-    let core = std::sync::Arc::new(tiktools_core::AppCore::new(std::sync::Arc::new(Emitter)));
+    let core = std::sync::Arc::new({ tiktools_tls::ensure_default_crypto_provider(); tiktools_core::AppCore::new(std::sync::Arc::new(Emitter)) });
     let api = ControlApi::new(std::sync::Arc::clone(&core));
     let (client, server) = tokio::io::duplex(4 * 1024 * 1024);
     let (server_read, server_write) = tokio::io::split(server);

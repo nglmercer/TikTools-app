@@ -235,6 +235,98 @@ impl HostCallHandler for PluginHostCalls {
             // Pairing/grants are host-confirmed: the plugin can only list and
             // request, never self-approve. Revocation goes through the host's
             // owner-audited core method with a host-owned reason.
+            // Team operations for the Remote control page. Each one forwards the
+            // plugin's parameters to the same core method the control API uses; the
+            // host keeps every token, and the plugin only sees the answers.
+            "remote.host.status" => {
+                let core = self.api.core();
+                return serde_json::to_value(core.teams_host_status())
+                    .map_err(|error| error.to_string());
+            }
+            "remote.host.start" => {
+                let core = self.api.core();
+                return self
+                    .handle
+                    .block_on(core.teams_host_start())
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.host.stop" => {
+                let core = self.api.core();
+                return serde_json::to_value(core.teams_host_stop())
+                    .map_err(|error| error.to_string());
+            }
+            "remote.teams.list" => {
+                let core = self.api.core();
+                return self
+                    .handle
+                    .block_on(core.teams_hosts())
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.team.create" => {
+                let request: tiktools_core::cloud_teams::TeamCreateParams =
+                    serde_json::from_value(params).map_err(|error| error.to_string())?;
+                let core = self.api.core();
+                return self
+                    .handle
+                    .block_on(core.teams_host_create(request))
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.device.enroll" => {
+                let request: tiktools_core::cloud_teams::TeamEnrollParams =
+                    serde_json::from_value(params).map_err(|error| error.to_string())?;
+                let core = self.api.core();
+                return self
+                    .handle
+                    .block_on(core.teams_device_enroll(request))
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.invitation.create" => {
+                let request: tiktools_core::cloud_teams::TeamInvitationCreateParams =
+                    serde_json::from_value(params).map_err(|error| error.to_string())?;
+                let core = self.api.core();
+                return self
+                    .handle
+                    .block_on(core.teams_invitation_create(request))
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.request.list" => {
+                let host_id = params
+                    .get("hostId")
+                    .and_then(serde_json::Value::as_str)
+                    .filter(|value| !value.is_empty() && value.len() <= 128)
+                    .ok_or_else(|| "hostId is required".to_owned())?
+                    .to_owned();
+                let core = self.api.core();
+                return self
+                    .handle
+                    .block_on(core.teams_requests(host_id))
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.request.decide" => {
+                let request: tiktools_core::cloud_teams::TeamDecisionParams =
+                    serde_json::from_value(params).map_err(|error| error.to_string())?;
+                let core = self.api.core();
+                return self
+                    .handle
+                    .block_on(core.teams_request_decide(request))
+                    .map_err(|error| error.to_string());
+            }
+            "remote.command.run" => {
+                let request: tiktools_core::cloud_teams::CommandRunParams =
+                    serde_json::from_value(params).map_err(|error| error.to_string())?;
+                let core = self.api.core();
+                return self
+                    .handle
+                    .block_on(core.teams_command_run(request))
+                    .map(|value| serde_json::to_value(value).unwrap_or(Value::Null))
+                    .map_err(|error| error.to_string());
+            }
             "remote.pair.list" => {
                 let host_id = params
                     .get("hostId")

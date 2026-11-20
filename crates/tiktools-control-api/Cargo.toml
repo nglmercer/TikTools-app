@@ -30,6 +30,10 @@ tracing.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+tiktools-tls = { path = "../tiktools-tls", features = ["aws-lc-rs"] }
+# Test builds need one installed rustls provider for every HTTP client the core creates;
+# applications install it at startup, tests get it from this provider feature.
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls"] }
 tokio.workspace = true
 rusqlite.workspace = true
 

@@ -27,6 +27,7 @@ async fn typed_runtime_variables_are_atomic_owner_only_operations() {
         root: root.clone(),
     };
     paths.ensure_directories().unwrap();
+    tiktools_tls::ensure_default_crypto_provider();
     let core = Arc::new(AppCore::with_paths(
         Arc::new(Emitter),
         Arc::new(tiktools_core::NoopMediaHost),
@@ -172,6 +173,7 @@ async fn remote_storage_failures_omit_owner_diagnostics_but_local_failures_keep_
         root: root.clone(),
     };
     paths.ensure_directories().unwrap();
+    tiktools_tls::ensure_default_crypto_provider();
     let core = Arc::new(AppCore::with_paths(
         Arc::new(Emitter),
         Arc::new(tiktools_core::NoopMediaHost),

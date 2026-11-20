@@ -3,7 +3,6 @@ import { computed, markRaw } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
-import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDiagnostics.vue';
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
 import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
 import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
@@ -12,7 +11,6 @@ import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
-import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import ReviewModeSetting from '@/features/review-shared/ui/ReviewModeSetting.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 
@@ -83,9 +81,6 @@ const locale = computed<Locale>({
         </template>
         <template v-else-if="section === 'account'">
           <CloudAccountEditor />
-          <SettingsDisclosure :title="t('settingsLayout.diagnostics')">
-            <CloudAccountDiagnostics />
-          </SettingsDisclosure>
         </template>
       </section>
     </BaseTabs>

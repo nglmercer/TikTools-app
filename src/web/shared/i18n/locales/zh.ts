@@ -140,13 +140,14 @@ export default {
     storedInMemory: "仅存储在内存中（重启后需重新登录）",
     plan: {
       title: '套餐与存储',
-      plan: '套餐',
-      records: '工作区记录',
+      loading: '正在读取套餐…',
+      unavailable: '暂时无法读取套餐。',
+      workspace: '工作区',
       assets: '资源',
       overlays: '叠加层',
+      count: '数量',
       storage: '存储',
       of: '/',
-      unavailable: '暂时无法读取套餐。',
     },
     errors: {
       unreachable: "无法连接 TikTools Cloud。服务可能正在启动，请稍后重试。",

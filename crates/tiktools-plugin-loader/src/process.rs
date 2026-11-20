@@ -147,16 +147,18 @@ impl ProcessPluginRuntime {
             })?;
         let mut command = Command::new(program);
         command
-            .env("TIKTOOLS_PLUGIN_HOST_CALL_ADDR", &host_call_addr)
-            .env("TIKTOOLS_PLUGIN_HOST_CALL_TOKEN", &host_call_token)
             .args(args)
             .current_dir(&package_root)
             // A process plugin is still trusted executable code, but it does
-            // not need the host's complete environment. Only the explicit
-            // plugin contract is passed across this boundary, plus the
-            // desktop-session variables below so display/input integrations
-            // (X11, Wayland, D-Bus) keep working inside the child.
-            .env_clear();
+            // not need the host's complete environment. Clear first, then pass
+            // only the explicit plugin contract, plus the desktop-session
+            // variables below so display/input integrations (X11, Wayland,
+            // D-Bus) keep working inside the child. The reverse-channel
+            // variables must be set after the clear: setting them before it
+            // silently dropped them and every host call then failed.
+            .env_clear()
+            .env("TIKTOOLS_PLUGIN_HOST_CALL_ADDR", &host_call_addr)
+            .env("TIKTOOLS_PLUGIN_HOST_CALL_TOKEN", &host_call_token);
         forward_desktop_environment(&mut command);
         command
             .env("TIKTOOLS_PLUGIN_ID", &manifest.id)

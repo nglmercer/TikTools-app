@@ -184,7 +184,7 @@ mod tests {
         assert!(owner(RequestContext::LocalOwner, None).is_ok());
         let mut router = ControlRouter::new();
         register(&mut router);
-        assert_eq!(router.metadata().len(), 6);
+        assert_eq!(router.metadata().len(), 7);
         for method in router.metadata() {
             let mutation = !matches!(
                 method.name.as_str(),

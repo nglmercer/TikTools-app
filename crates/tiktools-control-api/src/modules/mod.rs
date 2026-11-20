@@ -27,6 +27,8 @@ pub mod processors;
 #[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
 pub mod publisher;
 pub mod rankings;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
+pub mod teams;
 #[cfg(feature = "plugin-install")]
 pub mod registry;
 pub mod rpc;

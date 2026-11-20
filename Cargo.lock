@@ -5038,6 +5038,7 @@ name = "tiktools-control-api"
 version = "4.2.3"
 dependencies = [
  "libc",
+ "reqwest",
  "rusqlite",
  "schemars",
  "serde",
@@ -5049,6 +5050,7 @@ dependencies = [
  "tiktools-core",
  "tiktools-plugin-api",
  "tiktools-plugin-loader",
+ "tiktools-tls",
  "tokio",
  "tracing",
  "windows-sys 0.61.2",

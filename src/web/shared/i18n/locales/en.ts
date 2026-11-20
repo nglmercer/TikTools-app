@@ -140,13 +140,14 @@ export default {
     storedInMemory: 'Memory only (sign in again after restart)',
     plan: {
       title: 'Plan and storage',
-      plan: 'Plan',
-      records: 'Workspace records',
+      loading: 'Reading your plan…',
+      unavailable: "Couldn't read the plan right now.",
+      workspace: 'Workspace',
       assets: 'Assets',
       overlays: 'Overlays',
+      count: 'Items',
       storage: 'Storage',
       of: 'of',
-      unavailable: "Couldn't read the plan right now.",
     },
     errors: {
       unreachable: "Couldn't reach TikTools Cloud. It may be starting up; try again in a moment.",

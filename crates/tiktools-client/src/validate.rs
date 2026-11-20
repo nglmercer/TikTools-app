@@ -629,6 +629,8 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "publisher.releases.get" | "publisher.publication.request" => {
             validate::<PublisherReleaseParams>(params)
         }
+        // Teams: the host validates each shape; the client only admits the names.
+        "teams.people.search" | "teams.accessible.list" | "teams.commands.run" | "teams.invitations.redeem" | "teams.host.status" | "teams.host.start" | "teams.host.stop" | "teams.hosts.list" | "teams.hosts.create" | "teams.hosts.get" | "teams.hosts.update" | "teams.devices.list" | "teams.devices.enroll" | "teams.devices.revoke" | "teams.invitations.list" | "teams.invitations.create" | "teams.invitations.revoke" | "teams.requests.list" | "teams.requests.decide" | "teams.grants.list" | "teams.grants.update" | "teams.grants.revoke" | "teams.sessions.list" | "teams.sessions.revoke" => Ok(()),
         _ => Err(ClientError::new(
             "method_not_found",
             format!("unknown method `{method}`"),

@@ -138,27 +138,29 @@ impl AppCore {
         crate::cloud_teams::revoke_session(self.cloud.auth(), params).await
     }
 
-    /// Cloud Teams in-app transport was removed: remote control is owned by
-    /// the installable `tiktools.remote-control` plugin. These methods remain
-    /// as explicit errors so old callers fail closed with a clear message.
+    /// Starts this PC's outbound relay link for the team it serves. The link
+    /// authenticates with its own host ticket and never leaves the PC.
     pub async fn teams_host_start(
         self: &std::sync::Arc<Self>,
     ) -> Result<crate::cloud_teams::RemoteHostStatus, OperationError> {
-        Err(OperationError::unavailable(
-            "remote control is provided by the tiktools.remote-control plugin",
-        ))
+        self.remote_host.start(
+            self.cloud.clone(),
+            self.teams.clone(),
+            std::sync::Arc::downgrade(self),
+        )?;
+        Ok(self.teams_host_status())
     }
     pub fn teams_host_stop(&self) -> crate::cloud_teams::RemoteHostStatus {
-        crate::cloud_teams::RemoteHostStatus {
-            state: "unavailable".into(),
-            host_id: None,
-            last_error: Some(
-                "remote control is provided by the tiktools.remote-control plugin".into(),
-            ),
-        }
+        self.remote_host.stop();
+        self.teams_host_status()
     }
     pub fn teams_host_status(&self) -> crate::cloud_teams::RemoteHostStatus {
-        self.teams_host_stop()
+        let status = self.remote_host.status();
+        crate::cloud_teams::RemoteHostStatus {
+            state: status.state,
+            host_id: status.host_id,
+            last_error: status.last_error,
+        }
     }
     /// Redeems an invitation with this PC's controller device.
     pub async fn teams_invitation_redeem(
@@ -173,9 +175,16 @@ impl AppCore {
         &self,
         params: crate::cloud_teams::CommandRunParams,
     ) -> Result<crate::cloud_teams::CommandOutcome, OperationError> {
-        let _ = params;
-        Err(OperationError::unavailable(
-            "use the tiktools.remote-control plugin's host.call remote.command.dispatch",
-        ))
+        // The controller client has its own copy of the same wire types.
+        let wire = serde_json::from_value(
+            serde_json::to_value(params).map_err(|error| OperationError::internal(error.to_string()))?,
+        )
+        .map_err(|error| OperationError::invalid(error.to_string()))?;
+        let outcome =
+            crate::cloud_remote_controller::run_command(self.cloud.auth(), &self.teams, wire).await?;
+        serde_json::from_value(
+            serde_json::to_value(outcome).map_err(|error| OperationError::internal(error.to_string()))?,
+        )
+        .map_err(|error| OperationError::internal(error.to_string()))
     }
 }

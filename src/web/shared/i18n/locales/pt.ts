@@ -142,13 +142,14 @@ export default {
     storedInMemory: 'Somente na memória (entre novamente após reiniciar)',
     plan: {
       title: 'Plano e armazenamento',
-      plan: 'Plano',
-      records: 'Registros do espaço de trabalho',
+      loading: 'Lendo o seu plano…',
+      unavailable: 'Não foi possível ler o plano agora.',
+      workspace: 'Espaço de trabalho',
       assets: 'Recursos',
       overlays: 'Overlays',
+      count: 'Itens',
       storage: 'Armazenamento',
       of: 'de',
-      unavailable: 'Não foi possível ler o plano agora.',
     },
     errors: {
       unreachable: 'Não foi possível acessar o TikTools Cloud. Ele pode estar iniciando; tente novamente em instantes.',

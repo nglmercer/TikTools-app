@@ -18,7 +18,7 @@ devtools = ["wry/devtools"]
 live-benchmark = ["tiktools-core/live-benchmark"]
 plugin-install = ["tiktools-core/plugin-install"]
 persistence = ["tiktools-core/persistence"]
-http = ["tiktools-core/http"]
+http = ["tiktools-core/http", "tiktools-control-api/http"]
 cloud-auth = ["tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
 os-keychain = ["cloud-auth", "tiktools-core/os-keychain"]
 # Test-only: release-profile builds may point Cloud at a loopback
