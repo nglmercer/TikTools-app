@@ -1,0 +1,13 @@
+[package]
+name = "tiktools-plugin-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Typed, revision-checked document store and bounded file area shared by the TikTools host and plugins"
+publish = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

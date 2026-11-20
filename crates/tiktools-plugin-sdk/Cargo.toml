@@ -22,6 +22,7 @@ providers = [
 [dependencies]
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
 tiktools-plugin-macros = { path = "../tiktools-plugin-macros" }
+tiktools-plugin-store = { path = "../tiktools-plugin-store" }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

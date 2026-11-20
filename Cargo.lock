@@ -5991,6 +5991,7 @@ dependencies = [
  "tiktools-plugin-package",
  "tiktools-plugin-registry",
  "tiktools-plugin-sdk",
+ "tiktools-plugin-store",
  "tiktools-tiktok",
  "tokio",
  "tokio-tungstenite 0.30.0",
@@ -6154,7 +6155,17 @@ dependencies = [
  "thiserror 2.0.21",
  "tiktools-plugin-api",
  "tiktools-plugin-macros",
+ "tiktools-plugin-store",
  "tokio",
+]
+
+[[package]]
+name = "tiktools-plugin-store"
+version = "4.2.3"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

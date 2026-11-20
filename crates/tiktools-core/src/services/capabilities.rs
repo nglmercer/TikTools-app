@@ -11,6 +11,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tiktools_plugin_api::{
@@ -18,6 +19,7 @@ use tiktools_plugin_api::{
     manifest::is_valid_plugin_id,
     PluginManifest,
 };
+use tiktools_plugin_store::{Collection, Expect, Store, StoreError};
 
 #[derive(Debug, Error)]
 pub enum CapabilityError {
@@ -149,6 +151,65 @@ fn atomic_settings_write(directory: &Path, name: &str, bytes: &[u8]) -> io::Resu
         .map_err(|failure| failure.error)
 }
 
+/// Store collection and record holding one plugin's settings.
+const SETTINGS_COLLECTION: &str = "plugin-settings";
+const SETTINGS_RECORD: &str = "settings";
+/// Plain projection of the settings. External plugin processes read this file
+/// from their data directory, so the host keeps it equal to the stored values.
+const SETTINGS_PROJECTION: &str = "settings.json";
+/// Generation file written by hosts before the store; imported once, then removed.
+const LEGACY_GENERATION: &str = ".settings-generation";
+
+/// A plugin's settings as stored. The identity that approvals bind to and the
+/// values are written as one atomic record, so they can never disagree.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SettingsDocument {
+    generation: String,
+    values: serde_json::Map<String, Value>,
+}
+
+fn store_error(error: StoreError) -> CapabilityError {
+    CapabilityError::Io(io::Error::other(error.to_string()))
+}
+
+fn settings_collection(directory: &Path) -> Result<Collection<SettingsDocument>, CapabilityError> {
+    let store = Store::open(directory.join("store")).map_err(store_error)?;
+    store
+        .collection::<SettingsDocument>(SETTINGS_COLLECTION)
+        .map_err(store_error)
+}
+
+fn valid_generation(generation: &str) -> bool {
+    generation.len() == 64 && generation.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// Writes the settings projection to the plugin's data directory.
+fn project_settings(
+    directory: &Path,
+    values: &serde_json::Map<String, Value>,
+) -> Result<(), CapabilityError> {
+    let payload = serde_json::to_vec(values)
+        .map_err(|error| CapabilityError::Io(io::Error::new(io::ErrorKind::InvalidData, error)))?;
+    atomic_settings_write(directory, SETTINGS_PROJECTION, &payload)?;
+    Ok(())
+}
+
+/// Values from a `settings.json` written before the store existed. Anything
+/// that is not a JSON object reads as empty, as it always has.
+fn legacy_settings_values(
+    directory: &Path,
+) -> Result<serde_json::Map<String, Value>, CapabilityError> {
+    match fs::read_to_string(directory.join(SETTINGS_PROJECTION)) {
+        Ok(text) => Ok(match serde_json::from_str::<Value>(&text) {
+            Ok(Value::Object(values)) => values,
+            _ => serde_json::Map::new(),
+        }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(serde_json::Map::new()),
+        Err(error) => Err(error.into()),
+    }
+}
+
 impl CapabilityBroker {
     pub fn new(plugin_data_root: PathBuf) -> Self {
         Self {
@@ -213,23 +274,52 @@ impl CapabilityBroker {
         self.load_plugin_settings_unlocked(manifest)
     }
 
+    /// The plugin's settings document. On first access it is created from the
+    /// legacy `settings.json` when one exists, under a fresh generation.
+    fn ensure_settings_document(
+        &self,
+        manifest: &PluginManifest,
+    ) -> Result<SettingsDocument, CapabilityError> {
+        let directory = self.ensure_plugin_data_dir(manifest)?;
+        let collection = settings_collection(&directory)?;
+        if let Some(record) = collection.get(SETTINGS_RECORD).map_err(store_error)? {
+            return Ok(record.value);
+        }
+        // Keep the legacy generation when there is one, so approvals that were
+        // valid before the migration stay valid after it.
+        let legacy_generation = match fs::read_to_string(directory.join(LEGACY_GENERATION)) {
+            Ok(text) if valid_generation(&text) => Some(text),
+            _ => None,
+        };
+        let document = SettingsDocument {
+            generation: match legacy_generation {
+                Some(generation) => generation,
+                None => new_generation()?,
+            },
+            values: legacy_settings_values(&directory)?,
+        };
+        collection
+            .put(SETTINGS_RECORD, &document, Expect::Absent)
+            .map_err(store_error)?;
+        match fs::remove_file(directory.join(LEGACY_GENERATION)) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        Ok(document)
+    }
+
     fn load_plugin_settings_unlocked(
         &self,
         manifest: &PluginManifest,
     ) -> Result<Value, CapabilityError> {
-        let path = self.ensure_plugin_data_dir(manifest)?.join("settings.json");
-        let stored = match fs::read_to_string(path) {
-            Ok(value) => {
-                serde_json::from_str(&value).unwrap_or_else(|_| Value::Object(Default::default()))
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                Value::Object(Default::default())
-            }
-            Err(error) => return Err(CapabilityError::Io(error)),
-        };
+        let document = self.ensure_settings_document(manifest)?;
         // Schema defaults apply to every consumer (probes, actions, option
         // sources, display) so first-run behavior matches a saved config.
-        Ok(apply_settings_defaults(manifest, &stored))
+        Ok(apply_settings_defaults(
+            manifest,
+            &Value::Object(document.values),
+        ))
     }
 
     /// Hold this through final effect admission. Every host settings writer,
@@ -251,30 +341,20 @@ impl CapabilityBroker {
         let directory = self
             .ensure_plugin_data_dir(manifest)
             .map_err(|error| error.to_string())?;
-        let generation_path = directory.join(".settings-generation");
-        let generation = match fs::read_to_string(&generation_path) {
-            Ok(generation)
-                if generation.len() == 64
-                    && generation.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
-            {
-                generation
-            }
-            Ok(_) => return Err("plugin settings generation is invalid".into()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                let generation = new_generation().map_err(|error| error.to_string())?;
-                atomic_settings_write(&directory, ".settings-generation", generation.as_bytes())
-                    .map_err(|error| error.to_string())?;
-                generation
-            }
-            Err(error) => return Err(error.to_string()),
-        };
-        let settings = self
-            .load_plugin_settings_unlocked(manifest)
+        let document = self
+            .ensure_settings_document(manifest)
             .map_err(|error| error.to_string())?;
+        if !valid_generation(&document.generation) {
+            return Err("plugin settings generation is invalid".into());
+        }
+        // External plugin processes read settings.json, so the projection must
+        // match the stored values before any effect is admitted.
+        project_settings(&directory, &document.values).map_err(|error| error.to_string())?;
+        let settings = apply_settings_defaults(manifest, &Value::Object(document.values));
         apply(
             PluginSettingsBinding {
                 boot_identity,
-                generation,
+                generation: document.generation,
             },
             settings,
         )
@@ -336,16 +416,19 @@ impl CapabilityBroker {
             }
         }
         let directory = self.ensure_plugin_data_dir(manifest)?;
-        let payload = serde_json::to_vec(&merged).map_err(|error| {
-            CapabilityError::Io(io::Error::new(io::ErrorKind::InvalidData, error))
-        })?;
-        let generation = new_generation()?;
-        atomic_settings_write(&directory, ".settings-generation", generation.as_bytes())?;
-        atomic_settings_write(&directory, "settings.json", &payload)?;
-        // The file keeps exactly what was sent; the echo overlays defaults
-        // so it matches what a later load returns.
-        let stored = Value::Object(merged.into_iter().collect());
-        let stored = apply_settings_defaults(manifest, &stored);
+        // One atomic record carries the new identity and the values; the
+        // projection follows it. A crash in between leaves the store authoritative.
+        let stored_values: serde_json::Map<String, Value> = merged.into_iter().collect();
+        let document = SettingsDocument {
+            generation: new_generation()?,
+            values: stored_values.clone(),
+        };
+        settings_collection(&directory)?
+            .put(SETTINGS_RECORD, &document, Expect::Any)
+            .map_err(store_error)?;
+        project_settings(&directory, &stored_values)?;
+        // The echo overlays defaults so it matches what a later load returns.
+        let stored = apply_settings_defaults(manifest, &Value::Object(stored_values));
         Ok(redact_secret_settings(manifest, &stored))
     }
 
@@ -358,9 +441,14 @@ impl CapabilityBroker {
             .lock()
             .map_err(|_| io::Error::other("plugin settings lease is unavailable"))?;
         let directory = self.ensure_plugin_data_dir(manifest)?;
-        let generation = new_generation()?;
-        atomic_settings_write(&directory, ".settings-generation", generation.as_bytes())?;
-        match fs::remove_file(directory.join("settings.json")) {
+        let document = SettingsDocument {
+            generation: new_generation()?,
+            values: serde_json::Map::new(),
+        };
+        settings_collection(&directory)?
+            .put(SETTINGS_RECORD, &document, Expect::Any)
+            .map_err(store_error)?;
+        match fs::remove_file(directory.join(SETTINGS_PROJECTION)) {
             Ok(()) => {
                 #[cfg(unix)]
                 fs::File::open(directory)?.sync_all()?;
@@ -638,5 +726,92 @@ mod tests {
             Some("en")
         );
         let _ = std::fs::remove_dir_all(root);
+    }
+}
+
+#[cfg(test)]
+mod settings_store_tests {
+    use super::*;
+
+    fn manifest() -> PluginManifest {
+        PluginManifest::from_json_str(
+            r#"{
+                "schemaVersion": 2,
+                "id": "demo.plugin",
+                "name": "Demo",
+                "version": "1.0.0",
+                "runtime": "process",
+                "entry": "index.js",
+                "capabilities": ["audio.play"],
+                "permissions": ["audio.output"]
+            }"#,
+        )
+        .unwrap()
+    }
+
+    fn scratch(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "tiktools-settings-store-{name}-{}",
+            fastrand::u128(..)
+        ));
+        fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    #[test]
+    fn legacy_settings_json_is_imported_into_the_store_with_its_generation() {
+        let root = scratch("legacy");
+        let plugin_dir = root.join("demo.plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        let legacy_generation = "ab".repeat(32);
+        fs::write(plugin_dir.join(LEGACY_GENERATION), &legacy_generation).unwrap();
+        fs::write(
+            plugin_dir.join(SETTINGS_PROJECTION),
+            br#"{"value":"legacy"}"#,
+        )
+        .unwrap();
+        let broker = CapabilityBroker::new(root.clone());
+        let manifest = manifest();
+        let binding = broker
+            .with_plugin_settings_binding(&manifest, |binding, settings| {
+                assert_eq!(settings["value"], "legacy");
+                Ok(binding)
+            })
+            .unwrap();
+        assert_eq!(binding.generation, legacy_generation);
+        assert!(!plugin_dir.join(LEGACY_GENERATION).exists());
+        let projected: Value =
+            serde_json::from_slice(&fs::read(plugin_dir.join(SETTINGS_PROJECTION)).unwrap())
+                .unwrap();
+        assert_eq!(projected, serde_json::json!({"value": "legacy"}));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn saved_settings_live_in_the_store_and_survive_a_restart() {
+        let root = scratch("restart");
+        let manifest = manifest();
+        let values = BTreeMap::from([("value".to_owned(), Value::from("stored"))]);
+        CapabilityBroker::new(root.clone())
+            .save_plugin_settings(&manifest, &values)
+            .unwrap();
+        let store = Store::open(root.join("demo.plugin").join("store")).unwrap();
+        let record = store
+            .collection::<SettingsDocument>(SETTINGS_COLLECTION)
+            .unwrap()
+            .get(SETTINGS_RECORD)
+            .unwrap()
+            .expect("record in store");
+        assert_eq!(record.value.values["value"], "stored");
+        let reloaded = CapabilityBroker::new(root.clone())
+            .load_plugin_settings(&manifest)
+            .unwrap();
+        assert_eq!(reloaded["value"], "stored");
+        let projected: Value = serde_json::from_slice(
+            &fs::read(root.join("demo.plugin").join(SETTINGS_PROJECTION)).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(projected, serde_json::json!({"value": "stored"}));
+        let _ = fs::remove_dir_all(root);
     }
 }
