@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { errorMessage, type ControlClient } from '@/shared/api/control-client.ts';
 import { validV2Review, type V2ConflictTarget, type V2ConflictReview } from './recovery-contracts.ts';
@@ -9,6 +9,7 @@ export function useSyncV2Conflicts(client: ControlClient, context: SyncRecoveryC
   const { t } = useI18n();
   const { v2ConflictValueText } = useRecoveryLabels();
   const v2Conflicts = ref<V2ConflictTarget[]>([]);
+  const v2ConflictCount = computed(() => v2Conflicts.value.length);
   const v2ConflictReview = ref<V2ConflictReview | null>(null);
   const v2ConflictBusy = ref(false);
   const v2ConflictError = ref('');
@@ -66,6 +67,6 @@ export function useSyncV2Conflicts(client: ControlClient, context: SyncRecoveryC
   function reset(): void {
     v2Conflicts.value = []; v2ConflictReview.value = null; v2ConflictBusy.value = false; v2ConflictError.value = ''; v2ConflictResolved.value = false;
   }
-  return { v2Conflicts, v2ConflictReview, v2ConflictBusy, v2ConflictError, v2ConflictResolved, refreshV2Conflicts, reviewV2Conflict, resolveV2Conflict, v2ConflictValueText, reset };
+  return { v2Conflicts, v2ConflictCount, v2ConflictReview, v2ConflictBusy, v2ConflictError, v2ConflictResolved, refreshV2Conflicts, reviewV2Conflict, resolveV2Conflict, v2ConflictValueText, reset };
 }
 export type SyncV2Conflicts = ReturnType<typeof useSyncV2Conflicts>;

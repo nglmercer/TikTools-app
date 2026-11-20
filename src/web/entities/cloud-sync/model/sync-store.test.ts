@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
-import type { SyncStatus } from '../api/sync-types.ts';
-import { useSyncStore } from './sync-store.ts';
+import type { SyncNowResult, SyncStatus } from '../api/sync-types.ts';
+import { AUTO_SYNC_DEBOUNCE_MS, AUTO_SYNC_INTERVAL_MS, useSyncStore } from './sync-store.ts';
 
 function idle(overrides: Partial<SyncStatus> = {}): SyncStatus {
   return {
@@ -142,5 +142,93 @@ describe('sync store', () => {
     expect(await syncing).toBeNull();
     await Promise.resolve();
     expect(store.status?.enabled).toBe(false);
+  });
+});
+
+describe('automatic sync', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const result = (): SyncNowResult => ({ pushed: 0, pulled: 0, applied: 0, skipped: 0, applicationDeferred: false, conflicts: [] });
+
+  function autoHarness(status: SyncStatus = idle()) {
+    return harness((method) => {
+      if (method === 'sync.status') return status;
+      if (method === 'sync.now') return result();
+      throw new Error(`unexpected ${method}`);
+    });
+  }
+
+  it('calls syncNow every 60 seconds when enabled and signed in', async () => {
+    const { store, calls } = autoHarness();
+    await store.refresh();
+    store.startAutoSync();
+    await vi.advanceTimersByTimeAsync(AUTO_SYNC_INTERVAL_MS - 1);
+    expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(1);
+    store.stopAutoSync();
+  });
+
+  it('does not run when sync is disabled or the user is signed out', async () => {
+    for (const status of [idle({ enabled: false }), idle({ signedIn: false })]) {
+      const { store, calls } = autoHarness(status);
+      await store.refresh();
+      store.startAutoSync();
+      await vi.advanceTimersByTimeAsync(AUTO_SYNC_INTERVAL_MS * 2);
+      expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(0);
+      store.stopAutoSync();
+    }
+  });
+
+  it('does not start a second run while a sync is working', async () => {
+    let release!: (value: SyncNowResult) => void;
+    const { store, calls } = harness((method) => {
+      if (method === 'sync.status') return idle();
+      if (method === 'sync.now') return new Promise<SyncNowResult>((resolve) => { release = resolve; });
+      throw new Error(`unexpected ${method}`);
+    });
+    await store.refresh();
+    store.startAutoSync();
+    const first = store.syncNow();
+    expect(store.working).toBe(true);
+    await vi.advanceTimersByTimeAsync(AUTO_SYNC_INTERVAL_MS * 2);
+    expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(1);
+    release(result());
+    await first;
+    store.stopAutoSync();
+  });
+
+  it('runs once three seconds after invalidate for a local change', async () => {
+    const { store, calls } = autoHarness();
+    await store.refresh();
+    store.invalidate();
+    await Promise.resolve(); await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(AUTO_SYNC_DEBOUNCE_MS - 1);
+    expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(1);
+    store.stopAutoSync();
+  });
+
+  it('coalesces repeated invalidations into a single debounced run', async () => {
+    const { store, calls } = autoHarness();
+    await store.refresh();
+    store.invalidate();
+    store.invalidate();
+    await Promise.resolve(); await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(AUTO_SYNC_DEBOUNCE_MS + 1);
+    expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(1);
+    store.stopAutoSync();
+  });
+
+  it('stops both triggers when auto sync is stopped', async () => {
+    const { store, calls } = autoHarness();
+    await store.refresh();
+    store.startAutoSync();
+    store.stopAutoSync();
+    store.invalidate();
+    await vi.advanceTimersByTimeAsync(AUTO_SYNC_INTERVAL_MS + AUTO_SYNC_DEBOUNCE_MS);
+    expect(calls.filter((call) => call.method === 'sync.now')).toHaveLength(0);
   });
 });

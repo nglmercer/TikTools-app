@@ -26,6 +26,8 @@ export function useDiagnostics(): void {
   const integrations = useIntegrationsStore();
   const bundles = useBundlesStore();
   const packages = usePackagesStore();
+  // The store owns automatic sync; the shell mounts this hook once, so the timer is installed once.
+  sync.startAutoSync();
   const secrets = (): string[] => [connection.cookie, ...connection.cookie.split(';').map((part) => part.slice(part.indexOf('=') + 1).trim())].filter(Boolean);
   function error(source: DiagnosticSource, code: string, message: string | null | undefined, detail?: CloudFailure | null): void {
     if (message) diagnosticLog.record({ source, code: detail ? `${code}:${detail.code}` : code, message, level: 'error', requestId: detail?.requestId }, secrets());
@@ -67,5 +69,5 @@ export function useDiagnostics(): void {
   }, { immediate: true, flush: 'sync' });
   const offTransport = client.onTransportError((message) => error('transport', 'transport.error', message));
   const offGap = client.onGap((count) => diagnosticLog.record({ source: 'transport', code: 'events.gap', level: 'warning', message: `Event stream resynchronized; reported gap: ${count}` }));
-  onUnmounted(() => { offTransport(); offGap(); diagnosticView.open.value = false; diagnosticLog.clear(); });
+  onUnmounted(() => { sync.stopAutoSync(); offTransport(); offGap(); diagnosticView.open.value = false; diagnosticLog.clear(); });
 }

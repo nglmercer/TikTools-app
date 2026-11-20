@@ -4,11 +4,11 @@ import type { ControlClient } from '@/shared/api/control-client.ts';
 export type ResolutionMode = 'automatic' | 'manual';
 
 export const RESOLUTION_MODE_KEY = 'app.resolution.mode';
-export const DEFAULT_RESOLUTION_MODE: ResolutionMode = 'automatic';
+export const DEFAULT_RESOLUTION_MODE: ResolutionMode = 'manual';
 
-/** Conflicts and unconfirmed outcomes are resolved automatically by default:
- * the current record is read and adopted as the new base without replaying the
- * original action. Manual review is an opt-in advanced mode kept for later. */
+/** Conflicts and unconfirmed outcomes go to a manual review queue by default;
+ * nothing is resolved automatically unless the user explicitly opts in to the
+ * advanced automatic mode. */
 export const resolutionMode = ref<ResolutionMode>(DEFAULT_RESOLUTION_MODE);
 export const manualReview = computed(() => resolutionMode.value === 'manual');
 
@@ -21,7 +21,7 @@ export async function loadResolutionPreference(client: ControlClient): Promise<v
   loaded = true;
   try {
     const stored = await client.call<{ state: Record<string, string> }>('app.state.get', { keys: [RESOLUTION_MODE_KEY] });
-    resolutionMode.value = stored.state[RESOLUTION_MODE_KEY] === 'manual' ? 'manual' : 'automatic';
+    resolutionMode.value = stored.state[RESOLUTION_MODE_KEY] === 'automatic' ? 'automatic' : DEFAULT_RESOLUTION_MODE;
   } catch {
     resolutionMode.value = DEFAULT_RESOLUTION_MODE;
   }

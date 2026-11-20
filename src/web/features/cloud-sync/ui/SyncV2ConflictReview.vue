@@ -5,7 +5,7 @@ import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 const props = defineProps<{ model: SyncV2Conflicts }>();
 const { t } = useI18n();
-const { v2Conflicts, v2ConflictReview, v2ConflictBusy, v2ConflictError, v2ConflictResolved, reviewV2Conflict, resolveV2Conflict, v2ConflictValueText } = props.model;
+const { v2Conflicts, v2ConflictCount, v2ConflictReview, v2ConflictBusy, v2ConflictError, v2ConflictResolved, reviewV2Conflict, resolveV2Conflict, v2ConflictValueText } = props.model;
 </script>
 
 <template>
@@ -24,7 +24,7 @@ const { v2Conflicts, v2ConflictReview, v2ConflictBusy, v2ConflictError, v2Confli
     v-if="v2Conflicts.length"
     :aria-label="t('sync.v2.conflictTitle')"
   >
-    <h3>{{ t('sync.v2.conflictTitle') }}</h3>
+    <h3>{{ t('sync.v2.conflictTitle') }} <span data-testid="v2-conflict-count">{{ v2ConflictCount }}</span></h3>
     <p>{{ t('sync.v2.conflictDescription') }}</p>
     <ul>
       <li
