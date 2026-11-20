@@ -46,6 +46,23 @@ impl PluginManifest {
         if !is_valid_plugin_id(&id) {
             return Err(ManifestError::InvalidField("id"));
         }
+        // Schema 2 has no pages, templates, http or ui blocks. They are dropped
+        // without an error, so a plugin with a page missing from the sidebar would
+        // look broken with no clue why. Say so once, at discovery.
+        if !is_v3 {
+            let ignored: Vec<&str> = ["pages", "templates", "http", "ui"]
+                .into_iter()
+                .filter(|key| object.contains_key(*key))
+                .collect();
+            if !ignored.is_empty() {
+                tracing::warn!(
+                    plugin = %id,
+                    schemaVersion = schema_version,
+                    ignored = ?ignored,
+                    "plugin manifest declares v3-only blocks on schemaVersion < 3; they are ignored, set schemaVersion to 3"
+                );
+            }
+        }
         let name = required_string(object, "name")?;
         if name.trim().is_empty() || name.len() > 256 {
             return Err(ManifestError::InvalidField("name"));
