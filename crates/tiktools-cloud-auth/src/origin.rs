@@ -3,6 +3,11 @@
 /// An empty string, `off` or `none` disables Cloud when the value is applicable.
 pub const ENV_CLOUD_ORIGIN: &str = "TIKTOOLS_CLOUD_ORIGIN";
 
+/// `TIKTOOLS_CLOUD_ORIGIN=local` selects this origin in debug builds only: the
+/// RemakeBackend default bind address (`BIND_ADDR` unset).
+pub const LOCAL_DEV_ALIAS: &str = "local";
+pub const LOCAL_DEV_ORIGIN: &str = "http://127.0.0.1:3000";
+
 /// Official Cloud origin used when the operator did not configure the build.
 pub const DEFAULT_CLOUD_ORIGIN: &str = "https://remakebackend-production-a872.up.railway.app";
 
@@ -82,6 +87,10 @@ fn resolve_origin_from(
         }
     }
     if let Some(runtime) = runtime.filter(|_| development) {
+        // Debug-only shortcut for a RemakeBackend started with its default bind address.
+        if runtime.trim().eq_ignore_ascii_case(LOCAL_DEV_ALIAS) {
+            return normalize_cloud_origin(LOCAL_DEV_ORIGIN);
+        }
         return configured(runtime);
     }
     match compiled {
@@ -200,5 +209,26 @@ mod tests {
         ] {
             assert_eq!(resolve_e2e_origin(rejected), None, "accepted {rejected}");
         }
+    }
+}
+
+#[cfg(test)]
+mod local_dev_alias_tests {
+    use super::{resolve_origin_from, LOCAL_DEV_ORIGIN};
+
+    #[test]
+    fn local_alias_selects_the_local_backend_only_in_debug_builds() {
+        assert_eq!(
+            resolve_origin_from(Some("local"), None, true).as_deref(),
+            Some(LOCAL_DEV_ORIGIN),
+        );
+        assert_eq!(
+            resolve_origin_from(Some(" LOCAL "), None, true).as_deref(),
+            Some(LOCAL_DEV_ORIGIN),
+        );
+        assert_eq!(
+            resolve_origin_from(Some("local"), None, false).as_deref(),
+            Some(super::DEFAULT_CLOUD_ORIGIN),
+        );
     }
 }

@@ -20,6 +20,8 @@ cloud-auth = [
     "tiktools-control-api/cloud-auth",
     "tiktools-client/cloud-auth",
 ]
+# Test-only: honor TIKTOOLS_E2E_CLOUD_ORIGIN (loopback) in release builds.
+e2e-cloud-origin = ["tiktools-core/e2e-cloud-origin"]
 
 [dependencies]
 tiktools-client = { path = "../tiktools-client" }
