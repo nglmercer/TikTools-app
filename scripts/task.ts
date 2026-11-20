@@ -34,7 +34,15 @@ forwardTerminationSignals(runner);
 const run = (...cmd: string[]): Promise<void> => runner.run(cmd);
 
 const script = (name: string, ...args: string[]) => run(bun, `scripts/${name}`, ...args);
-const tool = (name: string, ...args: string[]) => run(bun, 'x', '--no-install', name, ...args);
+// On Android `bun x --no-install <tool>` does not launch the binary (bun
+// cannot resolve .bin shims there). Call the tool's JS entry point with the
+// host Node runtime instead, which works on Termux.
+const tool = (name: string, ...args: string[]) => {
+  if (process.platform === 'android') {
+    return run(process.execPath, join(root, 'node_modules', name, 'bin', `${name}.js`), ...args);
+  }
+  return run(bun, 'x', '--no-install', name, ...args);
+};
 const cargo = (...args: string[]) => run(bun, 'scripts/cargo-with-linker.mjs', ...args);
 
 function needNoArgs(command: string, args: string[]): void {
