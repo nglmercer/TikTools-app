@@ -85,8 +85,7 @@ onMounted(() => {
         />
         <template v-if="account.loginCode && !account.loginCode.requiresOauth">
           <p class="cloud-account__muted">
-            Code sent to {{ account.loginCode.delivered }} connected device(s).
-            Enter the 6-digit code shown on the other device.
+            {{ t('account.codeSent', { count: account.loginCode.delivered }) }}
           </p>
           <div class="cloud-account__actions">
             <input
@@ -94,7 +93,7 @@ onMounted(() => {
               class="cloud-account__code"
               inputmode="numeric"
               maxlength="6"
-              placeholder="000000"
+              :placeholder="t('account.codePlaceholder')"
               autocomplete="one-time-code"
               @keyup.enter="account.submitLoginCode(codeValue)"
             >
@@ -103,10 +102,13 @@ onMounted(() => {
               :disabled="account.working || !/^\d{6}$/.test(codeValue)"
               @click="account.submitLoginCode(codeValue)"
             >
-              Sign in
+              {{ t('account.signIn') }}
             </BaseButton>
-            <BaseButton :disabled="account.working" @click="account.resendLoginCode()">
-              Resend
+            <BaseButton
+              :disabled="account.working"
+              @click="account.resendLoginCode()"
+            >
+              {{ t('account.resend') }}
             </BaseButton>
           </div>
         </template>
@@ -116,7 +118,7 @@ onMounted(() => {
               v-model="codeEmail"
               class="cloud-account__code"
               type="email"
-              placeholder="you@example.com"
+              :placeholder="t('account.emailPlaceholder')"
               @keyup.enter="account.startLoginCode(codeEmail)"
             >
             <BaseButton
@@ -124,7 +126,7 @@ onMounted(() => {
               :disabled="account.working || !codeEmail.includes('@')"
               @click="account.startLoginCode(codeEmail)"
             >
-              Send code
+              {{ t('account.sendCode') }}
             </BaseButton>
           </div>
         </template>
@@ -153,7 +155,7 @@ onMounted(() => {
               :disabled="account.working"
               @click="showCodeLogin = !showCodeLogin"
             >
-              {{ showCodeLogin ? 'Cancel' : 'Sign in with code' }}
+              {{ showCodeLogin ? t('account.cancel') : t('account.signInWithCode') }}
             </BaseButton>
           </template>
           <BaseButton
