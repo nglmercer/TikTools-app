@@ -22,7 +22,6 @@ impl MediaHost for DesktopMediaHost {
                 })?
         })
     }
-
 }
 
 fn pick_media(options: MediaPickerOptions) -> Result<Option<PathBuf>, MediaHostError> {

@@ -86,7 +86,6 @@ impl MediaHost for NoopMediaHost {
             ))
         })
     }
-
 }
 
 /// Validates a file selected by the user and builds fresh metadata from the

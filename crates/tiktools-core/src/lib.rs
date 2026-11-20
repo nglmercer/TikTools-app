@@ -83,9 +83,7 @@ use std::{
 };
 
 use serde_json::{json, Value};
-use tiktools_plugin_api::{
-    MediaFileRef, MediaPickerOptions, MediaSelection,
-};
+use tiktools_plugin_api::{MediaFileRef, MediaPickerOptions, MediaSelection};
 use tiktools_plugin_loader::{plugin_roots, PluginManager};
 
 #[cfg(feature = "native-tiktok")]
@@ -110,8 +108,8 @@ use crate::{
     services::{
         builtin_action_types, builtin_node_catalog, builtin_translations,
         media_selection_from_path_with_kind, option_sources::OptionSourceService,
-        validate_media_picker_options, AppStateService, AutomationService,
-        AwardOptions, CapabilityBroker, LiveService, PointAction, PointsService,
+        validate_media_picker_options, AppStateService, AutomationService, AwardOptions,
+        CapabilityBroker, LiveService, PointAction, PointsService,
     },
 };
 

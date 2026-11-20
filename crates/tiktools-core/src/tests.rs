@@ -74,7 +74,6 @@ impl MediaHost for RecordingMediaHost {
             .clone();
         Box::pin(async move { Ok(selected) })
     }
-
 }
 
 fn media_fixture() -> (PathBuf, PathBuf) {

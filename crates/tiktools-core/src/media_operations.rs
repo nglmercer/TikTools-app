@@ -17,5 +17,4 @@ impl AppCore {
             .transpose()
             .map_err(MediaApiError::from)
     }
-
 }

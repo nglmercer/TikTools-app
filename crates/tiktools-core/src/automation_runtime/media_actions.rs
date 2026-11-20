@@ -114,12 +114,9 @@ impl AppCore {
             false,
         ))
         .await?;
-        let played = output
-            .result
-            .clone()
-            .and_then(|value| {
-                serde_json::from_value::<tiktools_plugin_api::AudioPlaybackResult>(value).ok()
-            });
+        let played = output.result.clone().and_then(|value| {
+            serde_json::from_value::<tiktools_plugin_api::AudioPlaybackResult>(value).ok()
+        });
         let outcome = match played {
             Some(result) => AudioOutcome {
                 summary: audio_outcome_summary(&file.name, &result),
