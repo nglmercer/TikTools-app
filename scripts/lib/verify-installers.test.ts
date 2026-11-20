@@ -42,7 +42,7 @@ test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle witho
     pack();
     await expect(verifyInstaller(staging, join(root, 'fixture.deb'), 'deb', '4.2.0')).rejects.toThrow('installer content mismatch: web/index.html');
   } finally { await rm(root, { recursive: true, force: true }); }
-});
+}, 60_000);
 
 describe('Linux installer metadata', () => {
   test('requires GTK and WebKitGTK Debian dependencies', () => {

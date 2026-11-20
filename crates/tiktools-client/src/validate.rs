@@ -35,7 +35,9 @@ use tiktools_control_api::modules::bundles::{
     OverlayRevisionsQuery, PackageCreateParams, PackageIdParams,
 };
 #[cfg(feature = "cloud-auth")]
-use tiktools_control_api::modules::cloud::CloudLoginOperationParams;
+use tiktools_control_api::modules::cloud::{
+    CloudLoginCodeParams, CloudLoginCodeSubmitParams, CloudLoginOperationParams,
+};
 use tiktools_control_api::modules::competitions::{
     CompetitionActionId, CompetitionId, CompetitionResultsRequest, CompetitionSummaryParams,
     Definition as CompetitionDefinition, ResolveCompetitionAction, SelectWinner,
@@ -503,7 +505,12 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "cloud.login.begin"
         | "cloud.login.open"
         | "cloud.login.complete"
-        | "cloud.login.cancel" => validate::<CloudLoginOperationParams>(params),
+        | "cloud.login.cancel"
+        | "cloud.login.code.resend" => validate::<CloudLoginOperationParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloud.login.code.send" => validate::<CloudLoginCodeParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloud.login.code.submit" => validate::<CloudLoginCodeSubmitParams>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.status"
         | "sync.enable"
