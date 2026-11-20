@@ -122,6 +122,10 @@ pub struct PluginCallResult {
     pub intents: Vec<HostIntent>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub events: Vec<PluginEvent>,
+    /// Structured value for the caller of the action (for example a playback
+    /// outcome). Never shown as text; absent when the action returns nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<Value>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
@@ -133,6 +137,10 @@ pub struct ActionResult {
     pub logs: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub intents: Vec<HostIntent>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub events: Vec<PluginEvent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<Value>,
 }
 
 impl ActionResult {
@@ -155,6 +163,18 @@ impl ActionResult {
 
     pub fn emit(mut self, event_type: impl Into<String>, data: Value) -> Self {
         self.intents.push(HostIntent::emit(event_type, data));
+        self
+    }
+
+    /// Attach a structured value for the caller (for example a playback outcome).
+    pub fn result(mut self, value: Value) -> Self {
+        self.result = Some(value);
+        self
+    }
+
+    /// Publish a plugin event to the host event stream.
+    pub fn event(mut self, event: PluginEvent) -> Self {
+        self.events.push(event);
         self
     }
 
@@ -201,7 +221,8 @@ impl From<ActionResult> for PluginCallResult {
             summary: result.summary,
             logs: result.logs,
             intents: result.intents,
-            events: Vec::new(),
+            events: result.events,
+            result: result.result,
         }
     }
 }
@@ -213,6 +234,7 @@ impl From<PollResult> for PluginCallResult {
             logs: result.logs,
             intents: Vec::new(),
             events: result.events,
+            result: None,
         }
     }
 }

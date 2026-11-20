@@ -54,6 +54,48 @@ impl AppCore {
             return Ok(summary);
         }
         self.execution_context_guard(context)?;
+        // Playback belongs to an installed, enabled audio provider plugin when one
+        // exists. The host media backend is only the fallback for hosts without one.
+        if let Some(action_type) = self.audio_provider() {
+            let overlap_name = match overlap {
+                tiktools_plugin_api::AudioOverlap::Allow => "allow",
+                tiktools_plugin_api::AudioOverlap::Restart => "restart",
+                tiktools_plugin_api::AudioOverlap::Drop => "drop",
+            };
+            let file_value = serde_json::to_value(&file)
+                .map_err(|error| format!("could not encode audio file: {error}"))?;
+            let action = serde_json::json!({
+                "typeId": action_type,
+                "config": {
+                    "fileRef": file_value,
+                    "volume": volume,
+                    "overlap": overlap_name,
+                },
+            });
+            // Boxed: a provider result may itself return audio intents, which re-enter
+            // this function. The indirection keeps the async call graph finite.
+            let output = Box::pin(self.execute_plugin_action_output(
+                &action_type,
+                &action,
+                event,
+                context,
+                logs,
+                false,
+            ))
+            .await?;
+            let played = output.result.clone().and_then(|value| {
+                serde_json::from_value::<tiktools_plugin_api::AudioPlaybackResult>(value).ok()
+            });
+            let summary = match played {
+                Some(result) => audio_outcome_summary(&file.name, &result),
+                None => output.summary,
+            };
+            tracing::info!(target: "tiktools::automation", file = %file.path, "audio action completed by provider plugin");
+            if logs.len() < 40 {
+                logs.push(summary.clone());
+            }
+            return Ok(summary);
+        }
         let result = self
             .play_audio(
                 file.clone(),
@@ -82,5 +124,42 @@ impl AppCore {
             logs.push(summary.clone());
         }
         Ok(summary)
+    }
+}
+
+/// Human summary of a playback outcome, shared by provider and fallback paths.
+fn audio_outcome_summary(name: &str, result: &tiktools_plugin_api::AudioPlaybackResult) -> String {
+    if result.played {
+        format!("played {name}")
+    } else {
+        format!(
+            "skipped {name}{}",
+            result
+                .reason
+                .as_deref()
+                .map(|reason| format!(" ({reason})"))
+                .unwrap_or_default()
+        )
+    }
+}
+
+impl AppCore {
+    /// The action type of the installed, enabled plugin that provides
+    /// `audio.play`. Ties are broken by plugin id so routing is deterministic.
+    pub(crate) fn audio_provider(&self) -> Option<String> {
+        let mut providers: Vec<(String, String)> = self
+            .plugins
+            .list()
+            .into_iter()
+            .filter(|plugin| self.plugin_ready(&plugin.manifest.id))
+            .filter_map(|plugin| {
+                plugin
+                    .manifest
+                    .capability_provider(tiktools_plugin_api::CAPABILITY_AUDIO_PLAY)
+                    .map(|action| (plugin.manifest.id.clone(), action.to_owned()))
+            })
+            .collect();
+        providers.sort();
+        providers.into_iter().next().map(|(_, action)| action)
     }
 }

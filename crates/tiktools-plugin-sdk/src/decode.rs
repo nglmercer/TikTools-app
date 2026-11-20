@@ -18,11 +18,16 @@ pub fn decode_plugin_result(value: Value) -> Result<PluginCallResult, PluginProt
     intents.extend(decode_legacy_emit_intents(object.get("emit"))?);
     intents.extend(decode_legacy_audio_intents(object.get("playAudio"))?);
     let events = decode_events(object.get("events"))?;
+    let result = object
+        .get("result")
+        .filter(|value| !value.is_null())
+        .cloned();
     Ok(PluginCallResult {
         summary,
         logs,
         intents,
         events,
+        result,
     })
 }
 

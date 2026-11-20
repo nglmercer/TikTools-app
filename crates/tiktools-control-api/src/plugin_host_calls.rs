@@ -158,6 +158,30 @@ impl HostCallHandler for PluginHostCalls {
             return Err("host call params are too large".to_owned());
         }
 
+        // Native file selection is host UI. A plugin reaches it only through this
+        // narrow branch, gated by the `media.pick` capability, and receives the
+        // chosen path and nothing else.
+        if method == "media.pick" {
+            self.api
+                .core()
+                .capabilities
+                .require_capability(
+                    &discovered.manifest,
+                    tiktools_plugin_api::CAPABILITY_MEDIA_PICK,
+                )
+                .map_err(|error| error.to_string())?;
+            let options: tiktools_plugin_api::MediaPickerOptions =
+                serde_json::from_value(params)
+                    .map_err(|error| format!("invalid media picker options: {error}"))?;
+            let picked = self
+                .handle
+                .block_on(self.api.core().media.open_picker(options))
+                .map_err(|error| error.to_string())?;
+            return Ok(serde_json::json!({
+                "path": picked.map(|path| path.display().to_string()),
+            }));
+        }
+
         // Login-code operations are intentionally NOT exposed through the
         // generic remote-policy path (all `cloud.login.*` are RemotePolicy::
         // Deny). A plugin that displays a relayed code needs to hand the code

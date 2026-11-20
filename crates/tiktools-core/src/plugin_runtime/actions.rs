@@ -14,6 +14,22 @@ impl AppCore {
         logs: &mut Vec<String>,
         test: bool,
     ) -> Result<String, String> {
+        self.execute_plugin_action_output(type_id, action, event, context, logs, test)
+            .await
+            .map(|output| output.summary)
+    }
+
+    /// Like `execute_plugin_action`, but also returns the structured `result`
+    /// the plugin attached, for callers that need the outcome (audio playback).
+    pub(crate) async fn execute_plugin_action_output(
+        self: &Arc<Self>,
+        type_id: &str,
+        action: &Value,
+        event: &Value,
+        context: &ExecutionContext,
+        logs: &mut Vec<String>,
+        test: bool,
+    ) -> Result<PluginActionOutput, String> {
         self.execution_context_guard(context)?;
         let Some((plugin, descriptor)) = self.plugin_for_action(type_id) else {
             return Err(format!(
@@ -83,18 +99,18 @@ impl AppCore {
                         }
                     };
                     return tokio::select! {
-                        result = execution => result,
+                        result = execution => result.map(PluginActionOutput::from_summary),
                         _ = cancelled => Err("Plugin disabled or unloaded; request cancelled. Game outcome may be uncertain; do not automatically replay.".to_owned()),
                     };
                 }
-                return execution.await;
+                return execution.await.map(PluginActionOutput::from_summary);
             }
         }
         if test {
-            return Ok(format!(
+            return Ok(PluginActionOutput::from_summary(format!(
                 "would run plugin {} action {type_id}",
                 plugin.manifest.id
-            ));
+            )));
         }
 
         let action_timeout = descriptor.timeout();
@@ -142,6 +158,15 @@ impl AppCore {
 
         let typed = tiktools_plugin_sdk::decode_plugin_result(response)
             .map_err(|error| format!("invalid plugin result: {error}"))?;
+        let structured = typed.result;
+        for published in typed.events {
+            self.events
+                .publish_domain(crate::events::DomainEvent::PluginEvent {
+                    plugin_id: plugin.manifest.id.clone(),
+                    event_type: published.event_type,
+                    event: published.data,
+                });
+        }
         for log in typed.logs {
             if logs.len() < 40 {
                 logs.push(log);
@@ -156,7 +181,10 @@ impl AppCore {
         if parts.is_empty() {
             parts.push(format!("plugin {} completed", plugin.manifest.id));
         }
-        Ok(parts.join(" · "))
+        Ok(PluginActionOutput {
+            summary: parts.join(" · "),
+            result: structured,
+        })
     }
 
     pub(crate) fn plugin_for_action(
@@ -213,5 +241,22 @@ impl AppCore {
         })
         .await
         .map_err(|error| InvokeError::Unavailable(format!("plugin startup task failed: {error}")))?
+    }
+}
+
+/// Outcome of a plugin action: the human summary and the structured `result`
+/// the plugin attached (absent when it returned none).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PluginActionOutput {
+    pub(crate) summary: String,
+    pub(crate) result: Option<Value>,
+}
+
+impl PluginActionOutput {
+    fn from_summary(summary: String) -> Self {
+        Self {
+            summary,
+            result: None,
+        }
     }
 }

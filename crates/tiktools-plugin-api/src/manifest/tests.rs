@@ -1443,3 +1443,51 @@ fn cli_command_shape_is_validated() {
         PluginManifest::from_json_str(&base(r#"{"id":"ping","actionType":"demo.ping"}"#)).is_err()
     );
 }
+
+#[test]
+fn capability_provider_routes_a_declared_capability_to_a_declared_action() {
+    // The host routes `audio.play` to the provider's action only when the
+    // manifest declares both the capability and the action type.
+    let json = r#"{
+        "schemaVersion":2,"id":"demo","name":"Demo","version":"1.0.0",
+        "runtime":"process","entry":"demo",
+        "capabilities":["audio.play"],
+        "actionTypes":[{"id":"demo.play"}],
+        "capabilityProviders":[{"capability":"audio.play","actionType":"demo.play"}]
+    }"#;
+    let manifest = PluginManifest::from_json_str(json).unwrap();
+    assert_eq!(
+        manifest.capability_provider("audio.play"),
+        Some("demo.play")
+    );
+    assert_eq!(manifest.capability_provider("media.pick"), None);
+}
+
+#[test]
+fn capability_provider_must_reference_declared_capability_and_action() {
+    let base = |provider: &str, capabilities: &str| {
+        format!(
+            r#"{{"schemaVersion":2,"id":"demo","name":"Demo","version":"1.0.0",
+            "runtime":"process","entry":"demo","capabilities":[{capabilities}],
+            "actionTypes":[{{"id":"demo.play"}}],"capabilityProviders":[{provider}]}}"#
+        )
+    };
+    // Capability not declared by the manifest.
+    assert!(PluginManifest::from_json_str(&base(
+        r#"{"capability":"audio.play","actionType":"demo.play"}"#,
+        ""
+    ))
+    .is_err());
+    // Action type not declared by the manifest.
+    assert!(PluginManifest::from_json_str(&base(
+        r#"{"capability":"audio.play","actionType":"demo.missing"}"#,
+        r#""audio.play""#
+    ))
+    .is_err());
+    // Missing fields.
+    assert!(PluginManifest::from_json_str(&base(
+        r#"{"capability":"audio.play"}"#,
+        r#""audio.play""#
+    ))
+    .is_err());
+}

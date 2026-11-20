@@ -1,26 +1,19 @@
 //! Desktop implementations of the framework-independent media capability.
 //!
-//! The picker returns a path only. Audio playback streams the selected file
-//! directly; no file is copied into the application or plugin directories.
-//! The rodio engine lives in the `tiktools-audio-rodio` crate of the plugins
-//! repository; this module only adapts it to the host media interface.
+//! The picker returns a path only; no file is copied into the application or
+//! plugin directories. Playback is not a host feature: it belongs to an
+//! installed audio provider plugin, which the core routes `audio.play` to.
 
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
 
-use tiktools_audio_rodio::{AudioEngine, Overlap};
 use tiktools_core::{MediaHost, MediaHostError, MediaHostFuture};
 use tiktools_plugin_api::{
-    AudioOverlap, AudioPlayOptions, AudioPlaybackResult, MediaKind, MediaPickerMode,
+    AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaKind, MediaPickerMode,
     MediaPickerOptions,
 };
 
 #[derive(Default)]
-pub struct DesktopMediaHost {
-    audio: Arc<AudioEngine>,
-}
+pub struct DesktopMediaHost;
 
 impl MediaHost for DesktopMediaHost {
     fn open_picker(&self, options: MediaPickerOptions) -> MediaHostFuture<Option<PathBuf>> {
@@ -35,14 +28,14 @@ impl MediaHost for DesktopMediaHost {
 
     fn play_audio(
         &self,
-        file: tiktools_plugin_api::MediaFileRef,
-        options: AudioPlayOptions,
+        _file: MediaFileRef,
+        _options: AudioPlayOptions,
     ) -> MediaHostFuture<AudioPlaybackResult> {
-        let audio = Arc::clone(&self.audio);
-        Box::pin(async move {
-            tokio::task::spawn_blocking(move || play_audio(&audio, &file, options))
-                .await
-                .map_err(|error| MediaHostError::Failed(format!("audio task failed: {error}")))?
+        Box::pin(async {
+            Err(MediaHostError::Failed(
+                "No audio provider is installed. Install an audio provider plugin, such as the TikTools audio plugin."
+                    .to_owned(),
+            ))
         })
     }
 }
@@ -74,24 +67,4 @@ fn pick_media(options: MediaPickerOptions) -> Result<Option<PathBuf>, MediaHostE
         MediaPickerMode::Directory => dialog.pick_folder(),
     };
     Ok(selected)
-}
-
-fn play_audio(
-    audio: &AudioEngine,
-    file: &tiktools_plugin_api::MediaFileRef,
-    options: AudioPlayOptions,
-) -> Result<AudioPlaybackResult, MediaHostError> {
-    let overlap = match options.overlap {
-        AudioOverlap::Allow => Overlap::Allow,
-        AudioOverlap::Restart => Overlap::Restart,
-        AudioOverlap::Drop => Overlap::Drop,
-    };
-    let outcome = audio
-        .play_file(Path::new(&file.path), options.volume, overlap)
-        .map_err(|error| MediaHostError::Failed(error.to_string()))?;
-    Ok(AudioPlaybackResult {
-        played: outcome.played,
-        reason: outcome.reason.map(str::to_owned),
-        active_players: outcome.active_players,
-    })
 }
