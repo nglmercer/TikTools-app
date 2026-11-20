@@ -6,10 +6,11 @@ use tiktools_control_api::modules::automation_library::{
     validate_owner_library_submit, OwnerLibraryEmpty,
 };
 pub use tiktools_control_api::modules::automation_library::{
-    OwnerLibraryAcknowledgement, OwnerLibraryCatalog, OwnerLibraryEntry, OwnerLibraryIntent,
-    OwnerLibraryMutation, OwnerLibraryOperation, OwnerLibraryOutcome, OwnerLibraryPack,
-    OwnerLibraryProfile, OwnerLibraryReceipt, OwnerLibraryRecord, OwnerLibraryReviewUnknown,
-    OwnerLibrarySnapshot, OwnerLibraryState, OwnerLibrarySubmission, OwnerLibrarySubmit,
+    LibrarySyncResult, OwnerLibraryAcknowledgement, OwnerLibraryCatalog, OwnerLibraryEntry,
+    OwnerLibraryIntent, OwnerLibraryMutation, OwnerLibraryOperation, OwnerLibraryOutcome,
+    OwnerLibraryPack, OwnerLibraryProfile, OwnerLibraryReceipt, OwnerLibraryRecord,
+    OwnerLibraryReviewUnknown, OwnerLibrarySnapshot, OwnerLibraryState, OwnerLibrarySubmission,
+    OwnerLibrarySubmit,
 };
 
 pub(crate) const METHODS: &[&str] = &[
@@ -18,6 +19,8 @@ pub(crate) const METHODS: &[&str] = &[
     "automation.library.submit",
     "automation.library.resolve",
     "automation.library.review_unknown",
+    "automation.library.sync.now",
+    "automation.library.sync.replace_unreadable",
 ];
 const BYTES: usize = 8 * 1024 * 1024;
 const STATE_BYTES: usize = 256 * 1024;
@@ -638,6 +641,23 @@ impl TikToolsClient {
             return Err(protocol());
         }
         Ok(state)
+    }
+    pub async fn automation_library_sync_now(&self) -> Result<LibrarySyncResult, ClientError> {
+        let response: CallResult<LibrarySyncResult> = self
+            .call_with_meta(METHODS[5], OwnerLibraryEmpty {}, None)
+            .await?;
+        plain(&response)?;
+        Ok(response.result)
+    }
+
+    pub async fn automation_library_sync_replace_unreadable(
+        &self,
+    ) -> Result<LibrarySyncResult, ClientError> {
+        let response: CallResult<LibrarySyncResult> = self
+            .call_with_meta(METHODS[6], OwnerLibraryEmpty {}, None)
+            .await?;
+        plain(&response)?;
+        Ok(response.result)
     }
 }
 

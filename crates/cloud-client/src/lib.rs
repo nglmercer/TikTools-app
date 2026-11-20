@@ -12,6 +12,7 @@ mod keychain;
 pub use keychain::{Keychain, KeychainError};
 mod account;
 mod exports;
+mod library_sync;
 mod selection_state;
 mod selection_sync;
 mod transport;
@@ -28,6 +29,7 @@ mod workspace;
 mod workspace_state;
 mod workspace_store;
 pub use cloud_contracts::{WorkspaceChanges, WorkspaceRecord, WorkspaceSnapshot};
+pub use library_sync::*;
 pub use login::{LoginAttempt, LoginResult};
 pub use login_code::{
     redeem as login_code_redeem, relay as login_code_relay, reserve as login_code_reserve,

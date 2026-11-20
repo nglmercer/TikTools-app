@@ -208,6 +208,7 @@ impl AppCore {
             analytics_writer: db::AnalyticsWriter::new(Arc::clone(&db)),
             db: db.clone(),
             app_state: Arc::new(AppStateService::default()),
+            sync_origin: Mutex::new("agent".to_owned()),
             events,
             emitter,
             automation_state: AutomationRuntimeState::default(),

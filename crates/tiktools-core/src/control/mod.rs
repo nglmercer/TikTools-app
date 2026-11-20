@@ -9,6 +9,7 @@
 
 mod analytics;
 mod automation;
+pub(crate) mod automation_library_sync;
 mod owner_approval_review;
 pub use owner_approval_review::{
     OwnerApprovalBlockReason, OwnerApprovalEligibility, OwnerApprovalReviewParams,
@@ -116,6 +117,10 @@ pub use analytics::GiftDebugResult;
 pub use automation::{
     AutomationEnablementMiss, AutomationKind, AutomationMutation, AutomationRecords,
     AutomationSetEnablementResult, ScriptAnalysisResult,
+};
+pub use automation_library_sync::{
+    LibrarySyncAction, LibrarySyncBase, LibrarySyncRecord, LibrarySyncResult,
+    AUTOMATION_LIBRARY_CHANGED_EVENT, LIBRARY_SYNC_BASE_KEY,
 };
 #[cfg(feature = "cloud-auth")]
 pub use cloud_account::CloudLoginUrl;

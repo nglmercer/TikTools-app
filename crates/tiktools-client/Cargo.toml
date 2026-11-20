@@ -51,6 +51,8 @@ keyring = { version = "3.6.3", default-features = false, features = ["apple-nati
 keyring = { version = "3.6.3", default-features = false, features = ["windows-native"], optional = true }
 
 [dev-dependencies]
+# Tests build real clients; rustls gets its aws-lc-rs provider in test builds only.
+reqwest = { workspace = true, features = ["rustls"] }
 tokio = { workspace = true, features = ["test-util"] }
 tiktools-core = { path = "../tiktools-core" }
 tempfile = "3"

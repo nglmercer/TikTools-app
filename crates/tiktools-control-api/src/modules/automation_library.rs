@@ -8,12 +8,13 @@ use serde::{Deserialize, Serialize};
 use tiktools_core::collaboration::Versioned;
 pub use tiktools_core::control::{
     owner_library_command_hash, owner_library_definition_digest, owner_library_digest,
-    owner_library_versions_digest, validate_owner_library_submit, OwnerLibraryAcknowledgement,
-    OwnerLibraryCatalog, OwnerLibraryCloudProvenance, OwnerLibraryEntry, OwnerLibraryIntent,
-    OwnerLibraryMutation, OwnerLibraryOperation, OwnerLibraryOutcome, OwnerLibraryPack,
-    OwnerLibraryProfile, OwnerLibraryReceipt, OwnerLibraryRecord, OwnerLibraryReviewUnknown,
-    OwnerLibrarySnapshot, OwnerLibraryState, OwnerLibrarySubmission, OwnerLibrarySubmit,
-    OWNER_LIBRARY_MAX_BYTES, OWNER_LIBRARY_MAX_CATALOG_BYTES, OWNER_LIBRARY_MAX_RECORDS,
+    owner_library_versions_digest, validate_owner_library_submit, LibrarySyncResult,
+    OwnerLibraryAcknowledgement, OwnerLibraryCatalog, OwnerLibraryCloudProvenance,
+    OwnerLibraryEntry, OwnerLibraryIntent, OwnerLibraryMutation, OwnerLibraryOperation,
+    OwnerLibraryOutcome, OwnerLibraryPack, OwnerLibraryProfile, OwnerLibraryReceipt,
+    OwnerLibraryRecord, OwnerLibraryReviewUnknown, OwnerLibrarySnapshot, OwnerLibraryState,
+    OwnerLibrarySubmission, OwnerLibrarySubmit, OWNER_LIBRARY_MAX_BYTES,
+    OWNER_LIBRARY_MAX_CATALOG_BYTES, OWNER_LIBRARY_MAX_RECORDS,
 };
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -105,12 +106,44 @@ pub fn register(router: &mut ControlRouter) {
             .map_err(ApiError::from)
         },
     );
+    router.register_versioned::<OwnerLibraryEmpty, serde_json::Value, _, _>(
+        "automation.library.sync.now",
+        "Synchronize the Owner automation library with Cloud now",
+        true,
+        |core, context, _, meta| async move {
+            owner(context, meta)?;
+            let result = core
+                .automation_library_sync_now()
+                .await
+                .map_err(ApiError::from)?;
+            let value = serde_json::to_value(result)
+                .map_err(|error| ApiError::internal(error.to_string()))?;
+            Ok(Versioned::new(value, Vec::new()))
+        },
+    );
+    router.register_versioned::<OwnerLibraryEmpty, serde_json::Value, _, _>(
+        "automation.library.sync.replace_unreadable",
+        "Replace an unreadable Cloud library record with this device's library",
+        true,
+        |core, context, _, meta| async move {
+            owner(context, meta)?;
+            let result = core
+                .automation_library_sync_replace_unreadable()
+                .await
+                .map_err(ApiError::from)?;
+            let value = serde_json::to_value(result)
+                .map_err(|error| ApiError::internal(error.to_string()))?;
+            Ok(Versioned::new(value, Vec::new()))
+        },
+    );
     for name in [
         "automation.library.snapshot",
         "automation.library.get",
         "automation.library.submit",
         "automation.library.resolve",
         "automation.library.review_unknown",
+        "automation.library.sync.now",
+        "automation.library.sync.replace_unreadable",
     ] {
         router.set_remote_policy(name, crate::policy::RemotePolicy::Deny);
     }
@@ -118,6 +151,8 @@ pub fn register(router: &mut ControlRouter) {
         "automation.library.submit",
         "automation.library.resolve",
         "automation.library.review_unknown",
+        "automation.library.sync.now",
+        "automation.library.sync.replace_unreadable",
     ] {
         router.set_concurrency(name, ConcurrencyStrategy::ExclusiveTransition);
     }
@@ -149,7 +184,7 @@ mod tests {
         assert!(owner(RequestContext::LocalOwner, None).is_ok());
         let mut router = ControlRouter::new();
         register(&mut router);
-        assert_eq!(router.metadata().len(), 5);
+        assert_eq!(router.metadata().len(), 6);
         for method in router.metadata() {
             let mutation = !matches!(
                 method.name.as_str(),

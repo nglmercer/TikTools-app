@@ -180,6 +180,9 @@ pub struct AppCore {
     #[cfg(feature = "persistence")]
     analytics_writer: db::AnalyticsWriter,
     pub app_state: Arc<AppStateService>,
+    /// Origin attributed to automation library pushes (`"ui"` or `"agent"`).
+    /// Defaults to `"agent"` until the desktop declares itself at startup.
+    pub(crate) sync_origin: Mutex<String>,
     /// Opaque variable revisions belong to this exact host lifetime.
     variable_revision_binding: u128,
     pub events: EventBus,

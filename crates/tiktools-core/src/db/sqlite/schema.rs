@@ -595,6 +595,30 @@ INSERT OR IGNORE INTO behavior_provenance(scope,resource_id,authority,generation
   WHERE kind='automation' AND scope IN ('action','event')
     AND NOT EXISTS(SELECT 1 FROM behavior_provenance_migration WHERE id=1);
 INSERT OR IGNORE INTO behavior_provenance_migration(id,version) VALUES (1,1);
+
+-- Monotonic write counter for the automation library: every write to a table that
+-- the library snapshot reads bumps it. Sync compares this counter, not a digest,
+-- so reading or applying a snapshot on another host cannot look like a local edit.
+CREATE TABLE IF NOT EXISTS automation_library_version(
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  version INTEGER NOT NULL CHECK(version>=0)
+);
+INSERT OR IGNORE INTO automation_library_version(id,version) VALUES (1,0);
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_actions_ins AFTER INSERT ON behavior_actions BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_actions_upd AFTER UPDATE ON behavior_actions BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_actions_del AFTER DELETE ON behavior_actions BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_events_ins AFTER INSERT ON behavior_events BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_events_upd AFTER UPDATE ON behavior_events BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_events_del AFTER DELETE ON behavior_events BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_plugins_ins AFTER INSERT ON behavior_plugins BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_plugins_upd AFTER UPDATE ON behavior_plugins BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_behavior_plugins_del AFTER DELETE ON behavior_plugins BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_automation_library_catalog_ins AFTER INSERT ON automation_library_catalog BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_automation_library_catalog_upd AFTER UPDATE ON automation_library_catalog BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_automation_library_catalog_del AFTER DELETE ON automation_library_catalog BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_control_resource_versions_ins AFTER INSERT ON control_resource_versions BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_control_resource_versions_upd AFTER UPDATE ON control_resource_versions BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
+CREATE TRIGGER IF NOT EXISTS automation_library_version_control_resource_versions_del AFTER DELETE ON control_resource_versions BEGIN UPDATE automation_library_version SET version=version+1 WHERE id=1; END;
 COMMIT;
 
 "#;

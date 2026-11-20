@@ -10,13 +10,12 @@
 /// Does nothing when neither provider feature is enabled, so libraries can call
 /// it defensively without choosing a provider themselves.
 pub fn ensure_default_crypto_provider() {
-    if rustls::crypto::CryptoProvider::get_default().is_some() {
-        return;
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        #[cfg(feature = "ring")]
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        #[cfg(all(feature = "aws-lc-rs", not(feature = "ring")))]
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     }
-    #[cfg(feature = "ring")]
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    #[cfg(all(feature = "aws-lc-rs", not(feature = "ring")))]
-    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 }
 
 #[cfg(all(test, any(feature = "aws-lc-rs", feature = "ring")))]

@@ -300,6 +300,16 @@ impl DatabaseManager {
         tx.commit()?;
         Ok(values)
     }
+    /// Monotonic write counter of the automation library (see the schema triggers).
+    pub(crate) fn automation_library_version(&self) -> Result<i64, DatabaseError> {
+        let db = self.open(&self.automation_path())?;
+        Ok(db.query_row(
+            "SELECT version FROM automation_library_version WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )?)
+    }
+
     pub(crate) fn automation_library_snapshot(
         &self,
     ) -> Result<(OwnerLibraryCatalog, String, Versioned<Value>), DatabaseError> {
@@ -312,6 +322,30 @@ impl DatabaseManager {
         tx.commit()?;
         Ok((catalog, revision.to_string(), definitions))
     }
+    /// Writes a merged catalog when the stored catalog is still at `expected`. The
+    /// library sync is the caller; owner-library commands keep their own journal.
+    /// Validation and the revision fence run before anything is committed.
+    pub(crate) fn replace_automation_catalog(
+        &self,
+        catalog: &OwnerLibraryCatalog,
+        expected: i64,
+    ) -> Result<(), DatabaseError> {
+        self.ensure_automation_library()?;
+        let mut db = self.open(&self.automation_path())?;
+        let tx = db.transaction()?;
+        write_catalog_on(&tx, catalog, expected)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Checks a catalog against the same rules a write applies, without writing it.
+    pub(crate) fn check_automation_catalog(
+        &self,
+        catalog: &OwnerLibraryCatalog,
+    ) -> Result<(), DatabaseError> {
+        validate_catalog(catalog)
+    }
+
     #[cfg(test)]
     pub(crate) fn automation_library_legacy_get(
         &self,

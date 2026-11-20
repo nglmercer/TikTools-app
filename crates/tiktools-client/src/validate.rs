@@ -197,9 +197,11 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         }
         "automation.definition.submit" => validate::<OwnerDefinitionSubmit>(params),
         "automation.definition.review_unknown" => validate::<OwnerDefinitionReviewUnknown>(params),
-        "automation.library.snapshot" | "automation.library.get" | "automation.library.resolve" => {
-            validate::<OwnerLibraryEmpty>(params)
-        }
+        "automation.library.snapshot"
+        | "automation.library.get"
+        | "automation.library.resolve"
+        | "automation.library.sync.now"
+        | "automation.library.sync.replace_unreadable" => validate::<OwnerLibraryEmpty>(params),
         "automation.library.submit" => validate::<OwnerLibrarySubmit>(params),
         "automation.library.review_unknown" => validate::<OwnerLibraryReviewUnknown>(params),
         "automation.effects.get" => serde_json::from_value::<EffectGetParams>(params.clone())
