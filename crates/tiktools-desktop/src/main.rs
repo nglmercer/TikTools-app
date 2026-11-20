@@ -44,12 +44,8 @@ fn main() {
         eprintln!("{error}");
         std::process::exit(1);
     }
-    // The workspace and upstream ttl-live-ws both select rustls' aws-lc-rs
-    // provider. Install it before any async client is created so embedded
-    // users do not depend on reqwest's implicit default.
-    if rustls::crypto::CryptoProvider::get_default().is_none() {
-        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-    }
+    // Select the TLS provider compiled into this build before any client exists.
+    tiktools_tls::ensure_default_crypto_provider();
 
     let log_path = match logging::init() {
         Ok(path) => path,

@@ -1,4 +1,5 @@
 fn main() {
+    tiktools_tls::ensure_default_crypto_provider();
     let mut args = vec!["stage-native".to_owned()];
     args.extend(std::env::args().skip(1));
     if let Err(error) = tiktools_plugin_devkit::run(args) {

@@ -8,10 +8,21 @@ description = "Developer-friendly, runtime-neutral SDK for TikTools plugins"
 
 [features]
 default = []
-http-client = ["dep:reqwest"]
+# Plugin binaries: reqwest with rustls aws-lc-rs compiled in, as before.
+http-client = ["dep:reqwest", "reqwest/rustls"]
 providers = [
     "http-client",
-    "dep:reqwest",
+    "dep:tokio",
+    "dep:sha2",
+    "dep:tar",
+    "dep:flate2",
+    "dep:base64",
+]
+# TikTools binaries: rustls is compiled without a provider; the application
+# installs one through tiktools-tls before building any client.
+http-client-no-provider = ["dep:reqwest", "reqwest/rustls-no-provider"]
+providers-no-provider = [
+    "http-client-no-provider",
     "dep:tokio",
     "dep:sha2",
     "dep:tar",
@@ -27,7 +38,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 sha2 = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "query"], optional = true }
 tokio = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }

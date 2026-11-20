@@ -45,7 +45,7 @@ e2e-cloud-origin = ["dep:tiktools-cloud-auth", "tiktools-cloud-auth/e2e-cloud-or
 # link `tiktools-cloud-sync` into a host that only needs sign-in.
 cloud-sync = ["cloud-auth", "dep:tiktools-cloud-sync"]
 persistence = ["dep:rusqlite"]
-http = ["dep:reqwest", "dep:tokio-tungstenite", "tiktools-plugin-sdk/http-client"]
+http = ["dep:reqwest", "dep:tokio-tungstenite", "tiktools-plugin-sdk/http-client-no-provider"]
 tiktok-network = ["dep:tokio-tungstenite"]
 native-tiktok = ["dep:tiktools-tiktok"]
 # Explicit synthetic harness only; excluded from normal release artifacts.
@@ -99,6 +99,9 @@ libc = "0.2"
 arboard = { version = "3.7.0", default-features = false }
 
 [dev-dependencies]
+# Tests build real clients; rustls gets its aws-lc-rs provider in test builds only.
+reqwest = { workspace = true, features = ["rustls"] }
+
 tokio = { workspace = true, features = ["test-util"] }
 cloud-client = { path = "../cloud-client", version = "0.1.0" }
 secrecy = "0.10"

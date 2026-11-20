@@ -17,6 +17,7 @@ members = [
     "crates/tiktools-plugin-registry",
     "crates/tiktools-plugin-installer",
     "crates/tiktools-plugin-devkit",
+    "crates/tiktools-tls",
     "crates/cloud-client",
     "crates/cloud-contracts",
     "crates/tiktools-cloud-auth",
@@ -55,8 +56,9 @@ fastrand = "2.5.0"
 tokio-util = "0.7.20"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "sync", "macros", "time", "net", "io-util", "io-std", "fs"] }
 rusqlite = { version = "0.41.0", default-features = false }
-reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls"] }
-rustls = { version = "0.23.46", default-features = false, features = ["aws-lc-rs"] }
+# No rustls provider here: the application selects one via tiktools-tls.
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls-no-provider"] }
+rustls = { version = "0.23.46", default-features = false, features = ["std", "tls12"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 libloading = "0.9.0"
 sha2 = "0.11.1"

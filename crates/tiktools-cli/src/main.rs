@@ -101,6 +101,7 @@ without --confirm.
 ";
 
 fn main() {
+    tiktools_tls::ensure_default_crypto_provider();
     let code = run();
     std::process::exit(code);
 }

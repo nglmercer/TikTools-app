@@ -20,10 +20,11 @@ name = "tiktools-plugin-stage-native"
 path = "src/bin/tiktools-plugin-stage-native.rs"
 
 [dependencies]
+tiktools-tls = { path = "../tiktools-tls", features = ["aws-lc-rs"] }
 tiktools-plugin-api = { path = "../tiktools-plugin-api", version = "4.2.3" }
 tiktools-plugin-package = { path = "../tiktools-plugin-package", version = "4.2.3" }
 tiktools-plugin-registry = { path = "../tiktools-plugin-registry", version = "4.2.3" }
-tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "4.2.3", features = ["providers"] }
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", version = "4.2.3", features = ["providers-no-provider"] }
 semver.workspace = true
 serde.workspace = true
 serde_json.workspace = true

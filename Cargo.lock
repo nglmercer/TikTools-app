@@ -4926,6 +4926,7 @@ dependencies = [
  "tiktools-client",
  "tiktools-control-api",
  "tiktools-core",
+ "tiktools-tls",
  "tokio",
  "url",
  "zeroize",
@@ -5117,6 +5118,7 @@ dependencies = [
  "tiktools-core",
  "tiktools-plugin-api",
  "tiktools-plugin-loader",
+ "tiktools-tls",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -5154,6 +5156,7 @@ dependencies = [
  "tiktools-plugin-package",
  "tiktools-plugin-registry",
  "tiktools-plugin-sdk",
+ "tiktools-tls",
  "tokio",
 ]
 
@@ -5277,6 +5280,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tiktools-plugin-sdk",
+ "tiktools-tls",
  "tokio",
  "tokio-util",
  "tracing",
@@ -5287,6 +5291,13 @@ dependencies = [
  "ttl-sign-core",
  "ttl-sign-embedded",
  "ttl-sign-headless",
+]
+
+[[package]]
+name = "tiktools-tls"
+version = "4.2.3"
+dependencies = [
+ "rustls",
 ]
 
 [[package]]

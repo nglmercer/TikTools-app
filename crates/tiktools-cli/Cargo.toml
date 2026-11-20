@@ -11,7 +11,10 @@ name = "tiktools"
 path = "src/main.rs"
 
 [features]
-default = ["cloud-auth"]
+default = ["cloud-auth", "tls-aws-lc"]
+# TLS provider for this binary; see tiktools-desktop for the selection rule.
+tls-aws-lc = ["tiktools-tls/aws-lc-rs"]
+tls-ring = ["tiktools-tls/ring"]
 local-web = ["dep:axum", "dep:rand"]
 # `cloud-auth` enables account, sync and relay support. Remote control itself
 # is an installable plugin (`tiktools.remote-control`), not compiled here.
@@ -25,6 +28,7 @@ e2e-cloud-origin = ["tiktools-core/e2e-cloud-origin"]
 
 [dependencies]
 tiktools-client = { path = "../tiktools-client" }
+tiktools-tls = { path = "../tiktools-tls", default-features = false }
 tiktools-control-api = { path = "../tiktools-control-api", features = ["native-tiktok", "http"] }
 tiktools-core = { path = "../tiktools-core" }
 serde.workspace = true

@@ -22,4 +22,7 @@ tempfile = "3"
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Registry"] }
 
 [dev-dependencies]
+# Tests build real clients; rustls gets its aws-lc-rs provider in test builds only.
+reqwest = { workspace = true, features = ["rustls"] }
+
 tokio.workspace = true

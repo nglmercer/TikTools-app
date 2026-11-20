@@ -9,7 +9,11 @@ description = "Thin Winit/Wry desktop host for TikTools"
 [features]
 # Remote control is owned by the installable `tiktools.remote-control`
 # plugin; no in-process remote feature is compiled into the desktop host.
-default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth", "os-keychain"]
+default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth", "os-keychain", "tls-aws-lc"]
+# TLS provider for this binary: exactly one is installed at startup. Default
+# keeps aws-lc-rs; `--no-default-features --features tls-ring` selects ring.
+tls-aws-lc = ["tiktools-tls/aws-lc-rs"]
+tls-ring = ["tiktools-tls/ring"]
 devtools = ["wry/devtools"]
 live-benchmark = ["tiktools-core/live-benchmark"]
 plugin-install = ["tiktools-core/plugin-install"]
@@ -25,6 +29,7 @@ e2e-cloud-origin = ["tiktools-core/e2e-cloud-origin"]
 tiktools-core = { path = "../tiktools-core", features = ["native-tiktok"] }
 tiktools-control-api = { path = "../tiktools-control-api", features = ["app-update"] }
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
+tiktools-tls = { path = "../tiktools-tls", default-features = false }
 serde_json.workspace = true
 serde.workspace = true
 tokio.workspace = true

@@ -7,7 +7,8 @@ rust-version.workspace = true
 description = "Desktop-independent TikTok client boundary"
 
 [dependencies]
-tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", features = ["http-client"] }
+tiktools-tls = { path = "../tiktools-tls" }
+tiktools-plugin-sdk = { path = "../tiktools-plugin-sdk", features = ["http-client-no-provider"] }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -32,6 +33,9 @@ ttl-sign-embedded.workspace = true
 rquickjs = { version = "0.14.0", default-features = false, features = ["bindgen"] }
 
 [dev-dependencies]
+# Tests build real clients; rustls gets its aws-lc-rs provider in test builds only.
+reqwest = { workspace = true, features = ["rustls"] }
+
 tokio = { workspace = true, features = ["test-util"] }
 prost = "0.14.3"
 ttl-live-proto.workspace = true

@@ -11,10 +11,10 @@ mod decode;
 mod enrich;
 mod error;
 mod host_call;
-#[cfg(feature = "http-client")]
+#[cfg(any(feature = "http-client", feature = "http-client-no-provider"))]
 pub mod http;
 pub mod native;
-#[cfg(feature = "providers")]
+#[cfg(any(feature = "providers", feature = "providers-no-provider"))]
 pub mod native_providers;
 pub mod native_stage;
 mod plugin;

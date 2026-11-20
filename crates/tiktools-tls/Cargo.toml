@@ -1,0 +1,16 @@
+[package]
+name = "tiktools-tls"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Installs the single process-wide rustls crypto provider for TikTools binaries"
+
+[features]
+# Provider compiled into the final binary. Applications choose one; libraries
+# never enable either, so the graph carries exactly the provider the app wants.
+aws-lc-rs = ["rustls/aws-lc-rs"]
+ring = ["rustls/ring"]
+
+[dependencies]
+rustls.workspace = true
