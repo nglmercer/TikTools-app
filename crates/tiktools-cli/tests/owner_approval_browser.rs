@@ -1,8 +1,5 @@
 //! Actual packaged owner browser → local adapter → IPC → one Core approval journal.
-#![cfg(all(
-    target_os = "linux",
-    feature = "local-web"
-))]
+#![cfg(all(target_os = "linux", feature = "local-web"))]
 mod common;
 use common::*;
 use serde_json::{json, Value};

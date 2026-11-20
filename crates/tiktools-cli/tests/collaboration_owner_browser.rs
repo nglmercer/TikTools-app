@@ -1,8 +1,5 @@
 //! Opt-in actual UI → local browser adapter → IPC owner → TLS controllers.
-#![cfg(all(
-    target_os = "linux",
-    feature = "local-web"
-))]
+#![cfg(all(target_os = "linux", feature = "local-web"))]
 use serde_json::{json, Value};
 use std::{
     path::{Path, PathBuf},

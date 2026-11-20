@@ -19,8 +19,8 @@ pub mod native_providers;
 pub mod native_stage;
 mod plugin;
 pub mod process;
-pub mod store;
 mod results;
+pub mod store;
 #[cfg(test)]
 mod tests;
 

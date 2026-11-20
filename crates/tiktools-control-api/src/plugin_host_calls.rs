@@ -283,14 +283,12 @@ impl HostCallHandler for PluginHostCalls {
                     .ok_or_else(|| "deviceId is required".to_owned())?
                     .to_owned();
                 let core = self.api.core();
-                let issued = self.handle.block_on(
-                    core.teams_api().issue_ticket_as(
-                        core.cloud_auth(),
-                        "controller",
-                        &host_id,
-                        &device_id,
-                    ),
-                );
+                let issued = self.handle.block_on(core.teams_api().issue_ticket_as(
+                    core.cloud_auth(),
+                    "controller",
+                    &host_id,
+                    &device_id,
+                ));
                 let ticket = issued.map_err(|error| error.to_string())?;
                 return Ok(serde_json::json!({"ticket": ticket}));
             }

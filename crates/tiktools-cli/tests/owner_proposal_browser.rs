@@ -1,8 +1,5 @@
 //! Opt-in actual owner browser → local adapter → IPC → Core authority review.
-#![cfg(all(
-    target_os = "linux",
-    feature = "local-web"
-))]
+#![cfg(all(target_os = "linux", feature = "local-web"))]
 mod common;
 use common::*;
 use serde_json::{json, Value};

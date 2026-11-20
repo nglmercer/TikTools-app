@@ -141,7 +141,9 @@ impl AppCore {
     /// Cloud Teams in-app transport was removed: remote control is owned by
     /// the installable `tiktools.remote-control` plugin. These methods remain
     /// as explicit errors so old callers fail closed with a clear message.
-    pub async fn teams_host_start(self: &std::sync::Arc<Self>) -> Result<crate::cloud_teams::RemoteHostStatus, OperationError> {
+    pub async fn teams_host_start(
+        self: &std::sync::Arc<Self>,
+    ) -> Result<crate::cloud_teams::RemoteHostStatus, OperationError> {
         Err(OperationError::unavailable(
             "remote control is provided by the tiktools.remote-control plugin",
         ))
@@ -150,7 +152,9 @@ impl AppCore {
         crate::cloud_teams::RemoteHostStatus {
             state: "unavailable".into(),
             host_id: None,
-            last_error: Some("remote control is provided by the tiktools.remote-control plugin".into()),
+            last_error: Some(
+                "remote control is provided by the tiktools.remote-control plugin".into(),
+            ),
         }
     }
     pub fn teams_host_status(&self) -> crate::cloud_teams::RemoteHostStatus {
@@ -165,7 +169,10 @@ impl AppCore {
         crate::cloud_teams::redeem_invitation(self.cloud.auth(), &device, params).await
     }
     /// Command dispatch moved to the plugin's `host.call` `remote.command.dispatch`.
-    pub async fn teams_command_run(&self, params: crate::cloud_teams::CommandRunParams) -> Result<crate::cloud_teams::CommandOutcome, OperationError> {
+    pub async fn teams_command_run(
+        &self,
+        params: crate::cloud_teams::CommandRunParams,
+    ) -> Result<crate::cloud_teams::CommandOutcome, OperationError> {
         let _ = params;
         Err(OperationError::unavailable(
             "use the tiktools.remote-control plugin's host.call remote.command.dispatch",

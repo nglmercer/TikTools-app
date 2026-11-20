@@ -28,7 +28,10 @@ mod tests {
 
     #[test]
     fn local_is_the_only_mode() {
-        assert_eq!(Mode::parse(["--some-host-option".to_owned()]), Ok(Mode::Local));
+        assert_eq!(
+            Mode::parse(["--some-host-option".to_owned()]),
+            Ok(Mode::Local)
+        );
     }
 
     #[test]

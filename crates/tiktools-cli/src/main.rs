@@ -143,11 +143,7 @@ fn run() -> i32 {
     code
 }
 
-async fn dispatch(
-    args: Vec<String>,
-    json_mode: bool,
-    standalone: bool,
-) -> i32 {
+async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
     if args.first().is_some_and(|arg| arg == "web") {
         #[cfg(feature = "local-web")]
         return web::run(&args[1..], standalone).await;
@@ -241,4 +237,3 @@ async fn execute_and_print(
         }
     }
 }
-
