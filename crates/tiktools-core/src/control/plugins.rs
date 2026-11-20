@@ -52,6 +52,16 @@ pub struct PluginInstallResult {
     pub replaced: bool,
 }
 
+/// Outcome of a trusted catalog refresh. The counts make a rescan observable
+/// when a manifest edit is supposed to add or change a sidebar page.
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRescanResult {
+    pub plugin_count: usize,
+    pub page_count: usize,
+    pub registry_revision: u64,
+}
+
 /// Resolved isolated-UI target: which plugin page to open and which
 /// directory the desktop asset server may serve it from.
 #[derive(Debug, Clone)]
@@ -107,6 +117,51 @@ impl AppCore {
                     || plugin.get("id").and_then(Value::as_str) == Some(id.as_str())
             })
             .ok_or_else(|| OperationError::not_found(format!("Plugin `{id}` is not installed.")))
+    }
+
+    /// Re-reads manifests from disk and refreshes everything derived from the
+    /// catalog: event subscribers, processors, the automation/behavior snapshot
+    /// (including sidebar pages) and a `workflow.changed` notification so the
+    /// WebView reloads its projection. There is no full app restart here.
+    ///
+    /// A rescan blesses on-disk manifests as trusted (the runtime binding
+    /// compares against the catalog), so it must stay local-only at the API.
+    pub fn plugin_rescan(&self) -> Result<PluginRescanResult, OperationError> {
+        let discovered = self.plugins.scan()?;
+        self.start_enabled_event_subscribers();
+        self.rebuild_processor_index();
+        self.refresh_automation_snapshot();
+        self.emit_persisted_behavior();
+        self.events
+            .publish_domain(crate::events::DomainEvent::WorkflowChanged {
+                kind: "plugin".to_owned(),
+                id: "rescan".to_owned(),
+                change: "rescanned".to_owned(),
+            });
+        Ok(PluginRescanResult {
+            plugin_count: discovered.len(),
+            page_count: discovered
+                .iter()
+                .map(|plugin| plugin.manifest.pages.len())
+                .sum(),
+            registry_revision: self.plugins.registry_revision(),
+        })
+    }
+
+    /// Minimal update path for a process plugin whose backend binary or
+    /// manifest was replaced: bless the manifest on disk, then stop and start
+    /// the runtime only if it was running. A stopped plugin is left stopped.
+    /// UI window teardown is driven by the `plugin.stopped` domain event.
+    pub fn plugin_restart(&self, id: &str) -> Result<PluginRescanResult, OperationError> {
+        let rescan = self.plugin_rescan()?;
+        let plugin = self.require_discovered(id)?;
+        let id = plugin.manifest.id.clone();
+        let was_running = self.plugins.is_running(&id);
+        if was_running {
+            self.plugin_stop(&id)?;
+            self.plugin_start(&id)?;
+        }
+        Ok(rescan)
     }
 
     pub(crate) fn require_discovered(

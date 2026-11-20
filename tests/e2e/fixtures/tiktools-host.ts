@@ -225,6 +225,8 @@ const INIT_SCRIPT = `
 
   const handlers = {
     'system.info': () => ({ name: 'tiktools', features: { persistence: false } }),
+    'plugins.rescan': () => ({ pluginCount: 0, pageCount: 0, registryRevision: 1 }),
+    'plugins.restart': () => ({ pluginCount: 0, pageCount: 0, registryRevision: 1 }),
 
   window.ipc = {
     postMessage(raw) {

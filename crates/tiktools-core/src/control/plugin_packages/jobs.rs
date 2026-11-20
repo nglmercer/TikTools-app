@@ -64,13 +64,17 @@ impl AppCore {
         job: &JobHandle,
         result: Result<InstallOutcome, InstallError>,
     ) {
+        let requires_app_restart = result
+            .as_ref()
+            .map(|outcome| outcome.requires_app_restart)
+            .unwrap_or(false);
         match &result {
             Ok(outcome) => self.after_package_change(outcome),
             Err(error) => {
                 tracing::warn!(job = %job.id(), code = ?error.code, %error, "plugin package job failed")
             }
         }
-        job.finish(&result);
+        job.finish_with_impact(&result, requires_app_restart);
     }
 
     async fn run_package_job(

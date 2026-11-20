@@ -446,18 +446,11 @@ fn try_devtools_command(
     Some(())
 }
 
-/// Desktop-level plugin UI commands from the main frontend
-/// (`{"type":"plugin-ui-open","pluginId","pageId"}` and the `-close`
-/// twin). These open native windows, so the desktop layer owns them —
-/// they never reach the control plane or the legacy page router.
-/// Returns `Some(())` when the value was a plugin UI command.
-fn try_plugin_ui_command(
-    value: &serde_json::Value,
-    proxy: &EventLoopProxy<DesktopEvent>,
-    admission: Arc<tokio::sync::OwnedSemaphorePermit>,
-) -> Option<()> {
+/// Strict shape check for the three desktop-owned plugin UI commands.
+pub(crate) fn plugin_ui_command_name(value: &serde_json::Value) -> Option<&str> {
     let command = value.get("type")?.as_str()?;
-    if command != "plugin-ui-open" && command != "plugin-ui-close" {
+    if command != "plugin-ui-open" && command != "plugin-ui-close" && command != "plugin-ui-reload"
+    {
         return None;
     }
     let plugin_id = value.get("pluginId")?.as_str()?;
@@ -466,20 +459,39 @@ fn try_plugin_ui_command(
         || !crate::plugin_webview::is_valid_ui_id(page_id)
     {
         tracing::warn!("ignoring plugin UI command with invalid ids");
-        return Some(());
+        return None;
     }
-    let command = if command == "plugin-ui-open" {
-        DesktopCommand::OpenPluginUi {
+    Some(command)
+}
+
+/// Desktop-level plugin UI commands from the main frontend
+/// (`{"type":"plugin-ui-open"|"plugin-ui-close"|"plugin-ui-reload",
+/// "pluginId","pageId"}`). These own native windows, so the desktop layer
+/// handles them — they never reach the control plane or the legacy router.
+/// Returns `Some(())` when the value was a plugin UI command.
+fn try_plugin_ui_command(
+    value: &serde_json::Value,
+    proxy: &EventLoopProxy<DesktopEvent>,
+    admission: Arc<tokio::sync::OwnedSemaphorePermit>,
+) -> Option<()> {
+    let command = plugin_ui_command_name(value)?;
+    let plugin_id = value.get("pluginId")?.as_str()?;
+    let page_id = value.get("pageId")?.as_str()?;
+    let command = match command {
+        "plugin-ui-open" => DesktopCommand::OpenPluginUi {
             plugin_id: plugin_id.to_owned(),
             page_id: page_id.to_owned(),
-        }
-    } else {
-        DesktopCommand::ClosePluginUi {
+        },
+        "plugin-ui-reload" => DesktopCommand::ReloadPluginUi {
+            plugin_id: plugin_id.to_owned(),
+            page_id: page_id.to_owned(),
+        },
+        _ => DesktopCommand::ClosePluginUi {
             plugin_id: plugin_id.to_owned(),
             page_id: page_id.to_owned(),
             window_id: None,
             owner: None,
-        }
+        },
     };
     let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::AdmittedCommand {
         command: Box::new(command),

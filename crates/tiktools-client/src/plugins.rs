@@ -6,7 +6,7 @@ use tiktools_control_api::modules::plugins::{
     PluginActionOutcome, PluginActionParams, PluginConnectionResult, PluginIdParams,
     PluginInstallParams, PluginInstallResult, PluginInstallSetParams, PluginListResult,
     PluginOptionsParams, PluginOptionsResult, PluginProvisionParams, PluginProvisionResult,
-    PluginResult, PluginTokenImportParams, PluginUninstallParams,
+    PluginRescanResult, PluginResult, PluginTokenImportParams, PluginUninstallParams,
 };
 use tiktools_control_api::modules::Empty;
 use tiktools_control_api::modules::OkResult;
@@ -19,6 +19,8 @@ pub(crate) const METHODS: &[&str] = &[
     PLUGINS_UI_ASSETS,
     PLUGINS_LIST,
     PLUGINS_GET,
+    PLUGINS_RESCAN,
+    PLUGINS_RESTART,
     PLUGINS_INSTALL,
     PLUGINS_UNINSTALL,
     PLUGINS_ENABLE,
@@ -37,6 +39,8 @@ pub(crate) const METHODS: &[&str] = &[
 const PLUGINS_UI_ASSETS: &str = "plugins.ui.assets";
 const PLUGINS_LIST: &str = "plugins.list";
 const PLUGINS_GET: &str = "plugins.get";
+const PLUGINS_RESCAN: &str = "plugins.rescan";
+const PLUGINS_RESTART: &str = "plugins.restart";
 const PLUGINS_INSTALL: &str = "plugins.install";
 const PLUGINS_UNINSTALL: &str = "plugins.uninstall";
 const PLUGINS_ENABLE: &str = "plugins.enable";
@@ -84,6 +88,19 @@ impl TikToolsClient {
     /// RPC method `plugins.get`.
     pub async fn plugins_get(&self, params: PluginIdParams) -> Result<PluginResult, ClientError> {
         self.call(PLUGINS_GET, params).await
+    }
+    /// Re-reads manifests from disk and refreshes derived pages/behavior.
+    /// RPC method `plugins.rescan`.
+    pub async fn plugins_rescan(&self) -> Result<PluginRescanResult, ClientError> {
+        self.call(PLUGINS_RESCAN, Empty::default()).await
+    }
+    /// Rescans manifests and restarts one plugin runtime.
+    /// RPC method `plugins.restart`.
+    pub async fn plugins_restart(
+        &self,
+        params: PluginIdParams,
+    ) -> Result<PluginRescanResult, ClientError> {
+        self.call(PLUGINS_RESTART, params).await
     }
     /// Installs a .plugin archive (identity comes from plugin.json).
     /// RPC method `plugins.install`.

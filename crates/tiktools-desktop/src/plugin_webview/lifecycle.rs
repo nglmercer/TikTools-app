@@ -153,6 +153,41 @@ impl PluginUiWindows {
         self.close(plugin_id, page_id);
     }
 
+    /// Reload one open plugin page in place so freshly staged UI assets are
+    /// picked up. Drops the stale outbound batch and resets the page
+    /// generation exactly like the bridge watchdog's controlled reload.
+    pub(crate) fn reload_page(&mut self, plugin_id: &str, page_id: &str) {
+        let Some(window) = self
+            .windows
+            .get_mut(&(plugin_id.to_owned(), page_id.to_owned()))
+        else {
+            tracing::debug!(
+                plugin = plugin_id,
+                page = page_id,
+                "plugin UI reload ignored (not open)"
+            );
+            return;
+        };
+        if window.state != PluginWindowState::Open {
+            return;
+        }
+        window.sync_generation();
+        window.output.discard_pending();
+        match window.view().reload() {
+            Ok(()) => tracing::info!(
+                plugin = plugin_id,
+                page = page_id,
+                "plugin WebView reloaded on request"
+            ),
+            Err(error) => tracing::warn!(
+                %error,
+                plugin = plugin_id,
+                page = page_id,
+                "plugin WebView reload request failed"
+            ),
+        }
+    }
+
     pub fn close(&mut self, plugin_id: &str, page_id: &str) {
         if self
             .windows

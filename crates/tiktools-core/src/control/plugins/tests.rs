@@ -65,6 +65,38 @@ fn cleanup(root: &std::path::Path) {
     let _ = std::fs::remove_dir_all(root);
 }
 
+#[test]
+fn rescan_refreshes_the_catalog_and_sidebar_pages() {
+    let (core, root) = core_with_two_plugins();
+    let dir = root.join("plugin-c");
+    std::fs::create_dir_all(&dir).expect("test plugin dir");
+    let mut value: serde_json::Value =
+        serde_json::from_str(&manifest("pluginc", &[])).expect("base manifest");
+    value["pages"] = serde_json::json!([{
+        "id": "main",
+        "title": { "default": "Plugin C" },
+        "sections": [{ "kind": "text", "text": { "default": "Hello" } }]
+    }]);
+    std::fs::write(dir.join("plugin.json"), serde_json::to_vec(&value).unwrap()).unwrap();
+
+    let result = core.plugin_rescan().expect("trusted rescan");
+    assert_eq!(result.plugin_count, 3);
+    assert!(result.page_count >= 1);
+    assert!(result.registry_revision > 0);
+    let snapshot = core.load_merged_behavior_snapshot();
+    let pages = snapshot
+        .get("pluginPages")
+        .and_then(serde_json::Value::as_array)
+        .expect("pluginPages in behavior snapshot");
+    assert!(
+        pages.iter().any(
+            |page| page.get("pluginId").and_then(serde_json::Value::as_str) == Some("pluginc")
+        ),
+        "the new plugin page must reach the behavior snapshot: {pages:?}"
+    );
+    cleanup(&root);
+}
+
 #[tokio::test]
 async fn scoped_execute_allows_own_actions() {
     let (core, root) = core_with_two_plugins();

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 pub use tiktools_core::control::{
     PluginActionOutcome, PluginConnectionResult, PluginInstallResult, PluginProvisionResult,
-    TokenImportResult,
+    PluginRescanResult, TokenImportResult,
 };
 use tiktools_core::AppCore;
 
@@ -173,6 +173,29 @@ pub fn register(router: &mut ControlRouter) {
             core.plugin_get(&params.plugin_id)
                 .map(|plugin| PluginResult { plugin })
                 .map_err(|error| ApiError::from(error).scoped_not_found("plugin_not_found"))
+        },
+    );
+    router.register_typed::<Empty, PluginRescanResult, _, _>(
+        "plugins.rescan",
+        "Re-reads plugin manifests from disk and refreshes the derived pages and behavior snapshot",
+        true,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            // Discovery walks plugin directories, so keep it off Tokio workers.
+            crate::modules::blocking_task("plugins.rescan", move || core.plugin_rescan())
+                .await?
+                .map_err(ApiError::from)
+        },
+    );
+    router.register_typed::<PluginIdParams, PluginRescanResult, _, _>(
+        "plugins.restart",
+        "Rescans manifests and restarts one plugin runtime without restarting the app",
+        true,
+        |core: Arc<AppCore>, params: PluginIdParams| async move {
+            crate::modules::blocking_task("plugins.restart", move || {
+                core.plugin_restart(&params.plugin_id)
+            })
+            .await?
+            .map_err(ApiError::from)
         },
     );
     router.register_typed::<PluginInstallParams, PluginInstallResult, _, _>(

@@ -204,6 +204,8 @@ impl Installer {
             directory: self.layout.package(plugin_id).display().to_string(),
             change: ChangeKind::between(Some(&current.receipt.version), &manifest.version),
             previous_version: Some(current.receipt.version),
+            requires_app_restart: crate::preview::requires_app_restart(None, &manifest)
+                || current.receipt.runtime == "native",
             receipt,
         })
     }

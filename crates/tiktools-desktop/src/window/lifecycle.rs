@@ -157,6 +157,9 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
                 self.plugin_ui
                     .close_if_current(&plugin_id, &page_id, window_id, owner);
             }
+            DesktopEvent::Command(DesktopCommand::ReloadPluginUi { plugin_id, page_id }) => {
+                self.plugin_ui.reload_page(&plugin_id, &page_id);
+            }
             DesktopEvent::Command(DesktopCommand::PluginUiRespond {
                 window_id,
                 plugin_id,

@@ -99,6 +99,9 @@ pub struct InstallOutcome {
     pub change: ChangeKind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous_version: Option<String>,
+    /// Carried from the preview so the host can tell the UI whether the
+    /// installed native code needs a full app restart to take effect.
+    pub requires_app_restart: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

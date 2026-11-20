@@ -161,7 +161,7 @@ pub use plugin_packages::{
     RegistryRootKey, RegistryRootPreview,
 };
 pub use plugin_settings::{PluginConnectionResult, PluginProvisionResult, PluginSettingsResult};
-pub use plugins::{PluginActionOutcome, PluginInstallResult};
+pub use plugins::{PluginActionOutcome, PluginInstallResult, PluginRescanResult};
 pub use processors::ProcessorOutcomeDto;
 pub use rankings::{ContributionOutcome, ExternalContribution};
 pub use system::{DoctorCheck, DoctorReport};

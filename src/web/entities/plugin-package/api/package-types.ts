@@ -104,6 +104,7 @@ export interface PackagePreview {
   installedVersion?: string;
   permissionDiff: PermissionDiff;
   requiresSideloadConsent: boolean;
+  requiresAppRestart?: boolean;
   metadata: PackageMetadata;
   changelog?: string;
   consentToken: string;
@@ -124,6 +125,7 @@ export interface JobSnapshot {
   status: JobStatus;
   progress?: { done: number; total?: number };
   error?: InstallError;
+  requiresAppRestart?: boolean;
   createdAt: number;
   updatedAt: number;
 }

@@ -39,6 +39,8 @@
 | [`automation.library.review_unknown`](#rpc-automation-library-review_unknown) | true | false | false | exclusive-transition | false |
 | [`automation.library.snapshot`](#rpc-automation-library-snapshot) | false | false | false | — | false |
 | [`automation.library.submit`](#rpc-automation-library-submit) | true | true | false | exclusive-transition | false |
+| [`automation.library.sync.now`](#rpc-automation-library-sync-now) | true | false | false | exclusive-transition | false |
+| [`automation.library.sync.replace_unreadable`](#rpc-automation-library-sync-replace_unreadable) | true | false | false | exclusive-transition | false |
 | [`automation.list`](#rpc-automation-list) | false | false | false | — | false |
 | [`automation.manifest.get`](#rpc-automation-manifest-get) | false | false | false | — | false |
 | [`automation.nodes.list`](#rpc-automation-nodes-list) | false | false | false | — | false |
@@ -78,6 +80,7 @@
 | [`cloud.login.open`](#rpc-cloud-login-open) | true | false | false | — | false |
 | [`cloud.login.reserve`](#rpc-cloud-login-reserve) | true | false | false | — | false |
 | [`cloud.logout`](#rpc-cloud-logout) | true | false | false | — | false |
+| [`cloud.plan.get`](#rpc-cloud-plan-get) | false | false | false | — | false |
 | [`cloud.restore`](#rpc-cloud-restore) | false | false | false | — | false |
 | [`cloud.status`](#rpc-cloud-status) | false | false | false | — | false |
 | [`cloudLibrary.list`](#rpc-cloudLibrary-list) | false | false | false | — | false |
@@ -145,7 +148,6 @@
 | [`live.pick`](#rpc-live-pick) | true | false | false | — | false |
 | [`live.status`](#rpc-live-status) | false | false | false | — | false |
 | [`media.pick`](#rpc-media-pick) | true | false | true | — | false |
-| [`media.play`](#rpc-media-play) | true | false | false | — | false |
 | [`media.validate`](#rpc-media-validate) | false | false | false | — | false |
 | [`plugins.action.execute`](#rpc-plugins-action-execute) | true | false | false | — | false |
 | [`plugins.diagnostics`](#rpc-plugins-diagnostics) | false | false | false | — | false |
@@ -167,6 +169,8 @@
 | [`plugins.packages.rollback`](#rpc-plugins-packages-rollback) | true | false | false | — | false |
 | [`plugins.packages.update`](#rpc-plugins-packages-update) | true | false | false | — | false |
 | [`plugins.packages.versions`](#rpc-plugins-packages-versions) | false | false | false | — | false |
+| [`plugins.rescan`](#rpc-plugins-rescan) | true | false | false | — | false |
+| [`plugins.restart`](#rpc-plugins-restart) | true | false | false | — | false |
 | [`plugins.settings.get`](#rpc-plugins-settings-get) | false | false | false | — | false |
 | [`plugins.settings.reset`](#rpc-plugins-settings-reset) | true | true | false | — | false |
 | [`plugins.settings.set`](#rpc-plugins-settings-set) | true | false | false | — | false |
@@ -258,6 +262,30 @@
 | [`system.saveFile`](#rpc-system-saveFile) | true | false | false | — | false |
 | [`system.shutdown`](#rpc-system-shutdown) | true | true | false | — | false |
 | [`system.snapshot`](#rpc-system-snapshot) | false | false | false | — | false |
+| [`teams.accessible.list`](#rpc-teams-accessible-list) | false | false | false | — | false |
+| [`teams.commands.run`](#rpc-teams-commands-run) | true | false | false | — | false |
+| [`teams.devices.enroll`](#rpc-teams-devices-enroll) | true | false | false | — | false |
+| [`teams.devices.list`](#rpc-teams-devices-list) | false | false | false | — | false |
+| [`teams.devices.revoke`](#rpc-teams-devices-revoke) | true | false | false | — | false |
+| [`teams.grants.list`](#rpc-teams-grants-list) | false | false | false | — | false |
+| [`teams.grants.revoke`](#rpc-teams-grants-revoke) | true | false | false | — | false |
+| [`teams.grants.update`](#rpc-teams-grants-update) | true | false | false | — | false |
+| [`teams.host.start`](#rpc-teams-host-start) | true | false | false | — | false |
+| [`teams.host.status`](#rpc-teams-host-status) | false | false | false | — | false |
+| [`teams.host.stop`](#rpc-teams-host-stop) | true | false | false | — | false |
+| [`teams.hosts.create`](#rpc-teams-hosts-create) | true | false | false | — | false |
+| [`teams.hosts.get`](#rpc-teams-hosts-get) | false | false | false | — | false |
+| [`teams.hosts.list`](#rpc-teams-hosts-list) | false | false | false | — | false |
+| [`teams.hosts.update`](#rpc-teams-hosts-update) | true | false | false | — | false |
+| [`teams.invitations.create`](#rpc-teams-invitations-create) | true | false | false | — | false |
+| [`teams.invitations.list`](#rpc-teams-invitations-list) | false | false | false | — | false |
+| [`teams.invitations.redeem`](#rpc-teams-invitations-redeem) | true | false | false | — | false |
+| [`teams.invitations.revoke`](#rpc-teams-invitations-revoke) | true | false | false | — | false |
+| [`teams.people.search`](#rpc-teams-people-search) | false | false | false | — | false |
+| [`teams.requests.decide`](#rpc-teams-requests-decide) | true | false | false | — | false |
+| [`teams.requests.list`](#rpc-teams-requests-list) | false | false | false | — | false |
+| [`teams.sessions.list`](#rpc-teams-sessions-list) | false | false | false | — | false |
+| [`teams.sessions.revoke`](#rpc-teams-sessions-revoke) | true | false | false | — | false |
 | [`ui.feed.backfill`](#rpc-ui-feed-backfill) | false | false | false | — | false |
 | [`ui.feed.browser`](#rpc-ui-feed-browser) | false | false | false | — | false |
 | [`ui.feed.creator`](#rpc-ui-feed-creator) | false | false | false | — | false |
@@ -6611,6 +6639,74 @@ One durable Owner graph/catalog transaction bound to its reviewed library snapsh
 
 :::
 
+### automation.library.sync.now {#rpc-automation-library-sync-now}
+
+契约描述:
+
+```text
+Synchronize the Owner automation library with Cloud now
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":"exclusive-transition","durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "title": "OwnerLibraryEmpty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### automation.library.sync.replace_unreadable {#rpc-automation-library-sync-replace_unreadable}
+
+契约描述:
+
+```text
+Replace an unreadable Cloud library record with this device's library
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":"exclusive-transition","durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "title": "OwnerLibraryEmpty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
 ### automation.list {#rpc-automation-list}
 
 契约描述:
@@ -9897,6 +9993,136 @@ Revokes the server session and wipes local credentials
     "persistence"
   ],
   "title": "CloudStatusResult",
+  "type": "object"
+}
+```
+
+:::
+
+### cloud.plan.get {#rpc-cloud-plan-get}
+
+契约描述:
+
+```text
+Shows the Cloud plan, its ceilings and the current storage usage
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "PlanLimitsView": {
+      "description": "Plan ceilings of the signed-in account (nonsecret).",
+      "properties": {
+        "maxAssets": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "maxAssetsBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "maxBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "maxOverlayBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "maxOverlays": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "maxRecords": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "maxRecords",
+        "maxBytes",
+        "maxAssets",
+        "maxAssetsBytes",
+        "maxOverlays",
+        "maxOverlayBytes"
+      ],
+      "type": "object"
+    },
+    "PlanUsageView": {
+      "description": "Current storage usage of the signed-in account (nonsecret).",
+      "properties": {
+        "assetBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "assets": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "overlayBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "overlays": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "recordBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "records": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "records",
+        "recordBytes",
+        "assets",
+        "assetBytes",
+        "overlays",
+        "overlayBytes"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The plan, its ceilings and the current usage (nonsecret).",
+  "properties": {
+    "limits": {
+      "$ref": "#/$defs/PlanLimitsView"
+    },
+    "plan": {
+      "type": "string"
+    },
+    "usage": {
+      "$ref": "#/$defs/PlanUsageView"
+    }
+  },
+  "required": [
+    "plan",
+    "limits",
+    "usage"
+  ],
+  "title": "AccountPlanView",
   "type": "object"
 }
 ```
@@ -19965,98 +20191,6 @@ Opens the native file dialog (desktop hosts only)
 
 :::
 
-### media.play {#rpc-media-play}
-
-契约描述:
-
-```text
-Plays a local audio file through the host audio backend
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details 参数
-
-```json
-{
-  "$defs": {
-    "MediaKind": {
-      "enum": [
-        "audio",
-        "video",
-        "image",
-        "other"
-      ],
-      "type": "string"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "kind": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/MediaKind"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
-    },
-    "path": {
-      "type": "string"
-    },
-    "volume": {
-      "default": null,
-      "format": "float",
-      "type": [
-        "number",
-        "null"
-      ]
-    }
-  },
-  "required": [
-    "path"
-  ],
-  "title": "MediaPlayParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details 结果
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "activePlayers": {
-      "format": "uint",
-      "minimum": 0,
-      "type": "integer"
-    },
-    "played": {
-      "type": "boolean"
-    },
-    "reason": {
-      "type": [
-        "string",
-        "null"
-      ]
-    }
-  },
-  "required": [
-    "played",
-    "activePlayers"
-  ],
-  "title": "AudioPlaybackResult",
-  "type": "object"
-}
-```
-
-:::
-
 ### media.validate {#rpc-media-validate}
 
 契约描述:
@@ -20929,6 +21063,10 @@ One plugin package job
             }
           ]
         },
+        "requiresAppRestart": {
+          "description": "Native code was replaced: the app must restart for it to take effect.",
+          "type": "boolean"
+        },
         "spec": {
           "type": [
             "string",
@@ -20958,6 +21096,7 @@ One plugin package job
         "kind",
         "stage",
         "status",
+        "requiresAppRestart",
         "createdAt",
         "updatedAt"
       ],
@@ -21145,6 +21284,10 @@ Recent plugin package jobs, newest first
             }
           ]
         },
+        "requiresAppRestart": {
+          "description": "Native code was replaced: the app must restart for it to take effect.",
+          "type": "boolean"
+        },
         "spec": {
           "type": [
             "string",
@@ -21174,6 +21317,7 @@ Recent plugin package jobs, newest first
         "kind",
         "stage",
         "status",
+        "requiresAppRestart",
         "createdAt",
         "updatedAt"
       ],
@@ -21701,6 +21845,10 @@ Resolves, downloads, and verifies a package spec and returns its review (permiss
       },
       "type": "array"
     },
+    "requiresAppRestart": {
+      "description": "True only when native code is involved: the host must be restarted for\nthe new library to be loaded. Otherwise UI reload / plugin restart /\nrescan are enough and the app keeps running.",
+      "type": "boolean"
+    },
     "requiresSideloadConsent": {
       "type": "boolean"
     },
@@ -21737,6 +21885,7 @@ Resolves, downloads, and verifies a package spec and returns its review (permiss
     "change",
     "permissionDiff",
     "requiresSideloadConsent",
+    "requiresAppRestart",
     "metadata",
     "consentToken"
   ],
@@ -22018,6 +22167,10 @@ Starts an install job for a reviewed package; the consent token comes from plugi
             }
           ]
         },
+        "requiresAppRestart": {
+          "description": "Native code was replaced: the app must restart for it to take effect.",
+          "type": "boolean"
+        },
         "spec": {
           "type": [
             "string",
@@ -22047,6 +22200,7 @@ Starts an install job for a reviewed package; the consent token comes from plugi
         "kind",
         "stage",
         "status",
+        "requiresAppRestart",
         "createdAt",
         "updatedAt"
       ],
@@ -22930,6 +23084,10 @@ Restores a retained previous version of a plugin and pins it
             }
           ]
         },
+        "requiresAppRestart": {
+          "description": "Native code was replaced: the app must restart for it to take effect.",
+          "type": "boolean"
+        },
         "spec": {
           "type": [
             "string",
@@ -22959,6 +23117,7 @@ Restores a retained previous version of a plugin and pins it
         "kind",
         "stage",
         "status",
+        "requiresAppRestart",
         "createdAt",
         "updatedAt"
       ],
@@ -23165,6 +23324,10 @@ Starts an update job for a registry plugin; omitting the consent token only appl
             }
           ]
         },
+        "requiresAppRestart": {
+          "description": "Native code was replaced: the app must restart for it to take effect.",
+          "type": "boolean"
+        },
         "spec": {
           "type": [
             "string",
@@ -23194,6 +23357,7 @@ Starts an update job for a registry plugin; omitting the consent token only appl
         "kind",
         "stage",
         "status",
+        "requiresAppRestart",
         "createdAt",
         "updatedAt"
       ],
@@ -23694,6 +23858,129 @@ Installed, retained, and registry-available versions of one plugin
     "available"
   ],
   "title": "PluginVersions",
+  "type": "object"
+}
+```
+
+:::
+
+### plugins.rescan {#rpc-plugins-rescan}
+
+契约描述:
+
+```text
+Re-reads plugin manifests from disk and refreshes the derived pages and behavior snapshot
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Outcome of a trusted catalog refresh. The counts make a rescan observable\nwhen a manifest edit is supposed to add or change a sidebar page.",
+  "properties": {
+    "pageCount": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "pluginCount": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "registryRevision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "pluginCount",
+    "pageCount",
+    "registryRevision"
+  ],
+  "title": "PluginRescanResult",
+  "type": "object"
+}
+```
+
+:::
+
+### plugins.restart {#rpc-plugins-restart}
+
+契约描述:
+
+```text
+Rescans manifests and restarts one plugin runtime without restarting the app
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "pluginId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "pluginId"
+  ],
+  "title": "PluginIdParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Outcome of a trusted catalog refresh. The counts make a rescan observable\nwhen a manifest edit is supposed to add or change a sidebar page.",
+  "properties": {
+    "pageCount": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "pluginCount": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "registryRevision": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "pluginCount",
+    "pageCount",
+    "registryRevision"
+  ],
+  "title": "PluginRescanResult",
   "type": "object"
 }
 ```
@@ -32024,6 +32311,1681 @@ Safe observable state (never includes secrets)
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
   "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### teams.accessible.list {#rpc-teams-accessible-list}
+
+契约描述:
+
+```text
+Lists only teams approved for this PC, with owner nicknames instead of email addresses
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "PeerMembership": {
+      "additionalProperties": false,
+      "properties": {
+        "clientKind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ownerNickname": {
+          "default": "",
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role",
+        "clientKind"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/PeerMembership"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "PeerMemberships",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.commands.run {#rpc-teams-commands-run}
+
+契约描述:
+
+```text
+Sends one command to a team as this PC's viewer and waits for the host's result
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Legacy wire types for Cloud Teams. The in-app transport was removed:\nremote control is owned by the installable `tiktools.remote-control` plugin.",
+  "properties": {
+    "args": {
+      "default": null
+    },
+    "hostId": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId",
+    "operation"
+  ],
+  "title": "CommandRunParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "code": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "commandId": {
+      "type": "string"
+    },
+    "result": true,
+    "status": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "commandId",
+    "status"
+  ],
+  "title": "CommandOutcome",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.devices.enroll {#rpc-teams-devices-enroll}
+
+契约描述:
+
+```text
+Enrolls this PC's device key as a controller or as a team host, after a signed challenge
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "description": "Required for `host`; the team must belong to the signed-in account.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "kind": {
+      "description": "`controller` for this PC as a viewer, or `host` for this PC as a served team host.",
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "label"
+  ],
+  "title": "TeamEnrollParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "createdAt": {
+      "default": "",
+      "description": "Absent from the enrollment reply; present in the list.",
+      "type": "string"
+    },
+    "hostId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "isThisDevice": {
+      "default": false,
+      "description": "Set only by the local core after matching this PC's persisted host binding.",
+      "type": "boolean"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "label",
+    "kind",
+    "status"
+  ],
+  "title": "TeamDevice",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.devices.list {#rpc-teams-devices-list}
+
+契约描述:
+
+```text
+Lists the devices enrolled for the signed-in account
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "TeamDevice": {
+      "properties": {
+        "createdAt": {
+          "default": "",
+          "description": "Absent from the enrollment reply; present in the list.",
+          "type": "string"
+        },
+        "hostId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "isThisDevice": {
+          "default": false,
+          "description": "Set only by the local core after matching this PC's persisted host binding.",
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "status"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TeamDevice"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "TeamDeviceList",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.devices.revoke {#rpc-teams-devices-revoke}
+
+契约描述:
+
+```text
+Revokes an enrolled device and everything it authorizes
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "deviceId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "deviceId"
+  ],
+  "title": "TeamDeviceParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### teams.grants.list {#rpc-teams-grants-list}
+
+契约描述:
+
+```text
+Lists grants of an owned team
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId"
+  ],
+  "title": "TeamHostParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "TeamGrant": {
+      "properties": {
+        "deviceId": {
+          "type": "string"
+        },
+        "deviceLabel": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "policy": true,
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "role": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "deviceId",
+        "deviceLabel",
+        "role",
+        "policy",
+        "status",
+        "revision"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TeamGrant"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "TeamGrantList",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.grants.revoke {#rpc-teams-grants-revoke}
+
+契约描述:
+
+```text
+Revokes a grant and closes its sessions
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "expectedRevision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "grantId": {
+      "type": "string"
+    },
+    "hostId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId",
+    "grantId",
+    "expectedRevision"
+  ],
+  "title": "TeamGrantRevokeParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### teams.grants.update {#rpc-teams-grants-update}
+
+契约描述:
+
+```text
+Changes a grant's role or policy; the host must confirm the new revision
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "expectedRevision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "grantId": {
+      "type": "string"
+    },
+    "hostId": {
+      "type": "string"
+    },
+    "policy": true,
+    "role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "hostId",
+    "grantId",
+    "expectedRevision"
+  ],
+  "title": "TeamGrantUpdateParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### teams.host.start {#rpc-teams-host-start}
+
+契约描述:
+
+```text
+Starts this PC's outbound link for the team it serves; the team must be enrolled first
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "hostId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastError": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "title": "RemoteHostStatus",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.host.status {#rpc-teams-host-status}
+
+契约描述:
+
+```text
+Status of this PC's outbound link as a team host
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "hostId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastError": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "title": "RemoteHostStatus",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.host.stop {#rpc-teams-host-stop}
+
+契约描述:
+
+```text
+Stops this PC's outbound link; pending commands become unknown on the relay
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "hostId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "lastError": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "state"
+  ],
+  "title": "RemoteHostStatus",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.hosts.create {#rpc-teams-hosts-create}
+
+契约描述:
+
+```text
+Creates a remote-control team owned by the signed-in account
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "TeamCreateParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "online": {
+      "default": false,
+      "type": "boolean"
+    },
+    "protocolVersion": {
+      "format": "int32",
+      "type": "integer"
+    },
+    "revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "status",
+    "protocolVersion",
+    "revision"
+  ],
+  "title": "TeamHost",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.hosts.get {#rpc-teams-hosts-get}
+
+契约描述:
+
+```text
+Reads one owned team
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId"
+  ],
+  "title": "TeamHostParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "online": {
+      "default": false,
+      "type": "boolean"
+    },
+    "protocolVersion": {
+      "format": "int32",
+      "type": "integer"
+    },
+    "revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "status",
+    "protocolVersion",
+    "revision"
+  ],
+  "title": "TeamHost",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.hosts.list {#rpc-teams-hosts-list}
+
+契约描述:
+
+```text
+Lists the remote-control teams owned by the signed-in account
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "TeamHost": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "online": {
+          "default": false,
+          "type": "boolean"
+        },
+        "protocolVersion": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "status",
+        "protocolVersion",
+        "revision"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TeamHost"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "TeamHostList",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.hosts.update {#rpc-teams-hosts-update}
+
+契约描述:
+
+```text
+Renames, enables or disables an owned team; requires the current revision
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "expectedRevision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "hostId": {
+      "type": "string"
+    },
+    "name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "hostId",
+    "expectedRevision"
+  ],
+  "title": "TeamUpdateParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "online": {
+      "default": false,
+      "type": "boolean"
+    },
+    "protocolVersion": {
+      "format": "int32",
+      "type": "integer"
+    },
+    "revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "status",
+    "protocolVersion",
+    "revision"
+  ],
+  "title": "TeamHost",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.invitations.create {#rpc-teams-invitations-create}
+
+契约描述:
+
+```text
+Creates a single-use invitation; the token is returned once and not stored by the host
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "type": "string"
+    },
+    "recipientId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requestedRole": {
+      "type": "string"
+    },
+    "ttlSeconds": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "hostId",
+    "requestedRole"
+  ],
+  "title": "TeamInvitationCreateParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The only reply that carries an invitation token. The owner shares it once.",
+  "properties": {
+    "expiresAt": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "requestedRole": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "token": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "requestedRole",
+    "status",
+    "expiresAt",
+    "token"
+  ],
+  "title": "TeamInvitationCreated",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.invitations.list {#rpc-teams-invitations-list}
+
+契约描述:
+
+```text
+Lists invitations of an owned team; tokens are never listed
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId"
+  ],
+  "title": "TeamHostParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "TeamInvitation": {
+      "properties": {
+        "expiresAt": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "redeemedAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requestedRole": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "requestedRole",
+        "status",
+        "expiresAt"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TeamInvitation"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "TeamInvitationList",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.invitations.redeem {#rpc-teams-invitations-redeem}
+
+契约描述:
+
+```text
+Redeems an invitation token with this PC's viewer device; the owner still approves the request
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "token": {
+      "description": "The invitation token shown once by the owner.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "token"
+  ],
+  "title": "TeamRedeemParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "hostId": {
+      "type": "string"
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "requestedRole": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "requestId",
+    "hostId",
+    "status",
+    "requestedRole"
+  ],
+  "title": "TeamRedeemResult",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.invitations.revoke {#rpc-teams-invitations-revoke}
+
+契约描述:
+
+```text
+Revokes an unspent invitation
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "type": "string"
+    },
+    "invitationId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId",
+    "invitationId"
+  ],
+  "title": "TeamInvitationParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### teams.people.search {#rpc-teams-people-search}
+
+契约描述:
+
+```text
+Finds invitation recipients by nickname without returning email addresses
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "query": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "query"
+  ],
+  "title": "TeamPeopleSearchParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "TeamPerson": {
+      "additionalProperties": false,
+      "properties": {
+        "ambiguous": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "nickname": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "nickname",
+        "ambiguous"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TeamPerson"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "TeamPeople",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.requests.decide {#rpc-teams-requests-decide}
+
+契约描述:
+
+```text
+Approves or denies a join request; approval creates a grant awaiting host confirmation
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "decision": {
+      "description": "`approve` or `deny`.",
+      "type": "string"
+    },
+    "hostId": {
+      "type": "string"
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "role": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "hostId",
+    "requestId",
+    "decision"
+  ],
+  "title": "TeamDecisionParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### teams.requests.list {#rpc-teams-requests-list}
+
+契约描述:
+
+```text
+Lists join requests of an owned team
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId"
+  ],
+  "title": "TeamHostParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "TeamRequest": {
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        },
+        "deviceLabel": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "requestedRole": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "requestedRole",
+        "status",
+        "deviceLabel",
+        "createdAt"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TeamRequest"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "TeamRequestList",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.sessions.list {#rpc-teams-sessions-list}
+
+契约描述:
+
+```text
+Lists open controller sessions of an owned team
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId"
+  ],
+  "title": "TeamHostParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$defs": {
+    "TeamSession": {
+      "properties": {
+        "deviceId": {
+          "type": "string"
+        },
+        "grantId": {
+          "type": "string"
+        },
+        "grantRevision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "openedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "grantId",
+        "deviceId",
+        "grantRevision",
+        "openedAt"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/TeamSession"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "items"
+  ],
+  "title": "TeamSessionList",
+  "type": "object"
+}
+```
+
+:::
+
+### teams.sessions.revoke {#rpc-teams-sessions-revoke}
+
+契约描述:
+
+```text
+Closes one controller session
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "hostId": {
+      "type": "string"
+    },
+    "sessionId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "hostId",
+    "sessionId"
+  ],
+  "title": "TeamSessionParams",
   "type": "object"
 }
 ```

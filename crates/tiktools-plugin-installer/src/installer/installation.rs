@@ -156,6 +156,7 @@ impl Installer {
             directory: self.layout.package(id).display().to_string(),
             change: preview.change,
             previous_version: previous.map(|state| state.receipt.version),
+            requires_app_restart: preview.requires_app_restart,
             receipt,
         })
     }

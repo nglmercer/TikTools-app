@@ -17,6 +17,7 @@ import IconHistory from '@/shared/ui/icon/icons/IconHistory.vue';
 import IconInfo from '@/shared/ui/icon/icons/IconInfo.vue';
 import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
 import IconMinus from '@/shared/ui/icon/icons/IconMinus.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import IconWarning from '@/shared/ui/icon/icons/IconWarning.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
@@ -43,6 +44,19 @@ const { t } = useI18n();
 const plugins = usePluginControls();
 const uninstallOpen = ref(false);
 const purgeData = ref(false);
+const restarting = ref(false);
+
+async function restart(): Promise<void> {
+  if (restarting.value) return;
+  restarting.value = true;
+  try {
+    await plugins.restart(id.value);
+  } catch (error) {
+    plugins.behaviorError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    restarting.value = false;
+  }
+}
 
 const descriptor = computed(() => props.plugin.descriptor);
 const id = computed(() => descriptor.value.id);
@@ -178,6 +192,15 @@ function uninstall(): void {
           class="plugin-details__divider"
           aria-hidden="true"
         />
+        <BaseIconButton
+          :label="t('plugins.details.restart')"
+          :hint="t('plugins.details.restartHint')"
+          :disabled="restarting"
+          size="sm"
+          @click="restart()"
+        >
+          <IconRefresh />
+        </BaseIconButton>
         <BaseIconButton
           v-if="removable"
           :label="t('plugins.details.uninstall')"

@@ -50,6 +50,10 @@ pub enum DesktopCommand {
         window_id: Option<winit::window::WindowId>,
         owner: Option<u64>,
     },
+    ReloadPluginUi {
+        plugin_id: String,
+        page_id: String,
+    },
     PluginUiRespond {
         window_id: winit::window::WindowId,
         plugin_id: String,

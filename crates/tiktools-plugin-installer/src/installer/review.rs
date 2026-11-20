@@ -4,7 +4,7 @@
 use super::{Installer, PreparedPackage, SignaturePolicy};
 use crate::{
     layout::now,
-    preview::{consent_token, requires_sideload_consent},
+    preview::{consent_token, requires_app_restart, requires_sideload_consent},
     ChangeKind, CloudArtifactIdentity, InstallError, InstallErrorCode, PackageOrigin,
     PackagePreview, PermissionDiff, SignatureState, SignatureStatus,
 };
@@ -162,6 +162,7 @@ impl Installer {
             installed.as_ref().map(|manifest| manifest.version.as_str()),
             &manifest.version,
         );
+        let app_restart = requires_app_restart(installed.as_ref(), manifest);
         let permission_diff = match (&receipt, &installed) {
             (Some(receipt), _) => PermissionDiff::between(
                 &receipt.granted_permissions,
@@ -195,6 +196,7 @@ impl Installer {
                 &prepared.origin,
                 &prepared.signature,
             ),
+            requires_app_restart: app_restart,
             metadata: manifest.metadata.clone(),
             changelog: prepared.changelog.clone(),
             consent_token: consent_token(manifest, &prepared.digest, &prepared.signature, change),

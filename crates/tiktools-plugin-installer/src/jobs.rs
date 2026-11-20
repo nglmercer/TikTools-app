@@ -80,6 +80,8 @@ pub struct JobSnapshot {
     pub progress: Option<JobProgress>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<InstallError>,
+    /// Native code was replaced: the app must restart for it to take effect.
+    pub requires_app_restart: bool,
     pub created_at: u64,
     pub updated_at: u64,
 }
@@ -157,6 +159,7 @@ impl JobRegistry {
                 status: JobStatus::Queued,
                 progress: None,
                 error: None,
+                requires_app_restart: false,
                 created_at: timestamp,
                 updated_at: timestamp,
             };
@@ -283,11 +286,21 @@ impl JobHandle {
     }
 
     pub fn finish<T>(&self, result: &Result<T, InstallError>) -> Option<JobSnapshot> {
+        self.finish_with_impact(result, false)
+    }
+
+    /// Success transition that also records whether native code was replaced.
+    pub fn finish_with_impact<T>(
+        &self,
+        result: &Result<T, InstallError>,
+        requires_app_restart: bool,
+    ) -> Option<JobSnapshot> {
         self.registry.update(&self.id, |snapshot| match result {
             Ok(_) => {
                 snapshot.status = JobStatus::Succeeded;
                 snapshot.stage = JobStage::Done;
                 snapshot.error = None;
+                snapshot.requires_app_restart = requires_app_restart;
             }
             Err(error) => {
                 snapshot.status = if error.code == crate::InstallErrorCode::Cancelled {

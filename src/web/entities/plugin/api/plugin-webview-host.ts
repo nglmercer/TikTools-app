@@ -108,6 +108,13 @@ export function closePluginUi(pluginId: string, pageId: string): boolean {
   return true;
 }
 
+/** Reloads an already-open plugin window in place, e.g. after staging new UI assets. */
+export function reloadPluginUi(pluginId: string, pageId: string): boolean {
+  if (!isDesktopHost()) return false;
+  window.ipc?.postMessage(JSON.stringify({ type: 'plugin-ui-reload', pluginId, pageId }));
+  return true;
+}
+
 export function controlBackend(
   pluginId: string,
   control: ControlClient,

@@ -3,6 +3,7 @@ import { computed, ref, shallowRef } from 'vue';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
+import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import type {
   InstallError,
   InstallReceipt,
@@ -47,6 +48,7 @@ function closedReview(): ReviewState {
 export const usePackagesStore = defineStore('plugin-packages', () => {
   const client = useControlClient();
   const automation = useAutomationStore();
+  const locale = useLocaleStore();
   const registry = createPackageRegistryState(client);
   const updateReport = createPackageUpdateReport(client);
   const { updates, checkingUpdates, updatesError, updateCount, loadUpdates, checkUpdates } = updateReport;
@@ -60,6 +62,9 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
   const pendingUpdates = new Map<string, { pluginId: string; version?: string }>();
   let subscribed = false;
   let reviewRequest = 0;
+  // A succeeded job can arrive both as an RPC result and as a `plugin.job`
+  // topic. The native dialog itself is one-shot too, but avoid double posting.
+  const restartPromptedJobs = new Set<string>();
 
   const activeJobs = computed(() => jobs.value.filter(isActiveJob));
 
@@ -75,6 +80,14 @@ export const usePackagesStore = defineStore('plugin-packages', () => {
           ...updates.value,
           updates: updates.value.updates.filter((entry) => entry.id !== job.pluginId),
         };
+      }
+      if (job.requiresAppRestart && !restartPromptedJobs.has(job.id)) {
+        restartPromptedJobs.add(job.id);
+        // Only native libraries and napi addons need this; the host owns the
+        // confirmation and the relaunch (legacy `app-restart` IPC).
+        if (typeof window !== 'undefined' && typeof window.ipc?.postMessage === 'function') {
+          window.ipc.postMessage(JSON.stringify({ type: 'app-restart', locale: locale.locale }));
+        }
       }
     }
     const pending = pendingUpdates.get(job.id);

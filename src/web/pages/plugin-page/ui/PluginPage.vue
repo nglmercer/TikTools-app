@@ -14,6 +14,7 @@ import {
   isDesktopHost,
   openPluginUi,
   pluginUiUrl,
+  reloadPluginUi,
 } from '@/entities/plugin/api/plugin-webview-host.ts';
 import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
@@ -25,6 +26,7 @@ import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconPopout from '@/shared/ui/icon/icons/IconPopout.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import PluginInlineFrame from '@/widgets/plugin-page/ui/PluginInlineFrame.vue';
@@ -154,6 +156,10 @@ function closeWindow(): void {
   windowOpen.value = false;
 }
 
+function reloadWindow(): void {
+  if (page.value) reloadPluginUi(pluginId.value, page.value.id);
+}
+
 watch(
   () => `${pluginId.value}:${page.value?.id ?? ''}`,
   () => {
@@ -189,6 +195,16 @@ watch(() => context.value.settings.state?.uiHints, requestSources);
             <IconPopout />
           </template>
           {{ windowOpen && !frameSrc ? t('plugins.page.closeWindow') : t('plugins.page.openWindow') }}
+        </BaseButton>
+        <BaseButton
+          v-if="desktop && windowOpen && !frameSrc"
+          size="sm"
+          @click="reloadWindow()"
+        >
+          <template #icon>
+            <IconRefresh />
+          </template>
+          {{ t('plugins.page.reloadWindow') }}
         </BaseButton>
       </template>
       <PluginInlineFrame

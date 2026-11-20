@@ -3,7 +3,8 @@ use std::collections::BTreeSet;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tiktools_plugin_api::{
-    manifest::parse_version, Incompatibility, PackageMetadata, PluginManifest, PluginSecurityModel,
+    manifest::parse_version, Incompatibility, PackageMetadata, PluginManifest, PluginRuntimeKind,
+    PluginSecurityModel,
 };
 use tiktools_plugin_package::Sha256Digest;
 
@@ -40,6 +41,18 @@ impl ChangeKind {
             Self::Downgrade => "downgrade",
         }
     }
+}
+
+/// A native library or a napi addon stays mapped for the lifetime of the host
+/// process. Everything else (UI assets, process backends, manifests) can be
+/// applied with a page reload, a plugin runtime restart or a trusted rescan.
+pub fn requires_app_restart(installed: Option<&PluginManifest>, incoming: &PluginManifest) -> bool {
+    fn native_code(manifest: &PluginManifest) -> bool {
+        manifest.runtime == PluginRuntimeKind::Native
+            || (manifest.runtime == PluginRuntimeKind::NapiVm
+                && (!manifest.native_addons.is_empty() || !manifest.native_libs.is_empty()))
+    }
+    native_code(incoming) || installed.is_some_and(native_code)
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -133,6 +146,10 @@ pub struct PackagePreview {
     pub installed_version: Option<String>,
     pub permission_diff: PermissionDiff,
     pub requires_sideload_consent: bool,
+    /// True only when native code is involved: the host must be restarted for
+    /// the new library to be loaded. Otherwise UI reload / plugin restart /
+    /// rescan are enough and the app keeps running.
+    pub requires_app_restart: bool,
     #[schemars(with = "serde_json::Value")]
     pub metadata: PackageMetadata,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -176,4 +193,46 @@ pub(crate) fn requires_sideload_consent(
     signature: &SignatureState,
 ) -> bool {
     !origin.is_registry() && signature.status != SignatureStatus::Verified
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn manifest(runtime: &str, extra: serde_json::Value) -> PluginManifest {
+        let mut value = serde_json::json!({
+            "schemaVersion": 3,
+            "id": "demo.plugin",
+            "name": "Demo",
+            "version": "1.0.0",
+            "runtime": runtime,
+            "entry": "demo-host",
+        });
+        value
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        PluginManifest::from_json_str(&value.to_string()).unwrap()
+    }
+
+    #[test]
+    fn only_native_code_needs_an_app_restart() {
+        let process = manifest("process", serde_json::json!({}));
+        let native = manifest("native", serde_json::json!({}));
+        let napi = manifest("napi-vm", serde_json::json!({}));
+        let napi_with_addon = manifest(
+            "napi-vm",
+            serde_json::json!({
+                "nativeAddons": [{ "package": "addon", "root": "native/addon.node" }]
+            }),
+        );
+
+        assert!(!requires_app_restart(None, &process));
+        assert!(requires_app_restart(None, &native));
+        assert!(!requires_app_restart(None, &napi));
+        assert!(requires_app_restart(None, &napi_with_addon));
+        // Replacing a native library with a pure process plugin still needs a
+        // restart: the old library stays mapped until the host exits.
+        assert!(requires_app_restart(Some(&native), &process));
+    }
 }

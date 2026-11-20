@@ -6,11 +6,13 @@ import { pluginPickerOptions } from '@/entities/plugin/lib/plugin-install.ts';
 import { usePluginsStore } from '@/entities/plugin/model/plugins-store.ts';
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
+import { useControlClient } from '@/shared/api/use-control-client.ts';
 
 export function usePluginControls() {
   const store = usePluginsStore();
   const automation = useAutomationStore();
   const packages = usePackagesStore();
+  const control = useControlClient();
   const refs = storeToRefs(store);
   const { behavior, behaviorError } = storeToRefs(automation);
 
@@ -39,6 +41,9 @@ export function usePluginControls() {
     executeAction: store.executeAction,
     importToken: store.handleImportPluginToken,
     provisionToken: store.handleProvisionPluginToken,
+    /** Trusted rescan + runtime restart, for a replaced backend binary or manifest. */
+    restart: (id: string) => control.call('plugins.restart', { pluginId: id }),
+    rescan: () => control.call('plugins.rescan', {}),
     setInstalled: store.handleSetPluginInstalled,
     setEnabled: store.handleSetPluginEnabled,
     uninstall: store.handleUninstallPlugin,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { routeLocationKey, routerKey } from 'vue-router';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
 import InstallPluginDialog from '@/features/install-plugin/ui/InstallPluginDialog.vue';
@@ -11,6 +12,9 @@ import { useProcessorsStore } from '@/entities/processor/model/processors-store.
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
+import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
+import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { usePluginSyncAdapter } from '@/features/manage-plugins/model/use-plugin-sync-adapter.ts';
 import SyncButton from '@/features/sync-changes/ui/SyncButton.vue';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
@@ -24,6 +28,8 @@ import RemotePluginDetails from '@/widgets/plugin-remote-details/ui/RemotePlugin
 
 type PluginsView = 'plugins' | 'processors';
 
+const { t } = useI18n();
+const control = useControlClient();
 const plugins = usePluginControls();
 const syncAdapter = usePluginSyncAdapter();
 const packages = usePackagesStore();
@@ -53,6 +59,21 @@ const preferencesOpen = ref(route?.query.view === 'preferences');
 
 function openPlugin(id: string): void {
   selected.value = id;
+}
+
+const rescanning = ref(false);
+async function rescan(): Promise<void> {
+  if (rescanning.value) return;
+  rescanning.value = true;
+  try {
+    // The host publishes workflow.changed, which refreshes the behavior
+    // snapshot (and therefore the sidebar pages) in the automation store.
+    await control.call('plugins.rescan', {});
+  } catch (error) {
+    plugins.behaviorError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    rescanning.value = false;
+  }
 }
 
 /** Handed to the details panel, which owns the uninstall dialog and test result. */
@@ -259,6 +280,16 @@ watch(activeView, () => { processorSelected.value = null; });
       @command="runCommand"
     >
       <template #tools>
+        <BaseButton
+          size="sm"
+          :disabled="rescanning"
+          @click="rescan()"
+        >
+          <template #icon>
+            <IconRefresh />
+          </template>
+          {{ t('plugins.tools.rescan') }}
+        </BaseButton>
         <SyncButton
           :adapter="syncAdapter"
           size="sm"
