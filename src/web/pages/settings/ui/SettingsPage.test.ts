@@ -13,8 +13,8 @@ import { collaborationStatus, emptyCollaborationPage } from '@/shared/lib/testin
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
 
-/** Every Cloud feature the host can announce; none of them may surface inside Settings except teams. */
-const announced = ['teams.hosts.list', 'integrations.connections', 'bundles.packages.preflight', 'bundles.overlays.create', 'catalog.items'];
+/** Every Cloud feature the host can announce; none of them may surface inside Settings. */
+const announced = ['integrations.connections', 'bundles.packages.preflight', 'bundles.overlays.create', 'catalog.items'];
 
 async function mountPage(query = '', announce: string[] = []) {
   const router = createRouter({
@@ -91,19 +91,6 @@ describe('SettingsPage', () => {
       const { wrapper } = await mountPage(`?section=${section}`);
       expect(selectedTab(wrapper)).toBe(t('settingsLayout.labels.general'));
     }
-  });
-
-  it('offers Teams as a separate section only when the host announces them', async () => {
-    const without = await mountPage('?section=collaboration');
-    expect(without.wrapper.find('.cloud-teams').exists()).toBe(false);
-    const withTeams = await mountPage('?section=collaboration', ['teams.hosts.list']);
-    expect(withTeams.wrapper.find('.cloud-teams').exists()).toBe(false);
-    await withTeams.wrapper.findAll('[role="tab"]').find(tab => tab.text() === t('cloudTeams.title'))!.trigger('click');
-    await flushPromises();
-    expect(withTeams.router.currentRoute.value.query.section).toBe('teams');
-    expect(withTeams.wrapper.find('.cloud-teams').exists()).toBe(true);
-    const account = await mountPage('?section=account', ['teams.hosts.list']);
-    expect(account.wrapper.find('.cloud-teams').exists()).toBe(false);
   });
 
   it('changes the application language', async () => {

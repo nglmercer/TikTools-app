@@ -4918,6 +4918,7 @@ dependencies = [
  "axum",
  "rand 0.10.4",
  "rcgen",
+ "reqwest",
  "ring",
  "rpassword",
  "serde",

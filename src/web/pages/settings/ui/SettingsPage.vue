@@ -34,7 +34,6 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const localeStore = useLocaleStore();
-// Teams are part of remote collaboration; without the host's announcement they stay hidden.
 
 const tabs = computed(() => sections.map((entry) => ({ value: entry.id, label: t(`settingsLayout.labels.${entry.id}`), icon: entry.icon })));
 

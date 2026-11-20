@@ -42,6 +42,8 @@ zeroize = { version = "1", optional = true }
 url = { workspace = true, optional = true }
 
 [dev-dependencies]
+# Integration tests build in-process clients; rustls gets its aws-lc-rs provider in test builds only.
+reqwest = { workspace = true, features = ["rustls"] }
 rcgen = "=0.14.10"
 ring.workspace = true
 tempfile = "3"
