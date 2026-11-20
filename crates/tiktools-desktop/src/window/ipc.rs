@@ -253,6 +253,33 @@ pub(crate) async fn handle_webview_ipc_message(
                 admission,
             }));
         }
+        InboundRoute::Legacy(value) if is_app_restart_command(&value) => {
+            // One prompt per process. The guard is intentionally not cleared
+            // after the dialog: a second install must not nag the user again.
+            if emitter
+                .restart_prompt_pending
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                let sent =
+                    proxy.send_event(DesktopEvent::Command(DesktopCommand::AdmittedCommand {
+                        command: Box::new(DesktopCommand::RequestAppRestart {
+                            generation,
+                            locale: value
+                                .get("locale")
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or("en")
+                                .to_owned(),
+                        }),
+                        admission,
+                    }));
+                if sent.is_err() {
+                    emitter
+                        .restart_prompt_pending
+                        .store(false, Ordering::Release);
+                }
+            }
+        }
         InboundRoute::Legacy(value) if is_app_update_install_command(&value) => {
             if emitter
                 .update_prompt_pending
@@ -318,6 +345,24 @@ mod deadline_tests {
             assert_eq!(control_rpc_deadline(&value), Duration::from_secs(30));
         }
     }
+}
+
+/// Main WebView-only command for the one-time restart confirmation. The only
+/// wire shape is `{ "type": "app-restart" }` with an optional `locale` from
+/// the supported locales. No executable path or RPC method can be
+/// smuggled in: the host owns the dialog, the shutdown, and the relaunch.
+pub(crate) fn is_app_restart_command(value: &serde_json::Value) -> bool {
+    value.as_object().is_some_and(|object| {
+        (object.len() == 1
+            || (object.len() == 2
+                && object
+                    .get("locale")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|locale| {
+                        crate::native_messages::SUPPORTED_LOCALES.contains(&locale)
+                    })))
+            && object.get("type").and_then(serde_json::Value::as_str) == Some("app-restart")
+    })
 }
 
 /// Main WebView-only command. All installation details remain native, and a

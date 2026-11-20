@@ -164,6 +164,7 @@ impl DesktopApp {
             plugin_ui: crate::plugin_webview::PluginUiWindows::default(),
             pending_update: None,
             update_ready_for_handoff: false,
+            restart_requested: None,
         }
     }
 

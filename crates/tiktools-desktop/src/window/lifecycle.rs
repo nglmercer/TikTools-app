@@ -1,5 +1,6 @@
 //! Window startup, shutdown, visibility, and event-loop integration.
 
+mod app_restart;
 mod app_update;
 mod bridge;
 mod main_webview;
@@ -117,6 +118,14 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             }
             DesktopEvent::Command(DesktopCommand::BeginAppUpdateShutdown) => {
                 if self.pending_update.is_some() {
+                    self.shutdown(event_loop);
+                }
+            }
+            DesktopEvent::Command(DesktopCommand::RequestAppRestart { generation, locale }) => {
+                self.request_app_restart(generation, locale);
+            }
+            DesktopEvent::Command(DesktopCommand::BeginAppRestartShutdown) => {
+                if self.restart_requested.is_some() {
                     self.shutdown(event_loop);
                 }
             }

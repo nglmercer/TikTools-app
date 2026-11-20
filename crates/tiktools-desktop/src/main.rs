@@ -10,6 +10,7 @@ mod event;
 mod icon;
 mod logging;
 mod media;
+mod native_messages;
 mod platform;
 mod plugin_webview;
 mod single_instance;

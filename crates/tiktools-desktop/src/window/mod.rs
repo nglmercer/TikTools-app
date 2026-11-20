@@ -63,6 +63,8 @@ pub struct DesktopApp {
     plugin_ui: crate::plugin_webview::PluginUiWindows,
     pending_update: Option<(tiktools_core::app_update::InstallPlan, bool)>,
     update_ready_for_handoff: bool,
+    /// Locale of the user who accepted the one-shot restart prompt.
+    restart_requested: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

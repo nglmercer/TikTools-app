@@ -2,9 +2,10 @@
 
 use super::domain_events::forward_domain_events;
 use super::ipc::{
-    classify_inbound_message, is_app_update_install_command, is_devtools_command_value,
-    is_frontend_ready_fast, is_open_devtools_fast, is_probably_control_rpc,
-    webview_parsed_request_too_large, webview_request_too_large, InboundRoute,
+    classify_inbound_message, is_app_restart_command, is_app_update_install_command,
+    is_devtools_command_value, is_frontend_ready_fast, is_open_devtools_fast,
+    is_probably_control_rpc, webview_parsed_request_too_large, webview_request_too_large,
+    InboundRoute,
 };
 use super::outbox::{
     classify_webview_message, WebviewOutbox, MAX_BATCH_PER_TICK, MAX_PENDING_WEBVIEW_MESSAGES,
@@ -12,6 +13,33 @@ use super::outbox::{
 };
 use std::sync::Arc;
 use tiktools_core::AppCore;
+
+#[test]
+fn app_restart_command_accepts_only_the_locale_hint() {
+    assert!(is_app_restart_command(
+        &serde_json::json!({"type":"app-restart"})
+    ));
+    for locale in crate::native_messages::SUPPORTED_LOCALES {
+        assert!(is_app_restart_command(
+            &serde_json::json!({"type":"app-restart", "locale":locale})
+        ));
+    }
+    assert!(!is_app_restart_command(
+        &serde_json::json!({"type":"app-restart", "locale":"https://evil.example"})
+    ));
+    assert!(!is_app_restart_command(
+        &serde_json::json!({"type":"app-restart", "locale":"xx"})
+    ));
+    assert!(!is_app_restart_command(
+        &serde_json::json!({"type":"app-restart", "executable":"/tmp/evil"})
+    ));
+    assert!(!is_app_restart_command(
+        &serde_json::json!({"type":"app-restart", "method":"system.shutdown"})
+    ));
+    assert!(!is_app_restart_command(
+        &serde_json::json!({"type":"app-update-install"})
+    ));
+}
 
 #[test]
 fn update_install_command_cannot_supply_a_path_or_impersonate_rpc() {

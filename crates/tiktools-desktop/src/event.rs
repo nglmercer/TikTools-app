@@ -28,6 +28,11 @@ pub enum DesktopCommand {
         spanish: bool,
     },
     BeginAppUpdateShutdown,
+    RequestAppRestart {
+        generation: u64,
+        locale: String,
+    },
+    BeginAppRestartShutdown,
     ShutdownComplete,
     IpcFailed(String),
     FlushWebviewBatch,
@@ -128,6 +133,9 @@ pub struct EventLoopEmitter {
     pub(crate) batch_bytes: AtomicU64,
     pub(crate) ready_pending: AtomicBool,
     pub(crate) update_prompt_pending: AtomicBool,
+    /// One prompt per process: a restart request is admitted once and the
+    /// guard stays set for the session, whatever the user answers.
+    pub(crate) restart_prompt_pending: AtomicBool,
     ready_generation: AtomicU64,
     pub(crate) inbound_rejected: AtomicU64,
     pub(crate) inbound_timeouts: AtomicU64,
@@ -156,6 +164,7 @@ impl EventLoopEmitter {
             batch_bytes: AtomicU64::new(0),
             ready_pending: AtomicBool::new(false),
             update_prompt_pending: AtomicBool::new(false),
+            restart_prompt_pending: AtomicBool::new(false),
             ready_generation: AtomicU64::new(0),
             inbound_rejected: AtomicU64::new(0),
             inbound_timeouts: AtomicU64::new(0),

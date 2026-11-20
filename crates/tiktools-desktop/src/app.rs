@@ -42,6 +42,7 @@ pub fn run(log_path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error
     );
     event_loop.run_app(&mut app)?;
     let update = app.take_update_plan();
+    let restart = app.take_restart_request();
     drop(app);
     // Release WebViews, native plugins, the Tokio runtime, and the instance
     // lock before the updater transfers control to an installer.
@@ -64,6 +65,7 @@ pub fn run(log_path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error
             return Ok(());
         }
     };
+    let has_update = update.is_some();
     if let Some((update, spanish)) = update {
         let outcome = crate::logging::flush()
             .map_err(|error| error.to_string())
@@ -83,6 +85,61 @@ pub fn run(log_path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error
                 .show();
         }
     }
+    // A plugin restart never races an update handoff: the installer owns the
+    // relaunch in that case. By here core, WebViews and the instance lock are
+    // all released, so the fresh process can acquire the single-instance slot.
+    if !has_update {
+        if let Some(locale) = restart {
+            if let Err(error) = relaunch_application() {
+                tracing::error!(%error, "application restart failed after shutdown");
+                let _ = rfd::MessageDialog::new()
+                    .set_title(crate::native_messages::restart_failed_title(&locale))
+                    .set_description(crate::native_messages::restart_failed_description(&locale))
+                    .set_level(rfd::MessageLevel::Error)
+                    .set_buttons(rfd::MessageButtons::Ok)
+                    .show();
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Spawn a fresh TikTools process after the current one has fully shut down.
+/// AppImages must be relaunched from the mounted image path, not from the
+/// `current_exe()` inside the old mount, so prefer `APPIMAGE` when present.
+fn relaunch_application() -> Result<(), String> {
+    let appimage = std::env::var_os("APPIMAGE").map(std::path::PathBuf::from);
+    let executable = appimage
+        .clone()
+        .or_else(|| std::env::current_exe().ok())
+        .ok_or_else(|| "could not locate the TikTools executable".to_owned())?;
+    let mut command = std::process::Command::new(executable);
+    if appimage.is_some() {
+        // Mount-relative paths from the old image would leak into the new
+        // process and break its plugin/library loading (same cleanup the
+        // updater applies in `tiktools-app-update::install`).
+        for name in [
+            "APPDIR",
+            "APPIMAGE",
+            "ARGV0",
+            "OWD",
+            "LD_LIBRARY_PATH",
+            "LD_PRELOAD",
+            "XDG_DATA_DIRS",
+            "GIO_EXTRA_MODULES",
+            "GTK_PATH",
+            "QT_PLUGIN_PATH",
+        ] {
+            command.env_remove(name);
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command.spawn().map_err(|error| error.to_string())?;
     Ok(())
 }
 
