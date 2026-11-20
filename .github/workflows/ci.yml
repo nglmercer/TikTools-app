@@ -111,6 +111,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Restore apt package cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apt-archives
+          key: apt-noble-v1-${{ hashFiles('.github/workflows/ci.yml') }}
+
       - name: Install Linux build dependencies
         timeout-minutes: 30
         run: |
@@ -121,7 +127,12 @@ jobs:
             -o Acquire::Retries=2
             -o Acquire::http::Timeout=30
             -o Acquire::https::Timeout=30
+            -o APT::Keep-Downloaded-Packages=true
           )
+
+          # Reuse packages restored from the cache, so the mirror is only hit for misses.
+          mkdir -p "$RUNNER_TEMP/apt-archives"
+          sudo cp -n "$RUNNER_TEMP/apt-archives/"*.deb /var/cache/apt/archives/ 2>/dev/null || true
 
           echo "::group::Refresh APT indexes"
           time sudo apt-get "${apt_opts[@]}" update
@@ -137,6 +148,9 @@ jobs:
             mold \
             pkg-config
           echo "::endgroup::"
+          # Persist the downloaded packages for the next run.
+          sudo cp -n /var/cache/apt/archives/*.deb "$RUNNER_TEMP/apt-archives/" 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/apt-archives"
 
       - name: Install current Rust with validation tools
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal --component rustfmt --component clippy
@@ -223,6 +237,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Restore apt package cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apt-archives
+          key: apt-noble-v1-${{ hashFiles('.github/workflows/ci.yml') }}
+
       - name: Install Linux build dependencies
         timeout-minutes: 30
         run: |
@@ -233,7 +253,12 @@ jobs:
             -o Acquire::Retries=2
             -o Acquire::http::Timeout=30
             -o Acquire::https::Timeout=30
+            -o APT::Keep-Downloaded-Packages=true
           )
+
+          # Reuse packages restored from the cache, so the mirror is only hit for misses.
+          mkdir -p "$RUNNER_TEMP/apt-archives"
+          sudo cp -n "$RUNNER_TEMP/apt-archives/"*.deb /var/cache/apt/archives/ 2>/dev/null || true
 
           echo "::group::Refresh APT indexes"
           time sudo apt-get "${apt_opts[@]}" update
@@ -249,6 +274,9 @@ jobs:
             mold \
             pkg-config
           echo "::endgroup::"
+          # Persist the downloaded packages for the next run.
+          sudo cp -n /var/cache/apt/archives/*.deb "$RUNNER_TEMP/apt-archives/" 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/apt-archives"
 
       - name: Install MSRV Rust
         run: rustup toolchain install "${{ env.MSRV_TOOLCHAIN }}" --profile minimal
@@ -327,6 +355,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Restore apt package cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apt-archives
+          key: apt-noble-v1-${{ hashFiles('.github/workflows/ci.yml') }}
+
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 30
@@ -338,7 +372,12 @@ jobs:
             -o Acquire::Retries=2
             -o Acquire::http::Timeout=30
             -o Acquire::https::Timeout=30
+            -o APT::Keep-Downloaded-Packages=true
           )
+
+          # Reuse packages restored from the cache, so the mirror is only hit for misses.
+          mkdir -p "$RUNNER_TEMP/apt-archives"
+          sudo cp -n "$RUNNER_TEMP/apt-archives/"*.deb /var/cache/apt/archives/ 2>/dev/null || true
 
           echo "::group::Refresh APT indexes"
           time sudo apt-get "${apt_opts[@]}" update
@@ -354,6 +393,9 @@ jobs:
             mold \
             pkg-config
           echo "::endgroup::"
+          # Persist the downloaded packages for the next run.
+          sudo cp -n /var/cache/apt/archives/*.deb "$RUNNER_TEMP/apt-archives/" 2>/dev/null || true
+          sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/apt-archives"
 
       - name: Install current Rust
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
