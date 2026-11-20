@@ -21,6 +21,7 @@ impl WorkspaceState {
                 i
             }
         };
+        let guarded = self.product_guarded;
         let entry = &mut self.entries[index];
         if let Some(old) = &entry.remote {
             if old.revision > record.revision {
@@ -34,7 +35,23 @@ impl WorkspaceState {
                 };
             }
         }
-        if let Some(pending) = &mut entry.pending {
+        // A queued edit was never sent, so a remote record that already holds
+        // exactly that value is not a conflict: it resolves here. Unconfirmed
+        // writes keep their explicit review, and product-guarded state keeps
+        // every decision explicit.
+        let converged = match &entry.pending {
+            Some(pending) => {
+                pending.status == WorkspacePendingStatus::Queued
+                    && pending.base_revision != Some(record.revision)
+                    && !guarded
+                    && entry.next.is_none()
+                    && pending.edit.matches(&record)
+            }
+            None => false,
+        };
+        if converged {
+            entry.pending = None;
+        } else if let Some(pending) = &mut entry.pending {
             if pending.status == WorkspacePendingStatus::Queued
                 && pending.base_revision != Some(record.revision)
             {

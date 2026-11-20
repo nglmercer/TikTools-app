@@ -823,3 +823,56 @@ fn product_recovery_proof_tracks_only_the_latest_uncertain_decision() {
     .unwrap();
     assert!(s.product_recovery_proof(&target).is_none());
 }
+
+#[test]
+fn queued_edit_that_the_remote_already_holds_resolves_without_conflict() {
+    let mut s = state();
+    let target = key("test.plugin");
+    s.stage(
+        target.clone(),
+        WorkspaceEdit::Put(selection("test.plugin", true)),
+    )
+    .unwrap();
+    s.apply_changes(page(vec![record("test.plugin", 1, true)], 1))
+        .unwrap();
+    assert!(s.entry(&target).unwrap().pending.is_none());
+    assert_eq!(
+        s.entry(&target).unwrap().remote.as_ref().unwrap().revision,
+        1
+    );
+}
+
+#[test]
+fn queued_edit_against_a_different_remote_stays_a_manual_conflict() {
+    let mut s = state();
+    let target = key("test.plugin");
+    s.stage(
+        target.clone(),
+        WorkspaceEdit::Put(selection("test.plugin", true)),
+    )
+    .unwrap();
+    s.apply_changes(page(vec![record("test.plugin", 1, false)], 1))
+        .unwrap();
+    assert_eq!(
+        s.entry(&target).unwrap().pending.as_ref().unwrap().status,
+        WorkspacePendingStatus::Conflict
+    );
+}
+
+#[test]
+fn product_guarded_state_keeps_identical_remote_edits_explicit() {
+    let mut s = state();
+    let target = key("test.plugin");
+    s.stage(
+        target.clone(),
+        WorkspaceEdit::Put(selection("test.plugin", true)),
+    )
+    .unwrap();
+    s.product_guarded = true;
+    s.apply_changes(page(vec![record("test.plugin", 1, true)], 1))
+        .unwrap();
+    assert_eq!(
+        s.entry(&target).unwrap().pending.as_ref().unwrap().status,
+        WorkspacePendingStatus::Conflict
+    );
+}
