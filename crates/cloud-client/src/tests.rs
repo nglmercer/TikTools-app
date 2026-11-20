@@ -232,3 +232,152 @@ fn offline_edits_require_explicit_resolution() {
     state.discard("acme.plugin").unwrap();
     assert!(state.entries["acme.plugin"].pending.is_none());
 }
+
+fn selection(version: &str) -> PluginSelection {
+    PluginSelection {
+        schema_version: 1,
+        plugin_id: "acme.a".into(),
+        version: version.into(),
+        enabled: true,
+    }
+}
+
+fn record(revision: i64, value: Option<PluginSelection>) -> Record {
+    Record {
+        collection: "plugin-selections".into(),
+        key: "acme.a".into(),
+        revision,
+        deleted: value.is_none(),
+        value,
+    }
+}
+
+/// Pending local edit at base revision 2, with the server at revision 2 holding `1.0.0`.
+fn state_with_pending_upgrade(session: &Session) -> SyncState {
+    let mut state = session.new_state();
+    state.cursor = 2;
+    state.entries.insert(
+        "acme.a".into(),
+        Entry {
+            remote: Some(record(2, Some(selection("1.0.0")))),
+            pending: Some(Pending {
+                base_revision: Some(2),
+                edit: Edit::Put(selection("1.1.0")),
+                conflict: false,
+            }),
+        },
+    );
+    state
+}
+
+#[test]
+fn remote_identical_to_a_pending_edit_resolves_without_conflict() {
+    let mut state = SyncState::new("https://cloud.example".into(), "user".into());
+    state
+        .stage("acme.a".into(), Edit::Put(selection("1.1.0")))
+        .unwrap();
+    state.apply(record(3, Some(selection("1.1.0")))).unwrap();
+    let entry = &state.entries["acme.a"];
+    assert!(
+        entry.pending.is_none(),
+        "identical remote must clear the edit"
+    );
+    assert_eq!(entry.remote.as_ref().unwrap().revision, 3);
+}
+
+#[test]
+fn remote_identical_tombstone_resolves_a_pending_delete() {
+    let mut state = SyncState::new("https://cloud.example".into(), "user".into());
+    state.stage("acme.a".into(), Edit::Delete).unwrap();
+    state.apply(record(4, None)).unwrap();
+    assert!(state.entries["acme.a"].pending.is_none());
+}
+
+#[test]
+fn differing_remote_still_requires_explicit_resolution() {
+    let mut state = SyncState::new("https://cloud.example".into(), "user".into());
+    state.entries.insert(
+        "acme.a".into(),
+        Entry {
+            remote: Some(record(2, Some(selection("1.0.0")))),
+            pending: Some(Pending {
+                base_revision: Some(2),
+                edit: Edit::Put(selection("1.1.0")),
+                conflict: false,
+            }),
+        },
+    );
+    state.apply(record(3, Some(selection("2.0.0")))).unwrap();
+    let pending = state.entries["acme.a"].pending.as_ref().expect("edit kept");
+    assert!(pending.conflict);
+    assert_eq!(pending.base_revision, Some(2));
+}
+
+/// Serves one canned HTTP response per entry, in order, then stops.
+async fn serve(responses: Vec<(&'static str, String)>) -> (String, tokio::task::JoinHandle<()>) {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let task = tokio::spawn(async move {
+        for (status, body) in responses {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0u8; 8192];
+            let _ = socket.read(&mut request).await.unwrap();
+            let head = format!(
+                "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            socket.write_all(head.as_bytes()).await.unwrap();
+            socket.write_all(body.as_bytes()).await.unwrap();
+        }
+    });
+    (origin, task)
+}
+
+fn changes_page(record: Record, cursor: i64) -> String {
+    serde_json::json!({"changes": [record], "cursor": cursor, "has_more": false}).to_string()
+}
+
+#[tokio::test]
+async fn push_conflict_that_the_feed_resolves_identically_succeeds_automatically() {
+    let account = r#"{"id":"alice"}"#.to_owned();
+    let (origin, task) = serve(vec![
+        ("200 OK", account),
+        ("409 Conflict", String::new()),
+        (
+            "200 OK",
+            changes_page(record(3, Some(selection("1.1.0"))), 3),
+        ),
+    ])
+    .await;
+    let session = Session::connect(&origin, "fixture".into()).await.unwrap();
+    let mut state = state_with_pending_upgrade(&session);
+    session.push(&mut state, "acme.a").await.unwrap();
+    task.await.unwrap();
+    let entry = &state.entries["acme.a"];
+    assert!(entry.pending.is_none());
+    assert_eq!(entry.remote.as_ref().unwrap().revision, 3);
+    assert_eq!(state.cursor, 3);
+}
+
+#[tokio::test]
+async fn push_conflict_with_a_different_remote_stays_manual() {
+    let account = r#"{"id":"alice"}"#.to_owned();
+    let (origin, task) = serve(vec![
+        ("200 OK", account),
+        ("409 Conflict", String::new()),
+        (
+            "200 OK",
+            changes_page(record(3, Some(selection("2.0.0"))), 3),
+        ),
+    ])
+    .await;
+    let session = Session::connect(&origin, "fixture".into()).await.unwrap();
+    let mut state = state_with_pending_upgrade(&session);
+    assert!(matches!(
+        session.push(&mut state, "acme.a").await,
+        Err(SyncError::Conflict)
+    ));
+    task.await.unwrap();
+    let pending = state.entries["acme.a"].pending.as_ref().expect("edit kept");
+    assert!(pending.conflict);
+}

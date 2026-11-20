@@ -39,6 +39,9 @@ cloud-auth = [
 # OS keychain is only available on Linux/macOS/Windows. Desktop opts in
 # explicitly; mobile/Android builds use the in-memory store instead.
 os-keychain = ["cloud-auth", "tiktools-cloud-auth/os-keychain"]
+# Test-only (`TIKTOOLS_E2E_CLOUD_ORIGIN`, loopback origins). Not in any default
+# feature set; official release builds must not enable it.
+e2e-cloud-origin = ["dep:tiktools-cloud-auth", "tiktools-cloud-auth/e2e-cloud-origin"]
 # The sync engine is a separate opt-in. Enabling `cloud-auth` alone must not
 # link `tiktools-cloud-sync` into a host that only needs sign-in.
 cloud-sync = ["cloud-auth", "dep:tiktools-cloud-sync"]

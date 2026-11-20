@@ -9,7 +9,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import https from 'node:https';
 import { extname, dirname, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
@@ -251,4 +251,3 @@ main().catch((error: unknown) => {
   process.exit(1);
 });
 
-export { existsSync };

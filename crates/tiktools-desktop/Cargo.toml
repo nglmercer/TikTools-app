@@ -17,6 +17,9 @@ persistence = ["tiktools-core/persistence"]
 http = ["tiktools-core/http"]
 cloud-auth = ["tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
 os-keychain = ["cloud-auth", "tiktools-core/os-keychain"]
+# Test-only: release-profile builds may point Cloud at a loopback
+# RemakeBackend through TIKTOOLS_E2E_CLOUD_ORIGIN. Keep out of official builds.
+e2e-cloud-origin = ["tiktools-core/e2e-cloud-origin"]
 
 [dependencies]
 tiktools-core = { path = "../tiktools-core", features = ["native-tiktok"] }

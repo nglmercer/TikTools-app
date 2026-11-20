@@ -23,7 +23,7 @@ pub struct DoctorReport {
 /// Host RSS without dependencies: parses `/proc/self/status` on Linux.
 /// Every other platform reports `None` rather than a fabricated value;
 /// per-process plugin/WebView attribution stays with the external Linux
-/// profiler (`scripts/profile-live-memory.py`), which classifies by
+/// profiler (`scripts/profile-live-memory.ts`), which classifies by
 /// process name, because child PIDs live inside loader worker threads
 /// and are not cheaply observable from the health path.
 #[cfg(target_os = "linux")]
@@ -53,7 +53,7 @@ fn host_memory_diagnostics() -> Value {
         "pluginRssBytes": Value::Null,
         "webviewRssBytes": Value::Null,
         "rssSource": if cfg!(target_os = "linux") { "proc" } else { "unsupported" },
-        "note": "plugin/webview RSS: use scripts/profile-live-memory.py (Linux); health never fabricates per-process values",
+        "note": "plugin/webview RSS: use scripts/profile-live-memory.ts (Linux); health never fabricates per-process values",
     })
 }
 

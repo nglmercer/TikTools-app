@@ -79,14 +79,19 @@ impl Session {
         };
         let response = request.send().await.map_err(|_| SyncError::Network)?;
         if response.status() == StatusCode::CONFLICT {
-            state
+            // The remote moved. Catch up with the change feed first: if the
+            // remote already holds exactly this edit, it resolves automatically.
+            let caught_up = self.catch_up(state).await.is_ok();
+            let still_pending = state
                 .entries
-                .get_mut(key)
-                .unwrap()
-                .pending
-                .as_mut()
-                .unwrap()
-                .conflict = true;
+                .get(key)
+                .is_some_and(|entry| entry.pending.is_some());
+            if caught_up && !still_pending {
+                return Ok(());
+            }
+            if let Some(pending) = state.entries.get_mut(key).and_then(|e| e.pending.as_mut()) {
+                pending.conflict = true;
+            }
             return Err(SyncError::Conflict);
         }
         let record: Record = decode(response).await?;
@@ -105,6 +110,18 @@ impl Session {
         entry.remote = Some(record);
         entry.pending = None;
         Ok(())
+    }
+
+    /// Apply change pages until the feed reports no more, so every remote change
+    /// up to the current head is in `state`. Bounded by `MAX_PAGES`.
+    async fn catch_up(&self, state: &mut SyncState) -> Result<(), SyncError> {
+        for _ in 0..MAX_PAGES {
+            let (more, _) = self.pull_page_with_count(state).await?;
+            if !more {
+                return Ok(());
+            }
+        }
+        Err(SyncError::TooManyPages)
     }
 
     /// Rebuild after retention expiry without dropping pending edits. Snapshot and
@@ -159,6 +176,14 @@ impl Session {
         }
         for (key, old) in &state.entries {
             if let Some(pending) = &old.pending {
+                let converged = candidate
+                    .entries
+                    .get(key)
+                    .and_then(|entry| entry.remote.as_ref())
+                    .is_some_and(|remote| matches_edit(remote, &pending.edit));
+                if converged {
+                    continue;
+                }
                 let entry = candidate.entries.entry(key.clone()).or_default();
                 let mut pending = pending.clone();
                 if pending.base_revision != entry.remote.as_ref().map(|r| r.revision) {

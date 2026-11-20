@@ -59,13 +59,27 @@ impl SyncState {
         {
             return Ok(());
         }
-        if let Some(pending) = &mut entry.pending {
-            if pending.base_revision != Some(record.revision) {
-                pending.conflict = true;
+        match entry.pending.take() {
+            // Both sides already reached the same state: nothing to send or review.
+            Some(pending) if matches_edit(&record, &pending.edit) => {}
+            Some(mut pending) => {
+                if pending.base_revision != Some(record.revision) {
+                    pending.conflict = true;
+                }
+                entry.pending = Some(pending);
             }
+            None => {}
         }
         entry.remote = Some(record);
         Ok(())
+    }
+}
+
+/// Whether a server record already holds exactly the value of a pending edit.
+pub(super) fn matches_edit(record: &Record, edit: &Edit) -> bool {
+    match edit {
+        Edit::Put(value) => !record.deleted && record.value.as_ref() == Some(value),
+        Edit::Delete => record.deleted,
     }
 }
 

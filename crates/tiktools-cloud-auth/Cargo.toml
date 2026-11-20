@@ -9,6 +9,10 @@ publish = false
 
 [features]
 default = []
+# Test-only: lets a release-profile build honor `TIKTOOLS_E2E_CLOUD_ORIGIN`,
+# restricted to loopback origins. Never enabled by default or in official
+# builds; see `origin.rs`.
+e2e-cloud-origin = []
 account = ["dep:cloud-client"]
 system-browser = ["account", "dep:open", "cloud-client/system-browser"]
 os-keychain = ["account", "cloud-client/os-keychain"]

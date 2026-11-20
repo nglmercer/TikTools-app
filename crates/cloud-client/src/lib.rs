@@ -16,7 +16,7 @@ mod selection_state;
 mod selection_sync;
 mod transport;
 
-use selection_state::{valid_key, validate_record};
+use selection_state::{matches_edit, valid_key, validate_record};
 #[cfg(test)]
 use transport::retry_delay;
 use transport::{decode, decode_with_limit, parse_origin};

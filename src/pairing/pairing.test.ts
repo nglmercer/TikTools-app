@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { supportedLocales } from '../web/shared/i18n/supported-locales';
 import { translatorFor, type MessageKey } from './messages';
 import { mountPairing, resolveLocale, type PairingEnvironment } from './pairing';
 
-const template = readFileSync(new URL('./pairing.html', import.meta.url), 'utf8');
+const template = readFileSync(resolve(process.cwd(), 'src/pairing/pairing.html'), 'utf8');
 const bodyMarkup = template
   .split('<body>')[1]!
   .split('</body>')[0]!
