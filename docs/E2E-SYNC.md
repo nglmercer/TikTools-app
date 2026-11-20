@@ -54,3 +54,19 @@ tick, or a restart). Until then the E2E passes for transport only.
 Use `tiktools api call <method> [params-json]`, `tiktools api schema <method>`
 and `tiktools api discover`, or `bun run e2e:sync`. Read the open item before
 reporting sync as working.
+
+## Manual UI check with an agent (desktop + headless)
+
+This is a manual check, not an automated test. You look at the desktop app; the
+agent changes data on a headless workspace of the same account.
+
+1. Start the agent workspace: `bun run agent:ws up`. It prints an email and password.
+2. In the desktop app, sign in with that email and password, and turn sync on.
+3. Ask the agent for a change. It runs, for example: `bun run agent:ws do plugin disable audio.play.process`.
+   The script prints the sync result (`pushed`, `pulled`, `applicationDeferred`).
+4. Check the desktop app by hand. The desktop syncs on its own timer (about 60 seconds) or after a local change.
+5. `bun run agent:ws status` shows the account and the sync state. `bun run agent:ws down` stops the workspace; the account is kept.
+
+Open question to verify by hand: `applicationDeferred=true` applies to the
+headless host. The desktop applies changes itself, so the UI may update even
+while the headless apply stays deferred. Confirm this during step 4.

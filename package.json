@@ -16,7 +16,8 @@
     "lint": "bun scripts/task.ts lint",
     "ci": "bun scripts/task.ts ci",
     "test": "bun scripts/task.ts test",
-    "e2e:sync": "bun scripts/e2e/two-workspace-sync.ts"
+    "e2e:sync": "bun scripts/e2e/two-workspace-sync.ts",
+    "agent:ws": "bun scripts/e2e/agent-workspace.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
