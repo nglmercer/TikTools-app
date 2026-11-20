@@ -2,14 +2,15 @@
 //!
 //! The picker returns a path only. Audio playback streams the selected file
 //! directly; no file is copied into the application or plugin directories.
+//! The rodio engine lives in the `tiktools-audio-rodio` crate of the plugins
+//! repository; this module only adapts it to the host media interface.
 
 use std::{
-    fs::File,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
-use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Player};
+use tiktools_audio_rodio::{AudioEngine, Overlap};
 use tiktools_core::{MediaHost, MediaHostError, MediaHostFuture};
 use tiktools_plugin_api::{
     AudioOverlap, AudioPlayOptions, AudioPlaybackResult, MediaKind, MediaPickerMode,
@@ -18,13 +19,7 @@ use tiktools_plugin_api::{
 
 #[derive(Default)]
 pub struct DesktopMediaHost {
-    audio: Arc<Mutex<AudioState>>,
-}
-
-#[derive(Default)]
-struct AudioState {
-    stream: Option<MixerDeviceSink>,
-    sinks: Vec<Player>,
+    audio: Arc<AudioEngine>,
 }
 
 impl MediaHost for DesktopMediaHost {
@@ -82,49 +77,21 @@ fn pick_media(options: MediaPickerOptions) -> Result<Option<PathBuf>, MediaHostE
 }
 
 fn play_audio(
-    audio: &Arc<Mutex<AudioState>>,
+    audio: &AudioEngine,
     file: &tiktools_plugin_api::MediaFileRef,
     options: AudioPlayOptions,
 ) -> Result<AudioPlaybackResult, MediaHostError> {
-    let mut state = audio
-        .lock()
-        .map_err(|_| MediaHostError::Failed("audio state lock is poisoned".to_owned()))?;
-    state.sinks.retain(|sink| !sink.empty());
-    if matches!(options.overlap, AudioOverlap::Drop) && !state.sinks.is_empty() {
-        return Ok(AudioPlaybackResult {
-            played: false,
-            reason: Some("already-playing".to_owned()),
-            active_players: state.sinks.len(),
-        });
-    }
-    if matches!(options.overlap, AudioOverlap::Restart) {
-        for sink in &state.sinks {
-            sink.stop();
-        }
-        state.sinks.clear();
-    }
-    if state.stream.is_none() {
-        state.stream = Some(DeviceSinkBuilder::open_default_sink().map_err(|error| {
-            MediaHostError::Failed(format!("could not open audio output: {error}"))
-        })?);
-    }
-    let input = File::open(&file.path).map_err(|error| {
-        MediaHostError::Failed(format!("could not open {}: {error}", file.path))
-    })?;
-    let source = Decoder::try_from(input).map_err(|error| {
-        MediaHostError::Failed(format!("could not decode {}: {error}", file.name))
-    })?;
-    let stream = state
-        .stream
-        .as_ref()
-        .ok_or_else(|| MediaHostError::Failed("audio output was not initialized".to_owned()))?;
-    let sink = Player::connect_new(stream.mixer());
-    sink.set_volume(options.volume.clamp(0.0, 1.0));
-    sink.append(source);
-    state.sinks.push(sink);
+    let overlap = match options.overlap {
+        AudioOverlap::Allow => Overlap::Allow,
+        AudioOverlap::Restart => Overlap::Restart,
+        AudioOverlap::Drop => Overlap::Drop,
+    };
+    let outcome = audio
+        .play_file(Path::new(&file.path), options.volume, overlap)
+        .map_err(|error| MediaHostError::Failed(error.to_string()))?;
     Ok(AudioPlaybackResult {
-        played: true,
-        reason: None,
-        active_players: state.sinks.len(),
+        played: outcome.played,
+        reason: outcome.reason.map(str::to_owned),
+        active_players: outcome.active_players,
     })
 }

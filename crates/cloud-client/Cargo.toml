@@ -12,7 +12,7 @@ os-keychain = ["dep:keyring"]
 
 [dependencies]
 cloud-contracts = { path = "../cloud-contracts" }
-better-auth = { git = "https://github.com/nglmercer/better-auth-rs.git", rev = "c6940517155ff9a123221789b1efc89ef48cb19c", default-features = false }
+better-auth = { git = "https://github.com/nglmercer/better-auth-rs.git", rev = "aadd81d630aed4bd950d4e5581a5efbb304ca3e7", default-features = false, features = ["desktop"] }
 base64 = "0.23"
 getrandom = "0.4.3"
 sha2 = "0.11"
@@ -41,7 +41,3 @@ keyring = { version = "3.6.3", default-features = false, features = ["apple-nati
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { version = "3.6.3", default-features = false, features = ["windows-native"], optional = true }
-# better-auth pulls in webauthn-rs, which links OpenSSL. Windows runners and
-# end-user machines have no system OpenSSL, so build it from source and link
-# it statically.
-openssl = { version = "0.10", features = ["vendored"] }

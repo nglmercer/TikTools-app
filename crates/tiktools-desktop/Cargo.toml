@@ -37,7 +37,7 @@ winit = "0.30.13"
 wry = { version = "0.57.1", features = ["tracing"] }
 tray-icon = "0.26.1"
 rfd.workspace = true
-rodio.workspace = true
+tiktools-audio-rodio = { git = "https://github.com/nglmercer/plugins-example-tiktools", rev = "0bcb735" }
 open = "5.4.5"
 
 [dev-dependencies]
