@@ -210,7 +210,7 @@ impl Update {
 
         let mut file = tempfile::Builder::new().suffix(".exe").tempfile()?;
         file.write_all(&bytes)?;
-        let (_, path) = file.keep()?;
+        let (_, path) = file.keep().map_err(std::io::Error::from)?;
 
         let mut installer = std::ffi::OsString::from("\"");
         installer.push(&path);

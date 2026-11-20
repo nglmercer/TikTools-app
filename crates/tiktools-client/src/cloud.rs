@@ -14,6 +14,9 @@ pub(crate) const METHODS: &[&str] = &[
     CLOUD_LOGIN_CANCEL,
     CLOUD_RESTORE,
     CLOUD_LOGOUT,
+    CLOUD_LOGIN_CODE_SEND,
+    CLOUD_LOGIN_CODE_RESEND,
+    CLOUD_LOGIN_CODE_SUBMIT,
 ];
 
 const CLOUD_STATUS: &str = "cloud.status";
@@ -24,6 +27,9 @@ const CLOUD_LOGIN_COMPLETE: &str = "cloud.login.complete";
 const CLOUD_LOGIN_CANCEL: &str = "cloud.login.cancel";
 const CLOUD_RESTORE: &str = "cloud.restore";
 const CLOUD_LOGOUT: &str = "cloud.logout";
+const CLOUD_LOGIN_CODE_SEND: &str = "cloud.login.code.send";
+const CLOUD_LOGIN_CODE_RESEND: &str = "cloud.login.code.resend";
+const CLOUD_LOGIN_CODE_SUBMIT: &str = "cloud.login.code.submit";
 
 impl TikToolsClient {
     pub async fn cloud_status(&self) -> Result<CloudStatusResult, ClientError> {

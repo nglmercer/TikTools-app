@@ -563,13 +563,17 @@ fn create_private_dir(path: &Path) -> io::Result<()> {
 }
 
 fn private_file_options() -> OpenOptions {
-    let mut options = OpenOptions::new();
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
+        let mut options = OpenOptions::new();
         options.mode(0o600);
+        options
     }
-    options
+    #[cfg(not(unix))]
+    {
+        OpenOptions::new()
+    }
 }
 
 fn sync_directory(dir: &Path) {
