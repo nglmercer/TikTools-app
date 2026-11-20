@@ -5,6 +5,11 @@ export type DiagnosticLevel = 'info' | 'warning' | 'error';
 export type DiagnosticSource =
   | 'live' | 'monitor' | 'discovery' | 'plugins' | 'account' | 'sync' | 'updates' | 'transport'
   | 'catalog' | 'install' | 'relay' | 'integrations';
+/** Key/value data shown as properties in the log, devtools style. Values are redacted too. */
+export interface DiagnosticField {
+  label: string;
+  value: string;
+}
 export interface DiagnosticInput {
   source: DiagnosticSource;
   level: DiagnosticLevel;
@@ -12,6 +17,7 @@ export interface DiagnosticInput {
   message: string;
   entityId?: string;
   details?: string;
+  fields?: readonly DiagnosticField[];
   /** Correlation id of the request that failed, when the source has one. */
   requestId?: string;
 }
@@ -19,6 +25,7 @@ export interface DiagnosticEntry extends DiagnosticInput {
   id: string;
   entityId: string;
   details: string;
+  fields: DiagnosticField[];
   requestId: string;
   firstSeenAt: number;
   lastSeenAt: number;
@@ -61,16 +68,23 @@ export function createDiagnosticLog(options: { capacity?: number; maxBytes?: num
   const encoder = new TextEncoder();
   function record(input: DiagnosticInput, secrets: readonly string[] = []): DiagnosticEntry {
     const at = now();
+    const fields = (input.fields ?? []).slice(0, 24).map((field) => ({
+      label: redactDiagnostic(field.label, secrets).slice(0, 80),
+      value: redactDiagnostic(field.value, secrets),
+    }));
+    const fieldsKey = JSON.stringify(fields);
     const safe = {
       source: input.source, level: input.level,
       code: redactDiagnostic(input.code, secrets).slice(0, 100),
       entityId: redactDiagnostic(input.entityId ?? '', secrets).slice(0, 160),
       requestId: redactDiagnostic(input.requestId ?? '', secrets).slice(0, 80),
       message: redactDiagnostic(input.message, secrets), details: redactDiagnostic(input.details ?? '', secrets),
+      fields,
     };
     const previous = entries.value.findLast((e) => e.source === safe.source && e.entityId === safe.entityId);
     const duplicate = previous && at - previous.lastSeenAt <= 5000 &&
-      previous.code === safe.code && previous.requestId === safe.requestId && previous.level === safe.level && previous.message === safe.message && previous.details === safe.details;
+      previous.code === safe.code && previous.requestId === safe.requestId && previous.level === safe.level && previous.message === safe.message && previous.details === safe.details &&
+      JSON.stringify(previous.fields) === fieldsKey;
     const entry: DiagnosticEntry = duplicate
       ? { ...previous, lastSeenAt: at, repeatCount: previous.repeatCount + 1 }
       : { ...safe, id: `diagnostic-${++sequence}`, firstSeenAt: at, lastSeenAt: at, repeatCount: 1 };
@@ -115,6 +129,6 @@ export const diagnosticView = {
 };
 export function formatDiagnostics(entries: readonly DiagnosticEntry[]): string {
   return ['TikTools diagnostics — current UI session — sensitive fields redacted', ...entries.map((e) =>
-    `${new Date(e.firstSeenAt).toISOString()} [${e.level}] ${e.source}${e.entityId ? `/${e.entityId}` : ''} ${e.code}${e.requestId ? ` request=${e.requestId}` : ''}\n${e.message}${e.details ? `\n${e.details}` : ''}\nRepeated: ${e.repeatCount}; last: ${new Date(e.lastSeenAt).toISOString()}`,
+    `${new Date(e.firstSeenAt).toISOString()} [${e.level}] ${e.source}${e.entityId ? `/${e.entityId}` : ''} ${e.code}${e.requestId ? ` request=${e.requestId}` : ''}\n${e.message}${e.fields.length ? `\n${e.fields.map((f) => `${f.label}: ${f.value}`).join('\n')}` : ''}${e.details ? `\n${e.details}` : ''}\nRepeated: ${e.repeatCount}; last: ${new Date(e.lastSeenAt).toISOString()}`,
   )].join('\n\n');
 }

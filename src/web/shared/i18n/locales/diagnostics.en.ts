@@ -12,6 +12,7 @@ export default {
   repeated: 'Repeated {count} times', last: 'Last occurrence', back: 'Back', close: 'Close diagnostics',
   minimize: 'Minimize', restore: 'Restore', move: 'Move panel (drag or use arrow keys)', reset: 'Reset position', fullPage: 'Open full page',
   newEntries: '{count} new entries', filterEntity: 'Entity filter: {entity}', resetFilters: 'Clear filters',
+  levelsLabel: 'Level counts', levelsHint: 'Select a level to filter', properties: 'Properties', showRaw: 'View JSON', hideRaw: 'Hide JSON',
   connectionFailed: 'Connection failed', monitorFailed: 'Monitor needs attention', accountFailed: 'Sign-in needs attention',
   syncFailed: 'Sync needs attention', updateFailed: 'Update needs attention', updaterUnavailable: 'Automatic updates unavailable here',
   discoveryFailed: 'Could not load rooms', sources: { live: 'TikTok LIVE', monitor: 'Live monitor', discovery: 'Room explorer', plugins: 'Plugins', account: 'Cloud account', sync: 'Cloud sync', updates: 'Updates', transport: 'Host connection', catalog: 'Catalog', install: 'Install and registry', relay: 'Cloud relay', integrations: 'Integrations' },

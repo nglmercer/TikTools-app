@@ -12,6 +12,7 @@ export default {
   repeated: 'Répété {count} fois', last: 'Dernière occurrence', back: 'Retour', close: 'Fermer le diagnostic',
   minimize: 'Réduire', restore: 'Restaurer', move: 'Déplacer le panneau (glissez ou utilisez les flèches)', reset: 'Réinitialiser la position', fullPage: 'Ouvrir en pleine page',
   newEntries: '{count} nouvelles entrées', filterEntity: 'Filtre d’entité : {entity}', resetFilters: 'Effacer les filtres',
+  levelsLabel: 'Comptage par niveau', levelsHint: 'Sélectionnez un niveau pour filtrer', properties: 'Propriétés', showRaw: 'Voir le JSON', hideRaw: 'Masquer le JSON',
   connectionFailed: 'Échec de la connexion', monitorFailed: 'La surveillance nécessite une attention', accountFailed: 'La connexion nécessite une attention',
   syncFailed: 'La synchronisation nécessite une attention', updateFailed: 'La mise à jour nécessite une attention', updaterUnavailable: 'Mises à jour automatiques indisponibles ici',
   discoveryFailed: 'Impossible de charger les salons', sources: { live: 'LIVE TikTok', monitor: 'Surveillance du LIVE', discovery: 'Explorateur de salons', plugins: 'Plugins', account: 'Compte Cloud', sync: 'Synchronisation Cloud', updates: 'Mises à jour', transport: 'Connexion à l’hôte', catalog: 'Catalogue', install: 'Installation et registre', relay: 'Relais Cloud', integrations: 'Intégrations' },

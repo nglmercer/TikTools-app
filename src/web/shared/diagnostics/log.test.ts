@@ -10,6 +10,18 @@ describe('diagnostic retention and redaction', () => {
     expect(exported).toContain('example.test/api');
     expect(exported).toContain('[redacted');
   });
+  test('redacts structured fields before retaining them and exports them as properties', () => {
+    const log = createDiagnosticLog();
+    log.record({ ...failure, code: 'account.status', message: 'Cloud diagnostics', fields: [
+      { label: 'Secret', value: 'password=private-secret' },
+      { label: 'Origin', value: 'https://user:pass@example.test/api?key=private' },
+    ] });
+    const exported = formatDiagnostics(log.entries.value);
+    expect(exported).toContain('Origin:');
+    expect(exported).not.toContain('private-secret');
+    expect(exported).not.toContain('user:pass');
+    expect(log.entries.value[0]!.fields[0]!.value).toBe('password=[redacted]');
+  });
   test('groups bursts by source and entity, preserves first/last times, separates recovery', () => {
     let now = 100;
     const log = createDiagnosticLog({ now: () => now });

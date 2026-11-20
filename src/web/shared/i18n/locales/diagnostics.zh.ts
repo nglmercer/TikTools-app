@@ -12,6 +12,7 @@ export default {
   repeated: "重复 {count} 次", last: "最后发生", back: "返回", close: "关闭诊断",
   minimize: "最小化", restore: "还原", move: "移动面板（拖动或使用方向键）", reset: "重置位置", fullPage: "打开完整页面",
   newEntries: "{count} 条新条目", filterEntity: "实体筛选：{entity}", resetFilters: "清除筛选",
+  levelsLabel: "按级别统计", levelsHint: "选择级别进行筛选", properties: "属性", showRaw: "查看 JSON", hideRaw: "隐藏 JSON",
   connectionFailed: "连接失败", monitorFailed: "监控需要处理", accountFailed: "登录需要处理",
   syncFailed: "同步需要处理", updateFailed: "更新需要处理", updaterUnavailable: "此处无法自动更新",
   discoveryFailed: "无法加载直播间", sources: { live: "TikTok LIVE", monitor: "直播监控", discovery: "直播间探索器", plugins: "插件", account: "云端账户", sync: "云端同步", updates: "更新", transport: "主机连接", catalog: "目录", install: "安装与注册表", relay: "云端中继", integrations: "集成" },

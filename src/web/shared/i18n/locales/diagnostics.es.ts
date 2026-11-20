@@ -12,6 +12,7 @@ export default {
   repeated: 'Repetido {count} veces', last: 'Última aparición', back: 'Volver', close: 'Cerrar diagnóstico',
   minimize: 'Minimizar', restore: 'Restaurar', move: 'Mover panel (arrastra o usa las flechas)', reset: 'Restablecer posición', fullPage: 'Abrir página completa',
   newEntries: '{count} entradas nuevas', filterEntity: 'Filtro de entidad: {entity}', resetFilters: 'Quitar filtros',
+  levelsLabel: 'Recuento por nivel', levelsHint: 'Selecciona un nivel para filtrar', properties: 'Propiedades', showRaw: 'Ver JSON', hideRaw: 'Ocultar JSON',
   connectionFailed: 'Falló la conexión', monitorFailed: 'El monitor requiere atención', accountFailed: 'El inicio de sesión requiere atención',
   syncFailed: 'La sincronización requiere atención', updateFailed: 'La actualización requiere atención', updaterUnavailable: 'Actualización automática no disponible aquí',
   discoveryFailed: 'No se pudieron cargar las salas', sources: { live: 'TikTok LIVE', monitor: 'Monitor LIVE', discovery: 'Explorador de salas', plugins: 'Plugins', account: 'Cuenta Cloud', sync: 'Sincronización Cloud', updates: 'Actualizaciones', transport: 'Conexión con el host', catalog: 'Catálogo', install: 'Instalación y registro', relay: 'Relay Cloud', integrations: 'Integraciones' },

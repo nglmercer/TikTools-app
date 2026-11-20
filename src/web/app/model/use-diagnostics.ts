@@ -11,10 +11,12 @@ import { usePackagesStore } from '@/entities/plugin-package/model/packages-store
 import { useAppUpdaterStore } from '@/features/app-updater/model/updater-store.ts';
 import type { CloudFailure } from '@/shared/api/cloud-failure.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
-import { diagnosticLog, diagnosticView, type DiagnosticSource } from '@/shared/diagnostics/log.ts';
+import { diagnosticLog, diagnosticView, type DiagnosticField, type DiagnosticSource } from '@/shared/diagnostics/log.ts';
+import { i18n } from '@/shared/i18n/i18n.ts';
 
 /** Mounted once by AppShell, not by error components; navigation never duplicates entries. */
 export function useDiagnostics(): void {
+  const tr = i18n.global.t;
   const client = useControlClient();
   const connection = useConnectionStore();
   const discovery = useDiscoveryStore();
@@ -51,7 +53,23 @@ export function useDiagnostics(): void {
       }, secrets());
     }
   }, { immediate: true, flush: 'sync' });
-  watch(() => account.error, (message) => error('account', 'cloud.account', message), { immediate: true, flush: 'sync' });
+  // The Cloud diagnostics box became a structured log entry: state, origin, account id and
+  // persistence travel as fields so the log can render them like a devtools property panel.
+  if (!account.status) void account.ensureRestored();
+  watch(() => [account.status, account.error] as const, ([status, message]) => {
+    if (!status && !message) return;
+    const fields: DiagnosticField[] = [
+      { label: tr('account.details.origin'), value: status?.origin ?? tr('account.details.disabled') },
+      ...(status?.state ? [{ label: tr('account.details.state'), value: status.state }] : []),
+      ...(status?.accountId ? [{ label: tr('account.details.accountId'), value: status.accountId }] : []),
+      { label: tr('account.details.storage'), value: tr(status?.persistence === 'keychain' ? 'account.storedInKeychain' : 'account.storedInMemory') },
+      ...(message ? [{ label: tr('account.details.lastError'), value: message }] : []),
+    ];
+    diagnosticLog.record({
+      source: 'account', code: 'account.status', level: message ? 'error' : 'info',
+      message: tr('account.details.title'), fields,
+    }, secrets());
+  }, { immediate: true, flush: 'sync' });
   watch(() => sync.error, (message) => error('sync', 'cloud.sync', message), { immediate: true, flush: 'sync' });
   // Technical detail of the Cloud surfaces lives here; the panels keep a short, actionable message.
   watch(() => [catalog.error, catalog.errorDetail] as const, ([message, detail]) => error('catalog', 'catalog.error', message, detail), { immediate: true, flush: 'sync' });

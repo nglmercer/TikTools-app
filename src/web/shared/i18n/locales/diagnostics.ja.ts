@@ -12,6 +12,7 @@ export default {
   repeated: "{count}回繰り返し", last: "最終発生", back: "戻る", close: "診断を閉じる",
   minimize: "最小化", restore: "元に戻す", move: "パネルを移動（ドラッグまたは矢印キー）", reset: "位置をリセット", fullPage: "ページ全体で開く",
   newEntries: "新しい記録{count}件", filterEntity: "エンティティのフィルター：{entity}", resetFilters: "フィルターを解除",
+  levelsLabel: "レベル別の件数", levelsHint: "レベルを選ぶと絞り込めます", properties: "プロパティ", showRaw: "JSONを表示", hideRaw: "JSONを隠す",
   connectionFailed: "接続に失敗", monitorFailed: "監視の確認が必要", accountFailed: "ログインの確認が必要",
   syncFailed: "同期の確認が必要", updateFailed: "更新の確認が必要", updaterUnavailable: "ここでは自動更新を利用できません",
   discoveryFailed: "ルームを読み込めませんでした", sources: { live: "TikTok LIVE", monitor: "LIVE監視", discovery: "ルームエクスプローラー", plugins: "プラグイン", account: "クラウドアカウント", sync: "クラウド同期", updates: "アップデート", transport: "ホスト接続", catalog: "カタログ", install: "インストールとレジストリ", relay: "クラウドリレー", integrations: "連携" },

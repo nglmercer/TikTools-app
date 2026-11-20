@@ -23,6 +23,7 @@ const search = ref('');
 const limit = ref(100);
 const notice = ref('');
 const filtersOpen = ref(false);
+const rawOpen = ref<Record<string, boolean>>({});
 const filtersButton = ref<InstanceType<typeof BaseButton> | null>(null);
 const filterId = useId();
 const filterCount = computed(() => [source.value, entityId.value, level.value, search.value.trim()].filter(Boolean).length);
@@ -34,6 +35,10 @@ const filtered = computed(() => entries.value.filter(e => (!source.value || e.so
 const selected = computed(() => entries.value.find(e => e.id === selectedId.value));
 const sourceOptions = computed(() => [{ value: '', label: t('diagnostics.allSources') }, ...sources.map(value => ({ value, label: t(`diagnostics.sources.${value}`) }))]);
 const levelOptions = computed(() => [{ value: '', label: t('diagnostics.allLevels') }, ...(['info', 'warning', 'error'] as const).map(value => ({ value, label: t(`diagnostics.${value}`) }))]);
+const levelStats = computed(() => (['error', 'warning', 'info'] as const).map(value => ({
+  value, count: filtered.value.filter(entry => entry.level === value).length,
+})));
+function toggleRaw(id: string): void { rawOpen.value = { ...rawOpen.value, [id]: !rawOpen.value[id] }; }
 const visible = computed(() => {
   const recent = filtered.value.slice(-limit.value).toReversed();
   const active = selected.value;
@@ -195,6 +200,29 @@ function reset(): void { source.value = ''; entityId.value = ''; level.value = '
     <div class="logs__summary">
       <span>{{ t('diagnostics.results', { count: filtered.length, total: entries.length }) }}</span><span>{{ t('diagnostics.sessionShort') }}</span>
     </div>
+    <div
+      class="logs__levels"
+      role="group"
+      :aria-label="t('diagnostics.levelsLabel')"
+    >
+      <button
+        v-for="stat in levelStats"
+        :key="stat.value"
+        class="logs__level"
+        :class="[`logs__level--${stat.value}`, { 'logs__level--active': level === stat.value }]"
+        type="button"
+        :aria-pressed="level === stat.value"
+        @click="level = level === stat.value ? '' : stat.value"
+      >
+        <span
+          class="logs__severity"
+          :class="`logs__severity--${stat.value}`"
+          aria-hidden="true"
+        >{{ stat.value === 'error' ? '×' : stat.value === 'warning' ? '!' : 'i' }}</span>
+        {{ t(`diagnostics.${stat.value}`) }}<span class="logs__count">{{ stat.count }}</span>
+      </button>
+      <span class="logs__levels-hint">{{ t('diagnostics.levelsHint') }}</span>
+    </div>
     <p
       v-show="notice"
       class="logs__notice"
@@ -283,15 +311,41 @@ function reset(): void { source.value = ''; entityId.value = ''; level.value = '
         >
           <small>{{ entry.code }} · {{ new Date(entry.firstSeenAt).toLocaleString() }}</small>
           <small v-if="entry.repeatCount > 1">{{ t('diagnostics.last') }}: {{ new Date(entry.lastSeenAt).toLocaleString() }}</small>
-          <pre v-if="entry.details && entry.details.trim() !== entry.message.trim()">{{ entry.details }}</pre>
-          <BaseButton
-            size="sm"
-            @click="copy(formatDiagnostics([entry]))"
+          <dl
+            v-if="entry.fields?.length"
+            class="logs__fields"
+            :aria-label="t('diagnostics.properties')"
           >
-            <template #icon>
-              <IconCopy />
-            </template>{{ t('diagnostics.copyEntry') }}
-          </BaseButton>
+            <template
+              v-for="(field, index) in entry.fields"
+              :key="`${field.label}-${index}`"
+            >
+              <dt>{{ field.label }}</dt>
+              <dd>{{ field.value }}</dd>
+            </template>
+          </dl>
+          <pre v-if="entry.details && entry.details.trim() !== entry.message.trim()">{{ entry.details }}</pre>
+          <div class="logs__entry-actions">
+            <BaseButton
+              size="sm"
+              @click="copy(formatDiagnostics([entry]))"
+            >
+              <template #icon>
+                <IconCopy />
+              </template>{{ t('diagnostics.copyEntry') }}
+            </BaseButton>
+            <BaseButton
+              size="sm"
+              variant="ghost"
+              @click="toggleRaw(entry.id)"
+            >
+              {{ t(rawOpen[entry.id] ? 'diagnostics.hideRaw' : 'diagnostics.showRaw') }}
+            </BaseButton>
+          </div>
+          <pre
+            v-if="rawOpen[entry.id]"
+            class="logs__raw"
+          >{{ JSON.stringify(entry, null, 2) }}</pre>
         </div>
       </li>
     </ol>
@@ -318,6 +372,12 @@ function reset(): void { source.value = ''; entityId.value = ''; level.value = '
 .logs__chip svg { flex: none; }
 .logs__chip:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 1px; }
 .logs__summary { display: flex; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-2) 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.logs__levels { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.logs__level { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 32px; padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--color-border-subtle); background: var(--color-bg-field); color: var(--color-text); font: inherit; font-size: var(--font-size-sm); cursor: pointer; }
+.logs__level:hover { background: var(--color-bg-hover); }
+.logs__level--active { border-color: var(--color-border-selected); background: var(--color-bg-panel-header); }
+.logs__level:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 1px; }
+.logs__levels-hint { font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .logs__muted,.logs small,.logs__metadata { color: var(--color-text-muted); }
 .logs__empty { display: grid; justify-items: center; gap: var(--space-4); padding: var(--space-7); color: var(--color-text-muted); text-align: center; }
 .logs__hidden-selection { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
@@ -338,8 +398,13 @@ function reset(): void { source.value = ''; entityId.value = ''; level.value = '
 .logs__message { white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .logs__row--selected .logs__message { display: block; }
 .logs__selected { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-3); padding: 0 var(--space-4) var(--space-4); overflow-wrap: anywhere; }
+.logs__fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2) var(--space-4); width: 100%; margin: 0; padding: var(--space-3); border-left: 2px solid var(--color-border-selected); background: var(--color-bg-app); font-size: var(--font-size-sm); }
+.logs__fields dt { color: var(--color-text-muted); }
+.logs__fields dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-family-mono); }
+.logs__entry-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .logs pre { max-width: 100%; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--font-size-sm) var(--font-family-mono); }
+.logs__raw { width: 100%; max-height: 320px; overflow: auto; padding: var(--space-3); border: var(--border-width) solid var(--color-border-subtle); background: var(--color-bg-app); }
 .logs textarea { box-sizing: border-box; width: 100%; min-height: 120px; padding: var(--space-4); border: var(--border-width) solid var(--color-border); color: var(--color-text); background: var(--color-bg-field); font: var(--font-size-sm) var(--font-family-mono); }
 .logs textarea:focus-visible { outline: 2px solid var(--color-border-focus); }
-@media (width < 600px) { .logs__search { flex-basis: 100%; } .logs__filters { grid-template-columns: minmax(0, 1fr); } .logs__chip { min-height: 44px; } }
+@media (width < 600px) { .logs__search { flex-basis: 100%; } .logs__filters { grid-template-columns: minmax(0, 1fr); } .logs__chip { min-height: 44px; } .logs__fields { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); } .logs__fields dd { margin-bottom: var(--space-2); } }
 </style>

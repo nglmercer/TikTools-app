@@ -75,6 +75,25 @@ test('does not repeat identical details but preserves the full export text', asy
   await wrapper.findAll('button').find(button => button.text() === t('diagnostics.copyEntry'))!.trigger('click');
   expect(writeText.mock.calls[0]?.[0]).toContain('Not supported');
 });
+test('renders structured properties and a raw JSON view for the selected entry', async () => {
+  const entry = diagnosticLog.record({ source: 'account', level: 'info', code: 'account.status', message: 'Cloud diagnostics', fields: [{ label: 'State', value: 'signed-in' }] });
+  diagnosticView.selectedId.value = entry.id;
+  const wrapper = mountWithPlugins(DiagnosticsLog);
+  expect(wrapper.get('.logs__fields').text()).toContain('signed-in');
+  await wrapper.findAll('button').find(button => button.text() === t('diagnostics.showRaw'))!.trigger('click');
+  expect(wrapper.get('.logs__raw').text()).toContain('account.status');
+});
+
+test('level counts act as quick filters', async () => {
+  diagnosticLog.record({ source: 'account', level: 'error', code: 'bad', message: 'cloud failure' });
+  diagnosticLog.record({ source: 'sync', level: 'info', code: 'ok', message: 'sync complete' });
+  const wrapper = mountWithPlugins(DiagnosticsLog);
+  const errors = wrapper.get('.logs__level--error');
+  expect(errors.text()).toContain('1');
+  await errors.trigger('click');
+  expect(wrapper.findAll('.logs__message').map(row => row.text())).toEqual(['cloud failure']);
+});
+
 test('keeps clipboard fallback redacted when clipboard access fails', async () => {
   vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('unavailable'));
   diagnosticLog.record({ source: 'account', level: 'error', code: 'failed', message: 'password=private-secret' });

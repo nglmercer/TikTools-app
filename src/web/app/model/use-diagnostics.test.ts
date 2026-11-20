@@ -30,6 +30,18 @@ describe('useDiagnostics', () => {
     expect(sources).toContain('catalog:catalog.error');
   });
 
+  it('records the Cloud diagnostics as a structured entry in the log', async () => {
+    const stores = await mountDiagnostics();
+    const account = stores.use(() => useAccountStore());
+    account.status = { origin: 'http://127.0.0.1:3000', state: 'signed-in', accountId: 'acc-1', persistence: 'memory-only' } as never;
+    await nextTick();
+    const entry = diagnosticLog.entries.value.filter(item => item.code === 'account.status').at(-1);
+    expect(entry).toBeTruthy();
+    expect(entry!.level).toBe('info');
+    expect(entry!.fields.map(field => field.value)).toEqual(expect.arrayContaining(['signed-in', 'acc-1']));
+    expect(entry!.details).toBe('');
+  });
+
   it('drops the history of an account when another one signs in', async () => {
     const stores = await mountDiagnostics();
     const account = stores.use(() => useAccountStore());
