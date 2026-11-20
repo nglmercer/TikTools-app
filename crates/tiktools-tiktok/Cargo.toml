@@ -26,10 +26,12 @@ ttl-sign-headless.workspace = true
 ttl-sign-embedded.workspace = true
 
 # Android has no shipped QuickJS bindings: generate against native Bionic headers.
-# Match ttl-sign-embedded's rquickjs 0.14 so bindgen is enabled on its engine.
-# Same version as the signer, so feature unification enables bindgen on its engine too.
+# ttl-sign-embedded pulls rquickjs 0.12.2, while this crate's SDK uses 0.14.
+# Both need bindgen on Android (no pre-generated Bionic bindings); keep both
+# target deps so Cargo enables the feature on each copy.
 [target.'cfg(target_os = "android")'.dependencies]
 rquickjs = { version = "0.14.0", default-features = false, features = ["bindgen"] }
+rquickjs_012 = { package = "rquickjs", version = "0.12.2", default-features = false, features = ["bindgen"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

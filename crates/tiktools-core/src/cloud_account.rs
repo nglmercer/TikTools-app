@@ -5,7 +5,9 @@
 
 use std::sync::Arc;
 
-use tiktools_cloud_auth::{CloudAuth, LoginBegin, OsTokenStore, TokenStore};
+#[cfg(feature = "os-keychain")]
+use tiktools_cloud_auth::OsTokenStore;
+use tiktools_cloud_auth::{CloudAuth, LoginBegin, MemoryTokenStore, TokenStore};
 
 use crate::events::{DomainEvent, EventBus};
 use crate::paths::AppPaths;
@@ -23,7 +25,12 @@ impl CloudAccount {
     }
 
     pub(crate) fn new(paths: &AppPaths, events: &EventBus) -> Self {
+        // On platforms without an OS credential store (Android) use the
+        // in-memory store; AccountStatus reports `memoryOnly` honestly.
+        #[cfg(feature = "os-keychain")]
         let store: Arc<dyn TokenStore> = Arc::new(OsTokenStore::new());
+        #[cfg(not(feature = "os-keychain"))]
+        let store: Arc<dyn TokenStore> = Arc::new(MemoryTokenStore::new());
         Self::with_auth(
             CloudAuth::from_environment(paths.data.clone(), store),
             events,

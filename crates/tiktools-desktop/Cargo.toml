@@ -9,13 +9,14 @@ description = "Thin Winit/Wry desktop host for TikTools"
 [features]
 # Remote control is owned by the installable `tiktools.remote-control`
 # plugin; no in-process remote feature is compiled into the desktop host.
-default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth"]
+default = ["persistence", "plugin-install", "http", "devtools", "cloud-auth", "os-keychain"]
 devtools = ["wry/devtools"]
 live-benchmark = ["tiktools-core/live-benchmark"]
 plugin-install = ["tiktools-core/plugin-install"]
 persistence = ["tiktools-core/persistence"]
 http = ["tiktools-core/http"]
 cloud-auth = ["tiktools-core/cloud-auth", "tiktools-control-api/cloud-auth"]
+os-keychain = ["cloud-auth", "tiktools-core/os-keychain"]
 
 [dependencies]
 tiktools-core = { path = "../tiktools-core", features = ["native-tiktok"] }

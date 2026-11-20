@@ -33,10 +33,12 @@ cloud-auth = [
     "dep:tiktools-cloud-auth",
     "tiktools-cloud-auth/account",
     "tiktools-cloud-auth/system-browser",
-    "tiktools-cloud-auth/os-keychain",
     "dep:cloud-client",
     "dep:uuid",
 ]
+# OS keychain is only available on Linux/macOS/Windows. Desktop opts in
+# explicitly; mobile/Android builds use the in-memory store instead.
+os-keychain = ["cloud-auth", "tiktools-cloud-auth/os-keychain"]
 # The sync engine is a separate opt-in. Enabling `cloud-auth` alone must not
 # link `tiktools-cloud-sync` into a host that only needs sign-in.
 cloud-sync = ["cloud-auth", "dep:tiktools-cloud-sync"]
