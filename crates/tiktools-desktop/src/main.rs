@@ -44,10 +44,11 @@ fn main() {
         eprintln!("{error}");
         std::process::exit(1);
     }
-    // rustls 0.23 cannot choose a provider when multiple TLS stacks are unified
-    // by the workspace. Install the provider before any async client is created.
+    // The workspace and upstream ttl-live-ws both select rustls' aws-lc-rs
+    // provider. Install it before any async client is created so embedded
+    // users do not depend on reqwest's implicit default.
     if rustls::crypto::CryptoProvider::get_default().is_none() {
-        let _ = rustls::crypto::ring::default_provider().install_default();
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     }
 
     let log_path = match logging::init() {

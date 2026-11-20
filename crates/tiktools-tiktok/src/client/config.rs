@@ -21,10 +21,10 @@ impl Default for NativeTikTokConfig {
 
 pub(in super::super) fn ensure_tls_provider() {
     if rustls::crypto::CryptoProvider::get_default().is_none() {
-        // reqwest and tokio-tungstenite can enable different rustls providers
-        // through Cargo feature unification. Selecting ring here keeps the
-        // library safe when it is embedded without the desktop binary.
-        let _ = rustls::crypto::ring::default_provider().install_default();
+        // Upstream ttl-live-ws selects rustls' aws-lc-rs provider through
+        // reqwest. Selecting the same provider here keeps the library safe
+        // when it is embedded without the desktop binary.
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     }
 }
 
