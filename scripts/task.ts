@@ -139,7 +139,7 @@ async function build(): Promise<void> {
   const desktopBinary = isWindows ? 'target/release/tiktools-desktop.exe' : 'target/release/tiktools-desktop';
   await assertFile(desktopBinary, 'rebuild the desktop release binary first');
   if (isWindows) {
-    await run('pwsh', '-NoProfile', '-File', 'scripts/check-windows-pe.ps1', `target/release/tiktools-desktop.exe`);
+    await run(bun, 'scripts/check-windows-pe.ts', 'target/release/tiktools-desktop.exe');
   }
 }
 

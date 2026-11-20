@@ -403,7 +403,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked
-          pwsh -NoProfile -File scripts/check-windows-pe.ps1 target/release/tiktools-desktop.exe
+          node scripts/check-windows-pe.ts target/release/tiktools-desktop.exe
 
   result:
     name: CI checks
