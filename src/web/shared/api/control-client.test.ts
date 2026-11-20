@@ -92,7 +92,7 @@ describe('createControlClient', () => {
       const meta = { resourceVersions: [{ kind: 'workflow', id: 'welcome', scope: 'host', revision: '4' }], hostInstanceId: 'host-instance', command: { commandId: 'delete-once', state: 'succeeded', resource: { kind: 'workflow', id: 'welcome', scope: 'host' }, committedAt: 1794000000000 } };
       respond(sentId(), { result: { id: 'welcome', deleted: true }, meta });
       await expect(pending).resolves.toEqual({ result: { id: 'welcome', deleted: true }, meta });
-      const expired = callWithMeta(control, 'collaboration.commands.get', { commandId: 'delete-once' });
+      const expired = callWithMeta(control, 'system.info', { commandId: 'delete-once' });
       respond(sentId(), { error: { code: 'command_expired', message: 'unknown historical outcome', data: { commandId: 'delete-once', state: 'unknown' } } });
       await expect(expired).rejects.toMatchObject({ code: 'command_expired', data: { commandId: 'delete-once', state: 'unknown' } });
       control.detach();

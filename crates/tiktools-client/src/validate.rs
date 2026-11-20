@@ -497,7 +497,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "registry.package" => validate::<RegistryPackageParams>(params),
         "registry.defaults.set" => validate::<RegistryDefaults>(params),
         #[cfg(feature = "cloud-auth")]
-        "cloud.status" | "cloud.login.reserve" | "cloud.restore" | "cloud.logout" => {
+        "cloud.status" | "cloud.plan.get" | "cloud.login.reserve" | "cloud.restore" | "cloud.logout" => {
             validate::<Empty>(params)
         }
         #[cfg(feature = "cloud-auth")]

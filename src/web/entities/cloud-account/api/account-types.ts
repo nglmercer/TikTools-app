@@ -24,3 +24,29 @@ export interface LoginCodeStatus {
 export interface CloudLoginUrlResult {
   browserUrl: string;
 }
+
+/** Plan ceilings the backend enforces for the signed-in account (nonsecret). */
+export interface AccountPlanLimits {
+  maxRecords: number;
+  maxBytes: number;
+  maxAssets: number;
+  maxAssetsBytes: number;
+  maxOverlays: number;
+  maxOverlayBytes: number;
+}
+
+/** Storage the signed-in account uses now, counted the way the quota checks count it. */
+export interface AccountPlanUsage {
+  records: number;
+  recordBytes: number;
+  assets: number;
+  assetBytes: number;
+  overlays: number;
+  overlayBytes: number;
+}
+
+export interface AccountPlan {
+  plan: string;
+  limits: AccountPlanLimits;
+  usage: AccountPlanUsage;
+}

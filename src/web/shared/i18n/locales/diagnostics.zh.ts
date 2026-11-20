@@ -14,5 +14,5 @@ export default {
   newEntries: "{count} 条新条目", filterEntity: "实体筛选：{entity}", resetFilters: "清除筛选",
   connectionFailed: "连接失败", monitorFailed: "监控需要处理", accountFailed: "登录需要处理",
   syncFailed: "同步需要处理", updateFailed: "更新需要处理", updaterUnavailable: "此处无法自动更新",
-  discoveryFailed: "无法加载直播间", sources: { live: "TikTok LIVE", monitor: "直播监控", discovery: "直播间探索器", plugins: "插件", account: "云端账户", sync: "云端同步", updates: "更新", transport: "主机连接", catalog: "目录", install: "安装与注册表", collaboration: "协作", relay: "云端中继", integrations: "集成" },
+  discoveryFailed: "无法加载直播间", sources: { live: "TikTok LIVE", monitor: "直播监控", discovery: "直播间探索器", plugins: "插件", account: "云端账户", sync: "云端同步", updates: "更新", transport: "主机连接", catalog: "目录", install: "安装与注册表", relay: "云端中继", integrations: "集成" },
 };

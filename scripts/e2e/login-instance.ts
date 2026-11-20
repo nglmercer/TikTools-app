@@ -7,7 +7,7 @@
 // Without --email/--password a new temporary account is created on the backend.
 // Env: TT_BIN (CLI), TT_CLOUD_ORIGIN (default http://127.0.0.1:3000), TT_DEV_PLUGINS (default .dev-plugins)
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
@@ -23,7 +23,6 @@ const flag = (name: string) => {
   return index >= 0 ? args[index + 1] : undefined;
 };
 const target = flag('--target') ?? 'desktop';
-const startHost = args.includes('--start-host');
 const name = flag('--name');
 const home = flag('--home');
 
@@ -56,6 +55,8 @@ function cli(cliArgs: string[]): Promise<{ code: number; out: string; err: strin
   });
 }
 
+// The CLI prints arbitrary JSON; the e2e script reads it directly.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function cliJson(cliArgs: string[]): Promise<any> {
   const result = await cli(cliArgs);
   if (result.code !== 0) fail(`tiktools ${cliArgs.join(' ')}: ${result.err || result.out}`);

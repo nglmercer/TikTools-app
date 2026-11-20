@@ -9,7 +9,7 @@
 // Env:   TT_BIN           tiktools CLI (default: target/debug/tiktools[.exe])
 //        TT_CLOUD_ORIGIN  backend origin (default: http://127.0.0.1:3000)
 //        TT_DEV_PLUGINS   development plugins dir (default: .dev-plugins)
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -44,6 +44,8 @@ async function cli(ws: Workspace, ...cliArgs: string[]): Promise<{ code: number;
   return { code: await proc.exited, out, err };
 }
 
+// The CLI prints arbitrary JSON; the e2e script reads it directly.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function json(ws: Workspace, ...cliArgs: string[]): Promise<any> {
   const result = await cli(ws, ...cliArgs);
   if (result.code !== 0) fail(`tiktools ${cliArgs.join(' ')} exited ${result.code}: ${result.err || result.out}`);

@@ -55,14 +55,14 @@ describe('diagnostic retention and redaction', () => {
   });
   test('records the Cloud sources with a redacted request id and exports it', () => {
     const log = createDiagnosticLog();
-    for (const source of ['catalog', 'install', 'collaboration', 'relay', 'integrations'] as const) {
+    for (const source of ['catalog', 'install', 'relay', 'integrations'] as const) {
       log.record({ source, level: 'error', code: `${source}.failed`, message: 'could not reach the service', requestId: 'req-42 token=abc123' });
     }
-    expect(log.entries.value.map((e) => e.source)).toEqual(['catalog', 'install', 'collaboration', 'relay', 'integrations']);
+    expect(log.entries.value.map((e) => e.source)).toEqual(['catalog', 'install', 'relay', 'integrations']);
     const exported = formatDiagnostics(log.entries.value);
     expect(exported).toContain('request=req-42');
     expect(exported).not.toContain('abc123');
     log.record({ source: 'relay', level: 'error', code: 'relay.failed', message: 'could not reach the service', requestId: 'req-43' });
-    expect(log.entries.value).toHaveLength(6);
+    expect(log.entries.value).toHaveLength(5);
   });
 });

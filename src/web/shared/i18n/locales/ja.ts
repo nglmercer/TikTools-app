@@ -3,7 +3,6 @@ import formsDesign from './forms-design.ja.ts';
 import designKit from './design-kit.ja.ts';
 import diagnostics from './diagnostics.ja.ts';
 import libraryRecovery from './library-recovery.ja.ts';
-import collaboration from './collaboration.ja.ts';
 import automationProposal from './automation-proposal.ja.ts';
 import automationApproval from './automation-approval.ja.ts';
 import definitionRecovery from './definition-recovery.ja.ts';
@@ -21,7 +20,6 @@ export default {
   formsDesign,
   designKit,
   diagnostics,
-  collaboration,
   automationProposal,
   automationApproval,
   definitionRecovery,
@@ -100,7 +98,6 @@ export default {
     sections: {
       general: "一般",
       account: "アカウント",
-      collaboration: "共同作業",
       updates: "アップデート",
       advanced: "詳細",
     },
@@ -141,6 +138,16 @@ export default {
     signedIn: "ログイン済み",
     storedInKeychain: "OSのキーチェーンに保存",
     storedInMemory: "メモリのみに保存（再起動後は再ログインが必要）",
+    plan: {
+      title: "プランとストレージ",
+      plan: "プラン",
+      records: "ワークスペースのレコード",
+      assets: "アセット",
+      overlays: "オーバーレイ",
+      storage: "ストレージ",
+      of: "/",
+      unavailable: "現在プランを読み込めません。",
+    },
     errors: {
       unreachable: "TikTools Cloudに接続できませんでした。起動中の可能性があります。少し待ってからお試しください。",
       expired: "セッションの有効期限が切れました。再度ログインしてください。",

@@ -64,6 +64,12 @@ fn map_error(error: OperationError) -> ApiError {
 }
 
 pub fn register(router: &mut ControlRouter) {
+    router.register_typed::<Empty, tiktools_core::control::AccountPlanView, _, _>(
+        "cloud.plan.get",
+        "Shows the Cloud plan, its ceilings and the current storage usage",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move { core.cloud_plan().await.map_err(map_error) },
+    );
     router.register_typed::<Empty, CloudStatusResult, _, _>(
         "cloud.status",
         "Shows the Cloud account state without exposing any credentials",

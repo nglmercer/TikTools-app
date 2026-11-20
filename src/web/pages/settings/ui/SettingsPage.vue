@@ -5,7 +5,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { useLocaleStore } from '@/shared/i18n/locale-store.ts';
 import CloudAccountDiagnostics from '@/features/cloud-account/ui/CloudAccountDiagnostics.vue';
 import CloudAccountEditor from '@/features/cloud-account/ui/CloudAccountEditor.vue';
-import CollaborationEditor from '@/features/manage-collaboration/ui/CollaborationEditor.vue';
 import AppUpdater from '@/features/app-updater/ui/AppUpdater.vue';
 import LanguageSelect from '@/features/change-language/ui/LanguageSelect.vue';
 import type { Locale } from '@/shared/i18n/i18n.ts';
@@ -13,7 +12,6 @@ import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
-import IconUser from '@/shared/ui/icon/icons/IconUser.vue';
 import SettingsDisclosure from '@/shared/ui/settings-disclosure/SettingsDisclosure.vue';
 import ReviewModeSetting from '@/features/review-shared/ui/ReviewModeSetting.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
@@ -22,12 +20,11 @@ import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
  * Settings keeps what belongs to the application itself. Plugin preferences, overlays, webhooks,
  * variables and cloud documents live in the area they configure.
  */
-type SettingsSection = 'general' | 'account' | 'collaboration';
+type SettingsSection = 'general' | 'account';
 
 const sections: ReadonlyArray<{ id: SettingsSection; icon: typeof IconGear }> = [
   { id: 'general', icon: markRaw(IconGear) },
   { id: 'account', icon: markRaw(IconGlobe) },
-  { id: 'collaboration', icon: markRaw(IconUser) },
 ];
 
 const { t } = useI18n();
@@ -90,9 +87,6 @@ const locale = computed<Locale>({
             <CloudAccountDiagnostics />
           </SettingsDisclosure>
         </template>
-        <CollaborationEditor
-          v-else-if="section === 'collaboration'"
-        />
       </section>
     </BaseTabs>
   </div>

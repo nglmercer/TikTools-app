@@ -1,14 +1,8 @@
 /** Data-only host fixtures shared by the public demo and browser tests. No IPC globals or Playwright. */
 import type { VariableComparison } from '@/features/edit-runtime-globals/model/variable-sync-adapter.ts';
 import type { RuntimeVariable } from '@/entities/runtime-global/lib/runtime-variable.ts';
-import type { CollaborationStatus, Invitation, InvitationSecret, PairingRequest, Principal, Session, AuditEntry } from '@/entities/collaboration/api/types.ts';
 
 export interface MemoryHostState {
-  collaboration?: {
-    status: CollaborationStatus;
-    invitations: Invitation[]; issued: InvitationSecret; requests: PairingRequest[];
-    principals: Principal[]; sessions: Session[]; audit: AuditEntry[];
-  };
   /** Methods announced through `rpc.discover`; none by default, so optional Cloud areas stay hidden. */
   announcedMethods?: string[];
   /** Cloud account and v2 workspace served to the sync panel (`cloud.status`, `sync.status`, `sync.v2.*`). */

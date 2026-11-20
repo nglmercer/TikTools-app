@@ -9,7 +9,6 @@ export const scenarios = {
   overlays: { route: '/overlays', en: 'Overlays / OBS', es: 'Overlays / OBS', pt: 'Overlays / OBS', fr: 'Overlays / OBS', zh: '叠加层 / OBS', ja: 'オーバーレイ / OBS' },
   plugins: { route: '/plugins', en: 'Plugins', es: 'Plugins', pt: 'Plugins', fr: 'Plugins', zh: '插件', ja: 'プラグイン' },
   cloud: { route: '/automations?view=variables', en: 'Cloud changes', es: 'Cambios Cloud', pt: 'Alterações Cloud', fr: 'Modifications Cloud', zh: 'Cloud 更改', ja: 'Cloud の変更' },
-  collaboration: { route: '/settings?section=collaboration', en: 'Collaboration', es: 'Colaboración', pt: 'Colaboração', fr: 'Collaboration', zh: '协作', ja: '共同作業' },
   settings: { route: '/settings', en: 'Preferences', es: 'Preferencias', pt: 'Preferências', fr: 'Préférences', zh: '偏好设置', ja: '環境設定' },
   diagnostics: { route: '/debug', en: 'Diagnostics / errors', es: 'Diagnósticos / errores', pt: 'Diagnósticos / erros', fr: 'Diagnostics / erreurs', zh: '诊断与错误', ja: '診断とエラー' },
 } as const;

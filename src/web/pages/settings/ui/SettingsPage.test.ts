@@ -8,7 +8,6 @@ import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testin
 import { activateLocale, i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import SettingsPage from './SettingsPage.vue';
-import { collaborationStatus, emptyCollaborationPage } from '@/shared/lib/testing/collaboration.ts';
 
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
@@ -24,8 +23,6 @@ async function mountPage(query = '', announce: string[] = []) {
   await router.push(`/settings${query}`);
   const { client } = createFakeControlClient((method) => {
     if (method === 'rpc.discover') return { methods: announce.map((name) => ({ name })) };
-    if (method === 'collaboration.status') return collaborationStatus();
-    if (method.startsWith('collaboration.')) return emptyCollaborationPage(method);
     return { globals: { commandPort: '46665' } };
   });
   const stores = createStoreHarness(client);
@@ -54,18 +51,9 @@ describe('SettingsPage', () => {
 
   it('lists only application-level sections as icon and label, without subtitles or a repeated heading', async () => {
     const { wrapper } = await mountPage();
-    expect(tabNames(wrapper)).toEqual([t('settingsLayout.labels.general'), t('settingsLayout.labels.account'), 'Collaboration']);
-    expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(3);
+    expect(tabNames(wrapper)).toEqual([t('settingsLayout.labels.general'), t('settingsLayout.labels.account')]);
+    expect(wrapper.findAll('[role="tab"] svg')).toHaveLength(2);
     expect(wrapper.find('h1, small, select').exists()).toBe(false);
-  });
-
-  it('switches the section through the route query', async () => {
-    const { wrapper, router } = await mountPage();
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Collaboration')!.trigger('click');
-    await flushPromises();
-    expect(router.currentRoute.value.query.section).toBe('collaboration');
-    expect(selectedTab(wrapper)).toBe('Collaboration');
-    expect(wrapper.findAll('input[type=checkbox]').every((input) => input.attributes('role') === 'switch')).toBe(true);
   });
 
   it('keeps the account, sync and diagnostics together in Account & Cloud', async () => {
@@ -76,7 +64,7 @@ describe('SettingsPage', () => {
   });
 
   it('no longer hosts the areas that moved to their own pages', async () => {
-    for (const section of ['', '?section=account', '?section=collaboration', '?section=plugins', '?section=globals']) {
+    for (const section of ['', '?section=account', '?section=plugins', '?section=globals']) {
       const { wrapper } = await mountPage(section, announced);
       expect(wrapper.find('.plugin-update-policy, #plugin-update-policy-channel').exists()).toBe(false);
       expect(wrapper.find('.globals-editor').exists()).toBe(false);

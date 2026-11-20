@@ -14,5 +14,5 @@ export default {
   newEntries: "新しい記録{count}件", filterEntity: "エンティティのフィルター：{entity}", resetFilters: "フィルターを解除",
   connectionFailed: "接続に失敗", monitorFailed: "監視の確認が必要", accountFailed: "ログインの確認が必要",
   syncFailed: "同期の確認が必要", updateFailed: "更新の確認が必要", updaterUnavailable: "ここでは自動更新を利用できません",
-  discoveryFailed: "ルームを読み込めませんでした", sources: { live: "TikTok LIVE", monitor: "LIVE監視", discovery: "ルームエクスプローラー", plugins: "プラグイン", account: "クラウドアカウント", sync: "クラウド同期", updates: "アップデート", transport: "ホスト接続", catalog: "カタログ", install: "インストールとレジストリ", collaboration: "共同作業", relay: "クラウドリレー", integrations: "連携" },
+  discoveryFailed: "ルームを読み込めませんでした", sources: { live: "TikTok LIVE", monitor: "LIVE監視", discovery: "ルームエクスプローラー", plugins: "プラグイン", account: "クラウドアカウント", sync: "クラウド同期", updates: "アップデート", transport: "ホスト接続", catalog: "カタログ", install: "インストールとレジストリ", relay: "クラウドリレー", integrations: "連携" },
 };

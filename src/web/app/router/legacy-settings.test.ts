@@ -9,7 +9,7 @@ describe('legacySettingsRedirect', () => {
   });
 
   it('lets the sections Settings still owns through', () => {
-    for (const section of ['general', 'account', 'collaboration', 'updates', 'unknown', undefined]) {
+    for (const section of ['general', 'account', 'updates', 'unknown', undefined]) {
       expect(legacySettingsRedirect(section ? { section } : {})).toBe(true);
     }
   });

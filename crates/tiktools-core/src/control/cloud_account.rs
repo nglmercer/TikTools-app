@@ -164,6 +164,21 @@ impl AppCore {
         &self.teams
     }
 
+    /// The signed-in account's plan, ceilings and current usage. Needs a session.
+    pub async fn cloud_plan(&self) -> Result<AccountPlanView, OperationError> {
+        let session = self
+            .cloud()
+            .auth()
+            .session()
+            .await
+            .ok_or_else(|| OperationError::unavailable("Cloud sign-in is required"))?;
+        let plan = session
+            .plan()
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))?;
+        Ok(AccountPlanView::from(plan))
+    }
+
     pub async fn cloud_status(&self) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
         Ok(self.cloud().auth().status().await)
     }
@@ -301,5 +316,62 @@ impl AppCore {
                 })?;
         }
         result
+    }
+}
+
+/// Plan ceilings of the signed-in account (nonsecret).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanLimitsView {
+    pub max_records: i64,
+    pub max_bytes: i64,
+    pub max_assets: i64,
+    pub max_assets_bytes: i64,
+    pub max_overlays: i64,
+    pub max_overlay_bytes: i64,
+}
+
+/// Current storage usage of the signed-in account (nonsecret).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanUsageView {
+    pub records: i64,
+    pub record_bytes: i64,
+    pub assets: i64,
+    pub asset_bytes: i64,
+    pub overlays: i64,
+    pub overlay_bytes: i64,
+}
+
+/// The plan, its ceilings and the current usage (nonsecret).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountPlanView {
+    pub plan: String,
+    pub limits: PlanLimitsView,
+    pub usage: PlanUsageView,
+}
+
+impl From<cloud_client::AccountPlan> for AccountPlanView {
+    fn from(plan: cloud_client::AccountPlan) -> Self {
+        Self {
+            plan: plan.plan,
+            limits: PlanLimitsView {
+                max_records: plan.limits.max_records,
+                max_bytes: plan.limits.max_bytes,
+                max_assets: plan.limits.max_assets,
+                max_assets_bytes: plan.limits.max_assets_bytes,
+                max_overlays: plan.limits.max_overlays,
+                max_overlay_bytes: plan.limits.max_overlay_bytes,
+            },
+            usage: PlanUsageView {
+                records: plan.usage.records,
+                record_bytes: plan.usage.record_bytes,
+                assets: plan.usage.assets,
+                asset_bytes: plan.usage.asset_bytes,
+                overlays: plan.usage.overlays,
+                overlay_bytes: plan.usage.overlay_bytes,
+            },
+        }
     }
 }

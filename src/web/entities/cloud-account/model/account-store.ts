@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import type { AccountStatus, CloudLoginUrlResult, LoginCodeStatus } from '../api/account-types.ts';
+import type { AccountPlan, AccountStatus, CloudLoginUrlResult, LoginCodeStatus } from '../api/account-types.ts';
 
 export const useAccountStore = defineStore('cloud-account', () => {
   const client = useControlClient();
@@ -14,6 +14,8 @@ export const useAccountStore = defineStore('cloud-account', () => {
   const loginUrl = ref<string | null>(null);
   const loginCode = ref<LoginCodeStatus | null>(null);
   const error = ref<string | null>(null);
+  const plan = ref<AccountPlan | null>(null);
+  const planError = ref<string | null>(null);
   const loginActive = ref(false);
   // A late status/login/restore reply must never replace a newer account
   // transition, even if the same account is signed in again.
@@ -354,8 +356,20 @@ export const useAccountStore = defineStore('cloud-account', () => {
     }
   }
 
+  /** Plan and storage usage of the signed-in account. A host without the method shows nothing. */
+  async function refreshPlan(): Promise<void> {
+    if (capabilities.supports('cloud.plan.get') === false) return;
+    try {
+      plan.value = await client.call<AccountPlan>('cloud.plan.get', {});
+      planError.value = null;
+    } catch (failure) {
+      plan.value = null;
+      planError.value = errorMessage(failure);
+    }
+  }
+
   return {
-    status, loading, working, loginActive, loginUrl, loginCode, error,
+    status, loading, working, loginActive, loginUrl, loginCode, error, plan, planError, refreshPlan,
     refresh, restore, ensureRestored, startLogin, startLoginCode, resendLoginCode,
     submitLoginCode, cancelLogin, logout,
   };

@@ -15,7 +15,7 @@ test('Settings keeps only application sections, with a language picker', async (
   const consoleCapture = await installFakeHost(page, emptyState());
   await page.goto('/#/settings');
   await waitForFrontend(page);
-  await expect(page.getByRole('tab')).toHaveText([t('settingsLayout.labels.general'), t('settingsLayout.labels.account'), t('settingsLayout.labels.collaboration')]);
+  await expect(page.getByRole('tab')).toHaveText([t('settingsLayout.labels.general'), t('settingsLayout.labels.account')]);
   await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0);
   await expect(page.getByText(t('packages.sources.allowSideload'))).toHaveCount(0);
   const language = page.getByRole('combobox', { name: t('settings.language.label') });

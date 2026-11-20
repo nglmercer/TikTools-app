@@ -3,7 +3,6 @@ import formsDesign from './forms-design.fr.ts';
 import designKit from './design-kit.fr.ts';
 import diagnostics from './diagnostics.fr.ts';
 import libraryRecovery from './library-recovery.fr.ts';
-import collaboration from './collaboration.fr.ts';
 import automationProposal from './automation-proposal.fr.ts';
 import automationApproval from './automation-approval.fr.ts';
 import definitionRecovery from './definition-recovery.fr.ts';
@@ -23,7 +22,6 @@ export default {
   formsDesign,
   designKit,
   diagnostics,
-  collaboration,
   automationProposal,
   automationApproval,
   definitionRecovery,
@@ -102,7 +100,6 @@ export default {
     sections: {
       general: 'Général',
       account: 'Compte',
-      collaboration: 'Collaboration',
       updates: 'Mises à jour',
       advanced: 'Avancé',
     },
@@ -143,6 +140,16 @@ export default {
     signedIn: 'Connecté',
     storedInKeychain: 'Enregistré dans le trousseau du système',
     storedInMemory: 'Mémoire uniquement (reconnectez-vous après un redémarrage)',
+    plan: {
+      title: 'Forfait et stockage',
+      plan: 'Forfait',
+      records: 'Enregistrements de l’espace de travail',
+      assets: 'Ressources',
+      overlays: 'Overlays',
+      storage: 'Stockage',
+      of: 'sur',
+      unavailable: 'Impossible de lire le forfait pour le moment.',
+    },
     errors: {
       unreachable: 'Impossible de joindre TikTools Cloud. Il démarre peut-être ; réessayez dans un instant.',
       expired: 'Votre session a expiré. Reconnectez-vous.',

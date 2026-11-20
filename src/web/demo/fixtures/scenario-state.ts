@@ -1,6 +1,4 @@
 import type { BehaviorSnapshot } from '../../../automation/behavior/types.ts';
-import type { CollaborationStatus } from '@/entities/collaboration/api/types.ts';
-import { viewerGrant } from '@/entities/collaboration/api/types.ts';
 import { baseHostState } from './base-host.ts';
 import type { ScenarioId } from '../scenarios.ts';
 import { demoViewers, demoGifts } from './audience.ts';
@@ -14,14 +12,6 @@ export const logType = {
   tag: 'log', source: { kind: 'builtin' }, requiredCapabilities: [],
   fields: [{ key: 'message', kind: 'textarea', label: { default: 'Message', i18key: 'automation.action.core.log.field.message.label' }, value: 'Hello {{ user.nickname }}', template: true }],
 } satisfies BehaviorSnapshot['actionTypes'][number];
-export function demoCollaborationStatus(): CollaborationStatus {
-  return {
-    hostId: 'demo-host', hostInstanceId: 'demo-instance', configurationRevision: '1', activeSessions: 0, pendingRequests: 1,
-    configuration: { enabled: true, bindAddress: 'demo.invalid:8788', advertisedOrigin: 'https://demo.invalid', allowedOrigins: [], tlsCertificate: null, tlsPrivateKey: null, tlsProxy: true,
-      limits: { connections: 8, connectionsPerPrincipal: 4, frameBytes: 1048576, paramsBytes: 262144, pendingCalls: 32, requestsPerSecond: 30, requestBurst: 60, commandIdsPerPrincipal: 1000 } },
-    gateway: { available: true, running: true, connections: 0, configurationRevision: '1', address: 'demo.invalid:8788', lastError: null, sessionConnections: {} },
-  };
-}
 export function scenarioState(id: ScenarioId) {
   const snapshot: BehaviorSnapshot = {
     actions: [{ schemaVersion: 2, id: 'welcome-action', name: 'Welcome', typeId: 'core.log', enabled: true, config: { message: 'Hello {{ user.nickname }}' } }],
@@ -40,8 +30,6 @@ export function scenarioState(id: ScenarioId) {
     typedGlobals: { greeting: { type: 'text', value: 'Hello' }, goal: { type: 'number', value: 100 } }, globals: { greeting: 'Hello', goal: '100' },
     sync: { signedIn: true, enabled: true, entries: [], resolved: [] },
     variableComparisons: [{ name: 'greeting', review: 'demo-review-1', local: { type: 'text', value: 'Hello' }, cloud: { type: 'text', value: 'Welcome' }, cloudDeleted: false, localSecret: false, blockedLocal: false, pendingStatus: null, canSend: true, canApply: true, canWithdraw: false }],
-    collaboration: { status: demoCollaborationStatus(), invitations: [], issued: { inviteId: 'demo-invite', secret: 'demo-only-no-authorization', expiresAt: DEMO_AT + 3600000 },
-      requests: [{ requestId: 'demo-request', clientLabel: 'Demo reviewer', clientKind: 'browser', grant: viewerGrant(), state: 'pending', expiresAt: DEMO_AT + 3600000 }], principals: [], sessions: [], audit: [] },
     pluginSettings: { 'demo.audio': { schema: { type: 'object', properties: { volume: { type: 'number', minimum: 0, maximum: 100, default: 50 }, enabled: { type: 'boolean', default: true } } }, values: { volume: 50, enabled: true } } },
     pluginHealth: { 'demo.audio': { ok: true, latencyMs: 2 } },
   });

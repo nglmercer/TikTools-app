@@ -3,7 +3,6 @@ import formsDesign from './forms-design.zh.ts';
 import designKit from './design-kit.zh.ts';
 import diagnostics from './diagnostics.zh.ts';
 import libraryRecovery from './library-recovery.zh.ts';
-import collaboration from './collaboration.zh.ts';
 import automationProposal from './automation-proposal.zh.ts';
 import automationApproval from './automation-approval.zh.ts';
 import definitionRecovery from './definition-recovery.zh.ts';
@@ -21,7 +20,6 @@ export default {
   formsDesign,
   designKit,
   diagnostics,
-  collaboration,
   automationProposal,
   automationApproval,
   definitionRecovery,
@@ -100,7 +98,6 @@ export default {
     sections: {
       general: "常规",
       account: "账户",
-      collaboration: "协作",
       updates: "更新",
       advanced: "高级",
     },
@@ -141,6 +138,16 @@ export default {
     signedIn: "已登录",
     storedInKeychain: "存储在操作系统钥匙串中",
     storedInMemory: "仅存储在内存中（重启后需重新登录）",
+    plan: {
+      title: '套餐与存储',
+      plan: '套餐',
+      records: '工作区记录',
+      assets: '资源',
+      overlays: '叠加层',
+      storage: '存储',
+      of: '/',
+      unavailable: '暂时无法读取套餐。',
+    },
     errors: {
       unreachable: "无法连接 TikTools Cloud。服务可能正在启动，请稍后重试。",
       expired: "会话已过期。请重新登录。",

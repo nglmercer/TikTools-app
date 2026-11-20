@@ -4,7 +4,7 @@ import { appNow } from '@/shared/lib/app-clock.ts';
 export type DiagnosticLevel = 'info' | 'warning' | 'error';
 export type DiagnosticSource =
   | 'live' | 'monitor' | 'discovery' | 'plugins' | 'account' | 'sync' | 'updates' | 'transport'
-  | 'catalog' | 'install' | 'collaboration' | 'relay' | 'integrations';
+  | 'catalog' | 'install' | 'relay' | 'integrations';
 export interface DiagnosticInput {
   source: DiagnosticSource;
   level: DiagnosticLevel;

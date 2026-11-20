@@ -8,6 +8,7 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { friendlyAccountError } from '@/entities/cloud-account/lib/account-error.ts';
+import CloudPlanUsage from '@/features/cloud-account/ui/CloudPlanUsage.vue';
 
 const { t } = useI18n();
 const account = useAccountStore();
@@ -71,6 +72,7 @@ onMounted(() => {
             {{ t('account.signOut') }}
           </BaseButton>
         </SettingsRow>
+        <CloudPlanUsage />
         <DiagnosticStatusAction
           v-if="error"
           :label="error"

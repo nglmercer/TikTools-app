@@ -3,7 +3,6 @@ import formsDesign from './forms-design.es.ts';
 import designKit from './design-kit.es.ts';
 import diagnostics from './diagnostics.es.ts';
 import libraryRecovery from './library-recovery.es.ts';
-import collaboration from './collaboration.es.ts';
 import automationProposal from './automation-proposal.es.ts';
 import automationApproval from './automation-approval.es.ts';
 import definitionRecovery from './definition-recovery.es.ts';
@@ -23,7 +22,6 @@ export default {
   formsDesign,
   designKit,
   diagnostics,
-  collaboration,
   automationProposal,
   automationApproval,
   definitionRecovery,
@@ -102,7 +100,6 @@ export default {
     sections: {
       general: 'General',
       account: 'Cuenta',
-      collaboration: 'Colaboración',
       updates: 'Actualizaciones',
       advanced: 'Avanzado',
     },
@@ -143,6 +140,16 @@ export default {
     signedIn: 'Sesión iniciada',
     storedInKeychain: 'Guardada en el llavero del sistema',
     storedInMemory: 'Solo en memoria (vuelve a iniciar sesión tras reiniciar)',
+    plan: {
+      title: 'Plan y almacenamiento',
+      plan: 'Plan',
+      records: 'Registros del espacio de trabajo',
+      assets: 'Recursos',
+      overlays: 'Overlays',
+      storage: 'Almacenamiento',
+      of: 'de',
+      unavailable: 'No se pudo leer el plan ahora.',
+    },
     errors: {
       unreachable: 'No se pudo contactar con TikTools Cloud. Puede estar iniciándose; inténtalo de nuevo en un momento.',
       expired: 'Tu sesión caducó. Vuelve a iniciar sesión.',
