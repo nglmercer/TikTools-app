@@ -15,7 +15,8 @@
     "check": "bun scripts/generate-contracts.ts --check",
     "lint": "bun scripts/task.ts lint",
     "ci": "bun scripts/task.ts ci",
-    "test": "bun scripts/task.ts test"
+    "test": "bun scripts/task.ts test",
+    "e2e:sync": "bun scripts/e2e/two-workspace-sync.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
