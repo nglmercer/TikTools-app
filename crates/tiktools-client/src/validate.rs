@@ -52,7 +52,7 @@ use tiktools_control_api::modules::integrations::{IntegrationConnectParams, Inte
 use tiktools_control_api::modules::live::{
     LiveChannelsParams, LiveConnectParams, LiveMonitorStartParams, LivePickParams,
 };
-use tiktools_control_api::modules::media::{MediaPickParams, MediaPlayParams, MediaValidateParams};
+use tiktools_control_api::modules::media::{MediaPickParams, MediaValidateParams};
 use tiktools_control_api::modules::packages::{
     JobParams, PackageInspectParams, PackageInstallParams, PackagePluginParams,
     PackagePolicyParams, PackageRollbackParams, PackageUpdateParams,
@@ -335,9 +335,6 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "live.monitor.stop" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "live.monitor.status" => Empty::deserialize(params).map(|_| ()).map_err(invalid),
         "media.validate" => MediaValidateParams::deserialize(params)
-            .map(|_| ())
-            .map_err(invalid),
-        "media.play" => MediaPlayParams::deserialize(params)
             .map(|_| ())
             .map_err(invalid),
         "media.pick" => MediaPickParams::deserialize(params)

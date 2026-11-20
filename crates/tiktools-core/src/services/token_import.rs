@@ -371,7 +371,7 @@ mod tests {
 #[cfg(test)]
 mod integration_tests {
     use super::*;
-    use crate::{MediaHost, MediaHostError, MediaHostFuture};
+    use crate::{MediaHost, MediaHostFuture};
     use std::{
         path::PathBuf,
         sync::{
@@ -379,9 +379,7 @@ mod integration_tests {
             Arc, Mutex,
         },
     };
-    use tiktools_plugin_api::{
-        AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
-    };
+    use tiktools_plugin_api::MediaPickerOptions;
 
     struct Picker {
         path: Mutex<Option<PathBuf>>,
@@ -396,13 +394,6 @@ mod integration_tests {
             self.calls.fetch_add(1, Ordering::SeqCst);
             let path = self.path.lock().unwrap().clone();
             Box::pin(async move { Ok(path) })
-        }
-        fn play_audio(
-            &self,
-            _: MediaFileRef,
-            _: AudioPlayOptions,
-        ) -> MediaHostFuture<AudioPlaybackResult> {
-            Box::pin(async { Err(MediaHostError::Failed("not used".to_owned())) })
         }
     }
     struct Emitter;

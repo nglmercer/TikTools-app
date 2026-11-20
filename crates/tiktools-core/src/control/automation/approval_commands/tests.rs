@@ -2391,15 +2391,8 @@ async fn competition_winner_actions_execute_with_current_delegation() {
         let is_points = mode == 1;
         let is_audio = mode == 2;
         let is_emit = mode >= 3;
-        let mut f = Fixture::new();
-        let audio_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let f = Fixture::new();
         if is_audio {
-            drop(f.core.take());
-            f.core = Some(Arc::new(AppCore::with_paths(
-                Arc::new(Emitter),
-                Arc::new(external::AudioHost(audio_calls.clone())),
-                f.paths.clone(),
-            )));
             std::fs::write(f.paths.data.join("alert.wav"), b"audio fixture").unwrap();
         }
         let mut action = if is_points {
@@ -2614,11 +2607,17 @@ async fn competition_winner_actions_execute_with_current_delegation() {
         )
         .await
         .unwrap();
-        assert_eq!(run["status"], "ok", "{run}");
-        if is_points {
+        // Playback belongs to an audio provider plugin; with none installed the
+        // delegated winner action must be refused, not silently dropped.
+        let expected_status = if is_audio { "error" } else { "ok" };
+        assert_eq!(run["status"], expected_status, "{run}");
+        if is_audio {
+            assert!(run["summary"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("No audio provider is installed"));
+        } else if is_points {
             assert_eq!(f.points("alice"), 3.0);
-        } else if is_audio {
-            assert_eq!(audio_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
         } else if is_emit {
             assert_eq!(run["summary"], "emit overlay.alert");
             assert_eq!(f.points("alice"), if mode == 3 { 2.0 } else { 0.0 });

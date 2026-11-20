@@ -1,33 +1,9 @@
-//! Real HTTP and audio sink admission; retained roots never dispatch twice.
+//! Real HTTP admission and audio refusal when no provider can play; retained
+//! roots never dispatch twice.
 use super::*;
 use crate::automation_runtime::context::ExecutionContext;
 use crate::control::EffectState;
-use crate::services::{MediaHost, MediaHostFuture};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tiktools_plugin_api::{
-    AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
-};
 
-pub(super) struct AudioHost(pub(super) Arc<AtomicUsize>);
-impl MediaHost for AudioHost {
-    fn open_picker(&self, _: MediaPickerOptions) -> MediaHostFuture<Option<std::path::PathBuf>> {
-        Box::pin(async { Ok(None) })
-    }
-    fn play_audio(
-        &self,
-        _: MediaFileRef,
-        _: AudioPlayOptions,
-    ) -> MediaHostFuture<AudioPlaybackResult> {
-        self.0.fetch_add(1, Ordering::SeqCst);
-        Box::pin(async {
-            Ok(AudioPlaybackResult {
-                played: true,
-                reason: None,
-                active_players: 1,
-            })
-        })
-    }
-}
 fn activate(f: &Fixture, auth: &Authorization, id: &str, type_id: &str, config: Value) {
     f.draft(
         auth,
@@ -52,17 +28,10 @@ async fn with_root(f: &Fixture, id: &str, root: &ExecutionContext, event: &Value
         .await
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn approved_audio_uses_resolved_path_and_never_replays_a_retained_root() {
-    let mut f = Fixture::new();
-    let calls = Arc::new(AtomicUsize::new(0));
-    drop(f.core.take());
-    f.core = Some(Arc::new(AppCore::with_paths(
-        Arc::new(Emitter),
-        Arc::new(AudioHost(calls.clone())),
-        f.paths.clone(),
-    )));
+async fn approved_audio_without_a_provider_is_refused_before_dispatch() {
+    let f = Fixture::new();
     let path = f.paths.data.join("alert.wav");
-    std::fs::write(&path, b"host audio fixture").unwrap();
+    std::fs::write(&path, b"audio").unwrap();
     let canonical = path.canonicalize().unwrap().to_str().unwrap().to_owned();
     let mut allowed = grant();
     allowed.capabilities.insert(Capability::AudioPlay);
@@ -81,112 +50,20 @@ async fn approved_audio_uses_resolved_path_and_never_replays_a_retained_root() {
         json!({"fileRef":"alert.wav","volume":0.4,"overlap":"drop"}),
     );
     let root = ExecutionContext::owner();
-    assert_eq!(
-        with_root(&f, "audio", &root, &input("alice")).await["status"],
-        "ok"
-    );
-    let retained = with_root(&f, "audio", &root, &input("alice")).await;
-    assert_eq!(retained["status"], "error");
-    assert!(retained["summary"]
+    let run = with_root(&f, "audio", &root, &input("alice")).await;
+    assert_eq!(run["status"], "error");
+    assert!(run["summary"]
         .as_str()
         .unwrap()
-        .contains("not replayed"));
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
-    let receipts = f.core().automation_effect_history(None, 10).unwrap();
-    assert_eq!(receipts.items.len(), 1);
-    assert_eq!(receipts.items[0].state, EffectState::Succeeded);
-    assert!(!serde_json::to_string(&receipts)
+        .contains("No audio provider is installed"));
+    assert!(f
+        .core()
+        .automation_effect_history(None, 10)
         .unwrap()
-        .contains("alert.wav"));
-    f.assert_delegated(AutomationKind::Action, "audio");
+        .items
+        .is_empty());
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn reusable_audio_plays_on_host_and_stops_when_file_grant_is_removed() {
-    let mut f = Fixture::new();
-    let calls = Arc::new(AtomicUsize::new(0));
-    drop(f.core.take());
-    f.core = Some(Arc::new(AppCore::with_paths(
-        Arc::new(Emitter),
-        Arc::new(AudioHost(calls.clone())),
-        f.paths.clone(),
-    )));
-    let path = f.paths.data.join("alert.wav");
-    std::fs::write(&path, b"host audio fixture").unwrap();
-    let canonical = path.canonicalize().unwrap().to_str().unwrap().to_owned();
-    let mut allowed = grant();
-    allowed
-        .capabilities
-        .extend([Capability::AutomationToggle, Capability::AudioPlay]);
-    allowed.effects.audio.push(AudioEffectGrant {
-        file_refs: [canonical].into(),
-        output: "host-default".into(),
-        max_volume: 0.5,
-        overlaps: ["drop".into()].into(),
-    });
-    allowed.automation_delegation = Some(AutomationDelegation {
-        effects: [DelegatedAutomationEffect::Audio].into(),
-        allow_dynamic_targets: false,
-        allow_owner_edits: false,
-        allow_owner_source: false,
-        allow_other_author_edits: false,
-        allow_other_author_source: false,
-    });
-    let auth = f.pair(allowed.clone());
-    let identity = auth.snapshot().unwrap();
-    for (kind, record) in [
-        (
-            AutomationKind::Action,
-            json!({"id":"sound","name":"Sound","enabled":true,"typeId":"audio.play","schemaVersion":2,"config":{"fileRef":"alert.wav","volume":0.5,"overlap":"drop"}}),
-        ),
-        (
-            AutomationKind::Event,
-            json!({"id":"rule","name":"Chat","enabled":true,"trigger":"tiktok.chat","actionIds":["sound"],"filters":[],"cooldownMs":0,"cooldownScope":"global","runMode":"all","schemaVersion":1}),
-        ),
-    ] {
-        f.core()
-            .automation_command(
-                CommandCaller::Remote(auth.clone()),
-                f.request("0"),
-                AutomationMutation::Create { kind, record },
-            )
-            .unwrap();
-    }
-    f.core()
-        .run_automation_event(AutomationEvent::owner(input("alice")))
-        .await;
-    assert_eq!(calls.load(Ordering::SeqCst), 1);
-    let receipts = f.core().automation_effect_history(None, 10).unwrap();
-    assert_eq!(receipts.items.len(), 1);
-    assert_eq!(receipts.items[0].state, EffectState::Succeeded);
-    allowed.effects.audio.clear();
-    f.core()
-        .collaboration()
-        .unwrap()
-        .set_grant(GrantSet {
-            principal_id: identity.principal_id,
-            expected_revision: identity.grant_revision,
-            grant: allowed,
-        })
-        .unwrap();
-    f.core()
-        .run_automation_event(AutomationEvent::owner(input("alice")))
-        .await;
-    assert_eq!(
-        calls.load(Ordering::SeqCst),
-        1,
-        "revocation must prevent another playback"
-    );
-    assert_eq!(
-        f.core()
-            .automation_effect_history(None, 10)
-            .unwrap()
-            .items
-            .len(),
-        1
-    );
-    f.core().shutdown().await;
-}
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn approved_audio_still_rejects_out_of_scope_files_and_unavailable_output() {
     let f = Fixture::new();

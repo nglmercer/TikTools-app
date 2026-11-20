@@ -66,8 +66,8 @@ impl AppCore {
                 }
             };
             self.with_core_action(action, context, &check)?;
-            if !self.media.supports_audio() {
-                return Err("Host audio output is unavailable.".into());
+            if self.audio_provider().is_none() {
+                return Err(super::media_actions::NO_AUDIO_PROVIDER.into());
             }
             if test {
                 return Ok("would play the permitted audio file".into());
@@ -87,14 +87,7 @@ impl AppCore {
             // before this executor receives the actual sink handoff.
             self.with_core_action(action, context, &check)?;
             let result = self
-                .media
-                .play_audio(
-                    file.clone(),
-                    AudioPlayOptions {
-                        volume: volume as f32,
-                        overlap: overlap_kind,
-                    },
-                )
+                .play_with_audio_provider(&file, volume, overlap_kind, event, context, logs)
                 .await;
             let outcome = if result.is_ok() {
                 EffectOutcome::Succeeded

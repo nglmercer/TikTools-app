@@ -24,33 +24,6 @@ impl AppCore {
         Ok(MediaSelection::File { file })
     }
 
-    pub async fn media_play(
-        &self,
-        path: &str,
-        kind: Option<MediaKind>,
-        volume: Option<f32>,
-    ) -> Result<AudioPlaybackResult, OperationError> {
-        let trimmed = path.trim();
-        if trimmed.is_empty() || trimmed.len() > 4096 {
-            return Err(OperationError::invalid("path must be 1..=4096 characters"));
-        }
-        let volume = volume.unwrap_or(1.0);
-        if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
-            return Err(OperationError::invalid("volume must be within 0.0..=1.0"));
-        }
-        let file = media_file_ref(std::path::Path::new(trimmed), kind.unwrap_or_default())
-            .map_err(|error| OperationError::invalid(error.to_string()))?;
-        self.play_audio(
-            file,
-            AudioPlayOptions {
-                volume,
-                ..AudioPlayOptions::default()
-            },
-        )
-        .await
-        .map_err(|error| OperationError::unavailable(error.to_string()))
-    }
-
     /// Desktop-only native file dialog. Headless hosts return
     /// `capability_unavailable`; callers must not emulate a dialog.
     pub async fn media_pick(

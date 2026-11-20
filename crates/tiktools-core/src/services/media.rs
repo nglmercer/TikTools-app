@@ -14,8 +14,8 @@ use std::{
 
 use thiserror::Error;
 use tiktools_plugin_api::{
-    AudioPlayOptions, AudioPlaybackResult, MediaDirectoryRef, MediaFileRef, MediaKind,
-    MediaPickerMode, MediaPickerOptions, MediaSelection, MEDIA_REFERENCE_VERSION,
+    MediaDirectoryRef, MediaFileRef, MediaKind, MediaPickerMode, MediaPickerOptions,
+    MediaSelection, MEDIA_REFERENCE_VERSION,
 };
 
 pub const AUDIO_EXTENSIONS: &[&str] = &[
@@ -28,16 +28,7 @@ pub type MediaHostFuture<T> = Pin<Box<dyn Future<Output = Result<T, MediaHostErr
 /// The only desktop functionality required by the framework-independent core.
 /// Implementations must not copy the selected media file.
 pub trait MediaHost: Send + Sync {
-    /// Whether this host provides the default audio output sink.
-    fn supports_audio(&self) -> bool {
-        true
-    }
     fn open_picker(&self, options: MediaPickerOptions) -> MediaHostFuture<Option<PathBuf>>;
-    fn play_audio(
-        &self,
-        file: MediaFileRef,
-        options: AudioPlayOptions,
-    ) -> MediaHostFuture<AudioPlaybackResult>;
 }
 
 #[derive(Debug, Error)]
@@ -88,9 +79,6 @@ pub enum MediaError {
 pub struct NoopMediaHost;
 
 impl MediaHost for NoopMediaHost {
-    fn supports_audio(&self) -> bool {
-        false
-    }
     fn open_picker(&self, _options: MediaPickerOptions) -> MediaHostFuture<Option<PathBuf>> {
         Box::pin(async {
             Err(MediaHostError::Unavailable(
@@ -99,17 +87,6 @@ impl MediaHost for NoopMediaHost {
         })
     }
 
-    fn play_audio(
-        &self,
-        _file: MediaFileRef,
-        _options: AudioPlayOptions,
-    ) -> MediaHostFuture<AudioPlaybackResult> {
-        Box::pin(async {
-            Err(MediaHostError::Unavailable(
-                "audio output is only available in the desktop host".to_owned(),
-            ))
-        })
-    }
 }
 
 /// Validates a file selected by the user and builds fresh metadata from the

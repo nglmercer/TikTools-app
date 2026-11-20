@@ -16,9 +16,7 @@ mod runtime_variables;
 mod v2_mutation_integration;
 #[cfg(all(feature = "cloud-sync", feature = "plugin-install"))]
 mod v2_variables_sync;
-use tiktools_plugin_api::{
-    AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaPickerOptions,
-};
+use tiktools_plugin_api::MediaPickerOptions;
 
 /// Serializes the cloud-sync tests below: they share one device directory
 /// through the process-global test home, and the opt-in file has no
@@ -65,7 +63,6 @@ impl HostEmitter for RecordingEmitter {
 #[derive(Default)]
 struct RecordingMediaHost {
     selected: Mutex<Option<PathBuf>>,
-    played: Mutex<Vec<MediaFileRef>>,
 }
 
 impl MediaHost for RecordingMediaHost {
@@ -78,23 +75,6 @@ impl MediaHost for RecordingMediaHost {
         Box::pin(async move { Ok(selected) })
     }
 
-    fn play_audio(
-        &self,
-        file: MediaFileRef,
-        _options: AudioPlayOptions,
-    ) -> MediaHostFuture<AudioPlaybackResult> {
-        self.played
-            .lock()
-            .expect("media playback lock poisoned")
-            .push(file);
-        Box::pin(async {
-            Ok(AudioPlaybackResult {
-                played: true,
-                reason: None,
-                active_players: 1,
-            })
-        })
-    }
 }
 
 fn media_fixture() -> (PathBuf, PathBuf) {
@@ -218,21 +198,11 @@ async fn public_media_api_returns_a_reference_and_revalidates_playback() {
     );
     assert_eq!(file_ref.size_bytes, 7);
 
-    core.play_audio(
-        MediaFileRef::from_path(file.to_string_lossy()),
-        AudioPlayOptions::default(),
-    )
-    .await
-    .unwrap();
-    let played = media.played.lock().expect("media playback lock poisoned");
-    assert_eq!(played.len(), 1);
-    assert_eq!(played[0].path, file_ref.path);
-    drop(played);
     let _ = std::fs::remove_dir_all(root);
 }
 
 #[tokio::test]
-async fn napi_vm_audio_intent_uses_the_same_validated_media_api() {
+async fn vm_audio_intent_without_a_provider_fails_clearly() {
     let (root, file) = media_fixture();
     let emitter = Arc::new(RecordingEmitter::default());
     let media = Arc::new(RecordingMediaHost::default());
@@ -251,14 +221,11 @@ async fn napi_vm_audio_intent_uses_the_same_validated_media_api() {
     });
     let run = core.execute_action(&action, &json!({}), None, false).await;
 
-    assert_eq!(run["status"], "ok");
-    let played = media.played.lock().expect("media playback lock poisoned");
-    assert_eq!(played.len(), 1);
-    assert_eq!(
-        played[0].path,
-        std::fs::canonicalize(&file).unwrap().to_string_lossy()
-    );
-    drop(played);
+    assert_eq!(run["status"], "error");
+    assert!(run["summary"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("No audio provider is installed"));
     let _ = std::fs::remove_dir_all(root);
 }
 
@@ -288,11 +255,6 @@ async fn test_action_is_a_dry_run_for_audio() {
 
     assert_eq!(run["status"], "ok");
     assert!(run["summary"].as_str().unwrap().contains("would play"));
-    assert!(media
-        .played
-        .lock()
-        .expect("media playback lock poisoned")
-        .is_empty());
     let _ = std::fs::remove_dir_all(root);
 }
 

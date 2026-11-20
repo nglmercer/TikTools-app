@@ -7,10 +7,7 @@
 use std::path::{Path, PathBuf};
 
 use tiktools_core::{MediaHost, MediaHostError, MediaHostFuture};
-use tiktools_plugin_api::{
-    AudioPlayOptions, AudioPlaybackResult, MediaFileRef, MediaKind, MediaPickerMode,
-    MediaPickerOptions,
-};
+use tiktools_plugin_api::{MediaKind, MediaPickerMode, MediaPickerOptions};
 
 #[derive(Default)]
 pub struct DesktopMediaHost;
@@ -26,18 +23,6 @@ impl MediaHost for DesktopMediaHost {
         })
     }
 
-    fn play_audio(
-        &self,
-        _file: MediaFileRef,
-        _options: AudioPlayOptions,
-    ) -> MediaHostFuture<AudioPlaybackResult> {
-        Box::pin(async {
-            Err(MediaHostError::Failed(
-                "No audio provider is installed. Install an audio provider plugin, such as the TikTools audio plugin."
-                    .to_owned(),
-            ))
-        })
-    }
 }
 
 fn pick_media(options: MediaPickerOptions) -> Result<Option<PathBuf>, MediaHostError> {

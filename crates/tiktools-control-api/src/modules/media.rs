@@ -18,16 +18,6 @@ pub struct MediaValidateParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct MediaPlayParams {
-    pub path: String,
-    #[serde(default)]
-    pub kind: Option<MediaKind>,
-    #[serde(default)]
-    pub volume: Option<f32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
 pub struct MediaPickParams {
     #[serde(default)]
     pub mode: Option<MediaPickerMode>,
@@ -54,16 +44,6 @@ pub fn register(router: &mut ControlRouter) {
         false,
         |core: Arc<AppCore>, params: MediaValidateParams| async move {
             core.media_validate(&params.path, params.kind.unwrap_or_default())
-                .map_err(ApiError::from)
-        },
-    );
-    router.register_typed::<MediaPlayParams, AudioPlaybackResult, _, _>(
-        "media.play",
-        "Plays a local audio file through the host audio backend",
-        true,
-        |core: Arc<AppCore>, params: MediaPlayParams| async move {
-            core.media_play(&params.path, params.kind, params.volume)
-                .await
                 .map_err(ApiError::from)
         },
     );

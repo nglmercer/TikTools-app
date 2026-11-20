@@ -25,7 +25,7 @@ pub fn run(log_path: std::path::PathBuf) -> Result<(), Box<dyn std::error::Error
     let event_loop = event_loop_builder.build()?;
     let proxy = event_loop.create_proxy();
     let emitter = crate::event::shared_emitter(proxy.clone());
-    let media = Arc::new(crate::media::DesktopMediaHost::default());
+    let media = Arc::new(crate::media::DesktopMediaHost);
     let core = Arc::new(AppCore::with_media_host(emitter.clone(), media));
     core.enable_desktop_app_updater();
     let router = Arc::new(IpcRouter::new(core.clone()));

@@ -1,7 +1,18 @@
 //! Local media actions (audio playback) for automations and scripts.
+//!
+//! Playback is never performed by the host. The installed audio provider plugin
+//! plays the file; this module validates the request and routes it there.
 
 use super::context::ExecutionContext;
 use crate::*;
+
+/// Outcome of an audio request: the summary shown to the user and whether the
+/// provider reported that sound actually started.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct AudioOutcome {
+    pub(crate) summary: String,
+    pub(crate) played: bool,
+}
 
 impl AppCore {
     pub(crate) async fn execute_audio_action(
@@ -54,80 +65,87 @@ impl AppCore {
             return Ok(summary);
         }
         self.execution_context_guard(context)?;
-        // Playback belongs to an installed, enabled audio provider plugin when one
-        // exists. The host media backend is only the fallback for hosts without one.
-        if let Some(action_type) = self.audio_provider() {
-            let overlap_name = match overlap {
-                tiktools_plugin_api::AudioOverlap::Allow => "allow",
-                tiktools_plugin_api::AudioOverlap::Restart => "restart",
-                tiktools_plugin_api::AudioOverlap::Drop => "drop",
-            };
-            let file_value = serde_json::to_value(&file)
-                .map_err(|error| format!("could not encode audio file: {error}"))?;
-            let action = serde_json::json!({
-                "typeId": action_type,
-                "config": {
-                    "fileRef": file_value,
-                    "volume": volume,
-                    "overlap": overlap_name,
-                },
-            });
-            // Boxed: a provider result may itself return audio intents, which re-enter
-            // this function. The indirection keeps the async call graph finite.
-            let output = Box::pin(self.execute_plugin_action_output(
-                &action_type,
-                &action,
-                event,
-                context,
-                logs,
-                false,
-            ))
+        let outcome = self
+            .play_with_audio_provider(&file, volume, overlap, event, context, logs)
             .await?;
-            let played = output.result.clone().and_then(|value| {
+        if logs.len() < 40 {
+            logs.push(outcome.summary.clone());
+        }
+        Ok(outcome.summary)
+    }
+
+    /// Plays a validated file through the installed audio provider plugin.
+    /// Fails with a clear message when no provider is installed and ready.
+    pub(crate) async fn play_with_audio_provider(
+        self: &Arc<Self>,
+        file: &MediaFileRef,
+        volume: f64,
+        overlap: tiktools_plugin_api::AudioOverlap,
+        event: &Value,
+        context: &ExecutionContext,
+        logs: &mut Vec<String>,
+    ) -> Result<AudioOutcome, String> {
+        let Some(action_type) = self.audio_provider() else {
+            return Err(NO_AUDIO_PROVIDER.to_owned());
+        };
+        let overlap_name = match overlap {
+            tiktools_plugin_api::AudioOverlap::Allow => "allow",
+            tiktools_plugin_api::AudioOverlap::Restart => "restart",
+            tiktools_plugin_api::AudioOverlap::Drop => "drop",
+        };
+        let file_value = serde_json::to_value(file)
+            .map_err(|error| format!("could not encode audio file: {error}"))?;
+        let action = serde_json::json!({
+            "typeId": action_type,
+            "config": {
+                "fileRef": file_value,
+                "volume": volume,
+                "overlap": overlap_name,
+            },
+        });
+        // Boxed: a provider result may itself return audio intents, which re-enter
+        // this path. The indirection keeps the async call graph finite.
+        let output = Box::pin(self.execute_plugin_action_output(
+            &action_type,
+            &action,
+            event,
+            context,
+            logs,
+            false,
+        ))
+        .await?;
+        let played = output
+            .result
+            .clone()
+            .and_then(|value| {
                 serde_json::from_value::<tiktools_plugin_api::AudioPlaybackResult>(value).ok()
             });
-            let summary = match played {
-                Some(result) => audio_outcome_summary(&file.name, &result),
-                None => output.summary,
-            };
-            tracing::info!(target: "tiktools::automation", file = %file.path, "audio action completed by provider plugin");
-            if logs.len() < 40 {
-                logs.push(summary.clone());
-            }
-            return Ok(summary);
-        }
-        let result = self
-            .play_audio(
-                file.clone(),
-                tiktools_plugin_api::AudioPlayOptions {
-                    volume: volume as f32,
-                    overlap,
-                },
-            )
-            .await
-            .map_err(|error| error.to_string())?;
-        let summary = if result.played {
-            format!("played {}", file.name)
-        } else {
-            format!(
-                "skipped {}{}",
-                file.name,
-                result
-                    .reason
-                    .as_deref()
-                    .map(|reason| format!(" ({reason})"))
-                    .unwrap_or_default()
-            )
+        let outcome = match played {
+            Some(result) => AudioOutcome {
+                summary: audio_outcome_summary(&file.name, &result),
+                played: result.played,
+            },
+            // A provider that returns no structured outcome is trusted for its summary.
+            None => AudioOutcome {
+                summary: output.summary,
+                played: true,
+            },
         };
-        tracing::info!(target: "tiktools::automation", file = %file.path, played = result.played, "audio action completed");
-        if logs.len() < 40 {
-            logs.push(summary.clone());
-        }
-        Ok(summary)
+        tracing::info!(
+            target: "tiktools::automation",
+            file = %file.path,
+            played = outcome.played,
+            "audio action completed by provider plugin"
+        );
+        Ok(outcome)
     }
 }
 
-/// Human summary of a playback outcome, shared by provider and fallback paths.
+/// Message shown whenever audio is requested and no provider can play it.
+pub(crate) const NO_AUDIO_PROVIDER: &str =
+    "No audio provider is installed. Install an audio provider plugin, such as the TikTools audio plugin.";
+
+/// Human summary of a playback outcome.
 fn audio_outcome_summary(name: &str, result: &tiktools_plugin_api::AudioPlaybackResult) -> String {
     if result.played {
         format!("played {name}")
