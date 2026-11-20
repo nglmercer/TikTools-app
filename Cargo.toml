@@ -76,13 +76,11 @@ rquickjs = { version = "0.14.0", features = ["loader", "futures", "array-buffer"
 
 # The checked-in JavaScript/Bun package was only a compatibility implementation. The desktop
 # host consumes the Rust crates directly from the upstream workspace at a pinned revision.
-ttl-sign-core = { git = "https://github.com/nglmercer/tiktok-signer", rev = "fb74adad7d74917fa346beb888ce367e242a5293" }
-ttl-live-discovery = { git = "https://github.com/nglmercer/tiktok-signer", rev = "fb74adad7d74917fa346beb888ce367e242a5293" }
-ttl-live-events = { git = "https://github.com/nglmercer/tiktok-signer", rev = "fb74adad7d74917fa346beb888ce367e242a5293" }
-ttl-live-proto = { git = "https://github.com/nglmercer/tiktok-signer", rev = "fb74adad7d74917fa346beb888ce367e242a5293" }
-ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "fb74adad7d74917fa346beb888ce367e242a5293" }
-ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "fb74adad7d74917fa346beb888ce367e242a5293" }
-ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "fb74adad7d74917fa346beb888ce367e242a5293" }
+ttl-sign-core = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
+ttl-live-discovery = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
+ttl-live-events = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
+ttl-live-proto = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
+ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
+ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
+ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
 
-[patch."https://github.com/nglmercer/tiktok-signer"]
-ttl-live-proto = { path = "vendor/ttl-live-proto" }

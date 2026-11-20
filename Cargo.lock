@@ -5674,7 +5674,7 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 [[package]]
 name = "ttl-live-discovery"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=fb74adad7d74917fa346beb888ce367e242a5293#fb74adad7d74917fa346beb888ce367e242a5293"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=720ba7ad17dea99376bb6497292dfcdfeefdea4f#720ba7ad17dea99376bb6497292dfcdfeefdea4f"
 dependencies = [
  "reqwest",
  "serde_json",
@@ -5686,7 +5686,7 @@ dependencies = [
 [[package]]
 name = "ttl-live-events"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=fb74adad7d74917fa346beb888ce367e242a5293#fb74adad7d74917fa346beb888ce367e242a5293"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=720ba7ad17dea99376bb6497292dfcdfeefdea4f#720ba7ad17dea99376bb6497292dfcdfeefdea4f"
 dependencies = [
  "base64 0.23.1",
  "prost",
@@ -5701,6 +5701,7 @@ dependencies = [
 [[package]]
 name = "ttl-live-proto"
 version = "0.1.0"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=720ba7ad17dea99376bb6497292dfcdfeefdea4f#720ba7ad17dea99376bb6497292dfcdfeefdea4f"
 dependencies = [
  "prost",
  "prost-build",
@@ -5711,7 +5712,7 @@ dependencies = [
 [[package]]
 name = "ttl-live-ws"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=fb74adad7d74917fa346beb888ce367e242a5293#fb74adad7d74917fa346beb888ce367e242a5293"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=720ba7ad17dea99376bb6497292dfcdfeefdea4f#720ba7ad17dea99376bb6497292dfcdfeefdea4f"
 dependencies = [
  "flate2",
  "futures-util",
@@ -5725,7 +5726,7 @@ dependencies = [
 [[package]]
 name = "ttl-sign-core"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=fb74adad7d74917fa346beb888ce367e242a5293#fb74adad7d74917fa346beb888ce367e242a5293"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=720ba7ad17dea99376bb6497292dfcdfeefdea4f#720ba7ad17dea99376bb6497292dfcdfeefdea4f"
 dependencies = [
  "rand 0.10.4",
  "serde",
@@ -5736,7 +5737,7 @@ dependencies = [
 [[package]]
 name = "ttl-sign-embedded"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=fb74adad7d74917fa346beb888ce367e242a5293#fb74adad7d74917fa346beb888ce367e242a5293"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=720ba7ad17dea99376bb6497292dfcdfeefdea4f#720ba7ad17dea99376bb6497292dfcdfeefdea4f"
 dependencies = [
  "rand 0.10.4",
  "rquickjs",
@@ -5748,7 +5749,7 @@ dependencies = [
 [[package]]
 name = "ttl-sign-headless"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=fb74adad7d74917fa346beb888ce367e242a5293#fb74adad7d74917fa346beb888ce367e242a5293"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=720ba7ad17dea99376bb6497292dfcdfeefdea4f#720ba7ad17dea99376bb6497292dfcdfeefdea4f"
 dependencies = [
  "reqwest",
  "tracing",

@@ -1,8 +1,0 @@
-syntax = "proto3";
-
-package webcast.model.message.linkcore;
-
-message LinkPosition {
-  int32 position = 1;
-  int32 opt = 2;
-}

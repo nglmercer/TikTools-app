@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package webcast.envelope;
-
-message EnvelopeEnigmaInfo {
-  bool is_enigma_mask_on = 1;
-}
