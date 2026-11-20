@@ -192,6 +192,11 @@ pub struct PluginManifest {
     /// prints in `plugin commands`. Ownership/invocation stay host-side.
     #[serde(rename = "cliCommands")]
     pub cli_commands: Vec<Value>,
+    /// Capability providers this plugin implements, as `{capability, actionType}`.
+    /// The host routes a capability such as `audio.play` to the named action of an
+    /// installed, enabled plugin. Entries are validated when the manifest is parsed.
+    #[serde(rename = "capabilityProviders")]
+    pub capability_providers: Vec<Value>,
     /// JSON event-type descriptors a plugin can publish (hotkeys, timers).
     /// Entries are validated when the host merges its catalog; the raw list
     /// is kept here so discovery never fails on a single bad entry.
@@ -259,6 +264,18 @@ impl fmt::Display for PluginRuntimeKind {
             Self::Process => "process",
             Self::Declarative => "declarative",
             Self::NapiVm => "napi-vm",
+        })
+    }
+}
+
+impl PluginManifest {
+    /// The action type this plugin declares as the provider of `capability`.
+    pub fn capability_provider(&self, capability: &str) -> Option<&str> {
+        self.capability_providers.iter().find_map(|entry| {
+            let object = entry.as_object()?;
+            (object.get("capability")?.as_str()? == capability)
+                .then(|| object.get("actionType")?.as_str())
+                .flatten()
         })
     }
 }

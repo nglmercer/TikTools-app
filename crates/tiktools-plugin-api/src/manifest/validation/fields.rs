@@ -122,3 +122,38 @@ pub fn validate_cli_command(
     }
     Ok(())
 }
+
+/// Validate one `capabilityProviders` entry. The capability must be declared by
+/// the same manifest and the action type must exist in its `actionTypes`, so a
+/// provider can never route to an action the plugin did not declare.
+pub fn validate_capability_provider(
+    value: &Value,
+    capabilities: &[String],
+    action_types: &[Value],
+) -> Result<(), super::ManifestError> {
+    let object = value
+        .as_object()
+        .ok_or(super::ManifestError::InvalidField("capabilityProviders"))?;
+    let capability = object
+        .get("capability")
+        .and_then(Value::as_str)
+        .ok_or(super::ManifestError::InvalidField("capabilityProviders"))?;
+    if !capabilities.iter().any(|declared| declared == capability) {
+        return Err(super::ManifestError::InvalidField("capabilityProviders"));
+    }
+    let action_type = object
+        .get("actionType")
+        .and_then(Value::as_str)
+        .ok_or(super::ManifestError::InvalidField("capabilityProviders"))?;
+    let declared = action_types.iter().any(|declared| {
+        declared
+            .as_object()
+            .and_then(|object| object.get("id"))
+            .and_then(Value::as_str)
+            == Some(action_type)
+    });
+    if !declared {
+        return Err(super::ManifestError::InvalidField("capabilityProviders"));
+    }
+    Ok(())
+}

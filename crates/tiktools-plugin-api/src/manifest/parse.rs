@@ -12,10 +12,10 @@ use super::{
         current_platform, current_target, is_safe_relative_path, is_supported_schema,
         is_valid_event_subscription, is_valid_native_lib_binary, is_valid_native_lib_repo,
         is_valid_native_lib_tag, is_valid_native_lib_version, is_valid_native_package_name,
-        is_valid_plugin_id, validate_action_type, validate_cli_command,
-        validate_declarative_action, validate_http_config, ManifestError, MAX_DESCRIPTOR_BYTES,
-        MAX_LIST_ENTRIES, MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES, MAX_NATIVE_ADDON_PACKAGES,
-        MAX_NATIVE_LIB_PACKAGES, MAX_NATIVE_PATH_LEN,
+        is_valid_plugin_id, validate_action_type, validate_capability_provider,
+        validate_cli_command, validate_declarative_action, validate_http_config, ManifestError,
+        MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES, MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES,
+        MAX_NATIVE_ADDON_PACKAGES, MAX_NATIVE_LIB_PACKAGES, MAX_NATIVE_PATH_LEN,
     },
 };
 use crate::{TIKTOOLS_PLUGIN_ABI_VERSION, TIKTOOLS_PLUGIN_PROTOCOL_VERSION};
@@ -135,6 +135,10 @@ impl PluginManifest {
         for command in &cli_commands {
             validate_cli_command(command, &action_types)?;
         }
+        let capability_providers = json_list(object, "capabilityProviders")?;
+        for provider in &capability_providers {
+            validate_capability_provider(provider, &capabilities, &action_types)?;
+        }
         let event_types = json_list(object, "eventTypes")?;
         let event_subscriptions = string_list(object, "eventSubscriptions")?;
         if event_subscriptions
@@ -216,6 +220,7 @@ impl PluginManifest {
             targets,
             action_types,
             cli_commands,
+            capability_providers,
             event_types,
             event_subscriptions,
             processor_types,
