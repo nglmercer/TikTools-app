@@ -7,7 +7,6 @@ rust-version.workspace = true
 description = "Application update policy and signed release metadata validation"
 
 [dependencies]
-cargo-packager-updater = "=0.2.3"
 base64.workspace = true
 minisign-verify = "=0.3.0"
 reqwest.workspace = true
@@ -16,6 +15,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+url = { workspace = true, features = ["serde"] }
 tempfile = "3"
 
 [target.'cfg(target_os = "windows")'.dependencies]

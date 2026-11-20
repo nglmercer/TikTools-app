@@ -89,12 +89,12 @@ pub async fn download_verified<F: FnMut(u64, Option<u64>), V: FnOnce()>(
     let url = release
         .release
         .download_url(&release.target)
-        .map_err(|_| DownloadError::Network)?
+        .ok_or(DownloadError::Network)?
         .clone();
     let signature = release
         .release
         .signature(&release.target)
-        .map_err(|_| DownloadError::InvalidSignature)?
+        .ok_or(DownloadError::InvalidSignature)?
         .clone();
     let redirect = reqwest::redirect::Policy::custom(|attempt| {
         if trusted_redirect(attempt.url(), attempt.previous().len()) {

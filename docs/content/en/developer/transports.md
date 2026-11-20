@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
-translationRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
+sourceRevision: "6a5fcd19211bdd279a0696cde31c26cc7444a128e50c3ca752489b25acb7cd9a"
+translationRevision: "6a5fcd19211bdd279a0696cde31c26cc7444a128e50c3ca752489b25acb7cd9a"
 order: 200
 ---
 
@@ -25,11 +25,10 @@ Select the transport that actually exists for the target build and platform. Rea
 | Desktop WebView | Wry IPC and shared control client | GUI/thread lifetime belongs to desktop |
 | Local CLI | Unix socket or Windows named pipe; explicit stdio host | Same application home and owner |
 | Local browser | Native loopback adapter plus `browser-transport.ts` | Paired native host, not a mock or public remote server |
-| Direct remote | Authenticated HTTPS/WSS gateway and SDK/browser transports | TLS, hello, grants and feature gates |
-| Native peer | `tiktools-peer`, encrypted iroh/QUIC stream | Peer identity is not RPC authority |
-| Native WebRTC | `tiktools-rtc`, signed signaling and data channels | Negotiation, grant and route checks remain required |
+| Authenticated HTTPS/WSS gateway | SDK/browser transports with TLS, hello, grants and feature gates | Remote commands need an explicit grant |
+| Installable remote-control plugin | `tiktools.remote-control` over a WSS relay using `remote.controller.ticket` | Plugin-owned; no remote code is compiled into the host |
 
-The TypeScript transport interface lives at `src/web/shared/api/control-transport.ts`. Native peer configuration does not implicitly enable public third-party relays or discovery. WebRTC is Rust-native (`webrtc` 0.21.1), not a dependency on browser `RTCPeerConnection` in the desktop UI.
+The TypeScript transport interface lives at `src/web/shared/api/control-transport.ts`. Remote control is an installable plugin, not part of the host binary: every command crosses `HostCallPolicy` (`remote.command.dispatch`, `remote.pair.list`, `remote.grant.list`, `remote.grant.revoke`, `remote.controller.ticket`). This build has no native peer/RTC transport and no Cloud Teams host link.
 
 ## Inspect the selected route {#inspect-the-selected-route}
 
@@ -39,19 +38,18 @@ Discover the connected host's supported methods and capabilities before pairing 
 tiktools --json system info
 tiktools api discover
 bun scripts/task.ts test web browser-transport
-bun scripts/task.ts test web remote-browser-transport
 ```
 
-`tiktools-rtc/src/route.rs` observes the selected ICE candidate pair to classify direct versus relay. Ready state alone cannot prove a direct route. Cloud signaling/relay plumbing is separate from business authorization and must retain native grant checks.
+Pairing and grants are owned by the plugin: a controller ticket is short-lived and single-use, and `remote.grant.list` / `remote.grant.revoke` are the authoritative view. A relay connection proves transport only, never RPC authority.
 
 ## Expected result and status {#expected-result-and-status}
 
-Local IPC and desktop transport are established paths. Native peer, WebRTC and controller integration have source and focused tests, but deployment and multi-PC acceptance remain experimental. Legacy text claiming there is no peer/relay implementation is historical. Android local IPC works; persistent remote profiles have no selected credential store, and desktop native addons/WebViews remain unavailable there.
+Local IPC and desktop transport are established paths. Remote control works through the installable plugin and an authenticated relay; it is not a second host runtime. Login codes are relayed to connected devices with a five-minute TTL, with an OAuth fallback when no account is configured. Android local IPC works with the instrumented `mobile` tooling (`info` / `exec` / `tty`); desktop native addons and WebViews remain unavailable there.
 
 ## Recovery {#recovery}
 
-Treat disconnect as possible uncertainty for accepted operations. Reconnect must invalidate private projections, renegotiate identity and resume or snapshot bounded streams. Never downgrade certificate checks or fall back silently to a local owner after remote failure. The [RTC implementation](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) and actual feature graph supersede older transport plans.
+Treat disconnect as possible uncertainty for accepted operations. Reconnect must invalidate private projections, renegotiate identity and resume or snapshot bounded streams. Never downgrade certificate checks or fall back silently to a local owner after remote failure. Expired controller tickets and revoked grants must fail closed.
 
 ## Operational details {#operational-details}
 
-Peer uses ALPN `tiktools/collaboration/1`, a current 15 s connection timeout and at most four explicitly configured relays. Peer/RTC frames are capped at 1 MiB; RTC fragments into packets of at most 16 KiB. Oversized frames fail framing validation rather than becoming a partial RPC. Diagnose configuration/identity, signaling, connection timeout, frame size and authorization separately. Cloud relay is not an ICE TURN server; an empty relay list does not enable public discovery. Check host/device activity and current confirmed grant before testing a route, and record whether ICE selected direct or relay. A ready/encrypted transport proves neither RPC authority nor that every NAT is traversable. Test changed/revoked sessions and oversized frames with fixtures before real two-PC acceptance.
+Keep grants least-privilege and time-bounded; re-check them after every reconnect. Diagnose identity, ticket expiry, grant scope, relay reachability and frame size separately. Large frames fail framing validation rather than becoming partial RPCs. Test changed/revoked sessions with fixtures before real two-device acceptance.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
-translationRevision: "cd19861926e83262ae0bb4f662b00a7a2a9121fb3c1e3cdda508a77bdffe9ec7"
+sourceRevision: "6a5fcd19211bdd279a0696cde31c26cc7444a128e50c3ca752489b25acb7cd9a"
+translationRevision: "ba5fe61d36b0954d333cff3b3700fa2901de9349978c051ae84816cbfac1054c"
 order: 200
 ---
 
@@ -22,36 +22,34 @@ Choisir le transport qui existe réellement pour la compilation et la plateforme
 
 | Parcours | Implémentation actuelle | Limite importante |
 | --- | --- | --- |
-| WebView de bureau | IPC Wry et client de contrôle partagé | La durée de vie de l’interface/des threads appartient au bureau |
-| CLI locale | Socket Unix ou tube nommé Windows ; hôte stdio explicite | Même répertoire d’application et même propriétaire |
-| Navigateur local | Adaptateur natif de bouclage et `browser-transport.ts` | Hôte natif appairé, pas de simulacre ni de serveur distant public |
-| Distant direct | Passerelle HTTPS/WSS authentifiée et transports SDK/navigateur | TLS, hello, autorisations et conditions de fonctionnalités |
-| Pair natif | `tiktools-peer`, flux iroh/QUIC chiffré | L’identité du pair ne confère pas l’autorité RPC |
-| WebRTC natif | `tiktools-rtc`, signalisation signée et canaux de données | Les vérifications de négociation, autorisation et route restent nécessaires |
+| WebView bureau | IPC Wry et client de contrôle partagé | La durée de vie de l’interface et des threads appartient au bureau |
+| CLI locale | Socket Unix ou canal nommé Windows ; hôte stdio explicite | Même répertoire et même propriétaire de l’application |
+| Navigateur local | Adaptateur loopback natif et `browser-transport.ts` | Hôte natif appairé, pas un serveur distant public |
+| Passerelle HTTPS/WSS authentifiée | Transports SDK/navigateur avec TLS, hello, autorisations et feature gates | Les commandes distantes exigent une autorisation explicite |
+| Plugin de télécommande installable | `tiktools.remote-control` sur un relais WSS avec `remote.controller.ticket` | Propriété du plugin ; aucun code distant n’est compilé dans l’hôte |
 
-L’interface TypeScript de transport se trouve dans `src/web/shared/api/control-transport.ts`. La configuration de pair natif n’active pas implicitement des relais tiers publics ou la découverte. WebRTC est natif Rust (`webrtc` 0.21.1), sans dépendance à `RTCPeerConnection` du navigateur dans l’interface de bureau.
+L’interface TypeScript se trouve dans `src/web/shared/api/control-transport.ts`. La télécommande est un plugin installable, et non une partie du binaire hôte : chaque commande passe par `HostCallPolicy` (`remote.command.dispatch`, `remote.pair.list`, `remote.grant.list`, `remote.grant.revoke`, `remote.controller.ticket`). Cette compilation ne contient ni transport pair/RTC natif ni lien hôte Cloud Teams.
 
-## Examiner la route sélectionnée {#inspect-the-selected-route}
+## Inspecter la route sélectionnée {#inspect-the-selected-route}
 
-Découvrez les méthodes et capacités prises en charge par l’hôte connecté avant d’appairer ou d’afficher une action de contrôleur :
+Découvrez les méthodes et capacités prises en charge par l’hôte connecté avant l’appairage ou l’affichage d’une action de contrôle :
 
 ```sh
 tiktools --json system info
 tiktools api discover
 bun scripts/task.ts test web browser-transport
-bun scripts/task.ts test web remote-browser-transport
 ```
 
-`tiktools-rtc/src/route.rs` observe la paire de candidats ICE sélectionnée pour classer la route comme directe ou relayée. Un état prêt seul ne prouve pas une route directe. L’infrastructure de signalisation/relais Cloud est distincte de l’autorisation métier et doit conserver les vérifications natives d’autorisation.
+L’appairage et les autorisations appartiennent au plugin : le ticket de contrôleur est de courte durée et à usage unique, et `remote.grant.list` / `remote.grant.revoke` font foi. Une connexion relais prouve seulement le transport, jamais l’autorité RPC.
 
-## Résultat attendu et état {#expected-result-and-status}
+## Résultat attendu et statut {#expected-result-and-status}
 
-L’IPC local et le transport de bureau sont des parcours établis. Le pair natif, WebRTC et l’intégration contrôleur disposent de code et de tests ciblés, mais le déploiement et la validation multi-PC restent expérimentaux. Les anciens textes affirmant l’absence d’implémentation pair/relais sont historiques. L’IPC local Android fonctionne ; les profils distants persistants n’ont pas de coffre d’identifiants sélectionné et les extensions natives/WebViews de bureau y restent indisponibles.
+L’IPC local et le transport bureau sont des chemins établis. La télécommande fonctionne via le plugin installable et un relais authentifié ; ce n’est pas un second runtime hôte. Les codes de connexion sont relayés vers les appareils connectés avec une durée de vie de cinq minutes, avec OAuth en repli lorsqu’aucun compte n’est configuré. L’IPC local Android fonctionne avec les outils instrumentés `mobile` (`info` / `exec` / `tty`) ; les addons natifs et WebViews de bureau y restent indisponibles.
 
 ## Récupération {#recovery}
 
-Traitez une déconnexion comme une possible incertitude pour les opérations acceptées. La reconnexion doit invalider les projections privées, renégocier l’identité et reprendre les flux bornés ou en obtenir un instantané. N’affaiblissez jamais les vérifications de certificat et ne vous repliez pas silencieusement vers un propriétaire local après un échec distant. L’[implémentation RTC](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) et le graphe réel des fonctionnalités priment sur les anciens plans de transport.
+Considérez la déconnexion comme une incertitude possible pour les opérations acceptées. La reconnexion doit invalider les projections privées, renégocier l’identité et reprendre ou figer les flux bornés. Ne réduisez jamais les vérifications de certificat et ne revenez pas silencieusement à un propriétaire local après un échec distant. Les tickets expirés et les autorisations révoquées doivent échouer en fermeture.
 
-## Détails de fonctionnement {#operational-details}
+## Détails opérationnels {#operational-details}
 
-Peer utilise ALPN `tiktools/collaboration/1`, un délai actuel de 15 s et au plus quatre relais explicitement configurés. Les trames Peer/RTC sont limitées à 1 MiB ; RTC fragmente en paquets d’au plus 16 KiB. Une trame trop grande échoue à la validation, sans RPC partiel. Diagnostiquez séparément configuration/identité, signalisation, délai, taille et autorisation. Le relais Cloud n’est pas un serveur TURN ICE ; une liste vide n’active pas la découverte publique. Vérifiez hôte/appareil actifs et permission confirmée actuelle, puis notez la route ICE directe ou relayée. Un transport ready/chiffré ne prouve ni autorité RPC ni traversée de tout NAT. Testez révocation/changement de session et trames excessives avant deux vrais PC.
+Gardez les autorisations au minimum privilège et à durée limitée ; vérifiez-les à chaque reconnexion. Diagnostiquez séparément l’identité, l’expiration du ticket, la portée de l’autorisation, l’accessibilité du relais et la taille des trames. Les trames trop grandes échouent à la validation du cadrage plutôt que de devenir des RPC partielles. Testez les sessions modifiées ou révoquées avec des fixtures avant une acceptation réelle sur deux appareils.

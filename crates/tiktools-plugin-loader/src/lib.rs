@@ -17,7 +17,6 @@ mod quickjs;
 #[cfg(test)]
 mod tests;
 mod types;
-mod wasm;
 mod worker;
 
 pub use artifact::plugin_artifact_fingerprint;
@@ -37,4 +36,3 @@ pub use types::{
     DiscoveredPlugin, EmittedEvent, HostCallHandler, ManagedWorker, PluginEventSender,
     PluginInstance, PluginLoaderError, PluginRoot, PluginRuntime, PluginSource, WorkerContext,
 };
-pub use wasm::WasmPluginRuntime;

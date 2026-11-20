@@ -29,6 +29,7 @@ Slots: `leading`, `status`, `actions`, `default`, `footer`.
 | `title` | `string` | Required | `—` |
 | `width` | `number` | Optional | `480` |
 | `closable` | `boolean` | Optional | `true` |
+| `mobileFullscreen` | `boolean` | Optional | `false` |
 
 Own events (native control attributes are forwarded according to the component):
 

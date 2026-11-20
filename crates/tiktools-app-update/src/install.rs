@@ -1,6 +1,9 @@
 //! Transfer a previously verified update to Packager after desktop shutdown.
-use crate::{detect_installation, AuthenticatedRelease, InstallationType, VerifiedPackage};
-use cargo_packager_updater::{Config, Update, UpdateFormat};
+use crate::{
+    detect_installation,
+    packager::{Update, UpdateFormat},
+    AuthenticatedRelease, InstallationType, VerifiedPackage,
+};
 use std::{
     io::Read,
     path::PathBuf,
@@ -36,7 +39,7 @@ impl InstallPlan {
         release: Arc<AuthenticatedRelease>,
         package: VerifiedPackage,
         target: PathBuf,
-        current: String,
+        _current: String,
         kind: InstallationType,
     ) -> Result<Self, InstallError> {
         let validated = &release.release;
@@ -46,45 +49,17 @@ impl InstallPlan {
         let format = validated
             .release
             .format(&validated.target)
-            .map_err(|_| InstallError::Unsupported)?;
-        let target_os = match (kind, validated.target.as_str(), &format) {
+            .ok_or(InstallError::Unsupported)?;
+        match (kind, validated.target.as_str(), &format) {
             (InstallationType::AppImage, "linux-x86_64", UpdateFormat::AppImage)
-                if cfg!(target_os = "linux") =>
-            {
-                "linux"
-            }
+                if cfg!(target_os = "linux") => {}
             (InstallationType::Nsis, "windows-x86_64", UpdateFormat::Nsis)
-                if cfg!(target_os = "windows") =>
-            {
-                "windows"
-            }
+                if cfg!(target_os = "windows") => {}
             _ => return Err(InstallError::Unsupported),
-        };
+        }
         let version = validated.release.version.to_string();
         let update = Update {
-            config: Config {
-                endpoints: vec![],
-                pubkey: release.public_key.clone(),
-                windows: None,
-            },
-            body: validated.release.notes.clone(),
-            current_version: current,
-            version: version.clone(),
-            date: validated.release.pub_date,
-            target: target_os.to_owned(),
             extract_path: target.clone(),
-            download_url: validated
-                .release
-                .download_url(&validated.target)
-                .map_err(|_| InstallError::Unsupported)?
-                .clone(),
-            signature: validated
-                .release
-                .signature(&validated.target)
-                .map_err(|_| InstallError::Unsupported)?
-                .clone(),
-            timeout: None,
-            headers: Default::default(),
             format,
         };
         Ok(Self {
@@ -506,21 +481,7 @@ mod tests {
         std::fs::set_permissions(&image, std::fs::Permissions::from_mode(0o755)).unwrap();
         std::fs::write(&data, b"user data").unwrap();
         let update = Update {
-            config: Config {
-                endpoints: vec![],
-                pubkey: String::new(),
-                windows: None,
-            },
-            body: None,
-            current_version: "4.0.0".into(),
-            version: "4.1.0".into(),
-            date: None,
-            target: "linux".into(),
             extract_path: image.clone(),
-            download_url: "https://example.com/app".parse().unwrap(),
-            signature: String::new(),
-            timeout: None,
-            headers: Default::default(),
             format: UpdateFormat::AppImage,
         };
         install_package(&update, b"new image".to_vec()).unwrap();
@@ -543,21 +504,7 @@ mod tests {
         let image = root.join("TikTools.AppImage");
         std::fs::write(&image, b"original").unwrap();
         let update = Update {
-            config: Config {
-                endpoints: vec![],
-                pubkey: String::new(),
-                windows: None,
-            },
-            body: None,
-            current_version: "4.0.0".into(),
-            version: "4.1.0".into(),
-            date: None,
-            target: "linux".into(),
             extract_path: image.clone(),
-            download_url: "https://example.com/app".parse().unwrap(),
-            signature: String::new(),
-            timeout: None,
-            headers: Default::default(),
             format: UpdateFormat::AppImage,
         };
         let plan = InstallPlan {

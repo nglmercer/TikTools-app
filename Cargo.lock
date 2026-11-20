@@ -665,42 +665,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cargo-packager-updater"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eec09acab5c2227aba2e592d431708305bdeb6d507703f6cd8983fb57b6c5ef7"
-dependencies = [
- "base64 0.22.1",
- "cargo-packager-utils",
- "ctor",
- "dirs 5.0.1",
- "dunce",
- "flate2",
- "http",
- "log",
- "minisign-verify 0.2.5",
- "percent-encoding",
- "reqwest 0.12.28",
- "semver",
- "serde",
- "serde_json",
- "tar",
- "tempfile",
- "thiserror 1.0.69",
- "time",
- "url",
-]
-
-[[package]]
-name = "cargo-packager-utils"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b43458dd2ee3cdab3f5b105acd80791383b730380c929018701313d7d299d4e8"
-dependencies = [
- "ctor",
-]
-
-[[package]]
 name = "cbc"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -810,7 +774,7 @@ dependencies = [
  "getrandom 0.4.3",
  "keyring",
  "open",
- "reqwest 0.13.5",
+ "reqwest",
  "secrecy",
  "semver",
  "serde",
@@ -1089,16 +1053,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctor"
-version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32a2785755761f3ddc1492979ce1e48d2c00d09311c39e4466429188f3dd6501"
-dependencies = [
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
 name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1211,32 +1165,11 @@ dependencies = [
 
 [[package]]
 name = "dirs"
-version = "5.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
-dependencies = [
- "dirs-sys 0.4.1",
-]
-
-[[package]]
-name = "dirs"
 version = "7.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d57d423b3c82e89b9a24ca3091fee61f456a26edbd28d26c65906f4bc1dcd8f"
 dependencies = [
- "dirs-sys 0.5.0",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "520f05a5cbd335fae5a99ff7a6ab8627577660ee5cfd6a94a6a929b52ff0321c"
-dependencies = [
- "libc",
- "option-ext",
- "redox_users 0.4.6",
- "windows-sys 0.48.0",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -1247,7 +1180,7 @@ checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
 dependencies = [
  "libc",
  "option-ext",
- "redox_users 0.5.3",
+ "redox_users",
  "windows-sys 0.59.0",
 ]
 
@@ -1594,7 +1527,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1f9e3d69d39e4862ffed03ed071a76f9a13ba1d9109d355b0f0aa6b15e393c4"
 dependencies = [
  "futures-core",
- "futures-sink",
 ]
 
 [[package]]
@@ -1663,11 +1595,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
 dependencies = [
  "futures-core",
- "futures-io",
  "futures-macro",
  "futures-sink",
  "futures-task",
- "memchr",
  "pin-project-lite",
  "slab",
 ]
@@ -2120,7 +2050,6 @@ dependencies = [
  "hyper",
  "hyper-util",
  "rustls",
- "rustls-native-certs",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -2679,12 +2608,6 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
-
-[[package]]
-name = "minisign-verify"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22f9645cb765ea72b8111f36c522475d2daa0d22c957a9826437e97534bc4e9e"
 
 [[package]]
 name = "minisign-verify"
@@ -4085,17 +4008,6 @@ dependencies = [
 
 [[package]]
 name = "redox_users"
-version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
-dependencies = [
- "getrandom 0.2.17",
- "libredox",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "redox_users"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60dc65c0ff1a7ae1294b0c67b9f14baf70b644404010370171787bfac1038fc0"
@@ -4160,48 +4072,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38540a682c6e9bca04a8bca9e5ec5a6ba168dfbb04c9998fe517a9befb92eb68"
 dependencies = [
  "serde_core",
-]
-
-[[package]]
-name = "reqwest"
-version = "0.12.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "futures-channel",
- "futures-core",
- "futures-util",
- "http",
- "http-body",
- "http-body-util",
- "hyper",
- "hyper-rustls",
- "hyper-util",
- "js-sys",
- "log",
- "percent-encoding",
- "pin-project-lite",
- "quinn",
- "rustls",
- "rustls-native-certs",
- "rustls-pki-types",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sync_wrapper",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "tower",
- "tower-http",
- "tower-service",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-streams",
- "web-sys",
 ]
 
 [[package]]
@@ -5370,15 +5240,15 @@ name = "tiktools-app-update"
 version = "4.2.3"
 dependencies = [
  "base64 0.23.1",
- "cargo-packager-updater",
- "minisign-verify 0.3.0",
- "reqwest 0.13.5",
+ "minisign-verify",
+ "reqwest",
  "semver",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
+ "url",
  "windows-sys 0.61.2",
 ]
 
@@ -5420,7 +5290,7 @@ dependencies = [
  "keyring",
  "libc",
  "rcgen",
- "reqwest 0.13.5",
+ "reqwest",
  "ring",
  "rustls",
  "rustls-native-certs",
@@ -5450,7 +5320,7 @@ dependencies = [
  "getrandom 0.4.3",
  "libc",
  "open",
- "reqwest 0.13.5",
+ "reqwest",
  "schemars",
  "secrecy",
  "serde",
@@ -5469,7 +5339,7 @@ dependencies = [
  "fs2",
  "getrandom 0.4.3",
  "libc",
- "reqwest 0.13.5",
+ "reqwest",
  "schemars",
  "serde",
  "serde_json",
@@ -5542,7 +5412,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.4.3",
  "libc",
- "reqwest 0.13.5",
+ "reqwest",
  "ring",
  "rquickjs",
  "rusqlite",
@@ -5702,7 +5572,7 @@ dependencies = [
 name = "tiktools-plugin-registry"
 version = "4.2.3"
 dependencies = [
- "reqwest 0.13.5",
+ "reqwest",
  "schemars",
  "semver",
  "serde",
@@ -5722,7 +5592,7 @@ version = "4.2.3"
 dependencies = [
  "base64 0.23.1",
  "flate2",
- "reqwest 0.13.5",
+ "reqwest",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -5750,7 +5620,7 @@ dependencies = [
  "fastrand",
  "httpdate",
  "prost",
- "reqwest 0.13.5",
+ "reqwest",
  "rquickjs",
  "rustls",
  "serde",
@@ -6114,7 +5984,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f5cc5858ecf9574ddd8f0032a2ff7ffd6f7724d2b81e48b9374984b3fd6ddc9"
 dependencies = [
  "crossbeam-channel",
- "dirs 7.0.0",
+ "dirs",
  "libappindicator",
  "muda",
  "objc2 0.6.5",
@@ -6145,7 +6015,7 @@ name = "ttl-live-discovery"
 version = "0.1.0"
 source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "reqwest 0.13.5",
+ "reqwest",
  "serde_json",
  "thiserror 2.0.21",
  "tracing",
@@ -6219,7 +6089,7 @@ name = "ttl-sign-headless"
 version = "0.1.0"
 source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "reqwest 0.13.5",
+ "reqwest",
  "tracing",
  "ttl-live-discovery",
  "ttl-sign-core",
@@ -6452,19 +6322,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b1f9c3798725016c6ee5f2f57869ec0831e8bbc0ab0310a86e787e97f41389e"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "wasm-streams"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15053d8d85c7eccdbefef60f06769760a563c7f0a9d6902a13d35c7800b0ad65"
-dependencies = [
- "futures-util",
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
@@ -7252,7 +7109,7 @@ dependencies = [
  "block2 0.6.2",
  "cookie",
  "crossbeam-channel",
- "dirs 7.0.0",
+ "dirs",
  "dom_query",
  "dpi",
  "dunce",

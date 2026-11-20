@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
-translationRevision: "8c906798c481cda745d80d2b11ccfe73a2ab9d171780c591052631b292df8292"
+sourceRevision: "6a5fcd19211bdd279a0696cde31c26cc7444a128e50c3ca752489b25acb7cd9a"
+translationRevision: "11d31f98506b45ee544671e60ed105323f573e90405e126ab6c242d95a2ce964"
 order: 200
 ---
 
@@ -22,36 +22,34 @@ order: 200
 
 | 経路 | 現在の実装 | 主な制限 |
 | --- | --- | --- |
-| デスクトップ WebView | Wry IPC と共有制御クライアント | GUI・スレッドの寿命はデスクトップ所有 |
-| ローカル CLI | Unix ソケットか Windows 名前付きパイプ、明示的 stdio ホスト | 同じホームと所有者 |
-| ローカルブラウザー | ネイティブループバックアダプターと `browser-transport.ts` | ペアリング済みホスト。モックや公開リモートサーバーではない |
-| 直接リモート | 認証付き HTTPS/WSS ゲートウェイと SDK・ブラウザー通信 | TLS、hello、権限、機能条件 |
-| ネイティブ peer | `tiktools-peer`、暗号化 iroh/QUIC ストリーム | peer ID だけでは RPC 権限を得ない |
-| ネイティブ WebRTC | `tiktools-rtc`、署名付きシグナリングとデータチャネル | 交渉、権限、経路確認も必要 |
+| デスクトップ WebView | Wry IPC と共有コントロールクライアント | GUI とスレッドの寿命はデスクトップ側 |
+| ローカル CLI | Unix ソケットまたは Windows 名前付きパイプ、明示的な stdio ホスト | アプリのホームと所有者が同一 |
+| ローカル ブラウザー | ネイティブ ループバック アダプターと `browser-transport.ts` | ペアリング済みネイティブ ホスト。公開リモートサーバーではない |
+| 認証済み HTTPS/WSS ゲートウェイ | TLS・hello・権限・機能ゲートを備えた SDK/ブラウザー通信 | リモートコマンドには明示的な許可が必要 |
+| インストール可能なリモート制御プラグイン | `remote.controller.ticket` を使う WSS リレー上の `tiktools.remote-control` | プラグインが所有し、リモートコードはホストにコンパイルされない |
 
-TypeScript インターフェースは `src/web/shared/api/control-transport.ts` にあります。ネイティブ peer 設定は公開第三者リレーや探索を暗黙に有効化しません。WebRTC は Rust ネイティブ (`webrtc` 0.21.1) で、デスクトップ UI のブラウザー `RTCPeerConnection` 依存ではありません。
+TypeScript の通信インターフェースは `src/web/shared/api/control-transport.ts` にあります。リモート制御はホストバイナリの一部ではなく、インストール可能なプラグインです。すべてのコマンドは `HostCallPolicy`（`remote.command.dispatch`、`remote.pair.list`、`remote.grant.list`、`remote.grant.revoke`、`remote.controller.ticket`）を通過します。このビルドにはネイティブ peer/RTC 通信も Cloud Teams のホスト連携もありません。
 
-## 選択経路を調べる {#inspect-the-selected-route}
+## 選択した経路を調べる {#inspect-the-selected-route}
 
-ペアリングやコントローラー操作の表示前に、接続ホストのメソッドと機能を検出します。
+ペアリングや制御操作の表示の前に、接続済みホストが対応するメソッドと機能を確認します:
 
 ```sh
 tiktools --json system info
 tiktools api discover
 bun scripts/task.ts test web browser-transport
-bun scripts/task.ts test web remote-browser-transport
 ```
 
-`tiktools-rtc/src/route.rs` は選択された ICE 候補対から直接・リレーを分類します。準備完了だけでは直接経路を証明しません。Cloud のシグナリング・リレー基盤は業務認可とは別で、ネイティブ権限検査を維持します。
+ペアリングと許可はプラグインが所有します。コントローラー チケットは短期・単一回限りで、`remote.grant.list` / `remote.grant.revoke` が権威ある情報源です。リレー接続は通信経路を示すだけで、RPC 権限を示すものではありません。
 
-## 期待される結果と提供状況 {#expected-result-and-status}
+## 期待される結果と状況 {#expected-result-and-status}
 
-ローカル IPC とデスクトップ通信は確立済みです。ネイティブ peer、WebRTC、コントローラー連携にはソースと対象テストがありますが、配置と複数 PC の受け入れは実験段階です。peer/relay が未実装とする旧記述は過去のものです。Android のローカル IPC は動作しますが、永続リモートプロファイル用ストアは未選択で、ネイティブアドオンと WebView は使えません。
+ローカル IPC とデスクトップ通信は確立済みです。リモート制御はインストール可能なプラグインと認証済みリレーで動作し、第 2 のホストランタイムではありません。ログインコードは 5 分の有効期限で接続済みデバイスに中継され、アカウント未設定時は OAuth にフォールバックします。Android のローカル IPC は計測対応 `mobile` ツール（`info` / `exec` / `tty`）で動作しますが、デスクトップ用ネイティブ アドオンと WebView は利用できません。
 
-## 問題が起きたとき {#recovery}
+## 復旧 {#recovery}
 
-切断後、受け付け済み操作は結果不明になり得ます。再接続では非公開投影を無効化し、ID を再交渉して上限付きストリームを再開・再取得します。証明書検査を弱めたり、リモート失敗から黙ってローカル所有者へ切り替えたりしません。[RTC 実装](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) と実際の機能グラフが古い計画に優先します。
+切断は受け付けた操作の不確実性として扱います。再接続時は非公開の投影を無効化し、ID を再交渉し、有界ストリームを再開またはスナップショット化します。証明書チェックを緩めたり、リモート失敗後に黙ってローカル所有者にフォールバックしたりしてはいけません。期限切れチケットと失効した許可は fail-close にします。
 
 ## 運用の詳細 {#operational-details}
 
-Peer は ALPN `tiktools/collaboration/1`、現在 15 秒の接続 timeout、明示構成した最大 4 relay を使います。Peer/RTC フレームは 1 MiB、RTC パケットは最大 16 KiB です。過大フレームは検証で拒否し、部分 RPC にはしません。構成・ID、信号処理、timeout、サイズ、認可を分けて調べます。Cloud relay は ICE TURN サーバーではなく、空リストは公開 discovery を有効にしません。ホスト・端末の稼働と現在の確認済み grant を確認し、ICE の直通/relay 経路を記録します。ready・暗号化だけでは RPC 権限も全 NAT 通過も証明できません。実機 2 台の前にセッション変更・失効と過大フレームを fixtures で検証します。
+許可は最小権限かつ期限付きにし、再接続のたびに再確認します。ID、チケットの有効期限、許可の範囲、リレーへの到達性、フレーム サイズを個別に診断します。過大フレームは部分 RPC にならず、フレーム検証で拒否されます。実機 2 台の受け入れ前に、変更・失効したセッションを fixture で検証します。

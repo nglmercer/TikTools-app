@@ -8,6 +8,7 @@ mod check;
 mod download;
 mod install;
 mod manifest;
+mod packager;
 mod platform;
 mod service;
 mod state;

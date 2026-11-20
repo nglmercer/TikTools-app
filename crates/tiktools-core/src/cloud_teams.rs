@@ -88,7 +88,6 @@ pub struct RemoteHostStatus {
     pub last_error: Option<String>,
 }
 
-
 /// HTTP budget for every teams operation: 15 s, 4 MiB of reply.
 const HTTP_LIMITS: Limits = Limits::new(Duration::from_secs(15), 4 * 1024 * 1024);
 const MAX_NAME_CHARS: usize = 80;

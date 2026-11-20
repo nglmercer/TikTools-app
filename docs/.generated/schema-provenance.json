@@ -1,6 +1,6 @@
 {
-  "controlMethods": 291,
-  "controlSha256": "128301ccf85b03ef7703fe31b05427df34a4ecd319f6727f60c8099b8e1481f6",
+  "controlMethods": 270,
+  "controlSha256": "5bdbd63ce745208691fbfac587a976952ed3cbe459e4930c8bb19039351807fa",
   "eventDefinitions": [
     "ActionStatus",
     "AutomationCreator",

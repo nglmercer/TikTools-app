@@ -9,7 +9,6 @@ description = "Runtime discovery and loading for TikTools plugins"
 [features]
 default = ["native-plugins", "napi-vm-node-api"]
 native-plugins = ["dep:libloading"]
-wasm-plugins = []
 # In-process `.node` addons for napi-vm plugins (napi-rs). Compiled in by
 # default, but never active without an explicit per-plugin manifest
 # declaration: with no `nativeAddons` entry the guest stays inside the

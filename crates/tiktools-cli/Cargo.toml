@@ -13,8 +13,8 @@ path = "src/main.rs"
 [features]
 default = ["cloud-auth"]
 local-web = ["dep:axum", "dep:rand"]
-# `cloud-auth` alone stays light: the Cloud peer/controller machinery (peer,
-# rtc, iroh) is a separate opt-in so `bun run dev` does not compile it.
+# `cloud-auth` enables account, sync and relay support. Remote control itself
+# is an installable plugin (`tiktools.remote-control`), not compiled here.
 cloud-auth = [
     "tiktools-core/cloud-auth",
     "tiktools-control-api/cloud-auth",

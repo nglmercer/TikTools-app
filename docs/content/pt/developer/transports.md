@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "6696987a0db16b3b4d364c6136d0e552dbebd6fc68346e3ed031587a7b004468"
-translationRevision: "44cc2292048adab16facd7f68c88ad9dcab44f4eefdc6db2a0c8e60a1745aa1a"
+sourceRevision: "6a5fcd19211bdd279a0696cde31c26cc7444a128e50c3ca752489b25acb7cd9a"
+translationRevision: "19b77bfb15a322e68e2d62a2676095caff614488a78296902c86926f76d5378c"
 order: 200
 ---
 
@@ -22,36 +22,34 @@ Selecione o transporte que realmente existe para a compilação e plataforma de 
 
 | Caminho | Implementação atual | Limite importante |
 | --- | --- | --- |
-| WebView de desktop | IPC do Wry e cliente de controle compartilhado | O tempo de vida da GUI/thread pertence ao desktop |
-| CLI local | Socket Unix ou pipe nomeado Windows; host stdio explícito | Mesmo diretório de dados e proprietário do aplicativo |
-| Navegador local | Adaptador nativo de loopback mais `browser-transport.ts` | Host nativo pareado, não uma simulação ou servidor remoto público |
-| Remoto direto | Gateway HTTPS/WSS autenticado e transportes SDK/navegador | TLS, hello, concessões e controles de recursos |
-| Par nativo | `tiktools-peer`, fluxo iroh/QUIC criptografado | Identidade do par não é autoridade RPC |
-| WebRTC nativo | `tiktools-rtc`, sinalização assinada e canais de dados | Verificações de negociação, concessão e rota continuam necessárias |
+| WebView desktop | IPC Wry e cliente de controle compartilhado | Ciclo de vida da GUI/threads pertence ao desktop |
+| CLI local | Socket Unix ou pipe nomeado do Windows; host stdio explícito | Mesmo diretório e proprietário do aplicativo |
+| Navegador local | Adaptador loopback nativo mais `browser-transport.ts` | Host nativo pareado, não um servidor remoto público |
+| Gateway HTTPS/WSS autenticado | Transportes SDK/navegador com TLS, hello, concessões e feature gates | Comandos remotos exigem concessão explícita |
+| Plugin de controle remoto instalável | `tiktools.remote-control` sobre relay WSS com `remote.controller.ticket` | Propriedade do plugin; nenhum código remoto é compilado no host |
 
-A interface de transporte TypeScript fica em `src/web/shared/api/control-transport.ts`. A configuração de pares nativos não habilita implicitamente relays públicos de terceiros ou descoberta. WebRTC é nativo Rust (`webrtc` 0.21.1), não uma dependência do `RTCPeerConnection` do navegador na interface de desktop.
+A interface TypeScript fica em `src/web/shared/api/control-transport.ts`. O controle remoto é um plugin instalável, não parte do binário do host: todo comando passa por `HostCallPolicy` (`remote.command.dispatch`, `remote.pair.list`, `remote.grant.list`, `remote.grant.revoke`, `remote.controller.ticket`). Esta compilação não tem transporte peer/RTC nativo nem vínculo de host do Cloud Teams.
 
 ## Inspecione a rota selecionada {#inspect-the-selected-route}
 
-Descubra os métodos e capacidades do host conectado antes de parear ou exibir uma ação de controlador:
+Descubra os métodos e capacidades suportados pelo host conectado antes de parear ou exibir uma ação de controle:
 
 ```sh
 tiktools --json system info
 tiktools api discover
 bun scripts/task.ts test web browser-transport
-bun scripts/task.ts test web remote-browser-transport
 ```
 
-`tiktools-rtc/src/route.rs` observa o par de candidatos ICE selecionado para classificar conexão direta ou via relay. O estado pronto sozinho não comprova uma rota direta. A infraestrutura de sinalização/relay do Cloud é separada da autorização de negócio e deve preservar as verificações nativas de concessão.
+O pareamento e as concessões pertencem ao plugin: o ticket do controlador é de curta duração e uso único, e `remote.grant.list` / `remote.grant.revoke` são a visão autoritativa. Uma conexão de relay prova apenas o transporte, nunca autoridade RPC.
 
-## Resultado esperado e status {#expected-result-and-status}
+## Resultado esperado e estado {#expected-result-and-status}
 
-IPC local e transporte de desktop são caminhos estabelecidos. Par nativo, WebRTC e integração do controlador têm código e testes específicos, mas a implantação e a aceitação entre vários PCs continuam experimentais. Textos legados que afirmam não existir implementação de pares/relay são históricos. O IPC local do Android funciona; perfis remotos persistentes não têm armazenamento de credenciais selecionado e addons/WebViews nativos de desktop continuam indisponíveis ali.
+O IPC local e o transporte desktop são caminhos estabelecidos. O controle remoto funciona pelo plugin instalável e um relay autenticado; não é um segundo runtime de host. Os códigos de login são enviados aos dispositivos conectados com TTL de cinco minutos, com OAuth como alternativa quando nenhuma conta está configurada. O IPC local no Android funciona com as ferramentas instrumentadas `mobile` (`info` / `exec` / `tty`); addons nativos e WebViews de desktop continuam indisponíveis lá.
 
 ## Recuperação {#recovery}
 
-Trate a desconexão como possível incerteza para operações aceitas. Reconectar deve invalidar projeções privadas, renegociar a identidade e retomar ou obter instantâneos de fluxos limitados. Nunca reduza verificações de certificado nem retorne silenciosamente a um proprietário local após falha remota. A [implementação RTC](https://github.com/nglmercer/TikTools-app/tree/remake/crates/tiktools-rtc/src) e o grafo real de recursos substituem planos antigos de transporte.
+Trate a desconexão como possível incerteza para operações aceitas. A reconexão deve invalidar projeções privadas, renegociar a identidade e retomar ou capturar fluxos limitados. Nunca enfraqueça a verificação de certificados nem volte silenciosamente a um proprietário local após falha remota. Tickets expirados e concessões revogadas devem falhar fechados.
 
-## Detalhes de operação {#operational-details}
+## Detalhes operacionais {#operational-details}
 
-Peer usa ALPN `tiktools/collaboration/1`, timeout atual de 15 s e até quatro relays configurados explicitamente. Quadros Peer/RTC têm limite de 1 MiB; RTC fragmenta em pacotes de até 16 KiB. Quadros excessivos falham na validação, sem RPC parcial. Diagnostique configuração/identidade, sinalização, timeout, tamanho e autorização separadamente. Relay Cloud não é servidor TURN ICE; lista vazia não ativa descoberta pública. Confira host/dispositivo e permissão confirmada atual antes da rota; registre se ICE escolheu direto ou relay. Transporte ready/cifrado não prova autoridade nem travessia de todo NAT. Teste sessões alteradas/revogadas e quadros excessivos com fixtures antes de dois PCs reais.
+Mantenha as concessões com privilégio mínimo e prazo limitado; verifique-as após cada reconexão. Diagnostique separadamente identidade, expiração do ticket, escopo da concessão, acessibilidade do relay e tamanho do quadro. Quadros grandes falham na validação de enquadramento, não geram RPCs parciais. Teste sessões alteradas/revogadas com fixtures antes da aceitação real com dois dispositivos.

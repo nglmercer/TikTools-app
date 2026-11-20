@@ -15,7 +15,6 @@ native-plugins = ["tiktools-plugin-loader/native-plugins"]
 # every host. Without it, napi-vm plugins declaring `nativeAddons` fail
 # closed at load with "this build lacks napi-vm-node-api support".
 napi-vm-node-api = ["tiktools-plugin-loader/napi-vm-node-api"]
-wasm-plugins = ["tiktools-plugin-loader/wasm-plugins"]
 plugin-install = [
     "dep:tiktools-plugin-installer",
     "dep:tiktools-plugin-package",

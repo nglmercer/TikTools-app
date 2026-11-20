@@ -1,9 +1,7 @@
 //! SQLite schema and conservative persistence helpers.
 //!
-//! The SQL intentionally mirrors the current `src/db/points-db.ts` and
-//! `src/db/automation-db.ts` tables. Domain payloads that have not yet gained
-//! a Rust type stay as JSON so an existing database can be opened without a
-//! destructive migration.
+//! Domain payloads that have not yet gained a Rust type stay as JSON so an
+//! existing database can be opened without a destructive migration.
 
 mod aggregations;
 mod automation_library;

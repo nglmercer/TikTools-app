@@ -35,7 +35,6 @@ use crate::NativePluginRuntime;
 use crate::{
     worker::RunningInstance, DeclarativePluginRuntime, DiscoveredPlugin, EmittedEvent,
     NapiVmPluginRuntime, PluginLoaderError, PluginRoot, PluginRuntime, ProcessPluginRuntime,
-    WasmPluginRuntime,
 };
 
 /// Cold-start allowance for the first call of a process generation. A fresh
@@ -154,7 +153,6 @@ impl RuntimeRegistry {
         #[cfg(feature = "native-plugins")]
         registry.register(Arc::new(NativePluginRuntime));
         registry.register(Arc::new(ProcessPluginRuntime));
-        registry.register(Arc::new(WasmPluginRuntime));
         registry.register(Arc::new(DeclarativePluginRuntime));
         registry.register(Arc::new(NapiVmPluginRuntime));
         registry

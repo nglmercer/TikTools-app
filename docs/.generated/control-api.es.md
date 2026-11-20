@@ -71,6 +71,9 @@
 | [`catalog.mine`](#rpc-catalog-mine) | false | false | false | — | false |
 | [`cloud.login.begin`](#rpc-cloud-login-begin) | true | false | false | — | false |
 | [`cloud.login.cancel`](#rpc-cloud-login-cancel) | true | false | false | — | false |
+| [`cloud.login.code.resend`](#rpc-cloud-login-code-resend) | true | false | false | — | false |
+| [`cloud.login.code.send`](#rpc-cloud-login-code-send) | true | false | false | — | false |
+| [`cloud.login.code.submit`](#rpc-cloud-login-code-submit) | true | false | false | — | false |
 | [`cloud.login.complete`](#rpc-cloud-login-complete) | true | false | false | — | false |
 | [`cloud.login.open`](#rpc-cloud-login-open) | true | false | false | — | false |
 | [`cloud.login.reserve`](#rpc-cloud-login-reserve) | true | false | false | — | false |
@@ -255,30 +258,6 @@
 | [`system.saveFile`](#rpc-system-saveFile) | true | false | false | — | false |
 | [`system.shutdown`](#rpc-system-shutdown) | true | true | false | — | false |
 | [`system.snapshot`](#rpc-system-snapshot) | false | false | false | — | false |
-| [`teams.accessible.list`](#rpc-teams-accessible-list) | false | false | false | — | false |
-| [`teams.commands.run`](#rpc-teams-commands-run) | true | false | false | — | false |
-| [`teams.devices.enroll`](#rpc-teams-devices-enroll) | true | false | false | — | false |
-| [`teams.devices.list`](#rpc-teams-devices-list) | false | false | false | — | false |
-| [`teams.devices.revoke`](#rpc-teams-devices-revoke) | true | false | false | — | false |
-| [`teams.grants.list`](#rpc-teams-grants-list) | false | false | false | — | false |
-| [`teams.grants.revoke`](#rpc-teams-grants-revoke) | true | false | false | — | false |
-| [`teams.grants.update`](#rpc-teams-grants-update) | true | false | false | — | false |
-| [`teams.host.start`](#rpc-teams-host-start) | true | false | false | — | false |
-| [`teams.host.status`](#rpc-teams-host-status) | false | false | false | — | false |
-| [`teams.host.stop`](#rpc-teams-host-stop) | true | false | false | — | false |
-| [`teams.hosts.create`](#rpc-teams-hosts-create) | true | false | false | — | false |
-| [`teams.hosts.get`](#rpc-teams-hosts-get) | false | false | false | — | false |
-| [`teams.hosts.list`](#rpc-teams-hosts-list) | false | false | false | — | false |
-| [`teams.hosts.update`](#rpc-teams-hosts-update) | true | false | false | — | false |
-| [`teams.invitations.create`](#rpc-teams-invitations-create) | true | false | false | — | false |
-| [`teams.invitations.list`](#rpc-teams-invitations-list) | false | false | false | — | false |
-| [`teams.invitations.redeem`](#rpc-teams-invitations-redeem) | true | false | false | — | false |
-| [`teams.invitations.revoke`](#rpc-teams-invitations-revoke) | true | false | false | — | false |
-| [`teams.people.search`](#rpc-teams-people-search) | false | false | false | — | false |
-| [`teams.requests.decide`](#rpc-teams-requests-decide) | true | false | false | — | false |
-| [`teams.requests.list`](#rpc-teams-requests-list) | false | false | false | — | false |
-| [`teams.sessions.list`](#rpc-teams-sessions-list) | false | false | false | — | false |
-| [`teams.sessions.revoke`](#rpc-teams-sessions-revoke) | true | false | false | — | false |
 | [`ui.feed.backfill`](#rpc-ui-feed-backfill) | false | false | false | — | false |
 | [`ui.feed.browser`](#rpc-ui-feed-browser) | false | false | false | — | false |
 | [`ui.feed.creator`](#rpc-ui-feed-creator) | false | false | false | — | false |
@@ -7294,6 +7273,10 @@ Dry-runs a saved (id) or inline (record) event or action
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "event": {
+      "default": null,
+      "description": "Optional custom event envelope to dry-run the record against."
+    },
     "id": {
       "default": null,
       "description": "Test a saved record by id...",
@@ -9077,6 +9060,36 @@ Aborts an in-progress login and drops its secrets
       ],
       "type": "string"
     },
+    "LoginCodeStatus": {
+      "description": "Nonsecret progress of a device-relayed login code.",
+      "properties": {
+        "delivered": {
+          "description": "Connected devices the code was relayed to; zero means no remote control.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "email": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "requiresOauth": {
+          "description": "The account has no Cloud identity: OAuth is required instead of a code.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "email",
+        "expiresAt",
+        "delivered",
+        "requiresOauth"
+      ],
+      "type": "object"
+    },
     "Persistence": {
       "oneOf": [
         {
@@ -9120,6 +9133,333 @@ Aborts an in-progress login and drops its secrets
         "string",
         "null"
       ]
+    },
+    "loginCode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LoginCodeStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Nonsecret state of a login-code attempt: the email and expiry the UI\nneeds to show. Never a code or a token."
+    },
+    "loginOperationId": {
+      "description": "Opaque identifier for the currently observed login attempt. It binds\ncancellation to that attempt and is not a bearer/session credential.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "origin": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "persistence": {
+      "$ref": "#/$defs/Persistence"
+    },
+    "state": {
+      "$ref": "#/$defs/AccountState"
+    }
+  },
+  "required": [
+    "state",
+    "persistence"
+  ],
+  "title": "CloudStatusResult",
+  "type": "object"
+}
+```
+
+:::
+
+### cloud.login.code.resend {#rpc-cloud-login-code-resend}
+
+Descripción del contrato:
+
+```text
+Relays the login code to connected devices again
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details Parámetros
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "operationId": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "title": "CloudLoginOperationParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details Resultado
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Nonsecret progress of a device-relayed login code.",
+  "properties": {
+    "delivered": {
+      "description": "Connected devices the code was relayed to; zero means no remote control.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "email": {
+      "type": "string"
+    },
+    "expiresAt": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "requiresOauth": {
+      "description": "The account has no Cloud identity: OAuth is required instead of a code.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "email",
+    "expiresAt",
+    "delivered",
+    "requiresOauth"
+  ],
+  "title": "LoginCodeStatus",
+  "type": "object"
+}
+```
+
+:::
+
+### cloud.login.code.send {#rpc-cloud-login-code-send}
+
+Descripción del contrato:
+
+```text
+Sends a short-lived login code to connected devices (OAuth if no account)
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details Parámetros
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "email": {
+      "type": "string"
+    },
+    "operationId": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "email"
+  ],
+  "title": "CloudLoginCodeParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details Resultado
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Nonsecret progress of a device-relayed login code.",
+  "properties": {
+    "delivered": {
+      "description": "Connected devices the code was relayed to; zero means no remote control.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "email": {
+      "type": "string"
+    },
+    "expiresAt": {
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "requiresOauth": {
+      "description": "The account has no Cloud identity: OAuth is required instead of a code.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "email",
+    "expiresAt",
+    "delivered",
+    "requiresOauth"
+  ],
+  "title": "LoginCodeStatus",
+  "type": "object"
+}
+```
+
+:::
+
+### cloud.login.code.submit {#rpc-cloud-login-code-submit}
+
+Descripción del contrato:
+
+```text
+Redeems a relayed login code without exposing any credential
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details Parámetros
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "type": "string"
+    },
+    "operationId": {
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "code"
+  ],
+  "title": "CloudLoginCodeSubmitParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details Resultado
+
+```json
+{
+  "$defs": {
+    "AccountState": {
+      "enum": [
+        "unconfigured",
+        "signed-out",
+        "signing-in",
+        "signed-in"
+      ],
+      "type": "string"
+    },
+    "LoginCodeStatus": {
+      "description": "Nonsecret progress of a device-relayed login code.",
+      "properties": {
+        "delivered": {
+          "description": "Connected devices the code was relayed to; zero means no remote control.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "email": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "requiresOauth": {
+          "description": "The account has no Cloud identity: OAuth is required instead of a code.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "email",
+        "expiresAt",
+        "delivered",
+        "requiresOauth"
+      ],
+      "type": "object"
+    },
+    "Persistence": {
+      "oneOf": [
+        {
+          "const": "keychain",
+          "description": "Tokens persist across restarts in the OS credential store.",
+          "type": "string"
+        },
+        {
+          "const": "memory-only",
+          "description": "Tokens live in process memory only; a restart signs out. This is\nreported, never a silent fallback to a file.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Everything the frontend may show. No tokens, ever.",
+  "properties": {
+    "accountId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "displayName": {
+      "description": "Verified display name from `/me`, when the provider supplies one.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "email": {
+      "description": "Verified account email from `/me`, when the sign-in resolved it.\nBest-effort: a signed-in status without an email is still valid.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "loginCode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LoginCodeStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Nonsecret state of a login-code attempt: the email and expiry the UI\nneeds to show. Never a code or a token."
     },
     "loginOperationId": {
       "description": "Opaque identifier for the currently observed login attempt. It binds\ncancellation to that attempt and is not a bearer/session credential.",
@@ -9198,6 +9538,36 @@ Waits for the browser callback, redeems it, and signs in
       ],
       "type": "string"
     },
+    "LoginCodeStatus": {
+      "description": "Nonsecret progress of a device-relayed login code.",
+      "properties": {
+        "delivered": {
+          "description": "Connected devices the code was relayed to; zero means no remote control.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "email": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "requiresOauth": {
+          "description": "The account has no Cloud identity: OAuth is required instead of a code.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "email",
+        "expiresAt",
+        "delivered",
+        "requiresOauth"
+      ],
+      "type": "object"
+    },
     "Persistence": {
       "oneOf": [
         {
@@ -9241,6 +9611,17 @@ Waits for the browser callback, redeems it, and signs in
         "string",
         "null"
       ]
+    },
+    "loginCode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LoginCodeStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Nonsecret state of a login-code attempt: the email and expiry the UI\nneeds to show. Never a code or a token."
     },
     "loginOperationId": {
       "description": "Opaque identifier for the currently observed login attempt. It binds\ncancellation to that attempt and is not a bearer/session credential.",
@@ -9406,6 +9787,36 @@ Revokes the server session and wipes local credentials
       ],
       "type": "string"
     },
+    "LoginCodeStatus": {
+      "description": "Nonsecret progress of a device-relayed login code.",
+      "properties": {
+        "delivered": {
+          "description": "Connected devices the code was relayed to; zero means no remote control.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "email": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "requiresOauth": {
+          "description": "The account has no Cloud identity: OAuth is required instead of a code.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "email",
+        "expiresAt",
+        "delivered",
+        "requiresOauth"
+      ],
+      "type": "object"
+    },
     "Persistence": {
       "oneOf": [
         {
@@ -9449,6 +9860,17 @@ Revokes the server session and wipes local credentials
         "string",
         "null"
       ]
+    },
+    "loginCode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LoginCodeStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Nonsecret state of a login-code attempt: the email and expiry the UI\nneeds to show. Never a code or a token."
     },
     "loginOperationId": {
       "description": "Opaque identifier for the currently observed login attempt. It binds\ncancellation to that attempt and is not a bearer/session credential.",
@@ -9518,6 +9940,36 @@ Reconnects from the OS credential store after a restart
       ],
       "type": "string"
     },
+    "LoginCodeStatus": {
+      "description": "Nonsecret progress of a device-relayed login code.",
+      "properties": {
+        "delivered": {
+          "description": "Connected devices the code was relayed to; zero means no remote control.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "email": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "requiresOauth": {
+          "description": "The account has no Cloud identity: OAuth is required instead of a code.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "email",
+        "expiresAt",
+        "delivered",
+        "requiresOauth"
+      ],
+      "type": "object"
+    },
     "Persistence": {
       "oneOf": [
         {
@@ -9561,6 +10013,17 @@ Reconnects from the OS credential store after a restart
         "string",
         "null"
       ]
+    },
+    "loginCode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LoginCodeStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Nonsecret state of a login-code attempt: the email and expiry the UI\nneeds to show. Never a code or a token."
     },
     "loginOperationId": {
       "description": "Opaque identifier for the currently observed login attempt. It binds\ncancellation to that attempt and is not a bearer/session credential.",
@@ -9630,6 +10093,36 @@ Shows the Cloud account state without exposing any credentials
       ],
       "type": "string"
     },
+    "LoginCodeStatus": {
+      "description": "Nonsecret progress of a device-relayed login code.",
+      "properties": {
+        "delivered": {
+          "description": "Connected devices the code was relayed to; zero means no remote control.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "email": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "requiresOauth": {
+          "description": "The account has no Cloud identity: OAuth is required instead of a code.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "email",
+        "expiresAt",
+        "delivered",
+        "requiresOauth"
+      ],
+      "type": "object"
+    },
     "Persistence": {
       "oneOf": [
         {
@@ -9673,6 +10166,17 @@ Shows the Cloud account state without exposing any credentials
         "string",
         "null"
       ]
+    },
+    "loginCode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LoginCodeStatus"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Nonsecret state of a login-code attempt: the email and expiry the UI\nneeds to show. Never a code or a token."
     },
     "loginOperationId": {
       "description": "Opaque identifier for the currently observed login attempt. It binds\ncancellation to that attempt and is not a bearer/session credential.",
@@ -31520,1684 +32024,6 @@ Safe observable state (never includes secrets)
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
   "title": "Empty",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AnyValue"
-}
-```
-
-:::
-
-### teams.accessible.list {#rpc-teams-accessible-list}
-
-Descripción del contrato:
-
-```text
-Lists only teams approved for this PC, with owner nicknames instead of email addresses
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Empty `{}` params shared by read-only methods.",
-  "title": "Empty",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$defs": {
-    "PeerMembership": {
-      "additionalProperties": false,
-      "properties": {
-        "clientKind": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "ownerNickname": {
-          "default": "",
-          "type": "string"
-        },
-        "role": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "role",
-        "clientKind"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "items": {
-      "items": {
-        "$ref": "#/$defs/PeerMembership"
-      },
-      "type": "array"
-    }
-  },
-  "required": [
-    "items"
-  ],
-  "title": "PeerMemberships",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.commands.run {#rpc-teams-commands-run}
-
-Descripción del contrato:
-
-```text
-Sends one command to a team as this PC's viewer and waits for the host's result
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "args": {
-      "default": null
-    },
-    "hostId": {
-      "type": "string"
-    },
-    "operation": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId",
-    "operation"
-  ],
-  "title": "CommandRunParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "code": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "commandId": {
-      "type": "string"
-    },
-    "result": true,
-    "status": {
-      "description": "The host's terminal status: `completed`, `failed`, `cancelled`, `expired` or `unknown`.",
-      "type": "string"
-    }
-  },
-  "required": [
-    "commandId",
-    "status"
-  ],
-  "title": "CommandOutcome",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.devices.enroll {#rpc-teams-devices-enroll}
-
-Descripción del contrato:
-
-```text
-Enrolls this PC's device key as a controller or as a team host, after a signed challenge
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "description": "Required for `host`; the team must belong to the signed-in account.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "kind": {
-      "description": "`controller` for this PC as a viewer, or `host` for this PC as a served team host.",
-      "type": "string"
-    },
-    "label": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "kind",
-    "label"
-  ],
-  "title": "TeamEnrollParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "createdAt": {
-      "default": "",
-      "description": "Absent from the enrollment reply; present in the list.",
-      "type": "string"
-    },
-    "hostId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "id": {
-      "type": "string"
-    },
-    "isThisDevice": {
-      "default": false,
-      "description": "Set only by the local core after matching this PC's persisted host binding.",
-      "type": "boolean"
-    },
-    "kind": {
-      "type": "string"
-    },
-    "label": {
-      "type": "string"
-    },
-    "status": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "id",
-    "label",
-    "kind",
-    "status"
-  ],
-  "title": "TeamDevice",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.devices.list {#rpc-teams-devices-list}
-
-Descripción del contrato:
-
-```text
-Lists the devices enrolled for the signed-in account
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Empty `{}` params shared by read-only methods.",
-  "title": "Empty",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$defs": {
-    "TeamDevice": {
-      "properties": {
-        "createdAt": {
-          "default": "",
-          "description": "Absent from the enrollment reply; present in the list.",
-          "type": "string"
-        },
-        "hostId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "id": {
-          "type": "string"
-        },
-        "isThisDevice": {
-          "default": false,
-          "description": "Set only by the local core after matching this PC's persisted host binding.",
-          "type": "boolean"
-        },
-        "kind": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "label",
-        "kind",
-        "status"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "items": {
-      "items": {
-        "$ref": "#/$defs/TeamDevice"
-      },
-      "type": "array"
-    }
-  },
-  "required": [
-    "items"
-  ],
-  "title": "TeamDeviceList",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.devices.revoke {#rpc-teams-devices-revoke}
-
-Descripción del contrato:
-
-```text
-Revokes an enrolled device and everything it authorizes
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "deviceId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "deviceId"
-  ],
-  "title": "TeamDeviceParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AnyValue"
-}
-```
-
-:::
-
-### teams.grants.list {#rpc-teams-grants-list}
-
-Descripción del contrato:
-
-```text
-Lists grants of an owned team
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId"
-  ],
-  "title": "TeamHostParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$defs": {
-    "TeamGrant": {
-      "properties": {
-        "deviceId": {
-          "type": "string"
-        },
-        "deviceLabel": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "policy": true,
-        "revision": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "role": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "deviceId",
-        "deviceLabel",
-        "role",
-        "policy",
-        "status",
-        "revision"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "items": {
-      "items": {
-        "$ref": "#/$defs/TeamGrant"
-      },
-      "type": "array"
-    }
-  },
-  "required": [
-    "items"
-  ],
-  "title": "TeamGrantList",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.grants.revoke {#rpc-teams-grants-revoke}
-
-Descripción del contrato:
-
-```text
-Revokes a grant and closes its sessions
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "expectedRevision": {
-      "format": "int64",
-      "type": "integer"
-    },
-    "grantId": {
-      "type": "string"
-    },
-    "hostId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId",
-    "grantId",
-    "expectedRevision"
-  ],
-  "title": "TeamGrantRevokeParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AnyValue"
-}
-```
-
-:::
-
-### teams.grants.update {#rpc-teams-grants-update}
-
-Descripción del contrato:
-
-```text
-Changes a grant's role or policy; the host must confirm the new revision
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "expectedRevision": {
-      "format": "int64",
-      "type": "integer"
-    },
-    "grantId": {
-      "type": "string"
-    },
-    "hostId": {
-      "type": "string"
-    },
-    "policy": true,
-    "role": {
-      "type": [
-        "string",
-        "null"
-      ]
-    }
-  },
-  "required": [
-    "hostId",
-    "grantId",
-    "expectedRevision"
-  ],
-  "title": "TeamGrantUpdateParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AnyValue"
-}
-```
-
-:::
-
-### teams.host.start {#rpc-teams-host-start}
-
-Descripción del contrato:
-
-```text
-Starts this PC's outbound link for the team it serves; the team must be enrolled first
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Empty `{}` params shared by read-only methods.",
-  "title": "Empty",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "hostId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastError": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "state": {
-      "description": "`stopped`, `connecting`, `ready` or `retrying`.",
-      "type": "string"
-    }
-  },
-  "required": [
-    "state"
-  ],
-  "title": "RemoteHostStatus",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.host.status {#rpc-teams-host-status}
-
-Descripción del contrato:
-
-```text
-Status of this PC's outbound link as a team host
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Empty `{}` params shared by read-only methods.",
-  "title": "Empty",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "hostId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastError": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "state": {
-      "description": "`stopped`, `connecting`, `ready` or `retrying`.",
-      "type": "string"
-    }
-  },
-  "required": [
-    "state"
-  ],
-  "title": "RemoteHostStatus",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.host.stop {#rpc-teams-host-stop}
-
-Descripción del contrato:
-
-```text
-Stops this PC's outbound link; pending commands become unknown on the relay
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Empty `{}` params shared by read-only methods.",
-  "title": "Empty",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "hostId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "lastError": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "state": {
-      "description": "`stopped`, `connecting`, `ready` or `retrying`.",
-      "type": "string"
-    }
-  },
-  "required": [
-    "state"
-  ],
-  "title": "RemoteHostStatus",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.hosts.create {#rpc-teams-hosts-create}
-
-Descripción del contrato:
-
-```text
-Creates a remote-control team owned by the signed-in account
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "name": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "name"
-  ],
-  "title": "TeamCreateParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "id": {
-      "type": "string"
-    },
-    "name": {
-      "type": "string"
-    },
-    "online": {
-      "default": false,
-      "type": "boolean"
-    },
-    "protocolVersion": {
-      "format": "int32",
-      "type": "integer"
-    },
-    "revision": {
-      "format": "int64",
-      "type": "integer"
-    },
-    "status": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "id",
-    "name",
-    "status",
-    "protocolVersion",
-    "revision"
-  ],
-  "title": "TeamHost",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.hosts.get {#rpc-teams-hosts-get}
-
-Descripción del contrato:
-
-```text
-Reads one owned team
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId"
-  ],
-  "title": "TeamHostParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "id": {
-      "type": "string"
-    },
-    "name": {
-      "type": "string"
-    },
-    "online": {
-      "default": false,
-      "type": "boolean"
-    },
-    "protocolVersion": {
-      "format": "int32",
-      "type": "integer"
-    },
-    "revision": {
-      "format": "int64",
-      "type": "integer"
-    },
-    "status": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "id",
-    "name",
-    "status",
-    "protocolVersion",
-    "revision"
-  ],
-  "title": "TeamHost",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.hosts.list {#rpc-teams-hosts-list}
-
-Descripción del contrato:
-
-```text
-Lists the remote-control teams owned by the signed-in account
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Empty `{}` params shared by read-only methods.",
-  "title": "Empty",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$defs": {
-    "TeamHost": {
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "online": {
-          "default": false,
-          "type": "boolean"
-        },
-        "protocolVersion": {
-          "format": "int32",
-          "type": "integer"
-        },
-        "revision": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "status": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "status",
-        "protocolVersion",
-        "revision"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "items": {
-      "items": {
-        "$ref": "#/$defs/TeamHost"
-      },
-      "type": "array"
-    }
-  },
-  "required": [
-    "items"
-  ],
-  "title": "TeamHostList",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.hosts.update {#rpc-teams-hosts-update}
-
-Descripción del contrato:
-
-```text
-Renames, enables or disables an owned team; requires the current revision
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "expectedRevision": {
-      "format": "int64",
-      "type": "integer"
-    },
-    "hostId": {
-      "type": "string"
-    },
-    "name": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "status": {
-      "type": [
-        "string",
-        "null"
-      ]
-    }
-  },
-  "required": [
-    "hostId",
-    "expectedRevision"
-  ],
-  "title": "TeamUpdateParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "id": {
-      "type": "string"
-    },
-    "name": {
-      "type": "string"
-    },
-    "online": {
-      "default": false,
-      "type": "boolean"
-    },
-    "protocolVersion": {
-      "format": "int32",
-      "type": "integer"
-    },
-    "revision": {
-      "format": "int64",
-      "type": "integer"
-    },
-    "status": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "id",
-    "name",
-    "status",
-    "protocolVersion",
-    "revision"
-  ],
-  "title": "TeamHost",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.invitations.create {#rpc-teams-invitations-create}
-
-Descripción del contrato:
-
-```text
-Creates a single-use invitation; the token is returned once and not stored by the host
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "type": "string"
-    },
-    "recipientId": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "requestedRole": {
-      "type": "string"
-    },
-    "ttlSeconds": {
-      "format": "int64",
-      "type": [
-        "integer",
-        "null"
-      ]
-    }
-  },
-  "required": [
-    "hostId",
-    "requestedRole"
-  ],
-  "title": "TeamInvitationCreateParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "The only reply that carries an invitation token. The owner shares it once.",
-  "properties": {
-    "expiresAt": {
-      "type": "string"
-    },
-    "id": {
-      "type": "string"
-    },
-    "requestedRole": {
-      "type": "string"
-    },
-    "status": {
-      "type": "string"
-    },
-    "token": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "id",
-    "requestedRole",
-    "status",
-    "expiresAt",
-    "token"
-  ],
-  "title": "TeamInvitationCreated",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.invitations.list {#rpc-teams-invitations-list}
-
-Descripción del contrato:
-
-```text
-Lists invitations of an owned team; tokens are never listed
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId"
-  ],
-  "title": "TeamHostParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$defs": {
-    "TeamInvitation": {
-      "properties": {
-        "expiresAt": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "redeemedAt": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "requestedRole": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "requestedRole",
-        "status",
-        "expiresAt"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "items": {
-      "items": {
-        "$ref": "#/$defs/TeamInvitation"
-      },
-      "type": "array"
-    }
-  },
-  "required": [
-    "items"
-  ],
-  "title": "TeamInvitationList",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.invitations.redeem {#rpc-teams-invitations-redeem}
-
-Descripción del contrato:
-
-```text
-Redeems an invitation token with this PC's viewer device; the owner still approves the request
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "token": {
-      "description": "The invitation token shown once by the owner.",
-      "type": "string"
-    }
-  },
-  "required": [
-    "token"
-  ],
-  "title": "TeamRedeemParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "hostId": {
-      "type": "string"
-    },
-    "requestId": {
-      "type": "string"
-    },
-    "requestedRole": {
-      "type": "string"
-    },
-    "status": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "requestId",
-    "hostId",
-    "status",
-    "requestedRole"
-  ],
-  "title": "TeamRedeemResult",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.invitations.revoke {#rpc-teams-invitations-revoke}
-
-Descripción del contrato:
-
-```text
-Revokes an unspent invitation
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "type": "string"
-    },
-    "invitationId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId",
-    "invitationId"
-  ],
-  "title": "TeamInvitationParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AnyValue"
-}
-```
-
-:::
-
-### teams.people.search {#rpc-teams-people-search}
-
-Descripción del contrato:
-
-```text
-Finds invitation recipients by nickname without returning email addresses
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "query": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "query"
-  ],
-  "title": "TeamPeopleSearchParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$defs": {
-    "TeamPerson": {
-      "additionalProperties": false,
-      "properties": {
-        "ambiguous": {
-          "type": "boolean"
-        },
-        "id": {
-          "type": "string"
-        },
-        "nickname": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "nickname",
-        "ambiguous"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "items": {
-      "items": {
-        "$ref": "#/$defs/TeamPerson"
-      },
-      "type": "array"
-    }
-  },
-  "required": [
-    "items"
-  ],
-  "title": "TeamPeople",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.requests.decide {#rpc-teams-requests-decide}
-
-Descripción del contrato:
-
-```text
-Approves or denies a join request; approval creates a grant awaiting host confirmation
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "decision": {
-      "description": "`approve` or `deny`.",
-      "type": "string"
-    },
-    "hostId": {
-      "type": "string"
-    },
-    "requestId": {
-      "type": "string"
-    },
-    "role": {
-      "type": [
-        "string",
-        "null"
-      ]
-    }
-  },
-  "required": [
-    "hostId",
-    "requestId",
-    "decision"
-  ],
-  "title": "TeamDecisionParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AnyValue"
-}
-```
-
-:::
-
-### teams.requests.list {#rpc-teams-requests-list}
-
-Descripción del contrato:
-
-```text
-Lists join requests of an owned team
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId"
-  ],
-  "title": "TeamHostParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$defs": {
-    "TeamRequest": {
-      "properties": {
-        "createdAt": {
-          "type": "string"
-        },
-        "deviceLabel": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "requestedRole": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "requestedRole",
-        "status",
-        "deviceLabel",
-        "createdAt"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "items": {
-      "items": {
-        "$ref": "#/$defs/TeamRequest"
-      },
-      "type": "array"
-    }
-  },
-  "required": [
-    "items"
-  ],
-  "title": "TeamRequestList",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.sessions.list {#rpc-teams-sessions-list}
-
-Descripción del contrato:
-
-```text
-Lists open controller sessions of an owned team
-```
-
-`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId"
-  ],
-  "title": "TeamHostParams",
-  "type": "object"
-}
-```
-
-:::
-
-::: details Resultado
-
-```json
-{
-  "$defs": {
-    "TeamSession": {
-      "properties": {
-        "deviceId": {
-          "type": "string"
-        },
-        "grantId": {
-          "type": "string"
-        },
-        "grantRevision": {
-          "format": "int64",
-          "type": "integer"
-        },
-        "id": {
-          "type": "string"
-        },
-        "openedAt": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "grantId",
-        "deviceId",
-        "grantRevision",
-        "openedAt"
-      ],
-      "type": "object"
-    }
-  },
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "properties": {
-    "items": {
-      "items": {
-        "$ref": "#/$defs/TeamSession"
-      },
-      "type": "array"
-    }
-  },
-  "required": [
-    "items"
-  ],
-  "title": "TeamSessionList",
-  "type": "object"
-}
-```
-
-:::
-
-### teams.sessions.revoke {#rpc-teams-sessions-revoke}
-
-Descripción del contrato:
-
-```text
-Closes one controller session
-```
-
-`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
-
-::: details Parámetros
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "additionalProperties": false,
-  "properties": {
-    "hostId": {
-      "type": "string"
-    },
-    "sessionId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "hostId",
-    "sessionId"
-  ],
-  "title": "TeamSessionParams",
   "type": "object"
 }
 ```

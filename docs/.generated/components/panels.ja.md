@@ -29,6 +29,7 @@ Slots: `leading`, `status`, `actions`, `default`, `footer`.
 | `title` | `string` | 必須 | `—` |
 | `width` | `number` | 任意 | `480` |
 | `closable` | `boolean` | 任意 | `true` |
+| `mobileFullscreen` | `boolean` | 任意 | `false` |
 
 独自のイベント（ネイティブコントロールの属性はコンポーネントの仕様に従って転送されます）:
 

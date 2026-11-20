@@ -29,6 +29,7 @@ Slots: `leading`, `status`, `actions`, `default`, `footer`.
 | `title` | `string` | 必需 | `—` |
 | `width` | `number` | 可选 | `480` |
 | `closable` | `boolean` | 可选 | `true` |
+| `mobileFullscreen` | `boolean` | 可选 | `false` |
 
 组件自身的事件（原生控件属性按组件约定透传）:
 

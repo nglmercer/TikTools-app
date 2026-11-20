@@ -1,8 +1,11 @@
-use cargo_packager_updater::{RemoteRelease, RemoteReleaseData, UpdateFormat};
 use semver::Version;
 use thiserror::Error;
+use url::Url;
 
-use crate::Channel;
+use crate::{
+    packager::{RemoteRelease, RemoteReleaseData, UpdateFormat},
+    Channel,
+};
 
 #[derive(Debug, Error)]
 pub enum ManifestError {
@@ -34,9 +37,9 @@ impl ValidatedRelease {
     }
 }
 
-/// Decode the upstream static manifest format, then apply TikTools' policy.
-/// Version and URL metadata are not themselves signed by updater 0.2.3;
-/// callers must still verify the payload before installation.
+/// Decode the packager-compatible static manifest format, then apply
+/// TikTools' policy. Callers must still authenticate the manifest and verify
+/// the payload signature before installation.
 pub fn validate_manifest(
     bytes: &[u8],
     target: &str,
@@ -62,10 +65,9 @@ pub fn validate_manifest(
         return Err(ManifestError::UnsupportedFormat);
     }
     let url = &platform.url;
-    let mut expected_prefix = cargo_packager_updater::url::Url::parse(
-        "https://github.com/nglmercer/TikTools-app/releases/download/",
-    )
-    .expect("static release origin is valid");
+    let mut expected_prefix =
+        Url::parse("https://github.com/nglmercer/TikTools-app/releases/download/")
+            .expect("static release origin is valid");
     expected_prefix
         .path_segments_mut()
         .expect("static release URL is a base")
