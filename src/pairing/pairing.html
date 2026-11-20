@@ -1,4 +1,10 @@
-<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>TikTools pairing</title><style>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title></title>
+<style>
 :root { color-scheme: dark; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; background: #17191f; color: #f2f3f5; }
 * { box-sizing: border-box; }
 html { min-height: 100%; display: grid; place-items: center; padding: 32px 16px; }
@@ -20,4 +26,18 @@ button:disabled { opacity: .55; cursor: default; }
 #result[data-kind="info"] { color: #b3c6ff; }
 #result { min-height: 1.65em; margin-top: 16px; color: #ffb3b8; font-size: 13px; }
 @media (max-width: 360px) { body { padding: 24px; border-radius: 18px; } }
-</style></head><body><h1>TikTools local browser</h1><p>Enter the six-digit, one-use pairing code printed by the adapter. It expires after five minutes. The terminal one-click join link fills it in automatically.</p><form id="pair"><label>Pairing code <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label><button>Connect</button></form><button id="renew" type="button">Request new code</button><p id="result" role="status"></p><script src="/__local/pair.js" defer></script></body></html>
+</style>
+</head>
+<body>
+<h1 id="title"></h1>
+<p id="intro"></p>
+<form id="pair">
+<label><span id="label-text"></span>
+<input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label>
+<button id="connect" type="submit"></button>
+</form>
+<button id="renew" type="button"></button>
+<p id="result" role="status"></p>
+<script type="module" src="./main.ts"></script>
+</body>
+</html>

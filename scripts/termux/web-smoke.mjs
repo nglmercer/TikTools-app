@@ -90,7 +90,7 @@ try {
   assert.match(adapter.output, /One-click join: http:\/\/127\.0\.0\.1:\d+\/#pair=[0-9]{6} \(same one-use code/);
   const wsUrl = origin.replace('http:', 'ws:') + '/__local/ws';
   const pairingPage = await (await fetch(origin)).text();
-  assert.match(pairingPage, /Pairing code/);
+  assert.match(pairingPage, /\/__local\/pair\.js/);
   assert.match(pairingPage, /inputmode="numeric"/);
   assert.match(pairingPage, /autocomplete="one-time-code"/);
   const forgedStatus = await new Promise((resolve, reject) => {

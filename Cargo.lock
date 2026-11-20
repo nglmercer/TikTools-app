@@ -153,7 +153,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
  "x11rb",
 ]
 
@@ -985,15 +985,6 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 
 [[package]]
 name = "convert_case"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "affbf0190ed2caf063e3def54ff444b449371d55c58e513a95ab98eca50adb49"
-dependencies = [
- "unicode-segmentation",
-]
-
-[[package]]
-name = "convert_case"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1af709f1f33454bf52eadfc8c78b3b9ef9cb26fb54d16dc9cd9a7299f899fd1b"
@@ -1416,7 +1407,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.3",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1454,7 +1445,7 @@ version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab8ecd87370524b461f8557c119c405552c396ed91fc0a8eec68679eab26f94a"
 dependencies = [
- "libloading 0.8.9",
+ "libloading 0.7.4",
 ]
 
 [[package]]
@@ -1580,7 +1571,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1684,12 +1675,6 @@ dependencies = [
  "miniz_oxide 0.9.1",
  "zlib-rs",
 ]
-
-[[package]]
-name = "fnv"
-version = "1.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "foldhash"
@@ -2439,12 +2424,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ident_case"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
-
-[[package]]
 name = "idna"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2975,7 +2954,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "png",
  "thiserror 2.0.21",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -3067,7 +3046,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3192,7 +3171,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -4100,7 +4079,7 @@ version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03da047801ff44bb6a4d407d4860c05fd70bb81714e6b2f3812603d5b145b042"
 dependencies = [
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools 0.14.0",
  "log",
  "multimap",
@@ -4278,7 +4257,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4674,33 +4653,12 @@ dependencies = [
 
 [[package]]
 name = "rquickjs"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e04e4eedfb060b503b5f0a2644abb890b0b3620d3fb674f9455f230014964e4"
-dependencies = [
- "rquickjs-core 0.12.2",
- "rquickjs-macro 0.12.2",
-]
-
-[[package]]
-name = "rquickjs"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0a22bf72f515cc4189dd7c63d016f6de92a11eee98ddf7dd64794198f6eb34e"
 dependencies = [
- "rquickjs-core 0.14.0",
- "rquickjs-macro 0.14.0",
-]
-
-[[package]]
-name = "rquickjs-core"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16e4f499ac5b943d97ee6dbc44f23c2c10426f420f7d2f1793d6318911b6608c"
-dependencies = [
- "hashbrown 0.17.1",
- "relative-path",
- "rquickjs-sys 0.12.2",
+ "rquickjs-core",
+ "rquickjs-macro",
 ]
 
 [[package]]
@@ -4712,24 +4670,7 @@ dependencies = [
  "async-lock",
  "hashbrown 0.17.1",
  "relative-path",
- "rquickjs-sys 0.14.0",
-]
-
-[[package]]
-name = "rquickjs-macro"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cbcc8219b70ee2faa08d5339f47f15741cba2ce0cb9640e8495f2ab51293f50"
-dependencies = [
- "convert_case 0.11.0",
- "fnv",
- "ident_case",
- "indexmap",
- "proc-macro-crate 3.5.0",
- "proc-macro2",
- "quote",
- "rquickjs-core 0.12.2",
- "syn 2.0.119",
+ "rquickjs-sys",
 ]
 
 [[package]]
@@ -4738,23 +4679,13 @@ version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a2ea9adb03b669c933482ff740b683cd36be7cef23891657a8ccb850401d286"
 dependencies = [
- "convert_case 0.12.0",
+ "convert_case",
  "indexmap",
  "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
- "rquickjs-core 0.14.0",
+ "rquickjs-core",
  "syn 3.0.9",
-]
-
-[[package]]
-name = "rquickjs-sys"
-version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a13ac243b86a74120814ef7e9e30ad5a2c1199b7b9963b1cf7c84e4cdc1cad99"
-dependencies = [
- "bindgen",
- "cc",
 ]
 
 [[package]]
@@ -4863,7 +4794,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4922,7 +4853,7 @@ dependencies = [
  "security-framework 3.7.0",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5443,7 +5374,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5794,10 +5725,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.6",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6038,7 +5969,7 @@ dependencies = [
  "libc",
  "reqwest 0.13.5",
  "ring",
- "rquickjs 0.14.0",
+ "rquickjs",
  "rusqlite",
  "ryu-js",
  "schemars",
@@ -6161,7 +6092,7 @@ version = "4.2.3"
 dependencies = [
  "libloading 0.9.0",
  "rand_core 0.6.4",
- "rquickjs 0.14.0",
+ "rquickjs",
  "semver",
  "serde",
  "serde_json",
@@ -6234,8 +6165,7 @@ dependencies = [
  "httpdate",
  "prost",
  "reqwest 0.13.5",
- "rquickjs 0.12.2",
- "rquickjs 0.14.0",
+ "rquickjs",
  "rustls",
  "serde",
  "serde_json",
@@ -6363,22 +6293,6 @@ dependencies = [
 
 [[package]]
 name = "tokio-tungstenite"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edc5f74e248dc973e0dbb7b74c7e0d6fcc301c694ff50049504004ef4d0cdcd9"
-dependencies = [
- "futures-util",
- "log",
- "rustls",
- "rustls-pki-types",
- "tokio",
- "tokio-rustls",
- "tungstenite 0.24.0",
- "webpki-roots 0.26.11",
-]
-
-[[package]]
-name = "tokio-tungstenite"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f72a05e828585856dacd553fba484c242c46e391fb0e58917c942ee9202915c"
@@ -6403,6 +6317,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tungstenite 0.30.0",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -6624,7 +6539,7 @@ dependencies = [
  "once_cell",
  "png",
  "thiserror 2.0.21",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6642,9 +6557,9 @@ checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
 [[package]]
 name = "ttl-live-discovery"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "reqwest 0.12.28",
+ "reqwest 0.13.5",
  "serde_json",
  "thiserror 2.0.21",
  "tracing",
@@ -6654,9 +6569,9 @@ dependencies = [
 [[package]]
 name = "ttl-live-events"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "prost",
  "serde",
  "serde_json",
@@ -6679,13 +6594,13 @@ dependencies = [
 [[package]]
 name = "ttl-live-ws"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
  "flate2",
  "futures-util",
  "thiserror 2.0.21",
  "tokio",
- "tokio-tungstenite 0.24.0",
+ "tokio-tungstenite 0.30.0",
  "tracing",
  "ttl-sign-core",
 ]
@@ -6693,9 +6608,9 @@ dependencies = [
 [[package]]
 name = "ttl-sign-core"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "rand 0.8.8",
+ "rand 0.10.3",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -6704,10 +6619,10 @@ dependencies = [
 [[package]]
 name = "ttl-sign-embedded"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "rand 0.8.8",
- "rquickjs 0.12.2",
+ "rand 0.10.3",
+ "rquickjs",
  "thiserror 2.0.21",
  "tokio",
  "ttl-live-discovery",
@@ -6716,32 +6631,12 @@ dependencies = [
 [[package]]
 name = "ttl-sign-headless"
 version = "0.1.0"
-source = "git+https://github.com/nglmercer/tiktok-signer?rev=141d39ea795536190fcf26b9dcab60c50637417b#141d39ea795536190fcf26b9dcab60c50637417b"
+source = "git+https://github.com/nglmercer/tiktok-signer?rev=26ae0954276c0be572c0091b06e1d15033a3a255#26ae0954276c0be572c0091b06e1d15033a3a255"
 dependencies = [
- "reqwest 0.12.28",
+ "reqwest 0.13.5",
  "tracing",
  "ttl-live-discovery",
  "ttl-sign-core",
-]
-
-[[package]]
-name = "tungstenite"
-version = "0.24.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18e5b8366ee7a95b16d32197d0b2604b43a0be89dc5fac9f8e96ccafbaedda8a"
-dependencies = [
- "byteorder",
- "bytes",
- "data-encoding",
- "http",
- "httparse",
- "log",
- "rand 0.8.8",
- "rustls",
- "rustls-pki-types",
- "sha1 0.10.7",
- "thiserror 1.0.69",
- "utf-8",
 ]
 
 [[package]]
@@ -6798,7 +6693,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6841,12 +6736,6 @@ dependencies = [
  "serde",
  "serde_derive",
 ]
-
-[[package]]
-name = "utf-8"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
 name = "utf8_iter"
@@ -7338,7 +7227,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title></title>
+<style>:root{--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark;color:#f2f3f5;background:#17191f;font-family:Segoe UI,system-ui,-apple-system,sans-serif}*{box-sizing:border-box}html{place-items:center;min-height:100%;padding:32px 16px;display:grid}body{background:#25272f;border:1px solid #3f4350;border-radius:24px;width:100%;max-width:420px;margin:0;padding:32px;box-shadow:0 24px 72px #00000047}h1{letter-spacing:-.035em;margin:0 0 12px;font-size:clamp(25px,6vw,30px);font-weight:650;line-height:1.2}p{color:#b3b7c3;margin:0;font-size:14px;line-height:1.65}form{margin-top:28px}label{color:#e0e3eb;font-size:13px;font-weight:600;display:block}#code{color:#fff;font-variant-numeric:tabular-nums;text-align:center;letter-spacing:.32em;text-indent:.32em;caret-color:#9bb2ff;background:#1b1d23;border:1px solid #555a6a;border-radius:12px;outline:none;width:100%;height:68px;margin-top:10px;padding:14px 10px;font:500 clamp(24px,7vw,32px)/1.2 ui-monospace,monospace;display:block}#code:focus{border-color:#8ba7ff;box-shadow:0 0 0 3px #6d8cf033}button{color:#fff;cursor:pointer;background:#4967cf;border:1px solid #7892ef;border-radius:12px;width:100%;min-height:48px;margin-top:20px;padding:12px 20px;font-family:inherit;font-size:15px;font-weight:600;line-height:1.4;display:block}button:focus-visible{outline-offset:4px;outline:2px solid #9bb2ff}button:active{background:#3652b5}@media (hover:hover){button:hover{background:#5576e5}}#renew{color:#c5cddd;background:0 0;border-color:#555a6a;margin-top:10px}#renew:hover{background:#31343e}button:disabled{opacity:.55;cursor:default}#result[data-kind=success]{color:#a5deb6}#result[data-kind=info]{color:#b3c6ff}#result{color:#ffb3b8;min-height:1.65em;margin-top:16px;font-size:13px}@media (width<=360px){body{border-radius:18px;padding:24px}}</style>
+  <script type="module" crossorigin src="/__local/pair.js"></script>
+</head>
+<body>
+<h1 id="title"></h1>
+<p id="intro"></p>
+<form id="pair">
+<label><span id="label-text"></span>
+<input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="one-time-code" required></label>
+<button id="connect" type="submit"></button>
+</form>
+<button id="renew" type="button"></button>
+<p id="result" role="status"></p>
+</body>
+</html>

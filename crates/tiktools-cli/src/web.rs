@@ -115,8 +115,8 @@ async fn pair_script() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/javascript")], PAIR_SCRIPT)
 }
 
-const PAIR_PAGE: &str = include_str!("web/pairing.html");
-const PAIR_SCRIPT: &str = include_str!("web/pairing.js");
+const PAIR_PAGE: &str = include_str!("web/generated/pairing.html");
+const PAIR_SCRIPT: &str = include_str!("web/generated/pair.js");
 
 #[cfg(test)]
 mod tests;

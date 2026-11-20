@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 #[cfg(feature = "os-keychain")]
 use tiktools_cloud_auth::OsTokenStore;
-use tiktools_cloud_auth::{CloudAuth, LoginBegin, MemoryTokenStore, TokenStore};
+#[cfg(not(feature = "os-keychain"))]
+use tiktools_cloud_auth::MemoryTokenStore;
+use tiktools_cloud_auth::{CloudAuth, LoginBegin, TokenStore};
 
 use crate::events::{DomainEvent, EventBus};
 use crate::paths::AppPaths;

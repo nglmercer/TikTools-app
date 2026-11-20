@@ -118,10 +118,19 @@ async function controlApiVerify(): Promise<void> {
   await run(join(root, cli), 'api', 'verify', '--sandbox');
 }
 
+/**
+ * The adapter's pairing page is a committed static build embedded with
+ * `include_str!`; `src/pairing` is its only source.
+ */
+async function pairingPage(): Promise<void> {
+  await tool('vite', 'build', '--config', 'src/pairing/vite.config.ts');
+}
+
 async function build(): Promise<void> {
   // Widget bundles are TikTools-owned OBS widgets (served by the external
   // Event Gateway plugin); build them explicitly first.
   await widgets();
+  await pairingPage();
   await tool('vite', 'build');
   await assertFile('dist/web/index.html', 'run `bun run build` again');
   // Plugins are not part of the application build: they live in the
@@ -135,6 +144,9 @@ async function build(): Promise<void> {
 }
 
 async function ci(): Promise<void> {
+  // Rebuild the embedded pairing page and fail if the committed output drifted.
+  await pairingPage();
+  await run('git', 'diff', '--exit-code', '--', 'crates/tiktools-cli/src/web/generated');
   await script('generate-contracts.ts', '--check');
   await script('check-tiktok-signer-revision.ts');
   await run(bun, 'scripts/check-universal.mjs');
