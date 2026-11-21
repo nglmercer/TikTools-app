@@ -11,8 +11,8 @@ const t = (key: string): string => testMessage('en', key);
 
 const freePlan: AccountPlan = {
   plan: 'free',
-  limits: { maxRecords: 1000, maxBytes: 8_388_608, maxAssets: 200, maxAssetsBytes: 33_554_432, maxOverlays: 50, maxOverlayBytes: 16_777_216 },
-  usage: { records: 3, recordBytes: 120, assets: 1, assetBytes: 5, overlays: 0, overlayBytes: 0 },
+  limits: { maxRecords: 1000, maxBytes: 8_388_608, maxAssets: 200, maxAssetsBytes: 33_554_432, maxOverlays: 50, maxOverlayBytes: 16_777_216, maxBackups: 3, maxBackupBytes: 16_777_216 },
+  usage: { records: 3, recordBytes: 120, assets: 1, assetBytes: 5, overlays: 0, overlayBytes: 0, backups: 0, backupBytes: 0 },
 };
 
 function mountWith(plan: () => unknown) {
@@ -25,7 +25,7 @@ function mountWith(plan: () => unknown) {
 }
 
 describe('CloudPlanUsage', () => {
-  it('shows the plan badge, three groups and a count and storage meter in each', async () => {
+  it('shows the plan badge, four groups and a count and storage meter in each', async () => {
     const { wrapper, calls } = mountWith(() => freePlan);
     await flushPromises();
     expect(calls.map((call) => call.method)).toContain('cloud.plan.get');
@@ -34,12 +34,14 @@ describe('CloudPlanUsage', () => {
       t('account.plan.workspace'),
       t('account.plan.assets'),
       t('account.plan.overlays'),
+      t('account.plan.backups'),
     ]);
     expect(wrapper.text()).toContain(`3 ${t('account.plan.of')} 1,000`);
     expect(wrapper.text()).toContain(`120 B ${t('account.plan.of')} 8.0 MB`);
     expect(wrapper.text()).toContain(`1 ${t('account.plan.of')} 200`);
     expect(wrapper.text()).toContain(`5 B ${t('account.plan.of')} 32.0 MB`);
-    expect(wrapper.findAll('progress')).toHaveLength(6);
+    expect(wrapper.findAll('progress')).toHaveLength(8);
+    expect(wrapper.text()).toContain(`0 ${t('account.plan.of')} 3`);
   });
 
   it('says the plan is unavailable instead of showing zero usage when the read fails', async () => {

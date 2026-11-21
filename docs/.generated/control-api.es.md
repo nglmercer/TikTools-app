@@ -10486,6 +10486,14 @@ Shows the Cloud plan, its ceilings and the current storage usage
           "format": "int64",
           "type": "integer"
         },
+        "maxBackupBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "maxBackups": {
+          "format": "int64",
+          "type": "integer"
+        },
         "maxBytes": {
           "format": "int64",
           "type": "integer"
@@ -10509,7 +10517,9 @@ Shows the Cloud plan, its ceilings and the current storage usage
         "maxAssets",
         "maxAssetsBytes",
         "maxOverlays",
-        "maxOverlayBytes"
+        "maxOverlayBytes",
+        "maxBackups",
+        "maxBackupBytes"
       ],
       "type": "object"
     },
@@ -10521,6 +10531,14 @@ Shows the Cloud plan, its ceilings and the current storage usage
           "type": "integer"
         },
         "assets": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "backupBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "backups": {
           "format": "int64",
           "type": "integer"
         },
@@ -10547,7 +10565,9 @@ Shows the Cloud plan, its ceilings and the current storage usage
         "assets",
         "assetBytes",
         "overlays",
-        "overlayBytes"
+        "overlayBytes",
+        "backups",
+        "backupBytes"
       ],
       "type": "object"
     }

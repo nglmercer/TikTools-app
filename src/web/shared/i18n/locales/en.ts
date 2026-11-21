@@ -147,6 +147,7 @@ export default {
       workspace: 'Workspace',
       assets: 'Assets',
       overlays: 'Overlays',
+      backups: 'Backups',
       count: 'Items',
       storage: 'Storage',
       of: 'of',

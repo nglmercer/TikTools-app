@@ -70,6 +70,14 @@ const groups = computed(() => {
         { key: 'overlay-bytes', label: t('account.plan.storage'), used: usage.overlayBytes, max: limits.maxOverlayBytes, format: bytes },
       ]),
     },
+    {
+      key: 'backups',
+      title: t('account.plan.backups'),
+      meters: described([
+        { key: 'backups', label: t('account.plan.count'), used: usage.backups, max: limits.maxBackups, format: items },
+        { key: 'backup-bytes', label: t('account.plan.storage'), used: usage.backupBytes, max: limits.maxBackupBytes, format: bytes },
+      ]),
+    },
   ];
 });
 

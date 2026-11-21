@@ -33,6 +33,8 @@ export interface AccountPlanLimits {
   maxAssetsBytes: number;
   maxOverlays: number;
   maxOverlayBytes: number;
+  maxBackups: number;
+  maxBackupBytes: number;
 }
 
 /** Storage the signed-in account uses now, counted the way the quota checks count it. */
@@ -43,6 +45,8 @@ export interface AccountPlanUsage {
   assetBytes: number;
   overlays: number;
   overlayBytes: number;
+  backups: number;
+  backupBytes: number;
 }
 
 export interface AccountPlan {

@@ -398,7 +398,14 @@ async function removeCloud(): Promise<void> {
 
 <style scoped>
 .backup-section { display: grid; gap: var(--space-3); }
-.backup-section__modes :deep(.base-segmented__option) { min-width: 130px; justify-content: center; }
+.backup-section__modes { width: min(100%, 360px); }
+.backup-section__modes :deep(.base-segmented) { width: 100%; }
+.backup-section__modes :deep(.base-segmented__option) {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+  gap: var(--space-2);
+}
 .backup-section__hint { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .backup-section__note { margin: 0; color: var(--color-text-subtle); font-size: var(--font-size-sm); }
 .backup-section__create { display: flex; flex-wrap: wrap; gap: var(--space-2); }

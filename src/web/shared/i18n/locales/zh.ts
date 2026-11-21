@@ -147,6 +147,7 @@ export default {
       workspace: '工作区',
       assets: '资源',
       overlays: '叠加层',
+      backups: '备份',
       count: '数量',
       storage: '存储',
       of: '/',

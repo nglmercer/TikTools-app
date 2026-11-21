@@ -147,6 +147,7 @@ export default {
       workspace: 'ワークスペース',
       assets: 'アセット',
       overlays: 'オーバーレイ',
+      backups: 'バックアップ',
       count: '件数',
       storage: 'ストレージ',
       of: '/',

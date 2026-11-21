@@ -82,6 +82,8 @@ pub struct PlanLimits {
     pub max_assets_bytes: i64,
     pub max_overlays: i64,
     pub max_overlay_bytes: i64,
+    pub max_backups: i64,
+    pub max_backup_bytes: i64,
 }
 
 /// What the account stores now, counted the same way the quota checks count it.
@@ -94,6 +96,8 @@ pub struct PlanUsage {
     pub asset_bytes: i64,
     pub overlays: i64,
     pub overlay_bytes: i64,
+    pub backups: i64,
+    pub backup_bytes: i64,
 }
 
 /// The account's plan, its ceilings and its current usage.

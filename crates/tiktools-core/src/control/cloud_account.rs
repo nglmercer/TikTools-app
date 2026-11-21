@@ -417,6 +417,8 @@ pub struct PlanLimitsView {
     pub max_assets_bytes: i64,
     pub max_overlays: i64,
     pub max_overlay_bytes: i64,
+    pub max_backups: i64,
+    pub max_backup_bytes: i64,
 }
 
 /// Current storage usage of the signed-in account (nonsecret).
@@ -429,6 +431,8 @@ pub struct PlanUsageView {
     pub asset_bytes: i64,
     pub overlays: i64,
     pub overlay_bytes: i64,
+    pub backups: i64,
+    pub backup_bytes: i64,
 }
 
 /// The plan, its ceilings and the current usage (nonsecret).
@@ -451,6 +455,8 @@ impl From<cloud_client::AccountPlan> for AccountPlanView {
                 max_assets_bytes: plan.limits.max_assets_bytes,
                 max_overlays: plan.limits.max_overlays,
                 max_overlay_bytes: plan.limits.max_overlay_bytes,
+                max_backups: plan.limits.max_backups,
+                max_backup_bytes: plan.limits.max_backup_bytes,
             },
             usage: PlanUsageView {
                 records: plan.usage.records,
@@ -459,6 +465,8 @@ impl From<cloud_client::AccountPlan> for AccountPlanView {
                 asset_bytes: plan.usage.asset_bytes,
                 overlays: plan.usage.overlays,
                 overlay_bytes: plan.usage.overlay_bytes,
+                backups: plan.usage.backups,
+                backup_bytes: plan.usage.backup_bytes,
             },
         }
     }
