@@ -15,7 +15,11 @@ fn only_exact_local_document_methods_have_the_larger_request_allowance() {
         "cloud.backup.preview",
         "cloud.backup.restore",
     ] {
-        assert_eq!(crate::owner_params_bytes(method), 8 * 1024 * 1024, "{method}");
+        assert_eq!(
+            crate::owner_params_bytes(method),
+            8 * 1024 * 1024,
+            "{method}"
+        );
         assert_eq!(
             crate::owner_request_bytes(method),
             crate::MAX_OWNER_LIBRARY_REQUEST_BYTES,
