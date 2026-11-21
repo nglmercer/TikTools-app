@@ -428,11 +428,17 @@ function onMenu(action: MenuAction): void {
   }
 
   .live-feed__filter {
-    flex: 1 1 120px;
+    flex: 0 0 112px;
   }
 
   .live-feed__search {
+    flex: 1;
+    min-width: 64px;
     max-width: none;
+  }
+
+  .live-feed__controls {
+    gap: var(--space-1);
   }
 
   .live-feed__intro-tiles {
