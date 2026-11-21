@@ -33,4 +33,10 @@ export default {
     log: { title: "检查有限历史", description: "按来源、级别或文本筛选，并检查重复条目。分享前请审查经过敏感信息遮蔽的导出内容；历史仅限当前会话。" },
     back: { title: "审查证据并恢复", description: "复制或导出已审查的证据，再使用原始流程处理冲突、会话过期或不确定的命令。清空日志不会修复错误。" },
   },
+  feed: {
+    view: { title: "选择 Feed 视图", description: "实时 Feed 以卡片显示聊天、礼物和关注；切换到“列表”可查看紧凑日志。" },
+    filters: { title: "筛选活动", description: "按类型筛选或按观众和消息搜索。筛选同样适用于 Feed 卡片。" },
+    stage: { title: "阅读实时墙", description: "重要消息会保留。点赞和加入会短暂显示为互动提示，然后淡出。" },
+    controls: { title: "暂停、清空与查看", description: "暂停自动滚动以便阅读，清空已保存的历史记录，或打开检查器查看详情。" },
+  },
 } as const;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { libraryCurrentPreview, libraryPreview } from '@/entities/rule-template/model/library-preview.ts';
@@ -9,6 +9,7 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import type { ReviewRow } from '../../review-shared/model/review-rows.ts';
 import ReviewComparisonTable from '../../review-shared/ui/ReviewComparisonTable.vue';
+import TutorialCatalogDialog from '@/features/guided-help/ui/TutorialCatalogDialog.vue';
 
 /**
  * The one review of an Owner library change. It is mounted once by the app shell, so an
@@ -16,6 +17,7 @@ import ReviewComparisonTable from '../../review-shared/ui/ReviewComparisonTable.
  * review: the request settles only when the owner confirms or discards it.
  */
 const { t } = useI18n(); const journal = libraryJournal(useControlClient());
+const guideOpen = ref(false);
 const busy = computed(() => journal.busy.value || journal.gate.busy.value);
 const draft = journal.draft;
 const reviewOpen = computed({ get: () => !!draft.value, set: (value) => { if (!value) journal.dismiss(); } });
@@ -108,10 +110,12 @@ function onRename(id: string, name: string): void {
       <p v-if="draft.mutation.operation === 'import-profile'">
         {{ draft.mutation.profile.description }}
       </p>
-      <p>{{ t('libraryRecovery.reviewLead', { events: planned.filter((row) => row.kind === 'event').length, actions: planned.filter((row) => row.kind === 'action').length }) }}</p>
-      <p v-if="draft.mutation.operation === 'switch-profile'">
-        {{ t('libraryRecovery.globalSwitch') }}
-      </p>
+      <div class="library-changes__lead">
+        <p>{{ t('libraryRecovery.reviewLead', { events: planned.filter((row) => row.kind === 'event').length, actions: planned.filter((row) => row.kind === 'action').length }) }}</p>
+        <p v-if="draft.mutation.operation === 'switch-profile'">
+          {{ t('libraryRecovery.globalSwitch') }}
+        </p>
+      </div>
       <p v-if="draft.mutation.operation === 'import-profile'">
         {{ t('libraryRecovery.reimport') }}
       </p>
@@ -124,7 +128,9 @@ function onRename(id: string, name: string): void {
         data-test="library-review-records"
         docs-path="user/cloud/changes.html"
         docs-anchor="review-changes-by-area"
+        tutorial
         @rename="onRename"
+        @open-tutorial="guideOpen = true"
       />
       <ReviewComparisonTable
         v-if="templateRows.length"
@@ -188,8 +194,14 @@ function onRename(id: string, name: string): void {
       </BaseButton>
     </template>
   </BaseDialog>
+  <TutorialCatalogDialog
+    v-model:open="guideOpen"
+    :startable="false"
+  />
 </template>
 
 <style scoped>
 .library-changes :deep(.base-dialog__body) { display: grid; gap: 12px; min-width: 0; }
+.library-changes__lead { display: grid; gap: 0; }
+.library-changes__lead p { margin: 0; }
 </style>

@@ -18,7 +18,7 @@ import { useVariableSyncAdapter } from '@/features/edit-runtime-globals/model/us
 import { libraryJournal } from '@/entities/rule-template/model/library-journal.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import GuideButton from '@/features/guided-help/ui/GuideButton.vue';
+import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
 import {
   isRecordSort,
   type RecordSort,
@@ -166,13 +166,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
     data-guide-scope="automations"
   >
     <header class="automations-page__toolbar">
-      <GuideButton
-        tour="automation"
-        :capabilities="guideCapabilities"
-        :task-state="guideTaskState"
-      />
-      <GuideButton
-        tour="changes"
+      <GuideCatalogButton
         :capabilities="guideCapabilities"
         :task-state="guideTaskState"
       />

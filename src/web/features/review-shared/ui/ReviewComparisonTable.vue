@@ -21,14 +21,16 @@ const props = withDefaults(defineProps<{
   docsPath?: string;
   docsAnchor?: string;
   nameLabel?: string;
+  tutorial?: boolean;
 }>(), {
   caption: '',
   docsPath: 'developer/components/import-review.html',
   docsAnchor: 'import-and-review',
   nameLabel: '',
+  tutorial: false,
 });
 
-const emit = defineEmits<{ rename: [id: string, name: string] }>();
+const emit = defineEmits<{ rename: [id: string, name: string]; openTutorial: [] }>();
 const { t } = useI18n();
 
 function tr(key: string, params?: Record<string, unknown>): string {
@@ -62,6 +64,8 @@ const changeClass = (row: ReviewRow): string => `review-table__chip--${row.chang
         v-if="docsPath"
         :path="docsPath"
         :anchor="docsAnchor"
+        :tutorial="tutorial"
+        @open-tutorial="emit('openTutorial')"
       />
     </div>
     <div class="review-table__scroll">

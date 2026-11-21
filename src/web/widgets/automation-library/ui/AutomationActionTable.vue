@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
-import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
+import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
@@ -29,7 +29,7 @@ const { t } = useAutomationText();
   >
     <template #cell-enabled="{ row }">
       <span @pointerdown.stop>
-        <BaseCheckbox
+        <BaseSwitch
           :key="checkboxKey(row.id)"
           :model-value="row.enabled"
           :aria-label="t('automations.library.enable', { name: row.name })"

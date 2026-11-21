@@ -3,7 +3,7 @@ import { scenarios, type ScenarioId } from './scenarios.ts';
 
 export const demoTourScenarios = {
   connection: 'connection', automation: 'automation', plugin: 'plugins', overlay: 'overlays',
-  points: 'points', changes: 'cloud', diagnostics: 'diagnostics',
+  points: 'points', changes: 'cloud', diagnostics: 'diagnostics', feed: 'feed',
 } as const satisfies Record<TourId, ScenarioId>;
 
 export function scenarioTour(scenario: ScenarioId): TourId {

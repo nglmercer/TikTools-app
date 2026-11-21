@@ -1,7 +1,7 @@
 import type { Router } from 'vue-router';
 import type { Locale } from '@/shared/i18n/supported-locales.ts';
 
-export type TourId = 'connection' | 'automation' | 'plugin' | 'overlay' | 'points' | 'changes' | 'diagnostics';
+export type TourId = 'connection' | 'automation' | 'plugin' | 'overlay' | 'points' | 'changes' | 'diagnostics' | 'feed';
 export type TourLocale = Locale;
 export interface GuideStep { id: string; selector: string; title: string; description: string }
 export interface TourStepDefinition {

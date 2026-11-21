@@ -33,4 +33,10 @@ export default {
     log: { title: 'Inspect bounded history', description: 'Filter by source, level or text and inspect repeated entries. Review redacted exports before sharing; the history is session-only.' },
     back: { title: 'Review evidence and recover', description: 'Copy or export reviewed evidence, then use the original flow for conflicts, expired sessions or uncertain commands. Clearing logs does not repair the error.' },
   },
+  feed: {
+    view: { title: 'Choose the feed view', description: 'Live feed shows chat, gifts and follows as cards; switch to List for the compact log.' },
+    filters: { title: 'Filter the activity', description: 'Narrow by kind or search by viewer and message. Filters also apply to the live feed cards.' },
+    stage: { title: 'Read the live wall', description: 'Important messages stay on the wall. Likes and joins appear briefly as reactions, then fade out.' },
+    controls: { title: 'Pause, clear and inspect', description: 'Pause auto-scroll to read at your own pace, clear the saved history, or open the inspector for details.' },
+  },
 } as const;

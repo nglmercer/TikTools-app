@@ -80,7 +80,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 </script>
 
 <template>
-  <div class="feed-page">
+  <div
+    class="feed-page"
+    data-guide-scope="feed"
+  >
     <LiveFeedPanel
       class="feed-page__stream"
       :selected-event-id="selectedEventId"

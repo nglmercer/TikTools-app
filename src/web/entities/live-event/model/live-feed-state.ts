@@ -2,6 +2,7 @@ import { createFeedViewport } from './feed-viewport.ts';
 import { scheduleFrame, cancelFrame } from './feed-frame.ts';
 import { createFeedCoalescer } from './feed-coalescing.ts';
 import { createFeedRecovery } from './feed-recovery.ts';
+import type { FeedHistoryAdapter } from '../lib/feed-history.ts';
 import { liveMessageIdentity, LIVE_IDENTITY_CAPACITY, LIVE_IDENTITY_TTL_MS } from '../../../../shared/live-identity.ts';
 import { ref, shallowRef } from 'vue';
 
@@ -14,6 +15,8 @@ import { createFeedRankings } from '@/entities/ranking/model/feed-rankings.ts';
 export interface LiveFeedCallbacks {
   systemAuthor: () => string;
   discontinuityText: () => string;
+  /** Optional: when supplied, the last events survive a restart. */
+  history?: FeedHistoryAdapter;
 }
 
 export interface GiftCatalogResult {
@@ -23,8 +26,14 @@ export interface GiftCatalogResult {
 export type { FeedBackfillResult } from './feed-recovery.ts';
 
 export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedCallbacks) {
+  const history = callbacks.history;
+  const restored = history?.load() ?? null;
+  let historyScope = restored?.scope ?? '';
+  const restoredEvents = restored?.events ?? [];
   const seenMsgIds = new Map<string, number>();
-  const seenCursors = new Set<number>();
+  const seenCursors = new Set<number>(restoredEvents
+    .map((event) => event.feedCursor)
+    .filter((cursor): cursor is number => typeof cursor === 'number' && Number.isSafeInteger(cursor)));
   let duplicates = 0;
   let needsCursorSort = false;
   let sessionScope = '';
@@ -34,7 +43,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let rankingRoom = '';
   let disposed = false;
   let presentationActive = true;
-  const events = shallowRef<DisplayEvent[]>([]);
+  const events = shallowRef<DisplayEvent[]>(restoredEvents);
   const viewport = createFeedViewport(events, () => !disposed && presentationActive);
   const {
     filter, imagesEnabled, renderLimit, searchQuery, autoScroll, unreadCount, streamContainerRef,
@@ -46,8 +55,19 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   const giftCatalog = shallowRef<GiftCatalogEntry[]>([]);
   const droppedUiEvents = ref(0);
   const error = ref<string | null>(null);
-  let nextEventId = 0;
+  let nextEventId = restoredEvents.reduce((max, event) => Math.max(max, event.id + 1), 0);
   let refreshRevision = 0;
+  let historyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function persistHistory(): void {
+    if (historyTimer !== null) { clearTimeout(historyTimer); historyTimer = null; }
+    history?.save({ scope: sessionScope || historyScope, savedAt: Date.now(), events: events.value });
+  }
+  function scheduleHistorySave(): void {
+    if (!history) return;
+    if (historyTimer !== null) clearTimeout(historyTimer);
+    historyTimer = setTimeout(() => { historyTimer = null; persistHistory(); }, 800);
+  }
   const unsubscribers: Array<() => void> = [];
   const feedRankings = createFeedRankings(control);
 
@@ -64,7 +84,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let lastHostSuspended: number | null = null;
   let lastHostBusDropped: number | null = null;
   let lastDeliverySequence: number | null = null;
-  let lastFeedCursor: number | null = null;
+  let lastFeedCursor: number | null = seenCursors.size > 0 ? Math.max(...seenCursors) : null;
 
   const stageEvent = (event: DisplayEvent): void => {
     if (disposed) return;
@@ -116,11 +136,15 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     }
     evictToVisibleLimit(combined);
     events.value = combined;
+    scheduleHistorySave();
     if (!autoScroll.value) unreadCount.value += batch.length;
     if (autoScroll.value) scrollToBottom();
   };
 
   const resetEvents = (): void => {
+    if (historyTimer !== null) { clearTimeout(historyTimer); historyTimer = null; }
+    history?.clear();
+    historyScope = sessionScope;
     nextEventId = 0;
     staged = [];
     events.value = [];
@@ -132,6 +156,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   };
 
   const dispose = (): void => {
+    if (historyTimer !== null) persistHistory();
     disposed = true;
     feedRankings.dispose();
     viewport.dispose();
@@ -256,6 +281,16 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   unsubscribers.push(control.onTopic<{ uniqueId?: string; roomId?: string }>('live.connected', (data) => {
     const scope = JSON.stringify([data.uniqueId ?? '', data.roomId ?? '']);
     if (scope !== sessionScope) {
+      if (historyScope && historyScope !== scope) {
+        // A restart must not show another creator's saved activity.
+        if (historyTimer !== null) { clearTimeout(historyTimer); historyTimer = null; }
+        history?.clear();
+        events.value = [];
+        staged = [];
+        nextEventId = 0;
+        unreadCount.value = 0;
+      }
+      historyScope = scope;
       seenMsgIds.clear();
       seenCursors.clear();
       // Lossy ranking snapshots can be delivered before reliable

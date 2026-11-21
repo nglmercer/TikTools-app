@@ -56,6 +56,15 @@ export const tourRegistry = {
       { id: 'back', version: 1, target: 'diagnostics-actions', titleKey: 'diagnostics.back.title', descriptionKey: 'diagnostics.back.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
     ],
   },
+  feed: {
+    id: 'feed', version: 1, route: '/feed', scope: 'feed', task: 'feed.reviewed',
+    steps: [
+      { id: 'view', version: 1, target: 'feed-view', titleKey: 'feed.view.title', descriptionKey: 'feed.view.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
+      { id: 'filters', version: 1, target: 'feed-filters', titleKey: 'feed.filters.title', descriptionKey: 'feed.filters.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
+      { id: 'stage', version: 1, target: 'feed-stage', titleKey: 'feed.stage.title', descriptionKey: 'feed.stage.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
+      { id: 'controls', version: 1, target: 'feed-controls', titleKey: 'feed.controls.title', descriptionKey: 'feed.controls.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
+    ],
+  },
 } as const satisfies Record<TourId, TourDefinition>;
 
 export function isTourId(value: string): value is TourId {

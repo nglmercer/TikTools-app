@@ -223,6 +223,20 @@ const tabs = computed(() => [
   padding-top: var(--space-2);
 }
 
+.feed-inspector__tabs :deep(.base-tabs__list) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  flex: 1;
+  width: 100%;
+  gap: 0;
+}
+
+.feed-inspector__tabs :deep(.base-tabs__tab) {
+  justify-content: center;
+  min-width: 0;
+  padding-inline: var(--space-2);
+}
+
 .feed-inspector__body {
   height: 100%;
   padding: var(--space-4);
@@ -244,7 +258,10 @@ const tabs = computed(() => [
 }
 
 .feed-inspector__viewer-filter :deep(.base-segmented__option) {
+  display: inline-flex;
   flex: 1;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
 }
 

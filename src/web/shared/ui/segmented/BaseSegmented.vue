@@ -39,6 +39,12 @@ const { focusIndex, select, onKeydown, setElement } = useRovingSelection(toRef(p
       :disabled="disabled || option.disabled"
       @click="select(index)"
     >
+      <component
+        :is="option.icon"
+        v-if="option.icon"
+        :size="14"
+        aria-hidden="true"
+      />
       {{ option.label }}
     </button>
   </div>

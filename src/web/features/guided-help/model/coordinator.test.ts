@@ -398,8 +398,8 @@ it('replaces the previous guide and tolerates unavailable storage', async () => 
 });
 
 describe('versioned registry and localized copy', () => {
-  it('publishes seven versioned tours with complete catalogs for every supported locale', () => {
-    expect(Object.keys(tourRegistry)).toHaveLength(7);
+  it('publishes eight versioned tours with complete catalogs for every supported locale', () => {
+    expect(Object.keys(tourRegistry)).toHaveLength(8);
     for (const tour of Object.values(tourRegistry)) {
       expect(tour.version).toBeGreaterThan(0);
       expect(tour.route.startsWith('/')).toBe(true);

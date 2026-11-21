@@ -149,6 +149,13 @@ defineExpose({ focus: () => trigger.value?.focus() });
         v-if="$slots.prefix"
         class="base-combo-box__prefix"
       ><slot name="prefix" /></span>
+      <component
+        :is="options[selectedIndex]?.icon"
+        v-if="options[selectedIndex]?.icon"
+        :size="14"
+        class="base-combo-box__selected-icon"
+        aria-hidden="true"
+      />
       <span
         class="base-combo-box__value"
         :class="{ 'base-combo-box__value--placeholder': !selectedLabel }"
@@ -180,6 +187,12 @@ defineExpose({ focus: () => trigger.value?.focus() });
           @pointerdown.prevent
           @click="select(index)"
         >
+          <component
+            :is="option.icon"
+            v-if="option.icon"
+            :size="14"
+            aria-hidden="true"
+          />
           {{ option.label }}
         </li>
       </ul>
@@ -262,6 +275,17 @@ defineExpose({ focus: () => trigger.value?.focus() });
   padding-left: var(--space-2);
 }
 
+.base-combo-box__selected-icon {
+  flex: none;
+  align-self: center;
+  margin-left: var(--control-padding-x);
+  color: var(--color-text-muted);
+}
+
+.base-combo-box__selected-icon + .base-combo-box__value {
+  padding-left: var(--space-2);
+}
+
 .base-combo-box__value--placeholder {
   color: var(--color-text-subtle);
 }
@@ -297,6 +321,9 @@ defineExpose({ focus: () => trigger.value?.focus() });
 }
 
 .base-combo-box__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--control-padding-x);
   white-space: nowrap;
   cursor: pointer;

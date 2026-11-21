@@ -34,4 +34,10 @@ export default {
     log: { title: 'Examiner l’historique limité', description: 'Filtrez source, niveau ou texte et examinez les répétitions. Vérifiez les exports expurgés avant partage ; l’historique dure seulement la session.' },
     back: { title: 'Examiner les preuves et récupérer', description: 'Copiez ou exportez les preuves examinées, puis utilisez la récupération d’origine pour conflits, sessions expirées ou commandes incertaines. Effacer les journaux ne répare pas leur cause.' },
   },
+  feed: {
+    view: { title: 'Choisir la vue du flux', description: 'Le flux en direct affiche chat, cadeaux et abonnements sous forme de cartes ; passez en Liste pour le journal compact.' },
+    filters: { title: 'Filtrer l’activité', description: 'Filtrez par type ou recherchez un spectateur ou un message. Les filtres s’appliquent aussi aux cartes du flux.' },
+    stage: { title: 'Lire le mur en direct', description: 'Les messages importants restent affichés. Les j’aime et les arrivées apparaissent brièvement comme réactions, puis disparaissent.' },
+    controls: { title: 'Pause, effacement et inspection', description: 'Mettez le défilement en pause, effacez l’historique enregistré ou ouvrez l’inspecteur pour plus de détails.' },
+  },
 } satisfies TourCatalog;

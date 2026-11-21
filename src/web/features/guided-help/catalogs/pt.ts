@@ -34,4 +34,10 @@ export default {
     log: { title: 'Inspecione o histórico limitado', description: 'Filtre origem, nível ou texto e confira repetições. Revise exportações ocultadas antes de compartilhar; o histórico dura só a sessão.' },
     back: { title: 'Revise evidências e recupere', description: 'Copie ou exporte evidências revisadas e use o fluxo original para conflitos, sessões expiradas e comandos incertos. Limpar registros não corrige o erro.' },
   },
+  feed: {
+    view: { title: 'Escolha a visualização do feed', description: 'Feed ao vivo mostra chat, presentes e seguidores como cartões; mude para Lista para ver o registro compacto.' },
+    filters: { title: 'Filtre a atividade', description: 'Filtre por tipo ou busque por espectador e mensagem. Os filtros também se aplicam aos cartões do feed.' },
+    stage: { title: 'Leia o mural ao vivo', description: 'Mensagens importantes permanecem. Curtidas e entradas aparecem brevemente como reações e depois desaparecem.' },
+    controls: { title: 'Pausar, limpar e inspecionar', description: 'Pause a rolagem para ler com calma, limpe o histórico salvo ou abra o inspetor para ver detalhes.' },
+  },
 } satisfies TourCatalog;

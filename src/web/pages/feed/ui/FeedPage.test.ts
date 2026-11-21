@@ -39,7 +39,7 @@ function harness(call: ControlClient['call'] = (async () => ({})) as ControlClie
   return { client, emit };
 }
 
-async function mountFeed(call?: ControlClient['call']) {
+async function mountFeed(call?: ControlClient['call'], view: 'stage' | 'list' = 'list') {
   const { client, emit } = harness(call);
   const pinia = createPinia();
   setActivePinia(pinia);
@@ -54,6 +54,9 @@ async function mountFeed(call?: ControlClient['call']) {
       provide: { [controlClientKey as symbol]: client },
     },
   });
+  if (view === 'list') {
+    await wrapper.get('[data-test="feed-view-toggle"]').trigger('click');
+  }
   const push = async (event: UiEvent) => {
     emit('live.ui-event', { event });
     await new Promise((resolve) => setTimeout(resolve, 120));
@@ -62,11 +65,22 @@ async function mountFeed(call?: ControlClient['call']) {
   return { wrapper, store, push, emit };
 }
 
+async function selectFilter(wrapper: Awaited<ReturnType<typeof mountFeed>>['wrapper'], label: string) {
+  await wrapper.get('[data-test="feed-filter-select"]').trigger('click');
+  // BaseComboBox teleports its listbox to the body when no dialog is open.
+  const option = Array.from(document.querySelectorAll('[role="option"]'))
+    .find((node) => node.textContent?.trim() === label);
+  expect(option).toBeDefined();
+  option!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await flushPromises();
+}
+
 describe('FeedPage', () => {
   it('shows an empty stream until events arrive', async () => {
     const { wrapper } = await mountFeed();
     expect(wrapper.text()).toContain('No live events yet');
     expect(wrapper.text()).toContain('0 events');
+    expect(wrapper.get('[data-test="feed-view-toggle"]').text()).toContain(t('feed.stage.switchToFeed'));
   });
 
   it('renders incoming events and filters them by kind and text', async () => {
@@ -76,11 +90,23 @@ describe('FeedPage', () => {
     expect(wrapper.findAll('.event-row')).toHaveLength(2);
     expect(wrapper.text()).toContain('sent 2× Rose');
     expect(wrapper.text()).toContain('2 events');
-    await wrapper.findAll('.base-segmented__option').find((option) => option.text() === t('feed.filters.gift'))!.trigger('click');
+    await selectFilter(wrapper, t('feed.filters.gift'));
     expect(wrapper.findAll('.event-row')).toHaveLength(1);
-    await wrapper.findAll('.base-segmented__option')[0]!.trigger('click');
+    await selectFilter(wrapper, t('feed.filters.all'));
     await wrapper.get('input[type="search"]').setValue('hola');
     expect(wrapper.findAll('.event-row').map((row) => row.text())).toEqual([expect.stringContaining('hola a todos')]);
+  });
+
+  it('renders the live feed wall with likes as temporary reactions', async () => {
+    const { wrapper, push } = await mountFeed(undefined, 'stage');
+    await push({ kind: 'chat', author: 'luna', text: 'hola feed', msgId: 's1' });
+    await push({ kind: 'like', author: 'mango', text: '', likeCount: 3, i18nKey: 'likeSent', msgId: 's2' });
+    expect(wrapper.findAll('.event-card')).toHaveLength(1);
+    expect(wrapper.findAll('.live-stage__reaction').map((reaction) => reaction.text())).toEqual([
+      expect.stringContaining('mango'),
+    ]);
+    await wrapper.get('.event-card__content').trigger('click');
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('feed.inspector.details'));
   });
 
   it('switches spectator rankings to core like totals and opens the viewer', async () => {
