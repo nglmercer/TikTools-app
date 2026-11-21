@@ -104,10 +104,15 @@ describe('CloudAccountEditor', () => {
     await flushPromises();
     expect(wrapper.text()).toContain(manual);
     expect(wrapper.text()).toContain('https://cloud.example/desktop/login');
+    expect(wrapper.get('.cloud-account__pending').text()).toContain(t('account.waiting'));
+    expect(wrapper.find('.cloud-account__spin').exists()).toBe(true);
+    expect(wrapper.get('.cloud-account').attributes('aria-busy')).toBe('true');
     await wrapper.findAll('button').find((button) => button.text() === cancel)!.trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain(signIn);
     expect(wrapper.text()).not.toContain('https://cloud.example/desktop/login');
+    expect(wrapper.find('.cloud-account__spin').exists()).toBe(false);
+    expect(wrapper.get('.cloud-account').attributes('aria-busy')).toBeUndefined();
     finish(out);
     await flushPromises();
     wrapper.unmount();

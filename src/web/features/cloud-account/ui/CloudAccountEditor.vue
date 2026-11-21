@@ -6,6 +6,7 @@ import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
 import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { friendlyAccountError } from '@/entities/cloud-account/lib/account-error.ts';
 import CloudPlanUsage from '@/features/cloud-account/ui/CloudPlanUsage.vue';
@@ -27,6 +28,7 @@ const handle = computed(() => {
   return email && email !== name.value ? email : null;
 });
 const error = computed(() => friendlyAccountError(account.error, t));
+const loginPending = computed(() => state.value === 'signing-in' || account.loginActive);
 const showCodeLogin = ref(false);
 const codeEmail = ref('');
 const codeValue = ref('');
@@ -41,7 +43,10 @@ onMounted(() => {
     :title="t('account.group')"
     :description="state === 'signed-in' ? undefined : t('account.description')"
   >
-    <div class="cloud-account">
+    <div
+      class="cloud-account"
+      :aria-busy="loginPending || undefined"
+    >
       <p
         v-if="account.loading && !account.status"
         class="cloud-account__muted"
@@ -132,8 +137,17 @@ onMounted(() => {
             </BaseButton>
           </div>
         </template>
-        <template v-if="state === 'signing-in' || account.loginActive">
-          <p class="cloud-account__muted">
+        <template v-if="loginPending">
+          <p
+            class="cloud-account__pending"
+            role="status"
+            aria-live="polite"
+          >
+            <IconRefresh
+              class="cloud-account__spin"
+              :size="16"
+              aria-hidden="true"
+            />
             {{ t('account.waiting') }}
           </p>
           <p
@@ -162,6 +176,7 @@ onMounted(() => {
           </template>
           <BaseButton
             v-else
+            :disabled="account.working && !loginPending"
             @click="account.cancelLogin(); showCodeLogin = false; account.loginCode = null"
           >
             {{ t('account.cancel') }}
@@ -183,6 +198,29 @@ onMounted(() => {
   margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+
+.cloud-account__pending {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.cloud-account__spin {
+  flex: none;
+  color: var(--color-accent);
+  animation: cloud-account-spin 1s linear infinite;
+}
+
+@keyframes cloud-account-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cloud-account__spin { animation: none; }
 }
 
 .cloud-account__url {
