@@ -9105,7 +9105,7 @@ Creates a portable, versioned backup of all Cloud-owned data
 Description du contrat:
 
 ```text
-Builds a backup and stores it in the cloud under a name
+Stores a backup in the cloud under a name: the given manifest, or a snapshot of the account
 ```
 
 `{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
@@ -9117,6 +9117,9 @@ Builds a backup and stores it in the cloud under a name
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "manifest": {
+      "description": "A local backup file to store as-is; omitted to snapshot the account."
+    },
     "name": {
       "type": "string"
     }

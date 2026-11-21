@@ -73,6 +73,9 @@ pub struct CloudBackupRestoreParams {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CloudBackupNameParams {
     pub name: String,
+    /// A local backup file to store as-is; omitted to snapshot the account.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manifest: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -146,10 +149,10 @@ pub fn register(router: &mut ControlRouter) {
     );
     router.register_typed::<CloudBackupNameParams, StoredBackupView, _, _>(
         "cloud.backup.createNamed",
-        "Builds a backup and stores it in the cloud under a name",
+        "Stores a backup in the cloud under a name: the given manifest, or a snapshot of the account",
         true,
         |core: Arc<AppCore>, params: CloudBackupNameParams| async move {
-            core.cloud_backup_create_named(params.name)
+            core.cloud_backup_create_named(params.name, params.manifest)
                 .await
                 .map_err(map_error)
         },

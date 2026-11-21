@@ -69,6 +69,8 @@ pub struct StoredBackup {
 #[serde(rename_all = "camelCase")]
 struct NamedBackupBody<'a> {
     name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    manifest: Option<&'a serde_json::Value>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -91,10 +93,16 @@ impl crate::Session {
             .map_err(|_| SyncError::Protocol)
     }
 
-    pub async fn backup_create_named(&self, name: &str) -> Result<StoredBackup, SyncError> {
+    /// Store a backup under `name`. With a `manifest` (a local backup file) the
+    /// server stores that exact content; without one it snapshots the account.
+    pub async fn backup_create_named(
+        &self,
+        name: &str,
+        manifest: Option<&serde_json::Value>,
+    ) -> Result<StoredBackup, SyncError> {
         let response = self
             .request(Method::POST, "api/v2/me/backups")?
-            .json(&NamedBackupBody { name })
+            .json(&NamedBackupBody { name, manifest })
             .send()
             .await
             .map_err(|_| SyncError::Network)?;

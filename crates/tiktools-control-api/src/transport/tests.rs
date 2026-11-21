@@ -9,7 +9,19 @@ use crate::ControlApi;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
 #[test]
-fn only_the_exact_local_library_submit_has_the_larger_request_allowance() {
+fn only_exact_local_document_methods_have_the_larger_request_allowance() {
+    for method in [
+        "cloud.backup.createNamed",
+        "cloud.backup.preview",
+        "cloud.backup.restore",
+    ] {
+        assert_eq!(crate::owner_params_bytes(method), 8 * 1024 * 1024, "{method}");
+        assert_eq!(
+            crate::owner_request_bytes(method),
+            crate::MAX_OWNER_LIBRARY_REQUEST_BYTES,
+            "{method}"
+        );
+    }
     assert_eq!(
         crate::owner_params_bytes("automation.library.submit"),
         8 * 1024 * 1024
@@ -24,6 +36,8 @@ fn only_the_exact_local_library_submit_has_the_larger_request_allowance() {
         "automation.library.resolve",
         "automation.library.review_unknown",
         "automation.library.submit.extra",
+        "cloud.backup.create",
+        "cloud.backup.restoreStored",
         "app.state.set",
         "automation.definition.submit",
         "plugins.action",

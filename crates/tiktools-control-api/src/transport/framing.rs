@@ -6,13 +6,24 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt};
 /// Ordinary request-line allowance (bytes, including the newline).
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 
-/// The sole larger local-Owner input is a complete library transaction.
+/// Local-Owner methods whose input is a whole document: a complete library
+/// transaction, or a backup manifest uploaded from or applied to a local file.
 /// Remote gateways keep their own smaller negotiated request allowance.
 pub const MAX_OWNER_LIBRARY_PARAMS_BYTES: usize = 8 * 1024 * 1024;
 pub const MAX_OWNER_LIBRARY_REQUEST_BYTES: usize = MAX_OWNER_LIBRARY_PARAMS_BYTES + 64 * 1024;
 
+fn has_document_input(method: &str) -> bool {
+    matches!(
+        method,
+        "automation.library.submit"
+            | "cloud.backup.createNamed"
+            | "cloud.backup.preview"
+            | "cloud.backup.restore"
+    )
+}
+
 pub fn owner_request_bytes(method: &str) -> usize {
-    if method == "automation.library.submit" {
+    if has_document_input(method) {
         MAX_OWNER_LIBRARY_REQUEST_BYTES
     } else {
         MAX_REQUEST_BYTES
@@ -20,7 +31,7 @@ pub fn owner_request_bytes(method: &str) -> usize {
 }
 
 pub fn owner_params_bytes(method: &str) -> usize {
-    if method == "automation.library.submit" {
+    if has_document_input(method) {
         MAX_OWNER_LIBRARY_PARAMS_BYTES
     } else {
         MAX_PARAMS_BYTES

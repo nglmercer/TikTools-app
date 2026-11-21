@@ -228,11 +228,12 @@ impl AppCore {
     pub async fn cloud_backup_create_named(
         &self,
         name: String,
+        manifest: Option<Value>,
     ) -> Result<StoredBackupView, OperationError> {
         let item = self
             .cloud_session()
             .await?
-            .backup_create_named(&name)
+            .backup_create_named(&name, manifest.as_ref())
             .await
             .map_err(|error| OperationError::unavailable(error.to_string()))?;
         Ok(item.into())
