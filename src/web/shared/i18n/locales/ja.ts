@@ -164,6 +164,17 @@ export default {
       storage: "セッションの保存先",
       lastError: "最新のエラー",
     },
+    backup: {
+      title: "バックアップ",
+      description: "ルール、プロファイル、設定、クラウドファイルのポータブルなコピーを保存します。",
+      create: "バックアップを作成",
+      restore: "バックアップを復元",
+      summary: "{workspace} 件のレコード、{library} 件のドキュメント、{assets} 件のファイルを復元します。",
+      confirm: "今すぐ復元",
+      done: "バックアップが完了しました。",
+      excludes: "シークレット、Cookie、ローカルのフィード履歴は含まれません。",
+      invalid: "バックアップファイルが無効です。",
+    },
   },
   sync: {
     group: "クラウド同期",

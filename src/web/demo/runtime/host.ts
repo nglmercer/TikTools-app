@@ -144,6 +144,16 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
   add('globals.typed.replace', (p) => { if (p.expectedRevision !== variables().revision) throw new DemoRpcError('conflict', 'Variables changed.'); const next = objectParams(p.variables); if (Object.keys(next).length > 60 || !Object.values(next).every(isRuntimeVariable)) throw new DemoRpcError('invalid_params', 'Invalid demo variables.'); state.typedGlobals = clone(next as Record<string, RuntimeVariable>); state.globals = Object.fromEntries(Object.entries(state.typedGlobals).map(([key, value]) => [key, variableText(value)])); state.typedGlobalsRevision = (BigInt(`0x${variables().revision}`) + 1n).toString(16).padStart(64, '0'); return variables(); });
   add('processors.status', () => ({ processors: [] }));
   add('cloud.status', status); add('cloud.restore', status); add('cloud.logout', () => { signedIn = false; return status(); });
+  const demoBackup = () => ({ schemaVersion: 1, createdAt: new Date().toISOString(), legacySync: { records: [] }, workspaceSync: { schemaVersion: 2, cursor: 0, records: [] }, library: { items: [] }, mediaLibrary: { documents: [] }, assets: { items: [] } });
+  const count = (value: unknown): number => Array.isArray(value) ? value.length : 0;
+  const demoBackupSummary = (p: Record<string, unknown>) => {
+    const manifest = (p.manifest ?? {}) as Record<string, Record<string, unknown>>;
+    return { mode: 'replace', dryRun: p.dryRun === true, applied: p.dryRun !== true,
+      legacySync: count(manifest.legacySync?.records), workspaceSync: count(manifest.workspaceSync?.records),
+      library: count(manifest.library?.items), mediaLibrary: count(manifest.mediaLibrary?.documents),
+      assets: count(manifest.assets?.items) };
+  };
+  add('cloud.backup.create', demoBackup); add('cloud.backup.preview', demoBackupSummary); add('cloud.backup.restore', demoBackupSummary);
   add('cloud.login.reserve', () => ({ operationId: 'demo-login' })); add('cloud.login.begin', () => ({ browserUrl: '#demo-account' })); add('cloud.login.open', () => null); add('cloud.login.complete', () => { signedIn = true; return status(); }); add('cloud.login.cancel', status);
   add('sync.status', syncStatus); add('sync.configure', (p) => { state.sync!.enabled = p.enabled === true; return syncStatus(); });
   add('sync.v2.selected', () => true);

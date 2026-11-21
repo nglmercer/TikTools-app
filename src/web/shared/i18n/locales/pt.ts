@@ -166,6 +166,17 @@ export default {
       storage: 'Armazenamento da sessão',
       lastError: 'Último erro',
     },
+    backup: {
+      title: 'Backup',
+      description: 'Salve uma cópia portátil de suas regras, perfis, ajustes e arquivos na nuvem.',
+      create: 'Criar backup',
+      restore: 'Restaurar backup',
+      summary: 'Isso importará {workspace} registros, {library} documentos e {assets} arquivos.',
+      confirm: 'Restaurar agora',
+      done: 'Backup concluído.',
+      excludes: 'Segredos, cookies e o histórico local do feed não são incluídos.',
+      invalid: 'O arquivo de backup não é válido.',
+    },
   },
   sync: {
     group: 'Sincronização na Cloud',

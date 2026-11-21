@@ -3,7 +3,14 @@ import { ref } from 'vue';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import type { AccountPlan, AccountStatus, CloudLoginUrlResult, LoginCodeStatus } from '../api/account-types.ts';
+import type {
+  AccountPlan,
+  AccountStatus,
+  BackupManifest,
+  BackupSummary,
+  CloudLoginUrlResult,
+  LoginCodeStatus,
+} from '../api/account-types.ts';
 
 export const useAccountStore = defineStore('cloud-account', () => {
   const client = useControlClient();
@@ -16,6 +23,8 @@ export const useAccountStore = defineStore('cloud-account', () => {
   const error = ref<string | null>(null);
   const plan = ref<AccountPlan | null>(null);
   const planError = ref<string | null>(null);
+  const backupWorking = ref(false);
+  const backupError = ref<string | null>(null);
   const loginActive = ref(false);
   // A late status/login/restore reply must never replace a newer account
   // transition, even if the same account is signed in again.
@@ -356,6 +365,48 @@ export const useAccountStore = defineStore('cloud-account', () => {
     }
   }
 
+  async function createBackup(): Promise<BackupManifest | null> {
+    if (capabilities.supports('cloud.backup.create') === false) return null;
+    backupWorking.value = true;
+    backupError.value = null;
+    try {
+      return await client.call<BackupManifest>('cloud.backup.create', {});
+    } catch (failure) {
+      backupError.value = errorMessage(failure);
+      return null;
+    } finally {
+      backupWorking.value = false;
+    }
+  }
+
+  async function previewBackup(manifest: BackupManifest): Promise<BackupSummary | null> {
+    if (capabilities.supports('cloud.backup.preview') === false) return null;
+    backupWorking.value = true;
+    backupError.value = null;
+    try {
+      return await client.call<BackupSummary>('cloud.backup.preview', { manifest, mode: 'replace', dryRun: true });
+    } catch (failure) {
+      backupError.value = errorMessage(failure);
+      return null;
+    } finally {
+      backupWorking.value = false;
+    }
+  }
+
+  async function restoreBackup(manifest: BackupManifest): Promise<BackupSummary | null> {
+    if (capabilities.supports('cloud.backup.restore') === false) return null;
+    backupWorking.value = true;
+    backupError.value = null;
+    try {
+      return await client.call<BackupSummary>('cloud.backup.restore', { manifest, mode: 'replace', dryRun: false });
+    } catch (failure) {
+      backupError.value = errorMessage(failure);
+      return null;
+    } finally {
+      backupWorking.value = false;
+    }
+  }
+
   /** Plan and storage usage of the signed-in account. A host without the method shows nothing. */
   async function refreshPlan(): Promise<void> {
     if (capabilities.supports('cloud.plan.get') === false) return;
@@ -369,7 +420,9 @@ export const useAccountStore = defineStore('cloud-account', () => {
   }
 
   return {
-    status, loading, working, loginActive, loginUrl, loginCode, error, plan, planError, refreshPlan,
+    status, loading, working, loginActive, loginUrl, loginCode, error, plan, planError,
+    backupWorking, backupError, createBackup, previewBackup, restoreBackup,
+    refreshPlan,
     refresh, restore, ensureRestored, startLogin, startLoginCode, resendLoginCode,
     submitLoginCode, cancelLogin, logout,
   };

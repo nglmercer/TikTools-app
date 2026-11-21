@@ -74,7 +74,9 @@ commands:
          cloud pair --profile NAME [--label NAME] [--kind desktop|agent] [--invite-stdin]
                                 Native Cloud P2P onboarding; no local host runtime
   cloud status | login | logout | restore
-                                Cloud account (official Cloud; override with TIKTOOLS_CLOUD_ORIGIN)
+  cloud backup create [--out FILE] | preview <FILE> | restore <FILE> [--yes]
+                                Cloud account and portable backup/restore
+                                (official Cloud; override with TIKTOOLS_CLOUD_ORIGIN)
   publisher list | create <namespace> | delete <namespace-or-publisher-id> | keys <publisher-id>
             | enroll <publisher-id> [--key-id <id>] | upload <publisher-id> <path>
             | submit <upload-id> <key-id> <plugin-id> <version> [--target any]

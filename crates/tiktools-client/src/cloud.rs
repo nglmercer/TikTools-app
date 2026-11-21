@@ -1,11 +1,16 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::cloud::{
-    CloudLoginOperationParams, CloudLoginReservationResult, CloudLoginUrlResult, CloudStatusResult,
+    CloudBackupRestoreParams, CloudLoginOperationParams, CloudLoginReservationResult,
+    CloudLoginUrlResult, CloudStatusResult,
 };
 use tiktools_control_api::modules::{Empty, OkResult};
 use tiktools_control_api::ClientError;
 
 pub(crate) const METHODS: &[&str] = &[
+    CLOUD_PLAN_GET,
+    CLOUD_BACKUP_CREATE,
+    CLOUD_BACKUP_PREVIEW,
+    CLOUD_BACKUP_RESTORE,
     CLOUD_STATUS,
     CLOUD_LOGIN_RESERVE,
     CLOUD_LOGIN_BEGIN,
@@ -19,6 +24,10 @@ pub(crate) const METHODS: &[&str] = &[
     CLOUD_LOGIN_CODE_SUBMIT,
 ];
 
+const CLOUD_PLAN_GET: &str = "cloud.plan.get";
+const CLOUD_BACKUP_CREATE: &str = "cloud.backup.create";
+const CLOUD_BACKUP_PREVIEW: &str = "cloud.backup.preview";
+const CLOUD_BACKUP_RESTORE: &str = "cloud.backup.restore";
 const CLOUD_STATUS: &str = "cloud.status";
 const CLOUD_LOGIN_RESERVE: &str = "cloud.login.reserve";
 const CLOUD_LOGIN_BEGIN: &str = "cloud.login.begin";
@@ -32,6 +41,24 @@ const CLOUD_LOGIN_CODE_RESEND: &str = "cloud.login.code.resend";
 const CLOUD_LOGIN_CODE_SUBMIT: &str = "cloud.login.code.submit";
 
 impl TikToolsClient {
+    pub async fn cloud_backup_create(&self) -> Result<serde_json::Value, ClientError> {
+        self.call(CLOUD_BACKUP_CREATE, Empty::default()).await
+    }
+
+    pub async fn cloud_backup_preview(
+        &self,
+        params: CloudBackupRestoreParams,
+    ) -> Result<serde_json::Value, ClientError> {
+        self.call(CLOUD_BACKUP_PREVIEW, params).await
+    }
+
+    pub async fn cloud_backup_restore(
+        &self,
+        params: CloudBackupRestoreParams,
+    ) -> Result<serde_json::Value, ClientError> {
+        self.call(CLOUD_BACKUP_RESTORE, params).await
+    }
+
     pub async fn cloud_status(&self) -> Result<CloudStatusResult, ClientError> {
         self.call(CLOUD_STATUS, Empty::default()).await
     }

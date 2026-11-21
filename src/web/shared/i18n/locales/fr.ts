@@ -166,6 +166,17 @@ export default {
       storage: 'Stockage de session',
       lastError: 'Dernière erreur',
     },
+    backup: {
+      title: 'Sauvegarde',
+      description: 'Enregistrez une copie portable de vos règles, profils, réglages et fichiers cloud.',
+      create: 'Créer une sauvegarde',
+      restore: 'Restaurer une sauvegarde',
+      summary: 'Cela importera {workspace} enregistrements, {library} documents et {assets} fichiers.',
+      confirm: 'Restaurer maintenant',
+      done: 'Sauvegarde terminée.',
+      excludes: 'Les secrets, cookies et l’historique local du flux ne sont pas inclus.',
+      invalid: 'Le fichier de sauvegarde n’est pas valide.',
+    },
   },
   sync: {
     group: 'Synchronisation Cloud',

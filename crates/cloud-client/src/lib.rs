@@ -11,6 +11,7 @@ mod keychain;
 #[cfg(feature = "os-keychain")]
 pub use keychain::{Keychain, KeychainError};
 mod account;
+mod backup;
 mod exports;
 mod library_sync;
 mod selection_state;

@@ -164,6 +164,17 @@ export default {
       storage: 'Session storage',
       lastError: 'Last error',
     },
+    backup: {
+      title: 'Backup',
+      description: 'Save a portable copy of your rules, profiles, settings and cloud files.',
+      create: 'Create backup',
+      restore: 'Restore backup',
+      summary: 'This will import {workspace} records, {library} documents and {assets} files.',
+      confirm: 'Restore now',
+      done: 'Backup completed.',
+      excludes: 'Secrets, cookies and the local live-feed history are not included.',
+      invalid: 'The backup file is not valid.',
+    },
   },
   sync: {
     group: 'Cloud sync',

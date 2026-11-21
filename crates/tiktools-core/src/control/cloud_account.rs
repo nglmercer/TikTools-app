@@ -3,6 +3,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use super::OperationError;
 use crate::{
@@ -177,6 +178,41 @@ impl AppCore {
             .await
             .map_err(|error| OperationError::unavailable(error.to_string()))?;
         Ok(AccountPlanView::from(plan))
+    }
+
+    async fn cloud_session(&self) -> Result<std::sync::Arc<cloud_client::Session>, OperationError> {
+        self.cloud()
+            .auth()
+            .session()
+            .await
+            .ok_or_else(|| OperationError::unavailable("Cloud sign-in is required"))
+    }
+
+    /// Portable, versioned copy of every Cloud-owned domain for this account.
+    pub async fn cloud_backup(&self) -> Result<Value, OperationError> {
+        self.cloud_session()
+            .await?
+            .backup()
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))
+    }
+
+    /// Summarize what a restore would import without changing anything.
+    pub async fn cloud_backup_preview(&self, manifest: Value) -> Result<Value, OperationError> {
+        self.cloud_session()
+            .await?
+            .restore(&manifest, "replace", true)
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))
+    }
+
+    /// Apply the manifest on this device. An explicit, guarded operation.
+    pub async fn cloud_backup_restore(&self, manifest: Value) -> Result<Value, OperationError> {
+        self.cloud_session()
+            .await?
+            .restore(&manifest, "replace", false)
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))
     }
 
     pub async fn cloud_status(&self) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {

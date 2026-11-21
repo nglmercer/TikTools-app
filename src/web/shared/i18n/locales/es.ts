@@ -166,6 +166,17 @@ export default {
       storage: 'Almacenamiento de la sesión',
       lastError: 'Último error',
     },
+    backup: {
+      title: 'Copia de seguridad',
+      description: 'Guarda una copia portable de tus reglas, perfiles, ajustes y archivos en la nube.',
+      create: 'Crear copia',
+      restore: 'Restaurar copia',
+      summary: 'Se importarán {workspace} registros, {library} documentos y {assets} archivos.',
+      confirm: 'Restaurar ahora',
+      done: 'Copia completada.',
+      excludes: 'No se incluyen secretos, cookies ni el historial local del feed.',
+      invalid: 'El archivo de copia no es válido.',
+    },
   },
   sync: {
     group: 'Sincronización en la nube',

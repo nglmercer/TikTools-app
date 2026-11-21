@@ -50,3 +50,22 @@ export interface AccountPlan {
   limits: AccountPlanLimits;
   usage: AccountPlanUsage;
 }
+
+/** Opaque, versioned portable copy of everything the cloud owns. */
+export interface BackupManifest {
+  schemaVersion: number;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
+/** Counts returned by a dry-run restore before anything is changed. */
+export interface BackupSummary {
+  mode: 'replace' | 'merge';
+  dryRun: boolean;
+  applied: boolean;
+  legacySync: number;
+  workspaceSync: number;
+  library: number;
+  mediaLibrary: number;
+  assets: number;
+}

@@ -71,6 +71,9 @@
 | [`catalog.item`](#rpc-catalog-item) | false | false | false | — | false |
 | [`catalog.items`](#rpc-catalog-items) | false | false | false | — | false |
 | [`catalog.mine`](#rpc-catalog-mine) | false | false | false | — | false |
+| [`cloud.backup.create`](#rpc-cloud-backup-create) | false | false | false | — | false |
+| [`cloud.backup.preview`](#rpc-cloud-backup-preview) | false | false | false | — | false |
+| [`cloud.backup.restore`](#rpc-cloud-backup-restore) | true | true | true | — | false |
 | [`cloud.login.begin`](#rpc-cloud-login-begin) | true | false | false | — | false |
 | [`cloud.login.cancel`](#rpc-cloud-login-cancel) | true | false | false | — | false |
 | [`cloud.login.code.resend`](#rpc-cloud-login-code-resend) | true | false | false | — | false |
@@ -9053,6 +9056,136 @@ Lists the signed-in owner's templates and profiles in any status (Míos)
   ],
   "title": "LibraryItemPage",
   "type": "object"
+}
+```
+
+:::
+
+### cloud.backup.create {#rpc-cloud-backup-create}
+
+契约描述:
+
+```text
+Creates a portable, versioned backup of all Cloud-owned data
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### cloud.backup.preview {#rpc-cloud-backup-preview}
+
+契约描述:
+
+```text
+Summarizes what a backup restore would import without changing anything
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dryRun": {
+      "default": false,
+      "type": "boolean"
+    },
+    "manifest": true,
+    "mode": {
+      "default": "replace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "manifest"
+  ],
+  "title": "CloudBackupRestoreParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### cloud.backup.restore {#rpc-cloud-backup-restore}
+
+契约描述:
+
+```text
+Restores a backup manifest on this device
+```
+
+`{"sideEffect":true,"destructive":true,"requiresDesktop":true,"concurrency":null,"durableCommands":false}`
+
+::: details 参数
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dryRun": {
+      "default": false,
+      "type": "boolean"
+    },
+    "manifest": true,
+    "mode": {
+      "default": "replace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "manifest"
+  ],
+  "title": "CloudBackupRestoreParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details 结果
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
 }
 ```
 

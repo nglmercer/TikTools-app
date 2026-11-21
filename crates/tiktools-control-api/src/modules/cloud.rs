@@ -59,6 +59,20 @@ pub struct CloudLoginCodeSubmitParams {
     pub code: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudBackupRestoreParams {
+    pub manifest: serde_json::Value,
+    #[serde(default = "default_backup_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+fn default_backup_mode() -> String {
+    "replace".to_owned()
+}
+
 fn map_error(error: OperationError) -> ApiError {
     ApiError::from(error)
 }
@@ -69,6 +83,36 @@ pub fn register(router: &mut ControlRouter) {
         "Shows the Cloud plan, its ceilings and the current storage usage",
         false,
         |core: Arc<AppCore>, _params: Empty| async move { core.cloud_plan().await.map_err(map_error) },
+    );
+    router.register_typed::<Empty, serde_json::Value, _, _>(
+        "cloud.backup.create",
+        "Creates a portable, versioned backup of all Cloud-owned data",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            core.cloud_backup().await.map_err(map_error)
+        },
+    );
+    router.register_typed::<CloudBackupRestoreParams, serde_json::Value, _, _>(
+        "cloud.backup.preview",
+        "Summarizes what a backup restore would import without changing anything",
+        false,
+        |core: Arc<AppCore>, params: CloudBackupRestoreParams| async move {
+            core.cloud_backup_preview(params.manifest)
+                .await
+                .map_err(map_error)
+        },
+    );
+    router.register_typed_full::<CloudBackupRestoreParams, serde_json::Value, _, _>(
+        "cloud.backup.restore",
+        "Restores a backup manifest on this device",
+        true,
+        true,
+        true,
+        |core: Arc<AppCore>, params: CloudBackupRestoreParams| async move {
+            core.cloud_backup_restore(params.manifest)
+                .await
+                .map_err(map_error)
+        },
     );
     router.register_typed::<Empty, CloudStatusResult, _, _>(
         "cloud.status",

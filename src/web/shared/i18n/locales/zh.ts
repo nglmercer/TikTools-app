@@ -164,6 +164,17 @@ export default {
       storage: "会话存储",
       lastError: "最近错误",
     },
+    backup: {
+      title: "备份",
+      description: "保存规则、配置档案、设置和云端文件的可移植副本。",
+      create: "创建备份",
+      restore: "恢复备份",
+      summary: "将导入 {workspace} 条记录、{library} 个文档和 {assets} 个文件。",
+      confirm: "立即恢复",
+      done: "备份已完成。",
+      excludes: "不包含密钥、Cookie 和本地 Feed 历史。",
+      invalid: "备份文件无效。",
+    },
   },
   sync: {
     group: "云端同步",
