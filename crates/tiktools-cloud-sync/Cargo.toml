@@ -16,7 +16,7 @@ tokio = { workspace = true }
 fs2 = "0.4"
 sha2 = "0.11"
 tempfile = "3"
-getrandom = "0.4"
+getrandom.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

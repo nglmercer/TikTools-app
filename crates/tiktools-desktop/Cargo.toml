@@ -37,9 +37,9 @@ rustls.workspace = true
 tracing.workspace = true
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
 percent-encoding = "2.3.2"
-url = "2.5.8"
+url.workspace = true
 winit = "0.30.13"
-wry = { version = "0.57.1", features = ["tracing"] }
+wry = { version = "0.57.3", features = ["tracing"] }
 tray-icon = "0.26.1"
 rfd.workspace = true
 open = "5.4.5"

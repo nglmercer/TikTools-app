@@ -36,9 +36,8 @@ const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn random_token() -> String {
-    use rand_core::{OsRng, RngCore};
     let mut bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut bytes);
+    getrandom::fill(&mut bytes).expect("OS random source unavailable");
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 

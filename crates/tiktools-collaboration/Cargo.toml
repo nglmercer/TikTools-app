@@ -13,7 +13,7 @@ schemars.workspace = true
 thiserror.workspace = true
 rusqlite = { workspace = true, features = ["bundled"] }
 ring.workspace = true
-getrandom = "0.4.3"
+getrandom.workspace = true
 fs2 = "0.4"
 uuid = { version = "1", features = ["v4"] }
 url.workspace = true

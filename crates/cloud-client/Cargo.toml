@@ -2,7 +2,7 @@
 name = "cloud-client"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.89"
+rust-version.workspace = true
 license = "MIT"
 
 [features]
@@ -13,26 +13,26 @@ os-keychain = ["dep:keyring"]
 [dependencies]
 cloud-contracts = { path = "../cloud-contracts" }
 better-auth = { git = "https://github.com/nglmercer/better-auth-rs.git", rev = "aadd81d630aed4bd950d4e5581a5efbb304ca3e7", default-features = false, features = ["desktop"] }
-base64 = "0.23"
-getrandom = "0.4.3"
-sha2 = "0.11"
+base64.workspace = true
+getrandom.workspace = true
+sha2.workspace = true
 zeroize = "1"
-tokio = { version = "1", features = ["sync", "time"] }
+tokio = { workspace = true, features = ["sync", "time"] }
 open = { version = "5", optional = true }
 fs2 = "0.4"
 tempfile = "3"
-reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls-no-provider"] }
+reqwest = { workspace = true, features = ["json", "query"] }
 secrecy = "0.10"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-semver = "1"
-thiserror = "2"
-url = "2"
+serde.workspace = true
+serde_json.workspace = true
+semver.workspace = true
+thiserror.workspace = true
+url.workspace = true
 uuid = { version = "1", features = ["serde"] }
 
 [dev-dependencies]
 # Tests build real clients; rustls gets its aws-lc-rs provider in test builds only.
-reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls"] }
+reqwest = { workspace = true, features = ["json", "query", "rustls"] }
 
 tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "time"] }
 

@@ -81,7 +81,7 @@ schemars.workspace = true
 ttl-live-events.workspace = true
 ttl-live-proto.workspace = true
 fastrand.workspace = true
-getrandom = "0.4.3"
+getrandom.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tokio.workspace = true
@@ -90,7 +90,7 @@ rquickjs.workspace = true
 rusqlite = { workspace = true, optional = true, features = ["bundled"] }
 reqwest = { workspace = true, optional = true }
 tokio-tungstenite = { workspace = true, optional = true }
-url = "2.5.8"
+url.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

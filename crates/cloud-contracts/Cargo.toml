@@ -2,11 +2,11 @@
 name = "cloud-contracts"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.89"
+rust-version.workspace = true
 license = "MIT"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["float_roundtrip"] }
-semver = "1"
-url = "2"
+serde.workspace = true
+serde_json.workspace = true
+semver.workspace = true
+url.workspace = true

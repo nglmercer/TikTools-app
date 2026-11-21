@@ -21,7 +21,7 @@ napi-vm-node-api = ["dep:libloading"]
 tiktools-plugin-api = { path = "../tiktools-plugin-api" }
 rquickjs.workspace = true
 serde.workspace = true
-rand_core = { version = "0.6", features = ["getrandom"] }
+getrandom.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
