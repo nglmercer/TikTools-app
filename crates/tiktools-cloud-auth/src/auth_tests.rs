@@ -926,8 +926,8 @@ async fn offline_restore_keeps_local_state_intact() {
     let status = restarted.status().await;
     assert_eq!(status.state, AccountState::SignedOut);
     assert!(
-        status.error.is_none(),
-        "a refused restore records no local state"
+        status.error.is_some(),
+        "a refused restore records the failure reason so the UI can explain it"
     );
 
     // Same dead origin as the sidecar: the network failure is explicit.
