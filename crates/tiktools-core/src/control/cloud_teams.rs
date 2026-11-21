@@ -177,13 +177,16 @@ impl AppCore {
     ) -> Result<crate::cloud_teams::CommandOutcome, OperationError> {
         // The controller client has its own copy of the same wire types.
         let wire = serde_json::from_value(
-            serde_json::to_value(params).map_err(|error| OperationError::internal(error.to_string()))?,
+            serde_json::to_value(params)
+                .map_err(|error| OperationError::internal(error.to_string()))?,
         )
         .map_err(|error| OperationError::invalid(error.to_string()))?;
         let outcome =
-            crate::cloud_remote_controller::run_command(self.cloud.auth(), &self.teams, wire).await?;
+            crate::cloud_remote_controller::run_command(self.cloud.auth(), &self.teams, wire)
+                .await?;
         serde_json::from_value(
-            serde_json::to_value(outcome).map_err(|error| OperationError::internal(error.to_string()))?,
+            serde_json::to_value(outcome)
+                .map_err(|error| OperationError::internal(error.to_string()))?,
         )
         .map_err(|error| OperationError::internal(error.to_string()))
     }

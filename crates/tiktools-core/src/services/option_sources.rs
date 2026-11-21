@@ -750,9 +750,36 @@ mod tests {
         );
     }
 
+    /// A core with no discovered plugins, independent of the user's local
+    /// plugin directory. Without this, the forced lookup can reach a real
+    /// installed plugin instead of failing at the expected "not available".
+    fn empty_plugin_core() -> std::sync::Arc<crate::AppCore> {
+        let root = std::env::temp_dir().join(format!(
+            "tiktools-option-sources-test-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = crate::AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("absent"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root,
+        };
+        paths.ensure_directories().unwrap();
+        std::sync::Arc::new(crate::AppCore::with_paths(
+            std::sync::Arc::new(Emitter),
+            std::sync::Arc::new(crate::NoopMediaHost),
+            paths,
+        ))
+    }
+
     #[tokio::test]
     async fn force_refresh_bypasses_the_cache_for_one_read() {
-        let core = std::sync::Arc::new(crate::AppCore::new(std::sync::Arc::new(Emitter)));
+        let core = empty_plugin_core();
         let source = "plugin-action-options:sonicboom.server.set-output-device:device";
         core.option_sources.store(
             source,

@@ -29,8 +29,8 @@ mod store;
 mod workspace;
 mod workspace_state;
 mod workspace_store;
-pub use cloud_contracts::{WorkspaceChanges, WorkspaceRecord, WorkspaceSnapshot};
 pub use account::{AccountPlan, PlanLimits, PlanUsage};
+pub use cloud_contracts::{WorkspaceChanges, WorkspaceRecord, WorkspaceSnapshot};
 pub use library_sync::*;
 pub use login::{LoginAttempt, LoginResult};
 pub use login_code::{

@@ -36,7 +36,8 @@ use tiktools_control_api::modules::bundles::{
 };
 #[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::cloud::{
-    CloudBackupRestoreParams, CloudLoginCodeParams, CloudLoginCodeSubmitParams, CloudLoginOperationParams,
+    CloudBackupRestoreParams, CloudLoginCodeParams, CloudLoginCodeSubmitParams,
+    CloudLoginOperationParams,
 };
 use tiktools_control_api::modules::competitions::{
     CompetitionActionId, CompetitionId, CompetitionResultsRequest, CompetitionSummaryParams,
@@ -87,6 +88,13 @@ use tiktools_control_api::modules::sync::{
     SyncUncertainReviewParams,
 };
 use tiktools_control_api::modules::system::SaveFileParams;
+#[cfg(feature = "cloud-auth")]
+use tiktools_control_api::modules::teams::{
+    CommandRunParams, TeamCreateParams, TeamDecisionParams, TeamDeviceParams, TeamEnrollParams,
+    TeamGrantRevokeParams, TeamGrantUpdateParams, TeamHostParams, TeamInvitationCreateParams,
+    TeamInvitationParams, TeamPeopleSearchParams, TeamRedeemParams, TeamSessionParams,
+    TeamUpdateParams,
+};
 use tiktools_control_api::modules::updates::{CheckParams as UpdateCheckParams, NoUpdateParams};
 use tiktools_control_api::modules::widgets::{WidgetsCopyCloudOverlayParams, WidgetsCopyParams};
 use tiktools_control_api::modules::workflows::{WorkflowIdParams, WorkflowSaveParams};
@@ -640,31 +648,46 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "publisher.releases.get" | "publisher.publication.request" => {
             validate::<PublisherReleaseParams>(params)
         }
-        // Teams: the host validates each shape; the client only admits the names.
-        "teams.people.search"
-        | "teams.accessible.list"
-        | "teams.commands.run"
-        | "teams.invitations.redeem"
+        #[cfg(feature = "cloud-auth")]
+        "teams.people.search" => validate::<TeamPeopleSearchParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.accessible.list"
         | "teams.host.status"
         | "teams.host.start"
         | "teams.host.stop"
         | "teams.hosts.list"
-        | "teams.hosts.create"
-        | "teams.hosts.get"
-        | "teams.hosts.update"
-        | "teams.devices.list"
-        | "teams.devices.enroll"
-        | "teams.devices.revoke"
-        | "teams.invitations.list"
-        | "teams.invitations.create"
-        | "teams.invitations.revoke"
+        | "teams.devices.list" => validate::<Empty>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.commands.run" => validate::<CommandRunParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.redeem" => validate::<TeamRedeemParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.hosts.create" => validate::<TeamCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.hosts.get" => validate::<TeamHostParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.hosts.update" => validate::<TeamUpdateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.devices.enroll" => validate::<TeamEnrollParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.devices.revoke" => validate::<TeamDeviceParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.list"
         | "teams.requests.list"
-        | "teams.requests.decide"
         | "teams.grants.list"
-        | "teams.grants.update"
-        | "teams.grants.revoke"
-        | "teams.sessions.list"
-        | "teams.sessions.revoke" => Ok(()),
+        | "teams.sessions.list" => validate::<TeamHostParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.create" => validate::<TeamInvitationCreateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.invitations.revoke" => validate::<TeamInvitationParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.requests.decide" => validate::<TeamDecisionParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.grants.update" => validate::<TeamGrantUpdateParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.grants.revoke" => validate::<TeamGrantRevokeParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "teams.sessions.revoke" => validate::<TeamSessionParams>(params),
         _ => Err(ClientError::new(
             "method_not_found",
             format!("unknown method `{method}`"),

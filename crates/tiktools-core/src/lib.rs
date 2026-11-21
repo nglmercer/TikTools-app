@@ -29,12 +29,12 @@ mod cloud_http;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_integrations;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
+#[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
+pub mod cloud_publisher;
+#[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_remote_controller;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 pub mod cloud_remote_host;
-#[cfg(all(feature = "cloud-auth", feature = "http"))]
-#[cfg(all(feature = "cloud-auth", feature = "http", feature = "plugin-install"))]
-pub mod cloud_publisher;
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 #[cfg(all(feature = "cloud-auth", feature = "http"))]
 #[cfg(feature = "cloud-sync")]
