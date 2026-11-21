@@ -39,6 +39,7 @@ pub use registry::MethodMeta;
 pub use request::{RpcId, RpcRequest};
 pub use response::RpcResponse;
 pub use router::ControlRouter;
+pub use tiktools_core::control::StoredBackupView;
 pub use transport::{
     owner_params_bytes, owner_request_bytes, run_ipc, run_ipc_shared, run_ipc_shared_with_ready,
     run_stdio, run_stdio_shared, IPC_NAME, MAX_OWNER_LIBRARY_PARAMS_BYTES,

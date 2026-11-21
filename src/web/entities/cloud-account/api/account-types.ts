@@ -58,6 +58,18 @@ export interface BackupManifest {
   [key: string]: unknown;
 }
 
+/** A backup stored in the cloud for the signed-in account. */
+export interface StoredBackup {
+  id: string;
+  name: string;
+  createdAt: string;
+  sizeBytes: number;
+  workspaceSync: number;
+  library: number;
+  mediaLibrary: number;
+  assets: number;
+}
+
 /** Counts returned by a dry-run restore before anything is changed. */
 export interface BackupSummary {
   mode: 'replace' | 'merge';

@@ -1,16 +1,22 @@
 use super::TikToolsClient;
 use tiktools_control_api::modules::cloud::{
-    CloudBackupRestoreParams, CloudLoginOperationParams, CloudLoginReservationResult,
+    CloudBackupIdParams, CloudBackupNameParams, CloudBackupRestoreParams,
+    CloudBackupStoredRestoreParams, CloudLoginOperationParams, CloudLoginReservationResult,
     CloudLoginUrlResult, CloudStatusResult,
 };
 use tiktools_control_api::modules::{Empty, OkResult};
-use tiktools_control_api::ClientError;
+use tiktools_control_api::{ClientError, StoredBackupView};
 
 pub(crate) const METHODS: &[&str] = &[
     CLOUD_PLAN_GET,
     CLOUD_BACKUP_CREATE,
     CLOUD_BACKUP_PREVIEW,
     CLOUD_BACKUP_RESTORE,
+    CLOUD_BACKUP_LIST,
+    CLOUD_BACKUP_CREATE_NAMED,
+    CLOUD_BACKUP_GET,
+    CLOUD_BACKUP_DELETE,
+    CLOUD_BACKUP_RESTORE_STORED,
     CLOUD_STATUS,
     CLOUD_LOGIN_RESERVE,
     CLOUD_LOGIN_BEGIN,
@@ -28,6 +34,11 @@ const CLOUD_PLAN_GET: &str = "cloud.plan.get";
 const CLOUD_BACKUP_CREATE: &str = "cloud.backup.create";
 const CLOUD_BACKUP_PREVIEW: &str = "cloud.backup.preview";
 const CLOUD_BACKUP_RESTORE: &str = "cloud.backup.restore";
+const CLOUD_BACKUP_LIST: &str = "cloud.backup.list";
+const CLOUD_BACKUP_CREATE_NAMED: &str = "cloud.backup.createNamed";
+const CLOUD_BACKUP_GET: &str = "cloud.backup.get";
+const CLOUD_BACKUP_DELETE: &str = "cloud.backup.delete";
+const CLOUD_BACKUP_RESTORE_STORED: &str = "cloud.backup.restoreStored";
 const CLOUD_STATUS: &str = "cloud.status";
 const CLOUD_LOGIN_RESERVE: &str = "cloud.login.reserve";
 const CLOUD_LOGIN_BEGIN: &str = "cloud.login.begin";
@@ -41,6 +52,34 @@ const CLOUD_LOGIN_CODE_RESEND: &str = "cloud.login.code.resend";
 const CLOUD_LOGIN_CODE_SUBMIT: &str = "cloud.login.code.submit";
 
 impl TikToolsClient {
+    pub async fn cloud_backup_list(&self) -> Result<Vec<StoredBackupView>, ClientError> {
+        self.call(CLOUD_BACKUP_LIST, Empty::default()).await
+    }
+
+    pub async fn cloud_backup_create_named(
+        &self,
+        params: CloudBackupNameParams,
+    ) -> Result<StoredBackupView, ClientError> {
+        self.call(CLOUD_BACKUP_CREATE_NAMED, params).await
+    }
+
+    pub async fn cloud_backup_get(&self, id: String) -> Result<serde_json::Value, ClientError> {
+        self.call(CLOUD_BACKUP_GET, CloudBackupIdParams { id })
+            .await
+    }
+
+    pub async fn cloud_backup_delete(&self, id: String) -> Result<serde_json::Value, ClientError> {
+        self.call(CLOUD_BACKUP_DELETE, CloudBackupIdParams { id })
+            .await
+    }
+
+    pub async fn cloud_backup_restore_stored(
+        &self,
+        params: CloudBackupStoredRestoreParams,
+    ) -> Result<serde_json::Value, ClientError> {
+        self.call(CLOUD_BACKUP_RESTORE_STORED, params).await
+    }
+
     pub async fn cloud_backup_create(&self) -> Result<serde_json::Value, ClientError> {
         self.call(CLOUD_BACKUP_CREATE, Empty::default()).await
     }

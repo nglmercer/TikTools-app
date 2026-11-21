@@ -1589,7 +1589,18 @@ impl CloudAuth {
         if self.transitions.load(Ordering::SeqCst) != 1 {
             return Err(AuthError::AlreadyInProgress);
         }
-        self.restore_inner().await
+        // A normal first run has no sidecar; anything else failed to restore
+        // and must be visible in `cloud.status.error` instead of silently
+        // leaving the user signed out with a "keychain" label.
+        let had_sidecar = read_account_sidecar(&self.sidecar).is_ok();
+        let result = self.restore_inner().await;
+        if let Err(error) = &result {
+            if had_sidecar || !matches!(error, AuthError::NoSavedSession | AuthError::Unconfigured)
+            {
+                self.inner.lock().await.last_error = Some(error.to_string());
+            }
+        }
+        result
     }
 
     async fn restore_inner(&self) -> Result<AccountStatus, AuthError> {

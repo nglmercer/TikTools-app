@@ -123,7 +123,9 @@ pub use automation_library_sync::{
     AUTOMATION_LIBRARY_CHANGED_EVENT, LIBRARY_SYNC_BASE_KEY,
 };
 #[cfg(feature = "cloud-auth")]
-pub use cloud_account::{AccountPlanView, CloudLoginUrl, PlanLimitsView, PlanUsageView};
+pub use cloud_account::{
+    AccountPlanView, CloudLoginUrl, PlanLimitsView, PlanUsageView, StoredBackupView,
+};
 #[cfg(feature = "plugin-install")]
 pub use cloud_catalog::{
     CloudCatalogAdvisory, CloudCatalogItemPage, CloudCatalogItemQuery, CloudCatalogItemsQuery,

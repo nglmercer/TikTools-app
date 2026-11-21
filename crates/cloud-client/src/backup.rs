@@ -51,3 +51,82 @@ impl crate::Session {
         decode_with_limit(response, MAX_BACKUP_RESPONSE).await
     }
 }
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredBackup {
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+    pub size_bytes: i64,
+    pub workspace_sync: usize,
+    pub library: usize,
+    pub media_library: usize,
+    pub assets: usize,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NamedBackupBody<'a> {
+    name: &'a str,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredRestoreBody<'a> {
+    mode: &'a str,
+    #[serde(default)]
+    dry_run: bool,
+}
+
+impl crate::Session {
+    pub async fn backup_list(&self) -> Result<Vec<StoredBackup>, SyncError> {
+        let response = self
+            .request(Method::GET, "api/v2/me/backups")?
+            .send()
+            .await
+            .map_err(|_| SyncError::Network)?;
+        let value: serde_json::Value = decode_with_limit(response, MAX_BACKUP_RESPONSE).await?;
+        serde_json::from_value(value.get("items").cloned().unwrap_or_default())
+            .map_err(|_| SyncError::Protocol)
+    }
+
+    pub async fn backup_create_named(&self, name: &str) -> Result<StoredBackup, SyncError> {
+        let response = self
+            .request(Method::POST, "api/v2/me/backups")?
+            .json(&NamedBackupBody { name })
+            .send()
+            .await
+            .map_err(|_| SyncError::Network)?;
+        decode_with_limit(response, MAX_BACKUP_RESPONSE).await
+    }
+
+    pub async fn backup_get(&self, id: &str) -> Result<serde_json::Value, SyncError> {
+        let value: serde_json::Value = self.get(&format!("api/v2/me/backups/{id}"), &[]).await?;
+        Ok(value)
+    }
+
+    pub async fn backup_delete(&self, id: &str) -> Result<serde_json::Value, SyncError> {
+        let response = self
+            .request(Method::DELETE, &format!("api/v2/me/backups/{id}"))?
+            .send()
+            .await
+            .map_err(|_| SyncError::Network)?;
+        decode_with_limit(response, MAX_BACKUP_RESPONSE).await
+    }
+
+    pub async fn backup_restore_stored(
+        &self,
+        id: &str,
+        mode: &str,
+        dry_run: bool,
+    ) -> Result<serde_json::Value, SyncError> {
+        let response = self
+            .request(Method::POST, &format!("api/v2/me/backups/{id}/restore"))?
+            .json(&StoredRestoreBody { mode, dry_run })
+            .send()
+            .await
+            .map_err(|_| SyncError::Network)?;
+        decode_with_limit(response, MAX_BACKUP_RESPONSE).await
+    }
+}

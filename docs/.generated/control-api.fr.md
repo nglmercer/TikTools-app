@@ -72,8 +72,13 @@
 | [`catalog.items`](#rpc-catalog-items) | false | false | false | — | false |
 | [`catalog.mine`](#rpc-catalog-mine) | false | false | false | — | false |
 | [`cloud.backup.create`](#rpc-cloud-backup-create) | false | false | false | — | false |
+| [`cloud.backup.createNamed`](#rpc-cloud-backup-createNamed) | true | false | false | — | false |
+| [`cloud.backup.delete`](#rpc-cloud-backup-delete) | true | true | true | — | false |
+| [`cloud.backup.get`](#rpc-cloud-backup-get) | false | false | false | — | false |
+| [`cloud.backup.list`](#rpc-cloud-backup-list) | false | false | false | — | false |
 | [`cloud.backup.preview`](#rpc-cloud-backup-preview) | false | false | false | — | false |
 | [`cloud.backup.restore`](#rpc-cloud-backup-restore) | true | true | true | — | false |
+| [`cloud.backup.restoreStored`](#rpc-cloud-backup-restoreStored) | true | true | true | — | false |
 | [`cloud.login.begin`](#rpc-cloud-login-begin) | true | false | false | — | false |
 | [`cloud.login.cancel`](#rpc-cloud-login-cancel) | true | false | false | — | false |
 | [`cloud.login.code.resend`](#rpc-cloud-login-code-resend) | true | false | false | — | false |
@@ -9095,6 +9100,266 @@ Creates a portable, versioned backup of all Cloud-owned data
 
 :::
 
+### cloud.backup.createNamed {#rpc-cloud-backup-createNamed}
+
+Description du contrat:
+
+```text
+Builds a backup and stores it in the cloud under a name
+```
+
+`{"sideEffect":true,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details Paramètres
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "CloudBackupNameParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details Résultat
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "assets": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string"
+    },
+    "library": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "mediaLibrary": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "sizeBytes": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "workspaceSync": {
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "createdAt",
+    "sizeBytes",
+    "workspaceSync",
+    "library",
+    "mediaLibrary",
+    "assets"
+  ],
+  "title": "StoredBackupView",
+  "type": "object"
+}
+```
+
+:::
+
+### cloud.backup.delete {#rpc-cloud-backup-delete}
+
+Description du contrat:
+
+```text
+Deletes one stored backup
+```
+
+`{"sideEffect":true,"destructive":true,"requiresDesktop":true,"concurrency":null,"durableCommands":false}`
+
+::: details Paramètres
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "title": "CloudBackupIdParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details Résultat
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### cloud.backup.get {#rpc-cloud-backup-get}
+
+Description du contrat:
+
+```text
+Downloads one stored backup manifest
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details Paramètres
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "title": "CloudBackupIdParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details Résultat
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### cloud.backup.list {#rpc-cloud-backup-list}
+
+Description du contrat:
+
+```text
+Lists backups stored in the cloud for this account
+```
+
+`{"sideEffect":false,"destructive":false,"requiresDesktop":false,"concurrency":null,"durableCommands":false}`
+
+::: details Paramètres
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Empty `{}` params shared by read-only methods.",
+  "title": "Empty",
+  "type": "object"
+}
+```
+
+:::
+
+::: details Résultat
+
+```json
+{
+  "$defs": {
+    "StoredBackupView": {
+      "properties": {
+        "assets": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "library": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mediaLibrary": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "workspaceSync": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "createdAt",
+        "sizeBytes",
+        "workspaceSync",
+        "library",
+        "mediaLibrary",
+        "assets"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "items": {
+    "$ref": "#/$defs/StoredBackupView"
+  },
+  "title": "Array_of_StoredBackupView",
+  "type": "array"
+}
+```
+
+:::
+
 ### cloud.backup.preview {#rpc-cloud-backup-preview}
 
 Description du contrat:
@@ -9174,6 +9439,56 @@ Restores a backup manifest on this device
     "manifest"
   ],
   "title": "CloudBackupRestoreParams",
+  "type": "object"
+}
+```
+
+:::
+
+::: details Résultat
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AnyValue"
+}
+```
+
+:::
+
+### cloud.backup.restoreStored {#rpc-cloud-backup-restoreStored}
+
+Description du contrat:
+
+```text
+Previews or restores a backup stored in the cloud
+```
+
+`{"sideEffect":true,"destructive":true,"requiresDesktop":true,"concurrency":null,"durableCommands":false}`
+
+::: details Paramètres
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dryRun": {
+      "default": false,
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string"
+    },
+    "mode": {
+      "default": "replace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "title": "CloudBackupStoredRestoreParams",
   "type": "object"
 }
 ```

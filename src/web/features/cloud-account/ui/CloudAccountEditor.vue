@@ -6,11 +6,13 @@ import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
 import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import IconCopy from '@/shared/ui/icon/icons/IconCopy.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { friendlyAccountError } from '@/entities/cloud-account/lib/account-error.ts';
 import CloudPlanUsage from '@/features/cloud-account/ui/CloudPlanUsage.vue';
 import CloudBackupCard from '@/features/cloud-account/ui/CloudBackupCard.vue';
+import CloudBackupList from '@/features/cloud-account/ui/CloudBackupList.vue';
 
 const { t } = useI18n();
 const account = useAccountStore();
@@ -30,6 +32,14 @@ const handle = computed(() => {
 });
 const error = computed(() => friendlyAccountError(account.error, t));
 const loginPending = computed(() => state.value === 'signing-in' || account.loginActive);
+const linkCopied = ref(false);
+async function copyLoginUrl(): Promise<void> {
+  if (!account.loginUrl) return;
+  try {
+    await navigator.clipboard.writeText(account.loginUrl);
+    linkCopied.value = true;
+  } catch { /* clipboard can be blocked; the link stays selectable */ }
+}
 const showCodeLogin = ref(false);
 const codeEmail = ref('');
 const codeValue = ref('');
@@ -80,6 +90,7 @@ onMounted(() => {
         </SettingsRow>
         <CloudPlanUsage />
         <CloudBackupCard />
+        <CloudBackupList />
         <DiagnosticStatusAction
           v-if="error"
           :label="error"
@@ -139,27 +150,41 @@ onMounted(() => {
             </BaseButton>
           </div>
         </template>
-        <template v-if="loginPending">
-          <p
-            class="cloud-account__pending"
-            role="status"
-            aria-live="polite"
-          >
-            <IconRefresh
-              class="cloud-account__spin"
-              :size="16"
-              aria-hidden="true"
-            />
-            {{ t('account.waiting') }}
-          </p>
-          <p
+        <section
+          v-if="loginPending"
+          class="cloud-account__waiting"
+          role="status"
+          aria-live="polite"
+        >
+          <div class="cloud-account__waiting-head">
+            <span class="cloud-account__waiting-spinner">
+              <IconRefresh
+                class="cloud-account__spin"
+                :size="16"
+                aria-hidden="true"
+              />
+            </span>
+            <div>
+              <strong>{{ t('account.waiting') }}</strong>
+              <p>{{ t('account.openManually') }}</p>
+            </div>
+          </div>
+          <div
             v-if="account.loginUrl"
-            class="cloud-account__muted"
+            class="cloud-account__waiting-url"
           >
-            {{ t('account.openManually') }}
-            <span class="cloud-account__url">{{ account.loginUrl }}</span>
-          </p>
-        </template>
+            <code>{{ account.loginUrl }}</code>
+            <BaseButton
+              size="sm"
+              @click="copyLoginUrl"
+            >
+              <template #icon>
+                <IconCopy :size="14" />
+              </template>
+              {{ linkCopied ? t('account.linkCopied') : t('account.copyLink') }}
+            </BaseButton>
+          </div>
+        </section>
         <div class="cloud-account__actions">
           <template v-if="state !== 'signing-in' && !account.loginActive && !account.loginCode">
             <BaseButton
@@ -202,13 +227,54 @@ onMounted(() => {
   font-size: var(--font-size-sm);
 }
 
-.cloud-account__pending {
+.cloud-account__waiting {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-raised);
+}
+
+.cloud-account__waiting-head {
   display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.cloud-account__waiting-head strong { font-size: var(--font-size-md); }
+.cloud-account__waiting-head p { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+
+.cloud-account__waiting-spinner {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-control);
+  color: var(--color-accent);
+}
+
+.cloud-account__waiting-url {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  margin: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-field);
+}
+
+.cloud-account__waiting-url code {
+  flex: 1;
+  min-width: 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  overflow-wrap: anywhere;
+  user-select: all;
 }
 
 .cloud-account__spin {
@@ -244,7 +310,7 @@ onMounted(() => {
   padding: var(--space-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  background: var(--color-bg-field);
   color: var(--color-text);
   font-family: var(--font-family-mono);
   letter-spacing: 0.1em;

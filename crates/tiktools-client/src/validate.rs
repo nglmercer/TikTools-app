@@ -36,7 +36,8 @@ use tiktools_control_api::modules::bundles::{
 };
 #[cfg(feature = "cloud-auth")]
 use tiktools_control_api::modules::cloud::{
-    CloudBackupRestoreParams, CloudLoginCodeParams, CloudLoginCodeSubmitParams,
+    CloudBackupIdParams, CloudBackupNameParams, CloudBackupRestoreParams,
+    CloudBackupStoredRestoreParams, CloudLoginCodeParams, CloudLoginCodeSubmitParams,
     CloudLoginOperationParams,
 };
 use tiktools_control_api::modules::competitions::{
@@ -512,6 +513,7 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "cloud.status"
         | "cloud.plan.get"
         | "cloud.backup.create"
+        | "cloud.backup.list"
         | "cloud.login.reserve"
         | "cloud.restore"
         | "cloud.logout" => validate::<Empty>(params),
@@ -529,6 +531,12 @@ pub fn validate_params(method: &str, params: &serde_json::Value) -> Result<(), C
         "cloud.backup.preview" | "cloud.backup.restore" => {
             validate::<CloudBackupRestoreParams>(params)
         }
+        #[cfg(feature = "cloud-auth")]
+        "cloud.backup.createNamed" => validate::<CloudBackupNameParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloud.backup.get" | "cloud.backup.delete" => validate::<CloudBackupIdParams>(params),
+        #[cfg(feature = "cloud-auth")]
+        "cloud.backup.restoreStored" => validate::<CloudBackupStoredRestoreParams>(params),
         #[cfg(feature = "cloud-auth")]
         "sync.status"
         | "sync.enable"

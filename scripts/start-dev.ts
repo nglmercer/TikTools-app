@@ -108,7 +108,7 @@ const host = Bun.spawn({
   cmd: [
     'node', 'scripts/cargo-with-linker.mjs', 'run', '-p', 'tiktools-desktop',
     '--no-default-features', '--features',
-    'persistence,plugin-install,http,devtools,cloud-auth,tls-aws-lc',
+    'persistence,plugin-install,http,devtools,cloud-auth,os-keychain,tls-aws-lc',
   ],
   cwd: repositoryRoot,
   env: environment,

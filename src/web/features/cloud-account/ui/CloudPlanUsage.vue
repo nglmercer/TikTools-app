@@ -155,7 +155,7 @@ watch(
   font-weight: 600;
 }
 .cloud-plan__groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); }
-.cloud-plan__group { display: grid; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md, 8px); background: var(--color-surface-muted, rgba(255, 255, 255, 0.03)); }
+.cloud-plan__group { display: grid; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md, 8px); background: var(--color-bg-raised); }
 .cloud-plan__group-title { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .cloud-plan__meter { display: grid; gap: var(--space-1); }
 .cloud-plan__meter-head { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--font-size-sm); }

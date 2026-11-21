@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tiktools_core::{
     cloud_account::AccountStatus,
-    control::{CloudLoginUrl, OperationError},
+    control::{CloudLoginUrl, OperationError, StoredBackupView},
     AppCore,
 };
 
@@ -69,6 +69,28 @@ pub struct CloudBackupRestoreParams {
     pub dry_run: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudBackupNameParams {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudBackupIdParams {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CloudBackupStoredRestoreParams {
+    pub id: String,
+    #[serde(default = "default_backup_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
 fn default_backup_mode() -> String {
     "replace".to_owned()
 }
@@ -110,6 +132,54 @@ pub fn register(router: &mut ControlRouter) {
         true,
         |core: Arc<AppCore>, params: CloudBackupRestoreParams| async move {
             core.cloud_backup_restore(params.manifest)
+                .await
+                .map_err(map_error)
+        },
+    );
+    router.register_typed::<Empty, Vec<StoredBackupView>, _, _>(
+        "cloud.backup.list",
+        "Lists backups stored in the cloud for this account",
+        false,
+        |core: Arc<AppCore>, _params: Empty| async move {
+            core.cloud_backup_list().await.map_err(map_error)
+        },
+    );
+    router.register_typed::<CloudBackupNameParams, StoredBackupView, _, _>(
+        "cloud.backup.createNamed",
+        "Builds a backup and stores it in the cloud under a name",
+        true,
+        |core: Arc<AppCore>, params: CloudBackupNameParams| async move {
+            core.cloud_backup_create_named(params.name)
+                .await
+                .map_err(map_error)
+        },
+    );
+    router.register_typed::<CloudBackupIdParams, serde_json::Value, _, _>(
+        "cloud.backup.get",
+        "Downloads one stored backup manifest",
+        false,
+        |core: Arc<AppCore>, params: CloudBackupIdParams| async move {
+            core.cloud_backup_get(params.id).await.map_err(map_error)
+        },
+    );
+    router.register_typed_full::<CloudBackupIdParams, serde_json::Value, _, _>(
+        "cloud.backup.delete",
+        "Deletes one stored backup",
+        true,
+        true,
+        true,
+        |core: Arc<AppCore>, params: CloudBackupIdParams| async move {
+            core.cloud_backup_delete(params.id).await.map_err(map_error)
+        },
+    );
+    router.register_typed_full::<CloudBackupStoredRestoreParams, serde_json::Value, _, _>(
+        "cloud.backup.restoreStored",
+        "Previews or restores a backup stored in the cloud",
+        true,
+        true,
+        true,
+        |core: Arc<AppCore>, params: CloudBackupStoredRestoreParams| async move {
+            core.cloud_backup_restore_stored(params.id, params.mode, params.dry_run)
                 .await
                 .map_err(map_error)
         },

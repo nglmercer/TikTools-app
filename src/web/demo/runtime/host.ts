@@ -154,6 +154,21 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
       assets: count(manifest.assets?.items) };
   };
   add('cloud.backup.create', demoBackup); add('cloud.backup.preview', demoBackupSummary); add('cloud.backup.restore', demoBackupSummary);
+  const demoBackups: Array<Record<string, unknown>> = [];
+  add('cloud.backup.list', () => ({ items: demoBackups }));
+  add('cloud.backup.createNamed', (p) => {
+    const item = { id: `demo-${demoBackups.length + 1}`, name: String(p.name ?? 'Backup'),
+      createdAt: new Date().toISOString(), sizeBytes: 0, workspaceSync: 0, library: 0, mediaLibrary: 0, assets: 0 };
+    demoBackups.unshift(item);
+    return item;
+  });
+  add('cloud.backup.get', () => demoBackup());
+  add('cloud.backup.delete', (p) => {
+    const index = demoBackups.findIndex((backup) => backup.id === p.id);
+    if (index >= 0) demoBackups.splice(index, 1);
+    return { deleted: true };
+  });
+  add('cloud.backup.restoreStored', demoBackupSummary);
   add('cloud.login.reserve', () => ({ operationId: 'demo-login' })); add('cloud.login.begin', () => ({ browserUrl: '#demo-account' })); add('cloud.login.open', () => null); add('cloud.login.complete', () => { signedIn = true; return status(); }); add('cloud.login.cancel', status);
   add('sync.status', syncStatus); add('sync.configure', (p) => { state.sync!.enabled = p.enabled === true; return syncStatus(); });
   add('sync.v2.selected', () => true);

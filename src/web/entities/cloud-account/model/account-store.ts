@@ -10,6 +10,7 @@ import type {
   BackupSummary,
   CloudLoginUrlResult,
   LoginCodeStatus,
+  StoredBackup,
 } from '../api/account-types.ts';
 
 export const useAccountStore = defineStore('cloud-account', () => {
@@ -25,6 +26,8 @@ export const useAccountStore = defineStore('cloud-account', () => {
   const planError = ref<string | null>(null);
   const backupWorking = ref(false);
   const backupError = ref<string | null>(null);
+  const backups = ref<StoredBackup[]>([]);
+  const backupsLoading = ref(false);
   const loginActive = ref(false);
   // A late status/login/restore reply must never replace a newer account
   // transition, even if the same account is signed in again.
@@ -101,6 +104,7 @@ export const useAccountStore = defineStore('cloud-account', () => {
     }
     if (working.value) return Promise.resolve();
     if (restored) return refresh();
+    let restoreFailed = false;
     return read('restore', async (ticket) => {
       try {
         const initial = await client.call<AccountStatus>('cloud.status', {});
@@ -114,12 +118,22 @@ export const useAccountStore = defineStore('cloud-account', () => {
         error.value = next.error ?? null;
       } catch (failure) {
         if (!current(ticket)) return;
+        restoreFailed = true;
         const reason = failure instanceof ControlCallError
           ? (failure.data as { reason?: string } | undefined)?.reason
           : undefined;
-        if (reason !== 'no-saved-session' && reason !== 'unconfigured') error.value = errorMessage(failure);
+        // A missing saved session is a normal signed-out start; the native
+        // side records real restore failures in `cloud.status.error`.
+        let detail = errorMessage(failure);
+        try {
+          const latest = await client.call<AccountStatus>('cloud.status', {});
+          if (latest.error) detail = latest.error;
+          else if (reason === 'unconfigured' || reason === 'no-saved-session') detail = '';
+        } catch { /* keep the control error */ }
+        if (current(ticket)) error.value = detail || null;
       } finally {
-        if (current(ticket)) restored = true;
+        // A failed restore must be retried instead of being latched as done.
+        if (current(ticket) && !restoreFailed) restored = true;
       }
     });
   }
@@ -407,6 +421,80 @@ export const useAccountStore = defineStore('cloud-account', () => {
     }
   }
 
+  async function refreshBackups(): Promise<void> {
+    if (capabilities.supports('cloud.backup.list') === false) return;
+    backupsLoading.value = true;
+    backupError.value = null;
+    try {
+      const result = await client.call<{ items: StoredBackup[] }>('cloud.backup.list', {});
+      backups.value = result.items ?? [];
+    } catch (failure) {
+      backupError.value = errorMessage(failure);
+    } finally {
+      backupsLoading.value = false;
+    }
+  }
+
+  async function createNamedBackup(name: string): Promise<StoredBackup | null> {
+    if (capabilities.supports('cloud.backup.createNamed') === false) return null;
+    backupWorking.value = true;
+    backupError.value = null;
+    try {
+      const item = await client.call<StoredBackup>('cloud.backup.createNamed', { name });
+      backups.value = [item, ...backups.value];
+      return item;
+    } catch (failure) {
+      backupError.value = errorMessage(failure);
+      return null;
+    } finally {
+      backupWorking.value = false;
+    }
+  }
+
+  async function getStoredBackup(id: string): Promise<unknown | null> {
+    if (capabilities.supports('cloud.backup.get') === false) return null;
+    try {
+      return await client.call('cloud.backup.get', { id });
+    } catch (failure) {
+      backupError.value = errorMessage(failure);
+      return null;
+    }
+  }
+
+  async function deleteStoredBackup(id: string): Promise<boolean> {
+    if (capabilities.supports('cloud.backup.delete') === false) return false;
+    backupWorking.value = true;
+    backupError.value = null;
+    try {
+      await client.call('cloud.backup.delete', { id });
+      backups.value = backups.value.filter((backup) => backup.id !== id);
+      return true;
+    } catch (failure) {
+      backupError.value = errorMessage(failure);
+      return false;
+    } finally {
+      backupWorking.value = false;
+    }
+  }
+
+  async function restoreStoredBackup(id: string, dryRun: boolean): Promise<BackupSummary | null> {
+    if (capabilities.supports('cloud.backup.restoreStored') === false) return null;
+    backupWorking.value = true;
+    backupError.value = null;
+    try {
+      return await client.call<BackupSummary>('cloud.backup.restoreStored', {
+        id,
+        mode: 'replace',
+        dryRun,
+      });
+    } catch (failure) {
+      backupError.value = errorMessage(failure);
+      return null;
+    } finally {
+      backupWorking.value = false;
+    }
+  }
+
   /** Plan and storage usage of the signed-in account. A host without the method shows nothing. */
   async function refreshPlan(): Promise<void> {
     if (capabilities.supports('cloud.plan.get') === false) return;
@@ -421,7 +509,9 @@ export const useAccountStore = defineStore('cloud-account', () => {
 
   return {
     status, loading, working, loginActive, loginUrl, loginCode, error, plan, planError,
-    backupWorking, backupError, createBackup, previewBackup, restoreBackup,
+    backupWorking, backupError, backups, backupsLoading,
+    createBackup, previewBackup, restoreBackup,
+    refreshBackups, createNamedBackup, getStoredBackup, deleteStoredBackup, restoreStoredBackup,
     refreshPlan,
     refresh, restore, ensureRestored, startLogin, startLoginCode, resendLoginCode,
     submitLoginCode, cancelLogin, logout,

@@ -215,6 +215,58 @@ impl AppCore {
             .map_err(|error| OperationError::unavailable(error.to_string()))
     }
 
+    pub async fn cloud_backup_list(&self) -> Result<Vec<StoredBackupView>, OperationError> {
+        let items = self
+            .cloud_session()
+            .await?
+            .backup_list()
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))?;
+        Ok(items.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn cloud_backup_create_named(
+        &self,
+        name: String,
+    ) -> Result<StoredBackupView, OperationError> {
+        let item = self
+            .cloud_session()
+            .await?
+            .backup_create_named(&name)
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))?;
+        Ok(item.into())
+    }
+
+    pub async fn cloud_backup_get(&self, id: String) -> Result<Value, OperationError> {
+        self.cloud_session()
+            .await?
+            .backup_get(&id)
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))
+    }
+
+    pub async fn cloud_backup_delete(&self, id: String) -> Result<Value, OperationError> {
+        self.cloud_session()
+            .await?
+            .backup_delete(&id)
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))
+    }
+
+    pub async fn cloud_backup_restore_stored(
+        &self,
+        id: String,
+        mode: String,
+        dry_run: bool,
+    ) -> Result<Value, OperationError> {
+        self.cloud_session()
+            .await?
+            .backup_restore_stored(&id, &mode, dry_run)
+            .await
+            .map_err(|error| OperationError::unavailable(error.to_string()))
+    }
+
     pub async fn cloud_status(&self) -> Result<tiktools_cloud_auth::AccountStatus, OperationError> {
         Ok(self.cloud().auth().status().await)
     }
@@ -408,6 +460,34 @@ impl From<cloud_client::AccountPlan> for AccountPlanView {
                 overlays: plan.usage.overlays,
                 overlay_bytes: plan.usage.overlay_bytes,
             },
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredBackupView {
+    pub id: String,
+    pub name: String,
+    pub created_at: String,
+    pub size_bytes: i64,
+    pub workspace_sync: usize,
+    pub library: usize,
+    pub media_library: usize,
+    pub assets: usize,
+}
+
+impl From<cloud_client::StoredBackup> for StoredBackupView {
+    fn from(value: cloud_client::StoredBackup) -> Self {
+        Self {
+            id: value.id,
+            name: value.name,
+            created_at: value.created_at,
+            size_bytes: value.size_bytes,
+            workspace_sync: value.workspace_sync,
+            library: value.library,
+            media_library: value.media_library,
+            assets: value.assets,
         }
     }
 }
