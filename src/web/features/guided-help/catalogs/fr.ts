@@ -40,4 +40,10 @@ export default {
     stage: { title: 'Lire le mur en direct', description: 'Les messages importants restent affichés. Les j’aime et les arrivées apparaissent brièvement comme réactions, puis disparaissent.' },
     controls: { title: 'Pause, effacement et inspection', description: 'Mettez le défilement en pause, effacez l’historique enregistré ou ouvrez l’inspecteur pour plus de détails.' },
   },
+  backup: {
+    plan: { title: 'Connaissez vos limites', description: 'Chaque offre a ses propres limites de stockage et de sauvegardes. Ces jauges montrent ce que vous utilisez.' },
+    tools: { title: 'Cloud ou ce PC', description: 'Basculez entre l’enregistrement dans votre compte cloud et le travail avec des fichiers sur ce PC : exportez vos données ou importez un fichier existant.' },
+    create: { title: 'Enregistrez une sauvegarde', description: 'Nommez une sauvegarde et enregistrez-la dans votre compte. Elle contient règles, profils, réglages et fichiers cloud, jamais de secrets ni de cookies.' },
+    list: { title: 'Téléchargez, restaurez ou supprimez', description: 'Chaque sauvegarde peut être téléchargée, restaurée sur tout appareil connecté à ce compte ou supprimée. La restauration montre d\'abord ce qui changera.' },
+  },
 } satisfies TourCatalog;

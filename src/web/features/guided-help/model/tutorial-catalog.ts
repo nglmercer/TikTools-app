@@ -1,6 +1,7 @@
 import type { Component } from 'vue';
 import IconChart from '@/shared/ui/icon/icons/IconChart.vue';
 import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
+import IconCloud from '@/shared/ui/icon/icons/IconCloud.vue';
 import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
 import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
 import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
@@ -23,6 +24,7 @@ export const tutorialTags = [
   'changes',
   'diagnostics',
   'feed',
+  'account',
 ] as const;
 export type TutorialTag = (typeof tutorialTags)[number];
 
@@ -42,6 +44,7 @@ export const tagIcons: Record<TutorialTag, Component> = {
   changes: IconGitMerge,
   diagnostics: IconChart,
   feed: IconChat,
+  account: IconCloud,
 };
 
 /** All driver.js tours, in the order they appear in the catalog. */
@@ -54,6 +57,7 @@ export const tutorialEntries: readonly TutorialEntry[] = [
   { id: 'points', tags: ['points'], icon: IconCoins },
   { id: 'diagnostics', tags: ['diagnostics'], icon: IconChart },
   { id: 'feed', tags: ['feed'], icon: IconChat },
+  { id: 'backup', tags: ['account'], icon: IconCloud },
 ];
 
 export interface TutorialStepText {

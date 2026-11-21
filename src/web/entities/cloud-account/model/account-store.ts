@@ -435,13 +435,18 @@ export const useAccountStore = defineStore('cloud-account', () => {
     }
   }
 
-  async function createNamedBackup(name: string): Promise<StoredBackup | null> {
+  /**
+   * Stores a backup under `name`. With a `manifest` (a local file) that exact
+   * content is uploaded; without one the cloud snapshots the account's data.
+   */
+  async function createNamedBackup(name: string, manifest?: BackupManifest): Promise<StoredBackup | null> {
     if (capabilities.supports('cloud.backup.createNamed') === false) return null;
     backupWorking.value = true;
     backupError.value = null;
     try {
-      const item = await client.call<StoredBackup>('cloud.backup.createNamed', { name });
+      const item = await client.call<StoredBackup>('cloud.backup.createNamed', manifest ? { name, manifest } : { name });
       backups.value = [item, ...backups.value];
+      void refreshPlan();
       return item;
     } catch (failure) {
       backupError.value = errorMessage(failure);
@@ -468,6 +473,7 @@ export const useAccountStore = defineStore('cloud-account', () => {
     try {
       await client.call('cloud.backup.delete', { id });
       backups.value = backups.value.filter((backup) => backup.id !== id);
+      void refreshPlan();
       return true;
     } catch (failure) {
       backupError.value = errorMessage(failure);

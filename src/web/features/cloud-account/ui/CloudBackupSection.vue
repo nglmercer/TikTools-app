@@ -5,44 +5,59 @@ import type { BackupManifest, BackupSummary, StoredBackup } from '@/entities/clo
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
-import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
-import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
+import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import IconCloud from '@/shared/ui/icon/icons/IconCloud.vue';
+import IconCloudCheck from '@/shared/ui/icon/icons/IconCloudCheck.vue';
+import IconCloudUpload from '@/shared/ui/icon/icons/IconCloudUpload.vue';
 import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
-import IconFile from '@/shared/ui/icon/icons/IconFile.vue';
+import IconHardDrive from '@/shared/ui/icon/icons/IconHardDrive.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
-import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
+import IconShield from '@/shared/ui/icon/icons/IconShield.vue';
 import IconUpload from '@/shared/ui/icon/icons/IconUpload.vue';
-import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
+import { suggestBackupName } from '@/entities/cloud-account/lib/backup-name.ts';
+import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
+import CloudBackupAction from './CloudBackupAction.vue';
+import CloudBackupFileDialog from './CloudBackupFileDialog.vue';
+import CloudBackupList from './CloudBackupList.vue';
 
-type Mode = 'cloud' | 'file';
-
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const account = useAccountStore();
+
+type Mode = 'cloud' | 'local';
 const mode = ref<Mode>('cloud');
 const modes = computed(() => [
-  { value: 'cloud' as const, label: t('account.backup.modeCloud'), icon: IconCloud },
-  { value: 'file' as const, label: t('account.backup.modeFile'), icon: IconFile },
+  { value: 'cloud' as const, label: t('account.backup.tabCloud'), icon: IconCloud, badge: account.backups.length },
+  { value: 'local' as const, label: t('account.backup.tabLocal'), icon: IconHardDrive },
 ]);
 
-// Cloud mode state
-const name = ref('');
+// The name is pre-filled so one click saves a backup; the user can still rename it.
+const suggestion = () => suggestBackupName(t('account.backup.namePrefix'));
+const name = ref(suggestion());
+const notice = ref('');
+const fileInput = ref<HTMLInputElement | null>(null);
+
+// A backup stored in the account that is about to be restored or deleted.
 const pendingDelete = ref<StoredBackup | null>(null);
 const pendingRestore = ref<StoredBackup | null>(null);
-const cloudSummary = ref<BackupSummary | null>(null);
+const restoreSummary = ref<BackupSummary | null>(null);
 
-// Local file mode state
-const fileInput = ref<HTMLInputElement | null>(null);
+// A backup file picked from disk.
 const fileManifest = ref<BackupManifest | null>(null);
+const fileName = ref('');
 const fileSummary = ref<BackupSummary | null>(null);
 const fileDialogOpen = ref(false);
-const downloaded = ref(false);
 
-onMounted(() => { void account.refreshBackups(); });
+onMounted(() => {
+  void account.refreshBackups();
+  if (!account.plan) void account.refreshPlan();
+});
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleString(locale.value, { dateStyle: 'medium', timeStyle: 'short' });
-}
+const full = computed(() => {
+  const plan = account.plan;
+  return plan ? plan.usage.backups >= plan.limits.maxBackups : false;
+});
 
 function summaryText(summary: BackupSummary | null): string {
   return t('account.backup.summary', {
@@ -52,8 +67,8 @@ function summaryText(summary: BackupSummary | null): string {
   });
 }
 
-function downloadManifest(value: BackupManifest, label: string): void {
-  const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' });
+function saveAsFile(manifest: unknown, label: string): void {
+  const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -62,21 +77,23 @@ function downloadManifest(value: BackupManifest, label: string): void {
   URL.revokeObjectURL(url);
 }
 
-async function downloadLocal(): Promise<void> {
-  const manifest = await account.createBackup();
-  if (manifest) {
-    downloadManifest(manifest, 'tiktools-cloud-backup');
-    downloaded.value = true;
+async function create(): Promise<void> {
+  const label = name.value.trim();
+  if (!label || full.value) return;
+  notice.value = '';
+  if (await account.createNamedBackup(label)) {
+    name.value = suggestion();
+    notice.value = t('account.backup.created');
   }
 }
 
-async function uploadLocal(): Promise<void> {
+async function exportCurrent(): Promise<void> {
+  notice.value = '';
   const manifest = await account.createBackup();
-  if (!manifest) return;
-  const label = name.value.trim() || `Backup ${new Date().toISOString().slice(0, 10)}`;
-  await account.createNamedBackup(label);
-  name.value = '';
-  downloaded.value = false;
+  if (manifest) {
+    saveAsFile(manifest, 'tiktools-cloud-backup');
+    notice.value = t('account.backup.done');
+  }
 }
 
 async function onFile(event: Event): Promise<void> {
@@ -84,6 +101,7 @@ async function onFile(event: Event): Promise<void> {
   const file = input.files?.[0];
   input.value = '';
   if (!file) return;
+  notice.value = '';
   try {
     const parsed: unknown = JSON.parse(await file.text());
     if (!parsed || typeof parsed !== 'object' || (parsed as BackupManifest).schemaVersion !== 1) {
@@ -94,175 +112,143 @@ async function onFile(event: Event): Promise<void> {
     account.backupError = t('account.backup.invalid');
     return;
   }
+  fileName.value = file.name;
   fileSummary.value = await account.previewBackup(fileManifest.value);
   if (fileSummary.value) fileDialogOpen.value = true;
 }
 
-async function applyFileRestore(): Promise<void> {
+async function uploadFile(label: string): Promise<void> {
+  if (!fileManifest.value) return;
+  if (await account.createNamedBackup(label, fileManifest.value)) {
+    fileDialogOpen.value = false;
+    fileManifest.value = null;
+    notice.value = t('account.backup.uploaded');
+  }
+}
+
+async function restoreFile(): Promise<void> {
   if (!fileManifest.value) return;
   if (await account.restoreBackup(fileManifest.value)) {
     fileDialogOpen.value = false;
+    fileManifest.value = null;
+    notice.value = t('account.backup.restored');
   }
 }
 
-async function createCloud(): Promise<void> {
-  const label = name.value.trim();
-  if (!label) return;
-  if (await account.createNamedBackup(label)) name.value = '';
-}
-
-async function downloadCloud(backup: StoredBackup): Promise<void> {
+async function download(backup: StoredBackup): Promise<void> {
   const manifest = await account.getStoredBackup(backup.id);
-  if (manifest) downloadManifest(manifest as BackupManifest, backup.name);
+  if (manifest) saveAsFile(manifest, backup.name);
 }
 
-async function previewCloud(backup: StoredBackup): Promise<void> {
-  cloudSummary.value = await account.restoreStoredBackup(backup.id, true);
-  if (cloudSummary.value) pendingRestore.value = backup;
+async function previewRestore(backup: StoredBackup): Promise<void> {
+  restoreSummary.value = await account.restoreStoredBackup(backup.id, true);
+  if (restoreSummary.value) pendingRestore.value = backup;
 }
 
-async function applyCloud(): Promise<void> {
+async function applyRestore(): Promise<void> {
   if (!pendingRestore.value) return;
   if (await account.restoreStoredBackup(pendingRestore.value.id, false)) {
     pendingRestore.value = null;
-    cloudSummary.value = null;
+    restoreSummary.value = null;
+    notice.value = t('account.backup.restored');
   }
 }
 
-async function removeCloud(): Promise<void> {
+async function remove(): Promise<void> {
   if (!pendingDelete.value) return;
   if (await account.deleteStoredBackup(pendingDelete.value.id)) pendingDelete.value = null;
 }
 </script>
 
 <template>
-  <BaseGroupBox
+  <BasePanel
+    class="backup-section"
     :title="t('account.backup.sectionTitle')"
-    :description="t('account.backup.sectionDescription')"
+    header-layout="inline"
+    flush
   >
-    <div class="backup-section">
-      <BaseSegmented
-        v-model="mode"
-        :options="modes"
-        :aria-label="t('account.backup.modeLabel')"
-        class="backup-section__modes"
+    <template #actions>
+      <GuideCatalogButton
+        category="account"
+        :task-state="() => ({ 'backup.saved': account.backups.length > 0 })"
       />
+    </template>
 
-      <template v-if="mode === 'cloud'">
-        <p class="backup-section__hint">
-          {{ t('account.backup.cloudHint') }}
-        </p>
-        <div class="backup-section__create">
-          <input
+    <BaseTabs
+      v-model="mode"
+      class="backup-section__tabs"
+      data-guide="backup-tools"
+      :tabs="modes"
+      :label="t('account.backup.modeLabel')"
+    >
+      <div
+        v-if="mode === 'cloud'"
+        class="backup-section__pane"
+      >
+        <form
+          class="backup-section__create"
+          data-guide="backup-create"
+          @submit.prevent="create"
+        >
+          <BaseTextField
             v-model="name"
             class="backup-section__name"
-            type="text"
             maxlength="120"
+            :aria-label="t('account.backup.namePlaceholder')"
             :placeholder="t('account.backup.namePlaceholder')"
-            @keyup.enter="createCloud"
-          >
+          />
           <BaseButton
+            type="submit"
             variant="primary"
-            :disabled="!name.trim() || account.backupWorking"
-            @click="createCloud"
+            :disabled="!name.trim() || account.backupWorking || full"
           >
             <template #icon>
               <IconRefresh
                 v-if="account.backupWorking"
                 class="backup-section__spin"
+                :size="14"
+              />
+              <IconCloudUpload
+                v-else
+                :size="14"
               />
             </template>
             {{ t('account.backup.saveCloud') }}
           </BaseButton>
-        </div>
-
-        <p
-          v-if="account.backupError"
-          class="backup-section__error"
-          role="alert"
-        >
-          {{ account.backupError }}
-        </p>
-        <p
-          v-if="account.backupsLoading"
-          class="backup-section__hint"
-          role="status"
-        >
-          {{ t('account.backup.loading') }}
-        </p>
-        <BaseEmptyState
-          v-else-if="!account.backups.length"
-          :title="t('account.backup.empty')"
-          :description="t('account.backup.emptyHint')"
-        >
-          <template #icon>
-            <IconCloud :size="28" />
-          </template>
-        </BaseEmptyState>
-        <ul
-          v-else
-          class="backup-section__items"
-        >
-          <li
-            v-for="backup in account.backups"
-            :key="backup.id"
-            class="backup-section__row"
-          >
-            <span class="backup-section__icon">
-              <IconCloud :size="16" />
-            </span>
-            <div class="backup-section__info">
-              <strong>{{ backup.name }}</strong>
-              <span class="backup-section__meta">
-                {{ formatDate(backup.createdAt) }} · {{ backup.workspaceSync }} / {{ backup.library }} / {{ backup.assets }}
-              </span>
-            </div>
-            <div class="backup-section__actions">
-              <BaseButton
-                size="sm"
-                @click="downloadCloud(backup)"
-              >
-                <template #icon>
-                  <IconDownload :size="14" />
-                </template>
-                {{ t('account.backup.download') }}
-              </BaseButton>
-              <BaseButton
-                size="sm"
-                @click="previewCloud(backup)"
-              >
-                {{ t('account.backup.restore') }}
-              </BaseButton>
-              <BaseButton
-                size="sm"
-                variant="danger"
-                :disabled="account.backupWorking"
-                @click="pendingDelete = backup"
-              >
-                <template #icon>
-                  <IconTrash :size="14" />
-                </template>
-                {{ t('account.backup.delete') }}
-              </BaseButton>
-            </div>
-          </li>
-        </ul>
-      </template>
-
-      <template v-else>
+        </form>
         <p class="backup-section__hint">
-          {{ t('account.backup.fileHint') }}
+          <IconCloudCheck :size="16" />
+          {{ t('account.backup.cloudHint') }}
         </p>
-        <div class="backup-section__create">
+      </div>
+      <div
+        v-else
+        class="backup-section__pane"
+      >
+        <p class="backup-section__hint">
+          <IconHardDrive :size="16" />
+          {{ t('account.backup.localHint') }}
+        </p>
+        <CloudBackupAction
+          :icon="IconDownload"
+          :title="t('account.backup.exportTitle')"
+          :description="t('account.backup.exportDesc')"
+        >
           <BaseButton
             :disabled="account.backupWorking"
-            @click="downloadLocal"
+            @click="exportCurrent"
           >
             <template #icon>
               <IconDownload :size="14" />
             </template>
             {{ t('account.backup.downloadFile') }}
           </BaseButton>
+        </CloudBackupAction>
+        <CloudBackupAction
+          :icon="IconUpload"
+          :title="t('account.backup.importTitle')"
+          :description="t('account.backup.importDesc')"
+        >
           <BaseButton
             :disabled="account.backupWorking"
             @click="fileInput?.click()"
@@ -270,60 +256,73 @@ async function removeCloud(): Promise<void> {
             <template #icon>
               <IconUpload :size="14" />
             </template>
-            {{ t('account.backup.restoreFile') }}
+            {{ t('account.backup.uploadFile') }}
           </BaseButton>
-          <input
-            ref="fileInput"
-            class="backup-section__file"
-            type="file"
-            accept="application/json,.json"
-            @change="onFile"
-          >
-        </div>
-        <div class="backup-section__upload">
-          <input
-            v-model="name"
-            class="backup-section__name"
-            type="text"
-            maxlength="120"
-            :placeholder="t('account.backup.namePlaceholder')"
-            @keyup.enter="uploadLocal"
-          >
-          <BaseButton
-            variant="primary"
-            :disabled="!name.trim() || account.backupWorking"
-            @click="uploadLocal"
-          >
-            <template #icon>
-              <IconCloud :size="14" />
-            </template>
-            {{ t('account.backup.uploadToCloud') }}
-          </BaseButton>
-        </div>
-        <p class="backup-section__hint">
-          {{ t('account.backup.uploadHint') }}
-        </p>
-        <p
-          v-if="account.backupError"
-          class="backup-section__error"
-          role="alert"
+        </CloudBackupAction>
+        <input
+          ref="fileInput"
+          class="backup-section__file"
+          type="file"
+          accept="application/json,.json"
+          tabindex="-1"
+          @change="onFile"
         >
-          {{ account.backupError }}
-        </p>
-        <p
-          v-if="downloaded && !account.backupError"
-          class="backup-section__done"
-          role="status"
-        >
-          {{ t('account.backup.done') }}
-        </p>
-      </template>
+      </div>
+    </BaseTabs>
+    <p
+      v-if="account.backupError"
+      class="backup-section__message backup-section__message--error"
+      role="alert"
+    >
+      {{ account.backupError }}
+    </p>
+    <p
+      v-else-if="full && mode === 'cloud'"
+      class="backup-section__message backup-section__message--error"
+      role="status"
+    >
+      {{ t('account.backup.full') }}
+    </p>
+    <p
+      v-else-if="notice"
+      class="backup-section__message backup-section__message--done"
+      role="status"
+    >
+      {{ notice }}
+    </p>
 
+    <div
+      v-if="mode === 'cloud'"
+      class="backup-section__list"
+      data-guide="backup-list"
+    >
+      <CloudBackupList
+        :backups="account.backups"
+        :loading="account.backupsLoading"
+        :working="account.backupWorking"
+        @download="download"
+        @restore="previewRestore"
+        @remove="pendingDelete = $event"
+      />
+    </div>
+
+    <template #footer>
       <p class="backup-section__note">
+        <IconShield :size="14" />
         {{ t('account.backup.excludes') }}
       </p>
-    </div>
-  </BaseGroupBox>
+    </template>
+  </BasePanel>
+
+  <CloudBackupFileDialog
+    v-model:open="fileDialogOpen"
+    :file-name="fileName"
+    :summary="fileSummary"
+    :working="account.backupWorking"
+    :full="full"
+    @upload="uploadFile"
+    @restore="restoreFile"
+  />
 
   <BaseDialog
     :open="pendingDelete !== null"
@@ -331,9 +330,7 @@ async function removeCloud(): Promise<void> {
     :width="420"
     @update:open="pendingDelete = null"
   >
-    <p>
-      {{ t('account.backup.deleteConfirm', { name: pendingDelete?.name ?? '' }) }}
-    </p>
+    <p>{{ t('account.backup.deleteConfirm', { name: pendingDelete?.name ?? '' }) }}</p>
     <template #footer>
       <BaseButton @click="pendingDelete = null">
         {{ t('common.cancel') }}
@@ -341,7 +338,7 @@ async function removeCloud(): Promise<void> {
       <BaseButton
         variant="danger"
         :disabled="account.backupWorking"
-        @click="removeCloud"
+        @click="remove"
       >
         {{ t('account.backup.delete') }}
       </BaseButton>
@@ -354,7 +351,7 @@ async function removeCloud(): Promise<void> {
     :width="460"
     @update:open="pendingRestore = null"
   >
-    <p>{{ summaryText(cloudSummary) }}</p>
+    <p>{{ summaryText(restoreSummary) }}</p>
     <p class="backup-section__note">
       {{ t('account.backup.excludes') }}
     </p>
@@ -365,30 +362,7 @@ async function removeCloud(): Promise<void> {
       <BaseButton
         variant="primary"
         :disabled="account.backupWorking"
-        @click="applyCloud"
-      >
-        {{ t('account.backup.confirm') }}
-      </BaseButton>
-    </template>
-  </BaseDialog>
-
-  <BaseDialog
-    v-model:open="fileDialogOpen"
-    :title="t('account.backup.restore')"
-    :width="460"
-  >
-    <p>{{ summaryText(fileSummary) }}</p>
-    <p class="backup-section__note">
-      {{ t('account.backup.excludes') }}
-    </p>
-    <template #footer>
-      <BaseButton @click="fileDialogOpen = false">
-        {{ t('common.cancel') }}
-      </BaseButton>
-      <BaseButton
-        variant="primary"
-        :disabled="account.backupWorking"
-        @click="applyFileRestore"
+        @click="applyRestore"
       >
         {{ t('account.backup.confirm') }}
       </BaseButton>
@@ -397,59 +371,33 @@ async function removeCloud(): Promise<void> {
 </template>
 
 <style scoped>
-.backup-section { display: grid; gap: var(--space-3); }
-.backup-section__modes { width: min(100%, 360px); }
-.backup-section__modes :deep(.base-segmented) { width: 100%; }
-.backup-section__modes :deep(.base-segmented__option) {
-  flex: 1;
-  min-width: 0;
-  justify-content: center;
-  gap: var(--space-2);
-}
-.backup-section__hint { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.backup-section__note { margin: 0; color: var(--color-text-subtle); font-size: var(--font-size-sm); }
-.backup-section__create { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.backup-section__upload { display: flex; flex-wrap: wrap; gap: var(--space-2); padding-top: var(--space-2); border-top: var(--border-width) solid var(--color-border-subtle); }
-.backup-section__name {
-  flex: 1;
-  min-width: 160px;
-  padding: 0 var(--space-3);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-field);
-  color: var(--color-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-md);
-}
 .backup-section__file { display: none; }
-.backup-section__items { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
-.backup-section__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-raised);
-}
-.backup-section__icon {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-control);
-  color: var(--color-accent);
-}
-.backup-section__info { display: grid; flex: 1; min-width: 0; gap: 2px; }
-.backup-section__meta { color: var(--color-text-muted); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
-.backup-section__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.backup-section__error { margin: 0; color: var(--color-danger); font-size: var(--font-size-sm); }
-.backup-section__done { margin: 0; color: var(--color-success); font-size: var(--font-size-sm); }
+.backup-section__tabs :deep(.base-tabs__bar) { padding: 0 var(--space-3); }
+.backup-section { container-type: inline-size; flex: 1; }
+.backup-section :deep(.base-panel__body) { display: flex; flex-direction: column; }
+.backup-section__tabs { flex: none; }
+.backup-section__list { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.backup-section__pane { display: grid; gap: var(--space-3); padding: var(--space-4); }
+.backup-section__hint { display: flex; align-items: center; gap: var(--space-3); margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.backup-section__create { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.backup-section__name { flex: 1 1 200px; min-width: 0; }
+.backup-section__quota { font-variant-numeric: tabular-nums; }
+.backup-section__quota--full { color: var(--color-danger-hover); }
+.backup-section__message { margin: 0; padding: var(--space-3) var(--space-4); font-size: var(--font-size-sm); }
+.backup-section__message--error { color: var(--color-danger); }
+.backup-section__message--done { color: var(--color-success); }
+.backup-section__note { display: flex; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-2) var(--space-4); color: var(--color-text-subtle); font-size: var(--font-size-sm); }
 .backup-section__spin { animation: backup-section-spin 1s linear infinite; }
 @keyframes backup-section-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .backup-section__spin { animation: none; } }
+@container (width < 480px) {
+  .backup-section__tabs :deep(.base-tabs__list) { display: grid; flex: 1; grid-template-columns: 1fr 1fr; }
+  .backup-section__tabs :deep(.base-tabs__tab) { justify-content: center; min-height: 44px; }
+  .backup-section__create { flex-direction: column; }
+  .backup-section__name { flex: none; width: 100%; }
+  .backup-section__create :deep(.base-button), .backup-section__name :deep(input) { min-height: 44px; }
+  .backup-section__create :deep(.base-button) { justify-content: center; }
+  .backup-section__pane :deep(.backup-action__control), .backup-section__pane :deep(.backup-action__control .base-button) { width: 100%; }
+  .backup-section__pane :deep(.backup-action__control .base-button) { min-height: 44px; justify-content: center; }
+}
 </style>

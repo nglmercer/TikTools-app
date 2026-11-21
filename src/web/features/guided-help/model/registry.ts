@@ -57,12 +57,21 @@ export const tourRegistry = {
     ],
   },
   feed: {
-    id: 'feed', version: 1, route: '/feed', scope: 'feed', task: 'feed.reviewed',
+    id: 'feed', version: 2, route: '/feed', scope: 'feed', task: 'feed.reviewed',
     steps: [
       { id: 'view', version: 1, target: 'feed-view', titleKey: 'feed.view.title', descriptionKey: 'feed.view.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
       { id: 'filters', version: 1, target: 'feed-filters', titleKey: 'feed.filters.title', descriptionKey: 'feed.filters.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
-      { id: 'stage', version: 1, target: 'feed-stage', titleKey: 'feed.stage.title', descriptionKey: 'feed.stage.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
+      { id: 'stage', version: 2, target: 'feed-stage', titleKey: 'feed.stage.title', descriptionKey: 'feed.stage.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
       { id: 'controls', version: 1, target: 'feed-controls', titleKey: 'feed.controls.title', descriptionKey: 'feed.controls.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
+    ],
+  },
+  backup: {
+    id: 'backup', version: 2, route: '/settings?section=account', scope: 'account', task: 'backup.saved',
+    steps: [
+      { id: 'plan', version: 1, target: 'account-plan', titleKey: 'backup.plan.title', descriptionKey: 'backup.plan.description', requiredCapabilities: ['cloud.plan.get'], missingTargetPolicy: 'skip' },
+      { id: 'tools', version: 2, target: 'backup-tools', titleKey: 'backup.tools.title', descriptionKey: 'backup.tools.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
+      { id: 'create', version: 2, target: 'backup-create', titleKey: 'backup.create.title', descriptionKey: 'backup.create.description', requiredCapabilities: ['cloud.backup.createNamed'], missingTargetPolicy: 'skip' },
+      { id: 'list', version: 1, target: 'backup-list', titleKey: 'backup.list.title', descriptionKey: 'backup.list.description', requiredCapabilities: ['cloud.backup.list'], missingTargetPolicy: 'skip' },
     ],
   },
 } as const satisfies Record<TourId, TourDefinition>;

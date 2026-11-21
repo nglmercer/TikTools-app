@@ -40,4 +40,10 @@ export default {
     stage: { title: 'Lee el muro en vivo', description: 'Los mensajes importantes permanecen. Los me gusta y las entradas aparecen un momento como reacciones y luego se desvanecen.' },
     controls: { title: 'Pausar, limpiar e inspeccionar', description: 'Pausa el desplazamiento para leer con calma, limpia el historial guardado o abre el inspector para ver detalles.' },
   },
+  backup: {
+    plan: { title: 'Conoce tus límites', description: 'Cada plan tiene su propio límite de almacenamiento y de copias. Estos medidores muestran cuánto usas.' },
+    tools: { title: 'Nube o este PC', description: 'Cambia entre guardar en tu cuenta en la nube o trabajar con archivos en este PC: exporta tus datos o sube un archivo que ya tengas.' },
+    create: { title: 'Guarda una copia', description: 'Ponle nombre a una copia y guárdala en tu cuenta. Incluye reglas, perfiles, ajustes y archivos en la nube, nunca secretos ni cookies.' },
+    list: { title: 'Descarga, restaura o elimina', description: 'Cada copia guardada se puede descargar, restaurar en cualquier dispositivo con esta cuenta o eliminar. Restaurar siempre muestra antes qué cambiará.' },
+  },
 } satisfies TourCatalog;

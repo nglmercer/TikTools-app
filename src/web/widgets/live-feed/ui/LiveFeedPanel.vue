@@ -185,6 +185,7 @@ function onMenu(action: MenuAction): void {
     <div
       :ref="(element) => store.setStreamContainerRef(element as Element | null)"
       class="live-feed__stream"
+      data-guide="feed-stage"
       role="log"
       :aria-label="t('feed.title')"
     >

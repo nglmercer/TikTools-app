@@ -19,7 +19,7 @@ function mountDialog() {
 
 it('lists every tutorial and filters by search and the category select', async () => {
   const wrapper = mountDialog();
-  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(8);
+  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(9);
   expect(wrapper.find('[role="combobox"]').exists()).toBe(true);
 
   await wrapper.get('input[type="search"]').setValue('plugins');

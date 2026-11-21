@@ -53,6 +53,7 @@ const locale = computed<Locale>({
     >
       <section
         class="settings-page__content"
+        :class="{ 'settings-page__content--wide': section === 'account' }"
         :aria-label="t(`settingsLayout.labels.${section}`)"
       >
         <template v-if="section === 'general'">
@@ -90,8 +91,9 @@ const locale = computed<Locale>({
 <style scoped>
 .settings-page { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: var(--space-4); }
 .settings-page__tabs { flex: 1; min-height: 0; }
-.settings-page__tabs :deep(.base-tabs__panel) { display: flex; flex-direction: column; }
+.settings-page__tabs > :deep(.base-tabs__panel) { display: flex; flex-direction: column; }
 .settings-page__content { display: flex; flex: 1; flex-direction: column; gap: var(--space-6); min-width: 0; max-width: 1120px; min-height: 0; overflow-y: auto; padding: var(--space-5) var(--space-2) var(--space-5) 0; }
+.settings-page__content--wide { max-width: 1480px; }
 .settings-page__control { max-width: 320px; }
 .settings-page__content :deep(.settings-row:not(.settings-row--toggle)) { grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); }
 .settings-page__content :deep(.settings-row__control > .base-combo-box), .settings-page__content :deep(.settings-row__control > .base-spin-box), .settings-page__content :deep(.settings-row__control > .base-search-select) { width: 100%; }
@@ -112,9 +114,9 @@ const locale = computed<Locale>({
 }
 @media (width < 900px) {
  .settings-page__tabs :deep(.base-tabs) { min-width:0; }
- .settings-page__tabs :deep(.base-tabs__bar) { min-width:0; max-width:100%; }
- .settings-page__tabs :deep(.base-tabs__list) { flex-wrap:nowrap; overflow-x:auto; min-width:0; max-width:100%; scrollbar-width:thin; }
- .settings-page__tabs :deep(.base-tabs__tab) { flex:none; white-space:nowrap; min-height:44px; }
+ .settings-page__tabs > :deep(.base-tabs__bar) { min-width:0; max-width:100%; }
+ .settings-page__tabs > :deep(.base-tabs__bar > .base-tabs__list) { flex-wrap:nowrap; overflow-x:auto; min-width:0; max-width:100%; scrollbar-width:thin; }
+ .settings-page__tabs > :deep(.base-tabs__bar .base-tabs__tab) { flex:none; white-space:nowrap; min-height:44px; }
 }
 @media (width < 600px) {
  .settings-page__tabs > :deep(.base-tabs__bar > .base-tabs__list) { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); overflow:visible; }

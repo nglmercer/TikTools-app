@@ -10,6 +10,7 @@ import { controlClientKey } from '@/shared/api/use-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { createPinia, setActivePinia } from 'pinia';
 import { rankingSnapshot } from '@/entities/ranking/model/feed-rankings.test.ts';
+import { tourRegistry } from '@/features/guided-help/model/registry.ts';
 import FeedPage from './FeedPage.vue';
 
 enableAutoUnmount(afterEach);
@@ -81,6 +82,13 @@ describe('FeedPage', () => {
     expect(wrapper.text()).toContain('No live events yet');
     expect(wrapper.text()).toContain('0 events');
     expect(wrapper.get('[data-test="feed-view-toggle"]').text()).toContain(t('feed.stage.switchToFeed'));
+  });
+
+  it.each(['stage', 'list'] as const)('exposes every feed tour target on an empty %s feed so no step cancels the guide', async (view) => {
+    const { wrapper } = await mountFeed(undefined, view);
+    for (const step of tourRegistry.feed.steps) {
+      expect(wrapper.find(`[data-guide="${step.target}"]`).exists(), step.target).toBe(true);
+    }
   });
 
   it('renders incoming events and filters them by kind and text', async () => {

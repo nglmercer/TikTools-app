@@ -36,10 +36,7 @@ function reactionText(event: DisplayEvent): string {
 </script>
 
 <template>
-  <div
-    class="live-stage"
-    data-guide="feed-stage"
-  >
+  <div class="live-stage">
     <TransitionGroup
       v-if="reactions.length"
       name="reaction"

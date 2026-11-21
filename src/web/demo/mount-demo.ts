@@ -13,8 +13,7 @@ import { DEMO_AT } from './fixtures/scenario-state.ts';
 import { diagnosticLog, diagnosticView } from '@/shared/diagnostics/log.ts';
 import { toolbarCopy } from './toolbar-copy.ts';
 import { createDemoPlayback, type PlaybackState } from './playback.ts';
-import { demoTourScenarios, demoTourUrl, scenarioTour } from './tours.ts';
-import { isTourId } from '@/features/guided-help/model/registry.ts';
+import { demoTourScenarios, demoTourUrl, isDemoTour, scenarioTour } from './tours.ts';
 import type { GuideOutcome } from '@/features/guided-help/model/types.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
 import { useNavigationStore } from '@/shared/model/navigation-store.ts';
@@ -45,7 +44,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     host.setConnectionExample(kind, kind === 'offline' ? copy.offlineHelp : kind === 'auth' ? copy.authHelp : '');
     publishFrameState();
   }
-  const tours = (Object.keys(tourRegistry) as Array<keyof typeof tourRegistry>).map((value) => ({ value, label: toolbarCopy[options.locale].tourTitles[value] }));
+  const tours = (Object.keys(tourRegistry).filter(isDemoTour)).map((value) => ({ value, label: toolbarCopy[options.locale].tourTitles[value] }));
   const initialTour = options.tour ?? scenarioTour(options.scenario);
   const tourActions: { start?: (id: string, trigger: HTMLElement) => void; stop?: () => void } = {};
   const onScenario = (scenario: string) => { const url = new URL(location.href); url.searchParams.set('scenario', scenario); url.searchParams.delete('route'); url.searchParams.delete('tour'); url.hash = ''; location.assign(url.href); };
@@ -91,7 +90,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   });
   const outcomeState = (outcome: GuideOutcome) => outcome === 'completed' || outcome === 'task-completed' ? 'completed' : outcome === 'unavailable' ? 'unavailable' : 'dismissed';
   const launchTour = (id: string, trigger?: HTMLElement) => {
-    if (!isTourId(id)) return;
+    if (!isDemoTour(id)) return;
     playback.pause();
     if (demoTourScenarios[id] !== options.scenario) {
       location.assign(demoTourUrl(location.href, id));

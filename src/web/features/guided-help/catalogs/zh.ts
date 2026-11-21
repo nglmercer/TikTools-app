@@ -39,4 +39,10 @@ export default {
     stage: { title: "阅读实时墙", description: "重要消息会保留。点赞和加入会短暂显示为互动提示，然后淡出。" },
     controls: { title: "暂停、清空与查看", description: "暂停自动滚动以便阅读，清空已保存的历史记录，或打开检查器查看详情。" },
   },
+  backup: {
+    plan: { title: "了解额度", description: "每个套餐都有各自的存储和备份额度。这些进度条显示你已使用的量。" },
+    tools: { title: "云端或此电脑", description: "在保存到云端账户与处理此电脑上的文件之间切换：导出你的数据，或上传已有的文件。" },
+    create: { title: "保存备份", description: "为备份命名并保存到账户。它包含规则、配置、设置和云端文件，不含密钥或 Cookie。" },
+    list: { title: "下载、恢复或删除", description: "每个已保存的备份都可以下载、在登录此账户的任何设备上恢复，或删除。恢复前会先显示将发生的变更。" },
+  },
 } as const;

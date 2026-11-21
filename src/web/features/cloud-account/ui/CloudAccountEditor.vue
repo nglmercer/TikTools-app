@@ -2,14 +2,13 @@
 import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import BaseStatus from '@/shared/ui/status/BaseStatus.vue';
-import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
 import IconCopy from '@/shared/ui/icon/icons/IconCopy.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { friendlyAccountError } from '@/entities/cloud-account/lib/account-error.ts';
+import CloudAccountSummary from '@/features/cloud-account/ui/CloudAccountSummary.vue';
 import CloudPlanUsage from '@/features/cloud-account/ui/CloudPlanUsage.vue';
 import CloudBackupSection from '@/features/cloud-account/ui/CloudBackupSection.vue';
 
@@ -17,18 +16,6 @@ const { t } = useI18n();
 const account = useAccountStore();
 
 const state = computed(() => account.status?.state ?? null);
-const name = computed(
-  () =>
-    account.status?.displayName
-    ?? account.status?.email
-    ?? account.status?.accountId
-    ?? null,
-);
-/** Secondary line: the email, unless it is already the primary name. */
-const handle = computed(() => {
-  const email = account.status?.email ?? null;
-  return email && email !== name.value ? email : null;
-});
 const error = computed(() => friendlyAccountError(account.error, t));
 const loginPending = computed(() => state.value === 'signing-in' || account.loginActive);
 const linkCopied = ref(false);
@@ -49,12 +36,34 @@ onMounted(() => {
 </script>
 
 <template>
+  <div
+    v-if="state === 'signed-in'"
+    class="cloud-workspace"
+    data-guide-scope="account"
+  >
+    <div class="cloud-workspace__grid">
+      <aside class="cloud-workspace__aside">
+        <CloudAccountSummary />
+        <CloudPlanUsage />
+      </aside>
+      <div class="cloud-workspace__main">
+        <CloudBackupSection />
+      </div>
+    </div>
+    <DiagnosticStatusAction
+      v-if="error"
+      :label="error"
+      source="account"
+    />
+  </div>
   <BaseGroupBox
+    v-else
     :title="t('account.group')"
-    :description="state === 'signed-in' ? undefined : t('account.description')"
+    :description="t('account.description')"
   >
     <div
       class="cloud-account"
+      data-guide-scope="account"
       :aria-busy="loginPending || undefined"
     >
       <p
@@ -69,32 +78,6 @@ onMounted(() => {
       >
         {{ t('account.unconfigured') }}
       </p>
-      <template v-else-if="state === 'signed-in'">
-        <SettingsRow
-          :label="name ?? t('account.signedIn')"
-          :description="handle ?? undefined"
-        >
-          <template #status>
-            <BaseStatus
-              :label="t('account.signedIn')"
-              tone="success"
-            />
-          </template>
-          <BaseButton
-            :disabled="account.working"
-            @click="account.logout()"
-          >
-            {{ t('account.signOut') }}
-          </BaseButton>
-        </SettingsRow>
-        <CloudPlanUsage />
-        <CloudBackupSection />
-        <DiagnosticStatusAction
-          v-if="error"
-          :label="error"
-          source="account"
-        />
-      </template>
       <template v-else>
         <DiagnosticStatusAction
           v-if="error"
@@ -213,6 +196,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Two columns once there is room (summary left, backups right); one column below that. */
+.cloud-workspace { container-type: inline-size; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.cloud-workspace__grid { display: grid; gap: var(--space-4); align-items: stretch; }
+.cloud-workspace__aside { display: grid; gap: var(--space-4); min-width: 0; align-content: start; }
+.cloud-workspace__main { display: flex; flex-direction: column; min-width: 0; }
+@container (760px <= width) {
+  .cloud-workspace__grid { grid-template-columns: 300px minmax(0, 1fr); }
+}
+
 .cloud-account {
   display: flex;
   flex-direction: column;

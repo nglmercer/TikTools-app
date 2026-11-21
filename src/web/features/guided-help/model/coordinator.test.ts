@@ -398,8 +398,8 @@ it('replaces the previous guide and tolerates unavailable storage', async () => 
 });
 
 describe('versioned registry and localized copy', () => {
-  it('publishes eight versioned tours with complete catalogs for every supported locale', () => {
-    expect(Object.keys(tourRegistry)).toHaveLength(8);
+  it('publishes nine versioned tours with complete catalogs for every supported locale', () => {
+    expect(Object.keys(tourRegistry)).toHaveLength(9);
     for (const tour of Object.values(tourRegistry)) {
       expect(tour.version).toBeGreaterThan(0);
       expect(tour.route.startsWith('/')).toBe(true);
@@ -423,5 +423,42 @@ describe('versioned registry and localized copy', () => {
     const test = setup();
     expect(() => test.coordinator.startTour('__proto__')).toThrow('Unknown guided tour');
     expect(test.loadDriver).not.toHaveBeenCalled();
+  });
+});
+
+describe('account and backup tour', () => {
+  it('has text in every locale and steps through plan, create, tools and list', async () => {
+    for (const catalog of Object.values(tourCatalogs)) {
+      for (const step of tourRegistry.backup.steps) {
+        const [group, key] = step.titleKey.split('.') as ['backup', 'plan' | 'create' | 'tools' | 'list'];
+        expect(catalog[group][key].title, step.id).not.toBe('');
+      }
+    }
+    const test = setup();
+    const root = mountTargets('account', tourRegistry.backup.steps.map((step) => step.target));
+    const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', capabilities: ['cloud.plan.get', 'cloud.backup.createNamed', 'cloud.backup.list'] });
+    await flushPromises();
+    expect(await session.ready).toBe(true);
+    for (let index = 1; index < 4; index++) {
+      test.next();
+      await flushPromises();
+      expect(session.active, `step ${index + 1}`).toBe(true);
+    }
+    session.stop();
+  });
+
+  it('keeps going when the feed stage target is missing instead of closing the tour', async () => {
+    const test = setup();
+    const root = mountTargets('feed', ['feed-view', 'feed-filters', 'feed-controls']);
+    const session = test.coordinator.startTour('feed', { scope: root, locale: 'en' });
+    await flushPromises();
+    expect(await session.ready).toBe(true);
+    test.next();
+    await flushPromises();
+    test.next();
+    await flushPromises();
+    expect(session.active).toBe(true);
+    expect(test.steps().filter((step) => step.element instanceof HTMLButtonElement).length).toBe(3);
+    session.stop();
   });
 });

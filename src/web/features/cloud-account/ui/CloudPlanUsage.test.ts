@@ -25,12 +25,11 @@ function mountWith(plan: () => unknown) {
 }
 
 describe('CloudPlanUsage', () => {
-  it('shows the plan badge, four groups and a count and storage meter in each', async () => {
+  it('lists four areas with one count, one bar and the space used each', async () => {
     const { wrapper, calls } = mountWith(() => freePlan);
     await flushPromises();
     expect(calls.map((call) => call.method)).toContain('cloud.plan.get');
-    expect(wrapper.find('.cloud-plan__badge').text()).toBe('Free');
-    expect(wrapper.findAll('.cloud-plan__group-title').map((node) => node.text())).toEqual([
+    expect(wrapper.findAll('.cloud-plan__label').map((node) => node.text())).toEqual([
       t('account.plan.workspace'),
       t('account.plan.assets'),
       t('account.plan.overlays'),
@@ -40,8 +39,30 @@ describe('CloudPlanUsage', () => {
     expect(wrapper.text()).toContain(`120 B ${t('account.plan.of')} 8.0 MB`);
     expect(wrapper.text()).toContain(`1 ${t('account.plan.of')} 200`);
     expect(wrapper.text()).toContain(`5 B ${t('account.plan.of')} 32.0 MB`);
-    expect(wrapper.findAll('progress')).toHaveLength(8);
     expect(wrapper.text()).toContain(`0 ${t('account.plan.of')} 3`);
+    // One bar per area, filled by whichever of count or space is closer to its limit.
+    const bars = wrapper.findAll('progress');
+    expect(bars).toHaveLength(4);
+    expect(Number(bars[0]!.attributes('value'))).toBeCloseTo(3 / 1000);
+  });
+
+  it('folds to its tightest area on a phone and opens on demand', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('600px'), media: query, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, onchange: null, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+    try {
+      const { wrapper } = mountWith(() => ({ ...freePlan, usage: { ...freePlan.usage, backups: 2, backupBytes: 100 } }));
+      await flushPromises();
+      expect(wrapper.findAll('.cloud-plan__area')).toHaveLength(1);
+      expect(wrapper.text()).toContain(t('account.plan.backups'));
+      await wrapper.get('button').trigger('click');
+      expect(wrapper.findAll('.cloud-plan__area')).toHaveLength(4);
+      expect(wrapper.get('button').attributes('aria-expanded')).toBe('true');
+    } finally {
+      window.matchMedia = original;
+    }
   });
 
   it('says the plan is unavailable instead of showing zero usage when the read fails', async () => {

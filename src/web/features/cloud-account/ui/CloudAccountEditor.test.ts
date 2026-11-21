@@ -118,4 +118,37 @@ describe('CloudAccountEditor', () => {
     wrapper.unmount();
   });
 
+  it('lays out the summary and plan beside the backups, with an icon-only sign out', async () => {
+    const calls: string[] = [];
+    const { client } = createFakeControlClient((method) => {
+      calls.push(method);
+      if (method === 'cloud.status') return signedIn();
+      if (method === 'cloud.plan.get') {
+        return {
+          plan: 'free',
+          limits: { maxRecords: 1000, maxBytes: 8_388_608, maxAssets: 200, maxAssetsBytes: 33_554_432, maxOverlays: 50, maxOverlayBytes: 16_777_216, maxBackups: 3, maxBackupBytes: 16_777_216 },
+          usage: { records: 0, recordBytes: 0, assets: 0, assetBytes: 0, overlays: 0, overlayBytes: 0, backups: 0, backupBytes: 0 },
+        };
+      }
+      if (method === 'cloud.backup.list') return { items: [] };
+      if (method === 'cloud.logout') return { origin: null, state: 'signed-out', persistence: 'keychain' };
+      throw new Error(`unexpected ${method}`);
+    });
+    const wrapper = mountWithPlugins(CloudAccountEditor, { global: { plugins: storePlugins(client) } });
+    await flushPromises();
+    const aside = wrapper.get('.cloud-workspace__aside');
+    expect(aside.find('.account-summary').exists()).toBe(true);
+    expect(aside.find('.cloud-plan').exists()).toBe(true);
+    expect(aside.get('.account-summary__avatar').text()).toBe('TU');
+    expect(aside.get('.account-summary__plan').text()).toBe('Free');
+    expect(wrapper.get('.cloud-workspace__main').find('.backup-section').exists()).toBe(true);
+    // The old framed "Account" group is gone once signed in.
+    expect(wrapper.find('fieldset').exists()).toBe(false);
+    expect(wrapper.find('[data-guide-scope="account"]').exists()).toBe(true);
+    await aside.get(`button[aria-label="${t('account.signOut')}"]`).trigger('click');
+    await flushPromises();
+    expect(calls).toContain('cloud.logout');
+    wrapper.unmount();
+  });
+
 });

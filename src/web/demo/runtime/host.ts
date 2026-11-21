@@ -162,6 +162,11 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
     demoBackups.unshift(item);
     return item;
   });
+  add('cloud.plan.get', () => ({
+    plan: 'free',
+    limits: { maxRecords: 1000, maxBytes: 8_388_608, maxAssets: 200, maxAssetsBytes: 33_554_432, maxOverlays: 50, maxOverlayBytes: 16_777_216, maxBackups: 3, maxBackupBytes: 16_777_216 },
+    usage: { records: 0, recordBytes: 0, assets: 0, assetBytes: 0, overlays: 0, overlayBytes: 0, backups: demoBackups.length, backupBytes: 0 },
+  }));
   add('cloud.backup.get', () => demoBackup());
   add('cloud.backup.delete', (p) => {
     const index = demoBackups.findIndex((backup) => backup.id === p.id);

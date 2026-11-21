@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
+import { useMediaQuery } from '@/shared/lib/media-query.ts';
+import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
+import IconChevronUp from '@/shared/ui/icon/icons/IconChevronUp.vue';
+import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import { formatBytes } from '@/shared/lib/format-bytes.ts';
 
 /**
  * The signed-in account's plan and what it stores now. Each group shows how many
@@ -12,22 +18,7 @@ const account = useAccountStore();
 
 const count = computed(() => new Intl.NumberFormat(locale.value));
 
-function bytes(value: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let amount = value;
-  let unit = 0;
-  while (amount >= 1024 && unit < units.length - 1) {
-    amount /= 1024;
-    unit += 1;
-  }
-  const digits = unit === 0 ? 0 : 1;
-  return `${new Intl.NumberFormat(locale.value, { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(amount)} ${units[unit]}`;
-}
-
-const planName = computed(() => {
-  const name = account.plan?.plan ?? '';
-  return name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
-});
+const bytes = (value: number): string => formatBytes(value, locale.value);
 
 interface Meter {
   key: string;
@@ -81,6 +72,20 @@ const groups = computed(() => {
   ];
 });
 
+/** One entry per area: a count, the space it takes, and one bar for whichever is closer to its ceiling. */
+const areas = computed(() => groups.value.map((group) => {
+  const [items, storage] = [group.meters[0]!, group.meters[1]!];
+  const ratio = Math.max(items.used / Math.max(items.max, 1), storage.used / Math.max(storage.max, 1));
+  return { key: group.key, title: group.title, items, storage, ratio: Math.min(1, ratio) };
+}));
+
+// On a phone the plan folds to its tightest area; on wider screens it is always open.
+const compact = useMediaQuery('(width < 600px)');
+const expanded = ref(false);
+const open = computed(() => !compact.value || expanded.value);
+const tightest = computed(() => areas.value.reduce<(typeof areas.value)[number] | null>(
+  (best, area) => (!best || area.ratio > best.ratio ? area : best), null));
+
 onMounted(() => void account.refreshPlan());
 watch(
   () => account.status?.state,
@@ -91,49 +96,71 @@ watch(
 </script>
 
 <template>
-  <section
+  <BasePanel
     class="cloud-plan"
-    :aria-label="t('account.plan.title')"
+    data-guide="account-plan"
+    :title="t('account.plan.title')"
+    header-layout="inline"
+    flush
   >
-    <header class="cloud-plan__header">
-      <h3 class="cloud-plan__title">
-        {{ t('account.plan.title') }}
-      </h3>
-      <span
-        v-if="account.plan"
-        class="cloud-plan__badge"
-      >{{ planName }}</span>
-    </header>
-    <div
-      v-if="groups.length"
-      class="cloud-plan__groups"
+    <template
+      v-if="compact && areas.length"
+      #actions
     >
-      <article
-        v-for="group in groups"
-        :key="group.key"
-        class="cloud-plan__group"
+      <BaseButton
+        size="sm"
+        variant="ghost"
+        :aria-expanded="open"
+        @click="expanded = !expanded"
       >
-        <h4 class="cloud-plan__group-title">
-          {{ group.title }}
-        </h4>
-        <div
-          v-for="meter in group.meters"
-          :key="meter.key"
-          class="cloud-plan__meter"
+        {{ open ? t('account.plan.hide') : t('account.plan.show') }}
+        <template #icon>
+          <IconChevronUp
+            v-if="open"
+            :size="14"
+          />
+          <IconChevronDown
+            v-else
+            :size="14"
+          />
+        </template>
+      </BaseButton>
+    </template>
+    <template v-if="areas.length">
+      <ul
+        v-if="open"
+        class="cloud-plan__areas"
+      >
+        <li
+          v-for="area in areas"
+          :key="area.key"
+          class="cloud-plan__area"
         >
-          <div class="cloud-plan__meter-head">
-            <span>{{ meter.label }}</span>
-            <span class="cloud-plan__meter-value">{{ meter.text }}</span>
-          </div>
+          <span class="cloud-plan__label">{{ area.title }}</span>
+          <span class="cloud-plan__value">{{ area.items.text }}</span>
           <progress
             class="cloud-plan__bar"
-            :value="meter.used"
-            :max="Math.max(meter.max, 1)"
-            :aria-label="`${group.title} · ${meter.label}`"
+            :value="area.ratio"
+            max="1"
+            :aria-label="`${area.title} · ${area.items.text} · ${area.storage.text}`"
           />
-        </div>
-      </article>
-    </div>
+          <span class="cloud-plan__storage">{{ area.storage.text }}</span>
+        </li>
+      </ul>
+      <div
+        v-else-if="tightest"
+        class="cloud-plan__area cloud-plan__area--summary"
+      >
+        <span class="cloud-plan__label">{{ tightest.title }}</span>
+        <span class="cloud-plan__value">{{ tightest.items.text }}</span>
+        <progress
+          class="cloud-plan__bar"
+          :value="tightest.ratio"
+          max="1"
+          :aria-label="`${tightest.title} · ${tightest.items.text}`"
+        />
+      </div>
+    </template>
     <p
       v-else-if="account.planError"
       class="cloud-plan__message"
@@ -147,27 +174,44 @@ watch(
     >
       {{ t('account.plan.loading') }}
     </p>
-  </section>
+  </BasePanel>
 </template>
 
 <style scoped>
-.cloud-plan { display: grid; gap: var(--space-4); }
-.cloud-plan__header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.cloud-plan__title { margin: 0; font-size: var(--font-size-md); }
-.cloud-plan__badge {
-  padding: 2px var(--space-3);
-  border-radius: 999px;
-  background: var(--color-accent-soft, rgba(99, 102, 241, 0.18));
-  color: var(--color-accent, inherit);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+/* Width, not viewport: the same markup is a list in the 300px sidebar, 2x2 on a phone and one row on a tablet. */
+.cloud-plan { container-type: inline-size; }
+.cloud-plan__areas { display: grid; margin: 0; padding: 0; list-style: none; }
+.cloud-plan__area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border-subtle);
 }
-.cloud-plan__groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space-4); }
-.cloud-plan__group { display: grid; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md, 8px); background: var(--color-bg-raised); }
-.cloud-plan__group-title { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
-.cloud-plan__meter { display: grid; gap: var(--space-1); }
-.cloud-plan__meter-head { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--font-size-sm); }
-.cloud-plan__meter-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cloud-plan__bar { width: 100%; height: 6px; accent-color: var(--color-accent, #6366f1); }
-.cloud-plan__message { margin: 0; color: var(--color-text-muted); }
+.cloud-plan__areas > .cloud-plan__area:last-child { border-bottom: 0; }
+.cloud-plan__label { overflow: hidden; font-weight: var(--font-weight-semibold); text-overflow: ellipsis; white-space: nowrap; }
+.cloud-plan__value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cloud-plan__bar { grid-column: 1 / -1; width: 100%; height: 4px; border: 0; appearance: none; background: var(--color-bg-control); accent-color: var(--color-accent, #6366f1); }
+.cloud-plan__bar::-webkit-progress-bar { background: var(--color-bg-control); }
+.cloud-plan__bar::-webkit-progress-value { background: var(--color-accent, #6366f1); }
+.cloud-plan__bar::-moz-progress-bar { background: var(--color-accent, #6366f1); }
+.cloud-plan__storage { grid-column: 1 / -1; color: var(--color-text-muted); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+.cloud-plan__message { margin: 0; padding: var(--space-4); color: var(--color-text-muted); }
+@container (340px <= width) {
+  /* Tiles: the label sits above its count so long names are never cut off. */
+  .cloud-plan__area { grid-template-columns: minmax(0, 1fr); }
+  .cloud-plan__value { order: 2; }
+  .cloud-plan__bar { order: 3; }
+  .cloud-plan__storage { order: 4; }
+  .cloud-plan__areas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cloud-plan__area { border-right: var(--border-width) solid var(--color-border-subtle); }
+  .cloud-plan__areas > .cloud-plan__area:nth-child(even) { border-right: 0; }
+  .cloud-plan__areas > .cloud-plan__area:nth-last-child(-n + 2) { border-bottom: 0; }
+}
+@container (560px <= width) {
+  .cloud-plan__areas { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cloud-plan__areas > .cloud-plan__area:nth-child(even) { border-right: var(--border-width) solid var(--color-border-subtle); }
+  .cloud-plan__areas > .cloud-plan__area:last-child { border-right: 0; }
+  .cloud-plan__areas > .cloud-plan__area { border-bottom: 0; }
+}
 </style>

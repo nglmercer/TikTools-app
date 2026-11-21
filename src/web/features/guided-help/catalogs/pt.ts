@@ -40,4 +40,10 @@ export default {
     stage: { title: 'Leia o mural ao vivo', description: 'Mensagens importantes permanecem. Curtidas e entradas aparecem brevemente como reações e depois desaparecem.' },
     controls: { title: 'Pausar, limpar e inspecionar', description: 'Pause a rolagem para ler com calma, limpe o histórico salvo ou abra o inspetor para ver detalhes.' },
   },
+  backup: {
+    plan: { title: 'Conheça seus limites', description: 'Cada plano tem seus próprios limites de armazenamento e de backups. Estes medidores mostram quanto você usa.' },
+    tools: { title: 'Nuvem ou este PC', description: 'Alterne entre salvar na sua conta na nuvem ou trabalhar com arquivos neste PC: exporte seus dados ou envie um arquivo que você já tem.' },
+    create: { title: 'Salve um backup', description: 'Dê um nome ao backup e salve na sua conta. Inclui regras, perfis, ajustes e arquivos na nuvem, nunca segredos nem cookies.' },
+    list: { title: 'Baixe, restaure ou exclua', description: 'Cada backup salvo pode ser baixado, restaurado em qualquer dispositivo com esta conta ou excluído. Restaurar sempre mostra antes o que vai mudar.' },
+  },
 } satisfies TourCatalog;

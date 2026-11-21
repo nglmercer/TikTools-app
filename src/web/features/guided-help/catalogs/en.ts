@@ -39,4 +39,10 @@ export default {
     stage: { title: 'Read the live wall', description: 'Important messages stay on the wall. Likes and joins appear briefly as reactions, then fade out.' },
     controls: { title: 'Pause, clear and inspect', description: 'Pause auto-scroll to read at your own pace, clear the saved history, or open the inspector for details.' },
   },
+  backup: {
+    plan: { title: 'Know your limits', description: 'Each plan has its own storage and backup limits. These meters show how much of them you are using.' },
+    tools: { title: 'Cloud or this PC', description: 'Switch between saving to your cloud account or working with files on this PC: export your data, or upload a file you already have.' },
+    create: { title: 'Save a backup', description: 'Name a backup and save it to your account. It captures your rules, profiles, settings and cloud files, never secrets or cookies.' },
+    list: { title: 'Download, restore or delete', description: 'Every saved backup can be downloaded, restored on any device signed in with this account, or deleted. Restoring always shows what will change first.' },
+  },
 } as const;
