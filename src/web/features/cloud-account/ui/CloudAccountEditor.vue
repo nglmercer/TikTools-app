@@ -11,8 +11,7 @@ import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import { friendlyAccountError } from '@/entities/cloud-account/lib/account-error.ts';
 import CloudPlanUsage from '@/features/cloud-account/ui/CloudPlanUsage.vue';
-import CloudBackupCard from '@/features/cloud-account/ui/CloudBackupCard.vue';
-import CloudBackupList from '@/features/cloud-account/ui/CloudBackupList.vue';
+import CloudBackupSection from '@/features/cloud-account/ui/CloudBackupSection.vue';
 
 const { t } = useI18n();
 const account = useAccountStore();
@@ -89,8 +88,7 @@ onMounted(() => {
           </BaseButton>
         </SettingsRow>
         <CloudPlanUsage />
-        <CloudBackupCard />
-        <CloudBackupList />
+        <CloudBackupSection />
         <DiagnosticStatusAction
           v-if="error"
           :label="error"
