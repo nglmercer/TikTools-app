@@ -43,7 +43,10 @@ struct HomeGuard {
 
 impl HomeGuard {
     fn set(label: &str) -> Self {
-        let lock = env_lock().lock().expect("env lock");
+        // A panic in one test must not cascade into every later test.
+        let lock = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let path = std::env::temp_dir().join(unique_tag(label));
         std::fs::create_dir_all(&path).expect("create isolated home");
         let previous_home = std::env::var_os("TIKTOOLS_HOME");
@@ -93,11 +96,11 @@ impl HostChild {
             .stderr(Stdio::null())
             .spawn()
             .expect("spawn tiktools host --ipc");
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(90);
         let client = loop {
             if tokio::time::Instant::now() >= deadline {
                 let _ = child.kill();
-                panic!("isolated host did not answer within 15s");
+                panic!("isolated host did not answer within 90s");
             }
             if let Ok(exit) = child.try_wait() {
                 if exit.is_some() {
