@@ -85,3 +85,6 @@ ttl-live-ws = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba
 ttl-sign-headless = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
 ttl-sign-embedded = { git = "https://github.com/nglmercer/tiktok-signer", rev = "720ba7ad17dea99376bb6497292dfcdfeefdea4f" }
 
+
+[patch.crates-io]
+crypto-glue = { git = "https://github.com/nglmercer/crypto-glue", rev = "eb80ef9adfee042c68939e79665e160649a1cc4b" }
