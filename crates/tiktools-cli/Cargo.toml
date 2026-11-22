@@ -15,7 +15,7 @@ default = ["cloud-auth", "tls-aws-lc"]
 # TLS provider for this binary; see tiktools-desktop for the selection rule.
 tls-aws-lc = ["tiktools-tls/aws-lc-rs"]
 tls-ring = ["tiktools-tls/ring"]
-local-web = ["dep:axum", "dep:rand"]
+local-web = ["dep:axum", "dep:futures-util", "dep:hyper", "dep:hyper-util", "dep:rand", "dep:tokio-tungstenite"]
 # `cloud-auth` enables account, sync and relay support. Remote control itself
 # is an installable plugin (`tiktools.remote-control`), not compiled here.
 cloud-auth = [
@@ -35,7 +35,11 @@ serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["signal"] }
 
-axum = { version = "0.8.9", optional = true, features = ["ws"] }
+axum = { version = "0.8.9", optional = true }
+futures-util = { version = "0.3", optional = true }
+hyper = { version = "1", optional = true }
+hyper-util = { version = "0.1", features = ["tokio"], optional = true }
+tokio-tungstenite = { version = "0.30", optional = true }
 rand = { version = "0.10.4", optional = true }
 rpassword = { version = "7.5.5", optional = true }
 zeroize = { version = "1", optional = true }

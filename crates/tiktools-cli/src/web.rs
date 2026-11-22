@@ -32,10 +32,7 @@ use socket::upgrade;
 
 use axum::{
     body::Body,
-    extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
-        DefaultBodyLimit, Request, State,
-    },
+    extract::{DefaultBodyLimit, Request, State},
     http::{header, HeaderMap, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},

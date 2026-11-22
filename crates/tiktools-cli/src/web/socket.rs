@@ -1,11 +1,19 @@
 use super::*;
+use axum::body::Body;
+use futures_util::{SinkExt, StreamExt};
+use axum::extract::Request;
+use hyper_util::rt::TokioIo;
+use tokio_tungstenite::tungstenite::handshake::server::{
+    create_response, Request as HandshakeRequest,
+};
+use tokio_tungstenite::tungstenite::protocol::{Role, WebSocketConfig};
+use tokio_tungstenite::tungstenite::Message;
 
 pub(super) async fn upgrade(
     State(app): State<Arc<App>>,
-    headers: HeaderMap,
-    ws: WebSocketUpgrade,
+    mut request: Request<Body>,
 ) -> Response {
-    if !app.same_origin(&headers) || !app.authorized(&headers) {
+    if !app.same_origin(request.headers()) || !app.authorized(request.headers()) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
     let Ok(permit) = app.clients.clone().try_acquire_owned() else {
@@ -15,15 +23,55 @@ pub(super) async fn upgrade(
         Ok(client) => client,
         Err(_) => return (StatusCode::SERVICE_UNAVAILABLE, "host_unavailable").into_response(),
     };
-    ws.max_message_size(MAX_OWNER_LIBRARY_REQUEST_BYTES)
-        .max_frame_size(MAX_OWNER_LIBRARY_REQUEST_BYTES)
-        .on_upgrade(move |socket| async move {
-            let _permit = permit;
-            socket_loop(socket, client, app).await;
-        })
+
+    let upgrade = hyper::upgrade::on(&mut request);
+    let mut handshake = match HandshakeRequest::builder()
+        .method(request.method())
+        .uri(request.uri())
+        .version(request.version())
+        .body(())
+    {
+        Ok(handshake) => handshake,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+    *handshake.headers_mut() = request.headers().clone();
+    let handshake_response = match create_response(&handshake) {
+        Ok(response) => response,
+        Err(_) => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    let mut config = WebSocketConfig::default();
+    config.max_message_size = Some(MAX_OWNER_LIBRARY_REQUEST_BYTES);
+    config.max_frame_size = Some(MAX_OWNER_LIBRARY_REQUEST_BYTES);
+
+    tokio::spawn(async move {
+        let upgraded = match upgrade.await {
+            Ok(upgraded) => upgraded,
+            Err(_) => return,
+        };
+        let socket = tokio_tungstenite::WebSocketStream::from_raw_socket(
+            TokioIo::new(upgraded),
+            Role::Server,
+            Some(config),
+        )
+        .await;
+        let _permit = permit;
+        socket_loop(socket, client, app).await;
+    });
+
+    let mut response = Response::builder()
+        .status(handshake_response.status())
+        .body(Body::empty())
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
+    *response.headers_mut() = handshake_response.headers().clone();
+    response
 }
 
-async fn socket_loop(mut socket: WebSocket, client: ControlClient, app: Arc<App>) {
+async fn socket_loop(
+    mut socket: tokio_tungstenite::WebSocketStream<TokioIo<hyper::upgrade::Upgraded>>,
+    client: ControlClient,
+    app: Arc<App>,
+) {
     let mut stopping = app.stopping.subscribe();
     if *stopping.borrow() {
         return;
@@ -41,10 +89,10 @@ async fn socket_loop(mut socket: WebSocket, client: ControlClient, app: Arc<App>
                 if !app.touch_session() || client.is_closed() { break; }
                 continue;
             }
-            message = socket.recv() => {
+            message = socket.next() => {
                 let raw = match message {
                     Some(Ok(Message::Text(raw))) => raw,
-                    Some(Ok(Message::Ping(_) | Message::Pong(_))) => continue,
+                    Some(Ok(Message::Ping(_) | Message::Pong(_) | Message::Frame(_))) => continue,
                     _ => break,
                 };
                 let Ok(request) = serde_json::from_str::<Value>(&raw) else { break; };
