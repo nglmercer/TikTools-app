@@ -1,6 +1,6 @@
 //! Explicit OS credential storage; never falls back to a file or mock store.
 use crate::{parse_origin, Session};
-use keyring::Entry;
+use keyring_core::{api::CredentialStoreApi as _, Entry};
 use secrecy::{ExposeSecret, SecretString};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -31,17 +31,19 @@ impl Keychain {
         let origin = url.origin().ascii_serialization();
         let key = identity_key(&origin, account_id);
         // Select the native backend directly; another library cannot replace it
-        // through keyring's process-global default builder.
+        // through keyring's process-global default store.
         #[cfg(target_os = "linux")]
-        let builder = keyring::secret_service::default_credential_builder();
-        #[cfg(target_os = "macos")]
-        let builder = keyring::macos::default_credential_builder();
-        #[cfg(target_os = "windows")]
-        let builder = keyring::windows::default_credential_builder();
-        let credential = builder
-            .build(None, SERVICE, &key)
+        let store = dbus_secret_service_keyring_store::Store::new()
             .map_err(|_| KeychainError::Unavailable)?;
-        let entry = Entry::new_with_credential(credential);
+        #[cfg(target_os = "macos")]
+        let store = apple_native_keyring_store::keychain::Store::new()
+            .map_err(|_| KeychainError::Unavailable)?;
+        #[cfg(target_os = "windows")]
+        let store =
+            windows_native_keyring_store::Store::new().map_err(|_| KeychainError::Unavailable)?;
+        let entry = store
+            .build(SERVICE, &key, None)
+            .map_err(|_| KeychainError::Unavailable)?;
         Ok(Self {
             entry,
             origin,
@@ -61,13 +63,13 @@ impl Keychain {
     pub fn load(&self) -> Result<Option<SecretString>, KeychainError> {
         match self.entry.get_password() {
             Ok(value) => Ok(Some(SecretString::from(value))),
-            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(keyring_core::Error::NoEntry) => Ok(None),
             Err(_) => Err(KeychainError::Unavailable),
         }
     }
     pub fn delete(&self) -> Result<(), KeychainError> {
         match self.entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
             Err(_) => Err(KeychainError::Unavailable),
         }
     }
@@ -97,7 +99,8 @@ mod tests {
     #[test]
     fn storage_uses_the_credential_backend() {
         // The mock is test-only and is never selected by our production target features.
-        let entry = Entry::new_with_credential(Box::new(keyring::mock::MockCredential::default()));
+        let store = keyring_core::mock::Store::new().unwrap();
+        let entry = store.build("svc", "usr", None).unwrap();
         let store = Keychain {
             entry,
             origin: "https://cloud.example".into(),
@@ -118,7 +121,10 @@ mod tests {
         store.delete().unwrap();
         assert!(store.load().unwrap().is_none());
         let wrong = Keychain {
-            entry: Entry::new_with_credential(Box::new(keyring::mock::MockCredential::default())),
+            entry: {
+                let store = keyring_core::mock::Store::new().unwrap();
+                store.build("svc", "usr", None).unwrap()
+            },
             origin: "https://other.example".into(),
             account_id: "user".into(),
         };

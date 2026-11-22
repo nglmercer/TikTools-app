@@ -8,11 +8,11 @@ license = "MIT"
 [features]
 default = []
 system-browser = ["dep:open"]
-os-keychain = ["dep:keyring"]
+os-keychain = ["dep:keyring-core", "dep:dbus-secret-service-keyring-store", "dep:apple-native-keyring-store", "dep:windows-native-keyring-store"]
 
 [dependencies]
 cloud-contracts = { path = "../cloud-contracts" }
-better-auth = { git = "https://github.com/nglmercer/better-auth-rs.git", rev = "aadd81d630aed4bd950d4e5581a5efbb304ca3e7", default-features = false, features = ["desktop"] }
+better-auth = { git = "https://github.com/nglmercer/better-auth-rs.git", rev = "655a1132e8921b4776f52514015cefc3c407e6a6", default-features = false, features = ["desktop"] }
 base64.workspace = true
 getrandom.workspace = true
 sha2.workspace = true
@@ -37,10 +37,13 @@ reqwest = { workspace = true, features = ["json", "query", "rustls"] }
 tokio = { version = "1", features = ["macros", "rt", "net", "io-util", "time"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-keyring = { version = "3.6.3", default-features = false, features = ["sync-secret-service", "crypto-rust", "vendored"], optional = true }
+keyring-core = { version = "1", optional = true }
+dbus-secret-service-keyring-store = { version = "1", default-features = false, features = ["crypto-rust", "vendored"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-keyring = { version = "3.6.3", default-features = false, features = ["apple-native"], optional = true }
+keyring-core = { version = "1", optional = true }
+apple-native-keyring-store = { version = "1", optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "3.6.3", default-features = false, features = ["windows-native"], optional = true }
+keyring-core = { version = "1", optional = true }
+windows-native-keyring-store = { version = "1", optional = true }
