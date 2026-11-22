@@ -128,14 +128,19 @@ mod plan_tests {
             "plan": "free",
             "limits": {"maxRecords": 1000, "maxBytes": 8388608, "maxChanges": 10000,
                        "maxChangeBytes": 16777216, "maxAssets": 200, "maxAssetsBytes": 33554432,
-                       "maxOverlays": 50, "maxRevisionsPerOverlay": 100, "maxOverlayBytes": 16777216},
+                       "maxOverlays": 50, "maxRevisionsPerOverlay": 100, "maxOverlayBytes": 16777216,
+                       "maxBackups": 3, "maxBackupBytes": 16777216},
             "usage": {"records": 3, "recordBytes": 120, "assets": 1, "assetBytes": 5,
-                      "overlays": 0, "overlayBytes": 0}
+                      "overlays": 0, "overlayBytes": 0, "backups": 2, "backupBytes": 4096}
         }"#;
         let plan: AccountPlan = serde_json::from_str(body).unwrap();
         assert_eq!(plan.plan, "free");
         assert_eq!(plan.limits.max_assets_bytes, 33_554_432);
         assert_eq!(plan.usage.records, 3);
         assert_eq!(plan.usage.asset_bytes, 5);
+        assert_eq!(plan.limits.max_backups, 3);
+        assert_eq!(plan.limits.max_backup_bytes, 16_777_216);
+        assert_eq!(plan.usage.backups, 2);
+        assert_eq!(plan.usage.backup_bytes, 4096);
     }
 }

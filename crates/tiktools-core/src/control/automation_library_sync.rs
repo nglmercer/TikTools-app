@@ -522,7 +522,7 @@ impl AppCore {
     }
 
     /// Publishes the library-change domain event with the new revision.
-    #[cfg(all(feature = "cloud-auth", feature = "persistence"))]
+    #[cfg(any(all(feature = "cloud-auth", feature = "persistence"), test))]
     fn publish_automation_library_changed(&self, revision: &str) {
         self.events
             .publish_domain(crate::events::DomainEvent::WorkflowChanged {
