@@ -64,6 +64,11 @@ jobs:
     env:
       TIKTOOLS_APP_UPDATE_PUBLIC_KEY: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY }}
       TIKTOOLS_APP_UPDATE_FEED_ENABLED: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY != '' && '1' || '' }}
+      # Automatic installation stays off unless a maintainer opts in by setting
+      # the repository variable to exactly "1" after testing that platform:
+      # AppImage needs INSTALL_ENABLED, Windows (NSIS) needs both variables.
+      TIKTOOLS_APP_UPDATE_INSTALL_ENABLED: ${{ vars.TIKTOOLS_UPDATE_INSTALL_ENABLED == '1' && '1' || '' }}
+      TIKTOOLS_APP_UPDATE_NSIS_ENABLED: ${{ vars.TIKTOOLS_UPDATE_NSIS_ENABLED == '1' && '1' || '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
