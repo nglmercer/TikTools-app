@@ -161,8 +161,7 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
 .demo-frame__overlay--docked { position:static; opacity:1; pointer-events:auto; transition:none; }
 .demo-frame__overlay a { display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid var(--vp-c-divider); border-radius:6px; background:var(--vp-c-bg); color:var(--vp-c-text-1); text-decoration:none; }
 .demo-frame__overlay svg { width:14px; height:14px; }
-.demo-frame__overlay-label { color:var(--vp-c-text-3); font:10px var(--vp-font-family-mono); opacity:0; transition:opacity .15s; }
-.demo-frame__overlay a:hover .demo-frame__overlay-label { opacity:1; }
+.demo-frame__overlay-label { color:var(--vp-c-text-3); font:10px var(--vp-font-family-mono); transition:opacity .15s; }
 .demo-frame__canvas { position:relative; width:calc(1280px * var(--frame-scale)); height:calc(var(--frame-height) * 1px * var(--frame-scale)); margin-inline:auto; }
 .demo-frame--fit .demo-frame__canvas { width:min(100%,1280px); height:auto; aspect-ratio:1280 / var(--frame-height); }
 .demo-frame iframe { position:absolute; top:0; left:0; display:block; width:1280px; max-width:none; height:calc(var(--frame-height) * 1px); border:0; transform:scale(var(--frame-scale)); transform-origin:top left; }
