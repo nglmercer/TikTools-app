@@ -5,7 +5,6 @@ import ViewerAvatar from '@/entities/viewer/ui/ViewerAvatar.vue';
 import type { ViewerIdentity } from '@/entities/viewer/lib/viewer-profile.ts';
 import type { DisplayEvent } from '@/types.ts';
 import { cleanHandle, displayName, eventText, formatEventTime, hasRichText } from '../lib/event-text.ts';
-import { eventTypeIcon } from '../lib/event-type-icon.ts';
 import ChatRichText from './ChatRichText.vue';
 
 const props = withDefaults(
@@ -26,7 +25,6 @@ const name = computed(() => displayName(handle.value, props.event.nickname));
 const text = computed(() => eventText(props.event, t));
 const rich = computed(() => hasRichText(props.event, text.value));
 const time = computed(() => formatEventTime(props.event.receivedAt, locale.value));
-const icon = computed(() => eventTypeIcon(props.event));
 const giftImage = computed(() =>
   props.event.kind === 'gift' && props.images && !giftImageFailed.value ? props.event.giftDetails?.imageUrl : undefined,
 );
@@ -43,12 +41,6 @@ function openViewer(): void {
     role="listitem"
     :aria-current="selected || undefined"
   >
-    <span class="event-card__icon">
-      <component
-        :is="icon"
-        :size="16"
-      />
-    </span>
     <div class="event-card__body">
       <div class="event-card__head">
         <button
@@ -121,18 +113,6 @@ function openViewer(): void {
 .event-card--social { --event-accent: var(--color-chart-4); }
 .event-card--chat { --event-accent: var(--color-accent); }
 .event-card--selected { background: var(--color-bg-selected); border-color: var(--color-border-selected); }
-
-.event-card__icon {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-control);
-  color: var(--event-accent);
-}
 
 .event-card__body { display: grid; flex: 1; min-width: 0; gap: var(--space-1); }
 .event-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }

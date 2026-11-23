@@ -541,7 +541,6 @@ export default {
       emptyUser: 'Selecciona a alguien para ver su perfil.',
     },
     viewers: {
-      live: '{count} viendo ahora',
       empty: 'Aún no hay colaboradores.',
       sourceTikTok: 'Clasificación de la sala de TikTok',
       sourcePoints: 'Clasificación de puntos de fidelidad',

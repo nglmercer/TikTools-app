@@ -539,7 +539,6 @@ export default {
       emptyUser: 'Select someone to see their profile.',
     },
     viewers: {
-      live: '{count} watching now',
       empty: 'No contributors yet.',
       sourceTikTok: 'TikTok room ranking',
       sourcePoints: 'Loyalty points ranking',

@@ -539,7 +539,6 @@ export default {
       emptyUser: "选择一位观众以查看其个人资料。",
     },
     viewers: {
-      live: "{count} 人正在观看",
       empty: "暂无贡献者。",
       sourceTikTok: "TikTok 直播间排名",
       sourcePoints: "忠诚积分排名",

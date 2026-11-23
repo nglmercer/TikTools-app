@@ -27,7 +27,8 @@ onBeforeUnmount(() => { if (timer !== null) clearInterval(timer); });
 
 /** Chat, gifts, follows and shares stay on the wall; reactions fade out. */
 const important = computed(() => props.events.filter((event) => !isEphemeralEvent(event)));
-const reactions = computed(() => visibleEphemeralEvents(props.events, now.value));
+// Keep only the newest like/join so the reaction strip stays a single compact line.
+const reactions = computed(() => visibleEphemeralEvents(props.events, now.value, 1));
 
 function reactionText(event: DisplayEvent): string {
   const value = eventText(event, (key, params) => String(t(key, params ?? {})));

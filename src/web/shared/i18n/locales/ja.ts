@@ -539,7 +539,6 @@ export default {
       emptyUser: "プロフィールを表示する人を選択してください。",
     },
     viewers: {
-      live: "現在{count}人が視聴中",
       empty: "貢献者はまだいません。",
       sourceTikTok: "TikTokルームのランキング",
       sourcePoints: "ロイヤルティポイントのランキング",
