@@ -19,7 +19,6 @@ export interface LiveStatusResult {
 }
 
 export interface ConnectionCallbacks {
-  goFeed: () => void;
   resetFeed: () => void;
   translate: (key: string) => string;
 }
@@ -129,7 +128,6 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     uniqueId.value = target;
     saveUsername(target);
     recents.value = addRecentUsername(target);
-    callbacks.goFeed();
     void requestConnect(target, sessionCookie.trim(), roomId);
   };
 
@@ -145,7 +143,6 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     clearReconnect();
     const previousCreator = activeCreatorRef.value;
     activeCreator.value = callbacks.translate('connection.searchingRooms');
-    callbacks.goFeed();
     void control
       .call<LiveStatusResult>('live.pick', { sessionCookie: cookie.value.trim() })
       .then((result) => {

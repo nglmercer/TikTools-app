@@ -7,43 +7,39 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "4a97f64b6bdc818ebb8d16eec1e67d95a2d0eae0b75f7cfd5c1493bf27244684"
-translationRevision: "2cbe901be7ab6ec1b6458d4135506c0d06d677dc434e31295d5af37d15879be8"
+sourceRevision: "05f448dda78b05027b84b2c03f08a15eb515aee05af79397a1596d7e40ec5d40"
+translationRevision: "d0c0e6ce583468a8f45ef61e17b6e9aca9cb6a974b767493b875e2c8af657ee4"
 order: 30
 ---
 
 # 准备协作与团队访问 {#prepare-collaboration-and-team-access}
 
-## 目标与前置条件 {#goal-and-prerequisites}
+## 目标与前提 {#goal-and-prerequisites}
 
-为另一位操作员授予明确角色，同时保留所有者控制权。你需要具备相应能力的桌面宿主，并明确选择本地/原生协作，或基于账户的团队。团队还需要[登录 Cloud](account.md)及匹配的已部署服务支持。请从只读访问和非生产环境开始。
+在保留所有者控制权的前提下，为另一位操作员分配明确的角色。远程访问由可安装的 **Remote Control** 插件提供，而不是设置中的选项卡：需要 [Cloud 登录](account.md)、匹配的后端，并为此主机安装该插件。请从只读访问和非生产环境开始。
 
-## 配置所有者访问控制 {#configure-owner-access}
+## 配置远程访问 {#configure-remote-access}
 
-1. 打开 **设置 → 协作**。检查连接状态，并通过控件启用或配置所需监听器或网关。
-2. 创建邀请前，审查允许的来源及访问矩阵。只选择操作员所需的区域、操作与资源。
-3. 创建邀请，通过可信渠道传递私有链接或令牌。邀请并不等于已批准的活动会话。
-4. 检查待处理请求及请求的授权。仅批准预期操作员，再确认其可见身份及连接。
-5. 使用访问检查器审查后续授权变更。不再需要访问时，撤销邀请、身份或会话。
+1. 安装并启用 `tiktools.remote-control`，然后打开其 **Remote control** 页面。
+2. 创建团队，将**此电脑**注册为主机并使用易于识别的设备名称；启动中继链路，等待状态达到 `ready`。
+3. 创建邀请，并通过可信渠道交付一次性令牌。邀请不等于已批准的活动会话。
+4. 检查待处理请求和所请求的角色。只批准预期的操作员；在主机链路确认之前，授权保持 `pendingHost`。
+5. 定期检查授权和设备。不再需要时撤销授权。
 
-委托编辑定义、以所有者身份采纳定义，以及批准委托执行，是不同的决定。请在具体审查中阅读保存的源码、引用操作及权限。仅有定义预览并不授权执行效果。
+委派编辑定义、以所有者身份采用定义以及批准委派执行是不同的决定。请在具体评审中阅读保存的源、引用的操作和权限。仅有定义预览并不授权任何效果。
 
-## 准备基于账户的团队 {#prepare-an-account-based-team}
+## 准备控制端设备 {#prepare-a-controller-device}
 
-若提供 **设置 → 团队**，请创建有名称的团队并选中它。使用易识别的设备标签将 **此电脑** 注册为宿主，再使用 **开始提供服务** 并检查链路状态。前端已连接团队创建与本地宿主注册流程；这些操作不同于邀请队友。控制端设备有独立的注册角色。
-
-选择收件人、角色及邀请有效期，然后审查收到的请求、成员和设备。昵称搜索需要单独部署的后端端点，当前服务可能不提供。搜索失败不代表对方没有账户，也不要用任意 ID 代替选择来绕过流程。
+在控制端设备上使用其自己的账户登录，将其注册为控制端并兑换邀请令牌。所有者随后会看到待处理请求。昵称查询需要单独部署的后端端点，当前服务可能不可用。不要因查询失败就认为对方没有账户，也不要用任意 ID 替代选择。
 
 ## 预期结果与状态 {#expected-result-and-status}
 
-所有者访问控件及前端团队创建/注册功能已存在。完整远程协作流程仍属实验性：真实双电脑直播操作、生产昵称查询、NAT/中继行为，以及各平台和效果恢复路径，均未在此确立。链路就绪本身不能证明预期操作的端到端权限执行正确。
+双账户流程（团队、主机链路、邀请、批准、读取命令、撤销）已在本地后端验证。设置中的 Collaboration/Teams 选项卡已移除；本版本中原生 collaboration 服务没有 Web 界面。生产环境的中继/NAT 行为、昵称查询和双机 LIVE 运行未在此确认。链路就绪本身并不能证明针对你预期操作的权限已端到端生效。
 
-## 恢复方法 {#recovery}
+## 恢复 {#recovery}
 
-授权或宿主修订过期时，重新加载并再次审查。命令未确认时，重试前先检查已记录结果。会话结束时停止服务或撤销访问。不要在公开[诊断报告](../preferences/troubleshooting.md)中包含邀请令牌或凭据。
+对于过期的授权，请撤销访问并在主机链路刷新后重新检查。对于未确认的命令，请在重试前检查记录的结果。结束会话时停止中继链路或撤销访问。请勿将邀请令牌和凭据写入公开的[诊断报告](../preferences/troubleshooting.md)。
 
-<DemoFrame scenario="collaboration" locale="zh" title="演示：协作" />
+## 操作细节 {#operational-details}
 
-## 运行细节 {#operational-details}
-
-加入或批准 Teams 访问后，宿主还须确认原生权限的当前修订。`pendingHost` 表示仍待确认；活动传输或团队成员身份本身不授予原生访问。权限变化后重新加载并核对宿主/设备状态。observer 以读取为主；moderator 增加指定运行控制，automationEditor 增加指定编辑，custom 要求明确审核的策略。任何角色都不授予无限脚本/外部副作用。界面无法解释拒绝时，参见[角色及确认契约](../../developer/collaboration.md#operational-details)。
+每条远程命令都要经过主机的能力网关（`remote.command.dispatch`、`remote.pair.list`、`remote.grant.list`、`remote.grant.revoke`、`remote.controller.ticket`）；插件不会收到 Control API 或完整的 bearer 令牌。活动传输或团队身份本身并不授予原生访问权限。Observer 偏向读取；moderator 增加部分操作控制，automationEditor 增加部分编辑能力，custom 需要明确且经过审查的策略。它们都不授予无限制的脚本或效果。当前边界请参阅[角色与确认契约](../../developer/collaboration.md#operational-details)和[传输](../../developer/transports.md)。

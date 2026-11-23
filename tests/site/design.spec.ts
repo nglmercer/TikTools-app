@@ -91,7 +91,11 @@ test('the embedded demo hands vertical scroll back to the landing page', async (
   expect(box).not.toBeNull();
   // Aim at the visible top of the frame: its scaled canvas is taller than the viewport.
   await page.mouse.move(box!.x + box!.width / 2, box!.y + 80);
-  await page.mouse.wheel(0, 600);
+  // The first wheel fills the demo's own feed scroller; Chromium only hands
+  // the remaining delta to the article on a subsequent wheel event.
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => frame.locator('.live-feed__stream').evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  await page.mouse.wheel(0, 400);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 });
 

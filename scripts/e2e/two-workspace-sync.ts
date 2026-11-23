@@ -152,7 +152,7 @@ try {
   console.log(`apply on B: applicationDeferred=${nowB.applicationDeferred}, ${pluginId} enabled on B=${enabledOnB} (expected false)`);
   if (!transportOk) fail('the change did not travel from A to B');
   if (enabledOnB === false) console.log('PASS: the change reached B and was applied');
-  else console.log('OPEN: transport passed; B has not applied the change yet (see docs/E2E-SYNC.md)');
+  else console.log('OPEN: transport passed; B has not applied the change yet (see docs/internal/E2E-SYNC.md)');
 } finally {
   cleanup();
 }

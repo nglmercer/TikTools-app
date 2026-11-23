@@ -189,52 +189,6 @@ test('Cloud overlay creation, revision and library reopen retain the edited docu
   await settled(page);
 });
 
-test('collaboration approval and identity revocation require confirmation and refresh the matrix', async ({ page }) => {
-  await openDemo(page, 'collaboration', 'collaboration-approve');
-  const matrix = page.getByRole('table', { name: t('collaboration.accessTitle'), exact: true });
-  const reviewer = matrix.getByRole('row').filter({ hasText: 'Demo reviewer' });
-  await expect(reviewer, 'The seeded pending request must remain usable at the current date').toBeVisible();
-  await reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true }).click();
-  const approval = page.getByRole('dialog', { name: t('collaboration.approveTitle'), exact: true });
-  await expect(approval).toContainText('demo-request');
-  await approval.getByRole('button', { name: t('common.cancel'), exact: true }).click();
-  await expect(reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true })).toBeVisible();
-  await reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true }).click();
-  await approval.getByRole('button', { name: 'Apply', exact: true }).click();
-  await expect(approval).not.toBeVisible();
-  await expect(reviewer.getByRole('button', { name: t('collaboration.approve'), exact: true })).toHaveCount(0);
-  await reviewer.getByRole('button', { name: 'Revoke', exact: true }).click();
-  const revoke = page.getByRole('dialog', { name: t('collaboration.revokeTitle'), exact: true });
-  await expect(revoke).toContainText('demo-reviewer');
-  await revoke.getByRole('button', { name: t('common.cancel'), exact: true }).click();
-  await expect(reviewer).toBeVisible();
-  await reviewer.getByRole('button', { name: 'Revoke', exact: true }).click();
-  await revoke.getByRole('button', { name: 'Apply', exact: true }).click();
-  await expect(reviewer).toHaveCount(0);
-  await expect(matrix.getByRole('button', { name: t('collaboration.create'), exact: true })).toBeEnabled();
-  await settled(page);
-});
-
-test('private invitation creation and revocation close the transient masked-link dialog', async ({ page }) => {
-  await openDemo(page, 'collaboration', 'collaboration-invite');
-  await page.getByRole('button', { name: t('collaboration.presetWorkflow'), exact: true }).click();
-  await page.getByRole('button', { name: t('collaboration.create'), exact: true }).click();
-  const invitation = page.getByRole('dialog', { name: t('collaboration.inviteReady'), exact: true });
-  await expect(invitation, 'A newly issued fictional invitation must not already be expired').toBeVisible();
-  await expect(invitation.locator('#collaboration-link')).toHaveAttribute('type', 'password');
-  await expect(invitation.locator('#collaboration-link')).toHaveAttribute('readonly', '');
-  await invitation.getByRole('button', { name: t('collaboration.revokeInvite'), exact: true }).click();
-  const revoke = page.getByRole('dialog', { name: t('collaboration.revokeTitle'), exact: true });
-  await revoke.getByRole('button', { name: t('common.cancel'), exact: true }).click();
-  await expect(invitation).toBeVisible();
-  await invitation.getByRole('button', { name: t('collaboration.revokeInvite'), exact: true }).click();
-  await revoke.getByRole('button', { name: 'Apply', exact: true }).click();
-  await expect(invitation).not.toBeVisible();
-  await expect(revoke).not.toBeVisible();
-  await expect(page.getByRole('button', { name: t('collaboration.create'), exact: true })).toBeEnabled();
-  await settled(page);
-});
-
 test('Variables fence unsaved edits, then resolve to the reviewed Cloud value', async ({ page }) => {
   await openDemo(page, 'cloud', 'variables-cloud');
   const greeting = greetingRow(page);

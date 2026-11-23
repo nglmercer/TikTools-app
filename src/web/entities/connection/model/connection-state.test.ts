@@ -27,7 +27,6 @@ function stubControl(overrides?: Partial<ControlClient>): ControlClient & {
 }
 
 const callbacks = {
-  goFeed: () => {},
   resetFeed: () => {},
   translate: (key: string): string => key,
 };

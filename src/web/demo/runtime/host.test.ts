@@ -114,6 +114,8 @@ describe('public demo host', () => {
       const a = createDemoHost(id); const b = createDemoHost(id);
       expect(a.state).toEqual(b.state);
       const client = createControlClient({ transport: a.transport }); client.attach();
+      const status = await client.call<{ connected: boolean }>('live.status', {});
+      expect(status.connected, `${id} should only be seeded live when it reads live events`).toBe(id === 'feed');
       for (const method of ['system.info', 'app.state.get', 'automation.snapshot', 'automation.runs', 'points.config.get', 'points.leaderboard', 'live.status', 'live.monitor.status', 'creators.recent', 'globals.list', 'processors.status', 'widgets.status']) expect(await client.call(method, {})).toBeDefined();
       expect(client.diagnostics?.().pending).toBe(0); client.detach(); a.dispose(); b.dispose();
     }

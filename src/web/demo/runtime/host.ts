@@ -204,7 +204,7 @@ export function createDemoHost(scenario: ScenarioId, locale: DemoLocale = 'en') 
   add('bundles.overlays.delete', (p) => { overlays.delete(String(p.id)); return { id: p.id, deleted: true }; });
   add('teams.accessible.list', () => ({ items: [] })); add('teams.hosts.list', () => ({ items: [] })); add('teams.devices.list', () => ({ items: [] }));
   add('teams.host.status', () => ({ state: 'stopped', hostId: null, lastError: null }));
-  for (const method of ['teams.hosts.create', 'teams.invitations.redeem']) add(method, () => fail('Cloud teams and cross-device joins require a matching native host and backend. This demo supports local invitation and permission review in Collaboration.'));
+  for (const method of ['teams.hosts.create', 'teams.invitations.redeem']) add(method, () => fail('Cloud teams and cross-device joins require a matching native host and backend.'));
   // Feed internally provisions definitions; the hidden Rankings product remains gated.
   const rankings = new Map<string, Record<string, unknown>>();
   add('rankings.list', () => ({ rankings: [...rankings.values()] })); add('rankings.create', (p) => { if (rankings.size >= 16) fail('Demo ranking limit reached.'); rankings.set(bounded(p.id, 'id'), p); return { ranking: p }; }); add('rankings.update', (p) => { const definition = objectParams(p.definition); const id = bounded(definition.id, 'id'); if (!rankings.has(id)) throw new DemoRpcError('not_found', 'Unknown ranking.'); rankings.set(id, definition); return { ranking: definition }; }); add('rankings.snapshot', (p) => ({ id: p.id, entries: [], total: 0, revision: 0 }));

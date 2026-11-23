@@ -61,6 +61,27 @@ test('the spotlight can be dismissed with Escape or an outside click', async ({ 
   await expect(spotlight).toBeHidden();
 });
 
+test('non-feed scenarios start offline and connect on first playback', async ({ page }) => {
+  await page.goto('demo/?scenario=analytics&locale=en&instance=analytics-status');
+  const indicator = page.locator('.app-status-bar .connection-indicator');
+  await expect(indicator).toContainText('Offline');
+  await expect(page.locator('.app-status-bar')).toContainText('@demo_creator');
+  await page.getByTestId('demo-play').click();
+  await expect(indicator).toContainText('Live');
+});
+
+test('Connect without Play stays on Connections and the guide owns the feed step', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=en&instance=connect-guide');
+  await page.getByRole('textbox').first().fill('demo_creator');
+  await page.getByRole('button', { name: t('connection.connect'), exact: true }).first().click();
+  await expect(page).toHaveURL(/#\/connections$/);
+  const feed = page.locator('#app-sidebar').getByRole('link', { name: t('navigation.feed'), exact: true });
+  await expect(feed).toHaveClass(/app-navigation__link--suggested/);
+  await expect(page.locator('#app-spotlight')).toBeVisible();
+  await feed.click();
+  await expect(page).toHaveURL(/#\/feed$/);
+});
+
 test('the demo sidebar exposes diagnostics and component reference sections', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en&instance=sidebar-sections');
   const nav = page.locator('#app-sidebar');

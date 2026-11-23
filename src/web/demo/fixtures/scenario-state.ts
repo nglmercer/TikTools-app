@@ -13,6 +13,12 @@ export const logType = {
   fields: [{ key: 'message', kind: 'textarea', label: { default: 'Message', i18key: 'automation.action.core.log.field.message.label' }, value: 'Hello {{ user.nickname }}', template: true }],
 } satisfies BehaviorSnapshot['actionTypes'][number];
 export function scenarioState(id: ScenarioId) {
+  // Only the feed screen actually ingests live events. Seeding every scenario
+  // as connected made the global status bar claim a LIVE session on screens
+  // that never established one (analytics, points, overlays, ...). Other
+  // scenarios start offline and connect through the normal live.connect path
+  // on first playback; the creator record stays seeded for their selectors.
+  const live = id === 'feed';
   const snapshot: BehaviorSnapshot = {
     actions: [{ schemaVersion: 2, id: 'welcome-action', name: 'Welcome', typeId: 'core.log', enabled: true, config: { message: 'Hello {{ user.nickname }}' } }],
     events: [{ schemaVersion: 1, id: 'welcome-event', name: 'Welcome chat', enabled: true, trigger: 'tiktok.chat', filters: [], cooldownMs: 0, cooldownScope: 'global', actionIds: ['welcome-action'], runMode: 'all' }],
@@ -22,7 +28,7 @@ export function scenarioState(id: ScenarioId) {
   };
   const state = baseHostState({
     automationSnapshot: snapshot as unknown as Record<string, unknown>,
-    liveStatus: { connected: id !== 'connection', uniqueId: id !== 'connection' ? 'demo_creator' : null, roomId: 'demo-room', connectionId: 'demo-connection', native: false },
+    liveStatus: { connected: live, uniqueId: live ? 'demo_creator' : null, roomId: 'demo-room', connectionId: 'demo-connection', native: false },
     creator: { uniqueId: 'demo_creator', roomId: 'demo-room', nickname: 'Demo Creator', avatarUrl: null, title: 'Fictional LIVE', lastConnected: DEMO_AT, connectCount: 1 },
     recentCreators: [{ uniqueId: 'demo_creator', nickname: 'Demo Creator', avatarUrl: null, roomId: 'demo-room', lastConnected: DEMO_AT, connectCount: 1 }],
     leaderboard: demoViewers(DEMO_AT),
