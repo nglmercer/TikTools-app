@@ -7,7 +7,7 @@ import DiagnosticStatusAction from './DiagnosticStatusAction.vue';
 import { diagnosticLog, diagnosticView } from './log.ts';
 enableAutoUnmount(afterEach);
 const t = (key: string): string => testMessage('en', key);
-afterEach(() => { diagnosticLog.clear(); diagnosticView.open.value = false; vi.restoreAllMocks(); });
+afterEach(() => { diagnosticLog.clear(); diagnosticView.open.value = false; vi.useRealTimers(); vi.restoreAllMocks(); });
 test('opens the exact plugin event without recording another entry', async () => {
   vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
   diagnosticLog.record({ source:'plugins', entityId:'other', code:'failed', message:'other failure', level:'error' });
@@ -20,6 +20,21 @@ test('opens the exact plugin event without recording another entry', async () =>
   expect(diagnosticView.selectedId.value).toBe(entry.id);
   expect(diagnosticLog.entries.value).toHaveLength(2);
 });
+test('keeps the status and view-logs action visible and explains the latest error on hover', async () => {
+  vi.useFakeTimers();
+  vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: false } as MediaQueryList);
+  diagnosticLog.record({ source: 'live', level: 'error', code: 'offline', message: 'first failure' });
+  diagnosticLog.record({ source: 'live', level: 'info', code: 'connected', message: 'connected' });
+  diagnosticLog.record({ source: 'live', level: 'error', code: 'auth', message: 'latest failure' });
+  const wrapper = mountWithPlugins(DiagnosticStatusAction, { props: { source: 'live', label: 'Connection failed' }, attachTo: document.body });
+  const button = wrapper.get('button');
+  expect(button.text()).toContain('Connection failed');
+  expect(button.text()).toContain(t('diagnostics.viewLogs'));
+  await button.trigger('pointerenter');
+  vi.advanceTimersByTime(600);
+  expect(document.getElementById('app-tooltip')?.textContent).toBe('latest failure');
+});
+
 test('mobile navigates to diagnostics with context and a return location', async () => {
   vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList);
   const router = createRouter({ history:createMemoryHistory(), routes:[{ path:'/:pathMatch(.*)*', component:{ template:'<div />' } }] });
