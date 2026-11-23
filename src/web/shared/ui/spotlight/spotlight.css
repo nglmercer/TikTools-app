@@ -1,0 +1,20 @@
+.spotlight-overlay {
+  position: fixed;
+  z-index: 1100; /* above workspace chrome, below tooltips and driver popovers */
+  box-sizing: border-box;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 55%);
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.spotlight-overlay--visible {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-overlay { transition: none; }
+}
