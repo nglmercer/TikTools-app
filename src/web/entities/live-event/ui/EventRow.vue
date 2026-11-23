@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import type { FeedMotion } from '../lib/feed-motion.ts';
 import { useI18n } from 'vue-i18n';
 import ViewerAvatar from '@/entities/viewer/ui/ViewerAvatar.vue';
 import type { ViewerIdentity } from '@/entities/viewer/lib/viewer-profile.ts';
@@ -12,8 +13,9 @@ const props = withDefaults(
     event: DisplayEvent;
     images?: boolean;
     selected?: boolean;
+    motion?: FeedMotion;
   }>(),
-  { images: true, selected: false },
+  { images: true, selected: false, motion: () => ({}) },
 );
 
 const emit = defineEmits<{
@@ -42,6 +44,7 @@ function openViewer(): void {
 
 <template>
   <div
+    v-motion="motion"
     class="event-row"
     :class="[`event-row--${event.kind}`, { 'event-row--selected': selected }]"
     role="listitem"

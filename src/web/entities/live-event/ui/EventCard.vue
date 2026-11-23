@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import type { FeedMotion } from '../lib/feed-motion.ts';
 import { useI18n } from 'vue-i18n';
 import ViewerAvatar from '@/entities/viewer/ui/ViewerAvatar.vue';
 import type { ViewerIdentity } from '@/entities/viewer/lib/viewer-profile.ts';
@@ -8,8 +9,8 @@ import { cleanHandle, displayName, eventText, formatEventTime, hasRichText } fro
 import ChatRichText from './ChatRichText.vue';
 
 const props = withDefaults(
-  defineProps<{ event: DisplayEvent; images?: boolean; selected?: boolean }>(),
-  { images: true, selected: false },
+  defineProps<{ event: DisplayEvent; images?: boolean; selected?: boolean; motion?: FeedMotion }>(),
+  { images: true, selected: false, motion: () => ({}) },
 );
 const emit = defineEmits<{
   select: [event: DisplayEvent];
@@ -36,12 +37,16 @@ function openViewer(): void {
 
 <template>
   <article
+    v-motion="motion"
     class="event-card"
     :class="[`event-card--${event.kind}`, { 'event-card--selected': selected }]"
     role="listitem"
     :aria-current="selected || undefined"
   >
-    <div class="event-card__body">
+    <div
+      class="event-card__body"
+      :class="{ 'event-card__body--gift': event.kind === 'gift' }"
+    >
       <div class="event-card__head">
         <button
           class="event-card__author"
@@ -67,22 +72,6 @@ function openViewer(): void {
         :aria-label="t('feed.openDetails', { viewer: name })"
         @click="emit('select', event)"
       >
-        <img
-          v-if="giftImage"
-          class="event-card__gift"
-          :src="giftImage"
-          :alt="event.giftDetails?.name"
-          loading="lazy"
-          decoding="async"
-          referrerpolicy="no-referrer"
-          @error="giftImageFailed = true"
-        >
-        <span
-          v-else-if="event.kind === 'gift'"
-          class="event-card__gift"
-          role="img"
-          :aria-label="event.giftDetails?.name || 'Gift'"
-        >🎁</span>
         <ChatRichText
           v-if="rich"
           :text="text"
@@ -91,6 +80,22 @@ function openViewer(): void {
         />
         <span v-else>{{ text }}</span>
       </button>
+      <img
+        v-if="giftImage"
+        class="event-card__gift"
+        :src="giftImage"
+        :alt="event.giftDetails?.name"
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+        @error="giftImageFailed = true"
+      >
+      <span
+        v-else-if="event.kind === 'gift'"
+        class="event-card__gift"
+        role="img"
+        :aria-label="event.giftDetails?.name || 'Gift'"
+      >🎁</span>
     </div>
   </article>
 </template>
@@ -99,6 +104,7 @@ function openViewer(): void {
 .event-card {
   --event-accent: var(--color-border-strong);
 
+  position: relative;
   display: flex;
   gap: var(--space-3);
   padding: var(--space-3);
@@ -115,6 +121,12 @@ function openViewer(): void {
 .event-card--selected { background: var(--color-bg-selected); border-color: var(--color-border-selected); }
 
 .event-card__body { display: grid; flex: 1; min-width: 0; gap: var(--space-1); }
+/* The gift art is its own grid cell on the right, centered across both lines,
+   so it stays at 22px instead of making the card taller. */
+.event-card__body--gift { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.event-card__body--gift .event-card__head { grid-column: 1; grid-row: 1; }
+.event-card__body--gift .event-card__content { grid-column: 1; grid-row: 2; }
+.event-card__body--gift .event-card__gift { grid-column: 2; grid-row: 1 / 3; align-self: center; }
 .event-card__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-width: 0; }
 .event-card__author,
 .event-card__content {
@@ -137,6 +149,26 @@ function openViewer(): void {
 .event-card__content:hover { color: var(--color-text-muted); }
 .event-card__author:focus-visible,
 .event-card__content:focus-visible { box-shadow: var(--focus-ring); }
-.event-card__time { flex: none; color: var(--color-text-subtle); font-size: var(--font-size-xs); font-variant-numeric: tabular-nums; }
+/* The timestamp is an overlay so showing it never shifts the card contents. */
+.event-card__time {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-2);
+  z-index: 1;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-panel-header);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast);
+}
+.event-card:hover .event-card__time,
+.event-card:focus-within .event-card__time { opacity: 1; }
 .event-card__gift { flex: none; width: 22px; height: 22px; object-fit: contain; }
+@media (prefers-reduced-motion: reduce) {
+  .event-card__time { transition: none; }
+}
 </style>

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isEphemeralEvent, visibleEphemeralEvents } from '@/entities/live-event/lib/event-ephemeral.ts';
+import { useFeedMotion } from '@/entities/live-event/lib/feed-motion.ts';
 import { cleanHandle, eventText } from '@/entities/live-event/lib/event-text.ts';
 import { eventTypeIcon } from '@/entities/live-event/lib/event-type-icon.ts';
 import EventCard from '@/entities/live-event/ui/EventCard.vue';
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const { row: rowMotion, gift: giftMotion } = useFeedMotion();
 const now = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -48,6 +50,7 @@ function reactionText(event: DisplayEvent): string {
         :event="event"
         :images="images"
         :selected="event.id === selectedEventId"
+        :motion="event.kind === 'gift' ? giftMotion : rowMotion"
         @select="emit('select', $event)"
         @open-viewer="emit('open-viewer', $event)"
       />

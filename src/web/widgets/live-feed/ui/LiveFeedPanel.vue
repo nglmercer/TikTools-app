@@ -4,6 +4,7 @@ import { computed, markRaw, ref, shallowRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
 import { eventFilters, filterEvents, windowEvents } from '@/entities/live-event/lib/event-filter.ts';
+import { useFeedMotion } from '@/entities/live-event/lib/feed-motion.ts';
 import { filterIcon } from '@/entities/live-event/lib/event-type-icon.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
@@ -49,6 +50,7 @@ const store = useLiveFeedStore();
 const connection = useConnectionStore();
 const { events, filter, searchQuery, autoScroll, unreadCount, renderLimit, imagesEnabled, liveViewers } = storeToRefs(store);
 const { status } = storeToRefs(connection);
+const { row: rowMotion } = useFeedMotion();
 const panelTitle = computed(() => status.value === 'connected'
   ? t('feed.liveTitle', { count: liveViewers.value })
   : t('feed.title'));
@@ -224,6 +226,7 @@ function onMenu(action: MenuAction): void {
           :event="event"
           :images="imagesEnabled"
           :selected="event.id === selectedEventId"
+          :motion="rowMotion"
           @select="emit('select', $event)"
           @open-viewer="emit('open-viewer', $event)"
         />
