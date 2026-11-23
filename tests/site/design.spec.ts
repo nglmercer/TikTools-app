@@ -30,9 +30,11 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
     await expect(page.getByRole('button', { name: /^Diagnostics/ })).toBeInViewport();
     await expect(page.getByTestId('demo-reset')).toBeInViewport();
   }
-  await page.getByRole('combobox', { name: 'Scenario', exact: true }).click();
-  await page.getByRole('option', { name: 'Points', exact: true }).click();
-  await expect(page).toHaveURL(/scenario=points/);
+  // The section comes from workspace navigation now; the toolbar has no scenario picker.
+  await expect(page.getByRole('combobox', { name: 'Scenario', exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.getByRole('link', { name: 'Points', exact: true }).click();
+  await expect(page).toHaveURL(/#\/points$/);
   await expect(page.getByTestId('demo-step')).toBeVisible();
   expect(errors).toEqual([]);
   await page.setViewportSize({ width: 1280, height: 900 });

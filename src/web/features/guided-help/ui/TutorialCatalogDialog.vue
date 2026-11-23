@@ -25,7 +25,13 @@ const props = withDefaults(defineProps<{
   /** False when another modal must stay open (e.g. the library review): read steps only. */
   startable?: boolean;
   initialCategory?: TutorialTag;
-}>(), { capabilities: undefined, taskState: undefined, startable: true, initialCategory: undefined });
+  /** Restrict the catalog to a caller's offerings (the demo has no account/backup tour). */
+  tours?: readonly TourId[];
+  /** Preselect the entry recommended for the reader's current section. */
+  initialTour?: TourId;
+  /** Delegate launching, e.g. so the demo can prepare the matching scenario first. */
+  onLaunch?: (id: TourId) => void;
+}>(), { capabilities: undefined, taskState: undefined, startable: true, initialCategory: undefined, tours: undefined, initialTour: undefined, onLaunch: undefined });
 
 type TabValue = 'all' | TutorialTag;
 
@@ -34,7 +40,7 @@ const { t, locale } = useI18n();
 const router = inject(routerKey, null);
 const query = ref('');
 const activeTab = ref<TabValue>(props.initialCategory ?? 'all');
-const selectedId = ref<TourId | null>(null);
+const selectedId = ref<TourId | null>(props.initialTour ?? null);
 const tourLocale = computed<TourLocale>(() => isLocale(locale.value) ? locale.value : 'en');
 
 const text = (key: string): string => String(t(key));
@@ -46,12 +52,15 @@ const categoryOptions = computed(() => [
     icon: tagIcons[tag],
   })),
 ]);
-const tutorials = computed(() => tutorialEntries.map((entry) => ({
-  ...entry,
-  title: text(`guides.catalog.tours.${entry.id}.title`),
-  description: text(`guides.catalog.tours.${entry.id}.description`),
-  steps: tutorialSteps(tourLocale.value, entry.id),
-})));
+const allowedTours = computed(() => props.tours ? new Set<string>(props.tours) : null);
+const tutorials = computed(() => tutorialEntries
+  .filter((entry) => !allowedTours.value || allowedTours.value.has(entry.id))
+  .map((entry) => ({
+    ...entry,
+    title: text(`guides.catalog.tours.${entry.id}.title`),
+    description: text(`guides.catalog.tours.${entry.id}.description`),
+    steps: tutorialSteps(tourLocale.value, entry.id),
+  })));
 const filtered = computed(() => {
   const needle = query.value.trim().toLocaleLowerCase();
   return tutorials.value.filter((entry) => {
@@ -67,8 +76,10 @@ watch(filtered, (list) => {
   if (!list.some((entry) => entry.id === selectedId.value)) selectedId.value = list[0]?.id ?? null;
 }, { immediate: true });
 watch(open, (isOpen) => {
-  if (isOpen) activeTab.value = props.initialCategory ?? 'all';
-  else { query.value = ''; activeTab.value = 'all'; selectedId.value = null; }
+  if (isOpen) {
+    activeTab.value = props.initialCategory ?? 'all';
+    selectedId.value = props.initialTour ?? null;
+  } else { query.value = ''; activeTab.value = 'all'; selectedId.value = null; }
 });
 
 async function launch(id: TourId): Promise<void> {
@@ -76,6 +87,7 @@ async function launch(id: TourId): Promise<void> {
   // The coordinator refuses to run while a modal dialog is open, so let
   // BaseDialog close (post-flush watch) before starting the driver.js session.
   await nextTick();
+  if (props.onLaunch) { props.onLaunch(id); return; }
   startTour(id, {
     router: router ?? undefined,
     locale: tourLocale.value,

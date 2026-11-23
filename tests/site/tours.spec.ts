@@ -1,7 +1,13 @@
-import { expect, test } from '@playwright/test';
-import { toolbarCopy } from '../../src/web/demo/toolbar-copy.ts';
+import { expect, test, type Page } from '@playwright/test';
+import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { demoTourScenarios } from '../../src/web/demo/tours.ts';
 import { tourCatalogs } from '../../src/web/features/guided-help/catalogs/index.ts';
+
+async function launchFromCatalog(page: Page, title: string): Promise<void> {
+  await page.getByTestId('demo-guide').click();
+  await page.locator('.tutorial-catalog__card').filter({ hasText: title }).click();
+  await page.locator('.tutorial-catalog__detail button').click();
+}
 
 for (const locale of ['zh', 'ja'] as const) test(`${locale}: playback and a selected walkthrough use the localized real interface`, async ({ page }) => {
   await page.goto(`demo/?scenario=connection&locale=${locale}&instance=cjk-tour-${locale}`);
@@ -10,9 +16,7 @@ for (const locale of ['zh', 'ja'] as const) test(`${locale}: playback and a sele
   await expect(page.getByTestId('demo-playback-status')).toHaveAttribute('data-status', 'playing');
   await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
   await page.getByTestId('demo-play').click();
-  await page.getByRole('combobox', { name: toolbarCopy[locale].chooseGuide, exact: true }).click();
-  await page.getByRole('option', { name: toolbarCopy[locale].tourTitles.overlay, exact: true }).click();
-  await page.getByTestId('demo-guide').click();
+  await launchFromCatalog(page, testMessage(locale, 'guides.catalog.tours.overlay.title'));
   await expect(page.locator('.driver-popover-title')).toHaveText(tourCatalogs[locale].overlay.gateway.title);
   await expect(page.locator('.driver-popover-next-btn')).toHaveText(tourCatalogs[locale].controls.next);
   await page.locator('.driver-popover-close-btn').click();
@@ -23,9 +27,7 @@ test('tutorial selection prepares each matching scenario and reports dismissal w
   for (const id of Object.keys(demoTourScenarios) as Array<keyof typeof demoTourScenarios>) {
     await page.goto(`demo/?scenario=connection&locale=en&instance=select-${id}`);
     await expect(page.getByTestId('demo-guide')).toBeEnabled();
-    await page.getByRole('combobox', { name: 'Guided walkthrough', exact: true }).click();
-    await page.getByRole('option', { name: toolbarCopy.en.tourTitles[id], exact: true }).click();
-    await page.getByTestId('demo-guide').click();
+    await launchFromCatalog(page, testMessage('en', `guides.catalog.tours.${id}.title`));
     await expect(page.locator('.driver-popover')).toBeVisible();
     expect(new URL(page.url()).searchParams.get('scenario')).toBe(demoTourScenarios[id]);
     await expect(page.getByTestId('demo-guide-status')).toHaveAttribute('data-status', 'active');
@@ -61,4 +63,16 @@ test('navigating away cancels the guide and reset clears only this instance prog
   await expect(page.locator('.driver-popover')).toHaveCount(0);
   await page.getByTestId('demo-reset').click();
   await expect(page.locator('.driver-popover')).toBeVisible();
+});
+
+test('the recommended tour follows in-app navigation without starting automatically', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=en&instance=recommendation');
+  const recommendation = page.locator('.demo-toolbar__recommendation');
+  await expect(recommendation).toContainText('First connection');
+  await expect(page.locator('.driver-popover')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Points', exact: true }).click();
+  await expect(recommendation).toContainText('Points');
+  await expect(page.locator('.driver-popover')).toHaveCount(0);
+  await page.getByTestId('demo-guide').click();
+  await expect(page.locator('.tutorial-catalog__card--active')).toContainText('Points');
 });

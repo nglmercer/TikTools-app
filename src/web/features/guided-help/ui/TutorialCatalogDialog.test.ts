@@ -43,6 +43,33 @@ it('opens on the category requested by the caller', () => {
   wrapper.unmount();
 });
 
+it('limits the catalog to the caller tours and preselects the recommended one', async () => {
+  const wrapper = mountWithPlugins(TutorialCatalogDialog, {
+    attachTo: document.body,
+    props: { open: true, tours: ['connection', 'feed'], initialTour: 'feed' },
+  });
+  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(2);
+  expect(wrapper.get('.tutorial-catalog__card--active strong').text()).toBe('Live feed');
+  await wrapper.get('.tutorial-catalog__detail button').trigger('click');
+  await flushPromises();
+  expect(startTour).toHaveBeenCalledWith('feed', expect.objectContaining({ locale: 'en' }));
+  wrapper.unmount();
+});
+
+it('delegates launching when the caller supplies a handler', async () => {
+  const onLaunch = vi.fn();
+  const wrapper = mountWithPlugins(TutorialCatalogDialog, {
+    attachTo: document.body,
+    props: { open: true, onLaunch },
+  });
+  await wrapper.get('.tutorial-catalog__detail button').trigger('click');
+  await flushPromises();
+  expect(onLaunch).toHaveBeenCalledWith('automation');
+  expect(startTour).not.toHaveBeenCalled();
+  expect(wrapper.emitted('update:open')?.at(-1)?.[0]).toBe(false);
+  wrapper.unmount();
+});
+
 it('shows the steps in the detail panel and starts the selected driver.js tour', async () => {
   const wrapper = mountDialog();
   expect(wrapper.findAll('.tutorial-catalog__step-list li').length).toBeGreaterThan(0);

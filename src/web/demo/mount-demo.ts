@@ -1,4 +1,6 @@
 import { createApp, h, reactive, watch } from 'vue';
+import type { Router } from 'vue-router';
+import { i18n } from '@/shared/i18n/i18n.ts';
 import DemoToolbar from './DemoToolbar.vue';
 import { createControlClient } from '@/shared/api/control-client.ts';
 import { mountWorkspace } from '@/app/mount-workspace.ts';
@@ -7,13 +9,12 @@ import { validDemoRoute, type parseDemoOptions, type DemoLocale } from './scenar
 import '@/app/styles/tokens.css';
 import '@/app/styles/base.css';
 import '@/app/styles/responsive.css';
-import { startTour, stopTour, tourRegistry, type GuideSession } from '@/features/guided-help/index.ts';
+import { startTour, stopTour, type GuideSession } from '@/features/guided-help/index.ts';
 import { configureAppClock } from '@/shared/lib/app-clock.ts';
 import { DEMO_AT } from './fixtures/scenario-state.ts';
 import { diagnosticLog, diagnosticView } from '@/shared/diagnostics/log.ts';
-import { toolbarCopy } from './toolbar-copy.ts';
 import { createDemoPlayback, type PlaybackState } from './playback.ts';
-import { demoTourScenarios, demoTourUrl, isDemoTour, scenarioTour } from './tours.ts';
+import { demoTourScenarios, demoTourUrl, isDemoTour, scenarioTour, tourForRoute } from './tours.ts';
 import type { GuideOutcome } from '@/features/guided-help/model/types.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
 import { useNavigationStore } from '@/shared/model/navigation-store.ts';
@@ -27,7 +28,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   const recordFailure = () => diagnosticLog.record({ source: 'integrations', level: 'error', code: 'demo.simulated_action_failure', message: ({ en: 'Simulated action failed. Inspect the run result, then retry or reset.', es: 'Falló una acción simulada. Revisa el resultado y reintenta o reinicia.', pt: 'Uma ação simulada falhou. Confira o resultado e tente novamente ou reinicie.', fr: 'Une action simulée a échoué. Consultez le résultat, puis réessayez ou réinitialisez.', zh: '模拟操作失败。请检查执行结果，然后重试或重置。', ja: 'サンプルのアクションが失敗しました。実行結果を確認し、再試行するかリセットしてください。' })[options.locale], requestId: 'demo-request' });
   if (options.scenario === 'diagnostics') recordFailure();
   const toolbar = document.querySelector('#demo-controls')!;
-  const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as 'normal' | 'offline' | 'auth' });
+  const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as 'normal' | 'offline' | 'auth', recommendedTour: scenarioTour(options.scenario) });
   function publishFrameState() {
     if (!options.framed || window.parent === window) return;
     const state: DemoFrameState = { type: 'tiktools.demo.state', instance: options.instance, ready: toolbarState.ready,
@@ -44,27 +45,27 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     host.setConnectionExample(kind, kind === 'offline' ? copy.offlineHelp : kind === 'auth' ? copy.authHelp : '');
     publishFrameState();
   }
-  const tours = (Object.keys(tourRegistry).filter(isDemoTour)).map((value) => ({ value, label: toolbarCopy[options.locale].tourTitles[value] }));
-  const initialTour = options.tour ?? scenarioTour(options.scenario);
-  const tourActions: { start?: (id: string, trigger: HTMLElement) => void; stop?: () => void } = {};
-  const onScenario = (scenario: string) => { const url = new URL(location.href); url.searchParams.set('scenario', scenario); url.searchParams.delete('route'); url.searchParams.delete('tour'); url.hash = ''; location.assign(url.href); };
+  const tourActions: { start?: (id: string, trigger?: HTMLElement) => void; stop?: () => void } = {};
   const onLocale = (locale: DemoLocale) => { const url = new URL(location.href); url.searchParams.set('locale', locale); location.assign(url.href); };
   const toolbarApp = createApp({ setup: () => () => h(DemoToolbar, {
-    ...toolbarState, scenario: options.scenario, locale: options.locale, initialTour, tours, embed: options.embed,
+    ...toolbarState, locale: options.locale, embed: options.embed,
     docsUrl: new URL(`../${options.locale}/`, location.href).href,
-    onScenario, onLocale,
+    onLocale,
     onPlay: () => { void playback.play(); },
     onStep: () => { void playback.step(); }, onReset: resetDemo,
     onFailure: () => { toolbarState.failure = !toolbarState.failure; host.simulateError(toolbarState.failure); if (toolbarState.failure) recordFailure(); },
     onCatalog: () => { location.hash = '/components/buttons'; },
-    onGuide: (id: string, trigger: HTMLElement) => tourActions.start?.(id, trigger),
+    onGuide: (id: string, trigger?: HTMLElement) => tourActions.start?.(id, trigger),
     onCancelGuide: () => tourActions.stop?.(),
     onConnectionCase: changeConnectionCase,
   }) });
+  toolbarApp.use(i18n);
   toolbarApp.config.idPrefix = 'demo-tools';
   toolbarApp.mount(toolbar);
+  let workspaceRouter: Router | undefined;
   const app = await mountWorkspace({ client, locale: options.locale, configure(app) {
-    const router = app.config.globalProperties.$router;
+    const router = app.config.globalProperties.$router as Router;
+    workspaceRouter = router;
     router.beforeEach((to) => options.embed && to.path !== options.route && to.path !== '/debug' ? false : validDemoRoute(to.fullPath) ? true : '/feed');
     if (options.embed) {
       // Real connection actions normally open the feed. A focused lesson keeps
@@ -77,6 +78,15 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
       app.onUnmount(stop);
     }
   } }).catch((error: unknown) => { playback.dispose(); toolbarApp.unmount(); client.detach(); host.dispose(); configureAppClock(undefined); throw error; });
+  if (workspaceRouter) {
+    const refreshRecommendation = () => {
+      const router = workspaceRouter;
+      if (router) toolbarState.recommendedTour = tourForRoute(router.currentRoute.value.fullPath, options.scenario);
+    };
+    refreshRecommendation();
+    const stopRecommendation = workspaceRouter.afterEach(refreshRecommendation);
+    app.onUnmount(stopRecommendation);
+  }
   const discovery = await client.call<{ methods: Array<{ name: string }> }>('rpc.discover', {});
   let tour: GuideSession | undefined;
   const taskState = () => ({

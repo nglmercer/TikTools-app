@@ -1,44 +1,71 @@
 <script setup lang="ts">
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, ref, shallowRef } from 'vue';
+import { useI18n } from 'vue-i18n';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
-import BaseDisclosure from '@/shared/ui/disclosure/BaseDisclosure.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
 import IconPause from '@/shared/ui/icon/icons/IconPause.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
-import { scenarios, type ScenarioId, type DemoLocale } from './scenarios.ts';
-import type { PlaybackStatus } from './playback.ts';
 import LanguageSwitcher from '@/shared/ui/language-switcher/LanguageSwitcher.vue';
+import TutorialCatalogDialog from '@/features/guided-help/ui/TutorialCatalogDialog.vue';
+import type { TourId } from '@/features/guided-help/model/types.ts';
+import type { PlaybackStatus } from './playback.ts';
+import { demoTutorialIds, type DemoTourId } from './tours.ts';
+import type { DemoLocale, EmbeddedPanel } from './scenarios.ts';
 import { toolbarCopy } from './toolbar-copy.ts';
-import type { EmbeddedPanel } from './scenarios.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
-const props = defineProps<{ scenario: ScenarioId; locale: DemoLocale; paused: boolean; busy: boolean; events: number; status: PlaybackStatus; guideState: string; failure: boolean; ready: boolean; tours: Array<{ value: string; label: string }>; initialTour: string; docsUrl: string; metrics: string; embed?: EmbeddedPanel | null; connectionCase?: 'normal' | 'offline' | 'auth' }>();
-const emit = defineEmits<{ scenario: [value: ScenarioId]; locale: [value: DemoLocale]; play: []; step: []; reset: []; failure: []; guide: [id: string, trigger: HTMLElement]; catalog: []; cancelGuide: []; connectionCase: [value: 'normal' | 'offline' | 'auth'] }>();
+
+const props = defineProps<{
+  locale: DemoLocale;
+  paused: boolean;
+  busy: boolean;
+  events: number;
+  status: PlaybackStatus;
+  guideState: string;
+  failure: boolean;
+  ready: boolean;
+  docsUrl: string;
+  metrics: string;
+  embed?: EmbeddedPanel | null;
+  connectionCase?: 'normal' | 'offline' | 'auth';
+  /** Tour matching the section currently open in the workspace. */
+  recommendedTour?: DemoTourId;
+}>();
+const emit = defineEmits<{
+  locale: [value: DemoLocale];
+  play: [];
+  step: [];
+  reset: [];
+  failure: [];
+  guide: [id: DemoTourId];
+  cancelGuide: [];
+  catalog: [];
+  connectionCase: [value: 'normal' | 'offline' | 'auth'];
+}>();
+
+const { t: translate } = useI18n();
 const t = computed(() => toolbarCopy[props.locale]);
 const copy = computed(() => experienceCopy[props.locale]);
-const currentTask = computed(() => {
-  const scenario = props.scenario;
-  return scenario === 'connection' || scenario === 'automation' || scenario === 'points' || scenario === 'overlays' ? copy.value.topics[scenario] : copy.value.otherTasks[scenario];
-});
+const recommended = computed(() => props.recommendedTour ?? 'connection');
+const guidesLabel = computed(() => translate('guides.catalog.button'));
 const connectionOptions = computed(() => (['normal', 'offline', 'auth'] as const).map((value) => ({ value, label: copy.value.connectionStates[value] })));
-const scenarioOptions = computed(() => Object.entries(scenarios).map(([value, scenario]) => ({ value, label: scenario[props.locale] })));
-const selectedTour = ref(props.initialTour);
-watch(selectedTour, () => emit('cancelGuide'));
 const playbackLabel = computed(() => {
   const labels = { ready: t.value.ready, connecting: t.value.connecting, playing: t.value.playing, paused: t.value.paused, disconnected: t.value.disconnected, limit: t.value.limitReached, error: t.value.playbackError };
   return labels[props.status];
 });
 const guideLabel = computed(() => ({ preparing: t.value.preparingGuide, active: t.value.activeGuide, completed: t.value.guideComplete, dismissed: t.value.guideDismissed, unavailable: t.value.guideUnavailable })[props.guideState]);
+const playbackDisabled = computed(() => !props.ready || props.busy || props.status === 'limit' || ['preparing', 'active'].includes(props.guideState));
+const catalogOpen = ref(false);
 const moreOpen = ref(false);
 const menuAnchor = shallowRef<HTMLElement | null>(null);
 const menuItems = computed<MenuEntry[]>(() => [{ id: 'components', label: t.value.catalog }, { id: 'failure', label: t.value.error, checked: props.failure }]);
 function openMenu(event: MouseEvent) { menuAnchor.value = event.currentTarget as HTMLElement; moreOpen.value = !moreOpen.value; }
 function selectAction(action: MenuAction) { if (action.id === 'failure') emit('failure'); else if (action.id === 'components') emit('catalog'); }
-function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.currentTarget as HTMLElement); }
+function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId)) emit('guide', id as DemoTourId); }
 </script>
 <template>
   <div
@@ -87,23 +114,7 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         </BaseButton>
       </div>
     </div>
-    <p
-      v-if="!embed"
-      class="demo-toolbar__description"
-      data-testid="demo-limit"
-    >
-      <strong>{{ copy.task }}:</strong> {{ currentTask.task }} <span class="demo-toolbar__limit">{{ t.limit }}</span>
-    </p>
     <div class="demo-toolbar__controls">
-      <label
-        v-if="!embed"
-        class="demo-toolbar__field demo-toolbar__scenario"
-      ><span>{{ t.scenario }}</span><BaseComboBox
-        :aria-label="t.scenario"
-        :options="scenarioOptions"
-        :model-value="scenario"
-        @update:model-value="emit('scenario', $event as ScenarioId)"
-      /></label>
       <label
         v-if="embed === 'connection'"
         class="demo-toolbar__field demo-toolbar__case"
@@ -122,7 +133,7 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         <BaseButton
           variant="primary"
           data-testid="demo-play"
-          :disabled="!ready || busy || status === 'limit' || ['preparing', 'active'].includes(guideState)"
+          :disabled="playbackDisabled"
           :pressed="!paused"
           @click="emit('play')"
         >
@@ -132,7 +143,7 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         </BaseButton>
         <BaseButton
           data-testid="demo-step"
-          :disabled="!ready || busy || status === 'limit' || ['preparing', 'active'].includes(guideState)"
+          :disabled="playbackDisabled"
           @click="emit('step')"
         >
           <template #icon>
@@ -155,18 +166,25 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         v-if="!embed"
         class="demo-toolbar__guides"
       >
-        <label class="demo-toolbar__field"><span>{{ t.chooseGuide }}</span><BaseComboBox
-          v-model="selectedTour"
-          :aria-label="t.chooseGuide"
-          :options="tours"
-          :disabled="!ready || ['preparing', 'active'].includes(guideState)"
-        /></label>
+        <p class="demo-toolbar__recommendation">
+          <span>{{ t.recommended }}</span>
+          <strong>{{ t.tourTitles[recommended] }}</strong>
+        </p>
         <BaseButton
           data-testid="demo-guide"
-          :disabled="!ready || busy || ['preparing', 'active'].includes(guideState)"
-          @click="guide"
+          :disabled="!ready"
+          @click="catalogOpen = true"
         >
-          {{ guideState === 'active' ? t.activeGuide : t.guide }}
+          {{ guidesLabel }}
+        </BaseButton>
+        <BaseButton
+          v-if="['preparing', 'active'].includes(guideState)"
+          variant="ghost"
+          data-testid="demo-close-guide"
+          :aria-label="t.closeGuide"
+          @click="emit('cancelGuide')"
+        >
+          {{ t.closeGuide }}
         </BaseButton>
       </div>
     </div>
@@ -187,22 +205,16 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
         :data-status="status"
       >{{ playbackLabel }}</span>
       <span
-        class="demo-toolbar__event-count"
-        data-testid="demo-event-count"
-      >{{ t.events }}: {{ events }} / 300</span>
-      <span
         v-if="guideLabel"
         data-testid="demo-guide-status"
         :data-status="guideState"
       >{{ guideLabel }}</span>
     </div>
-    <BaseDisclosure
-      v-if="!embed"
-      class="demo-toolbar__expected"
-      :title="copy.success"
-    >
-      <p>{{ currentTask.result }}</p>
-    </BaseDisclosure>
+    <output
+      data-testid="demo-event-count"
+      aria-live="off"
+      hidden
+    >{{ events }} / 300</output>
     <output
       data-testid="demo-metrics"
       aria-live="off"
@@ -214,6 +226,13 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
       :items="menuItems"
       placement="bottom-end"
       @select="selectAction"
+    />
+    <TutorialCatalogDialog
+      v-if="!embed"
+      v-model:open="catalogOpen"
+      :tours="demoTutorialIds"
+      :initial-tour="recommended"
+      :on-launch="launchGuide"
     />
   </div>
 </template>

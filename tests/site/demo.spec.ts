@@ -75,9 +75,9 @@ test('Play connects the first scenario, shows events, and pause/step/reset remai
   await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
   await page.getByTestId('demo-play').click();
   await expect(status).toHaveAttribute('data-status', 'paused');
-  const count = await page.getByTestId('demo-event-count').innerText();
+  const count = await page.getByTestId('demo-event-count').textContent();
   await page.waitForTimeout(2100); // Cross the actual autoplay interval: pause must stop delivery.
-  await expect(page.getByTestId('demo-event-count')).toHaveText(count);
+  await expect(page.getByTestId('demo-event-count')).toHaveText(count ?? '');
   await page.getByTestId('demo-step').click();
   await expect(page.getByTestId('demo-event-count')).toContainText('2 / 300');
   await page.getByRole('link', { name: 'Automations', exact: true }).click();
