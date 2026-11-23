@@ -4,6 +4,7 @@ const t = (key: string): string => testMessage('en', key);
 import { test, expect } from '@playwright/test';
 import { demoLocales, scenarios } from '../../src/web/demo/scenarios.ts';
 import { componentFamilies } from '../../docs/scripts/component-families.ts';
+import { experienceCopy } from '../../docs/experience/copy.ts';
 
 test('table examples sort actual rows and tab examples retain independent drafts', async ({ page }) => {
   await page.goto('demo/?scenario=settings&locale=en&route=/components/collections');
@@ -32,6 +33,25 @@ test('the toolbar language switcher changes the demo locale', async ({ page }) =
   expect(new URL(page.url()).searchParams.get('locale')).toBe('ja');
 });
 
+test('floating controls keep the top bar clear, hide the step outside the feed and teach connection cases', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=es&instance=floating-controls');
+  await expect(page.locator('.demo-dock')).toBeVisible();
+  await expect(page.getByTestId('demo-play')).toBeVisible();
+  await expect(page.getByTestId('demo-guide')).toBeVisible();
+  await expect(page.getByTestId('demo-step')).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: experienceCopy.es.connectionStates.label, exact: true })).toBeVisible();
+  await page.getByTestId('demo-close-controls').click();
+  await expect(page.locator('.demo-dock')).toHaveCount(0);
+  await expect(page.getByTestId('demo-open-controls')).toBeVisible();
+  await page.getByTestId('demo-open-controls').click();
+  await expect(page.locator('.demo-dock')).toBeVisible();
+  await page.getByRole('link', { name: testMessage('es', 'navigation.feed'), exact: true }).click();
+  await expect(page.getByTestId('demo-step')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: experienceCopy.es.connectionStates.label, exact: true })).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test('the jp URL alias selects Japanese and is rewritten to the canonical ja locale', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=jp');
   await expect(page.getByTestId('demo-play')).toBeEnabled();
@@ -45,7 +65,7 @@ test('every public scenario loads real pages without external or native requests
   page.on('request', (request) => { if (!request.url().startsWith(baseURL!) && !request.url().startsWith('data:') && !request.url().startsWith('blob:')) outbound.push(request.url()); });
   for (const scenario of Object.keys(scenarios)) {
     await page.goto(`demo/?scenario=${scenario}&locale=en&instance=smoke-${scenario}`);
-    await expect(page.getByTestId('demo-step')).toBeVisible();
+    await expect(page.getByTestId('demo-play')).toBeVisible();
     await expect(page.locator('#app')).not.toBeEmpty();
     await expect.poll(async () => { const value = await page.getByTestId('demo-metrics').textContent(); return value ? JSON.parse(value).client.pending : -1; }).toBe(0);
     await expect(page.locator('body')).not.toContainText('Invalid automation snapshot');
@@ -58,6 +78,7 @@ test('connect → event → automation → result, then reset and direct refresh
   await page.goto('demo/?scenario=connection&locale=en&instance=flow');
   await page.getByRole('textbox').first().fill('demo_creator');
   await page.getByRole('button', { name: t('connection.connect'), exact: true }).first().click();
+  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await page.getByTestId('demo-step').click();
   await page.getByRole('link', { name: 'Automations', exact: true }).click();
   await expect(page.locator('body')).toContainText('Hello Luna');
@@ -78,6 +99,8 @@ test('Play connects the first scenario, shows events, and pause/step/reset remai
   const count = await page.getByTestId('demo-event-count').textContent();
   await page.waitForTimeout(2100); // Cross the actual autoplay interval: pause must stop delivery.
   await expect(page.getByTestId('demo-event-count')).toHaveText(count ?? '');
+  await expect(page.getByTestId('demo-step')).toHaveCount(0);
+  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await page.getByTestId('demo-step').click();
   await expect(page.getByTestId('demo-event-count')).toContainText('2 / 300');
   await page.getByRole('link', { name: 'Automations', exact: true }).click();
@@ -102,6 +125,7 @@ test('component previews and every locale work at a narrow width', async ({ page
 test('direct component entry owns a working runtime across catalog and workspace navigation', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('demo/?scenario=feed&locale=en&route=/components/buttons&instance=catalog-runtime');
+  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await expect(page.getByTestId('demo-step')).toBeEnabled();
   await page.getByTestId('demo-step').click();
   await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
@@ -110,6 +134,7 @@ test('direct component entry owns a working runtime across catalog and workspace
   await page.getByTestId('demo-more').click();
   await page.getByRole('menuitem', { name: 'Component reference', exact: true }).click();
   await expect(page.locator('.component-catalog')).toBeVisible();
+  await page.getByRole('link', { name: t('navigation.feed'), exact: true }).click();
   await page.getByTestId('demo-step').click();
   await expect(page.getByTestId('demo-event-count')).toContainText('2 / 300');
   await page.getByRole('link', { name: 'Automations', exact: true }).click();

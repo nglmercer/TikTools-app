@@ -195,11 +195,11 @@ test('all focused product pages fit an embedded mobile viewport and preserve the
   await page.setViewportSize({ width:360, height:560 });
   for (const [panel, selector] of [['automation', '.automations-page'], ['points', '.points-page'], ['overlays', '.overlays-page']] as const) {
     await page.goto(`demo/?scenario=${panel}&embed=${panel}&locale=en`);
-    await expect(page.getByTestId('demo-step')).toBeEnabled();
+    await expect(page.getByTestId('demo-play')).toBeEnabled();
     await expect(page.locator(selector)).toBeVisible();
     await expect(page.locator('.app-menu-bar')).toBeHidden();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.getByTestId('demo-step').click();
+    await page.getByTestId('demo-play').click();
     await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
   }
   expect(errors).toEqual([]);

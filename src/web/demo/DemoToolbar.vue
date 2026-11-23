@@ -10,10 +10,12 @@ import IconPause from '@/shared/ui/icon/icons/IconPause.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
+import IconClose from '@/shared/ui/icon/icons/IconClose.vue';
+import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import LanguageSwitcher from '@/shared/ui/language-switcher/LanguageSwitcher.vue';
 import TutorialCatalogDialog from '@/features/guided-help/ui/TutorialCatalogDialog.vue';
 import type { TourId } from '@/features/guided-help/model/types.ts';
-import type { PlaybackStatus } from './playback.ts';
+import { type PlaybackStatus } from './playback.ts';
 import { demoTutorialIds, type DemoTourId } from './tours.ts';
 import type { DemoLocale, EmbeddedPanel } from './scenarios.ts';
 import { toolbarCopy } from './toolbar-copy.ts';
@@ -34,6 +36,10 @@ const props = defineProps<{
   connectionCase?: 'normal' | 'offline' | 'auth';
   /** Tour matching the section currently open in the workspace. */
   recommendedTour?: DemoTourId;
+  /** Sample events are only visible on the feed; elsewhere the step control is hidden. */
+  showStep?: boolean;
+  /** Connection states are explained where the connection is being configured. */
+  showCases?: boolean;
 }>();
 const emit = defineEmits<{
   locale: [value: DemoLocale];
@@ -59,6 +65,7 @@ const playbackLabel = computed(() => {
 });
 const guideLabel = computed(() => ({ preparing: t.value.preparingGuide, active: t.value.activeGuide, completed: t.value.guideComplete, dismissed: t.value.guideDismissed, unavailable: t.value.guideUnavailable })[props.guideState]);
 const playbackDisabled = computed(() => !props.ready || props.busy || props.status === 'limit' || ['preparing', 'active'].includes(props.guideState));
+const controlsOpen = ref(true);
 const catalogOpen = ref(false);
 const moreOpen = ref(false);
 const menuAnchor = shallowRef<HTMLElement | null>(null);
@@ -114,102 +121,138 @@ function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId
         </BaseButton>
       </div>
     </div>
-    <div class="demo-toolbar__controls">
-      <label
-        v-if="embed === 'connection'"
-        class="demo-toolbar__field demo-toolbar__case"
-      ><span>{{ copy.connectionStates.label }}</span><BaseComboBox
-        :aria-label="copy.connectionStates.label"
-        :options="connectionOptions"
-        :model-value="connectionCase ?? 'normal'"
-        :disabled="!ready || busy"
-        @update:model-value="emit('connectionCase', $event as 'normal' | 'offline' | 'auth')"
-      /></label>
-      <div
-        class="demo-toolbar__playback"
-        role="group"
-        :aria-label="t.demo"
-      >
-        <BaseButton
-          variant="primary"
-          data-testid="demo-play"
-          :disabled="playbackDisabled"
-          :pressed="!paused"
-          @click="emit('play')"
-        >
-          <template #icon>
-            <IconPlay v-if="paused" /><IconPause v-else />
-          </template>{{ paused ? t.play : t.pause }}
-        </BaseButton>
-        <BaseButton
-          data-testid="demo-step"
-          :disabled="playbackDisabled"
-          @click="emit('step')"
-        >
-          <template #icon>
-            <IconChevronRight />
-          </template>{{ t.step }}
-        </BaseButton>
+
+    <BaseButton
+      v-if="!controlsOpen"
+      class="demo-dock__trigger"
+      variant="primary"
+      data-testid="demo-open-controls"
+      :aria-label="t.openControls"
+      @click="controlsOpen = true"
+    >
+      <template #icon>
+        <IconGear />
+      </template>{{ t.controls }}
+    </BaseButton>
+
+    <section
+      v-else
+      class="demo-dock"
+      data-testid="demo-controls-panel"
+      :aria-label="t.controls"
+    >
+      <header class="demo-dock__header">
+        <strong>{{ t.controls }}</strong>
         <BaseButton
           variant="ghost"
-          data-testid="demo-reset"
-          :aria-label="t.reset"
-          :title="t.reset"
-          @click="emit('reset')"
+          data-testid="demo-close-controls"
+          :aria-label="t.closeControls"
+          :title="t.closeControls"
+          @click="controlsOpen = false"
         >
           <template #icon>
-            <IconRefresh />
+            <IconClose />
           </template>
         </BaseButton>
+      </header>
+      <div class="demo-toolbar__controls">
+        <label
+          v-if="showCases"
+          class="demo-toolbar__field demo-toolbar__case"
+        ><span>{{ copy.connectionStates.label }}</span><BaseComboBox
+          :aria-label="copy.connectionStates.label"
+          :options="connectionOptions"
+          :model-value="connectionCase ?? 'normal'"
+          :disabled="!ready || busy"
+          @update:model-value="emit('connectionCase', $event as 'normal' | 'offline' | 'auth')"
+        /></label>
+        <div
+          class="demo-toolbar__playback"
+          role="group"
+          :aria-label="t.demo"
+        >
+          <BaseButton
+            variant="primary"
+            data-testid="demo-play"
+            :disabled="playbackDisabled"
+            :pressed="!paused"
+            @click="emit('play')"
+          >
+            <template #icon>
+              <IconPlay v-if="paused" /><IconPause v-else />
+            </template>{{ paused ? t.play : t.pause }}
+          </BaseButton>
+          <BaseButton
+            v-if="showStep"
+            data-testid="demo-step"
+            :disabled="playbackDisabled"
+            @click="emit('step')"
+          >
+            <template #icon>
+              <IconChevronRight />
+            </template>{{ t.step }}
+          </BaseButton>
+          <BaseButton
+            variant="ghost"
+            data-testid="demo-reset"
+            :aria-label="t.reset"
+            :title="t.reset"
+            @click="emit('reset')"
+          >
+            <template #icon>
+              <IconRefresh />
+            </template>
+          </BaseButton>
+        </div>
+        <div
+          v-if="!embed"
+          class="demo-toolbar__guides"
+        >
+          <p class="demo-toolbar__recommendation">
+            <span>{{ t.recommended }}</span>
+            <strong>{{ t.tourTitles[recommended] }}</strong>
+          </p>
+          <BaseButton
+            data-testid="demo-guide"
+            :disabled="!ready"
+            @click="catalogOpen = true"
+          >
+            {{ guidesLabel }}
+          </BaseButton>
+          <BaseButton
+            v-if="['preparing', 'active'].includes(guideState)"
+            variant="ghost"
+            data-testid="demo-close-guide"
+            :aria-label="t.closeGuide"
+            @click="emit('cancelGuide')"
+          >
+            {{ t.closeGuide }}
+          </BaseButton>
+        </div>
       </div>
-      <div
-        v-if="!embed"
-        class="demo-toolbar__guides"
+      <p
+        v-if="showCases && connectionCase !== 'normal'"
+        class="demo-toolbar__recovery"
+        role="status"
       >
-        <p class="demo-toolbar__recommendation">
-          <span>{{ t.recommended }}</span>
-          <strong>{{ t.tourTitles[recommended] }}</strong>
-        </p>
-        <BaseButton
-          data-testid="demo-guide"
-          :disabled="!ready"
-          @click="catalogOpen = true"
-        >
-          {{ guidesLabel }}
-        </BaseButton>
-        <BaseButton
-          v-if="['preparing', 'active'].includes(guideState)"
-          variant="ghost"
-          data-testid="demo-close-guide"
-          :aria-label="t.closeGuide"
-          @click="emit('cancelGuide')"
-        >
-          {{ t.closeGuide }}
-        </BaseButton>
+        {{ connectionCase === 'offline' ? copy.connectionStates.offlineHelp : copy.connectionStates.authHelp }}
+      </p>
+      <div
+        class="demo-toolbar__status"
+        role="status"
+        aria-live="polite"
+      >
+        <span
+          data-testid="demo-playback-status"
+          :data-status="status"
+        >{{ playbackLabel }}</span>
+        <span
+          v-if="guideLabel"
+          data-testid="demo-guide-status"
+          :data-status="guideState"
+        >{{ guideLabel }}</span>
       </div>
-    </div>
-    <p
-      v-if="embed === 'connection' && connectionCase !== 'normal'"
-      class="demo-toolbar__recovery"
-      role="status"
-    >
-      {{ connectionCase === 'offline' ? copy.connectionStates.offlineHelp : copy.connectionStates.authHelp }}
-    </p>
-    <div
-      class="demo-toolbar__status"
-      role="status"
-      aria-live="polite"
-    >
-      <span
-        data-testid="demo-playback-status"
-        :data-status="status"
-      >{{ playbackLabel }}</span>
-      <span
-        v-if="guideLabel"
-        data-testid="demo-guide-status"
-        :data-status="guideState"
-      >{{ guideLabel }}</span>
-    </div>
+    </section>
     <output
       data-testid="demo-event-count"
       aria-live="off"

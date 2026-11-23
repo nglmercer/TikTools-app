@@ -35,7 +35,7 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await page.setViewportSize({ width: 1440, height: 960 });
   await page.getByRole('link', { name: 'Points', exact: true }).click();
   await expect(page).toHaveURL(/#\/points$/);
-  await expect(page.getByTestId('demo-step')).toBeVisible();
+  await expect(page.getByTestId('demo-play')).toBeVisible();
   expect(errors).toEqual([]);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-desktop.png' });

@@ -28,7 +28,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   const recordFailure = () => diagnosticLog.record({ source: 'integrations', level: 'error', code: 'demo.simulated_action_failure', message: ({ en: 'Simulated action failed. Inspect the run result, then retry or reset.', es: 'Falló una acción simulada. Revisa el resultado y reintenta o reinicia.', pt: 'Uma ação simulada falhou. Confira o resultado e tente novamente ou reinicie.', fr: 'Une action simulée a échoué. Consultez le résultat, puis réessayez ou réinitialisez.', zh: '模拟操作失败。请检查执行结果，然后重试或重置。', ja: 'サンプルのアクションが失敗しました。実行結果を確認し、再試行するかリセットしてください。' })[options.locale], requestId: 'demo-request' });
   if (options.scenario === 'diagnostics') recordFailure();
   const toolbar = document.querySelector('#demo-controls')!;
-  const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as 'normal' | 'offline' | 'auth', recommendedTour: scenarioTour(options.scenario) });
+  const toolbarState = reactive({ paused: host.paused, busy: false, events: 0, status: 'ready' as PlaybackState['status'], guideState: 'idle', failure: false, ready: false, metrics: '', connectionCase: 'normal' as 'normal' | 'offline' | 'auth', recommendedTour: scenarioTour(options.scenario), showStep: options.scenario === 'feed', showCases: options.scenario === 'connection' });
   function publishFrameState() {
     if (!options.framed || window.parent === window) return;
     const state: DemoFrameState = { type: 'tiktools.demo.state', instance: options.instance, ready: toolbarState.ready,
@@ -81,7 +81,11 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   if (workspaceRouter) {
     const refreshRecommendation = () => {
       const router = workspaceRouter;
-      if (router) toolbarState.recommendedTour = tourForRoute(router.currentRoute.value.fullPath, options.scenario);
+      if (!router) return;
+      toolbarState.recommendedTour = tourForRoute(router.currentRoute.value.fullPath, options.scenario);
+      const path = router.currentRoute.value.path;
+      toolbarState.showStep = path === '/feed';
+      toolbarState.showCases = path === '/connections';
     };
     refreshRecommendation();
     const stopRecommendation = workspaceRouter.afterEach(refreshRecommendation);

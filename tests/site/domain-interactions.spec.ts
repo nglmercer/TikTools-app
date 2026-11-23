@@ -33,7 +33,7 @@ async function settled(page: Page): Promise<void> {
 
 async function openDemo(page: Page, scenario: string, instance: string): Promise<void> {
   await page.goto(`demo/?scenario=${scenario}&locale=en&instance=domain-${instance}`);
-  await expect(page.getByTestId('demo-step')).toBeVisible();
+  await expect(page.getByTestId('demo-play')).toBeVisible();
   expect(await page.evaluate(() => typeof (window as Window & { ipc?: unknown }).ipc)).toBe('undefined');
   await settled(page);
 }
@@ -73,7 +73,7 @@ for (const copy of [
 ]) {
   test(`${copy.locale}: native action metadata is translated in the real picker and editor`, async ({ page }) => {
     await page.goto(`demo/?scenario=automation&locale=${copy.locale}&instance=domain-native-${copy.locale}`);
-    await expect(page.getByTestId('demo-step')).toBeVisible();
+    await expect(page.getByTestId('demo-play')).toBeVisible();
     await page.getByRole('tab', { name: new RegExp(`^${copy.actions} \\(`) }).click();
     await page.getByRole('button', { name: copy.create, exact: true }).click();
     const picker = page.getByRole('dialog', { name: copy.picker, exact: true });
