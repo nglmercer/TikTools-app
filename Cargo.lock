@@ -6634,8 +6634,3 @@ dependencies = [
  "log",
  "simd-adler32",
 ]
-
-[[patch.unused]]
-name = "crypto-glue"
-version = "0.2.2"
-source = "git+https://github.com/nglmercer/crypto-glue?rev=eb80ef9adfee042c68939e79665e160649a1cc4b#eb80ef9adfee042c68939e79665e160649a1cc4b"
