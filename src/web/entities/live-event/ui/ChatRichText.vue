@@ -40,7 +40,6 @@ function showImage(url: string | undefined): url is string {
       :src="segment.imageUrl"
       :alt="segment.fallbackText || 'TikTok emote'"
       :title="segment.fallbackText || 'TikTok emote'"
-      loading="lazy"
       decoding="async"
       referrerpolicy="no-referrer"
       @error="imageFailed(segment.imageUrl!)"

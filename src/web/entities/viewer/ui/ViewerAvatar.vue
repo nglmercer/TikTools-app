@@ -33,7 +33,6 @@ const showImage = computed(() => Boolean(props.src) && !failed.value);
       class="viewer-avatar__image"
       :src="src!"
       alt=""
-      loading="lazy"
       decoding="async"
       referrerpolicy="no-referrer"
       @error="failed = true"

@@ -9,7 +9,7 @@ mod server;
 mod socket;
 
 use assets::asset;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use assets::resolve_plugin_asset;
 use auth::{secret, session_touch};
 use options::join_link;

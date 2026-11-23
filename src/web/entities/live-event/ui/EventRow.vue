@@ -76,7 +76,6 @@ function openViewer(): void {
         class="event-row__gift"
         :src="giftImage"
         :alt="event.giftDetails?.name"
-        loading="lazy"
         decoding="async"
         referrerpolicy="no-referrer"
         @error="giftImageFailed = true"

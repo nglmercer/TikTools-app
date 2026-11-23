@@ -58,7 +58,7 @@ onBeforeUnmount(() => {
     class="plugin-frame"
     :title="pluginId"
     :src="src"
-    sandbox="allow-scripts"
+    sandbox="allow-scripts allow-popups allow-top-navigation-to-custom-protocols"
     referrerpolicy="no-referrer"
   />
 </template>
