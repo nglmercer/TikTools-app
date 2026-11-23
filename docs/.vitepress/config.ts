@@ -10,6 +10,16 @@ import { docLocales, docCopy, localizedDocumentPath, type DocLocale } from '../l
 
 const site = siteConfig();
 const content = resolve(import.meta.dirname, '../content');
+// The demo is a separate Vite app. In development, forward its base path to
+// `demo dev` so DemoFrame iframes show the real workspace instead of the
+// VitePress 404 page; production builds assemble both under the same base.
+const demoDevProxy = {
+  [`${site.base}demo`]: {
+    target: `http://127.0.0.1:${Number(process.env.TIKTOOLS_DEMO_DEV_PORT ?? 4174)}`,
+    changeOrigin: true,
+    ws: true,
+  },
+};
 
 function theme(locale: DocLocale) {
   const t = docCopy[locale];
@@ -51,5 +61,5 @@ export default defineConfig({
     const tail = localizedDocumentPath(path)?.tail;
     return [['link', { rel: 'canonical', href: url }], ...docLocales.map((lang): ['link', Record<string, string>] => ['link', { rel: 'alternate', hreflang: lang, href: new URL(tail === undefined ? `${lang}/` : `${lang}/${tail}`, site.url).href }]), ['link', { rel: 'alternate', hreflang: 'x-default', href: new URL(tail === undefined ? 'en/' : `en/${tail}`, site.url).href }]];
   },
-  vite: { resolve: { dedupe: ['vue'], alias: { '@': resolve(import.meta.dirname, '../../src/web') } } },
+  vite: { resolve: { dedupe: ['vue'], alias: { '@': resolve(import.meta.dirname, '../../src/web') } }, server: { proxy: demoDevProxy } },
 });

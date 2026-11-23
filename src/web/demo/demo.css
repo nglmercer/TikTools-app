@@ -1,6 +1,14 @@
 html[data-demo] body { display:flex; flex-direction:column; height:100dvh; margin:0; overflow:hidden; }
 html[data-demo] #app { flex:1 1 0; width:100%; height:auto; min-height:0; }
 html[data-demo] #app > .app-layout { height:100%; min-height:0; }
+/* A standalone demo owns its scroll; an embedded one must let a wheel at the
+   app boundary continue scrolling the documentation page instead of being
+   swallowed by the pull-to-refresh overscroll rule in responsive.css. */
+html[data-demo-frame], html[data-demo-frame] body { overscroll-behavior-y: auto; }
+/* Long panels still scroll inside the demo, but hand the wheel back to the
+   article once their own content ends instead of trapping it. */
+html[data-demo-frame] .live-feed__stream,
+html[data-demo-frame] .overlay-library__content { overscroll-behavior-y: auto; }
 #demo-controls { position:relative; z-index:110; flex:0 0 auto; border-bottom:1px solid var(--color-border); background:var(--color-bg-app); color:var(--color-text); }
 html[data-demo-frame] #demo-controls { display:none; }
 .demo-toolbar { --control-height-md:34px; --space-5:12px; padding:14px 20px 16px; font:13px/1.5 var(--font-family); }

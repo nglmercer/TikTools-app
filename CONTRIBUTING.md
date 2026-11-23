@@ -169,8 +169,10 @@ TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build
 bun scripts/task.ts site preview
 ```
 
-For separate development loops use `bun scripts/task.ts docs dev` and
-`bun scripts/task.ts demo dev`. The default combined preview uses
+For a full development loop with working embedded demos use
+`bun scripts/task.ts site dev`, which starts docs and demo together; VitePress
+proxies `/demo/` to the demo dev server. For separate loops use
+`bun scripts/task.ts docs dev` and `bun scripts/task.ts demo dev`. The default combined preview uses
 `http://127.0.0.1:4173/TikTools-app/`; the demo is under `demo/`. The dirty-build
 flag permits a local review artifact and records its dirty status. It is not
 a source revision or publication claim. Keep `TIKTOOLS_SITE_BASE` consistent

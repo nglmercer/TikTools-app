@@ -36,11 +36,15 @@ export async function runSiteTask(namespace: 'docs' | 'demo' | 'site', args: str
     else throw new Error('Expected demo dev|build.');
     return;
   }
-  if (action === 'build') {
+  if (action === 'dev') {
+    // Docs dev proxies /demo/ to the demo dev server, so both must run together
+    // for embedded frames to show the real application during development.
+    await Promise.all([runSiteTask('docs', ['dev'], runner), runSiteTask('demo', ['dev'], runner)]);
+  } else if (action === 'build') {
     await runSiteTask('docs', ['build'], runner);
     await runSiteTask('demo', ['build'], runner);
     await runner.script('assemble-site.ts');
     await runner.script('check-site.ts');
   } else if (action === 'preview') await runner.script('preview-site.ts');
-  else throw new Error('Expected site build|preview.');
+  else throw new Error('Expected site dev|build|preview.');
 }

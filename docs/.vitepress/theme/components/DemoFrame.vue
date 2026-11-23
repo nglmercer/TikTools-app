@@ -112,7 +112,9 @@ function command(action: FrameAction) {
 .demo-frame__case { max-width:190px; min-width:0; }
 .demo-frame__recovery { margin:0; padding:10px 14px; font-size:12px; line-height:1.7; border-top:1px solid var(--vp-c-divider); }
 .demo-frame :focus-visible { outline: 2px solid var(--vp-c-brand-1); outline-offset: 3px; }
-.demo-frame__viewport { position:relative; overflow:auto; overscroll-behavior:contain; background:#1c1d24; }
+/* Keep horizontal scroll inside the frame, but let vertical scroll chain to
+   the article so the wheel never dies when the pointer is over the demo. */
+.demo-frame__viewport { position:relative; overflow:auto; overscroll-behavior-x:contain; overscroll-behavior-y:auto; background:#1c1d24; }
 .demo-frame__canvas { position:relative; width:calc(1280px * var(--frame-scale)); height:calc(var(--frame-height) * 1px * var(--frame-scale)); margin-inline:auto; }
 .demo-frame--fit .demo-frame__canvas { width:min(100%,1280px); height:auto; aspect-ratio:1280 / var(--frame-height); }
 .demo-frame iframe { position:absolute; top:0; left:0; display:block; width:1280px; max-width:none; height:calc(var(--frame-height) * 1px); border:0; transform:scale(var(--frame-scale)); transform-origin:top left; }

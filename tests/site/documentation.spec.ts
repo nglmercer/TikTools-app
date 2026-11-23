@@ -102,6 +102,17 @@ test('locale switching preserves the equivalent article and stable heading in al
   }
 });
 
+test('the landing language switcher keeps readers on the equivalent page and section', async ({ page }) => {
+  await page.goto('es/#playground');
+  const switcher = page.getByRole('navigation', { name: docCopy.es.language });
+  await expect(switcher.getByRole('link')).toHaveCount(docLocales.length);
+  await expect(switcher.getByRole('link', { name: 'Español', exact: true })).toHaveAttribute('aria-current', 'true');
+  await switcher.getByRole('link', { name: 'Français', exact: true }).click();
+  await expect(page).toHaveURL(/\/fr\/#playground$/);
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+  await expect(page.locator('#playground')).toBeVisible();
+});
+
 for (const locale of docLocales) {
   test(`${locale}: local search has translated controls and locale-specific results`, async ({ page }) => {
     await page.goto(`${locale}/user/preferences/backups.html`);

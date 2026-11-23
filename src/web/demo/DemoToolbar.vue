@@ -10,9 +10,9 @@ import IconPause from '@/shared/ui/icon/icons/IconPause.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
-import { demoLocales, scenarios, type ScenarioId, type DemoLocale } from './scenarios.ts';
+import { scenarios, type ScenarioId, type DemoLocale } from './scenarios.ts';
 import type { PlaybackStatus } from './playback.ts';
-import { localeNames } from '@/shared/i18n/supported-locales.ts';
+import LanguageSwitcher from '@/shared/ui/language-switcher/LanguageSwitcher.vue';
 import { toolbarCopy } from './toolbar-copy.ts';
 import type { EmbeddedPanel } from './scenarios.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
@@ -26,7 +26,6 @@ const currentTask = computed(() => {
 });
 const connectionOptions = computed(() => (['normal', 'offline', 'auth'] as const).map((value) => ({ value, label: copy.value.connectionStates[value] })));
 const scenarioOptions = computed(() => Object.entries(scenarios).map(([value, scenario]) => ({ value, label: scenario[props.locale] })));
-const languageOptions = computed(() => demoLocales.map((value) => ({ value, label: localeNames[value] })));
 const selectedTour = ref(props.initialTour);
 watch(selectedTour, () => emit('cancelGuide'));
 const playbackLabel = computed(() => {
@@ -65,12 +64,12 @@ function guide(event: MouseEvent) { emit('guide', selectedTour.value, event.curr
           class="demo-toolbar__docs"
           :href="docsUrl"
         >{{ t.docs }}<span aria-hidden="true">↗</span></a>
-        <BaseComboBox
+        <LanguageSwitcher
           class="demo-toolbar__language"
-          :aria-label="t.language"
-          :options="languageOptions"
-          :model-value="locale"
-          @update:model-value="emit('locale', $event as DemoLocale)"
+          variant="select"
+          :locale="locale"
+          :label="t.language"
+          @change="emit('locale', $event)"
         />
         <BaseButton
           variant="ghost"

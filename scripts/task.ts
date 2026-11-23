@@ -22,7 +22,7 @@ const USAGE =
   'Internal steps used by CI and guides: frontend-lint, frontend-test, frontend-build,\n' +
   'rust-lint, rust <cargo args>, widgets, plugins <args>, tasks, plugin:<id>:<command>, e2e [args], package,\n' +
   'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins.\n' +
-  'Site tasks: docs dev|check|build|test|preview, demo dev|build, site build|preview.';
+  'Site tasks: docs dev|check|build|test|preview, demo dev|build, site dev|build|preview.';
 
 // Every spawned child is tracked by the shared runner so SIGINT/SIGTERM stop
 // the whole launcher tree (Vite, the desktop host, cargo) instead of orphaning

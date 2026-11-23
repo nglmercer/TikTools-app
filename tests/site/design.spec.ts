@@ -41,6 +41,18 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-mobile.png' });
 });
 
+test('the embedded demo hands vertical scroll back to the landing page', async ({ page }) => {
+  await page.goto('es/');
+  const frame = page.frameLocator('.product-stage iframe');
+  await expect(frame.locator('.app-layout')).toBeVisible();
+  const box = await page.locator('.product-stage iframe').boundingBox();
+  expect(box).not.toBeNull();
+  // Aim at the visible top of the frame: its scaled canvas is taller than the viewport.
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + 80);
+  await page.mouse.wheel(0, 600);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+});
+
 test('product landing pages show the real demo automatically and fit every viewport', async ({ page }) => {
   for (const route of ['', ...docLocales.map((locale) => `${locale}/`)]) {
     await page.goto(route);

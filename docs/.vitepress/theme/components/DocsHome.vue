@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
 import { useData, withBase } from 'vitepress';
-import { docLocales, docCopy, documentLocale } from '../../../locales.ts';
+import { docCopy, documentLocale, type DocLocale } from '../../../locales.ts';
 import { experienceCopy } from '../../../experience/copy.ts';
 import type { Topic } from '../../../experience/types.ts';
+import LanguageSwitcher from '../../../../src/web/shared/ui/language-switcher/LanguageSwitcher.vue';
 import DemoFrame from './DemoFrame.vue';
 import { landingCopy } from '../../../experience/landing/index.ts';
 import IconLink from '../../../../src/web/shared/ui/icon/icons/IconLink.vue';
@@ -12,12 +13,18 @@ import IconLayers from '../../../../src/web/shared/ui/icon/icons/IconLayers.vue'
 import IconCoins from '../../../../src/web/shared/ui/icon/icons/IconCoins.vue';
 import IconChat from '../../../../src/web/shared/ui/icon/icons/IconChat.vue';
 
-const props = defineProps<{ selector?: boolean }>();
+defineProps<{ selector?: boolean }>();
 
-const { lang } = useData();
-const languages = computed(() => docLocales.filter((locale) => props.selector || locale !== documentLocale(lang.value)));
+const { lang, page } = useData();
 const demoHref = '#playground';
 const locale = computed(() => documentLocale(lang.value));
+/** Switch languages on the equivalent page, keeping the reader's section. */
+function languageHref(target: DocLocale): string {
+  const tail = page.value.relativePath.replace(/^[^/]+\//, '');
+  const path = tail === 'index.md' ? `/${target}/` : `/${target}/${tail.replace(/\.md$/, '.html')}`;
+  const hash = typeof window === 'undefined' ? '' : window.location.hash;
+  return withBase(path) + hash;
+}
 const copy = computed(() => experienceCopy[locale.value]);
 const landing = computed(() => landingCopy[locale.value]);
 const active = ref<'feed' | Topic>('feed');
@@ -44,9 +51,13 @@ const guideHref = (topic: Topic) => withBase(`/${locale.value}/user/${guides[top
   <main class="docs-home" :class="{ 'docs-home--selector': selector }">
     <div class="docs-home__masthead">
       <div class="docs-home__eyebrow"><slot name="eyebrow" /></div>
-      <div class="docs-home__language">
-        <a v-for="locale in languages" :key="locale" :href="withBase(`/${locale}/`)" :lang="locale">{{ docCopy[locale].label }}</a>
-      </div>
+      <LanguageSwitcher
+        class="docs-home__language"
+        variant="links"
+        :locale="locale"
+        :label="docCopy[locale].language"
+        :href-for="languageHref"
+      />
     </div>
 
     <div class="docs-home__hero">

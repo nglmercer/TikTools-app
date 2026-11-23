@@ -23,6 +23,15 @@ test('table examples sort actual rows and tab examples retain independent drafts
   await expect(tabs.locator('textarea')).toHaveValue('second draft');
 });
 
+test('the toolbar language switcher changes the demo locale', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=en');
+  const language = page.getByRole('combobox', { name: 'Language', exact: true });
+  await expect(language).toHaveValue('en');
+  await language.selectOption('ja');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ja');
+  expect(new URL(page.url()).searchParams.get('locale')).toBe('ja');
+});
+
 test('the jp URL alias selects Japanese and is rewritten to the canonical ja locale', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=jp');
   await expect(page.getByTestId('demo-play')).toBeEnabled();
