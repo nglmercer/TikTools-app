@@ -10,7 +10,7 @@ withDefaults(defineProps<{ placement?: 'bar' | 'screen' }>(), { placement: 'bar'
 const { lang, page } = useData();
 const locale = computed(() => documentLocale(lang.value || 'en'));
 const label = computed(() => docCopy[locale.value].language);
-const options = computed(() => docLocales.map((code) => ({ value: code, label: docCopy[code].label, short: code.toUpperCase() })));
+const options = computed(() => docLocales.map((code) => ({ value: code, label: docCopy[code].label })));
 
 function hrefFor(target: DocLocale): string {
   const tail = page.value.relativePath.replace(/^[^/]+\//, '');
@@ -35,15 +35,17 @@ function change(target: string): void {
   />
 </template>
 
-<style scoped>
-.site-language { display: inline-flex; align-items: center; }
-.site-language--screen { width: 100%; justify-content: space-between; min-height: 40px; }
+<!-- Unscoped: the classes are applied to BaseIconSelect's root through $attrs,
+     so the ancestor scope id is not available here. -->
+<style>
+.site-language { display: inline-flex; align-items: center; margin-inline: auto }
+.site-language.site-language--screen { width: 100%; justify-content: space-between; min-height: 40px; }
 
 @media (min-width: 768px) {
-  .site-language--screen { display: none; }
+  .site-language.site-language--screen { display: none; }
 }
 
 @media (max-width: 767px) {
-  .site-language--bar { display: none; }
+  .site-language.site-language--bar { display: none; }
 }
 </style>

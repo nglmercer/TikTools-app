@@ -5,6 +5,7 @@ import BaseMenu from './BaseMenu.vue';
 import type { MenuAction } from './menu-types.ts';
 
 /** A label-like picker built on BaseMenu: no native select, icons and checks included. */
+defineOptions({ inheritAttrs: false });
 const props = defineProps<{
   modelValue: string;
   options: readonly { value: string; label: string; short?: string; icon?: Component }[];
@@ -32,6 +33,7 @@ function select(action: MenuAction): void {
 <template>
   <button
     ref="trigger"
+    v-bind="$attrs"
     type="button"
     class="icon-select"
     :data-testid="testId"
@@ -85,7 +87,7 @@ function select(action: MenuAction): void {
 
 .icon-select:hover,
 .icon-select[aria-expanded='true'] { border-color: var(--vp-c-brand-1, var(--color-border-focus, currentColor)); }
-.icon-select__value { font-variant-numeric: tabular-nums; }
+.icon-select__value { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .icon-select__icon,
 .icon-select__caret { width: 12px; height: 12px; flex: none; }
 .icon-select__caret { opacity: .7; }

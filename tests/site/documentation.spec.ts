@@ -14,7 +14,7 @@ const canonicalPath = (path: string) => path.replace(/index\.md$/, '').replace(/
 async function switchSiteLocale(page: Page, current: DocLocale, target: DocLocale): Promise<void> {
   const trigger = page.getByRole('button', { name: docCopy[current].language, exact: true });
   await expect(trigger).toBeVisible();
-  await expect(trigger).toHaveText(current.toUpperCase());
+  await expect(trigger).toHaveText(docCopy[current].label);
   await trigger.click();
   await page.getByRole('menuitemcheckbox', { name: docCopy[target].label, exact: true }).click();
 }
@@ -110,7 +110,7 @@ test('one language selector is available on the unlocalized root and keeps the r
   await page.goto('');
   const rootSelector = page.getByRole('button', { name: docCopy.en.language, exact: true });
   await expect(rootSelector).toBeVisible();
-  await expect(rootSelector).toHaveText('EN');
+  await expect(rootSelector).toHaveText(docCopy.en.label);
   await expect(page.getByRole('navigation', { name: docCopy.en.language })).toHaveCount(0);
 
   await page.goto('es/#playground');

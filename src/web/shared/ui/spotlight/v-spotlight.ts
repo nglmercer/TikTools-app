@@ -126,6 +126,9 @@ function watchDismissal(): void {
   }
 }
 
+// A reload or bfcache restore must never bring a stale cutout back.
+if (typeof window !== 'undefined') window.addEventListener('pagehide', hide);
+
 export const vSpotlight: Directive<HTMLElement, boolean> = {
   mounted(element, binding) { setActive(element, binding.value === true); },
   updated(element, binding) {

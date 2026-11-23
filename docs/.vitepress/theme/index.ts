@@ -18,7 +18,7 @@ export default {
   extends: DefaultTheme,
   Layout: () => h(DefaultTheme.Layout, null, {
     'nav-bar-content-after': () => h(SiteLanguageSwitcher, { placement: 'bar' }),
-    'nav-screen-content-after': () => h(SiteLanguageSwitcher, { placement: 'screen' }),
+    'nav-screen-content-before': () => h(SiteLanguageSwitcher, { placement: 'screen' }),
   }),
   enhanceApp({ app }: Parameters<NonNullable<typeof DefaultTheme.enhanceApp>>[0]) {
     app.component('DemoFrame', DemoFrame);

@@ -58,6 +58,17 @@ test('the landing lesson switches demo sections and docks the demo controls in t
   await expect(page.locator('.product-stage__bar .compact-select__value')).toHaveText(/^\d+%$/);
 });
 
+test('mobile shows one full-name language selector at the top of the menu', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('es/');
+  await expect(page.locator('.site-language--bar')).toBeHidden();
+  await page.locator('button[aria-label="mobile navigation"]').click();
+  const selector = page.locator('.site-language--screen');
+  await expect(selector).toHaveCount(1);
+  await expect(selector).toBeVisible();
+  await expect(selector).toHaveText('Español');
+});
+
 test('the embedded demo follows the documentation theme without reloading', async ({ page }) => {
   await page.goto('');
   const frame = page.frameLocator('.product-stage iframe');
