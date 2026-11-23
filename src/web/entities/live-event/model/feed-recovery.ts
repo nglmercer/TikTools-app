@@ -1,4 +1,3 @@
-import type { Ref } from 'vue';
 import type { UiEvent } from '../../../../shared/messages.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 
@@ -17,7 +16,6 @@ interface RecoveryContext {
   resetCursor: () => void;
   push: (event: UiEvent, cursor: number) => boolean;
   discontinuity: () => void;
-  dropped: Ref<number>;
 }
 
 /** One serialized backfill loop per feed, fenced by presentation/session invalidation. */
@@ -29,10 +27,9 @@ export function createFeedRecovery(control: ControlClient, context: RecoveryCont
   let recoveryGaps = 0;
   let recoveredEvents = 0;
   let recoveredGaps = 0;
-  let unjournaledSuspended = 0;
   const recoverFeed = async (): Promise<void> => {
     if (recoveryInFlight) { recoveryRequested = true; return; }
-    if (typeof (control as { call?: unknown }).call !== 'function') { unjournaledSuspended = 0; context.discontinuity(); return; }
+    if (typeof (control as { call?: unknown }).call !== 'function') { context.discontinuity(); return; }
     const generation = recoveryGeneration;
     recoveryInFlight = true;
     let recoveredAny = false;
@@ -49,9 +46,6 @@ export function createFeedRecovery(control: ControlClient, context: RecoveryCont
           recoveryGaps += 1; context.discontinuity();
           continue;
         }
-        if (unjournaledSuspended > 0) {
-          unjournaledSuspended = 0; recoveryGaps += 1; context.discontinuity();
-        }
         let recovered = 0;
         let next = after;
         for (const entry of result.events ?? []) {
@@ -64,7 +58,6 @@ export function createFeedRecovery(control: ControlClient, context: RecoveryCont
           if (!recoveredAny) recoveredGaps += 1;
           recoveredAny = true;
         }
-        context.dropped.value = Math.max(0, context.dropped.value - recovered);
         if (result.gap) { recoveryGaps += 1; context.discontinuity(); }
         if (!result.truncated) { if (!recoveryRequested) recoveryAfter = null; break; }
         if (next <= after || page === 15) { recoveryGaps += 1; context.discontinuity(); break; }
@@ -93,7 +86,6 @@ export function createFeedRecovery(control: ControlClient, context: RecoveryCont
     recover: recoverFeed,
     invalidate,
     noteGap,
-    noteUnjournaledDrop: () => { unjournaledSuspended += 1; },
     diagnostics: () => ({ recoveryGaps, recoveredEvents, recoveredGaps, recoveryInFlight }),
   };
 }
