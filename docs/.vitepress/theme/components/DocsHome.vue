@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useData, withBase } from 'vitepress';
-import { docCopy, documentLocale, type DocLocale } from '../../../locales.ts';
+import { documentLocale } from '../../../locales.ts';
 import { experienceCopy } from '../../../experience/copy.ts';
 import type { Topic } from '../../../experience/types.ts';
-import LanguageSwitcher from '../../../../src/web/shared/ui/language-switcher/LanguageSwitcher.vue';
 import DemoFrame from './DemoFrame.vue';
 import { landingCopy } from '../../../experience/landing/index.ts';
 import IconLink from '../../../../src/web/shared/ui/icon/icons/IconLink.vue';
@@ -14,16 +13,9 @@ import IconCoins from '../../../../src/web/shared/ui/icon/icons/IconCoins.vue';
 
 defineProps<{ selector?: boolean }>();
 
-const { lang, page } = useData();
+const { lang } = useData();
 const demoHref = '#playground';
 const locale = computed(() => documentLocale(lang.value));
-/** Switch languages on the equivalent page, keeping the reader's section. */
-function languageHref(target: DocLocale): string {
-  const tail = page.value.relativePath.replace(/^[^/]+\//, '');
-  const path = tail === 'index.md' ? `/${target}/` : `/${target}/${tail.replace(/\.md$/, '.html')}`;
-  const hash = typeof window === 'undefined' ? '' : window.location.hash;
-  return withBase(path) + hash;
-}
 const copy = computed(() => experienceCopy[locale.value]);
 const landing = computed(() => landingCopy[locale.value]);
 const topics: Topic[] = ['connection', 'automation', 'overlays', 'points'];
@@ -36,13 +28,6 @@ const guideHref = (topic: Topic) => withBase(`/${locale.value}/user/${guides[top
   <main class="docs-home" :class="{ 'docs-home--selector': selector }">
     <div class="docs-home__masthead">
       <div class="docs-home__eyebrow"><slot name="eyebrow" /></div>
-      <LanguageSwitcher
-        class="docs-home__language"
-        variant="links"
-        :locale="locale"
-        :label="docCopy[locale].language"
-        :href-for="languageHref"
-      />
     </div>
 
     <div class="docs-home__hero">
@@ -67,12 +52,11 @@ const guideHref = (topic: Topic) => withBase(`/${locale.value}/user/${guides[top
       </div>
     </section>
 
-    <section class="docs-home__topics" :aria-label="copy.topicsTitle">
+    <section class="docs-home__next" :aria-label="copy.topicsTitle">
       <div class="docs-home__section-heading"><div><span class="docs-home__section-kicker">{{ landing.featuresEyebrow }}</span><h2>{{ landing.featuresTitle }}</h2></div><p>{{ landing.featuresDescription }}</p></div>
       <div class="docs-home__topic-grid"><a v-for="(topic,index) in topics" :key="topic" class="docs-topic" :href="guideHref(topic)"><div class="docs-topic__icon"><component :is="icons[topic]" aria-hidden="true" /><span>0{{ index + 1 }}</span></div><div><h3>{{ copy.topics[topic].title }}</h3><p>{{ copy.topics[topic].description }}</p><span class="docs-topic__link">{{ copy.readGuide }} <span aria-hidden="true">→</span></span></div></a></div>
+      <aside class="docs-home__start"><slot name="start" /></aside>
     </section>
-
-    <aside class="docs-home__start"><slot name="start" /></aside>
 
     <section class="docs-home__directory">
       <div class="docs-home__section-heading"><slot name="directory" /></div>

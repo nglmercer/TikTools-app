@@ -91,10 +91,9 @@ test('locale switching preserves the equivalent article and stable heading in al
   await page.goto('en/user/preferences/backups.html#restore-and-verify');
   let current: typeof docLocales[number] = 'en';
   for (const locale of [...docLocales.filter((locale) => locale !== 'en'), 'en'] as const) {
-    await page.getByRole('button', { name: docCopy[current].language, exact: true }).click();
-    const link = page.locator('.VPNavBarTranslations').getByRole('link', { name: docCopy[locale].label, exact: true });
-    await expect(link).toHaveAttribute('href', `${site.base}${locale}/user/preferences/backups.html#restore-and-verify`);
-    await link.click();
+    const selector = page.getByRole('combobox', { name: docCopy[current].language, exact: true });
+    await expect(selector).toHaveValue(current);
+    await selector.selectOption(locale);
     await expect(page).toHaveURL(new RegExp(`/${locale}/user/preferences/backups\\.html#restore-and-verify$`));
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await expect(page.locator('#restore-and-verify')).toBeVisible();
@@ -102,12 +101,17 @@ test('locale switching preserves the equivalent article and stable heading in al
   }
 });
 
-test('the landing language switcher keeps readers on the equivalent page and section', async ({ page }) => {
+test('one language selector is available on the unlocalized root and keeps the reader on the section', async ({ page }) => {
+  await page.goto('');
+  const rootSelector = page.getByRole('combobox', { name: docCopy.en.language, exact: true });
+  await expect(rootSelector).toBeVisible();
+  await expect(rootSelector).toHaveValue('en');
+  await expect(page.getByRole('navigation', { name: docCopy.en.language })).toHaveCount(0);
+
   await page.goto('es/#playground');
-  const switcher = page.getByRole('navigation', { name: docCopy.es.language });
-  await expect(switcher.getByRole('link')).toHaveCount(docLocales.length);
-  await expect(switcher.getByRole('link', { name: 'Español', exact: true })).toHaveAttribute('aria-current', 'true');
-  await switcher.getByRole('link', { name: 'Français', exact: true }).click();
+  const selector = page.getByRole('combobox', { name: docCopy.es.language, exact: true });
+  await expect(selector).toHaveValue('es');
+  await selector.selectOption('fr');
   await expect(page).toHaveURL(/\/fr\/#playground$/);
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
   await expect(page.locator('#playground')).toBeVisible();
