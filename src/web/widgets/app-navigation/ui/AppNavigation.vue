@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { vSpotlight } from '@/shared/ui/spotlight/v-spotlight.ts';
+import { dismissSpotlight, vSpotlight } from '@/shared/ui/spotlight/v-spotlight.ts';
 import type { NavigationSection } from '../model/navigation-types.ts';
 
 withDefaults(
@@ -40,13 +40,14 @@ const { t } = useI18n();
           :key="item.id"
         >
           <RouterLink
-            v-spotlight
+            v-spotlight="item.id === suggested"
             class="app-navigation__link"
             :class="{ 'app-navigation__link--suggested': item.id === suggested }"
             exact-active-class="app-navigation__link--active"
             :to="item.to"
             :aria-label="collapsed ? item.label : undefined"
             :title="collapsed ? item.label : undefined"
+            @click="dismissSpotlight()"
           >
             <component
               :is="item.icon"

@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import BaseStatus from './BaseStatus.vue';
 import { vTooltip } from '@/shared/ui/tooltip/v-tooltip.ts';
-import { vSpotlight } from '@/shared/ui/spotlight/v-spotlight.ts';
+import { dismissSpotlight, vSpotlight } from '@/shared/ui/spotlight/v-spotlight.ts';
 import type { StatusTone } from './status-types.ts';
 withDefaults(defineProps<{ label: string; actionLabel: string; tone?: StatusTone; disabled?: boolean; detail?: string }>(), { tone: 'neutral', detail: '' });
 </script>
 <template>
   <button
     v-tooltip="detail"
-    v-spotlight
+    v-spotlight="Boolean(detail)"
     type="button"
     class="base-status-action"
     :disabled="disabled"
     :aria-label="`${label}. ${actionLabel}`"
+    @click="dismissSpotlight()"
   >
     <BaseStatus
       :label="label"

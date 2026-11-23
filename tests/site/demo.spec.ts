@@ -31,15 +31,25 @@ test('a successful connection highlights the feed section to read events', async
   await expect(page.getByTestId('demo-playback-status')).toHaveAttribute('data-status', 'playing');
   const feed = page.locator('#app-sidebar').getByRole('link', { name: t('navigation.feed'), exact: true });
   await expect(feed).toHaveClass(/app-navigation__link--suggested/);
-  await feed.hover();
+  // The spotlight is state-driven: no pointer interaction is needed.
   const spotlight = page.locator('#app-spotlight');
+  await expect(spotlight).toBeVisible();
+  await page.mouse.move(900, 700);
   await expect(spotlight).toBeVisible();
   const [cutout, link] = await Promise.all([spotlight.boundingBox(), feed.boundingBox()]);
   expect(Math.abs(cutout!.x - link!.x)).toBeLessThan(6);
-  await page.mouse.move(900, 700);
-  await expect(spotlight).toBeHidden();
   await feed.click();
+  await expect(spotlight).toBeHidden();
   await expect(page).toHaveURL(/#\/feed$/);
+});
+
+test('the spotlight can be dismissed with Escape or an outside click', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=en&instance=spotlight-dismiss');
+  await page.getByTestId('demo-play').click();
+  const spotlight = page.locator('#app-spotlight');
+  await expect(spotlight).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(spotlight).toBeHidden();
 });
 
 test('the demo sidebar exposes diagnostics and component reference sections', async ({ page }) => {

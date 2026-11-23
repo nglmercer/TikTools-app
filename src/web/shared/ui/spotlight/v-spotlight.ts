@@ -2,19 +2,29 @@ import type { Directive } from 'vue';
 import './spotlight.css';
 
 /**
- * Driver.js-style spotlight for short-lived hovers in the browser demo.
- * A single fixed cutout darkens the rest of the page with a large box-shadow;
- * no tour engine, popover or navigation state is involved. The desktop app
- * (without `data-demo`) and an active guided tour are never affected.
+ * State-driven, driver.js-style spotlight for the browser demo.
+ * The caller marks an element as `active` (connection succeeded, action failed)
+ * and the rest of the page is dimmed until the state changes. No hover is
+ * required, so it also works on touch devices.
  */
 const OVERLAY_ID = 'app-spotlight';
-const listeners = new WeakMap<HTMLElement, () => void>();
+const activeElements = new Set<HTMLElement>();
+const dismissed = new WeakSet<HTMLElement>();
 let overlay: HTMLDivElement | null = null;
 let target: HTMLElement | null = null;
+let listening = false;
+let observer: MutationObserver | null = null;
+let blocked = false;
 
 function enabled(): boolean {
   return document.documentElement.hasAttribute('data-demo')
     && !document.querySelector('dialog[open], .driver-popover');
+}
+
+function visible(element: HTMLElement): boolean {
+  if (!element.isConnected) return false;
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 && getComputedStyle(element).visibility !== 'hidden';
 }
 
 function ensureOverlay(): HTMLDivElement {
@@ -41,45 +51,85 @@ function reposition(): void {
   if (target) place(target);
 }
 
-function show(element: HTMLElement): void {
-  if (!enabled()) return;
-  target = element;
-  const node = ensureOverlay();
-  place(element);
-  node.hidden = false;
-  requestAnimationFrame(() => node.classList.add('spotlight-overlay--visible'));
-  window.addEventListener('scroll', reposition, true);
-  window.addEventListener('resize', reposition);
-}
-
-function hide(element: HTMLElement): void {
-  if (target !== element) return;
+function hide(): void {
   target = null;
   overlay?.classList.remove('spotlight-overlay--visible');
   if (overlay) overlay.hidden = true;
-  window.removeEventListener('scroll', reposition, true);
-  window.removeEventListener('resize', reposition);
+  if (listening) {
+    window.removeEventListener('scroll', reposition, true);
+    window.removeEventListener('resize', reposition);
+    listening = false;
+  }
 }
 
-export const vSpotlight: Directive<HTMLElement> = {
-  mounted(element) {
-    const enter = (): void => show(element);
-    const leave = (): void => hide(element);
-    element.addEventListener('pointerenter', enter);
-    element.addEventListener('focusin', enter);
-    element.addEventListener('pointerleave', leave);
-    element.addEventListener('focusout', leave);
-    const dispose = (): void => {
-      element.removeEventListener('pointerenter', enter);
-      element.removeEventListener('focusin', enter);
-      element.removeEventListener('pointerleave', leave);
-      element.removeEventListener('focusout', leave);
-      hide(element);
-    };
-    listeners.set(element, dispose);
+function watchBlockers(): void {
+  if (observer) return;
+  observer = new MutationObserver(() => {
+    const now = Boolean(document.querySelector('dialog[open], .driver-popover'));
+    if (now !== blocked) { blocked = now; render(); }
+  });
+  observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'class'] });
+}
+
+function render(): void {
+  const element = [...activeElements].reverse().find((candidate) => !dismissed.has(candidate) && visible(candidate));
+  if (!element || !enabled()) { hide(); return; }
+  const node = ensureOverlay();
+  if (target !== element) {
+    target = element;
+    node.hidden = false;
+    requestAnimationFrame(() => node.classList.add('spotlight-overlay--visible'));
+  }
+  place(element);
+  if (!listening) {
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    listening = true;
+  }
+}
+
+function setActive(element: HTMLElement, active: boolean): void {
+  if (active) {
+    if (!activeElements.has(element)) dismissed.delete(element);
+    activeElements.add(element);
+  } else activeElements.delete(element);
+  watchBlockers();
+  watchDismissal();
+  render();
+}
+
+/** Called when the highlighted action is executed or the reader dismisses it. */
+export function dismissSpotlight(): void {
+  if (target) dismissed.add(target);
+  hide();
+}
+
+function onEscape(event: KeyboardEvent): void {
+  if (event.key === 'Escape' && target) dismissSpotlight();
+}
+
+function onOutsidePointer(event: PointerEvent): void {
+  if (!target || (event.target instanceof Node && target.contains(event.target))) return;
+  dismissSpotlight();
+}
+
+let globalListening = false;
+function watchDismissal(): void {
+  if (!globalListening && activeElements.size) {
+    window.addEventListener('keydown', onEscape);
+    document.addEventListener('pointerdown', onOutsidePointer, true);
+    globalListening = true;
+  } else if (globalListening && !activeElements.size) {
+    window.removeEventListener('keydown', onEscape);
+    document.removeEventListener('pointerdown', onOutsidePointer, true);
+    globalListening = false;
+  }
+}
+
+export const vSpotlight: Directive<HTMLElement, boolean> = {
+  mounted(element, binding) { setActive(element, binding.value === true); },
+  updated(element, binding) {
+    if (binding.value !== binding.oldValue) setActive(element, binding.value === true);
   },
-  unmounted(element) {
-    listeners.get(element)?.();
-    listeners.delete(element);
-  },
+  unmounted(element) { setActive(element, false); },
 };
