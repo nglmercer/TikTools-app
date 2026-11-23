@@ -6,8 +6,10 @@ withDefaults(
   defineProps<{
     sections: readonly NavigationSection[];
     collapsed?: boolean;
+    /** Section suggested by the app state, e.g. the feed after a connection succeeds. */
+    suggested?: string;
   }>(),
-  { collapsed: false },
+  { collapsed: false, suggested: '' },
 );
 
 const { t } = useI18n();
@@ -38,6 +40,7 @@ const { t } = useI18n();
         >
           <RouterLink
             class="app-navigation__link"
+            :class="{ 'app-navigation__link--suggested': item.id === suggested }"
             exact-active-class="app-navigation__link--active"
             :to="item.to"
             :aria-label="collapsed ? item.label : undefined"
@@ -104,8 +107,14 @@ const { t } = useI18n();
 }
 
 .app-navigation__link:hover {
-  background: var(--color-bg-hover);
+  border-color: var(--color-border-selected);
+  background: var(--color-bg-selected);
   color: var(--color-text);
+}
+
+.app-navigation__link:active {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
 }
 
 .app-navigation__link:focus-visible {
@@ -117,6 +126,22 @@ const { t } = useI18n();
   border-color: var(--color-border-selected);
   background: var(--color-bg-selected);
   color: var(--color-text-on-accent);
+}
+
+/* A connected creator has events to read: point the reader at the feed. */
+.app-navigation__link--suggested:not(.app-navigation__link--active) {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.app-navigation__link--suggested:not(.app-navigation__link--active)::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--color-accent);
 }
 
 .app-navigation__icon {

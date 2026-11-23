@@ -54,6 +54,8 @@ if (!document.documentElement.dataset.theme) applyAppTheme('dark');
 const { route, router, routeTab, sections, menuPages, navigate } = useShellNavigation(pluginPages, {
   activeTab, open: navigation.open,
 }, drawerOpen);
+// Once a creator is connected, point at the section where sample events land.
+const suggestedSection = computed(() => status.value === 'connected' && routeTab.value !== 'feed' ? 'feed' : '');
 
 function connect(): void {
   const target = uniqueId.value.trim().replace(/^@/, '');
@@ -97,6 +99,7 @@ function connect(): void {
         class="app-layout__navigation"
         :class="{ 'app-layout__navigation--collapsed': sidebarRail, 'app-layout__navigation--open': drawerOpen }"
         :sections="sections"
+        :suggested="suggestedSection"
         :collapsed="sidebarRail"
       />
       <main

@@ -128,7 +128,9 @@ for (const locale of docLocales) {
       await page.getByRole('combobox', { name: copy.label, exact: true }).click();
       await page.getByRole('option', { name: copy[state], exact: true }).click();
       await form.locator('.base-button--primary').click();
-      await expect(page.locator('.demo-toolbar__recovery')).toHaveText(state === 'offline' ? copy.offlineHelp : copy.authHelp);
+      // The dock no longer repeats the help text; the failure explains itself on hover.
+      await form.locator('.diagnostic-action').hover();
+      await expect(page.locator('#app-tooltip')).toHaveText(state === 'offline' ? copy.offlineHelp : copy.authHelp);
       await expect(form.locator('#live-handle')).toBeEnabled();
       await expect(page.getByTestId('demo-metrics')).toContainText('"ticks":0');
       await form.locator('.diagnostic-action').click();

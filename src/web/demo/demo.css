@@ -64,5 +64,4 @@ html[data-demo-panel="connection"] .connections-page__live { min-height:190px; }
 .demo-toolbar--embedded .demo-toolbar__controls { gap:10px; }
 html[data-demo-panel="connection"] .demo-toolbar__status { display:none; }
 .demo-toolbar__case { max-width:340px; }
-.demo-toolbar__recovery { margin:0; padding:8px 10px; border-left:2px solid var(--color-warning); background:var(--color-bg-panel); color:var(--color-text-muted); font-size:11px; line-height:1.6; }
 @media(min-width:851px) { .demo-toolbar { padding:10px 20px; } }

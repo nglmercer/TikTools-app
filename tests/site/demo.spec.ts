@@ -24,6 +24,17 @@ test('table examples sort actual rows and tab examples retain independent drafts
   await expect(tabs.locator('textarea')).toHaveValue('second draft');
 });
 
+test('a successful connection highlights the feed section to read events', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=en&instance=feed-suggestion');
+  // Playback connects through the simulated RPC without leaving the section.
+  await page.getByTestId('demo-play').click();
+  await expect(page.getByTestId('demo-playback-status')).toHaveAttribute('data-status', 'playing');
+  const feed = page.locator('#app-sidebar').getByRole('link', { name: t('navigation.feed'), exact: true });
+  await expect(feed).toHaveClass(/app-navigation__link--suggested/);
+  await feed.click();
+  await expect(page).toHaveURL(/#\/feed$/);
+});
+
 test('the demo sidebar exposes diagnostics and component reference sections', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en&instance=sidebar-sections');
   const nav = page.locator('#app-sidebar');

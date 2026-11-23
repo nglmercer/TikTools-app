@@ -231,13 +231,6 @@ function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId
           </BaseButton>
         </div>
       </div>
-      <p
-        v-if="showCases && connectionCase !== 'normal'"
-        class="demo-toolbar__recovery"
-        role="status"
-      >
-        {{ connectionCase === 'offline' ? copy.connectionStates.offlineHelp : copy.connectionStates.authHelp }}
-      </p>
       <div
         class="demo-toolbar__status"
         role="status"
