@@ -71,8 +71,8 @@ function command(action: FrameAction) {
 <template>
   <section ref="root" class="demo-frame" :class="{ 'demo-frame--focused': panel, 'demo-frame--minimal': minimal, 'demo-frame--fit': zoom === 'fit' }" :style="frameStyle" :data-panel="panel" :aria-label="title">
     <div v-if="!minimal" class="demo-frame__heading"><span class="demo-frame__dot" /><strong>{{ title }}</strong><span class="demo-frame__badge">{{ copy.fictional }}</span></div>
-    <div v-if="!minimal || loaded" class="demo-frame__actions">
-      <template v-if="!minimal"><button type="button" :aria-expanded="loaded" @click="toggle">{{ loaded ? t.closeDemo : t.loadDemo }}</button><a :href="fullUrl" target="_blank" rel="noopener">{{ t.fullDemo }} ↗︎</a></template>
+    <div v-if="!minimal" class="demo-frame__actions">
+      <button type="button" :aria-expanded="loaded" @click="toggle">{{ loaded ? t.closeDemo : t.loadDemo }}</button><a :href="fullUrl" target="_blank" rel="noopener">{{ t.fullDemo }} ↗︎</a>
       <div v-if="loaded" class="demo-frame__tools" role="group" :aria-label="copy.interactive">
         <button type="button" data-testid="frame-play" :aria-label="runtime?.paused === false ? player.pause : player.play" :title="runtime?.paused === false ? player.pause : player.play" :aria-pressed="runtime?.paused === false" :disabled="!canRun" @click="command({ action:'play' })"><IconPause v-if="runtime?.paused === false" /><IconPlay v-else /></button>
         <button type="button" data-testid="frame-step" :aria-label="player.step" :title="player.step" :disabled="!canRun" @click="command({ action:'step' })"><IconChevronRight /></button>
@@ -119,9 +119,6 @@ function command(action: FrameAction) {
 .demo-frame--fit .demo-frame__canvas { width:min(100%,1280px); height:auto; aspect-ratio:1280 / var(--frame-height); }
 .demo-frame iframe { position:absolute; top:0; left:0; display:block; width:1280px; max-width:none; height:calc(var(--frame-height) * 1px); border:0; transform:scale(var(--frame-scale)); transform-origin:top left; }
 .demo-frame--minimal { margin:0; border:0; border-radius:0; }
-.demo-frame--minimal .demo-frame__actions { border-bottom:1px solid #353842; background:#20222a; color:#d3d8e4; }
-.demo-frame--minimal .demo-frame__actions button,.demo-frame--minimal select { color:#d3d8e4; background:#292c36; border-color:#444854; }
-.demo-frame--minimal .demo-frame__count,.demo-frame--minimal .demo-frame__zoom { color:#aab1c1; }
 .demo-frame__preview { position:relative; display:block; width:100%; padding:18px; border:0; border-top:1px solid var(--vp-c-divider); cursor:pointer; text-align:left; background:var(--vp-c-bg-alt); color:var(--vp-c-text-1); }
 .demo-frame__play { display:flex; gap:10px; align-items:center; justify-content:center; width:max-content; max-width:100%; padding:8px 16px; margin:16px auto 0; border-radius:6px; background:var(--vp-c-brand-3); color:white; font-size:13px; font-weight:600; }
 .demo-frame__preview:hover .demo-frame__play { background:#2947bd; }

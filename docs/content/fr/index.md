@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
-translationRevision: "430265d011c8fccab96c1de23a20513d0d13a0013f2859652221a5213a0e5b4e"
+sourceRevision: "17fab985404a52cd320675dd086c482ed54db4b0ab71457428b3c07b3c068d70"
+translationRevision: "eae967664fbd5e00627a9026d9dbb3131f68a46b6125649202ca9714f70fcba5"
 layout: page
 order: 0
 ---
@@ -26,7 +26,7 @@ TikTools / Outils pour vos LIVE
 
 # Votre LIVE.<br />Vos règles. {#tiktools-documentation}
 
-Connectez TikTok LIVE, transformez les événements de votre audience en automatisations et créez des incrustations pour OBS. Essayez l’interface réelle ci-dessous avec des données fictives, puis composez votre propre installation de diffusion.
+Connectez TikTok LIVE, automatisez les réponses et créez des incrustations OBS. Essayez l’interface réelle avec des données fictives.
 
 </template>
 

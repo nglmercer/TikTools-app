@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: "en"
-sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
-translationRevision: "285a9a3cdaca53a2a283059e662c6d06ad069a3a4a2cf7c066f3ffe594cc5d86"
+sourceRevision: "17fab985404a52cd320675dd086c482ed54db4b0ab71457428b3c07b3c068d70"
+translationRevision: "22356bb2fa9015c27d03d8de8d5b469d87de1211faa2d2cad3ce9b92e91b8812"
 layout: page
 order: 0
 ---
@@ -25,7 +25,7 @@ TikTools / LIVE ツールキット
 
 # あなたの LIVE を、<br />思いどおりに。 {#tiktools-documentation}
 
-TikTok LIVE に接続し、視聴者のイベントからアクションを自動実行。OBS 用のオーバーレイもデザインできます。下の実際の操作画面を架空のデータで試し、自分だけの配信環境を作りましょう。
+TikTok LIVE に接続し、視聴者への対応を自動化し、OBS オーバーレイをデザイン。架空のデータで実際の画面を試せます。
 
 </template>
 

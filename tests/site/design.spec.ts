@@ -60,6 +60,9 @@ test('product landing pages show the real demo automatically and fit every viewp
     expect(await title.evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(32);
     await expect(page.locator('main a[href*="/user/"]').first()).toBeVisible();
     await expect(page.locator('main a[href*="/developer/"]').first()).toBeVisible();
+    for (const selector of ['.product-stage__heading','.product-stage__tabs','.product-stage__flow','.product-stage__bar > a','.product-stage .demo-frame__actions']) {
+      await expect(page.locator(selector)).toHaveCount(0);
+    }
     await expect(page.locator('iframe')).toHaveCount(1);
     await expect(page.frameLocator('.product-stage iframe').locator('.live-feed')).toContainText('Hello TikTools!');
     await page.setViewportSize({ width: 390, height: 844 });

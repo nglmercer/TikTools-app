@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
-translationRevision: "25e3c15f45da9aee92bdfb6974e818f6340bb6f94a5eeda577349774cb0665a0"
+sourceRevision: "17fab985404a52cd320675dd086c482ed54db4b0ab71457428b3c07b3c068d70"
+translationRevision: "0a2848342a5b5ef635e501a45c9cf0bfaba8325188a1c9fc77492f78dbfd8c9c"
 layout: page
 order: 0
 ---
@@ -25,7 +25,7 @@ TikTools / 直播工具箱
 
 # 你的直播，<br />由你做主。 {#tiktools-documentation}
 
-连接 TikTok LIVE，将观众事件转为自动化操作，为 OBS 设计叠加层。在下方用虚构数据体验真实界面，再打造属于你的直播配置。
+连接 TikTok LIVE，自动回应观众并设计 OBS 叠加层。用虚构数据体验真实界面。
 
 </template>
 

@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: "en"
-sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
-translationRevision: "10882fd5a2bfc5b46f0de2ac342d209b809b5a3561e1ae812ef93ec3c05e223d"
+sourceRevision: "17fab985404a52cd320675dd086c482ed54db4b0ab71457428b3c07b3c068d70"
+translationRevision: "6026e7c1e2901223cdf145cf04b686155bb8641df7672252bc444e89b4b33b96"
 layout: page
 order: 0
 ---
@@ -26,7 +26,7 @@ TikTools / Ferramentas para sua LIVE
 
 # Sua LIVE.<br />Suas regras. {#tiktools-documentation}
 
-Conecte sua LIVE do TikTok, automatize ações e crie sobreposições para o OBS. Experimente os controles reais logo abaixo com dados fictícios, sem instalar o aplicativo nem criar uma conta.
+Conecte sua LIVE do TikTok, automatize respostas e crie sobreposições para o OBS. Experimente a interface real com dados fictícios.
 
 </template>
 

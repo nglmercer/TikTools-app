@@ -87,51 +87,33 @@ for (const locale of docLocales) {
     }
   });
 
-  test(`${locale}: product landing loads real controls directly and switches one stable workspace`, async ({ page,baseURL }) => {
+  test(`${locale}: product landing shows one quiet demo and keeps the guides reachable`, async ({ page, baseURL }) => {
     const errors: string[] = []; const outbound: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('request', request => { if (!request.url().startsWith(baseURL!) && !/^(data:|blob:)/.test(request.url())) outbound.push(request.url()); });
     await page.setViewportSize({ width:1440,height:960 });
     await page.goto(`${locale}/`);
-    const stage = page.locator('.product-stage__window');
+    for (const selector of ['.product-stage__heading','.product-stage__tabs','.product-stage__flow','.product-stage__bar > a','.product-stage .demo-frame__actions']) {
+      await expect(page.locator(selector)).toHaveCount(0);
+    }
     await expect(page.locator('iframe')).toHaveCount(1);
     const frame = page.frameLocator('.product-stage iframe');
     await expect(frame.locator('.live-feed')).toContainText('Hello TikTools!');
     await expect(frame.getByTestId('demo-event-count')).toContainText('9 / 300');
-    expect(new Set(await frame.locator('.event-row__author').evaluateAll(nodes => nodes.map(node => node.getAttribute('title')))).size).toBe(6);
-    const rose = frame.locator('img.event-row__gift').first();
+    expect(new Set(await frame.locator('.event-card__author').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')))).size).toBe(6);
+    const rose = frame.locator('img.event-card__gift').first();
     await rose.scrollIntoViewIfNeeded();
     await expect(rose).toHaveAttribute('alt', 'Rose');
     await expect.poll(() => rose.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
     expect(new URL((await rose.getAttribute('src'))!,page.url()).origin).toBe(new URL(baseURL!).origin);
-    await frame.locator('.event-row__author[title="@sofia"]').first().click();
+    await frame.locator('.event-card__author[aria-label*="@sofia"]').first().click();
     await expect(frame.locator('.viewer-profile__handle')).toHaveText('@sofia');
     await expect(frame.locator('.viewer-profile__stat dd')).toHaveText(['65','12','9','15','1']);
-    // Re-select the feed to start the ordinary landing tab-switch checks fresh.
-    await page.locator('#stage-connection-tab').click();
-    await expect(frame.locator('#live-handle')).toBeVisible();
-    await page.locator('#stage-feed-tab').click();
-    await expect(frame.locator('.live-feed')).toContainText('Hello TikTools!');
-    await expect(page.locator('.product-stage iframe')).toHaveAttribute('loading','eager');
-    const height = (await stage.boundingBox())!.height;
+    await expect(page.locator('.product-stage__lesson a')).toHaveAttribute('href', /\/user\/live\/feed\.html$/);
     const source = await page.locator('.product-stage iframe').getAttribute('src');
     await page.locator('.docs-home__actions a').first().click();
     await expect(page).toHaveURL(/#playground$/);
     await expect(page.locator('.product-stage iframe')).toHaveAttribute('src',source!);
-    for (const [view,selector] of [['connection','#live-handle'],['automation','.automations-page'],['overlays','.overlays-page'],['points','.points-page'],['feed','.live-feed']] as const) {
-      await page.locator(`#stage-${view}-tab`).click();
-      await expect(frame.locator('html')).toHaveAttribute('data-demo-panel',view);
-      await expect(frame.locator(selector)).toBeVisible();
-      await expect(page.locator('iframe')).toHaveCount(1);
-      expect(Math.abs((await stage.boundingBox())!.height-height)).toBeLessThanOrEqual(1);
-      await expect(page.locator(`#stage-${view}-tab`)).toHaveAttribute('aria-selected','true');
-    }
-    await page.locator('#stage-feed-tab').press('End');
-    await expect(page.locator('#stage-points-tab')).toBeFocused();
-    await expect(frame.locator('.points-page')).toBeVisible();
-    const full = new URL((await page.locator('.product-stage__bar > a').getAttribute('href'))!,page.url());
-    expect(full.searchParams.get('scenario')).toBe('points');
-    expect(full.searchParams.has('embed')).toBe(false);
     expect(errors).toEqual([]); expect(outbound).toEqual([]);
   });
 

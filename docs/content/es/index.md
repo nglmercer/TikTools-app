@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
-translationRevision: "0b886028d9dcc8270a00598d321fa643840439d830ee50660707f8f87d630856"
+sourceRevision: "17fab985404a52cd320675dd086c482ed54db4b0ab71457428b3c07b3c068d70"
+translationRevision: "16a9d3d34369d15ebe9888a794081253a8214c1dc1d3a02daea8e8204ce109c3"
 layout: page
 order: 0
 ---
@@ -26,7 +26,7 @@ TikTools / Para tu próximo LIVE
 
 # Tu LIVE.<br />Tus reglas. {#tiktools-documentation}
 
-Conecta tu TikTok LIVE, automatiza las respuestas a tu audiencia y crea overlays para OBS. Prueba aquí la interfaz real con datos ficticios y prepara tu próxima transmisión.
+Conecta tu TikTok LIVE, automatiza las respuestas a tu audiencia y crea overlays para OBS. Prueba la interfaz real con datos ficticios.
 
 </template>
 

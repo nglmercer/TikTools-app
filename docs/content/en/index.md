@@ -7,8 +7,8 @@ audience: all
 featureStatus: available
 contentStatus: reviewed
 sourceLocale: en
-sourceRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
-translationRevision: "b4a9666a0af61d210e7e5ef1cfbc66b878599406ed8b56a491c4ceb63eb1a99a"
+sourceRevision: "17fab985404a52cd320675dd086c482ed54db4b0ab71457428b3c07b3c068d70"
+translationRevision: "17fab985404a52cd320675dd086c482ed54db4b0ab71457428b3c07b3c068d70"
 layout: page
 order: 0
 ---
@@ -26,7 +26,7 @@ TikTools / LIVE toolkit
 
 # Your LIVE.<br />Your rules. {#tiktools-documentation}
 
-Connect TikTok LIVE, turn audience events into automations, and design overlays for OBS. Try the real interface below with fictional data, then build your own broadcast setup.
+Connect TikTok LIVE, automate audience responses and design OBS overlays. Try the real interface with fictional data.
 
 </template>
 
