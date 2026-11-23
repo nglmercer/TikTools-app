@@ -30,6 +30,7 @@ const activeTitle = computed(() => active.value === 'feed' ? landing.value.feed 
 const activeText = computed(() => active.value === 'feed' ? landing.value.stageHint : copy.value.topics[active.value].task);
 const sectionLabel = (section: Section) => section === 'feed' ? landing.value.feed : copy.value.topics[section].title;
 const sectionOptions = computed(() => sections.map((section) => ({ value: section, label: sectionLabel(section), icon: icons[section] })));
+const sectionNumber = computed(() => String(sections.indexOf(active.value) + 1).padStart(2, '0'));
 const guideHref = (section: Section) => section === 'feed'
   ? withBase(`/${locale.value}/user/live/feed.html`)
   : withBase(`/${locale.value}/user/${guides[section]}${guides[section].endsWith('/') ? '' : '.html'}`);
@@ -54,17 +55,25 @@ const guideHref = (section: Section) => section === 'feed'
         <div class="product-stage__lesson">
           <h3>{{ activeTitle }}</h3>
           <p>{{ activeText }}</p>
-          <a :href="guideHref(active)">{{ copy.readGuide }} <span aria-hidden="true">→</span></a>
         </div>
-        <BaseIconSelect
-          class="product-stage__sections"
-          :model-value="active"
-          :options="sectionOptions"
-          :label="copy.interactive"
-          placement="bottom-end"
-          test-id="stage-section"
-          @update:model-value="active = $event as Section"
-        />
+        <div class="product-stage__aside">
+          <div class="product-stage__controls">
+            <BaseIconSelect
+              class="product-stage__sections"
+              :model-value="active"
+              :options="sectionOptions"
+              :label="copy.interactive"
+              placement="bottom-end"
+              test-id="stage-section"
+              @update:model-value="active = $event as Section"
+            />
+            <a
+              class="product-stage__guide"
+              :href="guideHref(active)"
+            >{{ copy.readGuide }} <span aria-hidden="true">→</span></a>
+          </div>
+          <p class="product-stage__context">{{ sectionNumber }} / 05 · {{ copy.fictional }}</p>
+        </div>
       </header>
       <div class="product-stage__window">
         <div class="product-stage__bar">

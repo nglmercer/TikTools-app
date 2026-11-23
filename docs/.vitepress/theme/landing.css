@@ -3,7 +3,7 @@
 .docs-home__masthead { display:flex; align-items:center; justify-content:space-between; gap:16px 24px; }
 .docs-home__eyebrow { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .docs-home__eyebrow p { color:var(--vp-c-brand-1); }
-.docs-home__hero { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); align-items:center; gap:18px 48px; padding:44px 0 36px; }
+.docs-home__hero { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); align-items:center; gap:18px 48px; padding:32px 0 24px; }
 .docs-home__intro { display:contents; }
 .docs-home__intro h1 { grid-column:1; grid-row:1 / span 3; max-width:720px; font-size:clamp(52px,5.2vw,78px); line-height:1.04; letter-spacing:-.06em; font-weight:650; text-wrap:balance; }
 .docs-home__intro > p { grid-column:2; max-width:520px; margin:0; font-size:16px; line-height:1.7; text-wrap:pretty; }
@@ -20,13 +20,16 @@
 .docs-home__availability i { width:6px; height:6px; border-radius:50%; background:#65ad77; }
 
 .product-stage { scroll-margin-top:90px; padding:12px 0 0; }
-.product-stage__intro { display:flex; align-items:flex-start; justify-content:space-between; gap:16px 24px; padding:0 0 16px; }
-.product-stage__lesson { display:flex; flex-direction:column; align-items:flex-start; gap:6px; flex:0 1 340px; min-width:0; }
+.product-stage__intro { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:12px 24px; padding:0 0 12px; }
+.product-stage__lesson { display:flex; flex-direction:column; align-items:flex-start; gap:6px; min-width:0; }
 .product-stage__lesson h3 { font-size:17px; line-height:1.4; letter-spacing:-.02em; font-weight:600; }
 .product-stage__lesson > p { color:var(--site-muted); font-size:12px; line-height:1.7; }
-.product-stage__lesson > a { display:inline-flex; align-items:center; gap:8px; color:var(--vp-c-brand-1); font-size:12px; font-weight:600; text-decoration:none; }
-.product-stage__lesson > a > span { font-size:14px; }
-.product-stage__sections { flex:0 1 auto; max-width:100%; }
+.product-stage__aside { display:flex; flex-direction:column; align-items:flex-end; gap:6px; min-width:0; }
+.product-stage__controls { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px 12px; }
+.product-stage__guide { display:inline-flex; align-items:center; gap:8px; color:var(--vp-c-brand-1); font-size:12px; font-weight:600; text-decoration:none; }
+.product-stage__guide > span { font-size:14px; }
+.product-stage__context { color:var(--site-faint); font:10px var(--vp-font-family-mono); }
+.product-stage__sections { max-width:100%; }
 .product-stage__window { overflow:hidden; border:1px solid var(--site-border); border-radius:12px; background:var(--site-bg-soft); color:var(--vp-c-text-1); }
 .product-stage__bar { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; padding:10px 18px; border-bottom:1px solid var(--site-border); background:var(--vp-c-bg); font-size:11px; }
 .product-stage__brand { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:650; }
@@ -101,7 +104,7 @@
   .docs-home { padding:22px 20px; }
   .docs-home__masthead { align-items:flex-start; gap:12px; }
   .docs-home__eyebrow { font-size:9px; letter-spacing:.08em; }
-  .docs-home__hero { display:block; padding:32px 0 18px; }
+  .docs-home__hero { display:block; padding:24px 0 14px; }
   .docs-home__intro { display:block; }
   .docs-home__intro h1 { max-width:620px; font-size:clamp(36px,8.5vw,56px); line-height:1.06; letter-spacing:-.05em; }
   .docs-home__intro > p { margin-top:16px; font-size:15px; line-height:1.65; }
@@ -109,9 +112,10 @@
   .docs-home__actions { margin-top:20px; }
   .docs-home__availability { margin-top:16px; gap:8px 14px; font-size:10px; }
   .product-stage { padding-top:16px; }
-  .product-stage__intro { flex-direction:column; gap:12px; }
-  .product-stage__lesson { flex:1 1 auto; }
-  .product-stage__sections { width:100%; justify-content:flex-start; }
+  .product-stage__intro { grid-template-columns:1fr; gap:10px; }
+  .product-stage__aside { align-items:flex-start; }
+  .product-stage__controls { justify-content:flex-start; }
+  .product-stage__sections { justify-content:flex-start; }
   .product-stage__bar { padding:10px 12px; }
   .product-stage__demo-tag { display:none; }
   .docs-home__next { padding:26px 0; }

@@ -24,18 +24,49 @@ const chromeTarget = ref(false);
 const root = ref<HTMLElement | null>(null);
 const iframe = ref<HTMLIFrameElement | null>(null);
 const measuredWidth = ref(0);
+const measuredHeight = ref(0);
 const zoom = ref(props.scale ? String(props.scale) : 'fit');
 const zoomLevels = [0.25, 0.5, 0.75, 1];
 const runtime = ref<DemoFrameState | null>(null);
-const logicalHeight = computed(() => Math.max(400, Math.min(1600, props.viewportHeight ?? (!props.minimal && props.panel === 'connection' ? 480 : 800))));
+const logicalHeight = computed(() => {
+  if (props.viewportHeight) return props.viewportHeight;
+  if (!props.minimal && props.panel === 'connection') return 480;
+  if (props.minimal && measuredHeight.value) return Math.max(400, Math.min(1200, measuredHeight.value));
+  return 800;
+});
 const effectiveScale = computed(() => zoom.value === 'fit' ? Math.min(1, (measuredWidth.value || 1280) / 1280) : Number(zoom.value));
 const frameStyle = computed(() => ({ '--frame-scale': String(effectiveScale.value), '--frame-height': String(logicalHeight.value) }));
 const canRun = computed(() => runtime.value?.ready && !runtime.value.busy && runtime.value.status !== 'limit');
 let observer: ResizeObserver | undefined;
 const instance = ref(`docs-${useId().replaceAll(/[^a-zA-Z0-9_-]/g, '_')}`);
+/** Fit the landing frame to its content instead of reserving a fixed 800px canvas. */
+function measureHeight(): void {
+  if (!props.minimal) return;
+  const doc = iframe.value?.contentDocument;
+  if (!doc) return;
+  const content = doc.querySelector('.app-layout__content');
+  if (!content) return;
+  const top = content.getBoundingClientRect().top;
+  const list = doc.querySelector('.live-stage__cards, .live-feed [role="list"]');
+  let natural = list ? list.getBoundingClientRect().bottom - top + 24 : 0;
+  if (!natural) {
+    let bottom = 0;
+    for (const element of content.querySelectorAll('*')) {
+      if (element.children.length) continue;
+      const rect = element.getBoundingClientRect();
+      if (rect.height > 0 && rect.height < 160) bottom = Math.max(bottom, rect.bottom);
+    }
+    natural = bottom - top + 48;
+  }
+  const chrome = (doc.querySelector('.app-menu-bar')?.getBoundingClientRect().height ?? 0)
+    + (doc.querySelector('.app-status-bar')?.getBoundingClientRect().height ?? 0);
+  const height = Math.ceil(natural + chrome);
+  if (height >= 400 && Math.abs(height - measuredHeight.value) > 8) measuredHeight.value = height;
+}
 function receiveState(event: MessageEvent) {
   if (event.origin !== location.origin || event.source !== iframe.value?.contentWindow || !isDemoFrameState(event.data)) return;
   runtime.value = event.data;
+  measureHeight();
 }
 onMounted(() => {
   instance.value = `docs-${crypto.randomUUID()}`;
@@ -125,7 +156,7 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
             />
           </div>
         </Teleport>
-        <div class="demo-frame__canvas"><iframe ref="iframe" :src="url" :title="title" :loading="autoload ? 'eager' : 'lazy'" :style="{ visibility:measuredWidth ? 'visible' : 'hidden' }" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" @load="ready = true" /></div>
+        <div class="demo-frame__canvas"><iframe ref="iframe" :src="url" :title="title" :loading="autoload ? 'eager' : 'lazy'" :style="{ visibility:measuredWidth ? 'visible' : 'hidden' }" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" @load="ready = true; measureHeight()" /></div>
       </div>
     </template>
     <div v-else-if="autoload && !mounted" class="demo-frame__waiting" role="status">{{ copy.loading }}</div>

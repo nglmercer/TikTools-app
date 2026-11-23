@@ -109,7 +109,7 @@ for (const locale of docLocales) {
     await frame.locator('.event-card__author[aria-label*="@sofia"]').first().click();
     await expect(frame.locator('.viewer-profile__handle')).toHaveText('@sofia');
     await expect(frame.locator('.viewer-profile__stat dd')).toHaveText(['65','12','9','15','1']);
-    await expect(page.locator('.product-stage__lesson a')).toHaveAttribute('href', /\/user\/live\/feed\.html$/);
+    await expect(page.locator('.product-stage__guide')).toHaveAttribute('href', /\/user\/live\/feed\.html$/);
     const source = await page.locator('.product-stage iframe').getAttribute('src');
     await page.locator('.docs-home__actions a').first().click();
     await expect(page).toHaveURL(/#playground$/);
