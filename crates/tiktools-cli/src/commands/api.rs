@@ -5,6 +5,7 @@
 //! - `call` resolves the method, validates params, then executes
 //!   (unless `--dry-run`); destructive methods need `--confirm`.
 //! - `events` streams NDJSON domain events with topic filtering.
+//! - `event get` searches the bounded feed journal for events by name/kind/author.
 //!
 //! `call` output is secret-redacted by default; only `--secrets-visible`
 //! opts out. `--explain` prints the call plan (redacted) to stderr and
@@ -12,12 +13,14 @@
 
 mod calling;
 mod dispatch;
+mod event_get;
 mod events;
 mod parsing;
 mod verification;
 
 use calling::execute_call;
 pub use dispatch::execute;
+use event_get::get_event;
 use events::stream_events;
 #[cfg(test)]
 use events::topic_allowed;
@@ -32,7 +35,7 @@ use tiktools_client::{
 };
 use tiktools_control_api::modules::rpc::SchemaParams;
 
-use super::args::{flag_value, parse_json_value, positional, split_first};
+use super::args::{flag_value, flag_values, parse_json_value, positional, split_first};
 use super::{redact_output, result_value, CommandError, Output};
 
 pub enum Command {
@@ -60,6 +63,12 @@ pub enum Command {
         timeout_secs: Option<u64>,
         max_events: Option<u64>,
     },
+    GetEvent {
+        name: String,
+        kinds: Vec<String>,
+        author: Option<String>,
+        limit: usize,
+    },
     Verify {
         coverage: bool,
         smoke: bool,
@@ -75,7 +84,7 @@ impl Command {
             | Self::Schema { json, .. }
             | Self::Call { json, .. }
             | Self::Verify { json, .. } => *json,
-            Self::Events { .. } => None,
+            Self::Events { .. } | Self::GetEvent { .. } => None,
         }
     }
 }

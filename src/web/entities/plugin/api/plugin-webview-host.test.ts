@@ -1,5 +1,5 @@
 import { createControlClient } from '@/shared/api/control-client.ts';
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 
 import {
   BROKER_API_VERSION,
@@ -187,6 +187,22 @@ test('frame URLs stay on the plugin scheme with a test override', () => {
   } finally {
     if (previous === undefined) delete scope['window'];
     else scope['window'] = previous;
+  }
+});
+
+test('Windows WebView2 uses the rewritten plugin asset host', () => {
+  const scope = globalThis as Record<string, unknown>;
+  const previousWindow = scope['window'];
+  const userAgent = vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Windows NT 10.0) Edg/140.0');
+  try {
+    scope['window'] = { ipc: { postMessage: () => undefined } };
+    expect(pluginUiUrl('sonicboom.server', 'ui/dist/index.html', 'tts')).toBe(
+      'http://tiktools-plugin.app/sonicboom.server/index.html#page=tts',
+    );
+  } finally {
+    userAgent.mockRestore();
+    if (previousWindow === undefined) delete scope['window'];
+    else scope['window'] = previousWindow;
   }
 });
 

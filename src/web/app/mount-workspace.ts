@@ -1,4 +1,5 @@
 import { createApp, type App as VueApp } from 'vue';
+import { MotionPlugin } from '@vueuse/motion';
 import { createPinia, disposePinia } from 'pinia';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { controlClientKey } from '@/shared/api/use-control-client.ts';
@@ -15,7 +16,7 @@ export async function mountWorkspace(options: {
 }): Promise<VueApp> {
   const pinia = createPinia();
   const router = createAppRouter();
-  const app = createApp(App).use(pinia).use(i18n).use(router).provide(controlClientKey, options.client);
+  const app = createApp(App).use(pinia).use(i18n).use(router).use(MotionPlugin, { excludePresets: true }).provide(controlClientKey, options.client);
   options.configure?.(app);
   app.onUnmount(() => { disposePinia(pinia); router.options.history.destroy(); });
   try {

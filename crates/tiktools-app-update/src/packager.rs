@@ -128,6 +128,8 @@ impl<'de> Deserialize<'de> for RemoteRelease {
 /// duplicated here.
 #[derive(Debug, Clone)]
 pub struct Update {
+    // Only the AppImage installer (unix) reads the extraction path.
+    #[cfg_attr(not(unix), allow(dead_code))]
     pub extract_path: PathBuf,
     pub format: UpdateFormat,
 }
@@ -136,6 +138,7 @@ pub struct Update {
 pub enum InstallError {
     #[error("unsupported update format")]
     UnsupportedFormat,
+    #[cfg_attr(not(unix), allow(dead_code))]
     #[error("no temporary directory on the same mount point as the application")]
     NoSameMountTempDir,
     #[error(transparent)]

@@ -133,7 +133,11 @@ fn read_install_directory(registry_key: &str) -> Option<PathBuf> {
             &mut size,
         )
     };
-    if result != ERROR_SUCCESS || size == 0 || size as usize > buffer.len() * 2 || size % 2 != 0 {
+    if result != ERROR_SUCCESS
+        || size == 0
+        || size as usize > buffer.len() * 2
+        || !size.is_multiple_of(2)
+    {
         return None;
     }
     let mut value = &buffer[..size as usize / 2];

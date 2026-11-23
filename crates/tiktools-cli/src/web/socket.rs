@@ -1,7 +1,7 @@
 use super::*;
 use axum::body::Body;
-use futures_util::{SinkExt, StreamExt};
 use axum::extract::Request;
+use futures_util::{SinkExt, StreamExt};
 use hyper_util::rt::TokioIo;
 use tokio_tungstenite::tungstenite::handshake::server::{
     create_response, Request as HandshakeRequest,
@@ -9,10 +9,7 @@ use tokio_tungstenite::tungstenite::handshake::server::{
 use tokio_tungstenite::tungstenite::protocol::{Role, WebSocketConfig};
 use tokio_tungstenite::tungstenite::Message;
 
-pub(super) async fn upgrade(
-    State(app): State<Arc<App>>,
-    mut request: Request<Body>,
-) -> Response {
+pub(super) async fn upgrade(State(app): State<Arc<App>>, mut request: Request<Body>) -> Response {
     if !app.same_origin(request.headers()) || !app.authorized(request.headers()) {
         return StatusCode::UNAUTHORIZED.into_response();
     }

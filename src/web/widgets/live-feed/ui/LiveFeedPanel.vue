@@ -4,6 +4,7 @@ import { computed, markRaw, ref, shallowRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
 import { eventFilters, filterEvents, windowEvents } from '@/entities/live-event/lib/event-filter.ts';
+import { useFeedMotion } from '@/entities/live-event/lib/feed-motion.ts';
 import { filterIcon } from '@/entities/live-event/lib/event-type-icon.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
@@ -25,7 +26,6 @@ import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
 import IconPopout from '@/shared/ui/icon/icons/IconPopout.vue';
 import IconRows from '@/shared/ui/icon/icons/IconRows.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
-import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
@@ -48,8 +48,9 @@ const emit = defineEmits<{
 const { t } = useI18n();
 const store = useLiveFeedStore();
 const connection = useConnectionStore();
-const { events, filter, searchQuery, autoScroll, unreadCount, droppedUiEvents, renderLimit, imagesEnabled, liveViewers } = storeToRefs(store);
+const { events, filter, searchQuery, autoScroll, unreadCount, renderLimit, imagesEnabled, liveViewers } = storeToRefs(store);
 const { status } = storeToRefs(connection);
+const { row: rowMotion } = useFeedMotion(events);
 const panelTitle = computed(() => status.value === 'connected'
   ? t('feed.liveTitle', { count: liveViewers.value })
   : t('feed.title'));
@@ -202,31 +203,10 @@ function onMenu(action: MenuAction): void {
         <template #icon>
           <IconChat :size="28" />
         </template>
-        <div class="live-feed__intro-card">
-          <p class="live-feed__intro-title">
-            {{ t('feed.stage.guideCard') }}
-          </p>
-          <div class="live-feed__intro-tiles">
-            <div class="live-feed__intro-tile">
-              <span class="live-feed__intro-icon">
-                <IconLayers :size="18" />
-              </span>
-              <strong>{{ t('feed.stage.persistentTitle') }}</strong>
-              <p>{{ t('feed.stage.persistent') }}</p>
-            </div>
-            <div class="live-feed__intro-tile">
-              <span class="live-feed__intro-icon">
-                <IconZap :size="18" />
-              </span>
-              <strong>{{ t('feed.stage.ephemeralTitle') }}</strong>
-              <p>{{ t('feed.stage.ephemeral') }}</p>
-            </div>
-          </div>
-          <GuideCatalogButton
-            category="feed"
-            :label="t('feed.stage.openGuide')"
-          />
-        </div>
+        <GuideCatalogButton
+          category="feed"
+          :label="t('feed.stage.openGuide')"
+        />
       </BaseEmptyState>
       <LiveFeedStage
         v-else-if="view === 'stage'"
@@ -246,6 +226,7 @@ function onMenu(action: MenuAction): void {
           :event="event"
           :images="imagesEnabled"
           :selected="event.id === selectedEventId"
+          :motion="rowMotion"
           @select="emit('select', $event)"
           @open-viewer="emit('open-viewer', $event)"
         />
@@ -275,10 +256,6 @@ function onMenu(action: MenuAction): void {
         v-tooltip="t('feed.windowedHint')"
         class="live-feed__hint"
       >{{ t('feed.windowed', { count: rendered.visible.length }) }}</span>
-      <span
-        v-if="droppedUiEvents > 0"
-        class="live-feed__hint live-feed__hint--warning"
-      >{{ t('feed.dropped', { count: droppedUiEvents }) }}</span>
     </template>
   </BasePanel>
 </template>
@@ -331,72 +308,11 @@ function onMenu(action: MenuAction): void {
   justify-content: center;
 }
 
-.live-feed__intro-card {
-  box-sizing: border-box;
-  display: grid;
-  gap: var(--space-4);
-  width: min(100%, 560px);
-  max-width: 100%;
-  padding: var(--space-5);
-  border: var(--border-width) solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-field);
-  text-align: left;
-}
-
-.live-feed__intro-card .live-feed__intro-title {
-  margin: 0;
-  color: var(--color-text);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  text-align: center;
-}
-
-.live-feed__intro-tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.live-feed__intro-tile {
-  display: grid;
-  align-content: start;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border-subtle);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-panel-header);
-}
-
-.live-feed__intro-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-control);
-  color: var(--color-accent);
-}
-
-.live-feed__intro-tile strong {
-  font-size: var(--font-size-sm);
-}
-
-.live-feed__intro-tile p {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
-.live-feed__intro-card > :last-child {
-  justify-self: center;
-}
-
 .live-feed__stream {
   height: 100%;
   overflow-y: auto;
+  /* The feed pins the scroll itself; native anchoring would fight it. */
+  overflow-anchor: none;
   overscroll-behavior: contain;
 }
 
@@ -417,10 +333,6 @@ function onMenu(action: MenuAction): void {
 .live-feed__hint {
   color: var(--color-text-subtle);
   font-size: var(--font-size-sm);
-}
-
-.live-feed__hint--warning {
-  color: var(--color-warning);
 }
 
 @media (width < 900px) {
@@ -448,15 +360,7 @@ function onMenu(action: MenuAction): void {
     gap: var(--space-1);
   }
 
-  .live-feed__intro-tiles {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .live-feed :deep(.base-empty-state) {
-    padding: var(--space-3);
-  }
-
-  .live-feed__intro-card {
     padding: var(--space-3);
   }
 

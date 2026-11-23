@@ -17,7 +17,7 @@ mod uploads;
 
 #[cfg(test)]
 use enrollment::{base64_encode, proof_message};
-#[cfg(test)]
+#[cfg(all(test, unix))]
 use key_storage::load_or_create_signing_key;
 #[cfg(test)]
 use namespaces::{is_uuid, valid_namespace};

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isEphemeralEvent, visibleEphemeralEvents } from '@/entities/live-event/lib/event-ephemeral.ts';
+import { useFeedMotion } from '@/entities/live-event/lib/feed-motion.ts';
 import { cleanHandle, eventText } from '@/entities/live-event/lib/event-text.ts';
 import { eventTypeIcon } from '@/entities/live-event/lib/event-type-icon.ts';
 import EventCard from '@/entities/live-event/ui/EventCard.vue';
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const { row: rowMotion, gift: giftMotion } = useFeedMotion(() => props.events);
 const now = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -27,7 +29,8 @@ onBeforeUnmount(() => { if (timer !== null) clearInterval(timer); });
 
 /** Chat, gifts, follows and shares stay on the wall; reactions fade out. */
 const important = computed(() => props.events.filter((event) => !isEphemeralEvent(event)));
-const reactions = computed(() => visibleEphemeralEvents(props.events, now.value));
+// Keep only the newest like/join so the reaction strip stays a single compact line.
+const reactions = computed(() => visibleEphemeralEvents(props.events, now.value, 1));
 
 function reactionText(event: DisplayEvent): string {
   const value = eventText(event, (key, params) => String(t(key, params ?? {})));
@@ -47,6 +50,7 @@ function reactionText(event: DisplayEvent): string {
         :event="event"
         :images="images"
         :selected="event.id === selectedEventId"
+        :motion="event.kind === 'gift' ? giftMotion : rowMotion"
         @select="emit('select', $event)"
         @open-viewer="emit('open-viewer', $event)"
       />

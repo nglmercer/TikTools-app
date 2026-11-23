@@ -90,7 +90,7 @@ export type UiEvent = {
      * Streak grouping for combo gifts (TikTok `group_id`). When present and
      * non-zero, successive packets with the same sender + gift + group belong
      * to one combo: intermediates carry `repeatEnd: false`, the final packet
-     * carries `repeatEnd: true`. The feed folds them into a single live row.
+     * carries `repeatEnd: true`. Each packet is displayed as its own live row.
      */
     groupId?: string;
     /** True on the final packet of a streakable combo. */

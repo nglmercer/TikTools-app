@@ -34,9 +34,11 @@ fn init_at(log_path: PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_target(false)
         .with_ansi(false)
-        .with_env_filter(
-            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("tiktools=info")),
-        )
+        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+            // Plugin stderr is the only place a process plugin reports why
+            // it exited; keep it visible without enabling global debug.
+            EnvFilter::new("tiktools=info,plugin.stderr=warn")
+        }))
         .with_writer(writer)
         .try_init()
         .map_err(|error| io::Error::other(error.to_string()))?;

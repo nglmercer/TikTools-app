@@ -64,6 +64,16 @@ export interface BrokerBackend {
 
 const UI_ID_PATTERN = /^[A-Za-z_][A-Za-z0-9._-]{0,127}$/;
 
+// WebView2 cannot navigate to a custom scheme directly: wry registers it as a
+// WebResourceRequested filter for `http://<scheme>.<host>/...` (see
+// `custom_protocol_workaround`). The Rust side accepts both spellings, so only
+// the iframe URL needs the rewrite on Windows.
+const WINDOWS_PLUGIN_HOST = 'tiktools-plugin.app';
+
+function needsWebView2Rewrite(): boolean {
+  return typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent ?? '');
+}
+
 const UI_ENTRY_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*\.html$/;
 
 export function pluginUiUrl(pluginId: string, entry: string, pageId: string): string | null {
@@ -86,7 +96,10 @@ export function pluginUiUrl(pluginId: string, entry: string, pageId: string): st
     return `${base}${pluginId}/${file}#page=${encodeURIComponent(page)}`;
   }
   if (!isDesktopHost()) return null;
-  return `tiktools-plugin://app/${pluginId}/${file}#page=${encodeURIComponent(page)}`;
+  const url = `tiktools-plugin://app/${pluginId}/${file}#page=${encodeURIComponent(page)}`;
+  return needsWebView2Rewrite()
+    ? url.replace('tiktools-plugin://app/', `http://${WINDOWS_PLUGIN_HOST}/`)
+    : url;
 }
 
 export function isDesktopHost(): boolean {

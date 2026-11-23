@@ -62,11 +62,19 @@ describe('event filtering', () => {
     expect(filterEvents(events, 'chat', '')).toBe(filterEvents(events, 'chat', ''));
   });
 
-  it('windows only the pinned, unfiltered stream', () => {
+  it('windows per category so a flood cannot hide other kinds', () => {
+    // Every event here belongs to a different category, so none is dropped.
     expect(windowEvents(events, { autoScroll: true, filter: 'all', query: '', limit: 2 })).toEqual({
-      visible: events.slice(-2),
+      visible: events,
       windowed: true,
     });
+    const flooded = [
+      ...events,
+      ...Array.from({ length: 5 }, (_, index) => event({ id: 10 + index, kind: 'like', author: 'fan', text: 'like' })),
+    ];
+    const result = windowEvents(flooded, { autoScroll: true, filter: 'all', query: '', limit: 2 });
+    expect(result.visible.filter((entry) => entry.kind === 'like')).toHaveLength(2);
+    expect(result.visible.some((entry) => entry.kind === 'chat')).toBe(true);
     expect(windowEvents(events, { autoScroll: false, filter: 'all', query: '', limit: 2 }).windowed).toBe(false);
     expect(windowEvents(events, { autoScroll: true, filter: 'chat', query: '', limit: 2 }).windowed).toBe(false);
   });

@@ -11,32 +11,6 @@ export function callbacks(systemAuthor: string) {
   return { systemAuthor: () => systemAuthor, discontinuityText: () => t('feed.resumed') };
 }
 
-export const frameQueue: Array<() => void> = [];
-let frameId = 0;
-
-export function installFrameControl(): void {
-  frameQueue.length = 0;
-  (globalThis as Record<string, unknown>).requestAnimationFrame = (callback: () => void) => {
-    frameQueue.push(callback);
-    frameId += 1;
-    return frameId;
-  };
-  (globalThis as Record<string, unknown>).cancelAnimationFrame = () => {};
-}
-
-export function uninstallFrameControl(): void {
-  frameQueue.length = 0;
-  delete (globalThis as Record<string, unknown>).requestAnimationFrame;
-  delete (globalThis as Record<string, unknown>).cancelAnimationFrame;
-}
-
-export function runFrames(count = 10): void {
-  for (let i = 0; i < count && frameQueue.length > 0; i += 1) {
-    const pending = frameQueue.splice(0, frameQueue.length);
-    for (const callback of pending) callback();
-  }
-}
-
 export type TopicHandler = (data: never) => void;
 
 export function createControl() {

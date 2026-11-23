@@ -55,11 +55,17 @@ impl WebviewOutbox {
         let reliable = self.reliable.len();
         let lossy = self.lossy.len();
         self.discard_pending();
-        tracing::error!(
-            reliable,
-            lossy,
-            "cleared WebView outbox for transport reload"
-        );
+        // An idle transport reload discards nothing; only alarm when real
+        // messages were dropped.
+        if reliable > 0 || lossy > 0 {
+            tracing::warn!(
+                reliable,
+                lossy,
+                "cleared WebView outbox for transport reload"
+            );
+        } else {
+            tracing::debug!("cleared empty WebView outbox for transport reload");
+        }
     }
 
     pub(crate) fn discard_pending(&mut self) {
