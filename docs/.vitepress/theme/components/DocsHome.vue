@@ -5,6 +5,7 @@ import { documentLocale } from '../../../locales.ts';
 import { experienceCopy } from '../../../experience/copy.ts';
 import type { Topic } from '../../../experience/types.ts';
 import DemoFrame from './DemoFrame.vue';
+import BaseIconSelect from '../../../../src/web/shared/ui/menu/BaseIconSelect.vue';
 import { landingCopy } from '../../../experience/landing/index.ts';
 import IconChat from '../../../../src/web/shared/ui/icon/icons/IconChat.vue';
 import IconLink from '../../../../src/web/shared/ui/icon/icons/IconLink.vue';
@@ -28,6 +29,7 @@ const active = ref<Section>('feed');
 const activeTitle = computed(() => active.value === 'feed' ? landing.value.feed : copy.value.topics[active.value].title);
 const activeText = computed(() => active.value === 'feed' ? landing.value.stageHint : copy.value.topics[active.value].task);
 const sectionLabel = (section: Section) => section === 'feed' ? landing.value.feed : copy.value.topics[section].title;
+const sectionOptions = computed(() => sections.map((section) => ({ value: section, label: sectionLabel(section), icon: icons[section] })));
 const guideHref = (section: Section) => section === 'feed'
   ? withBase(`/${locale.value}/user/live/feed.html`)
   : withBase(`/${locale.value}/user/${guides[section]}${guides[section].endsWith('/') ? '' : '.html'}`);
@@ -54,11 +56,15 @@ const guideHref = (section: Section) => section === 'feed'
           <p>{{ activeText }}</p>
           <a :href="guideHref(active)">{{ copy.readGuide }} <span aria-hidden="true">→</span></a>
         </div>
-        <div class="product-stage__sections" role="tablist" :aria-label="landing.feed">
-          <button v-for="section in sections" :key="section" type="button" role="tab" :aria-selected="active === section" :class="{ 'product-stage__section--active': active === section }" @click="active = section">
-            <component :is="icons[section]" aria-hidden="true" />{{ sectionLabel(section) }}
-          </button>
-        </div>
+        <BaseIconSelect
+          class="product-stage__sections"
+          :model-value="active"
+          :options="sectionOptions"
+          :label="copy.interactive"
+          placement="bottom-end"
+          test-id="stage-section"
+          @update:model-value="active = $event as Section"
+        />
       </header>
       <div class="product-stage__window">
         <div class="product-stage__bar">

@@ -9,6 +9,29 @@
   --site-faint: var(--vp-c-text-3);
   --site-bg-soft: var(--vp-c-bg-soft);
   --site-font-sm: 12px;
+  /* Shared app/menu components rendered in the docs need their design tokens. */
+  --z-popover: 200;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-7: 32px;
+  --border-width: 1px;
+  --radius-sm: 4px;
+  --control-height-md: 32px;
+  --font-size-md: 13px;
+  --font-family: var(--vp-font-family-base);
+  --icon-size: 14px;
+  --color-bg-overlay: var(--vp-c-bg-alt);
+  --color-bg-selected: var(--vp-c-brand-soft);
+  --color-border: var(--vp-c-divider);
+  --color-border-selected: var(--vp-c-brand-1);
+  --color-border-strong: var(--vp-c-divider);
+  --color-text: var(--vp-c-text-1);
+  --color-text-muted: var(--vp-c-text-2);
+  --color-text-disabled: var(--vp-c-text-3);
+  --color-text-on-accent: #fff;
+  --shadow-popup: 0 8px 24px rgb(0 0 0 / 25%);
 }
 
 .site-eyebrow {

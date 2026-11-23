@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useData, withBase } from 'vitepress';
 import { docCopy, docLocales, documentLocale, type DocLocale } from '../../../locales.ts';
-import BaseCompactSelect from '../../../../src/web/shared/ui/combo-box/BaseCompactSelect.vue';
+import BaseIconSelect from '../../../../src/web/shared/ui/menu/BaseIconSelect.vue';
 
 /** The one language control for the whole site, including the unlocalized root. */
 withDefaults(defineProps<{ placement?: 'bar' | 'screen' }>(), { placement: 'bar' });
@@ -25,13 +25,12 @@ function change(target: string): void {
 </script>
 
 <template>
-  <BaseCompactSelect
+  <BaseIconSelect
     class="site-language"
     :class="`site-language--${placement}`"
     :model-value="locale"
     :options="options"
-    :ariaLabel="label"
-    :title="label"
+    :label="label"
     @update:model-value="change"
   />
 </template>

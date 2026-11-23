@@ -26,11 +26,7 @@
 .product-stage__lesson > p { color:var(--site-muted); font-size:12px; line-height:1.7; }
 .product-stage__lesson > a { display:inline-flex; align-items:center; gap:8px; color:var(--vp-c-brand-1); font-size:12px; font-weight:600; text-decoration:none; }
 .product-stage__lesson > a > span { font-size:14px; }
-.product-stage__sections { display:flex; align-items:center; gap:4px; flex:1 1 auto; min-width:0; overflow-x:auto; padding:2px 0; scrollbar-width:thin; }
-.product-stage__sections button { display:inline-flex; align-items:center; gap:6px; flex:none; padding:7px 10px; border:1px solid transparent; border-radius:var(--site-radius-sm); background:transparent; color:var(--site-muted); font:11px var(--vp-font-family-base); white-space:nowrap; cursor:pointer; }
-.product-stage__sections button svg { width:14px; height:14px; flex:none; }
-.product-stage__sections button:hover { background:var(--vp-c-bg-soft); color:var(--vp-c-text-1); }
-.product-stage__sections button[aria-selected='true'] { border-color:var(--site-border); background:var(--vp-c-bg); color:var(--vp-c-text-1); font-weight:600; }
+.product-stage__sections { flex:0 1 auto; max-width:100%; }
 .product-stage__window { overflow:hidden; border:1px solid var(--site-border); border-radius:12px; background:var(--site-bg-soft); color:var(--vp-c-text-1); }
 .product-stage__bar { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:44px; padding:10px 18px; border-bottom:1px solid var(--site-border); background:var(--vp-c-bg); font-size:11px; }
 .product-stage__brand { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:650; }
@@ -115,7 +111,7 @@
   .product-stage { padding-top:16px; }
   .product-stage__intro { flex-direction:column; gap:12px; }
   .product-stage__lesson { flex:1 1 auto; }
-  .product-stage__sections { width:100%; }
+  .product-stage__sections { width:100%; justify-content:flex-start; }
   .product-stage__bar { padding:10px 12px; }
   .product-stage__demo-tag { display:none; }
   .docs-home__next { padding:26px 0; }

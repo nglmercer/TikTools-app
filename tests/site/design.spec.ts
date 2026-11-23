@@ -46,10 +46,11 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
 
 test('the landing lesson switches demo sections and docks the demo controls in the bar', async ({ page }) => {
   await page.goto('');
-  const tabs = page.locator('.product-stage__sections button');
-  await expect(tabs).toHaveCount(5);
-  await tabs.nth(1).click();
-  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+  const picker = page.getByTestId('stage-section');
+  await expect(picker).toHaveAttribute('aria-expanded', 'false');
+  await picker.click();
+  await expect(page.getByRole('menuitemcheckbox')).toHaveCount(5);
+  await page.getByRole('menuitemcheckbox', { name: experienceCopy.en.topics.connection.title, exact: true }).click();
   await expect(page.locator('.product-stage__lesson h3')).toHaveText(experienceCopy.en.topics.connection.title);
   await expect(page.locator('.product-stage iframe')).toHaveAttribute('src', /scenario=connection/);
   await expect(page.locator('.product-stage__bar .demo-frame__overlay a')).toBeVisible();

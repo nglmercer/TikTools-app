@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve, join, sep } from 'node:path';
 import { readArticles, metadataErrors } from '../../docs/scripts/content.ts';
-import { docCopy, docLocales, localizedDocumentPath } from '../../docs/locales.ts';
+import { docCopy, docLocales, localizedDocumentPath, type DocLocale } from '../../docs/locales.ts';
 import { siteConfig } from '../../scripts/lib/site-config.ts';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -11,6 +11,13 @@ const site = siteConfig();
 const articles = readArticles();
 const htmlPath = (path: string) => path.replace(/\.md$/, '.html');
 const canonicalPath = (path: string) => path.replace(/index\.md$/, '').replace(/\.md$/, '.html');
+async function switchSiteLocale(page: Page, current: DocLocale, target: DocLocale): Promise<void> {
+  const trigger = page.getByRole('button', { name: docCopy[current].language, exact: true });
+  await expect(trigger).toBeVisible();
+  await expect(trigger).toHaveText(current.toUpperCase());
+  await trigger.click();
+  await page.getByRole('menuitemcheckbox', { name: docCopy[target].label, exact: true }).click();
+}
 
 async function localNetworkOnly(page: Page, baseURL: string) {
   const origin = new URL(baseURL).origin;
@@ -91,9 +98,7 @@ test('locale switching preserves the equivalent article and stable heading in al
   await page.goto('en/user/preferences/backups.html#restore-and-verify');
   let current: typeof docLocales[number] = 'en';
   for (const locale of [...docLocales.filter((locale) => locale !== 'en'), 'en'] as const) {
-    const selector = page.getByRole('combobox', { name: docCopy[current].language, exact: true });
-    await expect(selector).toHaveValue(current);
-    await selector.selectOption(locale);
+    await switchSiteLocale(page, current, locale);
     await expect(page).toHaveURL(new RegExp(`/${locale}/user/preferences/backups\\.html#restore-and-verify$`));
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await expect(page.locator('#restore-and-verify')).toBeVisible();
@@ -103,15 +108,13 @@ test('locale switching preserves the equivalent article and stable heading in al
 
 test('one language selector is available on the unlocalized root and keeps the reader on the section', async ({ page }) => {
   await page.goto('');
-  const rootSelector = page.getByRole('combobox', { name: docCopy.en.language, exact: true });
+  const rootSelector = page.getByRole('button', { name: docCopy.en.language, exact: true });
   await expect(rootSelector).toBeVisible();
-  await expect(rootSelector).toHaveValue('en');
+  await expect(rootSelector).toHaveText('EN');
   await expect(page.getByRole('navigation', { name: docCopy.en.language })).toHaveCount(0);
 
   await page.goto('es/#playground');
-  const selector = page.getByRole('combobox', { name: docCopy.es.language, exact: true });
-  await expect(selector).toHaveValue('es');
-  await selector.selectOption('fr');
+  await switchSiteLocale(page, 'es', 'fr');
   await expect(page).toHaveURL(/\/fr\/#playground$/);
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
   await expect(page.locator('#playground')).toBeVisible();
