@@ -27,6 +27,7 @@ function stubControl(overrides?: Partial<ControlClient>): ControlClient & {
 }
 
 const callbacks = {
+  goFeed: () => {},
   resetFeed: () => {},
   translate: (key: string): string => key,
 };
@@ -420,4 +421,17 @@ describe('useConnection terminal transport failures', () => {
     expect(connection.status.value).toBe('connected');
     expect(connection.reconnectDelayMs.value).toBeNull();
   });
+});
+
+test('feed redirect is opt-in on connect and pick-live', () => {
+  let redirects = 0;
+  const connection = useConnection(stubControl(), { ...callbacks, goFeed: () => { redirects += 1; } });
+  connection.handleConnect('creator');
+  connection.handlePickLive();
+  expect(redirects).toBe(0);
+  connection.setOpenFeedAfterConnect(true);
+  connection.handleConnect('creator');
+  connection.handlePickLive();
+  expect(redirects).toBe(2);
+  connection.dispose();
 });

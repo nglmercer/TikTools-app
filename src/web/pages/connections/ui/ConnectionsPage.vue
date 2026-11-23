@@ -23,6 +23,11 @@ const autoConnect = computed({
   },
 });
 
+const openFeedAfterConnect = computed({
+  get: () => connection.openFeedAfterConnect,
+  set: (value: boolean) => connection.setOpenFeedAfterConnect(value),
+});
+
 const handle = computed({
   get: () => connection.uniqueId,
   set: (value: string) => connection.setUniqueId(value),
@@ -72,6 +77,7 @@ watch([useCookie, selectedServer], persist);
         v-model:cookie="cookie"
         v-model:use-cookie="useCookie"
         v-model:auto-connect="autoConnect"
+        v-model:open-feed-after-connect="openFeedAfterConnect"
         data-guide="connection-form"
         class="connections-page__live"
         :status="connection.status"

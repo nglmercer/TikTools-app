@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9884cf56b87f6ddb7a6a9331e144da20913db78eb4d6f764fbd00c7a17f00f31"
-translationRevision: "7b39723bfcf09e9de5a8e38a0c5abbae999af5925818338170ffcbcf8e5cd055"
+sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
+translationRevision: "007a34c402de0c0250b98b96a98199f3cdc2998f187839999a47a821f9a68e45"
 order: 140
 ---
 
@@ -34,7 +34,7 @@ Para uma prévia local sem commit, use `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/
 
 `src/web/app/mount-workspace.ts` fornece a fábrica compartilhada de app/Pinia/roteador; importá-la não monta nem escolhe um transporte. A inicialização explícita da demonstração fornece `src/web/demo/runtime/transport.ts` no limite compartilhado de `ControlTransport`/cliente de controle. Dados iniciais puros ficam em `demo/fixtures/base-host.ts`, independentemente do Playwright. `shared/lib/app-storage.ts` e `demo/storage.ts` fornecem adaptadores de armazenamento isolados para que redefinições não limpem preferências nativas nem outra instância da demonstração. Páginas, widgets e recursos devem usar seus stores de entidades e chamadas de `src/web/shared/api` existentes. Não crie um segundo aplicativo de imitação, injete APIs nativas falsas na inicialização nativa comum nem deixe requisições da demonstração chegarem a um host real.
 
-`demo/scenarios.ts` valida 11 IDs de cenário e as rotas/idiomas/tutoriais permitidos. `runtime/host.ts` registra manipuladores explícitos de métodos; a descoberta lista esses manipuladores, IDs de requisição são repetidos em `rpc-response` e efeitos incompatíveis retornam erro imediatamente. O host inicializa registros fictícios e avança um relógio fixo um passo por Next event. Play e Next event primeiro conectam o criador fictício pelo RPC simulado quando necessário e depois entregam um evento imediato. Play continua a cada dois segundos; Pause para a produção. A barra de ferramentas exibe o estado da reprodução e a contagem de eventos. O fluxo para em 300 passos e mantém no máximo 60 eventos de feed e 60 execuções. Filas de resposta e registros armazenados têm limites separados.
+`demo/scenarios.ts` valida 11 IDs de cenário e as rotas/idiomas/tutoriais permitidos. `runtime/host.ts` registra manipuladores explícitos de métodos; a descoberta lista esses manipuladores, IDs de requisição são repetidos em `rpc-response` e efeitos incompatíveis retornam erro imediatamente. O host inicializa registros fictícios e avança um relógio fixo um passo por Next event. Play e Next event primeiro conectam o criador fictício pelo RPC simulado quando necessário e depois entregam um evento imediato. Play continua a cada dois segundos; Pause para a produção. A barra de ferramentas exibe o estado da reprodução e a contagem de eventos. O fluxo para em 300 passos e mantém no máximo 60 eventos de feed e 60 execuções. Filas de resposta e registros armazenados têm limites separados. Conectar na página Connections não sai dela por padrão; o link destacado do feed é o guia. O interruptor opcional fica na página Connections e é salvo por instância da demo; começa desativado.
 
 O parâmetro de consulta `embed=connection|feed|automation|points|overlays` seleciona um exemplo focado para incorporação. Ele omite a navegação geral, mantendo os componentes, as páginas e o runtime reais. Use a rota correspondente ao painel escolhido e não combine esse modo com um tutorial. Todos os iframes da documentação também recebem `framed=1`, que oculta a barra grande `DemoToolbar` dentro do quadro. Os controles compactos de reproduzir, pausar, próximo evento e reiniciar ficam no componente pai `DemoFrame`. A demonstração independente mantém sua barra completa; o link para abri-la remove os parâmetros de incorporação.
 

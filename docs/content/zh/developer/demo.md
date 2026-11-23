@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9884cf56b87f6ddb7a6a9331e144da20913db78eb4d6f764fbd00c7a17f00f31"
-translationRevision: "0b1ac50c59e9620cf0945bb4337f4ac34c7148e352634c2b14a926b9f91cc2eb"
+sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
+translationRevision: "8bf2c4e76a896fac8d575c2d64d66403d1f49102cfc4aba59b6391fad809bfb9"
 order: 140
 ---
 
@@ -34,7 +34,7 @@ bun scripts/task.ts site preview
 
 `src/web/app/mount-workspace.ts` 提供共享 app/Pinia/router 工厂；导入它不会挂载应用或选择传输。明确的演示引导在共享 `ControlTransport`/控制客户端边界提供 `src/web/demo/runtime/transport.ts`。纯种子夹具位于 `demo/fixtures/base-host.ts`，独立于 Playwright。`shared/lib/app-storage.ts` 和 `demo/storage.ts` 提供隔离存储适配器，确保重置不会清除原生偏好或其他演示实例。页面、小组件和功能应使用现有 entity store 及 `src/web/shared/api` 调用。不要创建第二套仿制应用、向普通原生启动注入假原生 API，或让演示请求穿透到真实宿主。
 
-`demo/scenarios.ts` 验证 11 个场景 ID 以及允许的路由、语言和导览。聚焦示例还接受 `embed=connection|feed|automation|points|overlays`。每个嵌入面板都必须使用匹配的路由，且不能启动导览；无效组合无法通过验证。聚焦入口省略工作区导航，同时保留真实页面组件、store 和模拟运行时。所有文档 iframe 还会设置 `framed=1`，隐藏框架内的大型 `DemoToolbar`。紧凑的播放/暂停、下一个事件、重置控件及预定义连接恢复场景选择器位于父级 `DemoFrame`；独立演示保留完整工具栏。`runtime/host.ts` 注册明确的方法处理器；发现列出这些处理器，`rpc-response` 回传请求 ID，不支持的效果立即返回错误。宿主填充虚构记录，每次下一个事件将固定时钟推进一个刻度。播放和下一个事件会在需要时先通过模拟 RPC 连接虚构主播，再立即投递事件。播放此后每两秒继续一次；暂停停止生成。独立工具栏或文档框架的父级紧凑控件显示播放状态和事件数。流在 300 个刻度后停止，最多保留 60 条事件流记录和 60 次运行。响应队列及存储记录另有各自限制。
+`demo/scenarios.ts` 验证 11 个场景 ID 以及允许的路由、语言和导览。聚焦示例还接受 `embed=connection|feed|automation|points|overlays`。每个嵌入面板都必须使用匹配的路由，且不能启动导览；无效组合无法通过验证。聚焦入口省略工作区导航，同时保留真实页面组件、store 和模拟运行时。所有文档 iframe 还会设置 `framed=1`，隐藏框架内的大型 `DemoToolbar`。紧凑的播放/暂停、下一个事件、重置控件及预定义连接恢复场景选择器位于父级 `DemoFrame`；独立演示保留完整工具栏。`runtime/host.ts` 注册明确的方法处理器；发现列出这些处理器，`rpc-response` 回传请求 ID，不支持的效果立即返回错误。宿主填充虚构记录，每次下一个事件将固定时钟推进一个刻度。播放和下一个事件会在需要时先通过模拟 RPC 连接虚构主播，再立即投递事件。播放此后每两秒继续一次；暂停停止生成。独立工具栏或文档框架的父级紧凑控件显示播放状态和事件数。流在 300 个刻度后停止，最多保留 60 条事件流记录和 60 次运行。响应队列及存储记录另有各自限制。从 Connections 页面连接时默认停留在该页；高亮的 Feed 链接就是指引。可选开关位于 Connections 页面，并按 demo 实例保存；默认关闭。
 
 文档控件通过受限的消息桥与 iframe 通信，该桥检查消息来源域、发送窗口和实例 ID。它只接受播放、暂停、推进事件、重置，以及选择预定义连接恢复场景的固定命令，不开放任意 RPC 调用。
 

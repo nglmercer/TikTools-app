@@ -94,6 +94,7 @@ export default {
       error: 'Erreur de connexion',
     },
     connect: 'Connecter',
+    openFeedAfterConnect: 'Ouvrir le flux après connexion',
     disconnect: 'Déconnecter',
     reconnect: 'Reconnecter',
     viewers: '{count} spectateurs',

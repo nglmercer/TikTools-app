@@ -92,6 +92,7 @@ export default {
       error: "连接错误",
     },
     connect: "连接",
+    openFeedAfterConnect: "连接后打开 Feed",
     disconnect: "断开连接",
     reconnect: "重新连接",
     viewers: "{count} 位观众",

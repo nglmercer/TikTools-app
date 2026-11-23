@@ -2,6 +2,7 @@ import { ref } from 'vue';
 
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
+import { appStorage } from '@/shared/lib/app-storage.ts';
 import {
   addRecentUsername,
   getRecentUsernames,
@@ -19,9 +20,13 @@ export interface LiveStatusResult {
 }
 
 export interface ConnectionCallbacks {
+  /** Optional, user-enabled navigation to the feed after a connection event. */
+  goFeed: () => void;
   resetFeed: () => void;
   translate: (key: string) => string;
 }
+
+const OPEN_FEED_KEY = 'connection.openFeedAfterConnect';
 
 function normalizeUsername(value: string): string {
   return value.trim().replace(/^@/, '');
@@ -37,6 +42,16 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
   const recents = ref<string[]>(getRecentUsernames());
   const status = ref<ConnectionStatus>('idle');
   const error = ref('');
+  // Opt-in: most users want to inspect the connection result where they are.
+  let savedOpenFeed = false;
+  try { savedOpenFeed = appStorage('local').getItem(OPEN_FEED_KEY) === '1'; }
+  catch { /* Preference persistence is best effort. */ }
+  const openFeedAfterConnect = ref(savedOpenFeed);
+  const setOpenFeedAfterConnect = (value: boolean): void => {
+    openFeedAfterConnect.value = value;
+    try { appStorage('local').setItem(OPEN_FEED_KEY, value ? '1' : '0'); }
+    catch { /* Preference persistence is best effort. */ }
+  };
   const reconnectAttempt = ref<number | null>(null);
   const reconnectDelayMs = ref<number | null>(null);
   let revision = 0;
@@ -128,6 +143,7 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     uniqueId.value = target;
     saveUsername(target);
     recents.value = addRecentUsername(target);
+    if (openFeedAfterConnect.value) callbacks.goFeed();
     void requestConnect(target, sessionCookie.trim(), roomId);
   };
 
@@ -143,6 +159,7 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     clearReconnect();
     const previousCreator = activeCreatorRef.value;
     activeCreator.value = callbacks.translate('connection.searchingRooms');
+    if (openFeedAfterConnect.value) callbacks.goFeed();
     void control
       .call<LiveStatusResult>('live.pick', { sessionCookie: cookie.value.trim() })
       .then((result) => {
@@ -217,6 +234,8 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     recents,
     status,
     error,
+    openFeedAfterConnect,
+    setOpenFeedAfterConnect,
     reconnectAttempt,
     reconnectDelayMs,
     maxReconnectAttempts: MAX_RECONNECT_ATTEMPTS,

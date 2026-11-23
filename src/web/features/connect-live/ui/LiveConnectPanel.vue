@@ -35,6 +35,7 @@ const handle = defineModel<string>('handle', { required: true });
 const cookie = defineModel<string>('cookie', { required: true });
 const useCookie = defineModel<boolean>('useCookie', { default: false });
 const autoConnect = defineModel<boolean>('autoConnect', { default: false });
+const openFeedAfterConnect = defineModel<boolean>('openFeedAfterConnect', { default: false });
 
 const emit = defineEmits<{
   connect: [];
@@ -149,6 +150,12 @@ function onRecent(action: MenuAction): void {
         :disabled="monitorBusy || (!monitorEnabled && (live || busy))"
       >
         {{ t('connections.monitor.start') }}
+      </BaseSwitch>
+      <BaseSwitch
+        v-model="openFeedAfterConnect"
+        data-testid="connection-open-feed"
+      >
+        {{ t('connections.live.openFeedAfterConnect') }}
       </BaseSwitch>
       <p
         v-if="monitorEnabled"

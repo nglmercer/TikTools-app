@@ -78,7 +78,15 @@ test('Connect without Play stays on Connections and the guide owns the feed step
   const feed = page.locator('#app-sidebar').getByRole('link', { name: t('navigation.feed'), exact: true });
   await expect(feed).toHaveClass(/app-navigation__link--suggested/);
   await expect(page.locator('#app-spotlight')).toBeVisible();
-  await feed.click();
+
+  // The opt-in switch lives on the Connections page, not in demo controls.
+  await expect(page.getByTestId('demo-redirect-on-connect')).toHaveCount(0);
+  const redirect = page.getByTestId('connection-open-feed');
+  await expect(redirect).not.toBeChecked();
+  await redirect.locator('xpath=..').click();
+  await expect(redirect).toBeChecked();
+  await page.getByRole('button', { name: t('connection.disconnect'), exact: true }).first().click();
+  await page.getByRole('button', { name: t('connection.connect'), exact: true }).first().click();
   await expect(page).toHaveURL(/#\/feed$/);
 });
 

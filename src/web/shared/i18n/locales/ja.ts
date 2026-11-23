@@ -92,6 +92,7 @@ export default {
       error: "接続エラー",
     },
     connect: "接続",
+    openFeedAfterConnect: "接続後にフィードを開く",
     disconnect: "切断",
     reconnect: "再接続",
     viewers: "視聴者{count}人",

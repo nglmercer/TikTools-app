@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9884cf56b87f6ddb7a6a9331e144da20913db78eb4d6f764fbd00c7a17f00f31"
-translationRevision: "a40bc2d573a50630b29e15abbd0f0448e79380b1e9774c0f44e5037a95405802"
+sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
+translationRevision: "d41aab35cdf635b3f12020b141842d24ae66dae3cf06b396ec6835dbbc262f7b"
 order: 140
 ---
 
@@ -34,7 +34,7 @@ Para previsualizar cambios sin commit usa `TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scrip
 
 `src/web/app/mount-workspace.ts` proporciona la factoría compartida de aplicación/Pinia/router; importarla no monta ni selecciona transporte. El arranque demo explícito aporta `src/web/demo/runtime/transport.ts` al límite `ControlTransport`/cliente de control. Las muestras puras viven en `demo/fixtures/base-host.ts`, independientes de Playwright. `shared/lib/app-storage.ts` y `demo/storage.ts` aíslan almacenamiento para que reiniciar no borre preferencias nativas ni otra instancia demo. Páginas, widgets y funcionalidades deben utilizar sus almacenes y llamadas existentes en `src/web/shared/api`. No crees una segunda aplicación de imitación, no inyectes APIs nativas falsas en el arranque normal ni permitas que una solicitud demo termine en un host real.
 
-`demo/scenarios.ts` valida 11 escenarios y las rutas, idiomas y recorridos admitidos. `runtime/host.ts` registra handlers explícitos: discovery anuncia esos handlers, los IDs se conservan en `rpc-response` y los efectos no admitidos devuelven error inmediatamente. El host prepara datos ficticios y avanza un reloj fijo al pulsar Siguiente evento. Reproducir y Siguiente evento conectan primero al creador ficticio mediante el RPC simulado si hace falta y generan un evento inmediato. Reproducir continúa cada dos segundos; Pausar detiene la producción. La barra muestra el estado y el contador de eventos. El flujo termina a los 300 pasos y conserva hasta 60 eventos y 60 ejecuciones. Las colas de respuestas y registros tienen límites independientes.
+`demo/scenarios.ts` valida 11 escenarios y las rutas, idiomas y recorridos admitidos. `runtime/host.ts` registra handlers explícitos: discovery anuncia esos handlers, los IDs se conservan en `rpc-response` y los efectos no admitidos devuelven error inmediatamente. El host prepara datos ficticios y avanza un reloj fijo al pulsar Siguiente evento. Reproducir y Siguiente evento conectan primero al creador ficticio mediante el RPC simulado si hace falta y generan un evento inmediato. Reproducir continúa cada dos segundos; Pausar detiene la producción. La barra muestra el estado y el contador de eventos. El flujo termina a los 300 pasos y conserva hasta 60 eventos y 60 ejecuciones. Las colas de respuestas y registros tienen límites independientes. Conectarse desde Connections no sale de esa página por defecto; el enlace destacado al feed es la guía. El interruptor opcional está en la página Connections y se guarda por instancia de demo; viene desactivado por defecto.
 
 Reiniciar limpia únicamente el prefijo `tiktools.demo.<instance>.*` y recarga el iframe. Recargar reinicializa singletons, journals, i18n y diagnósticos. Cada iframe recibe un identificador distinto. Al salir se desmonta Vue, se liberan stores, cliente y transporte, y se detienen ambos temporizadores. La demo no instala `window.ipc` ni realiza HTTP arbitrario, shell, RCON, ejecución de código visitante o actualización nativa. Su CSP rechaza conexiones de red. Las plantillas de log y filtros simulados usan funciones puras compartidas: representan el contrato del frontend y no sustituyen la ejecución Rust.
 
