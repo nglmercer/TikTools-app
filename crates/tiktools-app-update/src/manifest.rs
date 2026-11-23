@@ -90,7 +90,18 @@ pub fn validate_manifest(
         "TikTools-{}-{asset_target}-installer.{extension}",
         release.version
     );
-    let expected_path = format!("{}{expected_file}", expected_prefix.path());
+    let prefix = expected_prefix.path();
+    let mut expected_paths = vec![format!("{prefix}{expected_file}")];
+    if target == "linux-x86_64" {
+        // Published channel heads before the asset-name fix used the full
+        // target in the AppImage file. Keep verifying those exact historical
+        // URLs so old feeds remain readable; new manifests still use the
+        // canonical name above.
+        expected_paths.push(format!(
+            "{prefix}TikTools-{}-linux-x86_64-installer.{extension}",
+            release.version
+        ));
+    }
     // `+` is legal in a path segment, but release URLs commonly percent-encode
     // it. Normalize only that byte; encoded slashes must not alter boundaries.
     let path = url.path().replace("%2B", "+").replace("%2b", "+");
@@ -101,7 +112,9 @@ pub fn validate_manifest(
         || url.port().is_some()
         || url.query().is_some()
         || url.fragment().is_some()
-        || path != expected_path
+        || !expected_paths
+            .iter()
+            .any(|expected| path == expected.as_str())
     {
         return Err(ManifestError::UntrustedUrl);
     }
@@ -189,6 +202,18 @@ mod tests {
             &current
         )
         .is_err());
+    }
+
+    #[test]
+    fn accepts_legacy_appimage_asset_name_for_published_feed_heads() {
+        let json = br#"{"version":"4.2.3","platforms":{"linux-x86_64":{"url":"https://github.com/nglmercer/TikTools-app/releases/download/v4.2.3/TikTools-4.2.3-linux-x86_64-installer.AppImage","signature":"signed","format":"appimage"}}}"#;
+        assert!(validate_manifest(
+            json,
+            "linux-x86_64",
+            Channel::Stable,
+            &Version::parse("4.0.0").unwrap()
+        )
+        .is_ok());
     }
 
     #[test]

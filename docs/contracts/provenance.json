@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "sourceCommit": "c114e3275b0fe6d8a4c2eccc95ab3ed56c840eb7",
+  "sourceCommit": "00f4679fbd447bc4b336c36ba9cbaae8bcc52293",
   "generator": "tiktools --standalone --json api discover",
   "schemaSha256": "ea06e8369badbb6603fa6e98cfdd33b597a572f8a853d23a85b01ab537d2da1f",
   "sources": {
@@ -66,7 +66,7 @@
     "crates/tiktools-app-update/src/download.rs": "fb33aaf99146f19ddcba400e8c61990e341797af829674bdb6cfd6ae22059cd5",
     "crates/tiktools-app-update/src/install.rs": "a14a26a0ca02e5e5abe96c4be6a41caa3ed7180366003efe3a1e810c7b68e722",
     "crates/tiktools-app-update/src/lib.rs": "d1b8f4ee2155e09c65c8f6ca73514c44041773e188e275d57aab2bd90fa49fe7",
-    "crates/tiktools-app-update/src/manifest.rs": "12b87be11b9130fc1b8fb74643e624cd5410fcbff1f1b111743e0432adb23c04",
+    "crates/tiktools-app-update/src/manifest.rs": "f4f867a1797f1e5fb2bbcca8f4453f28ce717839dc9bab38ef0fc5e4cb8203c5",
     "crates/tiktools-app-update/src/packager.rs": "98acae22fe8fad5720b1c770219ec80cc73a4d0c80fe6ef13290ecddce408456",
     "crates/tiktools-app-update/src/platform.rs": "d44341c059788f378061b07fe1a5751b898b27413355388e79fa0daa667538da",
     "crates/tiktools-app-update/src/service.rs": "334930f6fe0589ef0cce5bad46f043216ab61d45baab7f67eb487df967e3133d",

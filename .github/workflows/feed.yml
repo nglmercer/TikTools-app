@@ -1,0 +1,116 @@
+name: Update feed
+
+# Re-stage the signed update channels for an already published release. The
+# release workflow owns the normal path; this exists for recovery when only
+# the feed step failed and the release assets are immutable.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Published release tag (for example v4.5.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-feed-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  BUN_VERSION: 1.4.4
+  RUSTUP_TOOLCHAIN: 1.99.1
+
+jobs:
+  publish:
+    name: publish signed update feed
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      RELEASE_REPO: ${{ vars.RELEASE_REPO || github.repository }}
+      GH_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN || github.token }}
+      HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN != '' }}
+      TIKTOOLS_UPDATE_PUBLIC_KEY: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY }}
+    steps:
+      - name: Check publication configuration
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v[^/]+$ ]]; then
+            echo "::error::tag must be a v-prefixed release tag"
+            exit 1
+          fi
+          if [ -z "$TIKTOOLS_UPDATE_PUBLIC_KEY" ]; then
+            echo "::error::TIKTOOLS_UPDATE_PUBLIC_KEY is required"
+            exit 1
+          fi
+          if [ "$RELEASE_REPO" != "$GITHUB_REPOSITORY" ] && [ "$HAS_RELEASE_TOKEN" != "true" ]; then
+            echo "::error::RELEASE_REPO requires the RELEASE_REPO_TOKEN secret"
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install frontend dependencies from the lockfile
+        run: bun ci
+
+      - name: Install current Rust
+        run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
+
+      - name: Install pinned cargo-packager
+        run: |
+          if [ "$(cargo packager --version 2>/dev/null)" != "cargo-packager 0.11.8" ]; then
+            cargo install cargo-packager --version 0.11.8 --locked --force
+          fi
+
+      - name: Download published release assets
+        run: |
+          set -euo pipefail
+          mkdir release-assets
+          gh release download "$RELEASE_TAG" -R "$RELEASE_REPO" --dir release-assets
+          (cd release-assets && sha256sum --check SHA256SUMS.txt)
+
+      # Sign only after the released assets are verified; no release is
+      # created or edited by this workflow.
+      - name: Sign candidate metadata
+        env:
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          version="${RELEASE_TAG#v}"
+          mkdir update-candidate
+          cp "release-assets/TikTools-${version}-x86_64-installer.AppImage" \
+             "release-assets/TikTools-${version}-windows-x86_64-installer.exe" update-candidate/
+          bun scripts/generate-update-manifest.ts --sign update-candidate
+
+      - name: Publish signed channels
+        run: |
+          set -euo pipefail
+          gh auth setup-git --hostname github.com
+          bun scripts/publish-site.ts --feed-candidate update-candidate \
+            --repository "$RELEASE_REPO" --publish
+
+      - name: Wait for the live update feed
+        run: |
+          set -euo pipefail
+          base="$(gh api "repos/$RELEASE_REPO/pages" -q .html_url)"
+          version="${RELEASE_TAG#v}"
+          channel=stable
+          case "$version" in *-*) channel=beta ;; esac
+          for _ in $(seq 1 60); do
+            if curl -fsS "${base%/}/updates/$channel.json" 2>/dev/null | grep -q "\"version\": \"$version\""; then
+              echo "Live $channel feed serves $version"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${base%/}/updates/$channel.json did not serve $version within 10 minutes"
+          exit 1
