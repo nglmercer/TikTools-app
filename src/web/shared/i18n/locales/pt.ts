@@ -502,7 +502,7 @@ export default {
     moreActions: 'Mais ações do feed',
     empty: 'Nenhum evento ao vivo ainda.',
     count: '{count} evento | {count} eventos',
-    windowed: 'exibindo as {count} mais recentes',
+    windowed: 'até {count} por tipo',
     windowedHint: 'Pause a rolagem automática para inspecionar todos os eventos no buffer.',
     jump: 'Ir para o mais recente ({count})',
     openProfile: 'Abrir perfil de {viewer}',

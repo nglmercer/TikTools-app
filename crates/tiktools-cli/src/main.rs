@@ -66,6 +66,7 @@ commands:
     |      [--redact|--secrets-visible] [--explain] [--format json|human]
     |      [--expected-revision N] [--command-id ID --host-instance-id ID] [--include-meta]
     | events [--topics t,...] [--timeout SEC] [--max-events N]
+    | event get <name> [--type kind]... [--author text] [--limit N]
     | verify [--coverage|--smoke] [--sandbox] [--timeout SEC]
   rpc <method> [params-json]
   rpc --stdio [--events]        NDJSON request/response loop on stdio

@@ -500,7 +500,7 @@ export default {
     moreActions: 'More feed actions',
     empty: 'No live events yet.',
     count: '{count} event | {count} events',
-    windowed: 'newest {count} shown',
+    windowed: 'up to {count} per type',
     windowedHint: 'Pause auto-scroll to inspect every buffered event.',
     jump: 'Jump to latest ({count})',
     openProfile: 'Open profile for {viewer}',

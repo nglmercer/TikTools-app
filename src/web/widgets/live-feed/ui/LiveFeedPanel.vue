@@ -50,7 +50,7 @@ const store = useLiveFeedStore();
 const connection = useConnectionStore();
 const { events, filter, searchQuery, autoScroll, unreadCount, renderLimit, imagesEnabled, liveViewers } = storeToRefs(store);
 const { status } = storeToRefs(connection);
-const { row: rowMotion } = useFeedMotion();
+const { row: rowMotion } = useFeedMotion(events);
 const panelTitle = computed(() => status.value === 'connected'
   ? t('feed.liveTitle', { count: liveViewers.value })
   : t('feed.title'));
@@ -311,6 +311,8 @@ function onMenu(action: MenuAction): void {
 .live-feed__stream {
   height: 100%;
   overflow-y: auto;
+  /* The feed pins the scroll itself; native anchoring would fight it. */
+  overflow-anchor: none;
   overscroll-behavior: contain;
 }
 

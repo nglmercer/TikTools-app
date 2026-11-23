@@ -1,5 +1,6 @@
 import { createFeedViewport } from './feed-viewport.ts';
 import { createFeedRecovery } from './feed-recovery.ts';
+import { retainPerCategory } from '../lib/event-filter.ts';
 import type { FeedHistoryAdapter } from '../lib/feed-history.ts';
 import { liveMessageIdentity, LIVE_IDENTITY_CAPACITY, LIVE_IDENTITY_TTL_MS } from '../../../../shared/live-identity.ts';
 import { ref, shallowRef } from 'vue';
@@ -68,26 +69,15 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   const unsubscribers: Array<() => void> = [];
   const feedRankings = createFeedRankings(control);
 
-  const MAX_VISIBLE_FEED = 300;
   let received = 0;
   let retentionEvicted = 0;
   let lastBusDropped: number | null = null;
   let lastDeliverySequence: number | null = null;
   let lastFeedCursor: number | null = seenCursors.size > 0 ? Math.max(...seenCursors) : null;
 
-  const evictToVisibleLimit = (combined: DisplayEvent[]): void => {
-    // Chat floods must never push gifts out of the Regalos tab: evict the
-    // oldest non-gift rows first. Gifts are only evicted once no other kind
-    // remains, so the buffer stays bounded at MAX_VISIBLE_FEED either way.
-    while (combined.length > MAX_VISIBLE_FEED) {
-      const victim = combined.findIndex((event) => event.kind !== 'gift');
-      combined.splice(victim === -1 ? 0 : victim, 1);
-      retentionEvicted += 1;
-    }
-  };
-
   // Render every accepted event as it arrives: no staging, frame batching or
-  // visual coalescing. The bounded visible buffer is the only optimization.
+  // visual coalescing. Retention is bounded per category, so chat survives a
+  // flood of likes/joins and each filter keeps its own recent history.
   const appendEvent = (input: Omit<DisplayEvent, 'receivedAt'>): void => {
     if (disposed) return;
     const list = events.value;
@@ -99,8 +89,9 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       for (let i = 0; i < list.length; i += 1) if (list[i]!.feedCursor !== undefined) list[i] = ordered[position++]!;
       needsCursorSort = false;
     }
-    evictToVisibleLimit(list);
-    events.value = [...list];
+    const kept = retainPerCategory(list);
+    retentionEvicted += list.length - kept.length;
+    events.value = [...kept];
     scheduleHistorySave();
     if (!autoScroll.value) unreadCount.value += 1;
     if (autoScroll.value) scrollToBottom();

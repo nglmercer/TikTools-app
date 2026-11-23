@@ -57,7 +57,7 @@ Generated from the checked-in discovery snapshot; the running host remains autho
 
 Use a disposable `TIKTOOLS_HOME`, clear inherited path overrides as described in [storage](storage.md), start `tiktools host --ipc`, and use the same home in the controlling terminal. The recipe assumes an existing disposable workflow `docs-example`; create the disabled sample in [automations](automations.md#operational-details) first. Capture the read’s `meta.resourceVersions` revision and `meta.hostInstanceId`; replace `REVISION`/`HOST_INSTANCE` below. Keep one stable command ID with its exact payload. On timeout, query the original ID, then refresh the resource; `accepted`, `running` and `unknown` do not authorize a new effect. A revision conflict requires a fresh read and review, not automatic overwrite. `points.adjust` is additive: it accepts a command ID but no expected revision.
 
-`--include-meta` preserves the domain result and metadata; default output extracts the result. `--dry-run --explain` validates/plans without executing; explanations go to stderr and JSON results to stdout. Destructive calls require `--confirm`. Default output redacts recognized secrets; `--secrets-visible` only changes CLI rendering and cannot recover values already hidden by the host. Review output manually. `api events` is bounded by timeout/count and uses topic filters. Live discovery remains authoritative for features and permissions; generated contract descriptions below retain the registry’s exact text.
+`--include-meta` preserves the domain result and metadata; default output extracts the result. `--dry-run --explain` validates/plans without executing; explanations go to stderr and JSON results to stdout. Destructive calls require `--confirm`. Default output redacts recognized secrets; `--secrets-visible` only changes CLI rendering and cannot recover values already hidden by the host. Review output manually. `api events` is bounded by timeout/count and uses topic filters. `api event get <name>` searches the bounded feed journal through `ui.feed.backfill` (no new RPC), with `--type`, `--author` and `--limit`; the name matches any string field case-insensitively. Live discovery remains authoritative for features and permissions; generated contract descriptions below retain the registry’s exact text.
 
 ```sh
 tiktools api discover --json
@@ -68,6 +68,7 @@ tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision 
 tiktools api call collaboration.commands.get '{"commandId":"docs-disable-001"}' --json
 tiktools api call points.adjust '{"uniqueId":"docs-viewer","delta":1}' --command-id docs-points-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --json
 tiktools api events --topics live.status --timeout 5 --max-events 2
+tiktools api event get rose --type gift --author mango --limit 10 --json
 ```
 
 ```json

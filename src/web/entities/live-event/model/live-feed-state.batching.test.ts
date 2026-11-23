@@ -1,15 +1,27 @@
 import { callbacks, createControl, chatEvent, describe, expect, it, createLiveFeedState } from './testing/live-feed-fixture.ts';
 
 describe('live feed rendering', () => {
-  it('renders every event immediately, capped at 300 visible', () => {
+  it('renders every event immediately, capped at 100 per category', () => {
     const harness = createControl();
     const live = createLiveFeedState(harness.control, callbacks('system'));
     for (let i = 0; i < 1000; i += 1) {
       harness.emit('live.ui-event', chatEvent('burst', `user-${i}`, i) as never);
     }
-    expect(live.events.value).toHaveLength(300);
-    expect(live.events.value[0]?.author).toBe('burst-user-700');
+    expect(live.events.value).toHaveLength(100);
+    expect(live.events.value[0]?.author).toBe('burst-user-900');
     expect(live.diagnostics().received).toBe(1000);
+    live.dispose();
+  });
+
+  it('keeps recent events of every category when one kind floods', () => {
+    const harness = createControl();
+    const live = createLiveFeedState(harness.control, callbacks('system'));
+    harness.emit('live.ui-event', chatEvent('chat', 'alice', 0) as never);
+    for (let i = 0; i < 200; i += 1) {
+      harness.emit('live.ui-event', { event: { kind: 'like', author: 'fan', text: 'like', msgId: `like-${i}` } } as never);
+    }
+    expect(live.events.value.filter((event) => event.kind === 'chat')).toHaveLength(1);
+    expect(live.events.value.filter((event) => event.kind === 'like')).toHaveLength(100);
     live.dispose();
   });
 

@@ -2,7 +2,7 @@
 use super::*;
 
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
-    let (verb, rest) = split_first(args, "api <discover|schema|call|events> ...")?;
+    let (verb, rest) = split_first(args, "api <discover|schema|call|events|event|verify> ...")?;
     match verb {
         "discover" => Ok(Command::Discover {
             json: parse_format(rest)?,
@@ -50,6 +50,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             timeout_secs: parse_timeout(rest)?,
             max_events: parse_max_events(rest)?,
         }),
+        "event" => parse_event_get(rest),
         "verify" => {
             let only_coverage = rest.iter().any(|arg| arg == "--coverage");
             let only_smoke = rest.iter().any(|arg| arg == "--smoke");
@@ -251,4 +252,68 @@ fn event_topics(args: &[String]) -> Vec<String> {
         }
     }
     topics
+}
+
+/// `api event get <name> [--type kind]... [--author text] [--limit N]`.
+/// The name is matched case-insensitively against every string field of the
+/// event (text, author, nickname, gift name, ...).
+fn parse_event_get(args: &[String]) -> Result<Command, CommandError> {
+    let (verb, rest) = split_first(
+        args,
+        "api event get <name> [--type kind]... [--author text] [--limit N]",
+    )?;
+    if verb != "get" {
+        return Err(format!("unknown api event verb `{verb}`").into());
+    }
+    let name = rest
+        .first()
+        .filter(|arg| !arg.starts_with("--"))
+        .ok_or_else(|| {
+            "api event get <name> [--type kind]... [--author text] [--limit N]".to_owned()
+        })?
+        .clone();
+    let flags = &rest[1..];
+    let values = ["--type", "--author", "--limit"];
+    let mut index = 0;
+    while index < flags.len() {
+        let flag = flags[index].as_str();
+        if values.contains(&flag) {
+            if flags
+                .get(index + 1)
+                .is_none_or(|value| value.starts_with("--"))
+            {
+                return Err(format!("{flag} requires a value").into());
+            }
+            index += 2;
+        } else if flag.starts_with("--") {
+            return Err(format!("unknown api event flag `{flag}`").into());
+        } else {
+            return Err(format!("unexpected api event argument `{flag}`").into());
+        }
+    }
+    let kinds = flag_values(flags, "--type")
+        .iter()
+        .flat_map(|raw| raw.split(','))
+        .map(str::trim)
+        .filter(|kind| !kind.is_empty())
+        .map(str::to_owned)
+        .collect();
+    let limit = match flag_value(flags, "--limit") {
+        None => 20,
+        Some(raw) => {
+            let parsed: usize = raw
+                .parse()
+                .map_err(|_| "--limit must be between 1 and 200".to_owned())?;
+            if !(1..=200).contains(&parsed) {
+                return Err("--limit must be between 1 and 200".to_owned().into());
+            }
+            parsed
+        }
+    };
+    Ok(Command::GetEvent {
+        name,
+        kinds,
+        author: flag_value(flags, "--author"),
+        limit,
+    })
 }

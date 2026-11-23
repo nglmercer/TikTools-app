@@ -500,7 +500,7 @@ export default {
     moreActions: "更多动态操作",
     empty: "暂无直播事件。",
     count: "{count} 个事件 | {count} 个事件",
-    windowed: "显示最新 {count} 个",
+    windowed: "每种类型最多 {count} 个",
     windowedHint: "暂停自动滚动以检查缓冲区中的每个事件。",
     jump: "跳转到最新内容（{count}）",
     openProfile: "打开 {viewer} 的个人资料",

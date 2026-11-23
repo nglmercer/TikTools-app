@@ -502,7 +502,7 @@ export default {
     moreActions: 'Plus d’actions du flux',
     empty: 'Aucun événement en direct pour l’instant.',
     count: '{count} événement | {count} événements',
-    windowed: '{count} plus récents affichés',
+    windowed: "jusqu’à {count} par type",
     windowedHint: 'Suspendez le défilement automatique pour inspecter tous les événements mis en mémoire.',
     jump: 'Aller au plus récent ({count})',
     openProfile: 'Ouvrir le profil de {viewer}',

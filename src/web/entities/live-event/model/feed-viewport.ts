@@ -81,6 +81,29 @@ export function createFeedViewport(events: Ref<DisplayEvent[]>, isActive: () => 
     restoreScrollTop = undefined;
   };
   unsubscribers.push(watch(events, applySavedScrollTop));
+
+  // Pin the scroll in the same DOM commit as an insert/eviction. Doing this in
+  // a later frame is what makes new rows look like they "jump" into place.
+  let beforeHeight = 0;
+  let beforeTop = 0;
+  unsubscribers.push(watch(events, () => {
+    const container = streamContainerRef.value;
+    if (!container) return;
+    beforeHeight = container.scrollHeight;
+    beforeTop = container.scrollTop;
+  }, { flush: 'pre' }));
+  unsubscribers.push(watch(events, () => {
+    const container = streamContainerRef.value;
+    if (disposed || !isActive() || !container) return;
+    if (autoScroll.value) {
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+    // Rows evicted above shrink the content; keep the same rows in view.
+    const delta = container.scrollHeight - beforeHeight;
+    if (delta < 0) container.scrollTop = Math.max(0, beforeTop + delta);
+  }, { flush: 'post' }));
+
   const setStreamContainerRef = (element: Element | null): void => {
     const next = element instanceof HTMLDivElement ? element : null;
     if (streamContainerRef.value === next) return;

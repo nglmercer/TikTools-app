@@ -500,7 +500,7 @@ export default {
     moreActions: "フィードのその他の操作",
     empty: "ライブイベントはまだありません。",
     count: "{count}件のイベント | {count}件のイベント",
-    windowed: "最新{count}件を表示",
+    windowed: "種類ごとに最大{count}件",
     windowedHint: "バッファー内のすべてのイベントを確認するには、自動スクロールを一時停止してください。",
     jump: "最新へ移動（{count}）",
     openProfile: "{viewer}のプロフィールを開く",

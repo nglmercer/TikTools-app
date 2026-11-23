@@ -48,6 +48,12 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Output
             stream_events(client, &topics, timeout_secs, max_events).await?;
             Ok(Output::written())
         }
+        Command::GetEvent {
+            name,
+            kinds,
+            author,
+            limit,
+        } => get_event(client, &name, &kinds, author.as_deref(), limit).await,
         Command::Verify {
             coverage,
             smoke,

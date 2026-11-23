@@ -1,8 +1,8 @@
 import { appStorage } from '@/shared/lib/app-storage.ts';
 import type { DisplayEvent } from '@/types.ts';
+import { MAX_PER_CATEGORY, retainPerCategory } from './event-filter.ts';
 
 const STORAGE_KEY = 'tiktok-live-feed-history';
-const MAX_HISTORY_EVENTS = 200;
 const MAX_HISTORY_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface FeedHistoryRecord {
@@ -45,7 +45,7 @@ export function createFeedHistory(): FeedHistoryAdapter {
         return {
           scope: record.scope,
           savedAt: record.savedAt,
-          events: record.events.filter(isSavedEvent).slice(-MAX_HISTORY_EVENTS),
+          events: retainPerCategory(record.events.filter(isSavedEvent), MAX_PER_CATEGORY),
         };
       } catch {
         return null;
@@ -56,7 +56,7 @@ export function createFeedHistory(): FeedHistoryAdapter {
         appStorage().setItem(STORAGE_KEY, JSON.stringify({
           scope: record.scope,
           savedAt: Date.now(),
-          events: record.events.slice(-MAX_HISTORY_EVENTS),
+          events: retainPerCategory(record.events, MAX_PER_CATEGORY),
         }));
       } catch { /* Storage can be disabled or full; the live feed keeps working. */ }
     },

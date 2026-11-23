@@ -20,7 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const { row: rowMotion, gift: giftMotion } = useFeedMotion();
+const { row: rowMotion, gift: giftMotion } = useFeedMotion(() => props.events);
 const now = ref(Date.now());
 let timer: ReturnType<typeof setInterval> | null = null;
 
