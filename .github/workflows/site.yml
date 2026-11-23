@@ -161,11 +161,16 @@ jobs:
 
       # A push authenticated with GITHUB_TOKEN does not start a Pages build.
       # Request it explicitly for the verified legacy source; this endpoint
-      # changes no gh-pages files or update-feed bytes.
+      # changes no gh-pages files or update-feed bytes. A PAT push normally
+      # starts the build already, and some PATs cannot call this endpoint, so
+      # treat the request as best effort and let the manifest check decide.
       - name: Request the legacy GitHub Pages build
         run: |
-          set -euo pipefail
-          gh api --method POST "repos/$RELEASE_REPO/pages/builds" --jq '.status'
+          set -uo pipefail
+          if gh api --method POST "repos/$RELEASE_REPO/pages/builds" --jq '.status'; then
+            exit 0
+          fi
+          echo "Explicit Pages build request unavailable; relying on the gh-pages push and verifying the live manifest."
 
       - name: Verify the published site manifest
         timeout-minutes: 12
