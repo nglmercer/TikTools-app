@@ -1,0 +1,52 @@
+/* Shared tokens and primitives for the documentation site.
+   Import once from the theme so the landing and site chrome use the same
+   vocabulary instead of repeating colors, radii and typography rules. */
+:root {
+  --site-radius: 6px;
+  --site-radius-sm: 4px;
+  --site-border: var(--vp-c-divider);
+  --site-muted: var(--vp-c-text-2);
+  --site-faint: var(--vp-c-text-3);
+  --site-bg-soft: var(--vp-c-bg-soft);
+  --site-font-sm: 12px;
+}
+
+.site-eyebrow {
+  font-family: var(--vp-font-family-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+}
+
+.site-card {
+  border: 1px solid var(--site-border);
+  border-radius: var(--site-radius);
+  background: var(--site-bg-soft);
+}
+
+.site-arrow::after {
+  content: '\2192';
+  display: inline-block;
+  margin-left: 6px;
+  transition: transform .15s;
+}
+
+/* Markdown slots on page layouts render outside `.vp-doc`, so normalize them here. */
+.docs-home :where(h1, h2, h3, p, ul, ol) { margin: 0; }
+.docs-home :where(ul, ol) { padding: 0; list-style: none; }
+.docs-home :where(p) { color: var(--site-muted); }
+.docs-home :where(a) { text-decoration: none; }
+.docs-home :where(a:hover) { color: var(--vp-c-brand-1); }
+.docs-home :where(a:hover) strong { color: inherit; }
+.docs-home .header-anchor { display: none; }
+.docs-home :where(h1, h2, h3) { scroll-margin-top: 96px; }
+
+:lang(zh) .docs-home h1,
+:lang(ja) .docs-home h1 { letter-spacing: -.02em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .site-arrow::after { transition: none; }
+}

@@ -40,21 +40,6 @@ Connect TikTok LIVE, turn audience events into automations, and design overlays 
 
 </template>
 
-<template #start>
-
-## Choose your language {#choose-your-language}
-
-Choose a language for your setup guides. <span lang="es">Elige el idioma de tus guías.</span>
-
-- [**English** <span lang="en">User guides and developer documentation</span>](./en/index.md)
-- [**Español** <span lang="es">Guías de usuario y documentación técnica</span>](./es/index.md)
-- [**Português** <span lang="pt">Guias de uso e documentação técnica</span>](./pt/index.md)
-- [**Français** <span lang="fr">Guides d’utilisation et documentation technique</span>](./fr/index.md)
-- [**简体中文** <span lang="zh">用户指南和开发文档</span>](./zh/index.md)
-- [**日本語** <span lang="ja">ユーザーガイドと開発者向けドキュメント</span>](./ja/index.md)
-
-</template>
-
 <template #directory>
 
 ## Make it yours {#explore-the-guides}

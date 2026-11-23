@@ -27,7 +27,7 @@ const guideHref = (topic: Topic) => withBase(`/${locale.value}/user/${guides[top
 <template>
   <main class="docs-home" :class="{ 'docs-home--selector': selector }">
     <div class="docs-home__masthead">
-      <div class="docs-home__eyebrow"><slot name="eyebrow" /></div>
+      <div class="docs-home__eyebrow site-eyebrow"><slot name="eyebrow" /></div>
     </div>
 
     <div class="docs-home__hero">
@@ -55,17 +55,17 @@ const guideHref = (topic: Topic) => withBase(`/${locale.value}/user/${guides[top
     <section class="docs-home__next" :aria-label="copy.topicsTitle">
       <div class="docs-home__section-heading"><div><span class="docs-home__section-kicker">{{ landing.featuresEyebrow }}</span><h2>{{ landing.featuresTitle }}</h2></div><p>{{ landing.featuresDescription }}</p></div>
       <div class="docs-home__topic-grid"><a v-for="(topic,index) in topics" :key="topic" class="docs-topic" :href="guideHref(topic)"><div class="docs-topic__icon"><component :is="icons[topic]" aria-hidden="true" /><span>0{{ index + 1 }}</span></div><div><h3>{{ copy.topics[topic].title }}</h3><p>{{ copy.topics[topic].description }}</p><span class="docs-topic__link">{{ copy.readGuide }} <span aria-hidden="true">→</span></span></div></a></div>
-      <aside class="docs-home__start"><slot name="start" /></aside>
+      <aside v-if="$slots.start" class="docs-home__start"><slot name="start" /></aside>
     </section>
 
     <section class="docs-home__directory">
       <div class="docs-home__section-heading"><slot name="directory" /></div>
       <div class="docs-home__paths">
-        <section class="docs-home__path">
+        <section class="docs-home__path site-card">
           <span class="docs-home__path-number" aria-hidden="true">01</span>
           <div><slot name="user" /></div>
         </section>
-        <section class="docs-home__path">
+        <section class="docs-home__path site-card">
           <span class="docs-home__path-number" aria-hidden="true">02</span>
           <div><slot name="developer" /></div>
         </section>

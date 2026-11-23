@@ -45,15 +45,15 @@ function change(target: DocLocale): void {
   min-width: 104px;
   min-height: 32px;
   padding: 4px 26px 4px 10px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 6px;
-  background-color: var(--vp-c-bg-soft);
+  border: 1px solid var(--site-border);
+  border-radius: var(--site-radius-sm);
+  background-color: var(--site-bg-soft);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23888' stroke-width='1.2'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 12px;
   color: var(--vp-c-text-1);
-  font-size: 12px;
+  font-size: var(--site-font-sm);
   cursor: pointer;
   appearance: none;
 }
@@ -67,8 +67,8 @@ function change(target: DocLocale): void {
 .site-language--screen :deep(select) {
   width: 100%;
   min-height: 40px;
-  border-color: var(--vp-c-divider);
-  background-color: var(--vp-c-bg-soft);
+  border-color: var(--site-border);
+  background-color: var(--site-bg-soft);
   color: var(--vp-c-text-1);
   font-size: 14px;
 }

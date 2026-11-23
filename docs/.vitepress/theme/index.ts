@@ -1,6 +1,7 @@
 import { h } from 'vue';
 import DefaultTheme from 'vitepress/theme';
 import './style.css';
+import './common.css';
 import './experience.css';
 import './landing.css';
 import SiteLanguageSwitcher from './components/SiteLanguageSwitcher.vue';

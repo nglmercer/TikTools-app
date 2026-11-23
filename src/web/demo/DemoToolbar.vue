@@ -3,6 +3,7 @@ import { computed, ref, shallowRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
@@ -135,14 +136,14 @@ function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId
       </template>{{ t.controls }}
     </BaseButton>
 
-    <section
+    <BasePanel
       v-else
       class="demo-dock"
       data-testid="demo-controls-panel"
-      :aria-label="t.controls"
+      :title="t.controls"
+      header-layout="inline"
     >
-      <header class="demo-dock__header">
-        <strong>{{ t.controls }}</strong>
+      <template #actions>
         <BaseButton
           variant="ghost"
           data-testid="demo-close-controls"
@@ -154,7 +155,7 @@ function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId
             <IconClose />
           </template>
         </BaseButton>
-      </header>
+      </template>
       <div class="demo-toolbar__controls">
         <label
           v-if="showCases"
@@ -252,7 +253,7 @@ function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId
           :data-status="guideState"
         >{{ guideLabel }}</span>
       </div>
-    </section>
+    </BasePanel>
     <output
       data-testid="demo-event-count"
       aria-live="off"
