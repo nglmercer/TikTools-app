@@ -482,6 +482,7 @@ export default {
   },
   feed: {
     title: 'Atividade ao vivo',
+    liveTitle: 'Ao vivo · {count} espectadores',
     system: 'Sistema',
     resumed: 'O feed foi retomado. Os eventos recebidos enquanto estava oculto foram ignorados.',
     filterLabel: 'Tipo de evento',

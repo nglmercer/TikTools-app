@@ -480,6 +480,7 @@ export default {
   },
   feed: {
     title: "直播动态",
+    liveTitle: "直播中 · {count} 位观众",
     system: "系统",
     resumed: "动态已恢复。隐藏期间收到的事件已跳过。",
     filterLabel: "事件类型",

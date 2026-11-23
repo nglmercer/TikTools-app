@@ -113,6 +113,9 @@ describe('FeedPage', () => {
     expect(wrapper.findAll('.live-stage__reaction').map((reaction) => reaction.text())).toEqual([
       expect.stringContaining('mango'),
     ]);
+    // Reactions append below the permanent cards, one per line.
+    const stage = wrapper.get('.live-stage').element;
+    expect(stage.lastElementChild?.classList.contains('live-stage__reactions')).toBe(true);
     await wrapper.get('.event-card__content').trigger('click');
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('feed.inspector.details'));
   });

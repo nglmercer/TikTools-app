@@ -24,6 +24,15 @@ test('table examples sort actual rows and tab examples retain independent drafts
   await expect(tabs.locator('textarea')).toHaveValue('second draft');
 });
 
+test('the feed panel title follows the live state and viewer count', async ({ page }) => {
+  await page.goto('demo/?scenario=feed&locale=es&instance=feed-title');
+  const title = page.locator('.live-feed .base-panel__title');
+  await expect(title).toContainText('En vivo');
+  await expect(title).toContainText('espectadores');
+  await page.getByRole('button', { name: 'Desconectar', exact: true }).click();
+  await expect(title).toContainText('Actividad en vivo');
+});
+
 test('a successful connection highlights the feed section to read events', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en&instance=feed-suggestion');
   // Playback connects through the simulated RPC without leaving the section.

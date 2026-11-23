@@ -37,6 +37,28 @@ function reactionText(event: DisplayEvent): string {
 
 <template>
   <div class="live-stage">
+    <div
+      class="live-stage__cards"
+      role="list"
+    >
+      <EventCard
+        v-for="event in important"
+        :key="event.id"
+        :event="event"
+        :images="images"
+        :selected="event.id === selectedEventId"
+        @select="emit('select', $event)"
+        @open-viewer="emit('open-viewer', $event)"
+      />
+      <p
+        v-if="!important.length"
+        class="live-stage__hint"
+      >
+        {{ t('feed.stage.reactionsOnly') }}
+      </p>
+    </div>
+    <!-- Reactions append at the end, one per line: new events never push the
+         permanent chat cards around. -->
     <TransitionGroup
       v-if="reactions.length"
       name="reaction"
@@ -59,50 +81,27 @@ function reactionText(event: DisplayEvent): string {
         <span>{{ reactionText(reaction) }}</span>
       </span>
     </TransitionGroup>
-    <div
-      class="live-stage__cards"
-      role="list"
-    >
-      <EventCard
-        v-for="event in important"
-        :key="event.id"
-        :event="event"
-        :images="images"
-        :selected="event.id === selectedEventId"
-        @select="emit('select', $event)"
-        @open-viewer="emit('open-viewer', $event)"
-      />
-      <p
-        v-if="!important.length"
-        class="live-stage__hint"
-      >
-        {{ t('feed.stage.reactionsOnly') }}
-      </p>
-    </div>
   </div>
 </template>
 
 <style scoped>
 .live-stage { display: flex; flex-direction: column; min-height: 100%; }
 .live-stage__reactions {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  border-bottom: var(--border-width) solid var(--color-border-subtle);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width) solid var(--color-border-subtle);
   background: var(--color-bg-panel-header);
 }
 .live-stage__reaction {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: var(--space-1);
-  max-width: 240px;
-  padding: 2px var(--space-2);
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--color-border-subtle);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--color-bg-field);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);

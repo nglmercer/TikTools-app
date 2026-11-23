@@ -482,6 +482,7 @@ export default {
   },
   feed: {
     title: 'Activité en direct',
+    liveTitle: 'En direct · {count} spectateurs',
     system: 'Système',
     resumed: 'Le flux a repris. Les événements reçus pendant sa mise en veille ont été ignorés.',
     filterLabel: 'Type d’événement',

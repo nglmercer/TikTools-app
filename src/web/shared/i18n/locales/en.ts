@@ -480,6 +480,7 @@ export default {
   },
   feed: {
     title: 'Live activity',
+    liveTitle: 'Live · {count} viewers',
     system: 'System',
     resumed: 'Feed resumed. Events received while hidden were skipped.',
     filterLabel: 'Event type',

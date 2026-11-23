@@ -480,6 +480,7 @@ export default {
   },
   feed: {
     title: "ライブアクティビティ",
+    liveTitle: "ライブ中 · {count} 人視聴中",
     system: "システム",
     resumed: "フィードを再開しました。非表示中に受信したイベントはスキップしました。",
     filterLabel: "イベントの種類",

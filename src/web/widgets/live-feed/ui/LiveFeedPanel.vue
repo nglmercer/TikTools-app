@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
 import { eventFilters, filterEvents, windowEvents } from '@/entities/live-event/lib/event-filter.ts';
 import { filterIcon } from '@/entities/live-event/lib/event-type-icon.ts';
+import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
 import EventRow from '@/entities/live-event/ui/EventRow.vue';
 import LiveFeedStage from './LiveFeedStage.vue';
@@ -46,7 +47,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const store = useLiveFeedStore();
-const { events, filter, searchQuery, autoScroll, unreadCount, droppedUiEvents, renderLimit, imagesEnabled } = storeToRefs(store);
+const connection = useConnectionStore();
+const { events, filter, searchQuery, autoScroll, unreadCount, droppedUiEvents, renderLimit, imagesEnabled, liveViewers } = storeToRefs(store);
+const { status } = storeToRefs(connection);
+const panelTitle = computed(() => status.value === 'connected'
+  ? t('feed.liveTitle', { count: liveViewers.value })
+  : t('feed.title'));
 
 type ViewMode = 'stage' | 'list';
 const view = ref<ViewMode>('stage');
@@ -93,7 +99,7 @@ function onMenu(action: MenuAction): void {
 <template>
   <BasePanel
     class="live-feed"
-    :title="t('feed.title')"
+    :title="panelTitle"
     flush
   >
     <template #actions>
@@ -187,7 +193,7 @@ function onMenu(action: MenuAction): void {
       class="live-feed__stream"
       data-guide="feed-stage"
       role="log"
-      :aria-label="t('feed.title')"
+      :aria-label="panelTitle"
     >
       <BaseEmptyState
         v-if="!filtered.length"
