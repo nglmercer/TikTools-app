@@ -22,7 +22,15 @@ export async function runSiteTask(namespace: 'docs' | 'demo' | 'site', args: str
       await runner.tool('vite', 'build');
       await runner.tool('playwright', 'test', '--config', 'playwright.site.config.ts');
     }
-    else if (action === 'dev' || action === 'preview') await runner.run(runner.bun, 'run', '--cwd', 'docs', action);
+    else if (action === 'dev') {
+      // DemoFrame embeds /demo/ through the VitePress proxy. Start the demo
+      // alongside the docs so the documented `docs dev` command never returns
+      // iframes that fail with ECONNREFUSED on the proxy target port.
+      await Promise.all([
+        runner.run(runner.bun, 'run', '--cwd', 'docs', 'dev'),
+        runner.tool('vite', '--config', 'vite.demo.config.ts'),
+      ]);
+    } else if (action === 'preview') await runner.run(runner.bun, 'run', '--cwd', 'docs', 'preview');
     else if (action === 'build') {
       await runner.run(runner.bun, 'docs/scripts/check.ts');
       await runner.run(runner.bun, 'docs/scripts/generate-references.ts', '--check');
@@ -37,9 +45,8 @@ export async function runSiteTask(namespace: 'docs' | 'demo' | 'site', args: str
     return;
   }
   if (action === 'dev') {
-    // Docs dev proxies /demo/ to the demo dev server, so both must run together
-    // for embedded frames to show the real application during development.
-    await Promise.all([runSiteTask('docs', ['dev'], runner), runSiteTask('demo', ['dev'], runner)]);
+    // `docs dev` already starts both servers (DemoFrame needs the demo proxy).
+    await runSiteTask('docs', ['dev'], runner);
   } else if (action === 'build') {
     await runSiteTask('docs', ['build'], runner);
     await runSiteTask('demo', ['build'], runner);

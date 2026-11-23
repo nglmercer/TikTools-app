@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
-translationRevision: "3ac934adcd87c9b49562e98a054d0f77254308641551707e63ddbab94d483e89"
+sourceRevision: "cfa06c11d3c238ac914b0a3a6c2a65881a85b3ad8e6f5a14b7074c4973d4d8c8"
+translationRevision: "975747ee920b446b0cc7f56f824cbf2a61079f180b675150187bf22d85889935"
 order: 0
 ---
 
@@ -24,7 +24,7 @@ TikTools conserve un seul AppCore natif derrière des opérations de contrôle t
 | Intégration de bureau | `bun run start` | Intégration WebView et IPC de développement. |
 | Services natifs | Tests Cargo ciblés | Contrats du cœur, persistance et comportement des services. |
 | Accès navigateur sans interface native | `bun run dev` | Un hôte natif, un adaptateur local et Vite avec appairage. |
-| Documentation | `bun scripts/task.ts docs dev` | Markdown et compilation VitePress isolée. |
+| Documentation | `bun scripts/task.ts docs dev` | Markdown, VitePress et le serveur de démo pour les exemples intégrés. |
 | Démo publique | Entrée de démo distincte et transport simulé | Scénarios fictifs déterministes, pas les services distants. |
 
 ## Responsabilité du code source {#source-ownership}

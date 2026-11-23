@@ -104,7 +104,7 @@ test('product landing pages show the real demo automatically and fit every viewp
     await expect(page.locator('.docs-home__eyebrow')).toHaveCSS('white-space', 'nowrap');
     await expect(page.locator('main a[href*="/user/"]').first()).toBeVisible();
     await expect(page.locator('main a[href*="/developer/"]').first()).toBeVisible();
-    for (const selector of ['.product-stage__heading','.product-stage__tabs','.product-stage__flow','.product-stage__bar > a','.product-stage .demo-frame__actions']) {
+    for (const selector of ['.product-stage__heading','.product-stage__tabs','.product-stage__flow','.product-stage__bar > a','.product-stage .demo-frame__bar']) {
       await expect(page.locator(selector)).toHaveCount(0);
     }
     await expect(page.locator('iframe')).toHaveCount(1);

@@ -16,7 +16,6 @@ for (const locale of docLocales) {
     await expect(page).toHaveURL(new RegExp(`/${locale}/user/first-live.html$`));
     const panels = page.locator('.demo-frame');
     await expect(panels).toHaveCount(2);
-    await panels.first().getByRole('button', { name: docCopy[locale].loadDemo, exact: true }).click();
     const connection = page.frameLocator('.demo-frame[data-panel="connection"] iframe');
     await expect(connection.locator('html')).toHaveAttribute('lang', locale);
     await expect(connection.locator('.connections-page__live')).toBeVisible();
@@ -24,7 +23,6 @@ for (const locale of docLocales) {
     await expect(connection.locator('.app-layout__navigation')).toBeHidden();
     const handle = connection.locator('#live-handle');
     await handle.fill('isolated_creator');
-    await panels.nth(1).getByRole('button', { name: docCopy[locale].loadDemo, exact: true }).click();
     const feed = page.frameLocator('.demo-frame[data-panel="feed"] iframe');
     await expect(feed.locator('.live-feed')).toContainText('Hello TikTools!');
     await panels.nth(1).getByTestId('frame-step').click();
@@ -48,7 +46,6 @@ for (const locale of docLocales) {
   test(`${locale}: article zoom preserves a desktop viewport, working controls and existing state`, async ({ page }) => {
     await page.goto(`${locale}/user/live/feed.html`);
     const panel = page.locator('.demo-frame');
-    await panel.getByRole('button', { name:docCopy[locale].loadDemo,exact:true }).click();
     const frame = (await (await panel.locator('iframe').elementHandle())!.contentFrame())!;
     await expect(frame.locator('#demo-controls')).toBeHidden();
     await expect(panel.getByTestId('frame-step')).toBeEnabled();
@@ -93,7 +90,7 @@ for (const locale of docLocales) {
     page.on('request', request => { if (!request.url().startsWith(baseURL!) && !/^(data:|blob:)/.test(request.url())) outbound.push(request.url()); });
     await page.setViewportSize({ width:1440,height:960 });
     await page.goto(`${locale}/`);
-    for (const selector of ['.product-stage__heading','.product-stage__tabs','.product-stage__flow','.product-stage__bar > a','.product-stage .demo-frame__actions']) {
+    for (const selector of ['.product-stage__heading','.product-stage__tabs','.product-stage__flow','.product-stage__bar > a','.product-stage .demo-frame__bar']) {
       await expect(page.locator(selector)).toHaveCount(0);
     }
     await expect(page.locator('iframe')).toHaveCount(1);

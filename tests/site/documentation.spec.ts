@@ -175,7 +175,7 @@ for (const locale of docLocales) {
   });
 }
 
-test('docs load demo iframes only on demand without native IPC or external requests', async ({ page, baseURL }) => {
+test('docs load demo iframes automatically without native IPC or external requests', async ({ page, baseURL }) => {
   const network = await localNetworkOnly(page, baseURL!);
   const requests: string[] = [];
   const errors: string[] = [];
@@ -183,19 +183,16 @@ test('docs load demo iframes only on demand without native IPC or external reque
   page.on('pageerror', (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 960 });
   await page.goto('es/user/live/feed.html');
-  await expect(page.getByRole('button', { name: 'Cargar demo interactiva', exact: true })).toBeVisible();
-  await expect(page.locator('iframe')).toHaveCount(0);
-  expect(requests.some((url) => new URL(url).pathname.startsWith(`${site.base}demo/`))).toBe(false);
-  await page.screenshot({ path: '/tmp/tiktools-docs-review-docs-desktop.png' });
-  await page.getByRole('button', { name: 'Cargar demo interactiva', exact: true }).click();
+  await expect(page.locator('iframe')).toHaveCount(1);
+  expect(requests.some((url) => new URL(url).pathname.startsWith(`${site.base}demo/`))).toBe(true);
   const frame = await demoFrame(page);
   await expect(frame.locator('html')).toHaveAttribute('lang', 'es');
   expect(new URL(frame.url()).origin).toBe(new URL(baseURL!).origin);
   expect(await frame.evaluate(() => Object.hasOwn(window, 'ipc'))).toBe(false);
   expect(await frame.evaluate(() => Object.hasOwn(window, '__TIKTOOLS_E2E_STATE__'))).toBe(false);
   await expect(page.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin');
-  await page.getByRole('button', { name: 'Cerrar demo', exact: true }).click();
-  await expect(page.locator('iframe')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Cargar demo interactiva', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: '/tmp/tiktools-docs-review-docs-desktop.png' });
   expect(network.external).toEqual([]);
   expect(network.sockets).toEqual([]);
   expect(errors).toEqual([]);
@@ -210,7 +207,6 @@ test('two same-origin demo frames isolate preferences and reset preserves app pl
     localStorage.setItem('tiktok-live-view-state', JSON.stringify({ version: 1, feed: { searchQuery: 'real-app-query' } }));
     sessionStorage.setItem('real-app-session-sentinel', 'keep-session');
   });
-  await page.getByRole('button', { name: 'Load interactive demo', exact: true }).click();
   const first = await demoFrame(page);
   const firstId = new URL(first.url()).searchParams.get('instance')!;
   const secondURL = new URL(first.url()); secondURL.searchParams.set('instance', `${firstId.slice(0, 50)}-b`);

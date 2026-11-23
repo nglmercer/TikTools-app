@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
-translationRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
+sourceRevision: "cfa06c11d3c238ac914b0a3a6c2a65881a85b3ad8e6f5a14b7074c4973d4d8c8"
+translationRevision: "cfa06c11d3c238ac914b0a3a6c2a65881a85b3ad8e6f5a14b7074c4973d4d8c8"
 order: 0
 ---
 
@@ -24,7 +24,7 @@ TikTools keeps one native AppCore behind typed control operations. Vue renders t
 | Desktop integration | `bun run start` | Development WebView and IPC integration. |
 | Native services | Targeted Cargo tests | Core contracts, persistence and service behavior. |
 | Headless browser access | `bun run dev` | A native host, local adapter and Vite with pairing. |
-| Documentation | `bun scripts/task.ts docs dev` | Markdown and isolated VitePress build. |
+| Documentation | `bun scripts/task.ts docs dev` | Markdown, VitePress and the demo dev server for embedded demos. |
 | Public demo | Separate demo entry and simulated transport | Fictional deterministic scenarios, not upstream services. |
 
 ## Source ownership {#source-ownership}

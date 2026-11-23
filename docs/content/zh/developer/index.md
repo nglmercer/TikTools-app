@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
-translationRevision: "7f8b04a6e385380aa94a58ef10fb75e21b76719459476fcc038665d07d1441e8"
+sourceRevision: "cfa06c11d3c238ac914b0a3a6c2a65881a85b3ad8e6f5a14b7074c4973d4d8c8"
+translationRevision: "ef4222d10be52ac178ecc1ec052aad03497d14508280762e01fe3afe1267d951"
 order: 0
 ---
 
@@ -24,7 +24,7 @@ TikTools 在类型化控制操作背后维护单个原生 AppCore。Vue 渲染�
 | 桌面集成 | `bun run start` | 开发 WebView 与 IPC 集成。 |
 | 原生服务 | 针对性 Cargo 测试 | 核心契约、持久化及服务行为。 |
 | 无界面浏览器访问 | `bun run dev` | 原生宿主、本地适配器及带配对的 Vite。 |
-| 文档 | `bun scripts/task.ts docs dev` | Markdown 及隔离的 VitePress 构建。 |
+| 文档 | `bun scripts/task.ts docs dev` | Markdown、VitePress 以及用于内嵌示例的 demo 开发服务器。 |
 | 公开演示 | 独立演示入口及模拟传输 | 虚构且确定的场景，不验证上游服务。 |
 
 ## 源码职责 {#source-ownership}

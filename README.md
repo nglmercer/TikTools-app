@@ -149,9 +149,9 @@ documentation maintenance and release policy.
 | `bun run test` | Fast Bun and Vitest unit suites |
 | `bun run ci` | Contract checks, lint, tests, native verification and application build |
 | `bun scripts/task.ts docs check` | Public article metadata, translations and links |
-| `bun scripts/task.ts docs dev` | VitePress development server |
+| `bun scripts/task.ts docs dev` | VitePress and demo dev servers (embedded demos work) |
 | `bun scripts/task.ts demo dev` | Fictional-data browser demo development server |
-| `bun scripts/task.ts site dev` | Docs and demo dev servers together (embedded demos work) |
+| `bun scripts/task.ts site dev` | Alias of `docs dev` |
 | `bun scripts/task.ts site build` | Build and assemble docs plus demo into `dist/site` |
 
 `bun ci` installs from the committed lockfile. Run targeted tests through the

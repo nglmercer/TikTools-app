@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "1ee65a70172f8154eeaf60fb1a3069192769582a4ef264426d0aefaf346e8003"
-translationRevision: "d30e9e185b058a920cbfcb31e41a7865112d9dea11de7ff1dd58acef2f34cc69"
+sourceRevision: "cfa06c11d3c238ac914b0a3a6c2a65881a85b3ad8e6f5a14b7074c4973d4d8c8"
+translationRevision: "7eef83abeb1ebad2677a7c25b4629c5ee44ccea8d4f93e813f7949d9d04e109e"
 order: 0
 ---
 
@@ -24,7 +24,7 @@ TikTools は型付き制御操作の背後に1つのネイティブ AppCore を�
 | デスクトップ連携 | `bun run start` | 開発用 WebView と IPC の連携。 |
 | ネイティブサービス | 対象を絞った Cargo テスト | コア契約、永続化、サービス動作。 |
 | ヘッドレスのブラウザー接続 | `bun run dev` | ネイティブホスト、ローカルアダプター、ペアリング付き Vite。 |
-| ドキュメント | `bun scripts/task.ts docs dev` | Markdown と分離した VitePress ビルド。 |
+| ドキュメント | `bun scripts/task.ts docs dev` | Markdown、VitePress、埋め込みデモ用のデモ開発サーバー。 |
 | 公開デモ | 独立したデモ入口と模擬通信 | 配信元サービスではなく、決定的な架空シナリオ。 |
 
 ## ソースの担当範囲 {#source-ownership}
