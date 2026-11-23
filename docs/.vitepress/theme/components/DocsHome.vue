@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useData, withBase } from 'vitepress';
 import { documentLocale } from '../../../locales.ts';
 import { experienceCopy } from '../../../experience/copy.ts';
 import type { Topic } from '../../../experience/types.ts';
 import DemoFrame from './DemoFrame.vue';
 import { landingCopy } from '../../../experience/landing/index.ts';
+import IconChat from '../../../../src/web/shared/ui/icon/icons/IconChat.vue';
 import IconLink from '../../../../src/web/shared/ui/icon/icons/IconLink.vue';
 import IconFlow from '../../../../src/web/shared/ui/icon/icons/IconFlow.vue';
 import IconLayers from '../../../../src/web/shared/ui/icon/icons/IconLayers.vue';
@@ -19,9 +20,17 @@ const locale = computed(() => documentLocale(lang.value));
 const copy = computed(() => experienceCopy[locale.value]);
 const landing = computed(() => landingCopy[locale.value]);
 const topics: Topic[] = ['connection', 'automation', 'overlays', 'points'];
-const icons = { connection: IconLink, automation: IconFlow, overlays: IconLayers, points: IconCoins };
-const guides = { connection: 'first-live', automation: 'automations/first-rule', overlays: 'overlays/', points: 'points/rules' };
-const guideHref = (topic: Topic) => withBase(`/${locale.value}/user/${guides[topic]}${guides[topic].endsWith('/') ? '' : '.html'}`);
+type Section = 'feed' | Topic;
+const sections: Section[] = ['feed', 'connection', 'automation', 'overlays', 'points'];
+const icons = { feed: IconChat, connection: IconLink, automation: IconFlow, overlays: IconLayers, points: IconCoins };
+const guides: Record<Topic, string> = { connection: 'first-live', automation: 'automations/first-rule', overlays: 'overlays/', points: 'points/rules' };
+const active = ref<Section>('feed');
+const activeTitle = computed(() => active.value === 'feed' ? landing.value.feed : copy.value.topics[active.value].title);
+const activeText = computed(() => active.value === 'feed' ? landing.value.stageHint : copy.value.topics[active.value].task);
+const sectionLabel = (section: Section) => section === 'feed' ? landing.value.feed : copy.value.topics[section].title;
+const guideHref = (section: Section) => section === 'feed'
+  ? withBase(`/${locale.value}/user/live/feed.html`)
+  : withBase(`/${locale.value}/user/${guides[section]}${guides[section].endsWith('/') ? '' : '.html'}`);
 </script>
 
 <template>
@@ -40,14 +49,21 @@ const guideHref = (topic: Topic) => withBase(`/${locale.value}/user/${guides[top
 
     <section id="playground" class="product-stage" :aria-label="landing.feed">
       <div class="product-stage__window">
-        <div class="product-stage__bar"><span class="product-stage__brand">TikTools</span></div>
+        <div class="product-stage__bar">
+          <span class="product-stage__brand" :title="`demo:${active}`">TikTools<small class="product-stage__demo-tag">demo:{{ active }}</small></span>
+        </div>
         <div class="product-stage__body">
           <aside class="product-stage__lesson">
-            <h3>{{ landing.feed }}</h3>
-            <p>{{ landing.stageHint }}</p>
-            <a :href="withBase(`/${locale}/user/live/feed.html`)">{{ copy.readGuide }} <span aria-hidden="true">→</span></a>
+            <h3>{{ activeTitle }}</h3>
+            <p>{{ activeText }}</p>
+            <div class="product-stage__sections" role="tablist" :aria-label="landing.feed">
+              <button v-for="section in sections" :key="section" type="button" role="tab" :aria-selected="active === section" :class="{ 'product-stage__section--active': active === section }" @click="active = section">
+                <component :is="icons[section]" aria-hidden="true" />{{ sectionLabel(section) }}
+              </button>
+            </div>
+            <a :href="guideHref(active)">{{ copy.readGuide }} <span aria-hidden="true">→</span></a>
           </aside>
-          <DemoFrame :key="locale" scenario="feed" :locale="locale" panel="feed" :title="landing.feed" :initial-events="9" autoload minimal />
+          <DemoFrame :key="`${locale}-${active}`" :scenario="active" :locale="locale" :panel="active" :title="activeTitle" :initial-events="active === 'feed' ? 9 : undefined" autoload minimal />
         </div>
       </div>
     </section>

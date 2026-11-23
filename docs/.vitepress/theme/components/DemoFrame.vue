@@ -12,6 +12,8 @@ import IconPlay from '../../../../src/web/shared/ui/icon/icons/IconPlay.vue';
 import IconPause from '../../../../src/web/shared/ui/icon/icons/IconPause.vue';
 import IconRefresh from '../../../../src/web/shared/ui/icon/icons/IconRefresh.vue';
 import IconChevronRight from '../../../../src/web/shared/ui/icon/icons/IconChevronRight.vue';
+import IconPopout from '../../../../src/web/shared/ui/icon/icons/IconPopout.vue';
+import IconSearch from '../../../../src/web/shared/ui/icon/icons/IconSearch.vue';
 
 const props = defineProps<{ scenario: string; locale?: string; route?: string; tour?: string; title: string; panel?: 'connection' | 'feed' | 'automation' | 'points' | 'overlays'; autoload?: boolean; minimal?: boolean; initialEvents?: number; scale?: 0.25 | 0.5 | 0.75 | 1; viewportHeight?: number }>();
 const { lang, isDark } = useData();
@@ -76,22 +78,28 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
 
 <template>
   <section ref="root" class="demo-frame" :class="{ 'demo-frame--focused': panel, 'demo-frame--minimal': minimal, 'demo-frame--fit': zoom === 'fit' }" :style="frameStyle" :data-panel="panel" :aria-label="title">
-    <div v-if="!minimal" class="demo-frame__heading"><span class="demo-frame__dot" /><strong>{{ title }}</strong><span class="demo-frame__badge">{{ copy.fictional }}</span></div>
+    <div v-if="!minimal" class="demo-frame__heading"><span class="demo-frame__dot" /><strong class="demo-frame__title">{{ title }}<small class="demo-frame__demo-tag">demo:{{ props.scenario }}</small></strong></div>
     <div v-if="!minimal" class="demo-frame__actions">
-      <button type="button" :aria-expanded="loaded" @click="toggle">{{ loaded ? t.closeDemo : t.loadDemo }}</button><a :href="fullUrl" target="_blank" rel="noopener">{{ t.fullDemo }} ↗︎</a>
+      <button type="button" :aria-expanded="loaded" @click="toggle">{{ loaded ? t.closeDemo : t.loadDemo }}</button>
       <div v-if="loaded" class="demo-frame__tools" role="group" :aria-label="copy.interactive">
         <button type="button" data-testid="frame-play" :aria-label="runtime?.paused === false ? player.pause : player.play" :title="runtime?.paused === false ? player.pause : player.play" :aria-pressed="runtime?.paused === false" :disabled="!canRun" @click="command({ action:'play' })"><IconPause v-if="runtime?.paused === false" /><IconPlay v-else /></button>
         <button type="button" data-testid="frame-step" :aria-label="player.step" :title="player.step" :disabled="!canRun" @click="command({ action:'step' })"><IconChevronRight /></button>
         <button type="button" data-testid="frame-reset" :aria-label="copy.reset" :title="copy.reset" :disabled="!runtime?.ready" @click="command({ action:'reset' })"><IconRefresh /></button>
         <output v-if="runtime" class="demo-frame__count" :aria-label="player.events">{{ runtime.events }}</output>
         <select v-if="panel === 'connection'" class="demo-frame__case" :aria-label="copy.connectionStates.label" :value="runtime?.connectionCase ?? 'normal'" :disabled="!runtime?.ready" @change="command({ action:'connection-case', value:($event.target as HTMLSelectElement).value as 'normal' | 'offline' | 'auth' })"><option value="normal">{{ copy.connectionStates.normal }}</option><option value="offline">{{ copy.connectionStates.offline }}</option><option value="auth">{{ copy.connectionStates.auth }}</option></select>
-        <label class="demo-frame__zoom" :title="labels.desktop"><span>{{ labels.zoom }}</span><select v-model="zoom" data-testid="frame-zoom" :aria-label="labels.zoom"><option value="fit">{{ labels.fit }} ({{ Math.round(Math.min(1,(measuredWidth || 1280)/1280)*100) }}%)</option><option v-for="level in zoomLevels" :key="level" :value="String(level)">{{ level*100 }}%</option></select></label>
       </div>
     </div>
     <p v-if="panel === 'connection' && runtime && runtime.connectionCase !== 'normal'" class="demo-frame__recovery" role="status">{{ runtime.connectionCase === 'offline' ? copy.connectionStates.offlineHelp : copy.connectionStates.authHelp }}</p>
     <template v-if="loaded">
       <div class="demo-frame__viewport">
         <p v-if="!ready" class="demo-frame__loading" role="status">{{ copy.loading }}</p>
+        <div class="demo-frame__overlay">
+          <a :href="fullUrl" target="_blank" rel="noopener" :aria-label="t.fullDemo" :title="t.fullDemo"><IconPopout /><span class="demo-frame__overlay-label">demo</span></a>
+          <label class="demo-frame__overlay-zoom" :title="labels.desktop">
+            <IconSearch /><span class="demo-frame__sr-only">{{ labels.zoom }}</span>
+            <select v-model="zoom" data-testid="frame-zoom" :aria-label="labels.zoom"><option value="fit">{{ labels.fit }} ({{ Math.round(Math.min(1,(measuredWidth || 1280)/1280)*100) }}%)</option><option v-for="level in zoomLevels" :key="level" :value="String(level)">{{ level*100 }}%</option></select>
+          </label>
+        </div>
         <div class="demo-frame__canvas"><iframe ref="iframe" :src="url" :title="title" :loading="autoload ? 'eager' : 'lazy'" :style="{ visibility:measuredWidth ? 'visible' : 'hidden' }" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" @load="ready = true" /></div>
       </div>
     </template>
@@ -105,7 +113,10 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
 .demo-frame { margin: 1.5rem 0; overflow:hidden; border: 1px solid var(--vp-c-divider); border-radius:12px; background:var(--vp-c-bg-soft); }
 .demo-frame__heading { display:flex; align-items:center; gap:8px; padding:14px 18px 0; font-size:13px; }
 .demo-frame__dot { width:7px; height:7px; border-radius:50%; background:var(--vp-c-brand-1); flex-shrink:0; }
-.demo-frame__badge { margin-left:auto; color:var(--vp-c-text-2); font:10px var(--vp-font-family-mono); }
+.demo-frame__title { display:inline-flex; align-items:baseline; gap:8px; font-weight:600; }
+.demo-frame__demo-tag { color:var(--vp-c-text-3); font:10px var(--vp-font-family-mono); font-weight:400; opacity:0; transition:opacity .15s; }
+.demo-frame__heading:hover .demo-frame__demo-tag,
+.demo-frame__title:focus-visible .demo-frame__demo-tag { opacity:1; }
 .demo-frame__actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 14px; font-size:12px; }
 .demo-frame__actions button { padding:6px 10px; border:1px solid var(--vp-c-divider); border-radius:5px; background:var(--vp-c-bg); cursor:pointer; font-weight:600; }
 .demo-frame__actions button:disabled { opacity:.45; cursor:default; }
@@ -113,14 +124,21 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
 .demo-frame__tools > button { display:grid; place-items:center; width:30px; height:30px; padding:6px; flex:none; }
 .demo-frame__tools svg { width:15px; height:15px; }
 .demo-frame__count { padding:0 4px; color:var(--vp-c-text-2); font-size:10px; font-variant-numeric:tabular-nums; }
-.demo-frame__zoom { display:flex; align-items:center; gap:6px; margin-left:auto; color:var(--vp-c-text-2); font-size:11px; }
-.demo-frame__zoom select,.demo-frame__case { padding:5px 8px; min-height:30px; border:1px solid var(--vp-c-divider); border-radius:5px; background:var(--vp-c-bg); color:var(--vp-c-text-1); font:11px var(--vp-font-family-base); cursor:pointer; }
-.demo-frame__case { max-width:190px; min-width:0; }
+.demo-frame__case { padding:5px 8px; min-height:30px; max-width:190px; min-width:0; border:1px solid var(--vp-c-divider); border-radius:5px; background:var(--vp-c-bg); color:var(--vp-c-text-1); font:11px var(--vp-font-family-base); cursor:pointer; }
 .demo-frame__recovery { margin:0; padding:10px 14px; font-size:12px; line-height:1.7; border-top:1px solid var(--vp-c-divider); }
 .demo-frame :focus-visible { outline: 2px solid var(--vp-c-brand-1); outline-offset: 3px; }
 /* Keep horizontal scroll inside the frame, but let vertical scroll chain to
    the article so the wheel never dies when the pointer is over the demo. */
-.demo-frame__viewport { position:relative; overflow:auto; overscroll-behavior-x:contain; overscroll-behavior-y:auto; background:#1c1d24; }
+.demo-frame__viewport { position:relative; overflow:auto; overscroll-behavior-x:contain; overscroll-behavior-y:auto; background:var(--vp-c-bg-soft); }
+.demo-frame__overlay { position:absolute; z-index:3; top:10px; right:12px; display:flex; align-items:center; gap:8px; opacity:0; pointer-events:none; transition:opacity .15s; }
+.demo-frame:hover .demo-frame__overlay,
+.demo-frame:focus-within .demo-frame__overlay { opacity:1; pointer-events:auto; }
+.demo-frame__overlay a,.demo-frame__overlay-zoom { display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid var(--vp-c-divider); border-radius:6px; background:var(--vp-c-bg); color:var(--vp-c-text-1); text-decoration:none; }
+.demo-frame__overlay svg { width:14px; height:14px; }
+.demo-frame__overlay-label { color:var(--vp-c-text-3); font:10px var(--vp-font-family-mono); opacity:0; transition:opacity .15s; }
+.demo-frame__overlay a:hover .demo-frame__overlay-label { opacity:1; }
+.demo-frame__overlay-zoom select { border:0; background:transparent; color:inherit; font:11px var(--vp-font-family-base); cursor:pointer; }
+.demo-frame__sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .demo-frame__canvas { position:relative; width:calc(1280px * var(--frame-scale)); height:calc(var(--frame-height) * 1px * var(--frame-scale)); margin-inline:auto; }
 .demo-frame--fit .demo-frame__canvas { width:min(100%,1280px); height:auto; aspect-ratio:1280 / var(--frame-height); }
 .demo-frame iframe { position:absolute; top:0; left:0; display:block; width:1280px; max-width:none; height:calc(var(--frame-height) * 1px); border:0; transform:scale(var(--frame-scale)); transform-origin:top left; }
@@ -134,7 +152,7 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
 .demo-frame__generic > small { color:var(--vp-c-text-2); font-size:12px; }
 .demo-frame__outcome { display:flex; gap:10px; padding:12px 18px; border-top:1px solid var(--vp-c-divider); color:var(--vp-c-text-2); font-size:12px; line-height:1.6; }
 .demo-frame__outcome p { margin:0; }
-.demo-frame__loading { position:absolute; z-index:1; inset:0; display:grid; place-items:center; margin:0; padding:12px 18px; font-size:13px; background:#1c1d24; color:#d9dce7; pointer-events:none; }
-.demo-frame__waiting { display:grid; place-items:center; width:min(100%,1280px); aspect-ratio:1280 / var(--frame-height); background:#1c1d24; color:#d9dce7; font-size:13px; }
-@media(max-width:600px) { .demo-frame__badge { display:none; } .demo-frame__case { max-width:155px; } .demo-frame__zoom > span { display:none; } }
+.demo-frame__loading { position:absolute; z-index:1; inset:0; display:grid; place-items:center; margin:0; padding:12px 18px; font-size:13px; background:var(--vp-c-bg-soft); color:var(--vp-c-text-2); pointer-events:none; }
+.demo-frame__waiting { display:grid; place-items:center; width:min(100%,1280px); aspect-ratio:1280 / var(--frame-height); background:var(--vp-c-bg-soft); color:var(--vp-c-text-2); font-size:13px; }
+@media(max-width:600px) { .demo-frame__case { max-width:155px; } .demo-frame__overlay-label { display:none; } }
 </style>

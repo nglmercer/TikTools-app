@@ -1,4 +1,5 @@
 import { docLocales } from '../../docs/locales.ts';
+import { experienceCopy } from '../../docs/experience/copy.ts';
 import { test, expect } from '@playwright/test';
 
 test('demo toolbar shares real controls, contains menus and fits desktop and mobile', async ({ page }) => {
@@ -41,6 +42,19 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-desktop.png' });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-mobile.png' });
+});
+
+test('the landing lesson switches demo sections and exposes hover controls', async ({ page }) => {
+  await page.goto('');
+  const tabs = page.locator('.product-stage__sections button');
+  await expect(tabs).toHaveCount(5);
+  await tabs.nth(1).click();
+  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.product-stage__lesson h3')).toHaveText(experienceCopy.en.topics.connection.title);
+  await expect(page.locator('.product-stage iframe')).toHaveAttribute('src', /scenario=connection/);
+  await page.locator('.product-stage .demo-frame').hover();
+  await expect(page.locator('.product-stage .demo-frame__overlay a')).toBeVisible();
+  await expect(page.getByTestId('frame-zoom')).toBeVisible();
 });
 
 test('the embedded demo follows the documentation theme without reloading', async ({ page }) => {
