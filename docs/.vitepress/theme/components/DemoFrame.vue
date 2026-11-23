@@ -13,13 +13,14 @@ import IconPause from '../../../../src/web/shared/ui/icon/icons/IconPause.vue';
 import IconRefresh from '../../../../src/web/shared/ui/icon/icons/IconRefresh.vue';
 import IconChevronRight from '../../../../src/web/shared/ui/icon/icons/IconChevronRight.vue';
 import IconPopout from '../../../../src/web/shared/ui/icon/icons/IconPopout.vue';
-import IconSearch from '../../../../src/web/shared/ui/icon/icons/IconSearch.vue';
+import BaseCompactSelect from '../../../../src/web/shared/ui/combo-box/BaseCompactSelect.vue';
 
 const props = defineProps<{ scenario: string; locale?: string; route?: string; tour?: string; title: string; panel?: 'connection' | 'feed' | 'automation' | 'points' | 'overlays'; autoload?: boolean; minimal?: boolean; initialEvents?: number; scale?: 0.25 | 0.5 | 0.75 | 1; viewportHeight?: number }>();
 const { lang, isDark } = useData();
 const loaded = ref(false);
 const ready = ref(false);
 const mounted = ref(false);
+const chromeTarget = ref(false);
 const root = ref<HTMLElement | null>(null);
 const iframe = ref<HTMLIFrameElement | null>(null);
 const measuredWidth = ref(0);
@@ -42,6 +43,7 @@ onMounted(() => {
   observer = new ResizeObserver(entries => { measuredWidth.value = entries[0]?.contentRect.width ?? 1280; });
   if (root.value) observer.observe(root.value);
   window.addEventListener('message', receiveState);
+  chromeTarget.value = Boolean(document.querySelector('#product-stage-tools'));
   mounted.value = true;
   if (props.autoload) loaded.value = true;
 });
@@ -50,6 +52,11 @@ const articleLocale = computed(() => documentLocale(lang.value));
 const t = computed(() => docCopy[articleLocale.value]);
 const copy = computed(() => experienceCopy[documentLocale(props.locale ?? lang.value)]);
 const labels = computed(() => frameCopy[documentLocale(props.locale ?? lang.value)]);
+const fitPercent = computed(() => `${Math.round(Math.min(1, (measuredWidth.value || 1280) / 1280) * 100)}%`);
+const zoomOptions = computed(() => [
+  { value: 'fit', label: `${labels.value.fit} (${fitPercent.value})`, short: fitPercent.value },
+  ...zoomLevels.map((level) => ({ value: String(level), label: `${level * 100}%`, short: `${level * 100}%` })),
+]);
 const player = computed(() => toolbarCopy[documentLocale(props.locale ?? lang.value)]);
 const topic = computed<Topic>(() => ['automation', 'overlays', 'points'].includes(props.scenario) ? props.scenario as Topic : 'connection');
 // Snapshot only: changing the docs theme must not reload the iframe. Live
@@ -93,13 +100,31 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
     <template v-if="loaded">
       <div class="demo-frame__viewport">
         <p v-if="!ready" class="demo-frame__loading" role="status">{{ copy.loading }}</p>
-        <div class="demo-frame__overlay">
-          <a :href="fullUrl" target="_blank" rel="noopener" :aria-label="t.fullDemo" :title="t.fullDemo"><IconPopout /><span class="demo-frame__overlay-label">demo</span></a>
-          <label class="demo-frame__overlay-zoom" :title="labels.desktop">
-            <IconSearch /><span class="demo-frame__sr-only">{{ labels.zoom }}</span>
-            <select v-model="zoom" data-testid="frame-zoom" :aria-label="labels.zoom"><option value="fit">{{ labels.fit }} ({{ Math.round(Math.min(1,(measuredWidth || 1280)/1280)*100) }}%)</option><option v-for="level in zoomLevels" :key="level" :value="String(level)">{{ level*100 }}%</option></select>
-          </label>
-        </div>
+        <Teleport
+          to="#product-stage-tools"
+          :disabled="!minimal || !chromeTarget"
+        >
+          <div
+            class="demo-frame__overlay"
+            :class="{ 'demo-frame__overlay--docked': minimal && chromeTarget }"
+          >
+            <a
+              :href="fullUrl"
+              target="_blank"
+              rel="noopener"
+              :aria-label="t.fullDemo"
+              :title="t.fullDemo"
+            ><IconPopout /><span class="demo-frame__overlay-label">demo</span></a>
+            <BaseCompactSelect
+              v-model="zoom"
+              class="demo-frame__overlay-zoom"
+              :options="zoomOptions"
+              :ariaLabel="labels.zoom"
+              :title="labels.desktop"
+              test-id="frame-zoom"
+            />
+          </div>
+        </Teleport>
         <div class="demo-frame__canvas"><iframe ref="iframe" :src="url" :title="title" :loading="autoload ? 'eager' : 'lazy'" :style="{ visibility:measuredWidth ? 'visible' : 'hidden' }" sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer" @load="ready = true" /></div>
       </div>
     </template>
@@ -133,12 +158,11 @@ watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
 .demo-frame__overlay { position:absolute; z-index:3; top:10px; right:12px; display:flex; align-items:center; gap:8px; opacity:0; pointer-events:none; transition:opacity .15s; }
 .demo-frame:hover .demo-frame__overlay,
 .demo-frame:focus-within .demo-frame__overlay { opacity:1; pointer-events:auto; }
-.demo-frame__overlay a,.demo-frame__overlay-zoom { display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid var(--vp-c-divider); border-radius:6px; background:var(--vp-c-bg); color:var(--vp-c-text-1); text-decoration:none; }
+.demo-frame__overlay--docked { position:static; opacity:1; pointer-events:auto; transition:none; }
+.demo-frame__overlay a { display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border:1px solid var(--vp-c-divider); border-radius:6px; background:var(--vp-c-bg); color:var(--vp-c-text-1); text-decoration:none; }
 .demo-frame__overlay svg { width:14px; height:14px; }
 .demo-frame__overlay-label { color:var(--vp-c-text-3); font:10px var(--vp-font-family-mono); opacity:0; transition:opacity .15s; }
 .demo-frame__overlay a:hover .demo-frame__overlay-label { opacity:1; }
-.demo-frame__overlay-zoom select { border:0; background:transparent; color:inherit; font:11px var(--vp-font-family-base); cursor:pointer; }
-.demo-frame__sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 .demo-frame__canvas { position:relative; width:calc(1280px * var(--frame-scale)); height:calc(var(--frame-height) * 1px * var(--frame-scale)); margin-inline:auto; }
 .demo-frame--fit .demo-frame__canvas { width:min(100%,1280px); height:auto; aspect-ratio:1280 / var(--frame-height); }
 .demo-frame iframe { position:absolute; top:0; left:0; display:block; width:1280px; max-width:none; height:calc(var(--frame-height) * 1px); border:0; transform:scale(var(--frame-scale)); transform-origin:top left; }

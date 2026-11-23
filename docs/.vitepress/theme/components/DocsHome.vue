@@ -48,21 +48,24 @@ const guideHref = (section: Section) => section === 'feed'
     </div>
 
     <section id="playground" class="product-stage" :aria-label="landing.feed">
+      <header class="product-stage__intro">
+        <div class="product-stage__lesson">
+          <h3>{{ activeTitle }}</h3>
+          <p>{{ activeText }}</p>
+          <a :href="guideHref(active)">{{ copy.readGuide }} <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="product-stage__sections" role="tablist" :aria-label="landing.feed">
+          <button v-for="section in sections" :key="section" type="button" role="tab" :aria-selected="active === section" :class="{ 'product-stage__section--active': active === section }" @click="active = section">
+            <component :is="icons[section]" aria-hidden="true" />{{ sectionLabel(section) }}
+          </button>
+        </div>
+      </header>
       <div class="product-stage__window">
         <div class="product-stage__bar">
           <span class="product-stage__brand" :title="`demo:${active}`">TikTools<small class="product-stage__demo-tag">demo:{{ active }}</small></span>
+          <div id="product-stage-tools" class="product-stage__tools"></div>
         </div>
         <div class="product-stage__body">
-          <aside class="product-stage__lesson">
-            <h3>{{ activeTitle }}</h3>
-            <p>{{ activeText }}</p>
-            <div class="product-stage__sections" role="tablist" :aria-label="landing.feed">
-              <button v-for="section in sections" :key="section" type="button" role="tab" :aria-selected="active === section" :class="{ 'product-stage__section--active': active === section }" @click="active = section">
-                <component :is="icons[section]" aria-hidden="true" />{{ sectionLabel(section) }}
-              </button>
-            </div>
-            <a :href="guideHref(active)">{{ copy.readGuide }} <span aria-hidden="true">→</span></a>
-          </aside>
           <DemoFrame :key="`${locale}-${active}`" :scenario="active" :locale="locale" :panel="active" :title="activeTitle" :initial-events="active === 'feed' ? 9 : undefined" autoload minimal />
         </div>
       </div>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useData, withBase } from 'vitepress';
-import { docCopy, documentLocale, type DocLocale } from '../../../locales.ts';
-import LanguageSwitcher from '../../../../src/web/shared/ui/language-switcher/LanguageSwitcher.vue';
+import { docCopy, docLocales, documentLocale, type DocLocale } from '../../../locales.ts';
+import BaseCompactSelect from '../../../../src/web/shared/ui/combo-box/BaseCompactSelect.vue';
 
 /** The one language control for the whole site, including the unlocalized root. */
 withDefaults(defineProps<{ placement?: 'bar' | 'screen' }>(), { placement: 'bar' });
@@ -10,6 +10,7 @@ withDefaults(defineProps<{ placement?: 'bar' | 'screen' }>(), { placement: 'bar'
 const { lang, page } = useData();
 const locale = computed(() => documentLocale(lang.value || 'en'));
 const label = computed(() => docCopy[locale.value].language);
+const options = computed(() => docLocales.map((code) => ({ value: code, label: docCopy[code].label, short: code.toUpperCase() })));
 
 function hrefFor(target: DocLocale): string {
   const tail = page.value.relativePath.replace(/^[^/]+\//, '');
@@ -18,60 +19,26 @@ function hrefFor(target: DocLocale): string {
   return withBase(path) + hash;
 }
 
-function change(target: DocLocale): void {
-  location.assign(hrefFor(target));
+function change(target: string): void {
+  location.assign(hrefFor(target as DocLocale));
 }
 </script>
 
 <template>
-  <LanguageSwitcher
+  <BaseCompactSelect
     class="site-language"
     :class="`site-language--${placement}`"
-    variant="select"
-    :locale="locale"
-    :label="label"
-    :href-for="hrefFor"
-    @change="change"
+    :model-value="locale"
+    :options="options"
+    :ariaLabel="label"
+    :title="label"
+    @update:model-value="change"
   />
 </template>
 
 <style scoped>
-.site-language {
-  display: inline-flex;
-  align-items: center;
-}
-
-.site-language :deep(select) {
-  min-width: 104px;
-  min-height: 32px;
-  padding: 4px 26px 4px 10px;
-  border: 1px solid var(--site-border);
-  border-radius: var(--site-radius-sm);
-  background-color: var(--site-bg-soft);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23888' stroke-width='1.2'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 12px;
-  color: var(--vp-c-text-1);
-  font-size: var(--site-font-sm);
-  cursor: pointer;
-  appearance: none;
-}
-
-.site-language :deep(select:hover) {
-  border-color: var(--vp-c-brand-1);
-}
-
-.site-language--screen { display: block; }
-
-.site-language--screen :deep(select) {
-  width: 100%;
-  min-height: 40px;
-  border-color: var(--site-border);
-  background-color: var(--site-bg-soft);
-  color: var(--vp-c-text-1);
-  font-size: 14px;
-}
+.site-language { display: inline-flex; align-items: center; }
+.site-language--screen { width: 100%; justify-content: space-between; min-height: 40px; }
 
 @media (min-width: 768px) {
   .site-language--screen { display: none; }

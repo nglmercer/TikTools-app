@@ -44,7 +44,7 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-mobile.png' });
 });
 
-test('the landing lesson switches demo sections and exposes hover controls', async ({ page }) => {
+test('the landing lesson switches demo sections and docks the demo controls in the bar', async ({ page }) => {
   await page.goto('');
   const tabs = page.locator('.product-stage__sections button');
   await expect(tabs).toHaveCount(5);
@@ -52,9 +52,9 @@ test('the landing lesson switches demo sections and exposes hover controls', asy
   await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.product-stage__lesson h3')).toHaveText(experienceCopy.en.topics.connection.title);
   await expect(page.locator('.product-stage iframe')).toHaveAttribute('src', /scenario=connection/);
-  await page.locator('.product-stage .demo-frame').hover();
-  await expect(page.locator('.product-stage .demo-frame__overlay a')).toBeVisible();
-  await expect(page.getByTestId('frame-zoom')).toBeVisible();
+  await expect(page.locator('.product-stage__bar .demo-frame__overlay a')).toBeVisible();
+  await expect(page.locator('.product-stage__bar [data-testid="frame-zoom"]')).toBeVisible();
+  await expect(page.locator('.product-stage__bar .compact-select__value')).toHaveText(/^\d+%$/);
 });
 
 test('the embedded demo follows the documentation theme without reloading', async ({ page }) => {
