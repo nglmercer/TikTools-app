@@ -9,6 +9,10 @@ import { buildPluginUi, executableName, pluginCargoManifest, processBinaryName }
 
 export const repositoryRoot = resolve(import.meta.dir, '..');
 const cargoWrapper = join(repositoryRoot, 'scripts', 'cargo-with-linker.mjs');
+// Staging builds up to ten plugins in one run; suppress the wrapper's
+// "using kache/mold" notice after the first invocation so startup logs stay
+// focused on what actually changed. Errors and warnings are unaffected.
+const quietCargoEnvironment = { TIKTOOLS_CARGO_WRAPPER_QUIET: '1' };
 const developmentPluginRoot = join(repositoryRoot, '.dev-plugins');
 
 type PluginManifest = {
@@ -18,10 +22,11 @@ type PluginManifest = {
   [key: string]: unknown;
 };
 
-function run(command: string, args: string[], cwd = repositoryRoot): void {
+function run(command: string, args: string[], cwd = repositoryRoot, environment: Record<string, string> = {}): void {
   const result = Bun.spawnSync({
     cmd: [command, ...args],
     cwd,
+    env: { ...process.env, ...environment },
     stdout: 'inherit',
     stderr: 'inherit',
   });
@@ -95,7 +100,7 @@ async function stagePlugin(pluginsRepository: string, packageDirectory: string):
     const binaryName = await processBinaryName(cargoManifestPath, requiredString(manifest.entry, 'entry', manifestPath));
     const targetDirectory = join(pluginsRepository, 'target');
     console.log(`Building development plugin ${id}...`);
-    run('node', [cargoWrapper, 'build', '--locked', '--bin', binaryName, '--manifest-path', cargoManifestPath, '--target-dir', targetDirectory]);
+    run('node', [cargoWrapper, 'build', '--locked', '--bin', binaryName, '--manifest-path', cargoManifestPath, '--target-dir', targetDirectory], repositoryRoot, quietCargoEnvironment);
     const builtEntryPath = join(targetDirectory, 'debug', executableName(binaryName, detectHostTarget().os === 'windows'));
     if (!(await exists(builtEntryPath))) {
       throw new Error(`Cargo built ${id}, but its binary was not found at ${builtEntryPath}`);
@@ -154,7 +159,7 @@ async function stageNapiVm(
     host,
     target: host,
     profile: 'debug',
-    cargo: (args) => run('node', [cargoWrapper, ...args]),
+    cargo: (args) => run('node', [cargoWrapper, ...args], repositoryRoot, quietCargoEnvironment),
     exec: (command, args) => run(command, args),
   });
   if (native.status === 'unavailable') {

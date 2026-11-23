@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "caded5529a62e826a91d2deb86936c29c709ac713c2a0cd021f467b1dfa2b6e7"
-translationRevision: "77fbd47a8e56f8384eb3cd7015f10db4b5c35678d4e1fb59eab078ec62c79064"
+sourceRevision: "2e7b95a47d3549b3703af620f2f167fdccd8c2d207c513f1b99f3da334e37980"
+translationRevision: "07cdcfe2056ffe5591970027c6a453de88d8c1873ef53b8ab44ffb68798a1cba"
 order: 100
 ---
 
@@ -53,7 +53,7 @@ Les valeurs actuelles (2026-11-13) sont des limites d’implémentation, pas un 
 
 La déduplication conserve au plus 4 096 identités pendant 300 secondes en mémoire du processus, entre reconnexions tant que ce stockage existe. Expiration, éviction, ID absent ou redémarrage retirent cette protection. La protection contre le chevauchement reste limitée à ce cadre.
 
-`ui.feed.backfill` reçoit `{version:1,after:0,limit:64}`, avec curseur numérique global et limite 1–512. Consultez `oldestCursor`, `latestCursor`, `gap`, `truncated` et continuez depuis le dernier curseur reçu. `ui.feed.creator` utilise `{creatorId,streamId,after,limit}`, des curseurs textuels par flux/créateur, une limite 1–64 et un budget d’octets. Ne mélangez pas les curseurs. Flux changé/évincé, curseur futur, lacune d’entrée ou `CreatorFeedUnavailable` imposent une actualisation de la présentation et un signalement d’historique incomplet, jamais une reconstruction des effets.
+`ui.feed.backfill` reçoit `{version:1,after:0,limit:64}`, avec curseur numérique global et limite 1–512. Consultez `oldestCursor`, `latestCursor`, `gap`, `truncated` et continuez depuis le dernier curseur reçu. Pour une recherche rapide par agent sans nouveau RPC, `tiktools api event get <name> [--type kind]... [--author text] [--limit N]` parcourt ce journal côté client et renvoie les correspondances les plus récentes ; le nom est une sous-chaîne insensible à la casse de n'importe quel champ texte, et `--type` accepte `chat`/`gift`/`like`/`member`/`social` ainsi que `join`/`follow`. `ui.feed.creator` utilise `{creatorId,streamId,after,limit}`, des curseurs textuels par flux/créateur, une limite 1–64 et un budget d’octets. Ne mélangez pas les curseurs. Flux changé/évincé, curseur futur, lacune d’entrée ou `CreatorFeedUnavailable` imposent une actualisation de la présentation et un signalement d’historique incomplet, jamais une reconstruction des effets.
 
 TikTok initialise session, salle, catalogue de cadeaux, bundle de signature puis socket. Configuration : `TIKTOOLS_TIKTOK_SIGNING_BUNDLE`, `TIKTOOLS_TIKTOK_BUNDLE_CACHE`, `TIKTOOLS_TIKTOK_BUNDLE_URL`. Valeurs : cinq tentatives, délai initial 2 s plafonné à 30 s. HTTP 429 respecte Retry-After ou un minimum croissant 30–300 s avec jitter, au plus deux reprises pour limitation, avec cooldown conservé après annulation/épuisement. Les autres reprises exigent une panne de transport transitoire. Inspectez `Reconnecting { attempt, delay_ms }` et l’étape, sans partager cookies ni signatures privées.
 

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9ce931bc43614d39b264662b83fbdf3ddc7df875ef7cd6193fc6742eed34c509"
-translationRevision: "add499299f3867d39f6f1887c94c5fa3444afb69e72887d0cc7390f0b4dd39ff"
+sourceRevision: "22058df141c0497661bcd776f7b3114085de4532bb45a61cf5c33ad721de1f5e"
+translationRevision: "a4ec360ef44b6d86545bdc3caea3d95b2582caf1a92abaaaad52f708e4b03f6b"
 order: 70
 ---
 
@@ -57,7 +57,7 @@ Gerada a partir do instantâneo de descoberta versionado; o host em execução c
 
 Use um `TIKTOOLS_HOME` descartável, remova overrides herdados conforme [armazenamento](storage.md), inicie `tiktools host --ipc` e use a mesma raiz no terminal de controle. A receita pressupõe o workflow descartável `docs-example`; crie antes o exemplo desativado de [automações](automations.md#operational-details). Preserve revisão de `meta.resourceVersions` e `meta.hostInstanceId` da leitura; substitua `REVISION`/`HOST_INSTANCE`. Mantenha um ID estável e seu payload exato. Após timeout consulte o ID original e atualize o recurso; `accepted`, `running`, `unknown` não autorizam outro efeito. Conflito exige nova leitura/revisão, não sobrescrita automática. `points.adjust` é aditivo: aceita ID de comando, sem revisão esperada.
 
-`--include-meta` preserva resultado/metadados; a saída padrão extrai o resultado. `--dry-run --explain` valida/planeja sem executar; explicações vão a stderr e JSON a stdout. Operações destrutivas exigem `--confirm`. A saída oculta segredos reconhecidos; `--secrets-visible` só altera a renderização CLI e não recupera valores ocultados pelo host. Revise manualmente. `api events` limita tempo/contagem e filtra tópicos. Discovery do host determina features/permissões; descrições geradas preservam o texto exato do registro.
+`--include-meta` preserva resultado/metadados; a saída padrão extrai o resultado. `--dry-run --explain` valida/planeja sem executar; explicações vão a stderr e JSON a stdout. Operações destrutivas exigem `--confirm`. A saída oculta segredos reconhecidos; `--secrets-visible` só altera a renderização CLI e não recupera valores ocultados pelo host. Revise manualmente. `api events` limita tempo/contagem e filtra tópicos. `api event get <name>` pesquisa o diário de feed limitado por meio de `ui.feed.backfill` (sem novo RPC), com `--type`, `--author` e `--limit`; o nome corresponde a qualquer campo de texto, sem diferenciar maiúsculas/minúsculas. Discovery do host determina features/permissões; descrições geradas preservam o texto exato do registro.
 
 ```sh
 tiktools api discover --json
@@ -68,6 +68,7 @@ tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision 
 tiktools api call collaboration.commands.get '{"commandId":"docs-disable-001"}' --json
 tiktools api call points.adjust '{"uniqueId":"docs-viewer","delta":1}' --command-id docs-points-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --json
 tiktools api events --topics live.status --timeout 5 --max-events 2
+tiktools api event get rose --type gift --author mango --limit 10 --json
 ```
 
 ```json

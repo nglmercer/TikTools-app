@@ -7,11 +7,21 @@ import {
   resolveCargoEnvironment,
   resolveMsvcEnvironment,
   resolveWindowsPerlEnvironment,
+  shouldLogCargoToolchain,
 } from './cargo-with-linker.mjs';
 
 const X64_LINKER = 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER';
 const ARM64_LINKER = 'CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER';
 const LINUX_LINKER = 'CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER';
+const QUIET_ENVIRONMENT = 'TIKTOOLS_CARGO_WRAPPER_QUIET';
+
+test('quiet mode suppresses repeated toolchain notices but keeps the default', () => {
+  assert.equal(shouldLogCargoToolchain({}), true);
+  assert.equal(shouldLogCargoToolchain({ [QUIET_ENVIRONMENT]: '0' }), true);
+  for (const value of ['1', 'true', 'YES']) {
+    assert.equal(shouldLogCargoToolchain({ [QUIET_ENVIRONMENT]: value }), false);
+  }
+});
 
 test('uses lld-link for unconfigured Windows MSVC targets when available', () => {
   const resolved = resolveCargoEnvironment({

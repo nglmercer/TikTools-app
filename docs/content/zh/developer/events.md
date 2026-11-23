@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "caded5529a62e826a91d2deb86936c29c709ac713c2a0cd021f467b1dfa2b6e7"
-translationRevision: "dcaade40651a776f5eba74be38c4724fe61defda9667fe6b0fe0c12c844403fd"
+sourceRevision: "2e7b95a47d3549b3703af620f2f167fdccd8c2d207c513f1b99f3da334e37980"
+translationRevision: "7ce610c9505bcfc6555ef2a4fb2b6ea7dd6486eff261fed71efc64638463441b"
 order: 100
 ---
 
@@ -53,7 +53,7 @@ bun scripts/task.ts test bun automation
 
 去重最多在进程内保存 4,096 个身份 300 秒，只有该存储仍存在时才跨重连有效。过期、容量淘汰、缺少 ID 或进程重启都会失去保护；重连重叠也仅在此范围内受保护。
 
-`ui.feed.backfill` 接受 `{version:1,after:0,limit:64}`，使用全局数字游标，限制为 1–512。检查 `oldestCursor`、`latestCursor`、`gap`、`truncated`，并从最后收到的事件游标继续。`ui.feed.creator` 使用 `{creatorId,streamId,after,limit}`、按主播划分的流及字符串游标，限制为 1–64，并受字节预算约束。不要混用游标。流变化/淘汰、未来游标、入口缺口或 `CreatorFeedUnavailable` 时，应刷新权威显示状态并明确标注历史不完整，不能重建副作用。
+`ui.feed.backfill` 接受 `{version:1,after:0,limit:64}`，使用全局数字游标，限制为 1–512。检查 `oldestCursor`、`latestCursor`、`gap`、`truncated`，并从最后收到的事件游标继续。若要在不新增 RPC 的情况下快速检索，可使用 `tiktools api event get <name> [--type kind]... [--author text] [--limit N]`：它在客户端分页浏览该日志并返回最新的匹配项；名称是不区分大小写的任意字符串字段子串，`--type` 除了 `chat`/`gift`/`like`/`member`/`social` 之外还接受 `join`/`follow`。`ui.feed.creator` 使用 `{creatorId,streamId,after,limit}`、按主播划分的流及字符串游标，限制为 1–64，并受字节预算约束。不要混用游标。流变化/淘汰、未来游标、入口缺口或 `CreatorFeedUnavailable` 时，应刷新权威显示状态并明确标注历史不完整，不能重建副作用。
 
 TikTok 初始化依次处理会话、房间、礼物目录、签名 bundle 和 socket。配置为 `TIKTOOLS_TIKTOK_SIGNING_BUNDLE`、`TIKTOOLS_TIKTOK_BUNDLE_CACHE`、`TIKTOOLS_TIKTOK_BUNDLE_URL`。默认五次尝试，初始退避 2 秒、上限 30 秒。HTTP 429 使用 Retry-After 或逐步增长的 30–300 秒最小值加抖动，限流重试最多两次，取消或耗尽后仍保留冷却。其他重试仅用于临时传输错误。检查 `Reconnecting { attempt, delay_ms }` 与失败阶段，不要分享 cookie 或私有签名材料。
 

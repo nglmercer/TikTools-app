@@ -12,10 +12,20 @@ const RUSTFLAGS_SEPARATOR = '\u001f';
 const MOLD_RUSTFLAG = '-C link-arg=-fuse-ld=mold';
 const ENCODED_MOLD_RUSTFLAGS = `-C${RUSTFLAGS_SEPARATOR}link-arg=-fuse-ld=mold`;
 const KACHE_ENVIRONMENT = 'TIKTOOLS_KACHE';
+const QUIET_ENVIRONMENT = 'TIKTOOLS_CARGO_WRAPPER_QUIET';
 const RUSTC_WRAPPER_ENVIRONMENT = 'RUSTC_WRAPPER';
 const KACHE_COMMAND = 'kache';
 const ENABLED_KACHE_VALUES = new Set(['1', 'true', 'yes']);
 const DISABLED_KACHE_VALUES = new Set(['0', 'false', 'no']);
+
+/** Dev startup stages many plugins in a row; launcher sets the quiet flag so
+ *  the same "using kache/mold" notice is not printed once per plugin. Errors
+ *  and warnings are unaffected. */
+export function shouldLogCargoToolchain(environment = process.env) {
+  const requested = environment[QUIET_ENVIRONMENT];
+  return typeof requested !== 'string'
+    || !ENABLED_KACHE_VALUES.has(requested.trim().toLowerCase());
+}
 const VSWHERE_PATH = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe';
 const MSVC_ARCHITECTURES = { x64: 'x64', arm64: 'arm64', ia32: 'x86' };
 
@@ -302,13 +312,16 @@ function main() {
     return;
   }
 
-  if (resolved.kache === 'enabled') {
+  // Quiet mode is used when staging many dev plugins in a row: the same
+  // toolchain notice would otherwise be printed once per plugin build.
+  const logToolchain = shouldLogCargoToolchain(buildEnvironment);
+  if (logToolchain && resolved.kache === 'enabled') {
     console.error('[cargo-with-linker] using kache rustc wrapper');
-  } else if (resolved.kache === 'preserved') {
+  } else if (logToolchain && resolved.kache === 'preserved') {
     console.error('[cargo-with-linker] preserving existing RUSTC_WRAPPER');
   }
 
-  if (process.platform === 'win32') {
+  if (logToolchain && process.platform === 'win32') {
     const preserved = resolved.configuredTargets.length > 0
       ? `; preserved ${resolved.configuredTargets.join(', ')}`
       : '';
@@ -319,7 +332,7 @@ function main() {
     } else {
       console.error('[cargo-with-linker] lld-link unavailable; using default MSVC linker');
     }
-  } else if (process.platform === 'linux') {
+  } else if (logToolchain && process.platform === 'linux') {
     if (resolved.linker === 'mold') {
       console.error('[cargo-with-linker] using mold');
     } else if (resolved.linker === 'default') {

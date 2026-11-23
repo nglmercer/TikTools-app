@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "caded5529a62e826a91d2deb86936c29c709ac713c2a0cd021f467b1dfa2b6e7"
-translationRevision: "381296887776b3746ddfc5e6a2d66dc6ec0c9bcd48fead1acda9343e491b86d1"
+sourceRevision: "2e7b95a47d3549b3703af620f2f167fdccd8c2d207c513f1b99f3da334e37980"
+translationRevision: "565d7d271c32047dda760194fd10a0dc0ae345a82f0d70970bd4a313475995c1"
 order: 100
 ---
 
@@ -53,7 +53,7 @@ Los defaults actuales (2026-11-13) son límites de implementación, no un SLA. L
 
 La deduplicación guarda como máximo 4.096 identidades durante 300 segundos en memoria del proceso. Sobrevive a reconexiones solo mientras vive ese almacén. Caducidad, expulsión, IDs ausentes o reinicio eliminan la protección; el solapamiento solo está protegido dentro de esos límites.
 
-`ui.feed.backfill` acepta `{version:1,after:0,limit:64}`, cursor numérico global y límite 1–512. Revisa `oldestCursor`, `latestCursor`, `gap` y `truncated`; continúa desde el último cursor recibido. `ui.feed.creator` usa `{creatorId,streamId,after,limit}`, cursores de texto, stream por creador, límite 1–64 y presupuesto de bytes. No intercambies cursores. Si cambia/se expulsa el stream, el cursor es futuro, hay hueco de ingreso o `CreatorFeedUnavailable`, refresca la presentación autoritativa y marca la historia faltante; no inventes efectos.
+`ui.feed.backfill` acepta `{version:1,after:0,limit:64}`, cursor numérico global y límite 1–512. Revisa `oldestCursor`, `latestCursor`, `gap` y `truncated`; continúa desde el último cursor recibido. Para una búsqueda rápida por agente sin un RPC nuevo, `tiktools api event get <name> [--type kind]... [--author text] [--limit N]` recorre ese diario en el cliente y devuelve las coincidencias más recientes; el nombre es un substring insensible a mayúsculas de cualquier campo de texto, y `--type` acepta `chat`/`gift`/`like`/`member`/`social` además de `join`/`follow`. `ui.feed.creator` usa `{creatorId,streamId,after,limit}`, cursores de texto, stream por creador, límite 1–64 y presupuesto de bytes. No intercambies cursores. Si cambia/se expulsa el stream, el cursor es futuro, hay hueco de ingreso o `CreatorFeedUnavailable`, refresca la presentación autoritativa y marca la historia faltante; no inventes efectos.
 
 TikTok inicializa sesión, sala, catálogo de regalos, bundle de firma y socket. Configuración: `TIKTOOLS_TIKTOK_SIGNING_BUNDLE`, `TIKTOOLS_TIKTOK_BUNDLE_CACHE`, `TIKTOOLS_TIKTOK_BUNDLE_URL`. Defaults: cinco intentos, backoff inicial 2 s hasta 30 s. HTTP 429 usa Retry-After o mínimo creciente 30–300 s con jitter, hasta dos reintentos por rate limit; conserva cooldown tras cancelar/agotarse. Otros reintentos exigen fallo transitorio de transporte. Revisa `Reconnecting { attempt, delay_ms }` y la etapa; no adjuntes cookies ni material privado de firma.
 

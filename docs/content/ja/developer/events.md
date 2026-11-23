@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "caded5529a62e826a91d2deb86936c29c709ac713c2a0cd021f467b1dfa2b6e7"
-translationRevision: "45983681dff981890e7bff9bddc6d0f5d341c32f530b2b7f4a59c18ecc87bd4c"
+sourceRevision: "2e7b95a47d3549b3703af620f2f167fdccd8c2d207c513f1b99f3da334e37980"
+translationRevision: "4b924117117bde150b3d56962954a191276304d5a05f3adf3d2164c6b5f9ea34"
 order: 100
 ---
 
@@ -53,7 +53,7 @@ ID 付きイベントが現在の有限 replay store に残る間だけ、再接
 
 重複排除はプロセス内で最大 4,096 ID を 300 秒保持し、そのストアが存続する間だけ再接続をまたぎます。期限切れ、容量による削除、ID 不在、再起動では保護されません。再接続の重複に対する保護もこの範囲内です。
 
-`ui.feed.backfill` は `{version:1,after:0,limit:64}` を受け取り、全体の数値カーソルと 1–512 の上限を使います。`oldestCursor`、`latestCursor`、`gap`、`truncated` を調べ、最後のイベントカーソルから続けます。`ui.feed.creator` は `{creatorId,streamId,after,limit}`、配信者別ストリームと文字列カーソル、1–64 件とバイト予算を使います。両者を混用しません。ストリーム変更・削除、未来のカーソル、入口の欠落、`CreatorFeedUnavailable` では正規の表示状態を再取得し、履歴不足を明示します。副作用を再構築してはいけません。
+`ui.feed.backfill` は `{version:1,after:0,limit:64}` を受け取り、全体の数値カーソルと 1–512 の上限を使います。`oldestCursor`、`latestCursor`、`gap`、`truncated` を調べ、最後のイベントカーソルから続けます。エージェントが新しい RPC なしで手早く検索するには、`tiktools api event get <name> [--type kind]... [--author text] [--limit N]` がこのジャーナルをクライアント側でページングし、最新の一致を返します。名前は任意の文字列フィールドの部分一致（大文字小文字を区別しない）で、`--type` は `chat`/`gift`/`like`/`member`/`social` に加えて `join`/`follow` も受け付けます。`ui.feed.creator` は `{creatorId,streamId,after,limit}`、配信者別ストリームと文字列カーソル、1–64 件とバイト予算を使います。両者を混用しません。ストリーム変更・削除、未来のカーソル、入口の欠落、`CreatorFeedUnavailable` では正規の表示状態を再取得し、履歴不足を明示します。副作用を再構築してはいけません。
 
 TikTok はセッション、ルーム、ギフトカタログ、署名 bundle、socket の順に初期化します。設定は `TIKTOOLS_TIKTOK_SIGNING_BUNDLE`、`TIKTOOLS_TIKTOK_BUNDLE_CACHE`、`TIKTOOLS_TIKTOK_BUNDLE_URL` です。既定は 5 回、初期待機 2 秒、上限 30 秒。HTTP 429 は Retry-After または 30–300 秒へ増加する最小待機とジッターを使い、制限時の再試行は最大 2 回で、中止・枯渇後も待機を保持します。他は一時的な通信障害だけを再試行します。`Reconnecting { attempt, delay_ms }` と失敗段階を確認し、Cookie や非公開署名情報は共有しません。
 

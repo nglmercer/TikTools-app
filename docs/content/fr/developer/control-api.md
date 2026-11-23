@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "9ce931bc43614d39b264662b83fbdf3ddc7df875ef7cd6193fc6742eed34c509"
-translationRevision: "a90a2f35314357af0da9a4d0497a9ff8110173eb2939e1c89b487d565bb4eeec"
+sourceRevision: "22058df141c0497661bcd776f7b3114085de4532bb45a61cf5c33ad721de1f5e"
+translationRevision: "1cdb24f8f6b7e8bef7df63253bdbc146352c105351f8dcb78fae54b71147fbda"
 order: 70
 ---
 
@@ -57,7 +57,7 @@ Générée depuis l’instantané de découverte versionné dans le dépôt ; l�
 
 Utilisez un `TIKTOOLS_HOME` jetable, retirez les variables héritées selon [stockage](storage.md), démarrez `tiktools host --ipc` et utilisez la même racine dans le terminal de contrôle. La recette suppose le workflow jetable `docs-example` ; créez d’abord l’exemple désactivé d’[automatisation](automations.md#operational-details). Conservez révision de `meta.resourceVersions` et `meta.hostInstanceId` de la lecture ; remplacez `REVISION`/`HOST_INSTANCE`. Gardez un ID stable avec sa charge exacte. Après timeout, consultez l’ID original puis actualisez la ressource ; `accepted`, `running`, `unknown` n’autorisent pas un nouvel effet. Un conflit impose une nouvelle lecture/revue, pas un écrasement automatique. `points.adjust` est additif : ID de commande admis, sans révision attendue.
 
-`--include-meta` conserve résultat et métadonnées ; la sortie ordinaire extrait le résultat. `--dry-run --explain` valide/planifie sans exécuter ; explications sur stderr, JSON sur stdout. Les appels destructifs exigent `--confirm`. La sortie masque les secrets reconnus ; `--secrets-visible` change seulement le rendu CLI et ne retrouve pas les valeurs cachées par l’hôte. Relisez manuellement. `api events` limite durée/nombre et filtre les sujets. Discovery reste l’autorité sur features/permissions ; les descriptions générées gardent le texte exact du registre.
+`--include-meta` conserve résultat et métadonnées ; la sortie ordinaire extrait le résultat. `--dry-run --explain` valide/planifie sans exécuter ; explications sur stderr, JSON sur stdout. Les appels destructifs exigent `--confirm`. La sortie masque les secrets reconnus ; `--secrets-visible` change seulement le rendu CLI et ne retrouve pas les valeurs cachées par l’hôte. Relisez manuellement. `api events` limite durée/nombre et filtre les sujets. `api event get <name>` recherche dans le journal de flux borné via `ui.feed.backfill` (aucun nouveau RPC), avec `--type`, `--author` et `--limit` ; le nom correspond à n'importe quel champ de texte, sans tenir compte de la casse. Discovery reste l’autorité sur features/permissions ; les descriptions générées gardent le texte exact du registre.
 
 ```sh
 tiktools api discover --json
@@ -68,6 +68,7 @@ tiktools api call workflows.disable '{"id":"docs-example"}' --expected-revision 
 tiktools api call collaboration.commands.get '{"commandId":"docs-disable-001"}' --json
 tiktools api call points.adjust '{"uniqueId":"docs-viewer","delta":1}' --command-id docs-points-001 --host-instance-id HOST_INSTANCE --include-meta --dry-run --json
 tiktools api events --topics live.status --timeout 5 --max-events 2
+tiktools api event get rose --type gift --author mango --limit 10 --json
 ```
 
 ```json
