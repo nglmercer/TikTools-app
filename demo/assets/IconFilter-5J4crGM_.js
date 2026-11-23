@@ -1,0 +1,1 @@
+import{M as e,Y as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DmysMBEe.js";import{t as a}from"./BaseIcon-B1Xew3sa.js";var o=i({__name:`IconFilter`,setup(i){return(i,o)=>(e(),r(a,null,{default:t(()=>[...o[0]||=[n(`path`,{d:`M2.5 3.5h11L9.25 8.5v4.25l-2.5 1.25V8.5z`},null,-1)]]),_:1}))}});export{o as t};

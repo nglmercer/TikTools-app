@@ -1,0 +1,1 @@
+import{M as e,Y as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DmysMBEe.js";import{t as a}from"./BaseIcon-B1Xew3sa.js";var o=i({__name:`IconRows`,setup(i){return(i,o)=>(e(),r(a,null,{default:t(()=>[...o[0]||=[n(`rect`,{x:`2.5`,y:`3`,width:`11`,height:`10`,rx:`1`},null,-1),n(`path`,{d:`M2.5 8h11`},null,-1)]]),_:1}))}});export{o as t};

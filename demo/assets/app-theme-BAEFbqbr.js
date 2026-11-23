@@ -1,0 +1,1 @@
+function e(e){return e===`dark`||e===`light`}function t(){return typeof window>`u`||typeof window.matchMedia!=`function`?`dark`:window.matchMedia(`(prefers-color-scheme: light)`).matches?`light`:`dark`}function n(e){let t=document.documentElement;t.dataset.theme=e,t.style.colorScheme=e}export{e as n,t as r,n as t};

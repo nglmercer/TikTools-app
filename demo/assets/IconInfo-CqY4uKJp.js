@@ -1,0 +1,1 @@
+import{M as e,Y as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DmysMBEe.js";import{t as a}from"./BaseIcon-B1Xew3sa.js";var o=i({__name:`IconInfo`,setup(i){return(i,o)=>(e(),r(a,null,{default:t(()=>[...o[0]||=[n(`circle`,{cx:`8`,cy:`8`,r:`5.75`},null,-1),n(`path`,{d:`M8 7.5v3.25M8 5.25h.01`},null,-1)]]),_:1}))}});export{o as t};

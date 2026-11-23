@@ -1,0 +1,1 @@
+import{M as e,Y as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DmysMBEe.js";import{t as a}from"./BaseIcon-B1Xew3sa.js";var o=i({__name:`IconCloud`,setup(i){return(i,o)=>(e(),r(a,null,{default:t(()=>[...o[0]||=[n(`path`,{d:`M4.5 12.5a3 3 0 0 1-.4-5.97 4 4 0 0 1 7.8 1A2.5 2.5 0 0 1 11.5 12.5z`},null,-1)]]),_:1}))}});export{o as t};
