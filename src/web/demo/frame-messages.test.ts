@@ -15,3 +15,10 @@ it('limits commands to this instance and the explicit playback/recovery actions'
   expect(parseFrameCommand({ ...command, action: 'connection-case', value: 'auth' }, 'frame-1')).toEqual({ action: 'connection-case', value: 'auth' });
   expect(parseFrameCommand({ ...command, action: 'connection-case', value: 'invalid' }, 'frame-1')).toBeNull();
 });
+it('accepts only the two supported theme values over the frame bridge', () => {
+  const command = { type: 'tiktools.demo.command', instance: 'frame-1', action: 'theme' };
+  expect(parseFrameCommand({ ...command, value: 'light' }, 'frame-1')).toEqual({ action: 'theme', value: 'light' });
+  expect(parseFrameCommand({ ...command, value: 'dark' }, 'frame-1')).toEqual({ action: 'theme', value: 'dark' });
+  expect(parseFrameCommand({ ...command, value: 'system' }, 'frame-1')).toBeNull();
+  expect(parseFrameCommand({ ...command }, 'frame-1')).toBeNull();
+});

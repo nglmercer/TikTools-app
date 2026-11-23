@@ -9,6 +9,7 @@ import { computed, defineAsyncComponent } from 'vue';
 const DiagnosticsPanel = defineAsyncComponent(() => import('@/shared/diagnostics/DiagnosticsPanel.vue'));
 const diagnosticsOpen = computed(() => diagnosticView.open.value);
 import { useI18n } from 'vue-i18n';
+import { applyAppTheme } from '@/shared/lib/app-theme.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { loadResolutionPreference } from '@/features/review-shared/model/resolution-preference.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
@@ -46,8 +47,9 @@ const { pluginPages } = storeToRefs(useAutomationStore());
 const localeStore = useLocaleStore();
 const { locale } = storeToRefs(localeStore);
 
-document.documentElement.dataset.theme = 'dark';
-document.documentElement.style.colorScheme = 'dark';
+// The demo sets the theme from its host (or the OS) before mounting. The
+// desktop and local-web apps keep their historical dark default.
+if (!document.documentElement.dataset.theme) applyAppTheme('dark');
 
 const { route, router, routeTab, sections, menuPages, navigate } = useShellNavigation(pluginPages, {
   activeTab, open: navigation.open,

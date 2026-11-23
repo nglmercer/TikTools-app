@@ -24,6 +24,16 @@ test('table examples sort actual rows and tab examples retain independent drafts
   await expect(tabs.locator('textarea')).toHaveValue('second draft');
 });
 
+test('the demo sidebar exposes diagnostics and component reference sections', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=en&instance=sidebar-sections');
+  const nav = page.locator('#app-sidebar');
+  await expect(nav.getByRole('link', { name: 'Diagnostics', exact: true })).toBeVisible();
+  await expect(nav.getByRole('link', { name: 'Components', exact: true })).toBeVisible();
+  // The floating controls dock covers the lower sidebar links at this size.
+  await page.evaluate(() => document.querySelector<HTMLAnchorElement>('a[href="#/debug"]')!.click());
+  await expect(page).toHaveURL(/#\/debug$/);
+});
+
 test('the toolbar language switcher changes the demo locale', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en');
   const language = page.getByRole('combobox', { name: 'Language', exact: true });

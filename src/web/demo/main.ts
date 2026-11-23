@@ -1,4 +1,5 @@
 import { parseDemoOptions } from './scenarios.ts';
+import { applyAppTheme, isAppTheme, systemTheme } from '@/shared/lib/app-theme.ts';
 import { installDemoStorage, memoryStorage } from './storage.ts';
 import { contextInstance, contextName } from './context-instance.ts';
 import './demo.css';
@@ -10,6 +11,10 @@ try {
   window.name = contextName(options.instance);
   const url = new URL(location.href); url.searchParams.set('instance', options.instance); url.searchParams.set('locale', options.locale);
   history.replaceState(history.state, '', url);
+  // A framed demo follows the docs theme passed in the URL; a standalone one
+  // starts from the OS preference. Later changes arrive over the frame bridge.
+  const requestedTheme = new URLSearchParams(location.search).get('theme');
+  applyAppTheme(isAppTheme(requestedTheme) ? requestedTheme : systemTheme());
   let backing: { local: Storage; session: Storage };
   try { backing = { local: localStorage, session: sessionStorage }; backing.session.setItem(`tiktools.demo.${options.instance}.probe`, '1'); backing.session.removeItem(`tiktools.demo.${options.instance}.probe`); }
   catch { backing = { local: memoryStorage(), session: memoryStorage() }; }

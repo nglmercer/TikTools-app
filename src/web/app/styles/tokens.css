@@ -109,8 +109,59 @@
   --z-dialog: 1600;
 }
 
-/* Light variant of the JSON viewer palette (the app itself ships dark only; these assume a light panel). */
+/* Light palette used by the browser demo when the documentation is in light
+   mode. Desktop and standalone web keep the dark default from :root. */
 :root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg-app: #f5f6f8;
+  --color-bg-panel: #ffffff;
+  --color-bg-panel-header: #eef0f4;
+  --color-bg-raised: #ffffff;
+  --color-bg-control: #ffffff;
+  --color-bg-control-hover: #f0f2f6;
+  --color-bg-control-active: #e6eaf2;
+  --color-bg-field: #ffffff;
+  --color-bg-overlay: #ffffff;
+  --color-bg-hover: #eceff5;
+  --color-bg-selected: #dbe5ff;
+  --color-bg-selected-hover: #cadaff;
+
+  --color-border: #c9cfdb;
+  --color-border-strong: #aab3c4;
+  --color-border-subtle: #e2e6ed;
+  --color-border-selected: #4a6fd8;
+  --color-border-focus: #2a4ab4;
+
+  --color-text: #1d2230;
+  --color-text-danger: #b32028;
+  --color-text-muted: #596174;
+  --color-text-subtle: #737c8e;
+  --color-text-disabled: #a2a9b6;
+  --color-text-on-accent: #ffffff;
+
+  --color-handle: #596174;
+  --color-handle-hover: #1d2230;
+
+  --color-accent: #2a4ab4;
+  --color-accent-hover: #3457c4;
+  --color-accent-active: #233f9c;
+  --color-danger: #c8383f;
+  --color-danger-hover: #b32028;
+  --color-warning: #9a6400;
+  --color-success: #237a40;
+
+  --color-chart-1: #0b7691;
+  --color-chart-2: #a83260;
+  --color-chart-3: #8a6700;
+  --color-chart-4: #5b48a8;
+  --color-chart-5: #237a40;
+  --color-chart-grid: #d6dbe4;
+
+  --color-meter-low: #237a40;
+  --color-meter-mid: #8a6700;
+  --color-meter-high: #b32028;
+
   --color-json-bg: #ffffff;
   --color-json-key: #0b5cad;
   --color-json-string: #16703a;
@@ -123,6 +174,8 @@
   --color-diff-removed-bg: #fbe6e8;
   --color-diff-added-word: #b4e3c3;
   --color-diff-removed-word: #f4b6bd;
+
+  --shadow-popup: 0 4px 14px rgb(24 32 56 / 14%);
 }
 
 /* Layout is content-driven (600px forms, 900px workspaces). Input density is

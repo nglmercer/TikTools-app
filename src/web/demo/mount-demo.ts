@@ -1,6 +1,7 @@
 import { createApp, h, reactive, watch } from 'vue';
 import type { Router } from 'vue-router';
 import { i18n } from '@/shared/i18n/i18n.ts';
+import { applyAppTheme } from '@/shared/lib/app-theme.ts';
 import DemoToolbar from './DemoToolbar.vue';
 import { createControlClient } from '@/shared/api/control-client.ts';
 import { mountWorkspace } from '@/app/mount-workspace.ts';
@@ -131,6 +132,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     const command = parseFrameCommand(event.data, options.instance);
     if (!command) return;
     if (command.action === 'reset') resetDemo();
+    else if (command.action === 'theme') applyAppTheme(command.value);
     else if (command.action === 'connection-case') void changeConnectionCase(command.value);
     else if (!toolbarState.busy && !['preparing', 'active'].includes(toolbarState.guideState)) {
       if (command.action === 'play') void playback.play();

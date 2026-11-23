@@ -59,6 +59,7 @@ export default {
     sections: {
       workspace: "工作区",
       plugins: "插件页面",
+      tools: "演示工具",
     },
     feed: "实时动态",
     points: "积分",
@@ -69,6 +70,8 @@ export default {
     overlays: "叠加层",
     rankings: "排名与竞赛",
     settings: "设置",
+    diagnostics: "诊断",
+    components: "组件",
     toggleSidebar: "切换侧边栏",
     pull: {
       hint: "下拉重新加载",

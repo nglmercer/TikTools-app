@@ -59,6 +59,7 @@ export default {
     sections: {
       workspace: "ワークスペース",
       plugins: "プラグインのページ",
+      tools: "デモのツール",
     },
     feed: "ライブフィード",
     points: "ポイント",
@@ -69,6 +70,8 @@ export default {
     overlays: "オーバーレイ",
     rankings: "ランキングとコンテスト",
     settings: "設定",
+    diagnostics: "診断",
+    components: "コンポーネント",
     toggleSidebar: "サイドバーを切り替え",
     pull: {
       hint: "引っ張って再読み込み",

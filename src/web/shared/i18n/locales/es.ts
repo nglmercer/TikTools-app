@@ -61,6 +61,7 @@ export default {
     sections: {
       workspace: 'Espacio de trabajo',
       plugins: 'Páginas de plugins',
+      tools: 'Herramientas de la demo',
     },
     feed: 'Feed en vivo',
     points: 'Puntos',
@@ -71,6 +72,8 @@ export default {
     overlays: 'Overlays',
     rankings: 'Clasificaciones y competiciones',
     settings: 'Ajustes',
+    diagnostics: 'Diagnósticos',
+    components: 'Componentes',
     toggleSidebar: 'Mostrar u ocultar la barra lateral',
     pull: {
       hint: 'Desliza para recargar',

@@ -15,6 +15,7 @@ import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
 import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
+import IconRows from '@/shared/ui/icon/icons/IconRows.vue';
 
 export function useShellNavigation(
   pluginPages: Readonly<Ref<PluginPageDescriptor[]>>,
@@ -58,9 +59,18 @@ export function useShellNavigation(
       }),
   );
 
+  // The public demo has real diagnostics and component-reference pages that
+  // the desktop build does not ship; expose them as a second, navigable group.
+  const demoTools = import.meta.env.VITE_TIKTOOLS_PUBLIC_UI_KIT === '1';
+  const toolItems = computed<NavigationItem[]>(() => demoTools ? [
+    { id: 'demo-diagnostics', label: t('navigation.diagnostics'), icon: markRaw(IconChart), to: '/debug' },
+    { id: 'demo-components', label: t('navigation.components'), icon: markRaw(IconRows), to: '/components/buttons' },
+  ] : []);
+
   const sections = computed<NavigationSection[]>(() => [
     { id: 'workspace', label: t('navigation.sections.workspace'), items: builtinItems.value },
     ...(pluginItems.value.length ? [{ id: 'plugins', label: t('navigation.sections.plugins'), items: pluginItems.value }] : []),
+    ...(toolItems.value.length ? [{ id: 'tools', label: t('navigation.sections.tools'), items: toolItems.value }] : []),
   ]);
 
   const menuPages = computed(() => sections.value.flatMap((section) => section.items));

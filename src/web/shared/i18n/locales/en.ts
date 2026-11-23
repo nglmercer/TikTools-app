@@ -59,6 +59,7 @@ export default {
     sections: {
       workspace: 'Workspace',
       plugins: 'Plugin pages',
+      tools: 'Demo tools',
     },
     feed: 'Live feed',
     points: 'Points',
@@ -69,6 +70,8 @@ export default {
     overlays: 'Overlays',
     rankings: 'Rankings & competitions',
     settings: 'Settings',
+    diagnostics: 'Diagnostics',
+    components: 'Components',
     toggleSidebar: 'Toggle sidebar',
     pull: {
       hint: 'Pull to reload',

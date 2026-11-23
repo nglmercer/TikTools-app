@@ -1,7 +1,8 @@
+import { isAppTheme, type AppTheme } from '@/shared/lib/app-theme.ts';
 import type { PlaybackStatus } from './playback.ts';
 
 export type ConnectionCase = 'normal' | 'offline' | 'auth';
-export type FrameAction = { action: 'play' | 'step' | 'reset' } | { action: 'connection-case'; value: ConnectionCase };
+export type FrameAction = { action: 'play' | 'step' | 'reset' } | { action: 'connection-case'; value: ConnectionCase } | { action: 'theme'; value: AppTheme };
 export interface DemoFrameState {
   type: 'tiktools.demo.state'; instance: string; ready: boolean; paused: boolean; busy: boolean;
   events: number; status: PlaybackStatus; connectionCase: ConnectionCase;
@@ -21,5 +22,6 @@ export function parseFrameCommand(value: unknown, instance: string): FrameAction
   if (!object(value) || value.type !== 'tiktools.demo.command' || value.instance !== instance || !validInstance(instance)) return null;
   if (value.action === 'play' || value.action === 'step' || value.action === 'reset') return { action: value.action };
   if (value.action === 'connection-case' && isConnectionCase(value.value)) return { action: value.action, value: value.value };
+  if (value.action === 'theme' && isAppTheme(value.value)) return { action: value.action, value: value.value };
   return null;
 }

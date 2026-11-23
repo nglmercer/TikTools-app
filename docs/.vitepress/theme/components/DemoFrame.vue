@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue';
 import { useData, withBase } from 'vitepress';
 import { docCopy, documentLocale } from '../../../locales.ts';
 import { experienceCopy } from '../../../experience/copy.ts';
@@ -14,7 +14,7 @@ import IconRefresh from '../../../../src/web/shared/ui/icon/icons/IconRefresh.vu
 import IconChevronRight from '../../../../src/web/shared/ui/icon/icons/IconChevronRight.vue';
 
 const props = defineProps<{ scenario: string; locale?: string; route?: string; tour?: string; title: string; panel?: 'connection' | 'feed' | 'automation' | 'points' | 'overlays'; autoload?: boolean; minimal?: boolean; initialEvents?: number; scale?: 0.25 | 0.5 | 0.75 | 1; viewportHeight?: number }>();
-const { lang } = useData();
+const { lang, isDark } = useData();
 const loaded = ref(false);
 const ready = ref(false);
 const mounted = ref(false);
@@ -50,8 +50,11 @@ const copy = computed(() => experienceCopy[documentLocale(props.locale ?? lang.v
 const labels = computed(() => frameCopy[documentLocale(props.locale ?? lang.value)]);
 const player = computed(() => toolbarCopy[documentLocale(props.locale ?? lang.value)]);
 const topic = computed<Topic>(() => ['automation', 'overlays', 'points'].includes(props.scenario) ? props.scenario as Topic : 'connection');
+// Snapshot only: changing the docs theme must not reload the iframe. Live
+// changes are forwarded through the bounded frame command bridge.
+const initialTheme = isDark.value ? 'dark' : 'light';
 const url = computed(() => {
-  const params = new URLSearchParams({ scenario: props.scenario, locale: props.locale ?? articleLocale.value, instance: instance.value, framed: '1' });
+  const params = new URLSearchParams({ scenario: props.scenario, locale: props.locale ?? articleLocale.value, instance: instance.value, framed: '1', theme: initialTheme });
   if (props.route) params.set('route', props.route);
   if (props.tour) params.set('tour', props.tour);
   if (props.panel) { params.set('embed', props.panel); params.delete('tour'); }
@@ -59,13 +62,16 @@ const url = computed(() => {
   const valid = parseDemoOptions(params.toString());
   return `${withBase('/demo/')}?${params}${valid.route ? `#${valid.route}` : ''}`;
 });
-const fullUrl = computed(() => { const value = url.value.split('#'); const clean = new URLSearchParams(value[0]!.split('?')[1]); clean.delete('embed'); clean.delete('instance'); clean.delete('events'); clean.delete('framed'); return `${withBase('/demo/')}?${clean}${value[1] ? `#${value[1]}` : ''}`; });
+const fullUrl = computed(() => { const value = url.value.split('#'); const clean = new URLSearchParams(value[0]!.split('?')[1]); clean.delete('embed'); clean.delete('instance'); clean.delete('events'); clean.delete('framed'); clean.delete('theme'); return `${withBase('/demo/')}?${clean}${value[1] ? `#${value[1]}` : ''}`; });
 function toggle() { ready.value = false; runtime.value = null; loaded.value = !loaded.value; }
 function command(action: FrameAction) {
   if (!runtime.value?.ready) return;
   iframe.value?.contentWindow?.postMessage({ type: 'tiktools.demo.command', instance: runtime.value.instance, ...action }, location.origin);
   if (action.action === 'reset') { ready.value = false; runtime.value = null; }
 }
+watch([() => runtime.value?.ready, isDark], ([frameReady, dark]) => {
+  if (frameReady) command({ action: 'theme', value: dark ? 'dark' : 'light' });
+});
 </script>
 
 <template>

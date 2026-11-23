@@ -43,6 +43,20 @@ test('demo toolbar shares real controls, contains menus and fits desktop and mob
   await page.screenshot({ path: '/tmp/tiktools-docs-design-demo-mobile.png' });
 });
 
+test('the embedded demo follows the documentation theme without reloading', async ({ page }) => {
+  await page.goto('');
+  const frame = page.frameLocator('.product-stage iframe');
+  await expect(frame.locator('.app-layout')).toBeVisible();
+  const src = await page.locator('.product-stage iframe').getAttribute('src');
+  const themeToggle = page.locator('.VPNavBarAppearance button[role="switch"]');
+  await themeToggle.click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(frame.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await themeToggle.click();
+  await expect(frame.locator('html')).toHaveAttribute('data-theme', 'light');
+  expect(await page.locator('.product-stage iframe').getAttribute('src')).toBe(src);
+});
+
 test('the embedded demo hands vertical scroll back to the landing page', async ({ page }) => {
   await page.goto('es/');
   const frame = page.frameLocator('.product-stage iframe');
