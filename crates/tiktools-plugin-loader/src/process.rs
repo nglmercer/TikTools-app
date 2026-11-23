@@ -274,6 +274,26 @@ pub const FORWARDED_DESKTOP_ENV_KEYS: &[&str] = &[
     "LC_CTYPE",
     "PATH",
     "HOME",
+    // Windows: Winsock and the crypto/DNS providers read the system catalog
+    // through SystemRoot. Without it, a plugin that binds a loopback socket
+    // fails with WSAEPROVIDERFAILEDINIT (os error 10106) even though the same
+    // binary works when launched with the full environment.
+    #[cfg(target_os = "windows")]
+    "SystemRoot",
+    #[cfg(target_os = "windows")]
+    "windir",
+    #[cfg(target_os = "windows")]
+    "ComSpec",
+    #[cfg(target_os = "windows")]
+    "NUMBER_OF_PROCESSORS",
+    #[cfg(target_os = "windows")]
+    "PROCESSOR_ARCHITECTURE",
+    #[cfg(target_os = "windows")]
+    "PATHEXT",
+    #[cfg(target_os = "windows")]
+    "TEMP",
+    #[cfg(target_os = "windows")]
+    "TMP",
     // Native Termux SDK clients resolve their CA bundle through PREFIX or
     // SSL_CERT_FILE. Rust temporary files require the app-private TMPDIR.
     #[cfg(target_os = "android")]
@@ -831,6 +851,34 @@ mod tests {
         assert!(FORWARDED_DESKTOP_ENV_KEYS.contains(&"DISPLAY"));
         assert!(FORWARDED_DESKTOP_ENV_KEYS.contains(&"WAYLAND_DISPLAY"));
         assert!(FORWARDED_DESKTOP_ENV_KEYS.contains(&"DBUS_SESSION_BUS_ADDRESS"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn forwards_windows_system_variables() {
+        use std::collections::HashMap;
+
+        let source = HashMap::from([
+            (
+                "SystemRoot".to_owned(),
+                std::ffi::OsString::from(r"C:\Windows"),
+            ),
+            ("TEMP".to_owned(), std::ffi::OsString::from(r"C:\Temp")),
+        ]);
+        let mut command = Command::new("cmd.exe");
+        command.env_clear();
+        forward_desktop_environment_from(|key| source.get(key).cloned(), &mut command);
+        let forwarded: HashMap<String, String> = command
+            .get_envs()
+            .filter_map(|(key, value)| {
+                Some((key.to_str()?.to_owned(), value?.to_str()?.to_owned()))
+            })
+            .collect();
+        assert_eq!(
+            forwarded.get("SystemRoot").map(String::as_str),
+            Some(r"C:\Windows")
+        );
+        assert_eq!(forwarded.get("TEMP").map(String::as_str), Some(r"C:\Temp"));
     }
 
     #[test]
