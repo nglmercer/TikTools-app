@@ -40,8 +40,9 @@ describe('conditions', () => {
   it('moves values between single and list operators', () => {
     const listed = withOperator(filter({ value: 'hi' }), 'in');
     expect(listed).toMatchObject({ operator: 'in', value: '', values: ['hi'] });
-    expect(withOperator(listed, 'contains')).toMatchObject({ operator: 'contains', value: 'hi', values: undefined });
-    expect(withOperator(filter({ value: 'hi' }), 'is-true')).toMatchObject({ value: '' });
+    // Every value operator keeps the list; `value` stays empty while `values` is set.
+    expect(withOperator(listed, 'contains')).toMatchObject({ operator: 'contains', value: '', values: ['hi'] });
+    expect(withOperator(filter({ value: 'hi' }), 'is-true')).toMatchObject({ value: '', values: undefined });
   });
 
   it('reports missing values unless an empty option is valid', () => {
@@ -54,7 +55,7 @@ describe('conditions', () => {
   it('reads and writes values for both operator shapes', () => {
     expect(filterValues(filter({ value: 'a' }))).toEqual(['a']);
     expect(withValues(filter({ operator: 'in' }), ['a', 'b'])).toMatchObject({ values: ['a', 'b'] });
-    expect(withValues(filter({}), ['x', 'y'])).toMatchObject({ value: 'x' });
+    expect(withValues(filter({}), ['x', 'y'])).toMatchObject({ values: ['x', 'y'], value: '' });
   });
 
   it('describes a filter as a phrase', () => {

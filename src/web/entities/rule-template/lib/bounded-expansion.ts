@@ -169,7 +169,7 @@ export function instantiateBoundedTemplates(inputs: TemplateExpansionInput[]): A
       name: overrides.actionNames?.[index]?.trim() || expanding(action.name, params), typeId: action.typeId, enabled: action.enabled, config: expanding(action.config, params) }));
     const event = recorded({ schemaVersion: 1, id: createEventId(), name: overrides.eventName?.trim() || expanding(template.event.name, params),
       enabled: template.event.enabled, trigger: template.event.trigger, filters: expanding(template.event.filters, params), cooldownMs: template.event.cooldownMs,
-      cooldownScope: template.event.cooldownScope, actionIds: ids, runMode: template.event.runMode });
+      cooldownScope: template.event.cooldownScope, actionIds: ids, runMode: template.event.runMode, matchMode: template.event.matchMode });
     return { actions, event };
   });
   measure(plans, { aggregate: { bytes: 0 } });

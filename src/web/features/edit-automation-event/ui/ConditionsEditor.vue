@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, useId } from 'vue';
-import type { EventFilter, FilterOperator } from '../../../../automation/behavior/types.ts';
+import type { ConditionMatchMode, EventFilter, FilterOperator } from '../../../../automation/behavior/types.ts';
 import { normalizeCapturedKey } from '@/entities/automation/lib/key-capture.ts';
 import {
   conditionFields,
@@ -14,7 +14,6 @@ import {
   operatorsForFilter,
   withField,
   withOperator,
-  withValues,
 } from '@/entities/automation/lib/conditions.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
@@ -40,12 +39,19 @@ const props = defineProps<{
 }>();
 
 const filters = defineModel<EventFilter[]>({ required: true });
+/** Legacy OR groups from older records; kept in the contract but not edited here. */
+const anyOf = defineModel<EventFilter[][]>('anyOf', { default: () => [] });
+const matchMode = defineModel<ConditionMatchMode>('matchMode', { default: 'and' });
 
 const { t, locale, operatorName } = useAutomationText();
 const id = useId();
 const recording = ref<number | null>(null);
 
 const fields = computed(() => conditionFields(props.trigger, locale.value));
+const modeOptions = computed(() => [
+  { value: 'and', label: t('automations.conditions.matchAll') },
+  { value: 'or', label: t('automations.conditions.matchAny') },
+]);
 const fieldOptions = computed(() => [
   ...fields.value.map((field) => ({ value: field.path, label: field.label })),
   { value: CUSTOM, label: t('automations.conditions.custom') },
@@ -57,8 +63,15 @@ const rowMenu = computed<MenuEntry[]>(() => [
   { id: 'remove', label: t('automations.conditions.remove'), icon: IconTrash },
 ]);
 
+/** A legacy record with only `anyOf` is shown as a flat OR list. */
+const conditions = computed(() =>
+  matchMode.value === 'or' && filters.value.length === 0 && anyOf.value.length > 0
+    ? anyOf.value.flat()
+    : filters.value,
+);
+
 const rows = computed(() =>
-  filters.value.map((filter, index) => {
+  conditions.value.map((filter, index) => {
     const field = fields.value.find((entry) => entry.path === filter.path);
     const kind = fieldKind(props.trigger, filter.path);
     const options = field?.options ?? [];
@@ -78,43 +91,68 @@ const rows = computed(() =>
   }),
 );
 
+/** Only one value per condition; `in` keeps its list because that is its meaning. */
+function toSimple(filter: EventFilter): EventFilter {
+  const values = filterValues(filter);
+  return {
+    path: filter.path,
+    operator: filter.operator,
+    value: values[0] ?? '',
+    ...(filter.operator === 'in' ? { values } : {}),
+  };
+}
+
+function write(next: readonly EventFilter[]): void {
+  filters.value = next.map(toSimple);
+  // Clearing a legacy group emits a second patch; only do it when one exists.
+  if (anyOf.value.length > 0) anyOf.value = [];
+}
+
 function replace(index: number, next: EventFilter): void {
-  filters.value = filters.value.map((filter, position) => (position === index ? next : filter));
+  write(conditions.value.map((filter, position) => (position === index ? next : filter)));
 }
 
 function setField(index: number, path: string | undefined): void {
   if (path === undefined) return;
-  replace(index, withField(props.trigger, filters.value[index]!, path === CUSTOM ? null : path));
+  replace(index, withField(props.trigger, conditions.value[index]!, path === CUSTOM ? null : path));
 }
 
 function setOperator(index: number, operator: FilterOperator | undefined): void {
-  if (operator) replace(index, withOperator(filters.value[index]!, operator));
+  if (operator) replace(index, withOperator(conditions.value[index]!, operator));
 }
 
 function setValue(index: number, value: string): void {
-  replace(index, { ...filters.value[index]!, value });
+  replace(index, { ...conditions.value[index]!, value });
 }
 
 function setList(index: number, values: string[]): void {
-  replace(index, withValues(filters.value[index]!, values));
+  replace(index, { ...conditions.value[index]!, values, value: '' });
 }
 
 function setPath(index: number, path: string): void {
-  replace(index, { ...filters.value[index]!, path });
+  replace(index, { ...conditions.value[index]!, path });
+}
+
+function setMode(value: string | undefined): void {
+  if (value !== 'and' && value !== 'or') return;
+  const current = conditions.value.map(toSimple);
+  matchMode.value = value;
+  write(current);
 }
 
 function add(): void {
-  filters.value = [...filters.value, newFilter(props.trigger)];
+  write([...conditions.value, newFilter(props.trigger)]);
 }
 
 function remove(index: number): void {
-  filters.value = filters.value.filter((_, position) => position !== index);
+  write(conditions.value.filter((_, position) => position !== index));
 }
 
 function duplicate(index: number): void {
-  const source = filters.value[index]!;
-  const copy: EventFilter = { ...source, ...(source.values ? { values: [...source.values] } : {}) };
-  filters.value = [...filters.value.slice(0, index + 1), copy, ...filters.value.slice(index + 1)];
+  const source = conditions.value[index]!;
+  const copy: EventFilter = { ...toSimple(source), ...(source.values ? { values: [...source.values] } : {}) };
+  const list = conditions.value;
+  write([...list.slice(0, index + 1), copy, ...list.slice(index + 1)]);
 }
 
 /** The kebab feeds the same menu as right-click (desktop) and long-press (mobile). */
@@ -151,7 +189,7 @@ function onRecordKey(event: KeyboardEvent): void {
   }
   const captured = normalizeCapturedKey(event);
   if (!captured) return;
-  const filter = filters.value[index];
+  const filter = conditions.value[index];
   if (filter) setValue(index, /\.modifiers$/.test(filter.path) ? captured.modifiers : captured.key);
   stopRecording();
 }
@@ -160,6 +198,10 @@ function startRecording(index: number): void {
   stopRecording();
   recording.value = index;
   window.addEventListener('keydown', onRecordKey, true);
+}
+
+function isRecording(index: number): boolean {
+  return recording.value === index;
 }
 
 function stopRecording(): void {
@@ -253,10 +295,10 @@ onBeforeUnmount(stopRecording);
                 @update:model-value="setValue(row.index, String($event ?? ''))"
               />
               <BaseIconButton
-                :label="recording === row.index ? t('automations.conditions.recording') : t('automations.conditions.record')"
+                :label="isRecording(row.index) ? t('automations.conditions.recording') : t('automations.conditions.record')"
                 size="sm"
-                :pressed="recording === row.index"
-                @click="recording === row.index ? stopRecording() : startRecording(row.index)"
+                :pressed="isRecording(row.index)"
+                @click="isRecording(row.index) ? stopRecording() : startRecording(row.index)"
               >
                 <IconRecord />
               </BaseIconButton>
@@ -298,15 +340,30 @@ onBeforeUnmount(stopRecording);
     >
       {{ t('automations.conditions.empty') }}
     </p>
-    <BaseIconButton
-      class="conditions__add"
-      :label="t('automations.conditions.add')"
-      variant="default"
-      size="sm"
-      @click="add"
-    >
-      <IconPlus />
-    </BaseIconButton>
+    <div class="conditions__foot">
+      <BaseIconButton
+        class="conditions__add"
+        :label="t('automations.conditions.add')"
+        variant="default"
+        size="sm"
+        @click="add"
+      >
+        <IconPlus />
+      </BaseIconButton>
+      <div
+        v-if="rows.length > 1"
+        class="conditions__mode"
+      >
+        <span class="conditions__modelabel">{{ t('automations.conditions.matchMode') }}</span>
+        <BaseComboBox
+          :model-value="matchMode"
+          :options="modeOptions"
+          size="sm"
+          :aria-label="t('automations.conditions.matchMode')"
+          @update:model-value="setMode"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -315,6 +372,24 @@ onBeforeUnmount(stopRecording);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.conditions__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.conditions__mode {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.conditions__modelabel {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
 }
 
 .conditions__grid {

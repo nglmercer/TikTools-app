@@ -216,11 +216,22 @@ pub(crate) fn sample_automation_event(event_type: &str) -> Value {
 /// Callers must only pin synthetic (sample) envelopes: live and custom
 /// data stay truthful even when they match nothing.
 pub(crate) fn pin_event_to_record(event: &mut Value, record: &Value) -> Vec<String> {
-    let Some(filters) = record.get("filters").and_then(Value::as_array) else {
-        return Vec::new();
-    };
+    // `anyOf` needs only one winning group: pin the first group's filters
+    // first so the mandatory `filters` write last and win path conflicts.
+    let mut specs: Vec<&Value> = Vec::new();
+    if let Some(group) = record
+        .get("anyOf")
+        .and_then(Value::as_array)
+        .and_then(|groups| groups.first())
+        .and_then(Value::as_array)
+    {
+        specs.extend(group.iter());
+    }
+    if let Some(filters) = record.get("filters").and_then(Value::as_array) {
+        specs.extend(filters.iter());
+    }
     let mut pinned = Vec::new();
-    for filter in filters {
+    for filter in specs {
         let operator = filter
             .get("operator")
             .and_then(Value::as_str)
@@ -230,7 +241,16 @@ pub(crate) fn pin_event_to_record(event: &mut Value, record: &Value) -> Vec<Stri
         };
         let (value, label) = match operator {
             "eq" | "starts-with" | "contains" => {
-                let Some(value) = filter.get("value").and_then(Value::as_str) else {
+                // `values` wins over `value` in the matcher, so the pin uses
+                // the first declared candidate — the same branch `any`
+                // would pick first.
+                let candidate = filter
+                    .get("values")
+                    .and_then(Value::as_array)
+                    .and_then(|values| values.first())
+                    .and_then(Value::as_str)
+                    .or_else(|| filter.get("value").and_then(Value::as_str));
+                let Some(value) = candidate else {
                     continue;
                 };
                 (Value::String(value.to_owned()), value.to_owned())

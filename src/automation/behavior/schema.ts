@@ -60,6 +60,20 @@ export function normalizeEvent(value: unknown, extraTriggers: string[] = []): Li
     if (filter) filters.push(filter);
   }
 
+  // Flat OR groups, bounded like the host matcher: 4 groups of 12 filters.
+  // Empty groups are dropped — they would match vacuously.
+  const anyOf: EventFilter[][] = [];
+  if (Array.isArray(raw.anyOf)) {
+    for (const group of raw.anyOf.slice(0, 4)) {
+      if (!Array.isArray(group)) continue;
+      const normalized = group
+        .slice(0, 12)
+        .map((entry) => normalizeFilter(entry))
+        .filter((entry): entry is EventFilter => entry !== null);
+      if (normalized.length > 0) anyOf.push(normalized);
+    }
+  }
+
   const actionIds = (Array.isArray(raw.actionIds) ? raw.actionIds : [])
     .filter((entry): entry is string => typeof entry === 'string')
     .slice(0, 16);
@@ -71,11 +85,26 @@ export function normalizeEvent(value: unknown, extraTriggers: string[] = []): Li
     enabled: raw.enabled === true,
     trigger: trigger as AutomationEventType,
     filters,
+    ...(raw.matchMode === 'or' ? { matchMode: 'or' as const } : {}),
+    ...(anyOf.length > 0 ? { anyOf } : {}),
     cooldownMs: clamp(numberOr(raw.cooldownMs, 0), 0, 24 * 60 * 60 * 1000),
     cooldownScope: raw.cooldownScope === 'global' ? 'global' : 'user',
     actionIds,
     runMode: raw.runMode === 'random' ? 'random' : 'all',
   };
+}
+
+const VALUE_OPERATORS: ReadonlySet<FilterOperator> = new Set([
+  'gte', 'gt', 'lte', 'lt', 'eq', 'neq', 'contains', 'starts-with', 'in',
+]);
+const CAPTURE_ALIAS = /^[a-zA-Z][a-zA-Z0-9_]{0,31}$/;
+const RESERVED_CAPTURE_KEYS = new Set(['match', 'event', 'globals', 'data', 'user']);
+
+function normalizeCaptureAlias(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const alias = value.trim();
+  if (!CAPTURE_ALIAS.test(alias) || RESERVED_CAPTURE_KEYS.has(alias)) return undefined;
+  return alias;
 }
 
 function normalizeFilter(value: unknown): EventFilter | null {
@@ -84,15 +113,28 @@ function normalizeFilter(value: unknown): EventFilter | null {
   const path = typeof raw.path === 'string' ? raw.path.trim().replace(/^\{\{\s*|\s*\}\}$/g, '') : '';
   if (!path) return null;
   const operator = OPERATORS.find((entry) => entry === raw.operator) ?? 'eq';
+  const takesValue = VALUE_OPERATORS.has(operator);
   const values = Array.isArray(raw.values)
     ? raw.values.filter((entry): entry is string => typeof entry === 'string').slice(0, 24)
     : undefined;
+  // `in` reads `values` only; other value operators fall back to `value`
+  // when no list is stored. Boolean assertions take neither.
+  const keptValues = takesValue ? (operator === 'in' ? values ?? [] : values) : undefined;
+  // `neq` with a list means «none of»: `any` is normalized to `all` so a
+  // stored draft cannot express the almost-always-true form.
+  const quantifier =
+    takesValue && operator !== 'in' && (raw.quantifier === 'all' || operator === 'neq' && (keptValues?.length ?? 0) > 0)
+      ? 'all'
+      : undefined;
+  const alias = takesValue ? normalizeCaptureAlias(raw.as) : undefined;
 
   return {
     path: path.slice(0, 200),
     operator,
     value: typeof raw.value === 'string' ? raw.value.slice(0, 200) : '',
-    values: operator === 'in' ? values ?? [] : undefined,
+    values: keptValues && keptValues.length > 0 ? keptValues : operator === 'in' ? [] : undefined,
+    quantifier,
+    as: alias,
   };
 }
 

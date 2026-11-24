@@ -3,7 +3,7 @@ import { computed, markRaw, ref, shallowRef } from 'vue';
 import { applyConditionTemplate, conditionTemplatesFor, type ConditionTemplate } from '../../../../automation/behavior/condition-templates.ts';
 import { registerLiveGoalTemplates } from '../../../../automation/behavior/live-goal-templates.ts';
 import { registerModerationTemplates } from '../../../../automation/behavior/moderation-templates.ts';
-import type { LiveEvent } from '../../../../automation/behavior/types.ts';
+import type { ConditionMatchMode, LiveEvent } from '../../../../automation/behavior/types.ts';
 import type { HotkeyStatusData } from '../../../../shared/messages.ts';
 import { rawHotkeyInputHint, requiresRawHotkeyInput } from '@/entities/automation/lib/hotkey-status.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
@@ -22,7 +22,9 @@ const props = defineProps<{
   viewers: readonly SearchOption[];
   hotkeyStatus?: HotkeyStatusData | null;
 }>();
-const emit = defineEmits<{ change: [filters: LiveEvent['filters']] }>();
+const emit = defineEmits<{
+  change: [patch: { filters: LiveEvent['filters']; anyOf?: LiveEvent['anyOf']; matchMode?: ConditionMatchMode }];
+}>();
 registerModerationTemplates();
 registerLiveGoalTemplates();
 const { t } = useAutomationText();
@@ -42,7 +44,15 @@ const rawHotkey = computed(
 );
 const filters = computed({
   get: () => props.event.filters,
-  set: (next) => emit('change', next),
+  set: (next) => emit('change', { filters: next, anyOf: props.event.anyOf }),
+});
+const anyOf = computed({
+  get: () => props.event.anyOf ?? [],
+  set: (next) => emit('change', { filters: props.event.filters, anyOf: next.length ? next : undefined }),
+});
+const matchMode = computed({
+  get: () => props.event.matchMode ?? 'and',
+  set: (next) => emit('change', { filters: props.event.filters, anyOf: props.event.anyOf, matchMode: next }),
 });
 function openTemplates(event: MouseEvent): void {
   templatesAnchor.value = markRaw(event.currentTarget as HTMLElement);
@@ -56,12 +66,14 @@ function pickTemplate(action: MenuAction): void {
     configuring.value = template;
     configureOpen.value = true;
   } else {
-    emit('change', applyConditionTemplate(template, {}));
+    emit('change', { filters: applyConditionTemplate(template, {}), anyOf: props.event.anyOf, matchMode: props.event.matchMode });
   }
 }
 
 function applyConfigured(answers: Record<string, string>): void {
-  if (configuring.value) emit('change', applyConditionTemplate(configuring.value, answers));
+  if (configuring.value) {
+    emit('change', { filters: applyConditionTemplate(configuring.value, answers), anyOf: props.event.anyOf, matchMode: props.event.matchMode });
+  }
 }
 </script>
 
@@ -85,6 +97,8 @@ function applyConfigured(answers: Record<string, string>): void {
     </template>
     <ConditionsEditor
       v-model="filters"
+      v-model:any-of="anyOf"
+      v-model:match-mode="matchMode"
       :trigger="event.trigger"
       :gifts="gifts"
       :viewers="viewers"

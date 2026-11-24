@@ -74,6 +74,10 @@ pub struct RuleTemplateFilter {
     pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub values: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quantifier: Option<String>,
+    #[serde(rename = "as", skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +86,8 @@ pub struct RuleTemplateEvent {
     pub enabled: bool,
     pub trigger: String,
     pub filters: Vec<RuleTemplateFilter>,
+    #[serde(default, rename = "matchMode")]
+    pub match_mode: String,
     #[serde(rename = "cooldownMs")]
     pub cooldown_ms: u64,
     #[serde(rename = "cooldownScope")]

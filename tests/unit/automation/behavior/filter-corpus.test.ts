@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { applyConditionTemplate, type ConditionTemplate } from '../../../../src/automation/behavior/condition-templates.ts';
 import { liveGoalTemplates } from '../../../../src/automation/behavior/live-goal-templates.ts';
 import { moderationConditionTemplates } from '../../../../src/automation/behavior/moderation-templates.ts';
-import { matchesAllFilters, matchesFilter } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
+import { filterOutcome, matchesAllFilters, recordOutcome } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
 
 /**
  * The corpus is shared with the Rust matcher (`filters.rs` `corpus_tests`).
@@ -20,8 +20,11 @@ interface CorpusCase {
   matches: boolean;
   filter?: object;
   filters?: unknown;
+  matchMode?: 'and' | 'or';
+  anyOf?: unknown;
   template?: string;
   answers?: Record<string, string>;
+  captures?: Record<string, string>;
 }
 
 interface Corpus {
@@ -61,14 +64,36 @@ describe('shared filter corpus', () => {
 
   test('filter cases agree with the host matcher', () => {
     const failures = corpus.filterCases
-      .filter((entry) => matchesFilter(entry.filter as object, eventOf(entry)) !== entry.matches)
+      .filter((entry) => filterOutcome(entry.filter as object, eventOf(entry)).matched !== entry.matches)
+      .map((entry) => entry.label);
+    expect(failures).toEqual([]);
+  });
+
+  test('filter captures agree with the host matcher', () => {
+    const failures = corpus.filterCases
+      .filter((entry) => {
+        if (entry.captures === undefined) return false;
+        const { captures } = filterOutcome(entry.filter as object, eventOf(entry));
+        return JSON.stringify(captures) !== JSON.stringify(entry.captures);
+      })
       .map((entry) => entry.label);
     expect(failures).toEqual([]);
   });
 
   test('record cases combine filters with AND like the host', () => {
     const failures = corpus.recordCases
-      .filter((entry) => matchesAllFilters(entry.filters, eventOf(entry)) !== entry.matches)
+      .filter((entry) => recordOutcome({ filters: entry.filters, matchMode: entry.matchMode, anyOf: entry.anyOf }, eventOf(entry)).matched !== entry.matches)
+      .map((entry) => entry.label);
+    expect(failures).toEqual([]);
+  });
+
+  test('record captures agree with the host matcher', () => {
+    const failures = corpus.recordCases
+      .filter((entry) => {
+        if (entry.captures === undefined) return false;
+        const { captures } = recordOutcome({ filters: entry.filters, matchMode: entry.matchMode, anyOf: entry.anyOf }, eventOf(entry));
+        return JSON.stringify(captures) !== JSON.stringify(entry.captures);
+      })
       .map((entry) => entry.label);
     expect(failures).toEqual([]);
   });

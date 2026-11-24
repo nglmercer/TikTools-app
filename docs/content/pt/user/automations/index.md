@@ -29,6 +29,8 @@ Uma **Action** é uma operação configurada reutilizável, como escrever uma li
 5. Vincule as ações desejadas na ordem. O modo normal executa a lista escolhida; o modo aleatório seleciona uma ação dela. Uma ação de atraso adia as ações seguintes, sem reduzir a velocidade de ingestão da LIVE.
 6. Salve, revise as alterações de definição exibidas e ative explicitamente os registros que pretende executar. Confira no histórico de execução o nome da ação, o resultado e o erro.
 
+Toda comparação aceita uma lista de valores em vez de um único valor. A combinação padrão é “qualquer”: a condição é atendida quando pelo menos um valor corresponde. Mude o quantificador para “todos” quando todos os valores precisarem corresponder — com “não é”, isso significa “não é nenhum”. Uma condição também pode nomear um alias de captura: o valor vencedor fica disponível nos modelos de ação como `{{ match.<alias> }}` (ou `{{ match.<posição> }}` sem alias). Abaixo das condições sempre obrigatórias, você pode adicionar até quatro **alternativas**: grupos em que todas as condições precisam passar internamente, e basta um único grupo para o evento disparar.
+
 Os testes podem executar os efeitos configurados. Leia a lista de ações selecionadas antes de pressionar **Test** ou disparar um evento, especialmente para áudio, HTTP, pontos e operações de plugins. Use registros enquanto aprende.
 
 ## Resultado esperado e status {#expected-result-and-status}

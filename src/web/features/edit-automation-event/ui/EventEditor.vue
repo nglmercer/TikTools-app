@@ -259,7 +259,7 @@ function runCustom(kind: 'test' | 'fire'): void {
             :gifts="gifts"
             :viewers="viewers"
             :hotkey-status="hotkeyStatus"
-            @change="update({ filters: $event })"
+            @change="update($event)"
           />
         </div>
 

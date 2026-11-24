@@ -52,8 +52,12 @@ export interface ConditionTemplateRow {
   path: string;
   operator: FilterOperator;
   value: ConditionTemplateValue;
-  /** `in` only: carried through untouched. */
+  /** Value list for every operator that takes one; `in` included. */
   values?: string[];
+  /** `any` (default) or `all`; `neq` lists normalize to `all`. */
+  quantifier?: 'any' | 'all';
+  /** Optional `match.<alias>` capture name. */
+  as?: string;
 }
 
 export interface ConditionTemplate {
@@ -152,6 +156,8 @@ export function applyConditionTemplate(
         : resolveParamValue(params.get(row.value.param), answers[row.value.param]),
     };
     if (row.values) filter.values = [...row.values];
+    if (row.quantifier) filter.quantifier = row.quantifier;
+    if (row.as) filter.as = row.as;
     return filter;
   });
 }

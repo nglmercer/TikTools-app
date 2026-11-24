@@ -81,7 +81,7 @@ pub(super) fn instantiate_template_with_ids(
         &serde_json::to_value(&template.event.filters).unwrap_or(Value::Array(Vec::new())),
         params,
     );
-    let event = serde_json::json!({
+    let mut event = serde_json::json!({
         "schemaVersion": 1,
         "id": event_id,
         "name": name,
@@ -93,6 +93,9 @@ pub(super) fn instantiate_template_with_ids(
         "actionIds": action_ids,
         "runMode": template.event.run_mode,
     });
+    if matches!(template.event.match_mode.as_str(), "and" | "or") {
+        event["matchMode"] = serde_json::Value::String(template.event.match_mode.clone());
+    }
     InstantiatedRule { actions, event }
 }
 

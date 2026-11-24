@@ -30,6 +30,22 @@ fn rendered_field(raw: &str) -> Option<String> {
         if parts[0].starts_with("event") {
             return None;
         }
+        // `match.<alias>` spans resolve the per-execution filter captures.
+        // Only the flat alias/index form is classifiable; the whole capture
+        // object and deeper paths stay unclassifiable.
+        if parts[0] == "match" {
+            if parts.len() == 2
+                && !parts[1].is_empty()
+                && parts[1].len() <= 32
+                && parts[1]
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && !matches!(parts[1], "match" | "event" | "globals" | "data" | "user")
+            {
+                return Some(format!("match.{}", parts[1]));
+            }
+            return None;
+        }
         format!("event.{}", parts.join("."))
     };
     if normalized.len() > 256

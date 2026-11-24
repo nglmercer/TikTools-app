@@ -33,6 +33,27 @@ pub const PUBLIC_EFFECT_RENDER_FIELDS: &[&str] = &[
     "event.data.giftType",
 ];
 
+/// Upper bound for one effect's render-field inventory: the static public
+/// list plus the bounded `match.*` capture aliases an event can publish.
+const MAX_RENDER_FIELDS: usize = 64;
+
+/// `match.<alias>`/`match.<index>` render fields carry the per-execution
+/// filter captures. They are public by construction — bounded strings derived
+/// from the approved filter operands — but cannot be enumerated statically.
+pub fn public_effect_render_field(field: &str) -> bool {
+    PUBLIC_EFFECT_RENDER_FIELDS.contains(&field) || valid_match_render_field(field)
+}
+
+fn valid_match_render_field(field: &str) -> bool {
+    let Some(alias) = field.strip_prefix("match.") else {
+        return false;
+    };
+    !alias.is_empty()
+        && alias.len() <= 32
+        && alias.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && !matches!(alias, "match" | "event" | "globals" | "data" | "user")
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Default)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EffectGrants {
@@ -125,11 +146,11 @@ impl HttpEffectGrant {
             || self.query_fields.iter().any(|s| !valid_field(s))
             || self.header_names.len() > 64
             || self.header_names.iter().any(|s| !valid_header(s))
-            || self.render_fields.len() > PUBLIC_EFFECT_RENDER_FIELDS.len()
+            || self.render_fields.len() > MAX_RENDER_FIELDS
             || self
                 .render_fields
                 .iter()
-                .any(|s| !PUBLIC_EFFECT_RENDER_FIELDS.contains(&s.as_str()))
+                .any(|s| !public_effect_render_field(s))
             || self.body_fields.len() > 256
             || self.body_fields.iter().any(|s| !valid_field(s))
             || self.max_body_bytes > MAX_EFFECT_BODY_BYTES

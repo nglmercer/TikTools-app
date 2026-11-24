@@ -16,8 +16,8 @@ export type TriggerType = AutomationEventType | (string & {});
  * An ACTION is a configured action type with a name of its own — "Aplausos" —
  * and can be reused by several events. An EVENT is a trigger plus optional
  * filters plus the actions it runs. There is no graph and no nesting: every
- * filter must pass, and an "or" is expressed inside a single filter with the
- * `in` operator.
+ * filter must pass, and alternatives live inside a single filter through
+ * `values` + `quantifier` (`in` keeps its own whole-value semantics).
  */
 export type ActionFieldKind =
   | 'text'
@@ -174,18 +174,45 @@ export type FilterOperator =
   | 'is-true'
   | 'is-false';
 
+/** How a multi-value filter combines its per-value results. */
+export type FilterQuantifier = 'any' | 'all';
+
+/**
+ * Evaluation result of one filter: the verdict plus the bounded `match.*`
+ * captures of the winning value branch. Mirrors `FilterOutcome` in
+ * `crates/tiktools-core/src/services/automation/filters.rs`.
+ */
+export interface FilterOutcome {
+  matched: boolean;
+  captures: Record<string, string>;
+}
+
 export interface EventFilter {
   /** Dotted path resolved against `{ event, data, user }`. */
   path: string;
   operator: FilterOperator;
-  /** Single-value operators. */
+  /** Single-value operators; ignored when `values` is present. */
   value: string;
-  /** `in` only: the "or" lives here instead of in a nested group. */
+  /**
+   * Value list for every operator that takes a value: `any` (default) wins
+   * when at least one entry satisfies the operator, `all` requires every
+   * entry (`neq` + `all` reads «is none of»). `in` keeps its own
+   * whole-value, case-folded semantics.
+   */
   values?: string[];
+  /** How `values` combine. `neq` is always normalized to `all`. */
+  quantifier?: FilterQuantifier;
+  /**
+   * Optional alias publishing the winning value as `match.<alias>`;
+   * without it the capture lands on `match.<filter index>`.
+   */
+  as?: string;
 }
 
 export type EventRunMode = 'all' | 'random';
 export type CooldownScope = 'global' | 'user';
+/** How the event's `filters` combine. `anyOf`, when present, still applies after them. */
+export type ConditionMatchMode = 'and' | 'or';
 
 export interface LiveEvent {
   schemaVersion: 1;
@@ -193,8 +220,17 @@ export interface LiveEvent {
   name: string;
   enabled: boolean;
   trigger: TriggerType;
-  /** All of them must pass. Empty means the event always fires. */
+  /** Conditions to combine according to `matchMode`. Empty means the event always fires. */
   filters: EventFilter[];
+  /** `and` (default) requires every filter; `or` fires on the first one that passes. */
+  matchMode?: ConditionMatchMode;
+  /**
+   * Flat OR groups: the event fires when `filters` all pass AND at least one
+   * group has every filter passing. Absent or empty means `true`. At most 4
+   * groups of at most 12 filters; captures come only from the first winning
+   * group (merged after the `filters` captures).
+   */
+  anyOf?: EventFilter[][];
   cooldownMs: number;
   cooldownScope: CooldownScope;
   actionIds: string[];

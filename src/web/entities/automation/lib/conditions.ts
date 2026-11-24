@@ -28,6 +28,11 @@ export const OPERATOR_CODE: Record<FilterOperator, string> = {
   'is-false': '= false',
 };
 
+/** Operators that compare against a value or a value list. */
+const VALUE_OPERATORS: ReadonlySet<FilterOperator> = new Set([
+  'gte', 'gt', 'lte', 'lt', 'eq', 'neq', 'contains', 'starts-with', 'in',
+]);
+
 function language(locale: string): Language {
   return locale.startsWith('es') ? 'es' : 'en';
 }
@@ -63,8 +68,14 @@ export function needsValue(operator: FilterOperator): boolean {
   return operator !== 'is-true' && operator !== 'is-false';
 }
 
+/** Whether the operator reads a `values` list (everything but `in`-only legacy use is covered). */
+export function takesValues(operator: FilterOperator): boolean {
+  return VALUE_OPERATORS.has(operator);
+}
+
+/** The effective candidate list: `values` when stored, else the single `value`. */
 export function filterValues(filter: EventFilter): string[] {
-  if (filter.operator === 'in') return filter.values ?? [];
+  if (filter.values !== undefined) return [...filter.values];
   return filter.value ? [filter.value] : [];
 }
 
@@ -84,36 +95,57 @@ export function newFilter(trigger: string): EventFilter {
   };
 }
 
+/** Quantifier carried across edits; `neq` lists always mean «none of». */
+function carriedQuantifier(filter: EventFilter, operator: FilterOperator, values: readonly string[] | undefined): EventFilter['quantifier'] {
+  if (operator === 'in' || operator === 'is-true' || operator === 'is-false') return undefined;
+  if (operator === 'neq' && (values?.length ?? 0) > 0) return 'all';
+  return filter.quantifier === 'all' ? 'all' : undefined;
+}
+
 export function withField(trigger: string, filter: EventFilter, path: string | null): EventFilter {
   if (path === null) return { path: '', operator: 'eq', value: '', values: undefined };
   const operators = operatorsFor(fieldKind(trigger, path));
   const operator = operators.includes(filter.operator) ? filter.operator : operators[0]!;
+  const values = takesValues(operator) ? filter.values : undefined;
   return {
     path,
     operator,
-    value: needsValue(operator) ? filter.value : '',
-    values: operator === 'in' ? (filter.values ?? []) : undefined,
+    value: needsValue(operator) && values === undefined ? filter.value : '',
+    values,
+    quantifier: carriedQuantifier(filter, operator, values),
+    as: takesValues(operator) ? filter.as : undefined,
   };
 }
 
 export function withOperator(filter: EventFilter, operator: FilterOperator): EventFilter {
   const picked = filterValues(filter);
+  const values = takesValues(operator) ? (filter.values ?? (picked.length ? picked : undefined)) : undefined;
   return {
     ...filter,
     operator,
-    values: operator === 'in' ? (filter.values ?? picked) : undefined,
-    value: operator === 'in' || !needsValue(operator) ? '' : filter.value || picked[0] || '',
+    values,
+    quantifier: carriedQuantifier(filter, operator, values),
+    as: takesValues(operator) ? filter.as : undefined,
+    value: values === undefined && needsValue(operator) ? filter.value || picked[0] || '' : '',
   };
 }
 
 export function withValues(filter: EventFilter, values: readonly string[]): EventFilter {
-  if (filter.operator === 'in') return { ...filter, values: [...values] };
-  return { ...filter, value: values[0] ?? '' };
+  if (!takesValues(filter.operator)) return filter;
+  return { ...filter, values: [...values], value: '' };
+}
+
+export function withQuantifier(filter: EventFilter, quantifier: 'any' | 'all'): EventFilter {
+  if (!takesValues(filter.operator) || filter.operator === 'in') return filter;
+  // `neq` lists always mean «none of»: `any` is normalized to `all`.
+  if (filter.operator === 'neq') return { ...filter, quantifier: 'all' };
+  return { ...filter, quantifier: quantifier === 'all' ? 'all' : undefined };
 }
 
 export function describeFilter(filter: EventFilter, fieldLabel: string, operatorLabel: string): string {
   const field = fieldLabel || filter.path.replace(/^event\.(data|user)\./, '');
   if (!needsValue(filter.operator)) return `${field} ${operatorLabel}`;
-  const value = filter.operator === 'in' ? (filter.values ?? []).join(', ') : filter.value;
-  return `${field} ${operatorLabel} ${value || '…'}`;
+  const value = (filter.values?.length ? filter.values.join(', ') : filter.value) || '…';
+  const quantifier = filter.quantifier === 'all' && (filter.values?.length ?? 0) > 1 ? 'all of ' : '';
+  return `${field} ${operatorLabel} ${quantifier}${value}`;
 }

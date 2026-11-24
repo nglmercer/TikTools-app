@@ -33,6 +33,8 @@ Change a shared value once and reuse it in several actions. You need **Automatio
 
 Template `params` are substituted when applying a template; `globals` are read at execution. A missing runtime key renders as empty text, so verify spelling before using it in a destination or identifier. Use the field's variable suggestions for event paths appropriate to its trigger.
 
+Conditions can also publish per-match values. When a filter declares a capture alias, the value that satisfied it is available while the event's actions render as `{{ match.<alias> }}` (or `{{ match.<position> }}` when no alias is set). For example, a `starts with` condition on the comment with alias `prefix` lets a log action print `{{ match.prefix }}`. Captures are bounded plain text, are only produced by the filters and alternatives that actually matched, and do not change cooldown keys.
+
 ## Review Cloud changes separately {#review-cloud-changes-separately}
 
 The Variables **Changes** control has native reviewed send, fetch, apply/adopt and withdraw operations when supported. Save local edits first, select a comparison, inspect its type and value, and choose the intended direction explicitly. Fetching a Cloud candidate is separate from applying it locally. Withdrawing a shared value is separate from deleting a local row.

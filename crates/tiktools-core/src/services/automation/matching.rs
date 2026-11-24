@@ -1,6 +1,6 @@
 //! One atomic index binds matching to the exact event and action definitions.
 use super::authority::owner_record_allowed;
-use super::filters::{event_record_matches, number_u64};
+use super::filters::{event_record_matches, event_record_outcome, number_u64};
 use super::snapshot::trigger_allowed;
 use super::*;
 
@@ -49,6 +49,7 @@ impl AutomationService {
                 generation: r.generation,
                 catalog_epoch,
                 actions: select_actions(&index, &r.definition),
+                captures: record_event_captures(&index, &r.definition, event),
                 #[cfg(feature = "persistence")]
                 approval: record_approval(&index, &r.definition),
             })
@@ -99,6 +100,7 @@ impl AutomationService {
                     generation: r.generation,
                     catalog_epoch,
                     actions: select_actions(&index, &r.definition),
+                    captures: event_record_outcome(&r.definition, &projected).captures,
                     approval: Some(candidate),
                 })
             })
@@ -119,6 +121,9 @@ impl AutomationService {
             generation,
             catalog_epoch: index.catalog_epoch?,
             actions: select_actions(&index, record),
+            // Manual drafts evaluate against the event at dispatch time; the
+            // record itself carries no captures until then.
+            captures: BTreeMap::new(),
             #[cfg(feature = "persistence")]
             approval: record_approval(&index, record),
         })
@@ -131,6 +136,24 @@ impl AutomationService {
     pub(crate) fn runtime_event_record_matches(&self, record: &Value, event: &Value) -> bool {
         self.scoped_event(record, event)
             .is_some_and(|event| event_record_matches(record, &event))
+    }
+    /// `match.*` captures of an ad-hoc (manual/test) record against one event,
+    /// honoring the same Owner-vs-projected split as `scoped_event`. Empty
+    /// when the record does not match or is not authorized.
+    pub(crate) fn match_captures_for(
+        &self,
+        record: &Value,
+        event: &Value,
+    ) -> BTreeMap<String, String> {
+        let Some(scoped) = self.scoped_event(record, event) else {
+            return BTreeMap::new();
+        };
+        let outcome = event_record_outcome(record, &scoped);
+        if outcome.matched {
+            outcome.captures
+        } else {
+            BTreeMap::new()
+        }
     }
     pub(super) fn scoped_event<'a>(
         &self,
@@ -277,37 +300,49 @@ fn input_source_allowed(index: &BehaviorIndex, record: &Value, scoped: bool) -> 
 /// absence predicates. Scoped input cannot cause an Owner rule to inspect
 /// arbitrary fields by selecting a permissive operator.
 pub(crate) fn public_filter_paths(record: &Value) -> bool {
-    let Some(filters) = record.get("filters") else {
-        return true;
+    let path_public = |filter: &Value| {
+        let Some(raw) = filter.get("path").and_then(Value::as_str) else {
+            return false;
+        };
+        if raw.len() > 256 {
+            return false;
+        }
+        let raw = raw
+            .trim()
+            .trim_start_matches("{{")
+            .trim_end_matches("}}")
+            .trim();
+        let path = raw.strip_prefix("event.").unwrap_or(raw);
+        let path = path.strip_prefix("event").unwrap_or(path);
+        let parts = path
+            .trim_matches('.')
+            .split('.')
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>();
+        !parts.is_empty()
+            && !parts[0].starts_with("event")
+            && crate::collaboration::PUBLIC_EFFECT_RENDER_FIELDS
+                .contains(&format!("event.{}", parts.join(".")).as_str())
     };
-    let Some(filters) = filters.as_array() else {
-        return false;
-    };
-    filters.len() <= 256
-        && filters.iter().all(|filter| {
-            let Some(raw) = filter.get("path").and_then(Value::as_str) else {
-                return false;
-            };
-            if raw.len() > 256 {
-                return false;
-            }
-            let raw = raw
-                .trim()
-                .trim_start_matches("{{")
-                .trim_end_matches("}}")
-                .trim();
-            let path = raw.strip_prefix("event.").unwrap_or(raw);
-            let path = path.strip_prefix("event").unwrap_or(path);
-            let parts = path
-                .trim_matches('.')
-                .split('.')
-                .filter(|part| !part.is_empty())
-                .collect::<Vec<_>>();
-            !parts.is_empty()
-                && !parts[0].starts_with("event")
-                && crate::collaboration::PUBLIC_EFFECT_RENDER_FIELDS
-                    .contains(&format!("event.{}", parts.join(".")).as_str())
-        })
+    if let Some(filters) = record.get("filters") {
+        let Some(filters) = filters.as_array() else {
+            return false;
+        };
+        if filters.len() > 256 || !filters.iter().all(path_public) {
+            return false;
+        }
+    }
+    if let Some(groups) = record.get("anyOf") {
+        let Some(groups) = groups.as_array() else {
+            return false;
+        };
+        return groups.iter().all(|group| {
+            group
+                .as_array()
+                .is_some_and(|items| items.len() <= 12 && items.iter().all(path_public))
+        });
+    }
+    true
 }
 fn record_allowed(index: &BehaviorIndex, record: &Value) -> bool {
     record_authorized(index, record)
@@ -378,6 +413,30 @@ fn record_approval(
         record,
     )
 }
+/// Captures of a matched record, evaluated against exactly the projection
+/// `record_event_matches` used (Owner sees the full envelope, delegated
+/// records only the public scalar projection).
+fn record_event_captures(
+    index: &BehaviorIndex,
+    record: &Value,
+    event: &Value,
+) -> BTreeMap<String, String> {
+    if owner_record_allowed(index, record) {
+        return event_record_outcome(record, event).captures;
+    }
+    #[cfg(feature = "persistence")]
+    return event_record_outcome(
+        record,
+        &crate::services::automation_approval_policy::project_event(event),
+    )
+    .captures;
+    #[cfg(not(feature = "persistence"))]
+    {
+        let _ = (index, record, event);
+        BTreeMap::new()
+    }
+}
+
 fn record_event_matches(index: &BehaviorIndex, record: &Value, event: &Value) -> bool {
     if owner_record_allowed(index, record) {
         return event_record_matches(record, event);

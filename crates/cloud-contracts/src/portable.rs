@@ -244,6 +244,8 @@ fn event(doc: &Value) -> bool {
             "cooldownMs",
             "cooldownScope",
             "runMode",
+            "matchMode",
+            "anyOf",
         ],
     ) && text(&doc["name"], 1, 80)
         && text(&doc["trigger"], 1, 128)
@@ -257,35 +259,61 @@ fn event(doc: &Value) -> bool {
         && optional(doc, "runMode", |v| {
             matches!(v.as_str(), Some("all" | "random"))
         })
+        && optional(doc, "matchMode", |v| {
+            matches!(v.as_str(), Some("and" | "or"))
+        })
         && optional(doc, "filters", |v| {
-            v.as_array().is_some_and(|items| {
-                items.len() <= 12
-                    && items.iter().all(|f| {
-                        object(f, &["path", "operator", "value", "values"])
-                            && text(&f["path"], 1, 200)
-                            && matches!(
-                                f["operator"].as_str(),
-                                Some(
-                                    "gte"
-                                        | "gt"
-                                        | "lte"
-                                        | "lt"
-                                        | "eq"
-                                        | "neq"
-                                        | "contains"
-                                        | "starts-with"
-                                        | "in"
-                                        | "is-true"
-                                        | "is-false"
-                                )
-                            )
-                            && optional(f, "value", |v| text(v, 0, 500))
-                            && optional(f, "values", |v| {
-                                v.as_array().is_some_and(|items| {
-                                    items.len() <= 64 && items.iter().all(|v| text(v, 0, 500))
-                                })
-                            })
+            v.as_array()
+                .is_some_and(|items| items.len() <= 12 && items.iter().all(event_filter))
+        })
+        && optional(doc, "anyOf", |v| {
+            v.as_array().is_some_and(|groups| {
+                groups.len() <= 4
+                    && groups.iter().all(|group| {
+                        group.as_array().is_some_and(|items| {
+                            !items.is_empty() && items.len() <= 12 && items.iter().all(event_filter)
+                        })
                     })
+            })
+        })
+}
+
+fn event_filter(f: &Value) -> bool {
+    object(
+        f,
+        &["path", "operator", "value", "values", "quantifier", "as"],
+    ) && text(&f["path"], 1, 200)
+        && matches!(
+            f["operator"].as_str(),
+            Some(
+                "gte"
+                    | "gt"
+                    | "lte"
+                    | "lt"
+                    | "eq"
+                    | "neq"
+                    | "contains"
+                    | "starts-with"
+                    | "in"
+                    | "is-true"
+                    | "is-false"
+            )
+        )
+        && optional(f, "value", |v| text(v, 0, 500))
+        && optional(f, "values", |v| {
+            v.as_array()
+                .is_some_and(|items| items.len() <= 64 && items.iter().all(|v| text(v, 0, 500)))
+        })
+        && optional(f, "quantifier", |v| {
+            matches!(v.as_str(), Some("any" | "all"))
+        })
+        && optional(f, "as", |v| {
+            v.as_str().is_some_and(|a| {
+                !a.is_empty()
+                    && a.len() <= 32
+                    && a.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                    && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                    && !matches!(a, "match" | "event" | "globals" | "data" | "user")
             })
         })
 }

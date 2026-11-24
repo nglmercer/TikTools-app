@@ -63,7 +63,6 @@ it('reorders actions by dragging the grip with a pointer', async () => {
 it('duplicates a condition right below itself from the row action menu', async () => {
   const filters: EventFilter[] = [
     { path: 'event.data.text', operator: 'starts-with', value: '!play' },
-    { path: 'event.data.text', operator: 'starts-with', value: '/play' },
   ];
   const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
@@ -76,8 +75,31 @@ it('duplicates a condition right below itself from the row action menu', async (
   item.click();
   await nextTick();
   const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
-  expect(changed.filters).toEqual([filters[0], filters[0], filters[1]]);
+  expect(changed.filters).toEqual([filters[0], filters[0]]);
   expect(changed.filters[0]).not.toBe(changed.filters[1]);
+});
+
+it('combines conditions with one global AND/OR toggle and no false missing-value warning', async () => {
+  const filters: EventFilter[] = [
+    { path: 'event.data.text', operator: 'starts-with', value: '!play' },
+    { path: 'event.data.text', operator: 'contains', value: 'vip' },
+  ];
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
+  const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
+    event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
+  } });
+  expect(wrapper.text()).not.toContain(t('automations.conditions.missing'));
+  const toggle = wrapper.findAll('button[role="combobox"]')
+    .find((item) => item.attributes('aria-label') === t('automations.conditions.matchMode'))!;
+  await toggle.trigger('click');
+  await nextTick();
+  const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')]
+    .find((item) => item.textContent?.trim() === t('automations.conditions.matchAny'))!;
+  option.click();
+  await nextTick();
+  const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
+  expect(changed.matchMode).toBe('or');
+  expect(changed.filters).toEqual(filters);
 });
 
 it('configures a condition template and discards it with the other unsaved edits', async () => {
@@ -164,7 +186,7 @@ it('keeps the enable switch in the General section header and mutes an inactive 
 it('removes a condition through the row action menu', async () => {
   const filters: EventFilter[] = [
     { path: 'event.data.text', operator: 'starts-with', value: '!play' },
-    { path: 'event.data.text', operator: 'starts-with', value: '/play' },
+    { path: 'event.data.text', operator: 'contains', value: 'vip' },
   ];
   const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {

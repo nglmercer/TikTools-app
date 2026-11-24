@@ -29,6 +29,8 @@ An **Action** is a reusable configured operation, such as writing a log line or 
 5. Link the intended actions in order. The normal mode runs the chosen list; random mode selects an action from it. A delay action postpones later actions rather than slowing LIVE ingestion.
 6. Save, review any displayed definition changes, then explicitly enable the records you intend to run. Check the run history for the action name, outcome and error.
 
+Every comparison can take a list of values instead of a single one. The default combines them as “any”: the condition passes when at least one value matches. Switch the quantifier to “all” when every value must match — for “is not” this reads “is none of”. A condition can also name a capture alias; the winning value is then available to action templates as `{{ match.<alias> }}` (or `{{ match.<position> }}` without an alias). Below the always-required conditions you can add up to four **alternatives**: groups whose conditions must all pass inside the group, where any single group is enough for the event to fire.
+
 Tests can execute the configured effects. Read the selected action list before pressing **Test** or firing an event, especially for audio, HTTP, points and plugin operations. Use logging while learning.
 
 ## Expected result and status {#expected-result-and-status}

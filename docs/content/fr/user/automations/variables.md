@@ -33,6 +33,8 @@ Modifier une valeur partagée une seule fois et la réutiliser dans plusieurs ac
 
 Les `params` du modèle sont substitués lors de son application ; les `globals` sont lues à l’exécution. Une clé d’exécution manquante produit un texte vide : vérifiez donc son orthographe avant de l’utiliser dans une destination ou un identifiant. Utilisez les suggestions de variables du champ pour choisir les chemins d’événement adaptés à son déclencheur.
 
+Les conditions peuvent aussi publier des valeurs par correspondance. Lorsqu'un filtre déclare un alias de capture, la valeur qui l'a satisfait est disponible pendant le rendu des actions de l'événement sous la forme `{{ match.<alias> }}` (ou `{{ match.<position> }}` sans alias). Par exemple, une condition « commence par » sur le commentaire avec l'alias `prefix` permet à une action de journal d'afficher `{{ match.prefix }}`. Les captures sont du texte brut borné, ne sont produites que par les filtres et alternatives qui ont réellement correspondu, et ne modifient pas les clés de délai.
+
 ## Examiner séparément les changements Cloud {#review-cloud-changes-separately}
 
 La commande **Changes** de Variables dispose d’opérations natives avec examen d’envoi, récupération, application/adoption et retrait lorsqu’elles sont prises en charge. Enregistrez d’abord les modifications locales, sélectionnez une comparaison, examinez son type et sa valeur, puis choisissez explicitement la direction voulue. Récupérer une proposition Cloud est distinct de son application locale. Retirer une valeur partagée est distinct de la suppression d’une ligne locale.

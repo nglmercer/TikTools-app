@@ -36,6 +36,7 @@ pub use app_state::AppStateService;
 pub(crate) use automation::approval::{
     ApprovalCandidate, RuntimeApprovalPermit, RuntimeOwnerRuleFence,
 };
+pub(crate) use automation::event_with_match_captures;
 pub use automation::moderation::{
     moderation_penalty_action_record, moderation_penalty_event_record, validate_penalty_points,
     MODERATION_BLOCKED_PATH, MODERATION_POINTS_ACTION_TYPE, MODERATION_VIEWER_TEMPLATE,

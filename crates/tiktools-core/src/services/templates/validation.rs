@@ -82,6 +82,62 @@ fn parse_filter(
             return None;
         }
     };
+    let boolean_op = matches!(operator, "is-true" | "is-false");
+    if boolean_op
+        && (values.is_some() || map.get("quantifier").is_some() || map.get("as").is_some())
+    {
+        errors.push(format!(
+            "event.filters[{index}] boolean operators take no values, quantifier or alias"
+        ));
+        return None;
+    }
+    let quantifier = match map.get("quantifier") {
+        None => None,
+        Some(Value::String(text)) if matches!(text.as_str(), "any" | "all") => Some(text.clone()),
+        Some(_) => {
+            errors.push(format!(
+                "event.filters[{index}].quantifier must be 'any' or 'all'"
+            ));
+            return None;
+        }
+    };
+    if operator == "in" && quantifier.as_deref() == Some("all") {
+        errors.push(format!(
+            "event.filters[{index}] 'in' only supports quantifier 'any'"
+        ));
+        return None;
+    }
+    // «is not any of» is the only sane list form for `neq`: normalize the
+    // prohibited `any` spelling instead of rejecting the document.
+    let quantifier = if operator == "neq" {
+        quantifier.map(|_| "all".to_owned())
+    } else {
+        quantifier
+    };
+    let alias = match map.get("as") {
+        None => None,
+        Some(Value::String(text)) => {
+            let valid = !text.is_empty()
+                && text.len() <= 32
+                && text.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                && text.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && !matches!(
+                    text.as_str(),
+                    "match" | "event" | "globals" | "data" | "user"
+                );
+            if !valid {
+                errors.push(format!(
+                    "event.filters[{index}].as must match [a-zA-Z][a-zA-Z0-9_]{{0,31}} and not be reserved"
+                ));
+                return None;
+            }
+            Some(text.clone())
+        }
+        Some(_) => {
+            errors.push(format!("event.filters[{index}].as must be a string"));
+            return None;
+        }
+    };
     path.map(|path| RuleTemplateFilter {
         path,
         operator: operator.to_owned(),
@@ -93,6 +149,8 @@ fn parse_filter(
             .take(500)
             .collect(),
         values,
+        quantifier,
+        alias,
     })
 }
 
@@ -202,12 +260,18 @@ pub fn parse_rule_template(value: &Value) -> Result<RuleTemplate, TemplateErrors
             } else {
                 "all".to_owned()
             };
+            let match_mode = if raw.get("matchMode").and_then(Value::as_str) == Some("or") {
+                "or".to_owned()
+            } else {
+                "and".to_owned()
+            };
             if let (Some(name), Some(trigger)) = (name, trigger) {
                 event = Some(RuleTemplateEvent {
                     name,
                     enabled: raw.get("enabled").is_none_or(|v| v == &Value::Bool(true)),
                     trigger,
                     filters,
+                    match_mode,
                     cooldown_ms,
                     cooldown_scope,
                     run_mode,

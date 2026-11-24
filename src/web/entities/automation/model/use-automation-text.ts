@@ -18,18 +18,19 @@ export function useAutomationText() {
     return describeFilter(filter, field?.label ?? '', operatorName(filter.operator));
   }
 
-  function joinList(items: readonly string[]): string {
+  function joinList(items: readonly string[], conjunction = t('automations.event.and')): string {
     if (items.length === 0) return t('automations.event.nothing');
     if (items.length === 1) return items[0]!;
-    return `${items.slice(0, -1).join(', ')} ${t('automations.event.and')} ${items.at(-1)!}`;
+    return `${items.slice(0, -1).join(', ')} ${conjunction} ${items.at(-1)!}`;
   }
 
   function sentence(event: LiveEvent, actions: readonly LiveAction[], eventTypes: readonly PluginEventType[]): string {
     const filters = event.filters.map((filter) => filterText(filter, event.trigger));
     const names = actionNames(event, actions);
+    const conjunction = event.matchMode === 'or' ? t('automations.event.or') : t('automations.event.and');
     return t('automations.event.sentence', {
       trigger: triggerName(event.trigger, eventTypes).toLocaleLowerCase(locale.value),
-      condition: filters.length ? t('automations.event.sentenceCondition', { filters: joinList(filters) }) : '',
+      condition: filters.length ? t('automations.event.sentenceCondition', { filters: joinList(filters, conjunction) }) : '',
       actions: event.runMode === 'random' && names.length > 1 ? t('automations.event.sentenceOneOf', { names: joinList(names) }) : joinList(names),
     });
   }

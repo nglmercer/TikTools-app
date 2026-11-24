@@ -38,6 +38,7 @@ export interface RuleTemplateEvent {
   enabled: boolean;
   trigger: string;
   filters: EventFilter[];
+  matchMode?: 'and' | 'or';
   cooldownMs: number;
   cooldownScope: CooldownScope;
   runMode: EventRunMode;
@@ -122,12 +123,43 @@ function parseFilter(value: unknown, index: number, errors: string[]): EventFilt
     }
     values = (value['values'] as string[]).map((entry) => entry.slice(0, 500));
   }
+  const operatorTyped = operator as FilterOperator;
+  const takesValue = operatorTyped !== 'is-true' && operatorTyped !== 'is-false';
+  if (!takesValue && (values !== undefined || value['quantifier'] !== undefined || value['as'] !== undefined)) {
+    errors.push(`event.filters[${index}] boolean operators take no values, quantifier or alias`);
+    return null;
+  }
+  let quantifier: 'any' | 'all' | undefined;
+  if (value['quantifier'] !== undefined) {
+    if (value['quantifier'] !== 'any' && value['quantifier'] !== 'all') {
+      errors.push(`event.filters[${index}].quantifier must be 'any' or 'all'`);
+      return null;
+    }
+    quantifier = value['quantifier'] as 'any' | 'all';
+  }
+  if (operatorTyped === 'in' && quantifier === 'all') {
+    errors.push(`event.filters[${index}] 'in' only supports quantifier 'any'`);
+    return null;
+  }
+  // «is not any of» is the only sane list form for `neq`: normalize `any`.
+  if (operatorTyped === 'neq' && quantifier !== undefined) quantifier = 'all';
+  let alias: string | undefined;
+  if (value['as'] !== undefined) {
+    if (typeof value['as'] !== 'string' || !/^[a-zA-Z][a-zA-Z0-9_]{0,31}$/.test(value['as'])
+      || ['match', 'event', 'globals', 'data', 'user'].includes(value['as'])) {
+      errors.push(`event.filters[${index}].as must match [a-zA-Z][a-zA-Z0-9_]{0,31} and not be reserved`);
+      return null;
+    }
+    alias = value['as'];
+  }
   if (!path) return null;
   return {
     path,
-    operator: operator as FilterOperator,
+    operator: operatorTyped,
     value: typeof value['value'] === 'string' ? value['value'].slice(0, 500) : '',
-    ...(values ? { values } : {}),
+    ...(takesValue && values !== undefined ? { values } : {}),
+    ...(takesValue && quantifier !== undefined ? { quantifier } : {}),
+    ...(takesValue && alias !== undefined ? { as: alias } : {}),
   };
 }
 
@@ -204,12 +236,14 @@ export function parseRuleTemplate(value: unknown): ParseRuleTemplateResult {
       : 0;
     const cooldownScope: CooldownScope = raw['cooldownScope'] === 'user' ? 'user' : 'global';
     const runMode: EventRunMode = raw['runMode'] === 'random' ? 'random' : 'all';
+    const matchMode = raw['matchMode'] === 'or' ? 'or' : 'and';
     if (name && trigger) {
       event = {
         name,
         enabled: raw['enabled'] === undefined ? true : raw['enabled'] === true,
         trigger,
         filters,
+        matchMode,
         cooldownMs,
         cooldownScope,
         runMode,

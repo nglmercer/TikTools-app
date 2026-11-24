@@ -282,7 +282,12 @@ fn measure_event(
     name: Option<&str>,
 ) -> Result<usize> {
     let mut m = Measure::default();
-    m.object(0, 10)?;
+    let keys = if matches!(event.match_mode.as_str(), "and" | "or") {
+        11
+    } else {
+        10
+    };
+    m.object(0, keys)?;
     m.key("schemaVersion")?;
     m.raw(&Value::from(1), 1)?;
     m.key("id")?;
@@ -324,6 +329,10 @@ fn measure_event(
     }
     m.key("runMode")?;
     m.string(&event.run_mode, 1)?;
+    if matches!(event.match_mode.as_str(), "and" | "or") {
+        m.key("matchMode")?;
+        m.string(&event.match_mode, 1)?;
+    }
     Ok(m.bytes)
 }
 

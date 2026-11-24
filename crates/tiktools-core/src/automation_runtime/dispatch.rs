@@ -148,7 +148,12 @@ impl AppCore {
         }
         self.run_matched_records(saved, enriched, incoming).await;
         if draft_matched {
-            if let Some(record) = manual {
+            if let Some(mut record) = manual {
+                // Manual drafts carry no captures from matching; evaluate the
+                // record against this event now so `{{ match.* }}` resolves.
+                record.captures = self
+                    .automation
+                    .match_captures_for(&record.definition, enriched);
                 self.run_matched_records(vec![record], enriched, incoming)
                     .await;
             }
@@ -285,6 +290,10 @@ impl AppCore {
             });
         }
 
+        // Same injection as live fan-out: the dry run renders against the
+        // event plus this record's `match.*` captures.
+        let captures = self.automation.match_captures_for(record, &event);
+        let render_event = crate::services::event_with_match_captures(&event, &captures);
         let mut runs = Vec::with_capacity(actions.len());
         let Ok(context) = self
             .record_execution_context(&matched, &ExecutionContext::owner())
@@ -300,7 +309,7 @@ impl AppCore {
             runs.push(
                 self.execute_action_with_context(
                     &action.definition,
-                    &event,
+                    &render_event,
                     Some(&matched.definition),
                     &context,
                     true,
@@ -458,6 +467,10 @@ impl AppCore {
             if !self.claim_matched_record(&record, event, &context).await {
                 continue;
             }
+            // `match.*` captures join the envelope only after the cooldown
+            // claim, and only for action rendering: liveness, claims and
+            // delegated projections keep seeing the original event.
+            let render_event = crate::services::event_with_match_captures(event, &record.captures);
             let mut action_occurrences = std::collections::BTreeMap::<&str, u32>::new();
             for action in &record.actions {
                 if self.automation_dispatch_guard(&context).is_err() {
@@ -492,7 +505,7 @@ impl AppCore {
                 let run = self
                     .execute_action_with_context(
                         &action.definition,
-                        event,
+                        &render_event,
                         Some(&record.definition),
                         &action_context,
                         false,

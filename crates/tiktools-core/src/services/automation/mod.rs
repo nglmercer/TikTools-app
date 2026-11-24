@@ -22,7 +22,7 @@ mod snapshot;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use filters::read_event_path;
+pub(crate) use filters::{event_with_match_captures, read_event_path};
 #[cfg(feature = "persistence")]
 pub(crate) use matching::public_filter_paths;
 
@@ -121,6 +121,10 @@ pub(crate) struct MatchedRecord {
     generation: Option<u64>,
     catalog_epoch: u64,
     pub actions: Vec<MatchedAction>,
+    /// `match.*` captures of the winning filter branches, computed against
+    /// the same (possibly projected) event the record matched on. Injected
+    /// into action rendering only — never into cooldown or liveness checks.
+    pub captures: BTreeMap<String, String>,
     #[cfg(feature = "persistence")]
     approval: Option<approval::ApprovalCandidate>,
 }

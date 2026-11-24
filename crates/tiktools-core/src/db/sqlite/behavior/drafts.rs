@@ -45,6 +45,75 @@ fn choice(
     Ok(())
 }
 
+fn validate_filter(filter: &mut Value) -> Result<(), DatabaseError> {
+    let filter = filter.as_object_mut().ok_or_else(invalid)?;
+    if !filter
+        .get("path")
+        .and_then(Value::as_str)
+        .is_some_and(|path| {
+            !path.is_empty()
+                && path.len() <= 256
+                && path.trim() == path
+                && !path.chars().any(char::is_control)
+        })
+        || !filter
+            .get("operator")
+            .and_then(Value::as_str)
+            .is_some_and(|op| {
+                matches!(
+                    op,
+                    "gte"
+                        | "gt"
+                        | "lte"
+                        | "lt"
+                        | "eq"
+                        | "neq"
+                        | "contains"
+                        | "starts-with"
+                        | "in"
+                        | "is-true"
+                        | "is-false"
+                )
+            })
+    {
+        return Err(invalid());
+    }
+    if !filter
+        .entry("value")
+        .or_insert_with(|| "".into())
+        .is_string()
+    {
+        return Err(invalid());
+    }
+    if let Some(values) = filter.get("values") {
+        let values = values.as_array().ok_or_else(invalid)?;
+        if values.len() > ITEMS || !values.iter().all(Value::is_string) {
+            return Err(invalid());
+        }
+    }
+    if let Some(quantifier) = filter.get("quantifier") {
+        if !quantifier
+            .as_str()
+            .is_some_and(|q| matches!(q, "any" | "all"))
+        {
+            return Err(invalid());
+        }
+    }
+    if let Some(alias) = filter.get("as") {
+        let valid = alias.as_str().is_some_and(|a| {
+            !a.is_empty()
+                && a.len() <= 32
+                && a.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && !matches!(a, "match" | "event" | "globals" | "data" | "user")
+        });
+        if !valid {
+            return Err(invalid());
+        }
+    }
+    Ok(())
+}
+
 fn event(object: &mut Map<String, Value>) -> Result<(), DatabaseError> {
     if !object.get("trigger").is_some_and(|v| canonical(v, 128)) {
         return Err(invalid());
@@ -67,49 +136,21 @@ fn event(object: &mut Map<String, Value>) -> Result<(), DatabaseError> {
         return Err(invalid());
     }
     for filter in filters {
-        let filter = filter.as_object_mut().ok_or_else(invalid)?;
-        if !filter
-            .get("path")
-            .and_then(Value::as_str)
-            .is_some_and(|path| {
-                !path.is_empty()
-                    && path.len() <= 256
-                    && path.trim() == path
-                    && !path.chars().any(char::is_control)
-            })
-            || !filter
-                .get("operator")
-                .and_then(Value::as_str)
-                .is_some_and(|op| {
-                    matches!(
-                        op,
-                        "gte"
-                            | "gt"
-                            | "lte"
-                            | "lt"
-                            | "eq"
-                            | "neq"
-                            | "contains"
-                            | "starts-with"
-                            | "in"
-                            | "is-true"
-                            | "is-false"
-                    )
-                })
-        {
+        validate_filter(filter)?;
+    }
+    // Flat OR groups: at most 4 groups of at most 12 filters each.
+    if let Some(any_of) = object.get_mut("anyOf") {
+        let groups = any_of.as_array_mut().ok_or_else(invalid)?;
+        if groups.len() > 4 {
             return Err(invalid());
         }
-        if !filter
-            .entry("value")
-            .or_insert_with(|| "".into())
-            .is_string()
-        {
-            return Err(invalid());
-        }
-        if let Some(values) = filter.get("values") {
-            let values = values.as_array().ok_or_else(invalid)?;
-            if values.len() > ITEMS || !values.iter().all(Value::is_string) {
+        for group in groups {
+            let items = group.as_array_mut().ok_or_else(invalid)?;
+            if items.is_empty() || items.len() > 12 {
                 return Err(invalid());
+            }
+            for filter in items {
+                validate_filter(filter)?;
             }
         }
     }
@@ -122,6 +163,7 @@ fn event(object: &mut Map<String, Value>) -> Result<(), DatabaseError> {
     }
     choice(object, "cooldownScope", "global", &["global", "user"])?;
     choice(object, "runMode", "all", &["all", "random"])?;
+    choice(object, "matchMode", "and", &["and", "or"])?;
     Ok(())
 }
 

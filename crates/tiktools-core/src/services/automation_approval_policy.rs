@@ -106,7 +106,7 @@ pub(crate) fn bindings(
             || effect
                 .render_fields
                 .iter()
-                .any(|field| !PUBLIC_FIELDS.contains(&field.as_str()))
+                .any(|field| !crate::collaboration::public_effect_render_field(field))
             || effect.reasons.iter().any(|reason| {
                 !matches!(
                     reason,
@@ -318,6 +318,26 @@ pub(crate) fn project_event(event: &Value) -> Value {
             Value::Array(_) | Value::Object(_) => false,
         }) {
             insert(&mut result, &parts, value.clone());
+        }
+    }
+    // `match.*` captures are host-injected, bounded strings derived from the
+    // approved filter operands; they project like public scalars so delegated
+    // renders resolve `{{ match.<alias> }}` instead of failing silently.
+    if let Some(captures) = event.get("match").and_then(Value::as_object) {
+        let mut projected = Map::new();
+        for (key, value) in captures.iter().take(8) {
+            let Some(text) = value.as_str() else {
+                continue;
+            };
+            let valid_key = !key.is_empty()
+                && key.len() <= 32
+                && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+            if valid_key && text.chars().count() <= 200 && !text.chars().any(char::is_control) {
+                projected.insert(key.clone(), Value::String(text.to_owned()));
+            }
+        }
+        if !projected.is_empty() {
+            result.insert("match".into(), Value::Object(projected));
         }
     }
     Value::Object(result)

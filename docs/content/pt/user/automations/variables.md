@@ -33,6 +33,8 @@ Altere um valor compartilhado uma vez e reutilize-o em várias ações. Você pr
 
 Os `params` do modelo são substituídos na aplicação do modelo; `globals` são lidos na execução. Uma chave ausente em tempo de execução é renderizada como texto vazio, portanto confira a grafia antes de usá-la em um destino ou identificador. Use as sugestões de variáveis do campo para caminhos de evento adequados ao seu acionador.
 
+As condições também podem publicar valores por correspondência. Quando um filtro declara um alias de captura, o valor que o satisfez fica disponível durante a renderização das ações do evento como `{{ match.<alias> }}` (ou `{{ match.<posição> }}` sem alias). Por exemplo, uma condição “começa com” no comentário com o alias `prefix` permite que uma ação de registro imprima `{{ match.prefix }}`. As capturas são texto simples limitado, só são produzidas pelos filtros e alternativas que realmente corresponderam e não alteram as chaves de espera.
+
 ## Revise alterações do Cloud separadamente {#review-cloud-changes-separately}
 
 O controle **Changes** de Variables tem operações nativas revisadas de enviar, buscar, aplicar/adotar e retirar quando compatíveis. Salve as edições locais primeiro, selecione uma comparação, inspecione seu tipo e valor e escolha explicitamente a direção desejada. Buscar uma candidata do Cloud é separado de aplicá-la localmente. Retirar um valor compartilhado é separado de excluir uma linha local.
