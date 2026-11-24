@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { contextInstance, contextName } from './context-instance.ts';
+import { contextInstance, contextName } from '../../../src/web/demo/context-instance.ts';
 it('separates copied full-demo URLs in new browsing contexts but keeps reset reloads stable', () => {
   const first = contextInstance('example', '', () => 'first-context');
   const copied = contextInstance(first, '', () => 'second-context');

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createControlClient } from '@/shared/api/control-client.ts';
-import { createDemoHost } from './runtime/host.ts';
-import { createDemoPlayback, type PlaybackState } from './playback.ts';
-import { demoTourScenarios, demoTourUrl } from './tours.ts';
+import { createDemoHost } from '../../../src/web/demo/runtime/host.ts';
+import { createDemoPlayback, type PlaybackState } from '../../../src/web/demo/playback.ts';
+import { demoTourScenarios, demoTourUrl } from '../../../src/web/demo/tours.ts';
 
 function fixture() {
   const host = createDemoHost('connection');

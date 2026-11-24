@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { configureAppStorage } from '@/shared/lib/app-storage.ts';
 import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import { storeLocale, storedLocale } from '@/shared/i18n/locale-preference.ts';
-import { installDemoStorage, memoryStorage, namespacedStorage } from './storage.ts';
+import { installDemoStorage, memoryStorage, namespacedStorage } from '../../../src/web/demo/storage.ts';
 
 afterEach(() => configureAppStorage(undefined));
 

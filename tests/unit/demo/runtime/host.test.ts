@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createControlClient } from '@/shared/api/control-client.ts';
-import { createDemoHost } from './host.ts';
-import { parseDemoOptions, scenarios } from '../scenarios.ts';
+import { createDemoHost } from '../../../../src/web/demo/runtime/host.ts';
+import { parseDemoOptions, scenarios } from '../../../../src/web/demo/scenarios.ts';
 import { createLiveFeedState } from '@/entities/live-event/model/live-feed-state.ts';
 import { flushPromises } from '@vue/test-utils';
-import type { AnalyticsTotals, GiftCatalogEntry, UiEvent } from '../../../shared/messages.ts';
-import { DEMO_ACTIVITY_LENGTH } from '../fixtures/audience.ts';
+import type { AnalyticsTotals, GiftCatalogEntry, UiEvent } from '../../../../src/shared/messages.ts';
+import { DEMO_ACTIVITY_LENGTH } from '../../../../src/web/demo/fixtures/audience.ts';
 
 describe('public demo host', () => {
   it('populates the feed, profiles, gift catalog and analytics from the same six fictional viewers', async () => {

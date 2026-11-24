@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { demoTourScenarios, demoTutorialIds, scenarioTour, tourForRoute } from './tours.ts';
+import { demoTourScenarios, demoTutorialIds, scenarioTour, tourForRoute } from '../../../src/web/demo/tours.ts';
 
 describe('demo tour recommendations', () => {
   it('offers every demo tour in catalog order', () => {

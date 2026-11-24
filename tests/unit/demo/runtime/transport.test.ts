@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { callWithMeta, createControlClient } from '@/shared/api/control-client.ts';
-import { createDemoTransport, demoMethod, objectParams } from './transport.ts';
+import { createDemoTransport, demoMethod, objectParams } from '../../../../src/web/demo/runtime/transport.ts';
 
 describe('demo ControlTransport protocol', () => {
   it('answers the client ID in the real rpc-response envelope with typed metadata', async () => {

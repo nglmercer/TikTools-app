@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { BehaviorSnapshot, LiveAction } from '../../../automation/behavior/types.ts';
+import type { BehaviorSnapshot, LiveAction } from '../../../../src/automation/behavior/types.ts';
 import { callWithMeta, createControlClient } from '@/shared/api/control-client.ts';
-import { createDemoHost } from './host.ts';
-import { createDemoTransport, demoMethod, objectParams } from './transport.ts';
+import { createDemoHost } from '../../../../src/web/demo/runtime/host.ts';
+import { createDemoTransport, demoMethod, objectParams } from '../../../../src/web/demo/runtime/transport.ts';
 
 const MiB = 1024 * 1024;
 const cleanup: Array<() => void> = [];

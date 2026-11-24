@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { isDemoFrameState, parseFrameCommand } from './frame-messages.ts';
+import { isDemoFrameState, parseFrameCommand } from '../../../src/web/demo/frame-messages.ts';
 it('bounds frame state before accepting it into the document controls', () => {
   const state = { type: 'tiktools.demo.state', instance: 'docs-frame-1', ready: true, paused: true, busy: false, events: 9, status: 'paused', connectionCase: 'normal' };
   expect(isDemoFrameState(state)).toBe(true);
