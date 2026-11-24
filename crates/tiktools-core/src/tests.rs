@@ -888,6 +888,7 @@ async fn fire_synthetic_event_pins_sample_to_draft_filters() {
 
 #[tokio::test]
 async fn fire_synthetic_event_pins_string_operator_filters() {
+    isolated_test_home();
     let emitter = Arc::new(RecordingEmitter::default());
     let core = Arc::new(AppCore::new(emitter));
     // A `comment starts with !play` rule must exercise its own command on the
