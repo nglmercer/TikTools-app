@@ -38,7 +38,7 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch(&format!(
             "PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let caller = service
@@ -222,7 +222,7 @@ impl DatabaseManager {
         let mut connection = self.open(&self.automation_path())?;
         connection.execute_batch(&format!(
             "PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let tx = connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         subjects.with_current(|identities| {

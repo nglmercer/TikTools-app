@@ -1,6 +1,27 @@
 //! Private storage setup, schema initialization and exclusive host ownership.
 use super::*;
 
+/// Mirrors tiktools-core's `sqlite_synchronous`: `TIKTOOLS_SQLITE_SYNCHRONOUS`
+/// lets the test runner drop fsyncs for every crate's SQLite connections.
+fn sqlite_synchronous() -> &'static str {
+    use std::sync::OnceLock;
+    static LEVEL: OnceLock<&'static str> = OnceLock::new();
+    *LEVEL.get_or_init(
+        || match std::env::var("TIKTOOLS_SQLITE_SYNCHRONOUS").as_deref() {
+            Ok("OFF") | Ok("off") => "OFF",
+            Ok("NORMAL") | Ok("normal") => "NORMAL",
+            Ok("FULL") | Ok("full") => "FULL",
+            _ => {
+                if cfg!(test) {
+                    "OFF"
+                } else {
+                    "FULL"
+                }
+            }
+        },
+    )
+}
+
 impl CollaborationService {
     pub fn open(directory: &Path) -> Result<Self, Error> {
         let mut builder = fs::DirBuilder::new();
@@ -64,9 +85,10 @@ impl CollaborationService {
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
         }
         db.busy_timeout(Duration::from_secs(2))?;
-        db.execute_batch(
-            "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;",
-        )?;
+        db.execute_batch(&format!(
+            "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous={};",
+            sqlite_synchronous()
+        ))?;
         let version: i64 = db.query_row("PRAGMA user_version", [], |row| row.get(0))?;
         if version > 1 {
             return Err(Error::Invalid("unsupported collaboration database version"));

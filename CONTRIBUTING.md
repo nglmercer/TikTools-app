@@ -83,20 +83,25 @@ bun scripts/task.ts rust test --workspace --locked -- --test-threads=1
 For faster local iteration, `bun scripts/task.ts rust-test-sharded` runs the
 suite under `cargo-nextest` when it is installed: every test gets its own
 process (PID-scoped `TIKTOOLS_HOME`), and the scheduler work-steals across
-`TIKTOOLS_RUST_TEST_POOL` workers (default 4). `TIKTOOLS_RUST_TEST_FILTER`
-accepts comma-separated test-name substrings for incremental runs. Without
-nextest the script falls back to the legacy runner, which builds once and runs
-each test binary in its own process while keeping `--test-threads=1` inside
-each binary; `TIKTOOLS_RUST_TEST_SHARDS=0` forces that path for A/B comparisons.
-A small, validated allowlist of integration targets that use per-fixture state
-also runs their own cases with 4 threads; everything else stays serial inside
-its binary. Large binaries such as `tiktools-core` are partitioned with
-`--exact` into separate processes (each with its own PID-scoped home) via
-`TIKTOOLS_RUST_TEST_SHARDS`; this splits the test load without moving private
-unit tests into integration crates. `TIKTOOLS_RUST_TEST_SHARD_THRESHOLD`
+`TIKTOOLS_RUST_TEST_POOL` workers (default 8). `TIKTOOLS_RUST_TEST_FILTER`
+accepts comma-separated test-name substrings for incremental runs. Test runs
+also export `TIKTOOLS_SQLITE_SYNCHRONOUS=OFF` (every crate's SQLite
+connections skip fsyncs; process-death tests still survive because the page
+cache outlives the killed process) and, on Linux, point `TMPDIR` at a
+per-run `/dev/shm` directory so fixture files live on tmpfs instead of the
+CoW root filesystem. Without nextest the script falls back to the legacy
+runner, which builds once and runs each test binary in its own process while
+keeping `--test-threads=1` inside each binary; `TIKTOOLS_RUST_TEST_SHARDS=0`
+forces that path for A/B comparisons. A small, validated allowlist of
+integration targets that use per-fixture state also runs their own cases
+with 4 threads; everything else stays serial inside its binary. Large
+binaries such as `tiktools-core` are partitioned with `--exact` into
+separate processes (each with its own PID-scoped home) via
+`TIKTOOLS_RUST_TEST_SHARDS`; this splits the test load without moving
+private unit tests into integration crates. `TIKTOOLS_RUST_TEST_SHARD_THRESHOLD`
 controls when partitioning kicks in. `TIKTOOLS_RUST_TEST_PARALLEL` can add
-validated source paths to that allowlist. CI keeps the explicit serial
-workspace command above.
+validated source paths to that allowlist. CI runs the same
+`rust-test-sharded` task.
 
 Use the narrow test runner or `bun run test --changed` while editing. The CI
 scope selector omits native jobs for reviewed docs/frontend paths, retains all

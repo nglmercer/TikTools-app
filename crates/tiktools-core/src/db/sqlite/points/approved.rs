@@ -149,7 +149,7 @@ impl DatabaseManager {
         db.busy_timeout(timeout)?;
         db.execute_batch(&format!(
             "PRAGMA foreign_keys=ON; PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         // Bound every stored string before generic command recovery copies

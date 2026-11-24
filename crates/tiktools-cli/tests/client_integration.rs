@@ -104,7 +104,7 @@ impl HostChild {
             }
             if let Ok(exit) = child.try_wait() {
                 if exit.is_some() {
-                    panic!("isolated host exited before answering (is another host running?)");
+                    panic!("isolated host exited before answering (is another host running?): {exit:?}");
                 }
             }
             match TikToolsClient::connect().await {

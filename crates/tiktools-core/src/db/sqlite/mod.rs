@@ -6,9 +6,39 @@
 /// `synchronous` level applied to every SQLite connection. Tests run with
 /// `OFF`: process-death tests kill the process, not the OS, so committed
 /// transactions still survive in the page cache while each commit skips the
-/// ~40ms fsync that dominates fixture and runtime-write latency. Integration
-/// tests link the non-`cfg(test)` library and keep production `FULL`.
-pub(crate) const SQLITE_SYNCHRONOUS: &str = if cfg!(test) { "OFF" } else { "FULL" };
+/// ~40ms fsync that dominates fixture and runtime-write latency.
+///
+/// `TIKTOOLS_SQLITE_SYNCHRONOUS=OFF|NORMAL|FULL` overrides the default so
+/// integration tests in other crates — which link this library without
+/// `cfg(test)` — get the same fast path when the test runner exports it.
+pub(crate) fn sqlite_synchronous() -> &'static str {
+    use std::sync::OnceLock;
+    static LEVEL: OnceLock<&'static str> = OnceLock::new();
+    *LEVEL.get_or_init(
+        || match std::env::var("TIKTOOLS_SQLITE_SYNCHRONOUS").as_deref() {
+            Ok("OFF") | Ok("off") => "OFF",
+            Ok("NORMAL") | Ok("normal") => "NORMAL",
+            Ok("FULL") | Ok("full") => "FULL",
+            _ => {
+                if cfg!(test) {
+                    "OFF"
+                } else {
+                    "FULL"
+                }
+            }
+        },
+    )
+}
+
+/// The hot WAL points writer keeps `NORMAL` in production (checkpoint-only
+/// fsyncs) but follows the test override like every other connection.
+pub(crate) fn sqlite_points_synchronous() -> &'static str {
+    if sqlite_synchronous() == "OFF" {
+        "OFF"
+    } else {
+        "NORMAL"
+    }
+}
 
 mod aggregations;
 mod automation_library;

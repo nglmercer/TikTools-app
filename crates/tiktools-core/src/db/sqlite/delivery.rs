@@ -312,7 +312,7 @@ impl DatabaseManager {
         })?;
         db.execute_batch(&format!(
             "PRAGMA foreign_keys=ON; PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let timestamp = now();

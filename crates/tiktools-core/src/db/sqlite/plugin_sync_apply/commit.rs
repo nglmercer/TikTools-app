@@ -27,7 +27,7 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch(&format!(
             "PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let eligible: bool = tx.query_row(
@@ -93,7 +93,7 @@ impl DatabaseManager {
         let db = self.open(&self.automation_path())?;
         db.execute_batch(&format!(
             "PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let changed = db.execute(
             "UPDATE plugin_sync_apply_intents SET phase='applied',runtime_epoch=?1 WHERE intent_id=?2

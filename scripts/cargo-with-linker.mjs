@@ -275,6 +275,24 @@ export function resolveWindowsPerlEnvironment({
   return { status: 'unavailable', environment: cargoEnvironment };
 }
 
+// Test runs get tmpfs temp dirs (where available) and OFF SQLite
+// synchronous so storage latency stops dominating fixture setup and
+// runtime writes. Both are inherited by every test process Cargo spawns.
+function applyTestRunEnvironment(environment, cargoArguments) {
+  const subcommand = cargoArguments[0];
+  if (subcommand !== 'test' && subcommand !== 'nextest') {
+    return;
+  }
+  if (environment.TIKTOOLS_SQLITE_SYNCHRONOUS === undefined) {
+    environment.TIKTOOLS_SQLITE_SYNCHRONOUS = 'OFF';
+  }
+  // /dev/shm directly: a per-run subdirectory would push unix socket paths
+  // derived from temp_dir() past the ~108-byte sun_path limit.
+  if (process.platform === 'linux' && environment.TMPDIR === undefined) {
+    environment.TMPDIR = '/dev/shm';
+  }
+}
+
 function main() {
   const cargoArguments = process.argv.slice(2);
   if (cargoArguments.length === 0) {
@@ -284,6 +302,7 @@ function main() {
   }
 
   const buildEnvironment = { ...process.env };
+  applyTestRunEnvironment(buildEnvironment, cargoArguments);
   const msvc = resolveMsvcEnvironment({ environment: buildEnvironment });
   if (msvc.status === 'loaded') {
     mergeEnvironment(buildEnvironment, msvc.environment);

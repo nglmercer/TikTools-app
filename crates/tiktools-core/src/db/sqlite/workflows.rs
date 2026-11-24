@@ -123,7 +123,7 @@ impl DatabaseManager {
         let mut connection = self.open(&self.automation_path())?;
         connection.execute_batch(&format!(
             "PRAGMA foreign_keys=ON; PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let result = apply(&tx)?;

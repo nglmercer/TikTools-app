@@ -45,7 +45,7 @@ impl DatabaseManager {
                 .map_err(inventory_db_error)?;
             db.execute_batch(&format!(
                 "PRAGMA synchronous={}",
-                crate::db::sqlite::SQLITE_SYNCHRONOUS
+                crate::db::sqlite::sqlite_synchronous()
             ))
             .map_err(DatabaseError::from)
             .map_err(inventory_db_error)?;

@@ -452,7 +452,7 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch(&format!(
             "PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         super::super::commands::prune(&tx)?;
@@ -519,7 +519,7 @@ impl DatabaseManager {
         let mut db = self.open(&self.automation_path())?;
         db.execute_batch(&format!(
             "PRAGMA synchronous={};",
-            crate::db::sqlite::SQLITE_SYNCHRONOUS
+            crate::db::sqlite::sqlite_synchronous()
         ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         super::super::commands::prune(&tx)?;

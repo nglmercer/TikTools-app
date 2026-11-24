@@ -925,7 +925,7 @@ mod competition_revision_tests {
 fn migrate_package_journal(db: &mut Connection) -> Result<(), DatabaseError> {
     db.execute_batch(&format!(
         "PRAGMA synchronous={};",
-        crate::db::sqlite::SQLITE_SYNCHRONOUS
+        crate::db::sqlite::sqlite_synchronous()
     ))?;
     let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     let present: i64 = tx.query_row(
@@ -947,7 +947,7 @@ fn migrate_package_journal(db: &mut Connection) -> Result<(), DatabaseError> {
 fn migrate_plugin_sync_outbox(db: &mut Connection) -> Result<(), DatabaseError> {
     db.execute_batch(&format!(
         "PRAGMA synchronous={};",
-        crate::db::sqlite::SQLITE_SYNCHRONOUS
+        crate::db::sqlite::sqlite_synchronous()
     ))?;
     let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     let present: i64 = tx.query_row(

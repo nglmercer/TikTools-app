@@ -148,9 +148,10 @@ impl DatabaseManager {
     /// failing the batch.
     pub(crate) fn open_points_writer(&self) -> Result<Connection, DatabaseError> {
         let connection = self.open(&self.points_path())?;
-        connection.execute_batch(
-            "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA synchronous=NORMAL;",
-        )?;
+        connection.execute_batch(&format!(
+            "PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA synchronous={};",
+            crate::db::sqlite::sqlite_points_synchronous()
+        ))?;
         Ok(connection)
     }
 

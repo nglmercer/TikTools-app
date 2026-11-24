@@ -18,6 +18,18 @@ import { dirname, relative, resolve } from 'node:path';
 import { partitionTestNames } from './lib/test-shards.ts';
 
 const root = resolve(import.meta.dir, '..');
+
+// Test temp dirs land on tmpfs and SQLite skips fsyncs; every spawned
+// test process — including crash children re-exec'd from the test binary —
+// inherits this environment.
+if (process.env.TIKTOOLS_SQLITE_SYNCHRONOUS === undefined) {
+  process.env.TIKTOOLS_SQLITE_SYNCHRONOUS = 'OFF';
+}
+// /dev/shm directly: a per-run subdirectory would push unix socket paths
+// derived from temp_dir() past the ~108-byte sun_path limit.
+if (process.platform === 'linux' && process.env.TMPDIR === undefined) {
+  process.env.TMPDIR = '/dev/shm';
+}
 // Test processes are mostly sleep/I/O bound, so oversubscribing the core
 // count still wins; TIKTOOLS_RUST_TEST_POOL tunes it per machine.
 const poolSize = Math.max(1, Math.min(16, Number(process.env.TIKTOOLS_RUST_TEST_POOL ?? '8') || 8));
