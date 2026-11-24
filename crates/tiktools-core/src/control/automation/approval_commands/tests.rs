@@ -2381,13 +2381,12 @@ fn owner_action_edit_rejects_unscoped_or_unsupported_dependent_events() {
     }
 }
 
-#[tokio::test]
-async fn competition_winner_actions_execute_with_current_delegation() {
+async fn competition_winner_actions_case(mode: i32) {
     use tiktools_competitions::{
         Candidate, CompetitionKind, Definition, OptionDefinition, ResultRecord, Selection,
         SelectionMode, TiePolicy, Transition, WinnerAction,
     };
-    for mode in 0..5 {
+    {
         let is_points = mode == 1;
         let is_audio = mode == 2;
         let is_emit = mode >= 3;
@@ -2643,6 +2642,32 @@ async fn competition_winner_actions_execute_with_current_delegation() {
             assert_eq!(f.points("alice"), 3.0);
         }
     }
+}
+
+// Each winner-action mode is its own test so nextest runs them in parallel.
+#[tokio::test]
+async fn competition_winner_log_action_executes_with_current_delegation() {
+    competition_winner_actions_case(0).await;
+}
+
+#[tokio::test]
+async fn competition_winner_points_action_executes_with_current_delegation() {
+    competition_winner_actions_case(1).await;
+}
+
+#[tokio::test]
+async fn competition_winner_audio_action_is_refused_without_provider() {
+    competition_winner_actions_case(2).await;
+}
+
+#[tokio::test]
+async fn competition_winner_emit_action_executes_with_current_delegation() {
+    competition_winner_actions_case(3).await;
+}
+
+#[tokio::test]
+async fn competition_winner_emit_with_child_executes_with_current_delegation() {
+    competition_winner_actions_case(4).await;
 }
 
 #[tokio::test]

@@ -1222,97 +1222,230 @@ impl crate::V2ProductUploadSource for ExactUpload {
     }
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconfirmed() {
+async fn real_auth_logout_or_session_replacement_during_v2_response_case(
+    status: u16,
+    transition: &'static str,
+) {
     use cloud_client::{WorkspaceKey, WorkspacePendingStatus};
     use std::sync::atomic::Ordering;
 
     // Both acknowledged and conflicted writes require the session that sent
     // them. Control runs prove both mock responses can actually commit.
-    for status in [200, 409, 412, 428] {
-        for transition in [
-            "logout",
-            "replace",
-            "unchanged",
-            "cancel",
-            "cancel_before_commit",
-            "cancel_with_logout",
-        ] {
-            let dir = TempDir::new("v2-product-http-auth");
-            let mock = MockSync::start("v2-http-user").await;
-            let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
-            login(&auth, "first-session").await;
-            let session = auth.session().await.unwrap();
-            let preview = marked_preview(&sync, &session);
-            let lease = sync.protocol.try_cutover().unwrap();
-            lease
-                .prepare(&preview, &mock.origin, "v2-http-user", &[])
-                .unwrap();
-            let workspace = crate::WorkspaceCoordinator::open(
-                dir.join("a-sync"),
-                mock.origin.clone(),
-                "v2-http-user".into(),
-            )
+    {
+        let dir = TempDir::new("v2-product-http-auth");
+        let mock = MockSync::start("v2-http-user").await;
+        let (auth, sync) = coordinator(&dir, &mock, "a", Arc::new(MemoryTokenStore::new()));
+        login(&auth, "first-session").await;
+        let session = auth.session().await.unwrap();
+        let preview = marked_preview(&sync, &session);
+        let lease = sync.protocol.try_cutover().unwrap();
+        lease
+            .prepare(&preview, &mock.origin, "v2-http-user", &[])
             .unwrap();
-            workspace.bootstrap_reviewed(&preview).unwrap();
-            lease
-                .finish(&preview, &mock.origin, "v2-http-user")
-                .unwrap();
-            drop(lease);
-            sync.set_enabled(false).unwrap();
-            let consent = sync.review_v2_resume(&session, None).unwrap();
-            sync.confirm_v2_resume(&consent).unwrap();
-            let decision = crate::V2ProductDecision {
-                origin: mock.origin.clone(),
-                account_id: "v2-http-user".into(),
-                config_generation: sync.read_config().generation,
-                source_generation: 7,
+        let workspace = crate::WorkspaceCoordinator::open(
+            dir.join("a-sync"),
+            mock.origin.clone(),
+            "v2-http-user".into(),
+        )
+        .unwrap();
+        workspace.bootstrap_reviewed(&preview).unwrap();
+        lease
+            .finish(&preview, &mock.origin, "v2-http-user")
+            .unwrap();
+        drop(lease);
+        sync.set_enabled(false).unwrap();
+        let consent = sync.review_v2_resume(&session, None).unwrap();
+        sync.confirm_v2_resume(&consent).unwrap();
+        let decision = crate::V2ProductDecision {
+            origin: mock.origin.clone(),
+            account_id: "v2-http-user".into(),
+            config_generation: sync.read_config().generation,
+            source_generation: 7,
+            plugin_id: "acme.plugin".into(),
+            selection: Some(PluginSelection {
+                schema_version: 1,
                 plugin_id: "acme.plugin".into(),
-                selection: Some(PluginSelection {
-                    schema_version: 1,
-                    plugin_id: "acme.plugin".into(),
-                    version: "1.0.0".into(),
-                    enabled: true,
-                }),
-            };
-            let source = Source {
-                decision: decision.clone(),
-                fail_ack: Cell::new(false),
-                ack_attempts: Cell::new(0),
-            };
-            sync.stage_v2_product_decision(&source).unwrap();
-            let upload = Arc::new(ExactUpload {
-                fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
-                digest: decision.digest().unwrap(),
-                calls: std::sync::atomic::AtomicUsize::new(0),
-            });
-            mock.inner.lock().unwrap().v2_put_status = Some(status);
-            if transition == "cancel_before_commit" {
-                mock.held_v2_before_route
-                    .armed
-                    .store(true, Ordering::SeqCst);
-            } else {
-                mock.held_v2_write.armed.store(true, Ordering::SeqCst);
-            }
-            let worker = sync.clone();
-            let captured = session.clone();
-            let upload_for_worker = upload.clone();
-            let task =
-                tokio::spawn(
-                    async move { worker.sync_v2_product(captured, upload_for_worker).await },
-                );
-            let reached_server = if transition == "cancel_before_commit" {
-                mock.held_v2_before_route.started.notified()
-            } else {
-                mock.held_v2_write.committed.notified()
-            };
-            tokio::time::timeout(Duration::from_secs(3), reached_server)
-                .await
-                .expect("dispatcher must send the request");
-            let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
-            let prepared = workspace.snapshot().unwrap();
+                version: "1.0.0".into(),
+                enabled: true,
+            }),
+        };
+        let source = Source {
+            decision: decision.clone(),
+            fail_ack: Cell::new(false),
+            ack_attempts: Cell::new(0),
+        };
+        sync.stage_v2_product_decision(&source).unwrap();
+        let upload = Arc::new(ExactUpload {
+            fence: crate::ProductEmissionFence::open(dir.join("product-emission")).unwrap(),
+            digest: decision.digest().unwrap(),
+            calls: std::sync::atomic::AtomicUsize::new(0),
+        });
+        mock.inner.lock().unwrap().v2_put_status = Some(status);
+        if transition == "cancel_before_commit" {
+            mock.held_v2_before_route
+                .armed
+                .store(true, Ordering::SeqCst);
+        } else {
+            mock.held_v2_write.armed.store(true, Ordering::SeqCst);
+        }
+        let worker = sync.clone();
+        let captured = session.clone();
+        let upload_for_worker = upload.clone();
+        let task =
+            tokio::spawn(async move { worker.sync_v2_product(captured, upload_for_worker).await });
+        let reached_server = if transition == "cancel_before_commit" {
+            mock.held_v2_before_route.started.notified()
+        } else {
+            mock.held_v2_write.committed.notified()
+        };
+        tokio::time::timeout(Duration::from_secs(3), reached_server)
+            .await
+            .expect("dispatcher must send the request");
+        let key = WorkspaceKey::new("plugin-selections", "acme.plugin").unwrap();
+        let prepared = workspace.snapshot().unwrap();
+        assert_eq!(
+            prepared
+                .state
+                .entry(&key)
+                .unwrap()
+                .pending
+                .as_ref()
+                .unwrap()
+                .status,
+            WorkspacePendingStatus::Unconfirmed
+        );
+        assert_eq!(
+            prepared
+                .state
+                .entry(&key)
+                .unwrap()
+                .pending
+                .as_ref()
+                .unwrap()
+                .write_epoch
+                .as_ref()
+                .unwrap()
+                .decimal(),
+            "7"
+        );
+        let reopened = crate::WorkspaceCoordinator::open(
+            dir.join("a-sync"),
+            mock.origin.clone(),
+            "v2-http-user".into(),
+        )
+        .unwrap();
+        assert_eq!(reopened.snapshot().unwrap().state, prepared.state);
+        assert_eq!(upload.calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            mock.inner.lock().unwrap().v2_put_requests,
+            usize::from(transition != "cancel_before_commit")
+        );
+        if transition != "cancel_before_commit" {
             assert_eq!(
-                prepared
+                mock.inner.lock().unwrap().v2_received_epochs,
+                vec![Some("7".into())]
+            );
+        }
+        assert!(matches!(
+            upload.fence.try_untracked_edit(),
+            Err(crate::ProtocolFenceError::Busy)
+        ));
+        // An account transition starting after emission admission must
+        // wait for the request future, without blocking account reads.
+        let logout = if matches!(transition, "logout" | "replace" | "cancel_with_logout") {
+            let logout_auth = auth.clone();
+            let logout = tokio::spawn(async move { logout_auth.logout().await });
+            tokio::time::timeout(Duration::from_secs(3), async {
+                while auth.try_session_snapshot().is_ok() {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("logout must reach transition admission");
+            assert!(!logout.is_finished());
+            tokio::time::timeout(Duration::from_secs(1), auth.status())
+                .await
+                .expect("account mutex must remain available");
+            Some(logout)
+        } else {
+            None
+        };
+        if matches!(
+            transition,
+            "cancel" | "cancel_before_commit" | "cancel_with_logout"
+        ) {
+            task.abort();
+            assert!(task.await.err().unwrap().is_cancelled());
+            tokio::time::timeout(Duration::from_secs(3), async {
+                loop {
+                    if let Ok(lease) = upload.fence.try_untracked_edit() {
+                        drop(lease);
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("cancellation must release the emission lease");
+            let after = workspace.snapshot().unwrap();
+            assert_eq!(after.generation, prepared.generation);
+            assert_eq!(after.state, prepared.state);
+            if let Some(logout) = logout {
+                tokio::time::timeout(Duration::from_secs(3), logout)
+                    .await
+                    .expect("cancellation must release session admission")
+                    .unwrap()
+                    .unwrap();
+            }
+            if transition == "cancel_before_commit" {
+                // The client is gone and the local lease is free, but
+                // an already received request can still execute later.
+                assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
+                mock.held_v2_before_route.release.notify_one();
+                tokio::time::timeout(Duration::from_secs(3), async {
+                    while mock.inner.lock().unwrap().v2_put_requests == 0 {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
+                    }
+                })
+                .await
+                .expect("server must be able to execute after client cancellation");
+                assert_eq!(
+                    mock.inner.lock().unwrap().v2_received_epochs,
+                    vec![Some("7".into())]
+                );
+            } else {
+                assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
+                mock.held_v2_write.release.notify_one();
+            }
+            return;
+        }
+        mock.held_v2_write.release.notify_one();
+        let outcome = tokio::time::timeout(Duration::from_secs(3), task)
+            .await
+            .expect("dispatcher must finish after response")
+            .unwrap();
+        if let Some(logout) = logout {
+            tokio::time::timeout(Duration::from_secs(3), logout)
+                .await
+                .expect("finished HTTP must release session admission")
+                .unwrap()
+                .unwrap();
+            if transition == "replace" {
+                login(&auth, "replacement-session").await;
+                assert!(!Arc::ptr_eq(&session, &auth.session().await.unwrap()));
+            }
+        }
+        let after = workspace.snapshot().unwrap();
+        assert!(upload.fence.try_untracked_edit().is_ok());
+        if transition != "unchanged" {
+            assert!(matches!(
+                outcome,
+                Err(crate::WorkspaceCoordError::Ineligible)
+            ));
+            assert_eq!(after.generation, prepared.generation);
+            assert_eq!(after.state, prepared.state);
+            assert_eq!(
+                after
                     .state
                     .entry(&key)
                     .unwrap()
@@ -1322,136 +1455,26 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                     .status,
                 WorkspacePendingStatus::Unconfirmed
             );
-            assert_eq!(
-                prepared
-                    .state
-                    .entry(&key)
-                    .unwrap()
-                    .pending
-                    .as_ref()
-                    .unwrap()
-                    .write_epoch
-                    .as_ref()
-                    .unwrap()
-                    .decimal(),
-                "7"
+        } else if status == 412 || status == 428 {
+            assert!(
+                matches!(outcome, Err(crate::WorkspaceCoordError::Transport(SyncError::Http(code))) if code == status)
             );
-            let reopened = crate::WorkspaceCoordinator::open(
-                dir.join("a-sync"),
-                mock.origin.clone(),
-                "v2-http-user".into(),
-            )
-            .unwrap();
-            assert_eq!(reopened.snapshot().unwrap().state, prepared.state);
-            assert_eq!(upload.calls.load(Ordering::SeqCst), 2);
-            assert_eq!(
-                mock.inner.lock().unwrap().v2_put_requests,
-                usize::from(transition != "cancel_before_commit")
-            );
-            if transition != "cancel_before_commit" {
-                assert_eq!(
-                    mock.inner.lock().unwrap().v2_received_epochs,
-                    vec![Some("7".into())]
-                );
-            }
-            assert!(matches!(
-                upload.fence.try_untracked_edit(),
-                Err(crate::ProtocolFenceError::Busy)
-            ));
-            // An account transition starting after emission admission must
-            // wait for the request future, without blocking account reads.
-            let logout = if matches!(transition, "logout" | "replace" | "cancel_with_logout") {
-                let logout_auth = auth.clone();
-                let logout = tokio::spawn(async move { logout_auth.logout().await });
-                tokio::time::timeout(Duration::from_secs(3), async {
-                    while auth.try_session_snapshot().is_ok() {
-                        tokio::task::yield_now().await;
-                    }
-                })
+            assert_eq!(after.state, prepared.state);
+            // An explicit second sync must never replay the frozen
+            // uncertain request even when the remote status changes.
+            mock.inner.lock().unwrap().v2_put_status = Some(200);
+            let original_session = auth.session().await.unwrap();
+            sync.sync_v2_product(original_session, upload.clone())
                 .await
-                .expect("logout must reach transition admission");
-                assert!(!logout.is_finished());
-                tokio::time::timeout(Duration::from_secs(1), auth.status())
-                    .await
-                    .expect("account mutex must remain available");
-                Some(logout)
-            } else {
-                None
-            };
-            if matches!(
-                transition,
-                "cancel" | "cancel_before_commit" | "cancel_with_logout"
-            ) {
-                task.abort();
-                assert!(task.await.err().unwrap().is_cancelled());
-                tokio::time::timeout(Duration::from_secs(3), async {
-                    loop {
-                        if let Ok(lease) = upload.fence.try_untracked_edit() {
-                            drop(lease);
-                            break;
-                        }
-                        tokio::time::sleep(Duration::from_millis(10)).await;
-                    }
-                })
-                .await
-                .expect("cancellation must release the emission lease");
-                let after = workspace.snapshot().unwrap();
-                assert_eq!(after.generation, prepared.generation);
-                assert_eq!(after.state, prepared.state);
-                if let Some(logout) = logout {
-                    tokio::time::timeout(Duration::from_secs(3), logout)
-                        .await
-                        .expect("cancellation must release session admission")
-                        .unwrap()
-                        .unwrap();
-                }
-                if transition == "cancel_before_commit" {
-                    // The client is gone and the local lease is free, but
-                    // an already received request can still execute later.
-                    assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 0);
-                    mock.held_v2_before_route.release.notify_one();
-                    tokio::time::timeout(Duration::from_secs(3), async {
-                        while mock.inner.lock().unwrap().v2_put_requests == 0 {
-                            tokio::time::sleep(Duration::from_millis(10)).await;
-                        }
-                    })
-                    .await
-                    .expect("server must be able to execute after client cancellation");
-                    assert_eq!(
-                        mock.inner.lock().unwrap().v2_received_epochs,
-                        vec![Some("7".into())]
-                    );
-                } else {
-                    assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
-                    mock.held_v2_write.release.notify_one();
-                }
-                continue;
-            }
-            mock.held_v2_write.release.notify_one();
-            let outcome = tokio::time::timeout(Duration::from_secs(3), task)
-                .await
-                .expect("dispatcher must finish after response")
                 .unwrap();
-            if let Some(logout) = logout {
-                tokio::time::timeout(Duration::from_secs(3), logout)
-                    .await
-                    .expect("finished HTTP must release session admission")
-                    .unwrap()
-                    .unwrap();
-                if transition == "replace" {
-                    login(&auth, "replacement-session").await;
-                    assert!(!Arc::ptr_eq(&session, &auth.session().await.unwrap()));
-                }
-            }
-            let after = workspace.snapshot().unwrap();
-            assert!(upload.fence.try_untracked_edit().is_ok());
-            if transition != "unchanged" {
-                assert!(matches!(
-                    outcome,
-                    Err(crate::WorkspaceCoordError::Ineligible)
-                ));
-                assert_eq!(after.generation, prepared.generation);
-                assert_eq!(after.state, prepared.state);
+            assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
+        } else {
+            let outcome = outcome.unwrap();
+            if status == 200 {
+                assert_eq!(outcome.pushed, 1);
+                assert!(after.state.entry(&key).unwrap().pending.is_none());
+            } else {
+                assert_eq!(outcome.conflicts, vec![key.clone()]);
                 assert_eq!(
                     after
                         .state
@@ -1461,48 +1484,60 @@ async fn real_auth_logout_or_session_replacement_during_v2_response_keeps_unconf
                         .as_ref()
                         .unwrap()
                         .status,
-                    WorkspacePendingStatus::Unconfirmed
+                    WorkspacePendingStatus::Conflict
                 );
-            } else if status == 412 || status == 428 {
-                assert!(
-                    matches!(outcome, Err(crate::WorkspaceCoordError::Transport(SyncError::Http(code))) if code == status)
-                );
-                assert_eq!(after.state, prepared.state);
-                // An explicit second sync must never replay the frozen
-                // uncertain request even when the remote status changes.
-                mock.inner.lock().unwrap().v2_put_status = Some(200);
-                let original_session = auth.session().await.unwrap();
-                sync.sync_v2_product(original_session, upload.clone())
-                    .await
-                    .unwrap();
-                assert_eq!(mock.inner.lock().unwrap().v2_put_requests, 1);
-            } else {
-                let outcome = outcome.unwrap();
-                if status == 200 {
-                    assert_eq!(outcome.pushed, 1);
-                    assert!(after.state.entry(&key).unwrap().pending.is_none());
-                } else {
-                    assert_eq!(outcome.conflicts, vec![key.clone()]);
-                    assert_eq!(
-                        after
-                            .state
-                            .entry(&key)
-                            .unwrap()
-                            .pending
-                            .as_ref()
-                            .unwrap()
-                            .status,
-                        WorkspacePendingStatus::Conflict
-                    );
-                }
             }
-            assert!(
-                sync.protocol.try_cutover().is_ok(),
-                "request must release protocol lease"
-            );
-            mock.stop();
         }
+        assert!(
+            sync.protocol.try_cutover().is_ok(),
+            "request must release protocol lease"
+        );
+        mock.stop();
     }
+}
+
+// Each status/transition pair is its own test so nextest runs them in
+// parallel; every case uses its own TempDir and mock server.
+macro_rules! v2_auth_transition_cases {
+    ($($name:ident => ($status:expr, $transition:expr)),+ $(,)?) => {
+        $(
+            #[tokio::test(flavor = "current_thread")]
+            async fn $name() {
+                real_auth_logout_or_session_replacement_during_v2_response_case(
+                    $status,
+                    $transition,
+                )
+                .await;
+            }
+        )+
+    };
+}
+
+v2_auth_transition_cases! {
+    v2_put_200_logout_keeps_unconfirmed => (200, "logout"),
+    v2_put_200_replace_keeps_unconfirmed => (200, "replace"),
+    v2_put_200_unchanged_applies => (200, "unchanged"),
+    v2_put_200_cancel_keeps_unconfirmed => (200, "cancel"),
+    v2_put_200_cancel_before_commit_keeps_unconfirmed => (200, "cancel_before_commit"),
+    v2_put_200_cancel_with_logout_keeps_unconfirmed => (200, "cancel_with_logout"),
+    v2_put_409_logout_keeps_unconfirmed => (409, "logout"),
+    v2_put_409_replace_keeps_unconfirmed => (409, "replace"),
+    v2_put_409_unchanged_applies => (409, "unchanged"),
+    v2_put_409_cancel_keeps_unconfirmed => (409, "cancel"),
+    v2_put_409_cancel_before_commit_keeps_unconfirmed => (409, "cancel_before_commit"),
+    v2_put_409_cancel_with_logout_keeps_unconfirmed => (409, "cancel_with_logout"),
+    v2_put_412_logout_keeps_unconfirmed => (412, "logout"),
+    v2_put_412_replace_keeps_unconfirmed => (412, "replace"),
+    v2_put_412_unchanged_retries => (412, "unchanged"),
+    v2_put_412_cancel_keeps_unconfirmed => (412, "cancel"),
+    v2_put_412_cancel_before_commit_keeps_unconfirmed => (412, "cancel_before_commit"),
+    v2_put_412_cancel_with_logout_keeps_unconfirmed => (412, "cancel_with_logout"),
+    v2_put_428_logout_keeps_unconfirmed => (428, "logout"),
+    v2_put_428_replace_keeps_unconfirmed => (428, "replace"),
+    v2_put_428_unchanged_retries => (428, "unchanged"),
+    v2_put_428_cancel_keeps_unconfirmed => (428, "cancel"),
+    v2_put_428_cancel_before_commit_keeps_unconfirmed => (428, "cancel_before_commit"),
+    v2_put_428_cancel_with_logout_keeps_unconfirmed => (428, "cancel_with_logout"),
 }
 
 #[tokio::test(flavor = "current_thread")]

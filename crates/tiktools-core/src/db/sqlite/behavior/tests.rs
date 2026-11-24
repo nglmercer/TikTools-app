@@ -436,9 +436,10 @@ fn behavior_crash_child() {
         .unwrap();
     panic!("missing crash boundary");
 }
-#[test]
-fn process_death_does_not_split_action_removal_reference_cleanup_versions_or_outboxes() {
-    for stage in ["before", "after"] {
+fn process_death_does_not_split_action_removal_reference_cleanup_versions_or_outboxes_case(
+    stage: &'static str,
+) {
+    {
         let f = Fixture::new();
         f.db.save_behavior("behavior_actions", &action("same"))
             .unwrap();
@@ -474,6 +475,21 @@ fn process_death_does_not_split_action_removal_reference_cleanup_versions_or_out
         );
         assert_eq!(f.count(), if stage == "before" { 2 } else { 4 });
     }
+}
+
+// Each crash boundary is its own test so nextest runs them in parallel.
+#[test]
+fn process_death_action_removal_before_commit_boundary() {
+    process_death_does_not_split_action_removal_reference_cleanup_versions_or_outboxes_case(
+        "before",
+    );
+}
+
+#[test]
+fn process_death_action_removal_after_commit_boundary() {
+    process_death_does_not_split_action_removal_reference_cleanup_versions_or_outboxes_case(
+        "after",
+    );
 }
 
 #[test]
@@ -601,9 +617,10 @@ fn behavior_command_crash_child() {
     .unwrap();
     panic!("missing command crash boundary");
 }
-#[test]
-fn process_death_keeps_behavior_command_result_cascade_and_audit_outbox_atomic() {
-    for stage in ["before", "after"] {
+fn process_death_keeps_behavior_command_result_cascade_and_audit_outbox_atomic_case(
+    stage: &'static str,
+) {
+    {
         let f = Fixture::new();
         f.db.save_behavior("behavior_actions", &action("same"))
             .unwrap();
@@ -658,4 +675,15 @@ fn process_death_keeps_behavior_command_result_cascade_and_audit_outbox_atomic()
             assert_eq!(outcome.resource_versions.len(), 2);
         }
     }
+}
+
+// Each crash boundary is its own test so nextest runs them in parallel.
+#[test]
+fn process_death_command_result_before_commit_boundary() {
+    process_death_keeps_behavior_command_result_cascade_and_audit_outbox_atomic_case("before");
+}
+
+#[test]
+fn process_death_command_result_after_commit_boundary() {
+    process_death_keeps_behavior_command_result_cascade_and_audit_outbox_atomic_case("after");
 }

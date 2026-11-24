@@ -341,9 +341,10 @@ fn aggregate_owner_review_budget_includes_current_grants_as_well_as_source() {
         "too_large"
     );
 }
-#[test]
-fn active_review_rejects_missing_malformed_or_extraneous_reverse_dependencies() {
-    for corruption in ["missing", "position", "oversized-id", "extra", "digest"] {
+fn active_review_rejects_missing_malformed_or_extraneous_reverse_dependencies_case(
+    corruption: &'static str,
+) {
+    {
         let f = Fixture::new();
         let auth = f.pair(grant());
         f.draft(
@@ -403,4 +404,30 @@ fn active_review_rejects_missing_malformed_or_extraneous_reverse_dependencies() 
             "{corruption}"
         );
     }
+}
+
+// Each corruption is its own test so nextest runs them in parallel.
+#[test]
+fn active_review_rejects_missing_reverse_dependency() {
+    active_review_rejects_missing_malformed_or_extraneous_reverse_dependencies_case("missing");
+}
+
+#[test]
+fn active_review_rejects_shifted_reverse_dependency_position() {
+    active_review_rejects_missing_malformed_or_extraneous_reverse_dependencies_case("position");
+}
+
+#[test]
+fn active_review_rejects_oversized_reverse_dependency_id() {
+    active_review_rejects_missing_malformed_or_extraneous_reverse_dependencies_case("oversized-id");
+}
+
+#[test]
+fn active_review_rejects_extraneous_reverse_dependency() {
+    active_review_rejects_missing_malformed_or_extraneous_reverse_dependencies_case("extra");
+}
+
+#[test]
+fn active_review_rejects_corrupt_reverse_dependency_digest() {
+    active_review_rejects_missing_malformed_or_extraneous_reverse_dependencies_case("digest");
 }

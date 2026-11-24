@@ -623,18 +623,10 @@ fn owner_unknown_resolution_never_dispatches_and_explicit_review_only_clears_the
             && r.intent.command_id != intent.command_id));
 }
 
-#[test]
-fn owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch() {
-    for corruption in [
-        "host",
-        "hash",
-        "intent",
-        "command-prefix",
-        "command-case",
-        "json",
-        "oversized",
-        "oversized-table-id",
-    ] {
+fn owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case(
+    corruption: &'static str,
+) {
+    {
         let mut f = Fixture::new();
         f.graph();
         let (intent, _) = f.seed_pending(AutomationKind::Event, "rule");
@@ -748,6 +740,55 @@ fn owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatc
             "delegated"
         );
     }
+}
+
+// Each corruption is its own test so nextest runs them in parallel.
+#[test]
+fn owner_journal_rejects_cross_host_binding() {
+    owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case("host");
+}
+
+#[test]
+fn owner_journal_rejects_corrupt_payload_hash() {
+    owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case("hash");
+}
+
+#[test]
+fn owner_journal_rejects_corrupt_intent() {
+    owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case("intent");
+}
+
+#[test]
+fn owner_journal_rejects_command_id_prefix_mismatch() {
+    owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case(
+        "command-prefix",
+    );
+}
+
+#[test]
+fn owner_journal_rejects_command_id_case_mismatch() {
+    owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case(
+        "command-case",
+    );
+}
+
+#[test]
+fn owner_journal_rejects_malformed_json() {
+    owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case("json");
+}
+
+#[test]
+fn owner_journal_rejects_oversized_payload() {
+    owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case(
+        "oversized",
+    );
+}
+
+#[test]
+fn owner_journal_rejects_oversized_table_id() {
+    owner_journal_rejects_cross_host_and_corrupt_private_bindings_without_dispatch_case(
+        "oversized-table-id",
+    );
 }
 
 #[test]

@@ -21,18 +21,8 @@ fn fixture() -> (Arc<AppCore>, std::path::PathBuf) {
     (core, root)
 }
 
-#[tokio::test(start_paused = true)]
-async fn changed_definitions_and_recreated_ids_stop_unstarted_effects_after_a_real_delay() {
-    for change in [
-        "action",
-        "event",
-        "recreate",
-        "unrelated",
-        #[cfg(feature = "persistence")]
-        "remote-disable",
-        #[cfg(feature = "persistence")]
-        "remote-delete",
-    ] {
+async fn changed_definitions_case(change: &'static str) {
+    {
         let (core, root) = fixture();
         core.points
             .award_points(
@@ -150,6 +140,40 @@ async fn changed_definitions_and_recreated_ids_stop_unstarted_effects_after_a_re
         core.shutdown().await;
         let _ = std::fs::remove_dir_all(root);
     }
+}
+
+// Each change is its own test so nextest runs them in parallel; every case
+// uses PID+random isolated roots.
+#[tokio::test(start_paused = true)]
+async fn changed_definitions_action_stops_unstarted_effects() {
+    changed_definitions_case("action").await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn changed_definitions_event_stops_unstarted_effects() {
+    changed_definitions_case("event").await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn changed_definitions_recreate_stops_unstarted_effects() {
+    changed_definitions_case("recreate").await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn changed_definitions_unrelated_keeps_unstarted_effects() {
+    changed_definitions_case("unrelated").await;
+}
+
+#[cfg(feature = "persistence")]
+#[tokio::test(start_paused = true)]
+async fn changed_definitions_remote_disable_stops_unstarted_effects() {
+    changed_definitions_case("remote-disable").await;
+}
+
+#[cfg(feature = "persistence")]
+#[tokio::test(start_paused = true)]
+async fn changed_definitions_remote_delete_stops_unstarted_effects() {
+    changed_definitions_case("remote-delete").await;
 }
 
 #[tokio::test]
