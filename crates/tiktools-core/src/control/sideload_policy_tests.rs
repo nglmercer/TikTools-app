@@ -1,5 +1,5 @@
 use super::*;
-use crate::{paths::AppPaths, HostEmitter, NoopMediaHost};
+use crate::{HostEmitter, NoopMediaHost};
 use std::{path::PathBuf, sync::Arc, time::Duration};
 use tiktools_plugin_installer::{InstallErrorCode, JobStatus, PackageSpecInput};
 use tiktools_plugin_package::{pack, PackRequest};
@@ -22,17 +22,7 @@ impl Fixture {
             std::process::id(),
             fastrand::u64(..)
         ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("no-builtins"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
+        let paths = crate::db::test_templates::materialize(&root);
         let manifest = root.join("plugin.json");
         std::fs::write(
             &manifest,

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{paths::AppPaths, AppCore, HostEmitter, NoopMediaHost};
+use crate::{AppCore, HostEmitter, NoopMediaHost};
 use serde_json::json;
 use std::{
     path::{Path, PathBuf},
@@ -63,24 +63,7 @@ impl Fixture {
             std::process::id(),
             fastrand::u64(..)
         ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
-        for p in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(p).unwrap();
-        }
+        let paths = crate::db::test_templates::materialize(&root);
         let plugin = paths.plugins.join("textintel");
         std::fs::create_dir_all(&plugin).unwrap();
         std::fs::write(plugin.join("plugin.json"),serde_json::to_vec(&json!({"schemaVersion":2,"id":"textintel","name":"Fixture processor","version":"0.1.0","runtime":"process","entry":"entry.bin","capabilities":["events.enrich"],"processorTypes":[{"id":"textintel.analyze","title":{"default":"Fixture"},"eventTypes":["tiktok.chat"]}]})).unwrap()).unwrap();

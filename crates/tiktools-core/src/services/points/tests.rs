@@ -13,7 +13,6 @@ mod ordering;
 /// into the next run.
 #[cfg(feature = "persistence")]
 fn temp_service(tag: &str) -> (Arc<DatabaseManager>, PointsService, std::path::PathBuf) {
-    use crate::paths::AppPaths;
     let root = std::env::temp_dir().join(format!(
         "tiktools-points-{tag}-{}",
         std::time::SystemTime::now()
@@ -21,24 +20,7 @@ fn temp_service(tag: &str) -> (Arc<DatabaseManager>, PointsService, std::path::P
             .unwrap()
             .as_nanos()
     ));
-    let paths = AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("builtin-plugins"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root: root.clone(),
-    };
-    paths.ensure_directories().expect("temp dirs");
-    for path in [
-        paths.points_database(),
-        paths.automation_database(),
-        paths.analytics_database(),
-    ] {
-        std::fs::File::create(path).expect("private empty fixture database");
-    }
+    let paths = crate::db::test_templates::materialize(&root);
     let database = Arc::new(DatabaseManager::new(paths));
     // These fixtures mutate schema/locks to test the write path. Finish
     // the initial WAL transition before the worker and the test open
@@ -304,7 +286,6 @@ fn high_cardinality_awards_stay_bounded_and_exact() {
 #[test]
 fn eviction_and_restart_preserve_exact_balances() {
     use crate::db::DatabaseManager;
-    use crate::paths::AppPaths;
     let root = std::env::temp_dir().join(format!(
         "tiktools-points-phase1-{}",
         std::time::SystemTime::now()
@@ -312,17 +293,7 @@ fn eviction_and_restart_preserve_exact_balances() {
             .unwrap()
             .as_nanos()
     ));
-    let paths = AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("builtin-plugins"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root: root.clone(),
-    };
-    paths.ensure_directories().expect("temp dirs");
+    let paths = crate::db::test_templates::materialize(&root);
     let database = Arc::new(DatabaseManager::new(paths));
     let service = PointsService::new(Arc::clone(&database));
     service.set_cache_capacity(50);

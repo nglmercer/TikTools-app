@@ -622,11 +622,78 @@ CREATE TRIGGER IF NOT EXISTS automation_library_version_control_resource_version
 COMMIT;
 
 "#;
+/// Bumped whenever the schema constants or migrations below change shape.
+/// Stored in `PRAGMA application_id` so an app upgrade forces one full
+/// idempotent init even when the database file itself is untouched.
+pub(in crate::db) const SCHEMA_EPOCH: i64 = 1;
+
+/// An already-initialized database is recognized by matching stamps: the
+/// code epoch in `application_id` and the file's own `schema_version` in
+/// `user_version`. Any later DDL — including fixtures that drop and recreate
+/// legacy tables — bumps `schema_version` and replays the full init path.
+/// `schema_version == 0` means the file has no schema yet.
+pub(in crate::db) fn schema_unchanged(connection: &Connection) -> Result<bool, DatabaseError> {
+    let schema_version: i64 =
+        connection.query_row("PRAGMA schema_version", [], |row| row.get(0))?;
+    if schema_version == 0 {
+        return Ok(false);
+    }
+    let user_version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    let application_id: i64 =
+        connection.query_row("PRAGMA application_id", [], |row| row.get(0))?;
+    Ok(user_version == schema_version && application_id == SCHEMA_EPOCH)
+}
+
+pub(in crate::db) fn stamp_schema_version(connection: &Connection) -> Result<(), DatabaseError> {
+    let schema_version: i64 =
+        connection.query_row("PRAGMA schema_version", [], |row| row.get(0))?;
+    connection.execute_batch(&format!(
+        "PRAGMA user_version={schema_version}; PRAGMA application_id={SCHEMA_EPOCH};"
+    ))?;
+    Ok(())
+}
+
+/// Data seeds extracted from the schema constants. They must re-run on every
+/// open of an initialized database: they backfill version/provenance rows for
+/// records written while the host was live, and tests delete marker rows to
+/// replay legacy seeding. `INSERT OR IGNORE` keeps them no-ops in steady
+/// state. The fresh-init path already runs them inside the schema batches.
+const COORDINATION_REOPEN_SEED: &str = r#"
+INSERT OR IGNORE INTO control_command_resources(event_id,resource_cursor)
+  SELECT c.event_id,r.cursor FROM control_command_outbox c JOIN control_resource_outbox r
+  ON c.resource_kind=r.kind AND c.resource_scope=r.scope AND c.resource_id=r.resource_id
+  AND c.after_revision=CAST(r.revision AS TEXT) WHERE c.before_revision<>c.after_revision;
+"#;
+
+const AUTOMATION_REOPEN_SEEDS: &str = r#"
+INSERT OR IGNORE INTO competition_state(competition_id, state_json)
+  SELECT id, '{"lifecycle":"draft","generation":0,"deadlineMs":null,"remainingMs":null}' FROM competition_definitions;
+INSERT OR IGNORE INTO control_resource_versions(kind, scope, resource_id, revision, deleted)
+  SELECT 'workflow', 'host', id, 1, 0 FROM automation_workflows;
+INSERT OR IGNORE INTO control_resource_versions(kind,scope,resource_id,revision,deleted)
+  SELECT 'automation','action',id,1,0 FROM behavior_actions
+  WHERE NOT EXISTS(SELECT 1 FROM behavior_provenance_migration WHERE id=1);
+INSERT OR IGNORE INTO control_resource_versions(kind,scope,resource_id,revision,deleted)
+  SELECT 'automation','event',id,1,0 FROM behavior_events
+  WHERE NOT EXISTS(SELECT 1 FROM behavior_provenance_migration WHERE id=1);
+INSERT OR IGNORE INTO behavior_provenance(scope,resource_id,authority,generation)
+  SELECT scope,resource_id,'owner',1 FROM control_resource_versions
+  WHERE kind='automation' AND scope IN ('action','event')
+    AND NOT EXISTS(SELECT 1 FROM behavior_provenance_migration WHERE id=1);
+INSERT OR IGNORE INTO behavior_provenance_migration(id,version) VALUES (1,1);
+INSERT OR IGNORE INTO automation_library_version(id,version) VALUES (1,0);
+"#;
+
 impl DatabaseManager {
     pub(in crate::db) fn initialize_schema(&self) -> Result<(), DatabaseError> {
         let points = self.open(&self.points_path())?;
-        points.execute_batch(POINTS_SCHEMA)?;
-        points.execute_batch(COORDINATION_SCHEMA)?;
+        if schema_unchanged(&points)? {
+            points.execute_batch(COORDINATION_REOPEN_SEED)?;
+        } else {
+            points.execute_batch(POINTS_SCHEMA)?;
+            points.execute_batch(COORDINATION_SCHEMA)?;
+            stamp_schema_version(&points)?;
+        }
         points.execute_batch("INSERT OR IGNORE INTO control_resource_versions(kind,scope,resource_id,revision,deleted) SELECT 'viewer','host',unique_id,1,0 FROM viewers;")?;
         let count: i64 =
             points.query_row("SELECT COUNT(*) FROM points_config", [], |row| row.get(0))?;
@@ -636,14 +703,20 @@ impl DatabaseManager {
         }
 
         let mut automation = self.open(&self.automation_path())?;
-        // The workflow seed references the shared version table.
-        automation.execute_batch(COORDINATION_SCHEMA)?;
-        automation.execute_batch(AUTOMATION_SCHEMA)?;
-        migrate_competition_revisions(&mut automation)?;
-        migrate_competition_execution_origins(&mut automation)?;
-        migrate_plugin_sync_outbox(&mut automation)?;
-        migrate_package_journal(&mut automation)?;
-        migrate_effect_kinds(&mut automation)?;
+        if schema_unchanged(&automation)? {
+            automation.execute_batch(COORDINATION_REOPEN_SEED)?;
+            automation.execute_batch(AUTOMATION_REOPEN_SEEDS)?;
+        } else {
+            // The workflow seed references the shared version table.
+            automation.execute_batch(COORDINATION_SCHEMA)?;
+            automation.execute_batch(AUTOMATION_SCHEMA)?;
+            migrate_competition_revisions(&mut automation)?;
+            migrate_competition_execution_origins(&mut automation)?;
+            migrate_plugin_sync_outbox(&mut automation)?;
+            migrate_package_journal(&mut automation)?;
+            migrate_effect_kinds(&mut automation)?;
+            stamp_schema_version(&automation)?;
+        }
 
         self.ensure_analytics_schema()?;
         Ok(())

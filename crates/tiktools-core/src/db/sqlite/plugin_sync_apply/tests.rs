@@ -5,7 +5,6 @@ mod recovery;
 mod transitions;
 
 use super::*;
-use crate::paths::AppPaths;
 use std::path::PathBuf;
 
 struct Fixture {
@@ -20,17 +19,7 @@ impl Fixture {
             std::process::id(),
             fastrand::u64(..)
         ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
+        let paths = crate::db::test_templates::materialize(&root);
         let db = DatabaseManager::new(paths);
         assert_eq!(
             db.set_plugin_state_with_sync_intent("acme.plugin", true, true, None)

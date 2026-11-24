@@ -1,6 +1,5 @@
 use super::super::DatabaseManager;
 use super::*;
-use crate::paths::AppPaths;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static TEST_DB_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -13,18 +12,7 @@ pub(super) fn test_manager() -> DatabaseManager {
         sequence
     ));
     let _ = std::fs::remove_dir_all(&root);
-    let data = root.join("data");
-    std::fs::create_dir_all(&data).expect("test data dir");
-    DatabaseManager::new(AppPaths {
-        root: root.clone(),
-        data,
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("builtin-plugins"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-    })
+    DatabaseManager::new(crate::db::test_templates::materialize(&root))
 }
 
 fn record_chats(unique_id: &str, chats: i64) -> AnalyticsEventRecord {

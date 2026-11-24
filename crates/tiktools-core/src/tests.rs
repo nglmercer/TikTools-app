@@ -1612,24 +1612,7 @@ fn core_with_fake_plugins(
     // process-global AppCore::new home made concurrent shutdown tests fence one
     // another as superseded hosts, independently of plugin lifecycle behavior.
     let home = root.join("host");
-    let paths = AppPaths {
-        data: home.join("data"),
-        plugins: home.join("plugins"),
-        plugin_data: home.join("plugin-data"),
-        builtin_plugins: home.join("absent-builtin"),
-        development_plugins: None,
-        logs: home.join("logs"),
-        temp: home.join("temp"),
-        root: home,
-    };
-    paths.ensure_directories().unwrap();
-    for path in [
-        paths.points_database(),
-        paths.automation_database(),
-        paths.analytics_database(),
-    ] {
-        std::fs::File::create(path).unwrap();
-    }
+    let paths = crate::db::test_templates::materialize(&home);
     let mut core = AppCore::with_paths(emitter.clone(), Arc::new(NoopMediaHost), paths);
     core.plugins = Arc::new(manager);
     (Arc::new(core), emitter, root)
@@ -3021,16 +3004,7 @@ fn private_core(name: &str) -> (Arc<AppCore>, PathBuf) {
         std::process::id(),
         now_millis()
     ));
-    let paths = crate::paths::AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("builtin"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root: root.clone(),
-    };
+    let paths = crate::db::test_templates::materialize(&root);
     let core = Arc::new(AppCore::with_paths(
         Arc::new(RecordingEmitter::default()),
         Arc::new(NoopMediaHost),
@@ -3912,16 +3886,7 @@ async fn unusable_cloud_sync_directory_degrades_instead_of_panicking() {
     let sync_dir = root.join("data").join("cloud-sync");
     std::fs::create_dir_all(&sync_dir).unwrap();
     std::fs::set_permissions(&sync_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let paths = crate::paths::AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("builtin"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root: root.clone(),
-    };
+    let paths = crate::db::test_templates::materialize(&root);
     let core = Arc::new(AppCore::with_paths(
         Arc::new(RecordingEmitter::default()),
         Arc::new(NoopMediaHost),

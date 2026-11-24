@@ -1,5 +1,4 @@
 use super::*;
-use crate::paths::AppPaths;
 
 struct Fixture {
     db: DatabaseManager,
@@ -13,22 +12,7 @@ impl Fixture {
             .as_nanos();
         let root =
             std::env::temp_dir().join(format!("tt-points-versions-{}-{nonce}", std::process::id()));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("builtin"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
-        // Even a direct test-executable launch from the checkout root must
-        // not import the user's ./data legacy databases into this fixture.
-        for file in [paths.points_database(), paths.automation_database()] {
-            drop(rusqlite::Connection::open(file).unwrap());
-        }
+        let paths = crate::db::test_templates::materialize(&root);
         Self {
             db: DatabaseManager::new(paths),
             root,

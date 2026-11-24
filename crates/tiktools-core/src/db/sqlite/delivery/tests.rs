@@ -45,7 +45,11 @@ impl Fixture {
         let root =
             std::env::temp_dir().join(format!("tt-delivery-{}-{nonce:x}", std::process::id()));
         Self {
-            core: Some(boot(root.clone())),
+            core: Some(Arc::new(AppCore::with_paths(
+                Arc::new(Emitter),
+                Arc::new(NoopMediaHost),
+                crate::db::test_templates::materialize(&root),
+            ))),
             root,
         }
     }

@@ -824,16 +824,7 @@ mod integration_tests {
             std::process::id(),
             crate::now_millis()
         ));
-        let paths = crate::paths::AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("builtin"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
+        let paths = crate::db::test_templates::materialize(&root);
         let core = Arc::new(AppCore::with_paths(
             Arc::new(Emitter),
             Arc::new(crate::NoopMediaHost),
@@ -1451,16 +1442,7 @@ mod integration_tests {
             std::process::id(),
             crate::now_millis()
         ));
-        let paths = crate::paths::AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("builtin"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
+        let paths = crate::db::test_templates::materialize(&root);
         let core = Arc::new(AppCore::with_paths(
             Arc::new(Emitter),
             Arc::new(crate::NoopMediaHost),
@@ -1974,16 +1956,7 @@ mod integration_tests {
             std::process::id(),
             crate::now_millis()
         ));
-        let paths = crate::paths::AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("builtin"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
+        let paths = crate::db::test_templates::materialize(&root);
         let open = || {
             Arc::new(AppCore::with_paths(
                 Arc::new(Emitter),
@@ -2071,16 +2044,7 @@ mod integration_tests {
             std::process::id(),
             crate::now_millis()
         ));
-        let paths = crate::paths::AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("builtin"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
+        let paths = crate::db::test_templates::materialize(&root);
         let core = Arc::new(AppCore::with_paths(
             Arc::new(Emitter),
             Arc::new(crate::NoopMediaHost),

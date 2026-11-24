@@ -449,7 +449,6 @@ impl DatabaseManager {
 mod tests {
     use super::*;
     use crate::db::sqlite::plugin_sync::LocalPluginSyncIntent;
-    use crate::paths::AppPaths;
     use tiktools_cloud_sync::{PluginSelection, V1Entry, V1Record};
 
     const ORIGIN: &str = "https://cloud.example";
@@ -471,24 +470,7 @@ mod tests {
                 std::process::id(),
                 fastrand::u64(..)
             ));
-            let paths = AppPaths {
-                data: root.join("data"),
-                plugins: root.join("plugins"),
-                plugin_data: root.join("plugin-data"),
-                builtin_plugins: root.join("absent"),
-                development_plugins: None,
-                logs: root.join("logs"),
-                temp: root.join("temp"),
-                root: root.clone(),
-            };
-            paths.ensure_directories().unwrap();
-            for file in [
-                paths.points_database(),
-                paths.automation_database(),
-                paths.analytics_database(),
-            ] {
-                drop(Connection::open(file).unwrap());
-            }
+            let paths = crate::db::test_templates::materialize(&root);
             let db = DatabaseManager::new(paths);
             let context = V1LocalEditContext {
                 origin: ORIGIN.into(),

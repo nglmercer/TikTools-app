@@ -13,6 +13,29 @@ pub(crate) use analytics::writer::{AnalyticsWrite, AnalyticsWriter};
 
 #[cfg(all(test, feature = "persistence"))]
 pub(crate) use sqlite::test_templates;
+#[cfg(all(test, not(feature = "persistence")))]
+pub(crate) mod test_templates {
+    //! Non-persistence builds have no databases to template; fixtures still
+    //! need the same isolated directory layout `materialize` provides.
+    use std::path::Path;
+
+    use crate::paths::AppPaths;
+
+    pub(crate) fn materialize(root: &Path) -> AppPaths {
+        let paths = AppPaths {
+            data: root.join("data"),
+            plugins: root.join("plugins"),
+            plugin_data: root.join("plugin-data"),
+            builtin_plugins: root.join("absent"),
+            development_plugins: None,
+            logs: root.join("logs"),
+            temp: root.join("temp"),
+            root: root.to_path_buf(),
+        };
+        paths.ensure_directories().unwrap();
+        paths
+    }
+}
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::validate_owner_approval_input;
 #[cfg(feature = "persistence")]

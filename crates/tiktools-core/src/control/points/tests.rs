@@ -22,24 +22,7 @@ impl Fixture {
             .as_nanos();
         let root =
             std::env::temp_dir().join(format!("tt-point-command-{}-{nonce}", std::process::id()));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent-builtin"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root,
-        };
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
+        let paths = crate::db::test_templates::materialize(&root);
         let core = Some(Arc::new(AppCore::with_paths(
             Arc::new(Emitter),
             Arc::new(NoopMediaHost),

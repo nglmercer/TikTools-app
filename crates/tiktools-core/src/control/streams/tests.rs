@@ -1,5 +1,5 @@
 use super::*;
-use crate::{ipc::messages::HostMessage, paths::AppPaths, HostEmitter, NoopMediaHost};
+use crate::{ipc::messages::HostMessage, HostEmitter, NoopMediaHost};
 use serde_json::json;
 use std::{path::PathBuf, sync::Arc};
 struct Emitter;
@@ -20,24 +20,7 @@ impl Fixture {
                 .unwrap()
                 .as_nanos()
         ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("builtin"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
+        let paths = crate::db::test_templates::materialize(&root);
         Self {
             core: Some(Arc::new(AppCore::with_paths(
                 Arc::new(Emitter),

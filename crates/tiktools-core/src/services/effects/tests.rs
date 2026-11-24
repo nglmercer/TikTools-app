@@ -10,16 +10,7 @@ struct Fixture {
 }
 
 fn paths(root: PathBuf) -> AppPaths {
-    AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("builtins"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root,
-    }
+    crate::db::test_templates::materialize(&root)
 }
 
 impl Fixture {
@@ -30,15 +21,6 @@ impl Fixture {
             random_identity().unwrap()
         ));
         let paths = paths(root.clone());
-        paths.ensure_directories().unwrap();
-        // Never import a developer's legacy ./data during isolated tests.
-        for file in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            Connection::open(file).unwrap();
-        }
         let db = Arc::new(DatabaseManager::new(paths));
         let journal = EffectJournal::open(db.clone()).unwrap();
         Self { db, journal, root }

@@ -61,7 +61,7 @@ pub(crate) use plugin_sync_apply::{PluginApplyIntent, PluginApplyPhase, PluginAp
 mod plugin_sync_rebase;
 #[cfg(feature = "cloud-sync")]
 pub(crate) use plugin_sync::{LocalPluginSyncIntent, PluginSyncOutboxEntry, UntrackedPluginReview};
-mod schema;
+pub(in crate::db) mod schema;
 #[cfg(test)]
 pub(crate) mod test_templates;
 #[cfg(test)]
