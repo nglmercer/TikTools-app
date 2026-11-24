@@ -89,12 +89,14 @@ fn large_owner_rpc_drains_alone_with_escaped_literal_without_widening_event_budg
 fn lossy_bytes_are_bounded_even_below_count_limit() {
     let mut outbox = WebviewOutbox::new();
     let body = serde_json::json!({"type":"live-event", "blob":"x".repeat(512 * 1024)});
-    for _ in 0..100 {
+    // 40 × 512KiB = 20MiB, comfortably past the 8MiB lossy-byte bound while
+    // staying far below the 512-message count bound this test targets.
+    for _ in 0..40 {
         outbox.push_value(&body);
     }
     assert!(outbox.lossy.len() < MAX_PENDING_WEBVIEW_MESSAGES);
     assert!(outbox.lossy_bytes <= MAX_LOSSY_BYTES);
-    assert_eq!(outbox.lossy_dropped + outbox.lossy.len() as u64, 100);
+    assert_eq!(outbox.lossy_dropped + outbox.lossy.len() as u64, 40);
     while !outbox.is_empty() {
         let batch = outbox.take_batch();
         assert!(batch.iter().map(String::len).sum::<usize>() <= MAX_BATCH_BYTES);
