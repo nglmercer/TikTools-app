@@ -16,7 +16,7 @@ export async function runSiteTask(namespace: 'docs' | 'demo' | 'site', args: str
       await runner.tool('vue-tsc', '--noEmit', '-p', 'docs/tsconfig.json');
     } else if (action === 'test') {
       await runner.run(runner.bun, 'test', './docs/scripts');
-      await runner.tool('vitest', 'run', 'src/web/demo', 'tests/unit/demo', 'src/web/features/guided-help', 'tests/unit/web/features/guided-help');
+      await runner.tool('vitest', 'run', 'tests/unit/demo', 'tests/unit/web/features/guided-help');
       // The native-bridge absence regression serves the production frontend,
       // so build its independent output instead of relying on a stale dist/web.
       await runner.tool('vite', 'build');

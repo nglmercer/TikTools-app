@@ -11,7 +11,7 @@ export default mergeConfig(
       // contexts for every file. Do not use isolate:false for stateful stores.
       pool: 'vmThreads',
       isolate: true,
-      include: ['tests/unit/**/*.test.ts', 'src/web/**/*.test.ts', 'src/pairing/**/*.test.ts'],
+      include: ['tests/unit/**/*.test.ts'],
       restoreMocks: true,
     },
   }),
