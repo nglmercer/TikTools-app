@@ -869,16 +869,12 @@ fn owner_approval_crash_child() {
     panic!("native approval failpoint did not terminate");
 }
 
-fn real_process_death_around_native_intent_matrix_case(operation: &'static str) {
-    for stage in [
-        "before_intent",
-        "after_intent",
-        "before_dispatch",
-        "before_business_commit",
-        "after_business_commit",
-        "after_effect",
-        "after_record",
-    ] {
+fn real_process_death_around_native_intent_matrix_case(
+    operation: &'static str,
+    stage: &'static str,
+    committed: bool,
+) {
+    {
         let mut f = Fixture::new();
         f.graph();
         if operation == "revoke" {
@@ -908,10 +904,6 @@ fn real_process_death_around_native_intent_matrix_case(operation: &'static str) 
             String::from_utf8_lossy(&child.stderr)
         );
         f.core = Some(open_core(&f.paths));
-        let committed = matches!(
-            stage,
-            "after_business_commit" | "after_effect" | "after_record"
-        );
         assert_eq!(
             f.commands(),
             commands + i64::from(committed),
@@ -971,14 +963,46 @@ fn real_process_death_around_native_intent_matrix_case(operation: &'static str) 
     }
 }
 
-// Each operation is its own test so nextest runs them in parallel; every
-// case already uses PID+random isolated roots and child processes.
-#[test]
-fn real_process_death_activate_never_replays() {
-    real_process_death_around_native_intent_matrix_case("activate");
+// Each stage is its own test so nextest runs the matrix in parallel;
+// every case already uses PID+random isolated roots and child processes.
+macro_rules! owner_approval_process_death {
+    ($($name:ident => $op:expr),+ $(,)?) => {
+        $(
+            paste::paste! {
+                #[test]
+                fn [<$name _before_intent>]() {
+                    real_process_death_around_native_intent_matrix_case($op, "before_intent", false);
+                }
+                #[test]
+                fn [<$name _after_intent>]() {
+                    real_process_death_around_native_intent_matrix_case($op, "after_intent", false);
+                }
+                #[test]
+                fn [<$name _before_dispatch>]() {
+                    real_process_death_around_native_intent_matrix_case($op, "before_dispatch", false);
+                }
+                #[test]
+                fn [<$name _before_business_commit>]() {
+                    real_process_death_around_native_intent_matrix_case($op, "before_business_commit", false);
+                }
+                #[test]
+                fn [<$name _after_business_commit>]() {
+                    real_process_death_around_native_intent_matrix_case($op, "after_business_commit", true);
+                }
+                #[test]
+                fn [<$name _after_effect>]() {
+                    real_process_death_around_native_intent_matrix_case($op, "after_effect", true);
+                }
+                #[test]
+                fn [<$name _after_record>]() {
+                    real_process_death_around_native_intent_matrix_case($op, "after_record", true);
+                }
+            }
+        )+
+    };
 }
 
-#[test]
-fn real_process_death_revoke_never_replays() {
-    real_process_death_around_native_intent_matrix_case("revoke");
+owner_approval_process_death! {
+    real_process_death_activate_never_replays => "activate",
+    real_process_death_revoke_never_replays => "revoke",
 }

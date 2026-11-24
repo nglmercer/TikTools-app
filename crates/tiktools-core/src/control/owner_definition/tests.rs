@@ -628,16 +628,14 @@ fn crash_child() {
     panic!("native definition crash hook did not exit");
 }
 
-fn real_process_death_matrix_case(kind: AutomationKind, operation: OwnerDefinitionOperation) {
-    for (stage, committed, code) in [
-        ("before_intent", false, 90),
-        ("after_intent", false, 90),
-        ("before_dispatch", false, 90),
-        ("business_before", false, 91),
-        ("business_after", true, 92),
-        ("after_effect", true, 90),
-        ("after_record", true, 90),
-    ] {
+fn real_process_death_matrix_case(
+    kind: AutomationKind,
+    operation: OwnerDefinitionOperation,
+    stage: &'static str,
+    committed: bool,
+    code: i32,
+) {
+    {
         let mut f = Fixture::new();
         if operation != OwnerDefinitionOperation::Create {
             f.seed(kind);
@@ -756,15 +754,41 @@ fn real_process_death_matrix_case(kind: AutomationKind, operation: OwnerDefiniti
 macro_rules! owner_definition_process_death {
     ($($name:ident => ($kind:expr, $op:expr)),+ $(,)?) => {
         $(
-            #[test]
-            fn $name() {
-                real_process_death_matrix_case($kind, $op);
+            paste::paste! {
+                #[test]
+                fn [<$name _before_intent>]() {
+                    real_process_death_matrix_case($kind, $op, "before_intent", false, 90);
+                }
+                #[test]
+                fn [<$name _after_intent>]() {
+                    real_process_death_matrix_case($kind, $op, "after_intent", false, 90);
+                }
+                #[test]
+                fn [<$name _before_dispatch>]() {
+                    real_process_death_matrix_case($kind, $op, "before_dispatch", false, 90);
+                }
+                #[test]
+                fn [<$name _business_before>]() {
+                    real_process_death_matrix_case($kind, $op, "business_before", false, 91);
+                }
+                #[test]
+                fn [<$name _business_after>]() {
+                    real_process_death_matrix_case($kind, $op, "business_after", true, 92);
+                }
+                #[test]
+                fn [<$name _after_effect>]() {
+                    real_process_death_matrix_case($kind, $op, "after_effect", true, 90);
+                }
+                #[test]
+                fn [<$name _after_record>]() {
+                    real_process_death_matrix_case($kind, $op, "after_record", true, 90);
+                }
             }
         )+
     };
 }
 
-// Each operation is its own test so nextest runs the matrix in parallel;
+// Each stage is its own test so nextest runs the matrix in parallel;
 // every case already uses PID+random isolated roots and child processes.
 owner_definition_process_death! {
     real_process_death_action_create => (AutomationKind::Action, OwnerDefinitionOperation::Create),

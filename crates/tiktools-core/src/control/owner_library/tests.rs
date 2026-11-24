@@ -605,16 +605,13 @@ fn crash_child() {
     panic!("library crash hook did not terminate the child");
 }
 
-fn actual_process_termination_matrix_case(operation: OwnerLibraryOperation) {
-    for (stage, committed, code) in [
-        ("before_intent", false, 90),
-        ("after_intent", false, 90),
-        ("before_dispatch", false, 90),
-        ("business_before", false, 91),
-        ("business_after", true, 92),
-        ("after_effect", true, 90),
-        ("after_record", true, 90),
-    ] {
+fn actual_process_termination_matrix_case(
+    operation: OwnerLibraryOperation,
+    stage: &'static str,
+    committed: bool,
+    code: i32,
+) {
+    {
         let mut f = Fixture::new();
         f.seed();
         let before = f
@@ -741,15 +738,41 @@ fn actual_process_termination_matrix_case(operation: OwnerLibraryOperation) {
 macro_rules! owner_library_process_death {
     ($($name:ident => $op:expr),+ $(,)?) => {
         $(
-            #[test]
-            fn $name() {
-                actual_process_termination_matrix_case($op);
+            paste::paste! {
+                #[test]
+                fn [<$name _before_intent>]() {
+                    actual_process_termination_matrix_case($op, "before_intent", false, 90);
+                }
+                #[test]
+                fn [<$name _after_intent>]() {
+                    actual_process_termination_matrix_case($op, "after_intent", false, 90);
+                }
+                #[test]
+                fn [<$name _before_dispatch>]() {
+                    actual_process_termination_matrix_case($op, "before_dispatch", false, 90);
+                }
+                #[test]
+                fn [<$name _business_before>]() {
+                    actual_process_termination_matrix_case($op, "business_before", false, 91);
+                }
+                #[test]
+                fn [<$name _business_after>]() {
+                    actual_process_termination_matrix_case($op, "business_after", true, 92);
+                }
+                #[test]
+                fn [<$name _after_effect>]() {
+                    actual_process_termination_matrix_case($op, "after_effect", true, 90);
+                }
+                #[test]
+                fn [<$name _after_record>]() {
+                    actual_process_termination_matrix_case($op, "after_record", true, 90);
+                }
             }
         )+
     };
 }
 
-// Each operation is its own test so nextest runs the matrix in parallel;
+// Each stage is its own test so nextest runs the matrix in parallel;
 // every case already uses PID+random isolated roots and child processes.
 owner_library_process_death! {
     process_termination_create_profile => OwnerLibraryOperation::CreateProfile,

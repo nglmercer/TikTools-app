@@ -105,3 +105,4 @@ reqwest = { workspace = true, features = ["rustls"] }
 tokio = { workspace = true, features = ["test-util"] }
 cloud-client = { path = "../cloud-client", version = "0.1.0" }
 secrecy = "0.10"
+paste = "1.0.15"
