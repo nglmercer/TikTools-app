@@ -26,7 +26,7 @@ function mountEditor() {
 it('combines action ordering, run mode and cooldown edits into one draft before explicit save', async () => {
   const { event, wrapper } = mountEditor();
   await wrapper.get('input[placeholder="' + t('automations.editor.name') + '"]').setValue('Edited');
-  await button(wrapper, 'automations.event.moveDown').trigger('click');
+  await button(wrapper, 'automations.event.reorder').trigger('keydown', { key: 'ArrowDown' });
   await button(wrapper, 'automations.event.random').trigger('click');
   const cooldown = wrapper.get('input[role="spinbutton"]');
   await cooldown.setValue('5');
@@ -42,6 +42,22 @@ it('combines action ordering, run mode and cooldown edits into one draft before 
   await button(wrapper, 'automations.editor.discard').trigger('click');
   expect(button(wrapper, 'automations.editor.save').attributes('disabled')).toBeDefined();
   expect(wrapper.emitted('change')!.at(-1)![0]).toEqual(event);
+});
+
+it('reorders actions by dragging the grip with a pointer', async () => {
+  const { wrapper } = mountEditor();
+  const rows = wrapper.findAll('[data-action-id]');
+  expect(rows).toHaveLength(2);
+  rows.forEach((row, index) => {
+    row.element.getBoundingClientRect = () => ({ top: index * 40, bottom: index * 40 + 40 }) as DOMRect;
+  });
+  const grip = button(wrapper, 'automations.event.reorder');
+  await grip.trigger('pointerdown', { button: 0, pointerId: 1, clientY: 0 });
+  await grip.trigger('pointermove', { clientY: 50 });
+  await grip.trigger('pointerup', {});
+  expect(wrapper.findAll('[data-action-id]').map((row) => row.attributes('data-action-id'))).toEqual(['second', 'first']);
+  await button(wrapper, 'automations.editor.save').trigger('click');
+  expect((wrapper.emitted('save')![0]![0] as LiveEvent).actionIds).toEqual(['second', 'first']);
 });
 
 it('configures a condition template and discards it with the other unsaved edits', async () => {

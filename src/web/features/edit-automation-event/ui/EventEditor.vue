@@ -211,9 +211,21 @@ function runCustom(kind: 'test' | 'fire'): void {
       >
         {{ error }}
       </p>
-      <div class="event-editor__columns">
+      <div
+        class="event-editor__columns"
+        :class="{ 'event-editor__columns--inactive': !draft.enabled }"
+      >
         <div class="event-editor__column">
           <BaseSection :title="t('automations.event.general')">
+            <template #actions>
+              <BaseSwitch
+                :id="`${id}-enabled`"
+                :model-value="draft.enabled"
+                @update:model-value="update({ enabled: $event })"
+              >
+                {{ draft.enabled ? t('automations.editor.enabled') : t('automations.editor.disabled') }}
+              </BaseSwitch>
+            </template>
             <BaseTextField
               :id="`${id}-name`"
               :model-value="draft.name"
@@ -228,13 +240,6 @@ function runCustom(kind: 'test' | 'fire'): void {
               :aria-label="t('automations.event.trigger')"
               @update:model-value="$event && update({ trigger: $event })"
             />
-            <BaseSwitch
-              :id="`${id}-enabled`"
-              :model-value="draft.enabled"
-              @update:model-value="update({ enabled: $event })"
-            >
-              {{ t('automations.editor.enabled') }}
-            </BaseSwitch>
           </BaseSection>
 
           <EventConditionsSection

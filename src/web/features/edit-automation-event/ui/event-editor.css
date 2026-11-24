@@ -17,6 +17,12 @@
   align-items: start;
 }
 
+/* A disabled event stays fully editable: only the presentation is muted. */
+.event-editor__columns--inactive {
+  filter: saturate(0.82);
+  opacity: 0.9;
+}
+
 .event-editor__column {
   display: flex;
   flex-direction: column;
@@ -56,19 +62,44 @@
 .event-editor__action {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-height: var(--control-height-md);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
 }
 
-.event-editor__action > :first-child {
+.event-editor__action--dragging {
+  opacity: 0.55;
+}
+
+.event-editor__action--over {
+  background: var(--color-bg-hover);
+}
+
+.event-editor__action-info {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
 .event-editor__type {
+  overflow: hidden;
   color: var(--color-text-subtle);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-editor__grip {
+  cursor: grab;
+  touch-action: none;
+}
+
+.event-editor__grip:active {
+  cursor: grabbing;
 }
 
 .event-editor__scope {
