@@ -173,10 +173,10 @@ onBeforeUnmount(stopRecording);
         class="conditions__head"
         role="row"
       >
+        <span />
         <span role="columnheader">{{ t('automations.conditions.field') }}</span>
         <span role="columnheader">{{ t('automations.conditions.operator') }}</span>
         <span role="columnheader">{{ t('automations.conditions.value') }}</span>
-        <span />
       </div>
       <BaseContextMenu
         v-for="row in rows"
@@ -188,6 +188,14 @@ onBeforeUnmount(stopRecording);
           class="conditions__row"
           role="row"
         >
+          <BaseIconButton
+            :label="t('automations.conditions.actions')"
+            size="sm"
+            aria-haspopup="menu"
+            @click="openRowMenu($event)"
+          >
+            <IconMoreVertical />
+          </BaseIconButton>
           <BaseComboBox
             :model-value="row.known ? row.filter.path : CUSTOM"
             :options="fieldOptions"
@@ -254,14 +262,6 @@ onBeforeUnmount(stopRecording);
               @update:model-value="setValue(row.index, $event)"
             />
           </div>
-          <BaseIconButton
-            :label="t('automations.conditions.actions')"
-            size="sm"
-            aria-haspopup="menu"
-            @click="openRowMenu($event)"
-          >
-            <IconMoreVertical />
-          </BaseIconButton>
           <BaseTextField
             v-if="!row.known"
             :id="`${id}-path-${row.index}`"
@@ -317,7 +317,7 @@ onBeforeUnmount(stopRecording);
 .conditions__head,
 .conditions__row {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  grid-template-columns: auto minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.4fr);
   gap: var(--space-2);
   align-items: center;
 }
@@ -352,7 +352,7 @@ onBeforeUnmount(stopRecording);
 }
 
 .conditions__path {
-  grid-column: 1 / span 3;
+  grid-column: 2 / -1;
 }
 
 .conditions__missing {
