@@ -77,6 +77,17 @@ it('renders an empty default for a templated text field as empty, not "true"', a
   expect((input?.element as HTMLInputElement).value).toBe('');
 });
 
+it('keeps the enable switch in the General section header and mutes an inactive action', async () => {
+  const wrapper = mountEditor({});
+  const input = wrapper.get<HTMLInputElement>('input[role="switch"]');
+  expect(input.element.closest('.base-section__actions')).not.toBeNull();
+  expect(input.element.closest('.base-section__header')?.textContent).toContain(t('automations.event.general'));
+  expect(wrapper.get('.action-editor__columns').classes()).not.toContain('action-editor__columns--inactive');
+  await input.setValue(false);
+  expect(wrapper.text()).toContain(t('automations.editor.disabled'));
+  expect(wrapper.get('.action-editor__columns').classes()).toContain('action-editor__columns--inactive');
+});
+
 describe('ActionEditor option errors', () => {
   it('shows one compact row without an inline details section', async () => {
     const wrapper = mountEditor({ 'host.gifts': 'HTTP request failed' });

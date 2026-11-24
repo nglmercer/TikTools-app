@@ -168,12 +168,25 @@ function confirmDelete(): void {
         v-if="error"
         :title="error"
       />
-      <div class="action-editor__columns">
+      <div
+        class="action-editor__columns"
+        :class="{ 'action-editor__columns--inactive': !draft.enabled }"
+      >
         <div class="action-editor__column">
           <BaseSection
             :title="t('automations.event.general')"
             :description="type ? localizedText(type.description) : undefined"
           >
+            <template #actions>
+              <BaseSwitch
+                :id="`${id}-enabled`"
+                class="action-editor__enable"
+                :model-value="draft.enabled"
+                @update:model-value="draft = { ...draft, enabled: $event }"
+              >
+                {{ draft.enabled ? t('automations.editor.enabled') : t('automations.editor.disabled') }}
+              </BaseSwitch>
+            </template>
             <BaseTextField
               :id="`${id}-name`"
               :model-value="draft.name"
@@ -181,13 +194,6 @@ function confirmDelete(): void {
               :aria-label="t('automations.editor.name')"
               @update:model-value="draft = { ...draft, name: $event }"
             />
-            <BaseSwitch
-              :id="`${id}-enabled`"
-              :model-value="draft.enabled"
-              @update:model-value="draft = { ...draft, enabled: $event }"
-            >
-              {{ t('automations.editor.enabled') }}
-            </BaseSwitch>
           </BaseSection>
 
           <BaseSection :title="t('automations.action.permissions')">
@@ -286,6 +292,17 @@ function confirmDelete(): void {
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-4);
+}
+
+/* Label first, switch flush to the right edge of the section header. */
+.action-editor__enable {
+  flex-direction: row-reverse;
+}
+
+/* A disabled action stays fully editable: only the presentation is muted. */
+.action-editor__columns--inactive {
+  filter: saturate(0.82);
+  opacity: 0.9;
 }
 
 /* Identity and permissions on one side, the type's settings on the other; wraps on narrow widths. */
