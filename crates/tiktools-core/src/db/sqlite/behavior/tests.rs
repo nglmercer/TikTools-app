@@ -316,12 +316,11 @@ fn bulk_both_families_rolls_back_every_write_when_one_version_or_outbox_fails() 
     assert_eq!(f.count(), 4);
 }
 
-#[test]
-fn bulk_missing_both_sidecars_rejects_without_owner_promotion_and_rolls_back_earlier_family() {
-    for (valid_table, corrupt_table) in [
-        ("behavior_actions", "behavior_events"),
-        ("behavior_events", "behavior_actions"),
-    ] {
+fn bulk_missing_both_sidecars_rejects_without_owner_promotion_and_rolls_back_earlier_family_case(
+    valid_table: &'static str,
+    corrupt_table: &'static str,
+) {
+    {
         let f = Fixture::new();
         f.db.save_behavior_versioned(
             valid_table,
@@ -387,6 +386,23 @@ fn bulk_missing_both_sidecars_rejects_without_owner_promotion_and_rolls_back_ear
         let retained:(String,i64)=c.query_row("SELECT authority,generation FROM behavior_provenance WHERE scope=?1 AND resource_id='valid'",[valid_scope],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
         assert_eq!(retained, ("owner".into(), 1));
     }
+}
+
+// Each family ordering is its own test so nextest runs them in parallel.
+#[test]
+fn bulk_missing_sidecars_action_valid_event_corrupt() {
+    bulk_missing_both_sidecars_rejects_without_owner_promotion_and_rolls_back_earlier_family_case(
+        "behavior_actions",
+        "behavior_events",
+    );
+}
+
+#[test]
+fn bulk_missing_sidecars_event_valid_action_corrupt() {
+    bulk_missing_both_sidecars_rejects_without_owner_promotion_and_rolls_back_earlier_family_case(
+        "behavior_events",
+        "behavior_actions",
+    );
 }
 
 #[test]
