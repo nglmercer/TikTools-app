@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
-import { canonicalJson } from './canonical-json.ts';
-import { sha256 } from './sha256.ts';
+import { canonicalJson } from '../../../../../src/web/shared/lib/canonical-json.ts';
+import { sha256 } from '../../../../../src/web/shared/lib/sha256.ts';
 
 test.each([
   ['', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'],

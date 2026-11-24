@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'vitest';
 
 import {
   applySnapshotContributions,
@@ -13,8 +13,8 @@ import {
   syncAutocompletePluginStates,
   unregisterAutocompleteContribution,
   unregisterAutocompleteContributionsForPlugin,
-} from './autocomplete-registry.ts';
-import type { PluginAutocompleteContribution } from './behavior/types.ts';
+} from '../../../src/automation/autocomplete-registry.ts';
+import type { PluginAutocompleteContribution } from '../../../src/automation/behavior/types.ts';
 
 afterEach(() => {
   resetAutocompleteRegistry();

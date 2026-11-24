@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test';
-import { liveMessageIdentity } from './live-identity.ts';
+import { expect, test } from 'vitest';
+import { liveMessageIdentity } from '../../../src/shared/live-identity.ts';
 test('identities preserve large IDs, event type and room/creator scope', () => {
   const id = '18446744073709551615';
   const key = liveMessageIdentity('tiktok.gift', id, '1', 'a');

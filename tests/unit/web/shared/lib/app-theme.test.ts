@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { applyAppTheme, isAppTheme, systemTheme } from './app-theme.ts';
+import { applyAppTheme, isAppTheme, systemTheme } from '../../../../../src/web/shared/lib/app-theme.ts';
 
 it('accepts only explicit theme ids', () => {
   expect(isAppTheme('dark')).toBe(true);

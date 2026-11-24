@@ -1,7 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 
-import type { PluginPageDescriptor } from '../automation/behavior/types.ts';
-import { adaptLegacyPage } from './legacy-v3-adapter.ts';
+import type { PluginPageDescriptor } from '../../../src/automation/behavior/types.ts';
+import { adaptLegacyPage } from '../../../src/plugin-ui/legacy-v3-adapter.ts';
 
 const text = { default: 'Title', i18key: '' };
 

@@ -1,6 +1,6 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 
-import { readSettingsPath, toSettingValues, writeSettingsPath } from './settings-values.ts';
+import { readSettingsPath, toSettingValues, writeSettingsPath } from '../../../src/shared/settings-values.ts';
 
 test('toSettingValues preserves nested objects, arrays, and null', () => {
   const payload = toSettingValues({

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { onLongPress, onPullToRefresh, onSwipe } from './touch-gestures.ts';
+import { onLongPress, onPullToRefresh, onSwipe } from '../../../../../src/web/shared/lib/touch-gestures.ts';
 
 function touch(target: EventTarget, type: string, x: number, y: number, fingers = 1): void {
   const event = new Event(type, { bubbles: true, cancelable: true });

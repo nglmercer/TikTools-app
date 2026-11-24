@@ -1,8 +1,8 @@
-import { expect, test } from 'bun:test';
-import { liveGoalTemplates } from './live-goal-templates.ts';
-import { applyConditionTemplate } from './condition-templates.ts';
-import { matchesFilter } from './testing/filter-matcher.ts';
-import type { AutomationEvent } from '../types.ts';
+import { expect, test } from 'vitest';
+import { liveGoalTemplates } from '../../../../src/automation/behavior/live-goal-templates.ts';
+import { applyConditionTemplate } from '../../../../src/automation/behavior/condition-templates.ts';
+import { matchesFilter } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
+import type { AutomationEvent } from '../../../../src/automation/types.ts';
 test('like goal crosses 15 once even when a packet skips the exact target', () => {
   for (const template of liveGoalTemplates()) {
     const filters = applyConditionTemplate(template, { goal: '15' });

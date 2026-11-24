@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   EVENT_REGISTRY_VERSION,
@@ -11,13 +11,13 @@ import {
   registryHasPath,
   sampleEventForType,
   setPluginEventTypes,
-} from './event-registry.ts';
-import { fieldsForTrigger } from './behavior/fields.ts';
-import { matchesFilter } from './behavior/testing/filter-matcher.ts';
-import type { AutomationEventType, JsonValue } from './types.ts';
-import { BUILTIN_EVENT_TYPES } from './contracts/events.ts';
-import { normalizeEvent } from './behavior/schema.ts';
-import type { PluginEventType } from './behavior/types.ts';
+} from '../../../src/automation/event-registry.ts';
+import { fieldsForTrigger } from '../../../src/automation/behavior/fields.ts';
+import { matchesFilter } from '../../../src/automation/behavior/testing/filter-matcher.ts';
+import type { AutomationEventType, JsonValue } from '../../../src/automation/types.ts';
+import { BUILTIN_EVENT_TYPES } from '../../../src/automation/contracts/events.ts';
+import { normalizeEvent } from '../../../src/automation/behavior/schema.ts';
+import type { PluginEventType } from '../../../src/automation/behavior/types.ts';
 
 const ALL_TYPES: AutomationEventType[] = [...BUILTIN_EVENT_TYPES];
 

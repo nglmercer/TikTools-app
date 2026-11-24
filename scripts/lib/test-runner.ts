@@ -18,14 +18,14 @@ export const TEST_USAGE =
   'Options: --features <list> (rust only), --watch (web only), --changed (default/web/bun/plugin).\n' +
   'Examples: bun run test | bun run test rust tiktools-core batched_likes | bun run test web live-batch | bun run test e2e.';
 
-export const FAST_BUN_ROOTS = ['src/automation', 'src/plugin-ui', 'src/shared', 'tests/bun'];
+export const FAST_BUN_ROOTS = ['tests/bun'];
 
 export const WIDGETS_VITEST_CONFIG = 'vitest.widgets.config.ts';
 
 /** `bun x --no-install vitest ...`: never installs, always the locked local binary. */
 function vitestCommand(
   bun: string,
-  options: { config?: string; filter?: string; changed?: boolean; watch?: boolean } = {},
+  options: { config?: string; filter?: string; changed?: boolean; watch?: boolean; testName?: string } = {},
 ): string[] {
   return [
     bun,
@@ -36,6 +36,7 @@ function vitestCommand(
     ...(options.config ? ['--config', options.config] : []),
     ...(options.filter ? [options.filter] : []),
     ...(options.changed ? ['--changed'] : []),
+    ...(options.testName ? ['-t', options.testName] : []),
     ...(options.watch ? ['--watch'] : []),
   ];
 }
@@ -60,9 +61,9 @@ export function fastSuiteCommands(options: { bun?: string; changed?: boolean } =
 
 /** Shorthand `bun <area>` directories (repo-relative). */
 export const BUN_AREA_DIRS: Record<string, string> = {
-  automation: 'src/automation',
-  'plugin-ui': 'src/plugin-ui',
-  shared: 'src/shared',
+  automation: 'tests/unit/automation',
+  'plugin-ui': 'tests/unit/plugin-ui',
+  shared: 'tests/unit/shared',
   widgets: 'tests/bun/widgets',
   scripts: 'tests/bun/scripts',
   packages: 'tests/bun/packages',
@@ -310,6 +311,11 @@ export function buildTestCommands(
     }
     case 'bun': {
       const dir = bunTargetDir(request.target);
+      // Areas that moved under tests/unit run on vitest now; only
+      // Bun-API-dependent specs remain on `bun test` under tests/bun.
+      if (dir.startsWith('tests/unit')) {
+        return [vitestCommand(bun, { filter: dir, changed: request.changed, testName: request.filter })];
+      }
       return [[bun, 'test', ...changedFlag, bunPathArg(dir), ...bunNameFilter(request.filter)]];
     }
     case 'plugin': {

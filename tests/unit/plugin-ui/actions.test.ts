@@ -1,7 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 
-import type { JsonValue } from '../shared/json.ts';
-import { normalizeAction } from './actions.ts';
+import type { JsonValue } from '../../../src/shared/json.ts';
+import { normalizeAction } from '../../../src/plugin-ui/actions.ts';
 
 test('accepts every allowlisted action type', () => {
   expect(normalizeAction({ type: 'save-settings' })).toEqual({ type: 'save-settings' });

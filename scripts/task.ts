@@ -75,7 +75,7 @@ async function widgets(): Promise<void> {
 }
 
 async function frontendLint(): Promise<void> {
-  await tool('eslint', 'src', 'scripts', 'vite.config.ts', 'vitest.config.ts', '--max-warnings=0');
+  await tool('eslint', 'src', 'scripts', 'tests/unit', 'tests/bun', 'vite.config.ts', 'vitest.config.ts', 'vitest.widgets.config.ts', '--max-warnings=0');
   await tool('vue-tsc', '--noEmit');
   await tool('eslint', 'packages', '--max-warnings=0');
   await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-sdk/tsconfig.json');

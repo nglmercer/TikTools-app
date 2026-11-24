@@ -1,12 +1,12 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   defaultActionConfig,
   normalizeActionConfig,
   schemaForActionType,
   uiHintsForActionType,
-} from './action-config.ts';
-import type { ActionTypeDefinition } from './types.ts';
+} from '../../../../src/automation/behavior/action-config.ts';
+import type { ActionTypeDefinition } from '../../../../src/automation/behavior/types.ts';
 
 function rangeAction(): ActionTypeDefinition {
   return {

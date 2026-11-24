@@ -1,8 +1,8 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 
-import manifestJson from '../../../tests/fixtures/plugins/minecraft-server.plugin.json';
-import type { ActionTypeDefinition } from '../behavior/types.ts';
-import { defaultActionConfig } from '../behavior/action-config.ts';
+import manifestJson from '../../../fixtures/plugins/minecraft-server.plugin.json';
+import type { ActionTypeDefinition } from '../../../../src/automation/behavior/types.ts';
+import { defaultActionConfig } from '../../../../src/automation/behavior/action-config.ts';
 
 type MinecraftManifest = {
   id: string;

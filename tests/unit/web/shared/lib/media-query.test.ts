@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineComponent } from 'vue';
-import { useMediaQuery } from './media-query.ts';
+import { useMediaQuery } from '../../../../../src/web/shared/lib/media-query.ts';
 
 function stubMatchMedia(matches: boolean) {
   const listeners = new Set<(event: { matches: boolean }) => void>();

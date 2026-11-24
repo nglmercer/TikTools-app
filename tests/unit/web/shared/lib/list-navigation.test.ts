@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstEnabledIndex, lastEnabledIndex, stepEnabledIndex, typeaheadIndex } from './list-navigation.ts';
+import { firstEnabledIndex, lastEnabledIndex, stepEnabledIndex, typeaheadIndex } from '../../../../../src/web/shared/lib/list-navigation.ts';
 
 const options = [
   { label: 'Fade', disabled: true },

@@ -1,14 +1,14 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'vitest';
 
-import type { AutomationEvent } from '../types.ts';
+import type { AutomationEvent } from '../../../../src/automation/types.ts';
 import {
   applyConditionTemplate,
   clearConditionTemplates,
   conditionTemplatesFor,
   type ConditionTemplate,
-} from './condition-templates.ts';
-import { matchesFilter } from './testing/filter-matcher.ts';
-import { moderationConditionTemplates, registerModerationTemplates } from './moderation-templates.ts';
+} from '../../../../src/automation/behavior/condition-templates.ts';
+import { matchesFilter } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
+import { moderationConditionTemplates, registerModerationTemplates } from '../../../../src/automation/behavior/moderation-templates.ts';
 
 afterEach(() => {
   clearConditionTemplates();

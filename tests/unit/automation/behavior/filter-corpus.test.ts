@@ -1,11 +1,12 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { applyConditionTemplate, type ConditionTemplate } from './condition-templates.ts';
-import { liveGoalTemplates } from './live-goal-templates.ts';
-import { moderationConditionTemplates } from './moderation-templates.ts';
-import { matchesAllFilters, matchesFilter } from './testing/filter-matcher.ts';
+import { applyConditionTemplate, type ConditionTemplate } from '../../../../src/automation/behavior/condition-templates.ts';
+import { liveGoalTemplates } from '../../../../src/automation/behavior/live-goal-templates.ts';
+import { moderationConditionTemplates } from '../../../../src/automation/behavior/moderation-templates.ts';
+import { matchesAllFilters, matchesFilter } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
 
 /**
  * The corpus is shared with the Rust matcher (`filters.rs` `corpus_tests`).
@@ -31,7 +32,7 @@ interface Corpus {
 }
 
 const corpus = JSON.parse(
-  readFileSync(resolve(import.meta.dir, '../../../tests/fixtures/automation-filters/filter-corpus.json'), 'utf8'),
+  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../../../tests/fixtures/automation-filters/filter-corpus.json'), 'utf8'),
 ) as Corpus;
 
 function eventOf(entry: CorpusCase): unknown {

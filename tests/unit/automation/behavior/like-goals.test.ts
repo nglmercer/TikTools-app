@@ -1,10 +1,10 @@
-import { describe, expect, test } from 'bun:test';
-import type { AutomationEvent } from '../types.ts';
-import { matchesFilter } from './testing/filter-matcher.ts';
-import { applyConditionTemplate } from './condition-templates.ts';
-import { liveGoalTemplates } from './live-goal-templates.ts';
-import { normalizeEvent } from './schema.ts';
-import { parseRuleTemplate } from '../../web/entities/rule-template/lib/rule-templates.ts';
+import { describe, expect, test } from 'vitest';
+import type { AutomationEvent } from '../../../../src/automation/types.ts';
+import { matchesFilter } from '../../../../src/automation/behavior/testing/filter-matcher.ts';
+import { applyConditionTemplate } from '../../../../src/automation/behavior/condition-templates.ts';
+import { liveGoalTemplates } from '../../../../src/automation/behavior/live-goal-templates.ts';
+import { normalizeEvent } from '../../../../src/automation/behavior/schema.ts';
+import { parseRuleTemplate } from '../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 
 function likeBatch(previous: number, total: number, count = total - previous): AutomationEvent {
   return {

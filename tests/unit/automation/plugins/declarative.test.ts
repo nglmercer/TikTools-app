@@ -1,6 +1,6 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 
-import type { JsonValue } from '../types.ts';
+import type { JsonValue } from '../../../../src/automation/types.ts';
 import {
   HOST_GIFTS_SOURCE,
   isConnectionOnlyPage,
@@ -20,7 +20,7 @@ import {
   toPluginPageDescriptor,
   toPluginTemplateDescriptor,
   isSecretField,
-} from './declarative.ts';
+} from '../../../../src/automation/plugins/declarative.ts';
 
 test('option source ids round-trip', () => {
   expect(optionSourceId('sonicboom.server.speak', 'voice')).toBe(

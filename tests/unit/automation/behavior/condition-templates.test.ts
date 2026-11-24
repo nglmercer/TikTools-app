@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'vitest';
 
 import {
   applyConditionTemplate,
@@ -6,7 +6,7 @@ import {
   conditionTemplatesFor,
   registerConditionTemplates,
   type ConditionTemplate,
-} from './condition-templates.ts';
+} from '../../../../src/automation/behavior/condition-templates.ts';
 
 afterEach(() => {
   clearConditionTemplates();

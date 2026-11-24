@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createPagedList, type PagedReply } from './paged-list.ts';
+import { createPagedList, type PagedReply } from '../../../../../src/web/shared/lib/paged-list.ts';
 
 interface Row { id: string; label?: string }
 const row = (id: string): Row => ({ id });

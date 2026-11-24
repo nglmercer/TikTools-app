@@ -1,7 +1,7 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
-import type { AutomationEvent } from '../types.ts';
-import { readEventPath, renderJsonTemplate, renderTemplate } from './templates.ts';
+import type { AutomationEvent } from '../../../../src/automation/types.ts';
+import { readEventPath, renderJsonTemplate, renderTemplate } from '../../../../src/automation/behavior/templates.ts';
 
 function chat(comment: string): AutomationEvent {
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createActivityCounter, createRequestScope } from './request-scope.ts';
+import { createActivityCounter, createRequestScope } from '../../../../../src/web/shared/lib/request-scope.ts';
 
 describe('request scope', () => {
   it('makes an earlier ticket stale when a newer one begins or the scope is invalidated', () => {

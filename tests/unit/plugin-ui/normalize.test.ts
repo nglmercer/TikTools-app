@@ -1,7 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 
-import type { JsonValue } from '../shared/json.ts';
-import { collectOptionSources, normalizeNode, normalizePage, normalizeUiDescriptor } from './normalize.ts';
+import type { JsonValue } from '../../../src/shared/json.ts';
+import { collectOptionSources, normalizeNode, normalizePage, normalizeUiDescriptor } from '../../../src/plugin-ui/normalize.ts';
 
 const text = { default: 'Hello', i18key: '' };
 

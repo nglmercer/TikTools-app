@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { formatBytes } from './format-bytes.ts';
+import { formatBytes } from '../../../../../src/web/shared/lib/format-bytes.ts';
 
 it('formats sizes with the right unit and clamps negatives', () => {
   expect(formatBytes(0, 'en')).toBe('0 B');

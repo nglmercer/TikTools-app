@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseMarkdownLite, parseMarkdownSpans } from './markdown-lite.ts';
+import { parseMarkdownLite, parseMarkdownSpans } from '../../../../../src/web/shared/lib/markdown-lite.ts';
 
 
 describe('parseMarkdownSpans', () => {

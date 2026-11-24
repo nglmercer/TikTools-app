@@ -1,12 +1,12 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   emulateEventForType,
   makeGiftComboEvents,
   matchingLastEvent,
   refreshEmulatedEvent,
-} from './event-emulation.ts';
-import { sampleEventForType } from './event-registry.ts';
+} from '../../../src/automation/event-emulation.ts';
+import { sampleEventForType } from '../../../src/automation/event-registry.ts';
 
 describe('matchingLastEvent', () => {
   test('accepts only the trigger being emulated', () => {

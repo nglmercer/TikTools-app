@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeAnchoredPosition, type Rect } from './anchored-position.ts';
+import { computeAnchoredPosition, type Rect } from '../../../../../src/web/shared/lib/anchored-position.ts';
 
 const viewport = { width: 800, height: 600 };
 

@@ -22,7 +22,7 @@ Object.defineProperty(globalThis, 'localStorage', {
   },
 });
 
-import { debounce, loadViewState, saveViewState, type FeedViewState } from './view-state.ts';
+import { debounce, loadViewState, saveViewState, type FeedViewState } from '../../../../../src/web/shared/lib/view-state.ts';
 
 const KEY = 'tiktok-live-view-state';
 

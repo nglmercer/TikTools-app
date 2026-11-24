@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { supportedLocales } from '../web/shared/i18n/supported-locales';
-import { translatorFor, type MessageKey } from './messages';
-import { mountPairing, resolveLocale, type PairingEnvironment } from './pairing';
+import { supportedLocales } from '../../../src/web/shared/i18n/supported-locales.ts';
+import { translatorFor, type MessageKey } from '../../../src/pairing/messages.ts';
+import { mountPairing, resolveLocale, type PairingEnvironment } from '../../../src/pairing/pairing.ts';
 
 const template = readFileSync(resolve(process.cwd(), 'src/pairing/pairing.html'), 'utf8');
 const bodyMarkup = template

@@ -1,6 +1,6 @@
-import { expect, test } from 'bun:test';
+import { expect, test } from 'vitest';
 
-import { parseBinding, settingsPathSegments } from './bindings.ts';
+import { parseBinding, settingsPathSegments } from '../../../src/plugin-ui/bindings.ts';
 
 test('parses settings, local, and source bindings', () => {
   expect(parseBinding('settings.serverUrl')).toEqual({

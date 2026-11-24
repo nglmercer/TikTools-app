@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { formatDate, intlLocale } from './intl.ts';
+import { formatDate, intlLocale } from '../../../../../src/web/shared/lib/intl.ts';
 
 it('uses Chinese and Japanese date conventions instead of the English fallback', () => {
   const at = new Date(2026, 0, 2, 12).valueOf();

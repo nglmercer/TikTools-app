@@ -1,13 +1,14 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   EMOTE_CATALOG,
   EMOTE_CATALOG_VERSION,
   isKnownEmoteToken,
   type LiveEmote,
-} from './index.ts';
+} from '../../../../src/shared/emotes';
 import {
   MAX_EMOTES_PER_EVENT,
   MAX_EMOTE_URL_LENGTH,
@@ -16,7 +17,7 @@ import {
   normalizeEmotes,
   resolveChatSegments,
   segmentsToPlainText,
-} from './resolve.ts';
+} from '../../../../src/shared/emotes/resolve.ts';
 
 const SAFE_URL = 'https://cdn.example.com/emote/laughcry.webp';
 
@@ -29,7 +30,7 @@ function emote(overrides: Partial<LiveEmote> & { id: string }): LiveEmote {
 // present (TIKTOOLS_PLUGINS_REPO or a sibling clone) the two must not drift.
 const pluginsRepository = process.env.TIKTOOLS_PLUGINS_REPO
   ? resolve(process.env.TIKTOOLS_PLUGINS_REPO)
-  : resolve(import.meta.dir, '..', '..', '..', '..', 'plugins-example-tiktools');
+  : resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..', 'plugins-example-tiktools');
 const pluginCatalog = join(pluginsRepository, 'plugins', 'sonicboom', 'shared', 'tts', 'emote-catalog.ts');
 
 describe.skipIf(!existsSync(pluginCatalog))('catalog parity with the SonicBoom sanitizer', () => {
