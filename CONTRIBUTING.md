@@ -86,7 +86,11 @@ keeping `--test-threads=1` inside each binary. `TIKTOOLS_RUST_TEST_POOL` sets
 the process count (default 4) and `TIKTOOLS_RUST_TEST_FILTER` accepts
 comma-separated target-name substrings for incremental runs. A small, validated
 allowlist of integration targets that use per-fixture state also runs their own
-cases with 4 threads; everything else stays serial inside its binary.
+cases with 4 threads; everything else stays serial inside its binary. Large
+binaries such as `tiktools-core` are partitioned with `--exact` into separate
+processes (each with its own PID-scoped home) via `TIKTOOLS_RUST_TEST_SHARDS`;
+this splits the test load without moving private unit tests into integration
+crates. `TIKTOOLS_RUST_TEST_SHARD_THRESHOLD` controls when partitioning kicks in.
 `TIKTOOLS_RUST_TEST_PARALLEL` can add validated source paths to that allowlist.
 CI keeps the explicit serial workspace command above.
 
