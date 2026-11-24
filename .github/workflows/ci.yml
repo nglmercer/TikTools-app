@@ -155,6 +155,11 @@ jobs:
       - name: Install current Rust with validation tools
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal --component rustfmt --component clippy
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-nextest
+
       - name: Set up Bun for plugin packaging
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -205,10 +210,12 @@ jobs:
         run: node scripts/cargo-with-linker.mjs clippy --workspace --all-targets --all-features --locked -- -D warnings
 
       - name: Test Rust workspace
-        # Tests share the on-disk app data directory and drive real SQLite
-        # writers; running them serially avoids shutdown-timing flakes on
-        # loaded runners (the 30s points flush can otherwise miss its budget).
-        run: node scripts/cargo-with-linker.mjs test --workspace --locked -- --test-threads=1
+        # nextest runs each test in its own process with a PID-scoped
+        # TIKTOOLS_HOME (see AppPaths::from_environment under cfg(test)), so
+        # the suite parallelizes safely; the script falls back to sharded
+        # libtest runs where nextest is unavailable and still covers doc
+        # tests serially.
+        run: bun scripts/task.ts rust-test-sharded
 
       # Native TikTok is deliberately optional in tiktools-core, so default
       # workspace tests otherwise report 0 executed batched-like E2E tests.
