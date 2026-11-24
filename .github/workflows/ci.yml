@@ -53,7 +53,7 @@ jobs:
         with:
           fetch-depth: 2
       - name: Check conservative change selection
-        run: node --test scripts/ci-scope.test.mjs
+        run: node --test tests/bun/scripts/ci-scope.test.mjs
       - name: Select validation domains
         id: scope
         env:
