@@ -84,8 +84,11 @@ For faster local iteration, `bun scripts/task.ts rust-test-sharded` builds once
 and runs each test binary in its own process (PID-scoped `TIKTOOLS_HOME`) while
 keeping `--test-threads=1` inside each binary. `TIKTOOLS_RUST_TEST_POOL` sets
 the process count (default 4) and `TIKTOOLS_RUST_TEST_FILTER` accepts
-comma-separated target-name substrings for incremental runs. CI keeps the
-explicit serial workspace command above.
+comma-separated target-name substrings for incremental runs. A small, validated
+allowlist of integration targets that use per-fixture state also runs their own
+cases with 4 threads; everything else stays serial inside its binary.
+`TIKTOOLS_RUST_TEST_PARALLEL` can add validated source paths to that allowlist.
+CI keeps the explicit serial workspace command above.
 
 Use the narrow test runner or `bun run test --changed` while editing. The CI
 scope selector omits native jobs for reviewed docs/frontend paths, retains all
