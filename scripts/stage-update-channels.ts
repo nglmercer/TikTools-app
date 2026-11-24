@@ -2,6 +2,7 @@
 import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { selectUpdateChannels } from './lib/update-channel.ts';
+import { verifyUpdateCommand } from './lib/verify-update-command.ts';
 
 const [candidateArg, headsArg, outputArg, ...rest] = process.argv.slice(2);
 if (!candidateArg || !headsArg || !outputArg || (rest.length > 0 && (rest.length !== 1 || !['--bootstrap', '--allow-missing-stable'].includes(rest[0]!)))) {
@@ -20,7 +21,7 @@ await mkdir(dirname(output), { recursive: true });
 const staging = await mkdtemp(join(dirname(output), '.update-snapshot-'));
 const cleanEnv = { ...process.env, CARGO_PACKAGER_SIGN_PRIVATE_KEY: undefined, CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: undefined };
 async function verify(file: string): Promise<string> {
-  const child = Bun.spawn(['cargo', 'run', '--quiet', '--locked', '-p', 'tiktools-app-update', '--bin', 'verify-update', '--', 'manifest', file, `${file}.sig`], { cwd: root, env: cleanEnv, stdout: 'pipe', stderr: 'pipe' });
+  const child = Bun.spawn([...verifyUpdateCommand(), 'manifest', file, `${file}.sig`], { cwd: root, env: cleanEnv, stdout: 'pipe', stderr: 'pipe' });
   const [, , code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
   if (code !== 0) throw new Error('update manifest authentication failed');
   const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));

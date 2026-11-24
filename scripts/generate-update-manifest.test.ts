@@ -1,16 +1,26 @@
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, expect, test } from 'bun:test';
+import { beforeAll, describe, expect, test } from 'bun:test';
 import { readWorkspaceVersion } from './bump-version.ts';
 
 const root = resolve(import.meta.dir, '..');
+let verifyBin: string | undefined;
+
+// Build the verifier once; each CLI invocation below can then reuse the
+// binary instead of starting Cargo again for every sign/stage case.
+beforeAll(async () => {
+  if (!Bun.which('cargo')) return;
+  const child = Bun.spawn(['cargo', 'build', '--locked', '-p', 'tiktools-app-update', '--bin', 'verify-update'], { cwd: root, stdout: 'pipe', stderr: 'pipe' });
+  const code = await child.exited;
+  if (code === 0) verifyBin = join(root, 'target', 'debug', process.platform === 'win32' ? 'verify-update.exe' : 'verify-update');
+});
 
 describe('signed release metadata', () => {
   test.skipIf(!Bun.which('cargo-packager'))('signs actual files and rejects tampering or missing credentials', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'tiktools-update-test-'));
     const version = readWorkspaceVersion(await readFile(join(root, 'Cargo.toml'), 'utf8'));
-    const env = { ...process.env, RELEASE_TAG: `v${version}`, CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: crypto.randomUUID() };
+    const env = { ...process.env, RELEASE_TAG: `v${version}`, CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: crypto.randomUUID(), TIKTOOLS_VERIFY_UPDATE_BIN: verifyBin };
     async function run(args: string[], variables: Record<string, string | undefined>) {
       const child = Bun.spawn(args, { cwd: root, env: variables, stdout: 'pipe', stderr: 'pipe' });
       const [, , code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);

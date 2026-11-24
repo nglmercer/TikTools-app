@@ -2,6 +2,7 @@
 import { lstat, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { normalizeVersion } from './bump-version.ts';
+import { verifyUpdateCommand } from './lib/verify-update-command.ts';
 
 const root = resolve(import.meta.dir, '..');
 const [mode, directoryArg, ...rest] = process.argv.slice(2);
@@ -53,7 +54,7 @@ const platforms: Record<string, { url: string; signature: string; format: string
 for (const artifact of selected) {
   const signature = (await readFile(`${artifact.path}.sig`, 'utf8')).trim();
   if (!signature || signature.length > 16 * 1024) throw new Error(`invalid ${artifact.target} signature`);
-  await run(['cargo', 'run', '--quiet', '--locked', '-p', 'tiktools-app-update', '--bin', 'verify-update', '--', 'package', artifact.path, `${artifact.path}.sig`], safeEnv);
+  await run([...verifyUpdateCommand(), 'package', artifact.path, `${artifact.path}.sig`], safeEnv);
   platforms[artifact.target] = {
     url: `https://github.com/nglmercer/TikTools-app/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(basename(artifact.path))}`,
     signature,
@@ -68,5 +69,5 @@ if (mode === '--sign') {
 } else if (await readFile(manifestPath, 'utf8') !== manifest) {
   throw new Error('manifest does not match the signed artifacts and release tag');
 }
-await run(['cargo', 'run', '--quiet', '--locked', '-p', 'tiktools-app-update', '--bin', 'verify-update', '--', 'manifest', manifestPath, `${manifestPath}.sig`], safeEnv);
+await run([...verifyUpdateCommand(), 'manifest', manifestPath, `${manifestPath}.sig`], safeEnv);
 console.log(`Verified signed update metadata and ${selected.length} artifacts for ${tag}`);
