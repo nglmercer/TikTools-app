@@ -14,7 +14,7 @@
 pub(crate) fn sqlite_synchronous() -> &'static str {
     use std::sync::OnceLock;
     static LEVEL: OnceLock<&'static str> = OnceLock::new();
-    *LEVEL.get_or_init(
+    LEVEL.get_or_init(
         || match std::env::var("TIKTOOLS_SQLITE_SYNCHRONOUS").as_deref() {
             Ok("OFF") | Ok("off") => "OFF",
             Ok("NORMAL") | Ok("normal") => "NORMAL",
