@@ -2,7 +2,7 @@ import { readFile, chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { verifyAppImageAppRun, verifyAppImageWebKit, verifyDebDependencies, verifyInstaller, verifyLinuxDesktop } from './verify-installers.ts';
+import { compareGlibcVersions, verifyAppImageAppRun, verifyAppImageGlibcBaseline, verifyAppImageWebKit, verifyDebDependencies, verifyInstaller, verifyLinuxDesktop } from './verify-installers.ts';
 
 test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle without bundled plugins and rejects changed web assets', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tiktools-deb-bundle-'));
@@ -43,6 +43,23 @@ test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle witho
     await expect(verifyInstaller(staging, join(root, 'fixture.deb'), 'deb', '4.2.0')).rejects.toThrow('installer content mismatch: web/index.html');
   } finally { await rm(root, { recursive: true, force: true }); }
 }, 60_000);
+
+describe('AppImage glibc baseline', () => {
+  test('compares GLIBC symbol versions numerically', () => {
+    expect(compareGlibcVersions('2.35', '2.35')).toBe(0);
+    expect(compareGlibcVersions('2.39', '2.35')).toBeGreaterThan(0);
+    expect(compareGlibcVersions('2.9', '2.35')).toBeLessThan(0);
+    expect(compareGlibcVersions('3.0', '2.99')).toBeGreaterThan(0);
+    expect(() => compareGlibcVersions('GLIBC_2.35', '2.35')).toThrow('invalid GLIBC version');
+  });
+  test('requires at least one ELF to check', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tiktools-appimage-glibc-'));
+    try {
+      await mkdir(join(root, 'usr'), { recursive: true });
+      await expect(verifyAppImageGlibcBaseline(root)).rejects.toThrow('no ELF files');
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+});
 
 describe('Linux installer metadata', () => {
   test('requires GTK and WebKitGTK Debian dependencies', () => {

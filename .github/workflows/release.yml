@@ -50,18 +50,29 @@ jobs:
     name: package (${{ matrix.platform }})
     needs: version
     runs-on: ${{ matrix.os }}
+    # The AppImage payload must be linked against glibc 2.35 even though the
+    # hosted runner is newer. The *userland*, not the runner label, sets the
+    # symbol ceiling; GitHub treats {"image": null} as "no container", so the
+    # Windows matrix leg keeps running directly on the runner.
+    container: ${{ fromJSON(matrix.container) }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
             platform: linux-x86_64
+            container: '{"image":"ubuntu:22.04"}'
           - os: windows-latest
             platform: windows-x86_64
+            container: '{"image":null}'
     # Job-wide so every cargo invocation (build and package) embeds the same
     # update trust anchor; option_env! changes force a rebuild otherwise.
     # Without the repository variable the updater stays disabled.
     env:
+      # linuxdeploy re-enters itself through the WebKit input plugin; set the
+      # extraction flags at job scope so the nested call inherits them.
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+      NO_CLEANUP: '1'
       TIKTOOLS_APP_UPDATE_PUBLIC_KEY: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY }}
       TIKTOOLS_APP_UPDATE_FEED_ENABLED: ${{ vars.TIKTOOLS_UPDATE_PUBLIC_KEY != '' && '1' || '' }}
       # Automatic installation stays off unless a maintainer opts in by setting
@@ -70,8 +81,25 @@ jobs:
       TIKTOOLS_APP_UPDATE_INSTALL_ENABLED: ${{ vars.TIKTOOLS_UPDATE_INSTALL_ENABLED == '1' && '1' || '' }}
       TIKTOOLS_APP_UPDATE_NSIS_ENABLED: ${{ vars.TIKTOOLS_UPDATE_NSIS_ENABLED == '1' && '1' || '' }}
     steps:
+      - name: Bootstrap container tools
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # ubuntu:22.04 has no git/curl, which actions/checkout and rustup
+          # need before the regular dependency step can install them.
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+            git ca-certificates curl xz-utils
+
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node for the Cargo wrapper
+        if: runner.os == 'Linux'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -87,8 +115,12 @@ jobs:
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 30
+        shell: bash
         run: |
           set -euo pipefail
+          # Inside ubuntu:22.04 the job runs as root and has no sudo. Keep the
+          # sudo path for anyone reproducing this step on a hosted runner.
+          if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
           # Avoid hanging indefinitely on an unresponsive Ubuntu package mirror.
           apt_opts=(
             -o Acquire::Retries=2
@@ -96,24 +128,39 @@ jobs:
             -o Acquire::https::Timeout=30
           )
           echo "::group::Refresh APT indexes"
-          time sudo apt-get "${apt_opts[@]}" update
+          time $SUDO apt-get "${apt_opts[@]}" update
           echo "::endgroup::"
           echo "::group::Install native build dependencies"
-          time sudo DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install --no-install-recommends -y \
+          # jammy's libwebkit2gtk-4.1-dev comes from jammy-security as 2.50.4,
+          # which satisfies wry 0.57 while keeping the glibc ceiling at 2.35.
+          time $SUDO DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install --no-install-recommends -y \
             libasound2-dev \
             libappindicator3-dev \
             libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
+            libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav \
             libxdo-dev \
             libxkbcommon-x11-0 libxkbcommon-x11-dev \
-            xvfb xauth \
+            xvfb xauth dbus-x11 \
             mold \
+            build-essential cmake clang python3 \
+            file patchelf zsync squashfs-tools desktop-file-utils \
             pkg-config
           echo "::endgroup::"
 
+      - name: Install current Rust in the container
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # rustup is baked into the hosted runner image, not into ubuntu:22.04.
+          curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --default-toolchain "${{ env.RUSTUP_TOOLCHAIN }}"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: Install current Rust
+        if: runner.os != 'Linux'
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
 
       - name: Set up MSVC developer environment
@@ -133,9 +180,11 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Cargo.lock') }}
+          # A container build must never restore target/ objects linked on the
+          # newer host userland: they would still carry GLIBC_2.38/2.39 symbols.
+          key: cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform == 'linux-x86_64' && 'jammy' || 'host' }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            cargo-release-${{ runner.os }}-${{ runner.arch }}-
+            cargo-release-${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform == 'linux-x86_64' && 'jammy' || 'host' }}-
 
       - name: Build release desktop binary
         run: node scripts/cargo-with-linker.mjs build -p tiktools-desktop --release --locked

@@ -41,6 +41,60 @@ async function isElf(path: string): Promise<boolean> {
   } finally { await file.close(); }
 }
 
+/** The AppImage catalog still tests on Ubuntu 22.04, which provides glibc 2.35. */
+export const APPIMAGE_GLIBC_CEILING = '2.35';
+
+/** Numerically compare two `GLIBC_x.y` version strings. */
+export function compareGlibcVersions(left: string, right: string): number {
+  const parse = (value: string): [number, number] => {
+    const match = /^(\d+)\.(\d+)$/.exec(value);
+    if (!match) throw new Error(`invalid GLIBC version: ${value}`);
+    return [Number(match[1]), Number(match[2])];
+  };
+  const [leftMajor, leftMinor] = parse(left);
+  const [rightMajor, rightMinor] = parse(right);
+  return leftMajor - rightMajor || leftMinor - rightMinor;
+}
+
+async function regularFiles(root: string, relative = ''): Promise<string[]> {
+  const entries = await readdir(join(root, relative), { withFileTypes: true });
+  const results: string[] = [];
+  for (const entry of entries) {
+    const path = join(relative, entry.name);
+    if (entry.isDirectory()) results.push(...await regularFiles(root, path));
+    // Symlinks are deliberately skipped: their target is either scanned
+    // separately or points outside the AppImage.
+    else if (entry.isFile()) results.push(path);
+  }
+  return results;
+}
+
+/**
+ * Fail when any ELF in the AppDir needs a newer glibc than the catalog's
+ * oldest supported host. Checking only the main binary is not enough: the
+ * bundled WebKitGTK/GTK libraries carry the GLIBC_2.38/2.39 requirements too.
+ */
+export async function verifyAppImageGlibcBaseline(appDir: string): Promise<void> {
+  const root = join(appDir, 'usr');
+  let scanned = 0;
+  for (const relative of await regularFiles(root)) {
+    const path = join(root, relative);
+    if (!await isElf(path)) continue;
+    scanned += 1;
+    const symbols = await run(['readelf', '-V', path], tmpdir());
+    const required = [...symbols.matchAll(/GLIBC_(\d+\.\d+)/g)].map((match) => match[1] as string);
+    for (const version of required) {
+      if (compareGlibcVersions(version, APPIMAGE_GLIBC_CEILING) > 0) {
+        throw new Error(
+          `AppImage ELF usr/${relative} requires GLIBC_${version}; ` +
+          `the catalog's Ubuntu 22.04 host only provides ${APPIMAGE_GLIBC_CEILING}`,
+        );
+      }
+    }
+  }
+  if (scanned === 0) throw new Error('AppImage contains no ELF files for the glibc compatibility check');
+}
+
 async function matchesPatchedElf(source: string, packaged: string): Promise<boolean> {
   if (!await isElf(source) || !await isElf(packaged)) return false;
   const [before, after] = await Promise.all([run(['readelf', '-n', source], tmpdir()), run(['readelf', '-n', packaged], tmpdir())]);
@@ -191,6 +245,7 @@ export async function verifyInstaller(staging: string, installer: string, format
       await run([installer, '--appimage-extract'], temp);
       await verifyLinuxDesktop(join(temp, 'squashfs-root'));
       await verifyAppImageAppRun(join(temp, 'squashfs-root'));
+      await verifyAppImageGlibcBaseline(join(temp, 'squashfs-root'));
       await verifyAppImageWebKit(join(temp, 'squashfs-root'));
       await verifyAppImageXkb(join(temp, 'squashfs-root'));
       const root = join(temp, 'squashfs-root', 'usr');
