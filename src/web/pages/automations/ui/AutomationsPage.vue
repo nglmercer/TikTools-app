@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useAutomationLibraryData } from '../model/use-automation-library-data.ts';
 import { useAutomationRecordSession } from '../model/use-automation-record-session.ts';
-import AutomationSheetToolbar from './AutomationSheetToolbar.vue';
 import AutomationToggleDialog from '@/features/manage-automations/ui/AutomationToggleDialog.vue';
 import AutomationRecordEditor from './AutomationRecordEditor.vue';
 import { storeToRefs } from 'pinia';
@@ -282,13 +281,6 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
           :aria-modal="isNarrow ? 'true' : undefined"
           :aria-label="editing.record.name"
         >
-          <!-- On narrow screens the sheet covers the toolbar, so it carries its own bar with the record tools. -->
-          <AutomationSheetToolbar
-            v-if="isNarrow"
-            :editing="editing"
-            :automation="automation"
-            @close="closeEditor"
-          />
           <div class="automations-page__sheet-body">
             <AutomationEditNotice
               :edit="editor.state.value"
@@ -300,7 +292,6 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
               :editing="editing"
               :state="editor.state.value"
               :save-blocked="editor.saveBlocked.value"
-              :is-narrow="isNarrow"
               :snapshot="snapshot"
               :event-types="eventTypes"
               :actions="actions"

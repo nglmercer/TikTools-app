@@ -74,27 +74,6 @@
   flex-direction: column;
 }
 
-.automations-page__sheet-bar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  min-height: var(--control-height-lg);
-  padding: var(--space-1) var(--space-3);
-  border-bottom: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-panel-header);
-}
-
-.automations-page__sheet-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  font-weight: var(--font-weight-semibold);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .automations-page__sheet-body {
   display: flex;
   flex: 1;
@@ -142,13 +121,4 @@
     background: var(--color-bg-app);
   }
 
-  .automations-page__sheet-bar {
-    flex-wrap: nowrap;
-  }
-}
-
-/* The sheet bar already carries the record name; hide the panel's duplicate
-   title while keeping its subtitle (unsaved state) and toolbar actions. */
-.automation-record-editor--sheet .base-panel__title {
-  display: none;
 }

@@ -183,7 +183,7 @@ it('offers the sync panel for the events and for the actions, but not on the var
       const sheet = wrapper.find('.automations-page__sheet');
       expect(sheet.exists()).toBe(true);
       expect(sheet.attributes('role')).toBe('dialog');
-      expect(sheet.get('.automations-page__sheet-title').text()).toBe('Big gifts');
+      expect(sheet.get('.base-panel__title').text()).toBe('Big gifts');
       expect(wrapper.find('.automations-page__sheet .event-editor').exists()).toBe(true);
       // On narrow screens the library stays underneath the sheet.
       expect(wrapper.find('.automation-library').exists()).toBe(true);

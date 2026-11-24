@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AutomationEdit } from '../model/automation-editor.ts';
-import ReviewDocsLink from '../../review-shared/ui/ReviewDocsLink.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseNotification from '@/shared/ui/notification/BaseNotification.vue';
 import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
@@ -13,19 +12,25 @@ const { t } = useI18n();
 // instead of reserving a permanent row at the top of the editor.
 const autoDismissed = ref(false);
 watch(() => props.edit?.autoResolved, (resolved) => { if (resolved) autoDismissed.value = false; });
+// The toast handles auto-resolve, so an otherwise quiet edit needs no bar at
+// all. Collapsing it keeps the editor header directly under the sheet title.
+const hasNotice = computed(() => {
+  const edit = props.edit;
+  return !!edit && (edit.busy || edit.reviewRequired || edit.revision === undefined || props.hostChanged || props.memory);
+});
 </script>
 <template>
+  <BaseNotification
+    v-if="edit?.autoResolved && !autoDismissed"
+    class="automation-edit-notice__toast"
+    tone="info"
+    :message="t('automations.conflict.autoResolved')"
+    @dismiss="autoDismissed = true"
+  />
   <div
-    v-if="edit"
+    v-if="edit && hasNotice"
     class="automation-edit-notice"
   >
-    <BaseNotification
-      v-if="edit.autoResolved && !autoDismissed"
-      class="automation-edit-notice__toast"
-      tone="info"
-      :message="t('automations.conflict.autoResolved')"
-      @dismiss="autoDismissed = true"
-    />
     <div class="automation-edit-notice__messages">
       <p
         v-if="edit.busy"
@@ -60,10 +65,6 @@ watch(() => props.edit?.autoResolved, (resolved) => { if (resolved) autoDismisse
       </p>
     </div>
     <div class="automation-edit-notice__actions">
-      <ReviewDocsLink
-        path="developer/automations.html"
-        anchor="expected-result-and-status"
-      />
       <BaseIconButton
         class="automation-edit-notice__compare"
         :label="t('automations.conflict.compare')"

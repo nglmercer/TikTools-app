@@ -15,7 +15,6 @@ const props = defineProps<{
   editing: EditingRecord;
   state: AutomationEdit | null;
   saveBlocked: boolean;
-  isNarrow: boolean;
   snapshot: BehaviorSnapshot;
   actions: readonly LiveAction[];
   eventTypes: NonNullable<BehaviorSnapshot['eventTypes']>;
@@ -33,7 +32,6 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
   <EventEditor
     v-if="editing.kind === 'event'"
     :key="state?.token"
-    :class="{ 'automation-record-editor--sheet': isNarrow }"
     :baseline="eventBaseline ?? undefined"
     :busy="state?.busy"
     :save-blocked="saveBlocked"
@@ -52,10 +50,7 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
     @test="automation.testEvent"
     @fire="automation.fireEvent"
   >
-    <template
-      v-if="!isNarrow"
-      #leading
-    >
+    <template #leading>
       <BaseIconButton
         :label="t('common.back')"
         variant="default"
@@ -69,7 +64,6 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
   <ActionEditor
     v-else
     :key="state?.token"
-    :class="{ 'automation-record-editor--sheet': isNarrow }"
     :baseline="actionBaseline ?? undefined"
     :busy="state?.busy"
     :save-blocked="saveBlocked"
@@ -88,10 +82,7 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
     @test="automation.testAction"
     @load-options="automation.loadOptions"
   >
-    <template
-      v-if="!isNarrow"
-      #leading
-    >
+    <template #leading>
       <BaseIconButton
         :label="t('common.back')"
         variant="default"

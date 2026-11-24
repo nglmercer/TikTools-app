@@ -14,6 +14,14 @@ const edit = (autoResolved: boolean) => ({
   message: '',
 }) as AutomationEdit;
 
+it('stays collapsed when there is nothing to report', () => {
+  const wrapper = mountWithPlugins(AutomationEditNotice, {
+    props: { edit: edit(false), hostChanged: false, memory: false },
+  });
+  expect(wrapper.find('.automation-edit-notice').exists()).toBe(false);
+  expect(wrapper.text()).not.toContain(t('jsonView.reviewTable.docs'));
+});
+
 it('shows an automatic rebase as a dismissible notification', async () => {
   const wrapper = mountWithPlugins(AutomationEditNotice, {
     attachTo: document.body,
