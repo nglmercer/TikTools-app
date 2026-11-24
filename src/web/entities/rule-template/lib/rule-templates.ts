@@ -443,6 +443,74 @@ const BUILTIN_DOCUMENTS: unknown[] = [
       filters: [{ path: 'event.intel.comment.composition.repetitionScore', operator: 'gte', value: '{{ params.threshold }}' }],
     },
   },
+  {
+    templateVersion: 1,
+    id: 'chat-tts-command',
+    title: { default: 'Chat command to speech', i18key: 'automations.builtinTemplates.chatTtsCommandTitle' },
+    description: { default: 'Speak chat messages that start with a command prefix through SonicBoom TTS. Apply it once per voice preset (!voice1, !voice2…).', i18key: 'automations.builtinTemplates.chatTtsCommandDesc' },
+    icon: 'voice',
+    params: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', title: 'Command prefix', default: '!voice' },
+        voice: { type: 'string', title: 'Voice', default: '' },
+        provider: { type: 'string', title: 'TTS provider', default: '' },
+        language: { type: 'string', title: 'Language', default: '' },
+      },
+      required: ['command'],
+    },
+    actions: [{
+      name: 'Speak command',
+      typeId: 'sonicboom.server.speak',
+      config: {
+        text: '{{ event.data.comment }}',
+        provider: '{{ params.provider }}',
+        voice: '{{ params.voice }}',
+        language: '{{ params.language }}',
+        playNow: 'false',
+        stripPrefix: '{{ params.command }}',
+      },
+    }],
+    event: {
+      name: 'Chat TTS command',
+      trigger: 'tiktok.chat',
+      filters: [{ path: 'event.data.comment', operator: 'starts-with', value: '{{ params.command }}' }],
+    },
+  },
+  {
+    templateVersion: 1,
+    id: 'gift-tts',
+    title: { default: 'Gift speech alert', i18key: 'automations.builtinTemplates.giftTtsTitle' },
+    description: { default: 'Announce a gift through SonicBoom TTS when it arrives.', i18key: 'automations.builtinTemplates.giftTtsDesc' },
+    icon: 'voice',
+    params: {
+      type: 'object',
+      properties: {
+        giftName: { type: 'string', title: 'Gift name', default: 'Rose' },
+        voice: { type: 'string', title: 'Voice', default: '' },
+        provider: { type: 'string', title: 'TTS provider', default: '' },
+        language: { type: 'string', title: 'Language', default: '' },
+      },
+      required: ['giftName'],
+    },
+    actions: [{
+      name: 'Announce gift',
+      typeId: 'sonicboom.server.speak',
+      config: {
+        text: '{{ event.user.nickname }} sent {{ event.data.giftName }}',
+        provider: '{{ params.provider }}',
+        voice: '{{ params.voice }}',
+        language: '{{ params.language }}',
+        playNow: 'false',
+        stripPrefix: '',
+      },
+    }],
+    event: {
+      name: 'Gift TTS',
+      trigger: 'tiktok.gift',
+      filters: [{ path: 'event.data.giftName', operator: 'eq', value: '{{ params.giftName }}' }],
+    },
+  },
 ];
 
 function loadBuiltins(): RuleTemplate[] {

@@ -180,6 +180,16 @@ impl crate::AppCore {
             "allowPrivateNetwork".to_owned(),
             Value::Bool(endpoint.allow_private_network),
         );
+        if let Some(transforms) = block.get("bodyTransforms") {
+            // Same scope as `body`: `{{ event.* }}` (including injected
+            // `event.match.*` captures), `{{ settings.* }}` and
+            // `{{ config.* }}` resolve here; the executor's second pass only
+            // re-renders whatever literal spans remain.
+            fetch.insert(
+                "bodyTransforms".to_owned(),
+                super::template::render_scoped_strings(transforms, &scope),
+            );
+        }
         if let Some(emit) = block.get("emitResponseAs") {
             fetch.insert("emitResponseAs".to_owned(), emit.clone());
         }

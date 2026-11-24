@@ -96,6 +96,16 @@ fn validate_action_http(http: &Value) -> Result<(), ManifestError> {
     if object.contains_key("bodyJson") && object.contains_key("body") {
         return Err(ManifestError::InvalidField("actionTypes"));
     }
+    if let Some(transforms) = object.get("bodyTransforms") {
+        // Transforms run on the rendered text body, so they only make sense
+        // alongside `body` (never `bodyJson`, which is structured data).
+        let valid = validate_body_transforms(transforms)
+            && object.contains_key("body")
+            && !object.contains_key("bodyJson");
+        if !valid {
+            return Err(ManifestError::InvalidField("actionTypes"));
+        }
+    }
     if let Some(spec) = object.get("idempotency") {
         if !spec.get("enabled").is_some_and(Value::is_boolean)
             || spec.get("header").is_some_and(|h| {
@@ -134,6 +144,58 @@ fn validate_action_http(http: &Value) -> Result<(), ManifestError> {
         }
     }
     Ok(())
+}
+
+/// Shape rules for the ordered `bodyTransforms` pipeline. The executor owns
+/// the op semantics; discovery only rejects specs it could never honour.
+fn validate_body_transforms(transforms: &Value) -> bool {
+    const MAX_TRANSFORMS: usize = 8;
+    const OPS: &[&str] = &[
+        "strip-prefix",
+        "strip-suffix",
+        "trim",
+        "replace",
+        "regex-replace",
+    ];
+    let Some(items) = transforms.as_array() else {
+        return false;
+    };
+    if items.is_empty() || items.len() > MAX_TRANSFORMS {
+        return false;
+    }
+    items.iter().all(|item| {
+        let Some(op) = item.as_object() else {
+            return false;
+        };
+        let Some(kind) = op.get("op").and_then(Value::as_str) else {
+            return false;
+        };
+        if !OPS.contains(&kind) {
+            return false;
+        }
+        let bounded = |key: &str| {
+            op.get(key).is_none_or(|value| {
+                value
+                    .as_str()
+                    .is_some_and(|text| text.len() <= MAX_DESCRIPTOR_BYTES)
+            })
+        };
+        let required = |key: &str| {
+            op.get(key)
+                .and_then(Value::as_str)
+                .is_some_and(|text| !text.is_empty() && text.len() <= MAX_DESCRIPTOR_BYTES)
+        };
+        match kind {
+            "strip-prefix" | "strip-suffix" => required("value") && bounded("with"),
+            "trim" => op.get("side").is_none_or(|side| {
+                side.as_str()
+                    .is_some_and(|text| matches!(text, "start" | "end" | "both"))
+            }),
+            "replace" => required("find") && bounded("with"),
+            "regex-replace" => required("pattern") && bounded("with"),
+            _ => false,
+        }
+    })
 }
 
 fn validate_settings_defaults(defaults: &Value) -> Result<(), ManifestError> {

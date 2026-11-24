@@ -604,6 +604,10 @@ export default {
       chatPointsDesc: 'Attribue des points pour chaque message du chat.',
       moderationSubtractTitle: 'Modération : retirer des points',
       moderationSubtractDesc: 'Retire des points lorsqu’un message du chat déclenche le filtre de répétition.',
+      chatTtsCommandTitle: 'Commande de chat en voix',
+      chatTtsCommandDesc: 'Prononce en TTS les messages commençant par un préfixe de commande via SonicBoom. À appliquer une fois par preset de voix (!voice1, !voice2…).',
+      giftTtsTitle: 'Annonce vocale de cadeau',
+      giftTtsDesc: 'Annonce un cadeau en TTS SonicBoom à son arrivée.',
     },
     moderation: {
       low: 'Modération : faible',

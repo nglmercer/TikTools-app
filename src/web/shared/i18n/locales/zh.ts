@@ -602,6 +602,10 @@ export default {
       chatPointsDesc: "为每条聊天消息发放积分。",
       moderationSubtractTitle: "内容管理：扣除积分",
       moderationSubtractDesc: "聊天消息触发重复过滤器时扣除积分。",
+      chatTtsCommandTitle: "聊天命令语音播报",
+      chatTtsCommandDesc: "通过 SonicBoom TTS 朗读以命令前缀开头的聊天消息。每个语音预设应用一次（!voice1、!voice2…）。",
+      giftTtsTitle: "礼物语音提醒",
+      giftTtsDesc: "礼物到达时通过 SonicBoom TTS 播报。",
     },
     moderation: {
       low: "内容管理：低",

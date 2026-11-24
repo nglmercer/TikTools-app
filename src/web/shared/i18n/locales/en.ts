@@ -602,6 +602,10 @@ export default {
       chatPointsDesc: 'Award points for every chat message.',
       moderationSubtractTitle: 'Moderation: subtract points',
       moderationSubtractDesc: 'Deduct points when a chat message trips the repetition filter.',
+      chatTtsCommandTitle: 'Chat command to speech',
+      chatTtsCommandDesc: 'Speak chat messages that start with a command prefix through SonicBoom TTS. Apply it once per voice preset (!voice1, !voice2…).',
+      giftTtsTitle: 'Gift speech alert',
+      giftTtsDesc: 'Announce a gift through SonicBoom TTS when it arrives.',
     },
     moderation: {
       low: 'Moderation: low',

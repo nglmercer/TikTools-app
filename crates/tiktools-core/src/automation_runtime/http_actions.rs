@@ -122,6 +122,18 @@ impl AppCore {
                 )
             }
         });
+        // `bodyTransforms` runs ordered text ops (strip-prefix, trim,
+        // replace, regex-replace) over the rendered body. Declarative plugin
+        // actions declare them in the manifest `http` block; user
+        // `action.http` nodes may set the same key in their config.
+        let body = match (body, config.get("bodyTransforms")) {
+            (Some(body), Some(transforms)) => Some(super::body_transforms::apply_body_transforms(
+                &body,
+                transforms,
+                &|source| render_template(source, event, globals),
+            )?),
+            (body, _) => body,
+        };
         if let Some(body) = body.as_deref() {
             if !matches!(method, reqwest::Method::GET | reqwest::Method::HEAD)
                 && content_type

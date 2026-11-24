@@ -11,6 +11,8 @@
 
 mod approved_effects;
 mod approved_flow;
+#[cfg_attr(not(feature = "http"), allow(dead_code))]
+pub(crate) mod body_transforms;
 pub(crate) mod context;
 mod dispatch;
 mod execution;

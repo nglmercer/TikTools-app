@@ -21,9 +21,11 @@ const MINIMAL = {
   event: { name: 'Gift', trigger: 'tiktok.gift' },
 };
 
-test('builtins parse, stay available on core types, and round-trip', () => {
+test('builtins parse, stay available on installed types, and round-trip', () => {
   expect(BUILTIN_RULE_TEMPLATES.length).toBeGreaterThanOrEqual(4);
-  const available = new Set(['core.fetch', 'core.points', 'core.points.subtract', 'audio.play', 'core.log']);
+  // `sonicboom.server.speak` ships with the example TTS plugin; builtins
+  // that need it surface as unavailable until that plugin is installed.
+  const available = new Set(['core.fetch', 'core.points', 'core.points.subtract', 'audio.play', 'core.log', 'sonicboom.server.speak']);
   for (const template of BUILTIN_RULE_TEMPLATES) {
     const requirements = missingRuleTemplateRequirements(
       template,

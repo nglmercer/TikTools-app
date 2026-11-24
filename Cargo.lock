@@ -4769,6 +4769,7 @@ dependencies = [
  "getrandom 0.4.3",
  "libc",
  "paste",
+ "regex",
  "reqwest",
  "ring",
  "rquickjs",

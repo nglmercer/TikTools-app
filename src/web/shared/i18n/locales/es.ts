@@ -604,6 +604,10 @@ export default {
       chatPointsDesc: 'Otorga puntos por cada mensaje del chat.',
       moderationSubtractTitle: 'Moderación: restar puntos',
       moderationSubtractDesc: 'Resta puntos cuando un mensaje supera el filtro de repetición.',
+      chatTtsCommandTitle: 'Comando de chat a voz',
+      chatTtsCommandDesc: 'Lee por TTS los mensajes que empiezan con un prefijo de comando en SonicBoom. Aplícalo una vez por preset de voz (!voice1, !voice2…).',
+      giftTtsTitle: 'Alerta de voz por regalo',
+      giftTtsDesc: 'Anuncia un regalo por TTS de SonicBoom cuando llega.',
     },
     moderation: {
       low: 'Moderación: baja',

@@ -118,6 +118,21 @@
           "kind": "boolean",
           "value": "false",
           "advanced": true
+        },
+        {
+          "key": "stripPrefix",
+          "label": {
+            "default": "Strip prefix",
+            "i18key": "sonicboom.server.speak.stripPrefix.label"
+          },
+          "kind": "text",
+          "value": "",
+          "template": true,
+          "advanced": true,
+          "hint": {
+            "default": "Remove this prefix (for example a chat command like !voice) from the start of the text before speaking. Placeholders render first.",
+            "i18key": "sonicboom.server.speak.stripPrefix.hint"
+          }
         }
       ],
       "http": {
@@ -127,6 +142,9 @@
           "Content-Type": "text/plain"
         },
         "body": "{{ config.text }}",
+        "bodyTransforms": [
+          { "op": "strip-prefix", "value": "{{ config.stripPrefix }}" }
+        ],
         "defaultsFromSettings": {
           "provider": [
             "/tts/providerId"

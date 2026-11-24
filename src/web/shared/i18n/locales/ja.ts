@@ -602,6 +602,10 @@ export default {
       chatPointsDesc: "チャットメッセージごとにポイントを付与します。",
       moderationSubtractTitle: "モデレーション：ポイントを減算",
       moderationSubtractDesc: "チャットメッセージが繰り返しフィルターに一致すると、ポイントを減算します。",
+      chatTtsCommandTitle: "チャットコマンドを音声読み上げ",
+      chatTtsCommandDesc: "コマンドプレフィックスで始まるチャットメッセージをSonicBoom TTSで読み上げます。音声プリセットごとに1回適用してください（!voice1、!voice2…）。",
+      giftTtsTitle: "ギフト音声アナウンス",
+      giftTtsDesc: "ギフトが届いたときにSonicBoom TTSでアナウンスします。",
     },
     moderation: {
       low: "モデレーション：低",

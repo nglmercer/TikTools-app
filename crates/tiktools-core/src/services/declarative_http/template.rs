@@ -26,6 +26,28 @@ pub(crate) fn render_scoped_template(source: &str, scope: &Value) -> String {
     rendered
 }
 
+/// Recursively renders `{{ }}` spans in every string leaf of a JSON value.
+/// Declarative `bodyTransforms` specs use it so `{{ config.* }}`/`{{ settings.* }}`
+/// resolve host-side while `{{ event.* }}`/`{{ match.* }}` spans survive for
+/// the executor's second render pass.
+pub(crate) fn render_scoped_strings(value: &Value, scope: &Value) -> Value {
+    match value {
+        Value::String(source) => Value::String(render_scoped_template(source, scope)),
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| render_scoped_strings(item, scope))
+                .collect(),
+        ),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(key, item)| (key.clone(), render_scoped_strings(item, scope)))
+                .collect(),
+        ),
+        _ => value.clone(),
+    }
+}
+
 fn read_scope_path<'a>(scope: &'a Value, path: &str) -> Option<&'a Value> {
     let mut current = scope;
     for part in path.split('.') {

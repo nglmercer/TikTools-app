@@ -89,6 +89,7 @@ tokio-util.workspace = true
 rquickjs.workspace = true
 rusqlite = { workspace = true, optional = true, features = ["bundled"] }
 reqwest = { workspace = true, optional = true }
+regex.workspace = true
 tokio-tungstenite = { workspace = true, optional = true }
 url.workspace = true
 

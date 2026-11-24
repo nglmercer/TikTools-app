@@ -473,6 +473,63 @@ fn rejects_malformed_declarative_blocks() {
 }
 
 #[test]
+fn body_transforms_need_a_text_body_and_known_ops() {
+    let manifest = |http: serde_json::Value| {
+        PluginManifest::from_json_str(
+            &serde_json::json!({
+                "schemaVersion": 3,
+                "id": "demo.http",
+                "name": "Demo",
+                "version": "1.0.0",
+                "runtime": "declarative",
+                "actionTypes": [{"id": "demo.speak", "http": http}]
+            })
+            .to_string(),
+        )
+    };
+    // Ordered ops over a rendered text body pass.
+    assert!(manifest(serde_json::json!({
+        "path": "/speak",
+        "body": "{{ config.text }}",
+        "bodyTransforms": [
+            {"op": "strip-prefix", "value": "{{ config.stripPrefix }}"},
+            {"op": "regex-replace", "pattern": "^!\\w+\\s*", "with": ""},
+            {"op": "trim"}
+        ]
+    }))
+    .is_ok());
+    // Unknown op, missing required param, oversized list, and the structured
+    // `bodyJson` pairing all fail closed at discovery time.
+    for transforms in [
+        serde_json::json!([{"op": "eval"}]),
+        serde_json::json!([{"op": "replace", "with": "x"}]),
+        serde_json::json!([{"op": "trim", "side": "middle"}]),
+        serde_json::json!(vec![serde_json::json!({"op": "trim"}); 9]),
+    ] {
+        assert!(
+            manifest(serde_json::json!({
+                "path": "/speak",
+                "body": "{{ config.text }}",
+                "bodyTransforms": transforms
+            }))
+            .is_err()
+        );
+    }
+    assert!(manifest(serde_json::json!({
+        "path": "/speak",
+        "bodyJson": {"text": "{{ config.text }}"},
+        "bodyTransforms": [{"op": "trim"}]
+    }))
+    .is_err());
+    // Without `body` there is nothing to transform.
+    assert!(manifest(serde_json::json!({
+        "path": "/speak",
+        "bodyTransforms": [{"op": "trim"}]
+    }))
+    .is_err());
+}
+
+#[test]
 fn tts_page_section_needs_an_action_and_a_voice_source() {
     // Host-owned TTS panel binding: action executed for real speech plus the
     // manifest-declared voice source feeding its selectors.

@@ -78,6 +78,8 @@ tokio = { version = "1.54.1", features = ["rt-multi-thread", "sync", "macros", "
 rusqlite = { version = "0.41.0", default-features = false }
 # No rustls provider here: the application selects one via tiktools-tls.
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls-no-provider"] }
+# RE2-style linear-time regex for bounded automation body transforms.
+regex = "1.13"
 rustls = { version = "0.23.46", default-features = false, features = ["std", "tls12"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 libloading = "0.9.1"
