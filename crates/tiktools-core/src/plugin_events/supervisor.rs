@@ -21,7 +21,13 @@ pub(crate) async fn run_observer(
 ) {
     let mut workers: BTreeMap<String, WorkerHandle> = BTreeMap::new();
     let mut tasks = tokio::task::JoinSet::new();
-    let mut maintenance = tokio::time::interval(std::time::Duration::from_millis(250));
+    // Tests reconcile at 40 Hz so start/stop cycles do not each pay a
+    // quarter-second tick of latency; production keeps the cold 4 Hz path.
+    let mut maintenance = tokio::time::interval(std::time::Duration::from_millis(if cfg!(test) {
+        25
+    } else {
+        250
+    }));
     maintenance.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
     loop {
@@ -38,8 +44,8 @@ pub(crate) async fn run_observer(
                 workers.retain(|_, handle| !handle.sender.is_closed());
             },
             _ = maintenance.tick() => {
-                // Cold path (4 Hz): a full registry read here is fine. The
-                // per-event hot path below never clones the registry.
+                // A full registry read here is fine; the per-event hot path
+                // below never clones the registry.
                 reconcile_workers(&core, &core.plugins.list(), &mut workers);
                 workers.retain(|_, handle| !handle.sender.is_closed());
             },

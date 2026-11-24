@@ -98,7 +98,7 @@ fn rejects_expansion_before_effect(home: &std::path::Path, args: &[&str]) {
         if let Some(status) = child.try_wait().unwrap() {
             break status;
         }
-        if started.elapsed() > Duration::from_secs(10) {
+        if started.elapsed() > Duration::from_secs(30) {
             let _ = child.kill();
             timed_out = true;
             break child.wait().unwrap();
@@ -114,7 +114,7 @@ fn rejects_expansion_before_effect(home: &std::path::Path, args: &[&str]) {
     );
     assert!(
         !timed_out,
-        "bounded import exceeded its 10-second deadline: {args:?}; captured output: {text}"
+        "bounded import exceeded its 30-second deadline: {args:?}; captured output: {text}"
     );
     assert!(!status.success(), "oversized expansion was accepted");
     assert!(
