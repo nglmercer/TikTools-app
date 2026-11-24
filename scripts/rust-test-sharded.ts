@@ -1,5 +1,11 @@
 /** Build once, then run Rust tests in parallel processes.
  *
+ * Preferred path: `cargo nextest run` gives every test its own process, so
+ * PID-scoped `TIKTOOLS_HOME` fixtures isolate themselves and the scheduler
+ * work-steals across the pool. Test binaries also build with reduced
+ * debuginfo (`[profile.test]`), which keeps per-test exec cheap.
+ *
+ * Fallback (no cargo-nextest on PATH, or TIKTOOLS_RUST_TEST_SHARDS=0):
  * Cargo runs test binaries one after another, and the workspace guard uses
  * `--test-threads=1` because several test homes are process-global. Two
  * escapes are safe:
@@ -12,10 +18,51 @@ import { dirname, relative, resolve } from 'node:path';
 import { partitionTestNames } from './lib/test-shards.ts';
 
 const root = resolve(import.meta.dir, '..');
-const poolSize = Math.max(1, Math.min(8, Number(process.env.TIKTOOLS_RUST_TEST_POOL ?? '4') || 4));
+// Test processes are mostly sleep/I/O bound, so oversubscribing the core
+// count still wins; TIKTOOLS_RUST_TEST_POOL tunes it per machine.
+const poolSize = Math.max(1, Math.min(16, Number(process.env.TIKTOOLS_RUST_TEST_POOL ?? '8') || 8));
 const shardSize = Math.max(1, Math.min(16, Number(process.env.TIKTOOLS_RUST_TEST_SHARDS ?? '8') || 8));
 const shardThreshold = Math.max(1, Number(process.env.TIKTOOLS_RUST_TEST_SHARD_THRESHOLD ?? '200') || 200);
 const filters = process.env.TIKTOOLS_RUST_TEST_FILTER?.split(',').map((part) => part.trim()).filter(Boolean);
+// TIKTOOLS_RUST_TEST_SHARDS=0 forces the legacy sharded runner (e.g. on
+// machines without cargo-nextest, or to A/B the two schedulers).
+const preferNextest = process.env.TIKTOOLS_RUST_TEST_SHARDS !== '0';
+
+async function nextestAvailable(): Promise<boolean> {
+  const probe = Bun.spawn(['cargo', 'nextest', '--version'], { cwd: root, stdout: 'ignore', stderr: 'ignore' });
+  return (await probe.exited) === 0;
+}
+
+async function runNextest(): Promise<number> {
+  const args = ['nextest', 'run', '--workspace', '--locked', '-j', String(poolSize)];
+  if (filters?.length) {
+    // Positional filters substring-match binary display names and test
+    // names. Emit underscore/dash variants so `tiktools_core` still reaches
+    // the `tiktools-core` binary; extra alternatives only widen the OR set.
+    const variants = new Set<string>();
+    for (const part of filters) {
+      variants.add(part);
+      variants.add(part.replaceAll('_', '-'));
+      variants.add(part.replaceAll('-', '_'));
+    }
+    args.push(...variants);
+  }
+  const run = Bun.spawn(['node', 'scripts/cargo-with-linker.mjs', ...args], { cwd: root, stdout: 'inherit', stderr: 'inherit' });
+  const code = await run.exited;
+  if (code !== 0 || filters?.length) return code;
+  // Nextest does not run doc tests; keep them serial as before.
+  const docs = Bun.spawn(['node', 'scripts/cargo-with-linker.mjs', 'test', '--workspace', '--locked', '--doc', '--', '--test-threads=1'], {
+    cwd: root,
+    stdout: 'inherit',
+    stderr: 'inherit',
+  });
+  return (await docs.exited) === 0 ? code : 1;
+}
+
+if (preferNextest && (await nextestAvailable())) {
+  console.log(`Running Rust tests via cargo-nextest (pool=${poolSize}).`);
+  process.exit(await runNextest());
+}
 
 // Targets whose tests use per-fixture state instead of process-global env can
 // safely run their own cases in parallel. Each entry was validated with a

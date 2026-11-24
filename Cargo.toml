@@ -37,6 +37,12 @@ exclude = [
 ]
 resolver = "2"
 
+# Test binaries are re-executed per test under nextest and spawned as child
+# processes by crash/boundary tests; full debuginfo makes them hundreds of MB.
+# Keep line tables so panic backtraces stay useful, drop the rest.
+[profile.test]
+debug = 1
+
 [workspace.package]
 version = "4.5.0"
 edition = "2021"

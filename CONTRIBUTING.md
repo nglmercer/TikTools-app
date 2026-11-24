@@ -80,19 +80,23 @@ bun scripts/task.ts rust-lint
 bun scripts/task.ts rust test --workspace --locked -- --test-threads=1
 ```
 
-For faster local iteration, `bun scripts/task.ts rust-test-sharded` builds once
-and runs each test binary in its own process (PID-scoped `TIKTOOLS_HOME`) while
-keeping `--test-threads=1` inside each binary. `TIKTOOLS_RUST_TEST_POOL` sets
-the process count (default 4) and `TIKTOOLS_RUST_TEST_FILTER` accepts
-comma-separated target-name substrings for incremental runs. A small, validated
-allowlist of integration targets that use per-fixture state also runs their own
-cases with 4 threads; everything else stays serial inside its binary. Large
-binaries such as `tiktools-core` are partitioned with `--exact` into separate
-processes (each with its own PID-scoped home) via `TIKTOOLS_RUST_TEST_SHARDS`;
-this splits the test load without moving private unit tests into integration
-crates. `TIKTOOLS_RUST_TEST_SHARD_THRESHOLD` controls when partitioning kicks in.
-`TIKTOOLS_RUST_TEST_PARALLEL` can add validated source paths to that allowlist.
-CI keeps the explicit serial workspace command above.
+For faster local iteration, `bun scripts/task.ts rust-test-sharded` runs the
+suite under `cargo-nextest` when it is installed: every test gets its own
+process (PID-scoped `TIKTOOLS_HOME`), and the scheduler work-steals across
+`TIKTOOLS_RUST_TEST_POOL` workers (default 4). `TIKTOOLS_RUST_TEST_FILTER`
+accepts comma-separated test-name substrings for incremental runs. Without
+nextest the script falls back to the legacy runner, which builds once and runs
+each test binary in its own process while keeping `--test-threads=1` inside
+each binary; `TIKTOOLS_RUST_TEST_SHARDS=0` forces that path for A/B comparisons.
+A small, validated allowlist of integration targets that use per-fixture state
+also runs their own cases with 4 threads; everything else stays serial inside
+its binary. Large binaries such as `tiktools-core` are partitioned with
+`--exact` into separate processes (each with its own PID-scoped home) via
+`TIKTOOLS_RUST_TEST_SHARDS`; this splits the test load without moving private
+unit tests into integration crates. `TIKTOOLS_RUST_TEST_SHARD_THRESHOLD`
+controls when partitioning kicks in. `TIKTOOLS_RUST_TEST_PARALLEL` can add
+validated source paths to that allowlist. CI keeps the explicit serial
+workspace command above.
 
 Use the narrow test runner or `bun run test --changed` while editing. The CI
 scope selector omits native jobs for reviewed docs/frontend paths, retains all

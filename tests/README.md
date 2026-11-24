@@ -29,11 +29,17 @@ so its in-src tests cannot move at all.
 bun run test                  # fast gate: bun units + Vitest + widgets Vitest
 bun run test <area> [filter]  # targeted: web|bun|rust|e2e ...
 bun run test rust <crate> [filter] [--features <list>]
-bun scripts/task.ts rust-test-sharded   # full Rust suite, process-sharded
+bun scripts/task.ts rust-test-sharded   # full Rust suite (cargo-nextest when installed)
 bun run lint                  # eslint over src + tests/unit + tests/bun
 bun scripts/task.ts docs check
 TIKTOOLS_SITE_PORT=4176 bun x --no-install playwright test --config playwright.site.config.ts
 ```
 
-Rust `TIKTOOLS_HOME` tests stay serial inside their process; parallelism comes
-from the sharded runner, not `--test-threads`.
+Rust tests run under `cargo-nextest` when it is on PATH: every test gets its
+own process, so PID-scoped `TIKTOOLS_HOME` fixtures isolate themselves and the
+scheduler work-steals across `TIKTOOLS_RUST_TEST_POOL` workers (default 4).
+Without nextest the script falls back to the legacy shard runner
+(`TIKTOOLS_RUST_TEST_SHARDS=0` forces it); both keep doc tests serial. Unit
+tests that leave `TIKTOOLS_HOME` unset resolve to a per-process temp dir
+(`cfg(test)` fallback in `tiktools-core`'s `paths.rs`), never the real data
+root.

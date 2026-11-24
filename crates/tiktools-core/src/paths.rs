@@ -20,8 +20,7 @@ pub struct AppPaths {
 
 impl AppPaths {
     pub fn from_environment() -> Self {
-        let default_root = default_data_root().join("TikTools");
-        let root = configured_path("TIKTOOLS_HOME", default_root);
+        let root = configured_path("TIKTOOLS_HOME", default_root());
         let builtin_plugins = env::var_os("TIKTOOLS_BUILTIN_PLUGINS_DIR")
             .map(PathBuf::from)
             .map(normalize)
@@ -137,6 +136,21 @@ pub fn resource_path(executable_directory: &Path, name: &str) -> PathBuf {
     adjacent
 }
 
+/// Unit tests may run one process per test (nextest) or share a process
+/// (libtest); either way an unset `TIKTOOLS_HOME` must never resolve to the
+/// operator's real data root. A PID-scoped temp dir matches the isolation
+/// `isolated_test_home()` already provides when it sets the variable first.
+#[cfg(test)]
+fn default_root() -> PathBuf {
+    env::temp_dir().join(format!("tiktools-core-test-{}", std::process::id()))
+}
+
+#[cfg(not(test))]
+fn default_root() -> PathBuf {
+    default_data_root().join("TikTools")
+}
+
+#[cfg(not(test))]
 fn default_data_root() -> PathBuf {
     if cfg!(target_os = "windows") {
         env::var_os("LOCALAPPDATA")
@@ -151,6 +165,7 @@ fn default_data_root() -> PathBuf {
     }
 }
 
+#[cfg(not(test))]
 fn home_directory() -> PathBuf {
     env::var_os("HOME")
         .map(PathBuf::from)
