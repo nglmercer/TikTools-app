@@ -2547,12 +2547,17 @@ async fn observer_shutdown_cancelled_before_first_select_completes() {
 #[tokio::test]
 async fn observer_shutdown_during_slow_delivery_completes() {
     let state = Arc::new(FakePluginState::default());
-    state
-        .event_delay_ms
-        .store(30_000, std::sync::atomic::Ordering::SeqCst);
     let (core, _, root) = core_with_fake_hotkeys(Arc::clone(&state));
     core.plugins.start("hotkeys").expect("fake plugin starts");
     core.spawn_plugin_event_observer(&tokio::runtime::Handle::current());
+    // Warm the process generation first: the first call of a cold process
+    // instance gets the ~10s cold-start grace instead of the 1s delivery
+    // timeout, which would dominate this shutdown measurement.
+    core.events.publish_domain(points_changed("warmup"));
+    wait_for_event_calls(&state, 1).await;
+    state
+        .event_delay_ms
+        .store(30_000, std::sync::atomic::Ordering::SeqCst);
     core.events.publish_domain(points_changed("slow"));
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     // In-flight delivery is bounded by the delivery timeout; shutdown must
