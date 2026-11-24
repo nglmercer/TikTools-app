@@ -13,7 +13,7 @@ import { partitionTestNames } from './lib/test-shards.ts';
 
 const root = resolve(import.meta.dir, '..');
 const poolSize = Math.max(1, Math.min(8, Number(process.env.TIKTOOLS_RUST_TEST_POOL ?? '4') || 4));
-const shardSize = Math.max(1, Math.min(16, Number(process.env.TIKTOOLS_RUST_TEST_SHARDS ?? '4') || 4));
+const shardSize = Math.max(1, Math.min(16, Number(process.env.TIKTOOLS_RUST_TEST_SHARDS ?? '8') || 8));
 const shardThreshold = Math.max(1, Number(process.env.TIKTOOLS_RUST_TEST_SHARD_THRESHOLD ?? '200') || 200);
 const filters = process.env.TIKTOOLS_RUST_TEST_FILTER?.split(',').map((part) => part.trim()).filter(Boolean);
 
