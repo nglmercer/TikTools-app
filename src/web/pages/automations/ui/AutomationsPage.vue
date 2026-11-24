@@ -286,7 +286,6 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
               :edit="editor.state.value"
               :host-changed="hostChanged"
               :memory="automation.persistent.value === false"
-              @compare="compare"
             />
             <AutomationRecordEditor
               :editing="editing"
@@ -300,6 +299,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
               :automation="automation"
               @save-event="saveEvent"
               @save-action="saveAction"
+              @compare="compare"
               @change="editor.change"
               @remove="removeRecord"
               @close="closeEditor"

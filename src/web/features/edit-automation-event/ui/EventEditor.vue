@@ -14,6 +14,7 @@ import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconCode from '@/shared/ui/icon/icons/IconCode.vue';
 import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
+import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
@@ -53,6 +54,7 @@ const emit = defineEmits<{
   delete: [id: string];
   test: [event: LiveEvent, customEvent?: unknown];
   fire: [event: LiveEvent, customEvent?: unknown];
+  compare: [];
 }>();
 
 const dirty = defineModel<boolean>('dirty', { default: false });
@@ -159,6 +161,15 @@ function runCustom(kind: 'test' | 'fire'): void {
       <slot name="leading" />
     </template>
     <template #actions>
+      <BaseIconButton
+        :label="t('automations.conflict.compare')"
+        variant="default"
+        size="sm"
+        :disabled="busy"
+        @click="emit('compare')"
+      >
+        <IconGitMerge />
+      </BaseIconButton>
       <BaseIconButton
         :label="t('automations.runMenu.label')"
         :hint="t('automations.runMenu.hint')"

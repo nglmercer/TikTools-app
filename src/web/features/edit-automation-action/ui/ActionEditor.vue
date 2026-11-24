@@ -16,6 +16,7 @@ import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconFlask from '@/shared/ui/icon/icons/IconFlask.vue';
+import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
@@ -50,6 +51,7 @@ const emit = defineEmits<{
   delete: [id: string];
   test: [action: LiveAction];
   loadOptions: [source: string, refresh: boolean];
+  compare: [];
 }>();
 
 const dirty = defineModel<boolean>('dirty', { default: false });
@@ -122,6 +124,15 @@ function confirmDelete(): void {
       <slot name="leading" />
     </template>
     <template #actions>
+      <BaseIconButton
+        :label="t('automations.conflict.compare')"
+        variant="default"
+        size="sm"
+        :disabled="busy"
+        @click="emit('compare')"
+      >
+        <IconGitMerge />
+      </BaseIconButton>
       <BaseIconButton
         :label="t('automations.editor.test')"
         variant="default"

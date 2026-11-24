@@ -22,7 +22,7 @@ const props = defineProps<{
   viewers: readonly SearchOption[];
   automation: Pick<AutomationControls, 'testRuns' | 'hotkeyStatus' | 'error' | 'testEvent' | 'fireEvent' | 'globals' | 'actionOptions' | 'actionOptionErrors' | 'openMediaPicker' | 'testAction' | 'loadOptions'>;
 }>();
-const emit = defineEmits<{ saveEvent: [event: LiveEvent]; saveAction: [action: LiveAction]; change: [record: LiveEvent | LiveAction]; remove: [kind: 'events' | 'actions', id: string]; close: [] }>();
+const emit = defineEmits<{ saveEvent: [event: LiveEvent]; saveAction: [action: LiveAction]; change: [record: LiveEvent | LiveAction]; remove: [kind: 'events' | 'actions', id: string]; compare: []; close: [] }>();
 const { t } = useAutomationText();
 const eventBaseline = computed(() => props.state?.kind === 'event' ? props.state.base as LiveEvent | null : null);
 const actionBaseline = computed(() => props.state?.kind === 'action' ? props.state.base as LiveAction | null : null);
@@ -45,6 +45,7 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
     :hotkey-status="automation.hotkeyStatus.value"
     :error="automation.error.value"
     @save="emit('saveEvent', $event)"
+    @compare="emit('compare')"
     @change="emit('change', $event)"
     @delete="emit('remove', 'events', $event)"
     @test="automation.testEvent"
@@ -77,6 +78,7 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
     :open-media-picker="automation.openMediaPicker"
     :error="automation.error.value"
     @save="emit('saveAction', $event)"
+    @compare="emit('compare')"
     @change="emit('change', $event)"
     @delete="emit('remove', 'actions', $event)"
     @test="automation.testAction"

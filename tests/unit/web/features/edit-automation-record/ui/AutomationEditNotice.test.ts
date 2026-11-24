@@ -22,6 +22,14 @@ it('stays collapsed when there is nothing to report', () => {
   expect(wrapper.text()).not.toContain(t('jsonView.reviewTable.docs'));
 });
 
+it('shows the waiting status as a floating notification', () => {
+  const wrapper = mountWithPlugins(AutomationEditNotice, {
+    props: { edit: { ...edit(false), busy: true }, hostChanged: false, memory: false },
+  });
+  expect(wrapper.text()).toContain(t('automations.conflict.waiting'));
+  expect(wrapper.find('.base-notification').exists()).toBe(true);
+});
+
 it('shows an automatic rebase as a dismissible notification', async () => {
   const wrapper = mountWithPlugins(AutomationEditNotice, {
     attachTo: document.body,
