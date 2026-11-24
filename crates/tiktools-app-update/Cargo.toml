@@ -26,3 +26,15 @@ windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Syste
 reqwest = { workspace = true, features = ["rustls"] }
 
 tokio.workspace = true
+
+[[test]]
+name = "channel"
+path = "../../tests/rust/tiktools-app-update/channel.rs"
+
+[[test]]
+name = "manifest"
+path = "../../tests/rust/tiktools-app-update/manifest.rs"
+
+[[test]]
+name = "state"
+path = "../../tests/rust/tiktools-app-update/state.rs"

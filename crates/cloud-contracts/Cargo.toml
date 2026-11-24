@@ -10,3 +10,11 @@ serde.workspace = true
 serde_json.workspace = true
 semver.workspace = true
 url.workspace = true
+
+[[test]]
+name = "workspace"
+path = "../../tests/rust/cloud-contracts/workspace.rs"
+
+[[test]]
+name = "portable"
+path = "../../tests/rust/cloud-contracts/portable.rs"

@@ -17,21 +17,3 @@ pub fn ensure_default_crypto_provider() {
         let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
     }
 }
-
-#[cfg(all(test, any(feature = "aws-lc-rs", feature = "ring")))]
-mod tests {
-    use super::ensure_default_crypto_provider;
-
-    #[test]
-    fn installs_one_provider_and_is_idempotent() {
-        ensure_default_crypto_provider();
-        let first = rustls::crypto::CryptoProvider::get_default()
-            .expect("a provider should be installed")
-            .clone();
-        ensure_default_crypto_provider();
-        let second = rustls::crypto::CryptoProvider::get_default()
-            .expect("a provider should stay installed")
-            .clone();
-        assert!(std::sync::Arc::ptr_eq(&first, &second));
-    }
-}

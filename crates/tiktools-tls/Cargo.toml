@@ -14,3 +14,7 @@ ring = ["rustls/ring"]
 
 [dependencies]
 rustls.workspace = true
+
+[[test]]
+name = "crypto-provider"
+path = "../../tests/rust/tiktools-tls/crypto-provider.rs"

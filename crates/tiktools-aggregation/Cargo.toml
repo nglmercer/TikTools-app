@@ -9,3 +9,15 @@ rust-version.workspace = true
 serde.workspace = true
 schemars.workspace = true
 getrandom.workspace = true
+
+[[test]]
+name = "aggregation"
+path = "../../tests/rust/tiktools-aggregation/aggregation.rs"
+
+[[test]]
+name = "engine"
+path = "../../tests/rust/tiktools-aggregation/engine.rs"
+
+[[test]]
+name = "ranking"
+path = "../../tests/rust/tiktools-aggregation/ranking.rs"
