@@ -99,7 +99,18 @@ jobs:
       - name: Verify universal widget contracts
         run: bun scripts/check-universal.mjs
 
+      # The Rust job also needs dist/web (browser-app embeds it at compile
+      # time). Share it through the cache instead of an artifact so neither
+      # job has to wait for the other; a miss simply builds it in both.
+      - name: Restore frontend assets cache
+        id: web-assets
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: dist/web
+          key: dist-web-${{ hashFiles('src/**', 'vite*.config.ts', 'package.json', 'bun.lock') }}
+
       - name: Build frontend
+        if: steps.web-assets.outputs.cache-hit != 'true'
         run: bun scripts/task.ts frontend-build
 
   rust:
@@ -115,7 +126,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/apt-archives
-          key: apt-noble-v1-${{ hashFiles('.github/workflows/ci.yml') }}
+          key: apt-noble-v2
 
       - name: Install Linux build dependencies
         timeout-minutes: 30
@@ -182,9 +193,18 @@ jobs:
         run: bun ci
 
       # `tiktools-remote` with `browser-app` (enabled by --all-features below)
-      # embeds dist/web at build time; dist/ is not committed and the frontend
-      # job's output is not shared with this job, so build it here.
+      # embeds dist/web at build time; dist/ is not committed. Reuse the same
+      # cache key as the frontend job so a hit skips this build; a miss builds
+      # it here without making this job wait for frontend.
+      - name: Restore frontend assets cache
+        id: web-assets
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: dist/web
+          key: dist-web-${{ hashFiles('src/**', 'vite*.config.ts', 'package.json', 'bun.lock') }}
+
       - name: Build frontend for browser-app assets
+        if: steps.web-assets.outputs.cache-hit != 'true'
         run: bun scripts/task.ts frontend-build
 
       - name: Cache Cargo dependencies and build output
@@ -248,7 +268,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/apt-archives
-          key: apt-noble-v1-${{ hashFiles('.github/workflows/ci.yml') }}
+          key: apt-noble-v2
 
       - name: Install Linux build dependencies
         timeout-minutes: 30
@@ -327,6 +347,11 @@ jobs:
       - name: Install current Rust
         run: rustup toolchain install "${{ env.RUSTUP_TOOLCHAIN }}" --profile minimal
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: cargo-nextest
+
       - name: Set up MSVC developer environment
         if: runner.os == 'Windows'
         uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
@@ -345,7 +370,12 @@ jobs:
             cargo-v2-plugin-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-
 
       - name: Test plugin loader and Node-API host
-        run: cargo +${{ env.RUSTUP_TOOLCHAIN }} test -p tiktools-plugin-loader --locked -- --test-threads=1
+        # nextest gives every test its own process with a PID-scoped
+        # TIKTOOLS_HOME; the wrapper also selects lld-link on Windows.
+        # nextest does not run doc tests, so keep them on libtest.
+        run: |
+          node scripts/cargo-with-linker.mjs +${{ env.RUSTUP_TOOLCHAIN }} nextest run -p tiktools-plugin-loader --locked
+          node scripts/cargo-with-linker.mjs +${{ env.RUSTUP_TOOLCHAIN }} test -p tiktools-plugin-loader --locked --doc
 
   desktop:
     needs: changes
@@ -366,7 +396,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/apt-archives
-          key: apt-noble-v1-${{ hashFiles('.github/workflows/ci.yml') }}
+          key: apt-noble-v2
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
