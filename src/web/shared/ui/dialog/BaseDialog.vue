@@ -82,6 +82,9 @@ onMounted(() => sync(open.value));
 .base-dialog {
   max-width: calc(100vw - var(--space-7) * 2);
   max-height: calc(100vh - var(--space-7) * 2);
+  /* dvh follows the WebView viewport once a hidden window is revealed; the
+     vh declaration above stays as a fallback for older engines. */
+  max-height: calc(100dvh - var(--space-7) * 2);
   padding: 0;
   border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-md);

@@ -144,7 +144,7 @@ documentation maintenance and release policy.
 | --- | --- |
 | `bun run start` | Owned Vite server and Wry desktop development host |
 | `bun run dev` | Headless host, loopback browser adapter and Vite |
-| `bun run build` | Widgets, frontend assets and release desktop binary; external plugins install separately |
+| `bun run build` | Widgets, frontend assets, release binary, and a fresh `web/` beside it; external plugins install separately |
 | `bun run lint` | Frontend/SDK lint and type checks plus Rust formatting and Clippy |
 | `bun run test` | Fast Bun and Vitest unit suites |
 | `bun run ci` | Contract checks, lint, tests, native verification and application build |
@@ -153,6 +153,7 @@ documentation maintenance and release policy.
 | `bun scripts/task.ts demo dev` | Fictional-data browser demo development server |
 | `bun scripts/task.ts site dev` | Alias of `docs dev` |
 | `bun scripts/task.ts site build` | Build and assemble docs plus demo into `dist/site` |
+| `bun scripts/task.ts sync-web [dir]` | Replace a packaged `web/` directory with a fresh copy of `dist/web` (default: `target/release/web`) |
 
 `bun ci` installs from the committed lockfile. Run targeted tests through the
 task runner, for example `bun run test web live-batch` or

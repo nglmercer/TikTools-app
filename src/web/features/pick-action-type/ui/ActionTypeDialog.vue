@@ -145,6 +145,7 @@ function browsePlugins(): void {
   flex-direction: column;
   gap: var(--space-5);
   max-height: min(60vh, 520px);
+  max-height: min(60dvh, 520px);
   margin-top: var(--space-4);
   overflow-y: auto;
 }

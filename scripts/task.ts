@@ -21,7 +21,7 @@ const USAGE =
   '`test plugin <name> [filter]`, `test e2e [filter]`, `test --changed`.\n' +
   'Internal steps used by CI and guides: frontend-lint, frontend-test, frontend-build,\n' +
   'rust-lint, rust <cargo args>, rust-test-sharded, widgets, plugins <args>, tasks, plugin:<id>:<command>, e2e [args], package,\n' +
-  'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins.\n' +
+  'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins, sync-web [target-web-directory].\n' +
   'Site tasks: docs dev|check|build|test|preview, demo dev|build, site dev|build|preview.';
 
 // Every spawned child is tracked by the shared runner so SIGINT/SIGTERM stop
@@ -138,6 +138,10 @@ async function build(): Promise<void> {
   await cargo('build', '-p', 'tiktools-desktop', '--release', '--locked');
   const desktopBinary = isWindows ? 'target/release/tiktools-desktop.exe' : 'target/release/tiktools-desktop';
   await assertFile(desktopBinary, 'rebuild the desktop release binary first');
+  // The release host reads <executable directory>/web, never dist/web. Copy a
+  // complete, fresh bundle next to the binary so running it directly cannot
+  // mix a new JS chunk with CSS left over from an older build.
+  await script('sync-web-assets.ts');
   if (isWindows) {
     await run(bun, 'scripts/check-windows-pe.ts', 'target/release/tiktools-desktop.exe');
   }
@@ -266,6 +270,10 @@ try {
     case 'prepare-plugins':
       needNoArgs('prepare-plugins', args);
       await script('prepare-dev-plugins.ts');
+      break;
+    case 'sync-web':
+      if (args.length > 1) throw new Error('`sync-web` takes at most one target directory');
+      await script('sync-web-assets.ts', ...args);
       break;
     default: {
       // Plugin-contributed tasks are registered from installed manifests and

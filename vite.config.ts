@@ -51,6 +51,11 @@ export default defineConfig({
     outDir: resolve(process.cwd(), 'dist/web'),
     emptyOutDir: true,
     sourcemap: true,
+    // The packaged WebView loads async chunks from file-like custom-scheme
+    // URLs. Keeping CSS in separate per-chunk files lets a dialog mount and
+    // call showModal() before its stylesheet arrives (and makes load order
+    // depend on navigation), so ship one stylesheet loaded with the document.
+    cssCodeSplit: false,
     rollupOptions: {
       output: {
         // Pin the Vue runtime to its own chunk so the tab

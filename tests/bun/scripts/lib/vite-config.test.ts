@@ -25,7 +25,7 @@ async function loadConfig(query: string, adapter: string | undefined) {
   if (adapter === undefined) delete process.env.TIKTOOLS_DEV_WEB_ADAPTER;
   else process.env.TIKTOOLS_DEV_WEB_ADAPTER = adapter;
   process.env.TIKTOOLS_WEB_PORT = '3999';
-  const module = (await import(`../../../../vite.config.ts?${query}`)) as { default: { plugins: Array<{ name?: string }>; server: { proxy?: Record<string, unknown> } } };
+  const module = (await import(`../../../../vite.config.ts?${query}`)) as { default: { plugins: Array<{ name?: string }>; build: { cssCodeSplit?: boolean }; server: { proxy?: Record<string, unknown> } } };
   return module.default;
 }
 
@@ -46,5 +46,13 @@ describe('vite dev server plugin assets', () => {
   test('without the adapter nothing is proxied', async () => {
     const config = await loadConfig('plain-proxy', undefined);
     expect(config.server.proxy).toBeUndefined();
+  });
+
+  test('frontend CSS ships as one stylesheet for the packaged WebView', async () => {
+    // Per-chunk stylesheets are injected after the JS chunk loads. On the
+    // custom-scheme WebView that lets a dialog call showModal() before its
+    // scoped CSS exists, producing a collapsed dialog in builds only.
+    const config = await loadConfig('css-split', undefined);
+    expect(config.build.cssCodeSplit).toBe(false);
   });
 });

@@ -8,7 +8,10 @@ use std::{
 use percent_encoding::percent_decode_str;
 use std::fmt;
 use url::Url;
-use wry::http::{header::CONTENT_TYPE, Request, Response, StatusCode};
+use wry::http::{
+    header::{CACHE_CONTROL, CONTENT_TYPE},
+    Request, Response, StatusCode,
+};
 
 const PACKAGED_ASSET_SCHEME: &str = "tiktools";
 const PACKAGED_ASSET_HOST: &str = "app";
@@ -284,6 +287,7 @@ impl AssetServer {
         Response::builder()
             .status(StatusCode::OK)
             .header(CONTENT_TYPE, content_type(&canonical))
+            .header(CACHE_CONTROL, cache_control(&path))
             .header("content-security-policy", PACKAGED_CONTENT_SECURITY_POLICY)
             .body(Cow::Owned(bytes))
             .expect("asset response builder should accept static headers")
@@ -355,6 +359,19 @@ pub(crate) fn content_type(path: &Path) -> &'static str {
     }
 }
 
+/// The entry document must be revalidated after every rebuild: it is the
+/// file that names the current content-hashed JS/CSS bundles. Serving a
+/// cached `index.html` pointed at assets a new build already removed is the
+/// classic "styles work in dev, not in the packaged app" failure. Vite's
+/// `assets/*` names are content hashed, so those can be cached forever.
+fn cache_control(path: &Path) -> &'static str {
+    if path.starts_with("assets") {
+        "public, max-age=31536000, immutable"
+    } else {
+        "no-store"
+    }
+}
+
 pub(crate) fn error_response(status: StatusCode, message: String) -> Response<Cow<'static, [u8]>> {
     Response::builder()
         .status(status)
@@ -398,6 +415,8 @@ mod tests {
         let root = env::temp_dir().join(format!("tiktools-assets-{suffix}"));
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("index.html"), "ok").unwrap();
+        fs::create_dir_all(root.join("assets")).unwrap();
+        fs::write(root.join("assets/app-1234abcd.css"), "body{}").unwrap();
         let server = AssetServer {
             root: Arc::new(root.clone()),
         };
@@ -415,6 +434,27 @@ mod tests {
                 .get("content-security-policy")
                 .and_then(|value| value.to_str().ok()),
             Some(PACKAGED_CONTENT_SECURITY_POLICY)
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("cache-control")
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store")
+        );
+        let hashed = server.respond(
+            Request::builder()
+                .uri("/assets/app-1234abcd.css")
+                .body(Vec::new())
+                .unwrap(),
+        );
+        assert_eq!(hashed.status(), StatusCode::OK);
+        assert_eq!(
+            hashed
+                .headers()
+                .get("cache-control")
+                .and_then(|value| value.to_str().ok()),
+            Some("public, max-age=31536000, immutable")
         );
         let _ = fs::remove_dir_all(root);
     }
