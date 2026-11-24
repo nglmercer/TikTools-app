@@ -20,7 +20,7 @@ const USAGE =
   '`test web [filter] [--watch|--changed]`, `test bun <area> [filter]`,\n' +
   '`test plugin <name> [filter]`, `test e2e [filter]`, `test --changed`.\n' +
   'Internal steps used by CI and guides: frontend-lint, frontend-test, frontend-build,\n' +
-  'rust-lint, rust <cargo args>, widgets, plugins <args>, tasks, plugin:<id>:<command>, e2e [args], package,\n' +
+  'rust-lint, rust <cargo args>, rust-test-sharded, widgets, plugins <args>, tasks, plugin:<id>:<command>, e2e [args], package,\n' +
   'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins.\n' +
   'Site tasks: docs dev|check|build|test|preview, demo dev|build, site dev|build|preview.';
 
@@ -225,6 +225,10 @@ try {
     case 'rust':
       if (!args.length) throw new Error(`\`bun scripts/task.ts rust\` needs cargo arguments.\n${USAGE}`);
       await cargo(...args);
+      break;
+    case 'rust-test-sharded':
+      needNoArgs('rust-test-sharded', args);
+      await script('rust-test-sharded.ts');
       break;
     case 'widgets':
       needNoArgs('widgets', args);
