@@ -1,11 +1,11 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   FollowController,
   type FollowAlert,
-} from './follow-controller.ts';
-import { createFakeClock } from './test-clock.ts';
-import { makeTestFollowEnvelope, makeTestGiftEnvelope } from './test-events.ts';
+} from '../../../../src/widgets/shared/follow-controller.ts';
+import { createFakeClock } from '../../../../src/widgets/shared/test-clock.ts';
+import { makeTestFollowEnvelope, makeTestGiftEnvelope } from '../../../../src/widgets/shared/test-events.ts';
 
 function setup(options: { visibleMs?: number; queueCapacity?: number } = {}) {
   const fake = createFakeClock();

@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
-import { eventIdentity, type AutomationEventLike } from './event-types.ts';
+import { eventIdentity, type AutomationEventLike } from '../../../../src/widgets/shared/event-types.ts';
 
 function event(overrides: Partial<AutomationEventLike> & { msgId?: string } = {}): AutomationEventLike {
   const { msgId, ...rest } = overrides;

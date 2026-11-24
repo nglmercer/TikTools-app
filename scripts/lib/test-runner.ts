@@ -18,7 +18,7 @@ export const TEST_USAGE =
   'Options: --features <list> (rust only), --watch (web only), --changed (default/web/bun/plugin).\n' +
   'Examples: bun run test | bun run test rust tiktools-core batched_likes | bun run test web live-batch | bun run test e2e.';
 
-export const FAST_BUN_ROOTS = ['src/automation', 'src/plugin-ui', 'src/shared', 'src/widgets', 'scripts', 'packages'];
+export const FAST_BUN_ROOTS = ['src/automation', 'src/plugin-ui', 'src/shared', 'scripts', 'packages', 'tests/bun'];
 
 export const WIDGETS_VITEST_CONFIG = 'vitest.widgets.config.ts';
 
@@ -63,7 +63,7 @@ export const BUN_AREA_DIRS: Record<string, string> = {
   automation: 'src/automation',
   'plugin-ui': 'src/plugin-ui',
   shared: 'src/shared',
-  widgets: 'src/widgets',
+  widgets: 'tests/bun/widgets',
   scripts: 'scripts',
   packages: 'packages',
 };

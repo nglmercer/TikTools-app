@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
-import { routeLiveEvent } from './event-router.ts';
+import { routeLiveEvent } from '../../../../src/widgets/shared/event-router.ts';
 import {
   makeTestChatEnvelope,
   makeTestFollowEnvelope,
@@ -9,7 +9,7 @@ import {
   makeTestLikeEnvelope,
   makeTestShareEnvelope,
   makeTestSubscribeEnvelope,
-} from './test-events.ts';
+} from '../../../../src/widgets/shared/test-events.ts';
 
 describe('event router', () => {
   test('routes follow and gift envelopes to typed events', () => {

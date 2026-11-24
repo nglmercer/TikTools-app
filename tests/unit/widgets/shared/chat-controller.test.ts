@@ -1,13 +1,13 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   ChatController,
   type ChatMessageView,
-} from './chat-controller.ts';
+} from '../../../../src/widgets/shared/chat-controller.ts';
 import {
   makeTestChatEnvelope,
   makeTestGiftEnvelope,
-} from './test-events.ts';
+} from '../../../../src/widgets/shared/test-events.ts';
 
 function setup(options: { limit?: number } = {}) {
   const snapshots: ChatMessageView[][] = [];

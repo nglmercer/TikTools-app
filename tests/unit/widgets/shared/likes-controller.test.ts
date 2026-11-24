@@ -1,8 +1,8 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
-import { LikesController, type LikeBoardEntry } from './likes-controller.ts';
-import { makeTestFollowEnvelope, makeTestLikeEvent, toLiveEnvelope } from './test-events.ts';
-import type { DomainEventEnvelope } from './event-types.ts';
+import { LikesController, type LikeBoardEntry } from '../../../../src/widgets/shared/likes-controller.ts';
+import { makeTestFollowEnvelope, makeTestLikeEvent, toLiveEnvelope } from '../../../../src/widgets/shared/test-events.ts';
+import type { DomainEventEnvelope } from '../../../../src/widgets/shared/event-types.ts';
 
 function setup(options: { maxEntries?: number; trackedCapacity?: number } = {}) {
   const boards: LikeBoardEntry[][] = [];

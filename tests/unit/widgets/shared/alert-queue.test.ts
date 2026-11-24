@@ -1,7 +1,7 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
-import { AlertQueue, RecentEventIds } from './alert-queue.ts';
-import { computeReconnectDelay } from './reconnect.ts';
+import { AlertQueue, RecentEventIds } from '../../../../src/widgets/shared/alert-queue.ts';
+import { computeReconnectDelay } from '../../../../src/widgets/shared/reconnect.ts';
 
 describe('alert queue', () => {
   test('preserves FIFO ordering', () => {

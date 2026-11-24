@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   isConnectionEvent,
@@ -10,7 +10,7 @@ import {
   isRoomStatsEvent,
   isSocialEvent,
   parseLiveEvent,
-} from './event-parser.ts';
+} from '../../../../src/widgets/shared/event-parser.ts';
 import {
   makeTestConnectionEnvelope,
   makeTestEnvelopeFor,
@@ -22,7 +22,7 @@ import {
   makeTestSocialEnvelope,
   makeTestSubscribeEnvelope,
   TEST_EMULATABLE_TYPES,
-} from './test-events.ts';
+} from '../../../../src/widgets/shared/test-events.ts';
 
 describe('extended test-event factories', () => {
   test('like envelopes validate as like events', () => {

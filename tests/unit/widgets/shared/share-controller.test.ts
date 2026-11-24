@@ -1,16 +1,16 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   ShareController,
   type ShareAlert,
-} from './share-controller.ts';
-import { createFakeClock } from './test-clock.ts';
+} from '../../../../src/widgets/shared/share-controller.ts';
+import { createFakeClock } from '../../../../src/widgets/shared/test-clock.ts';
 import {
   makeTestGiftEnvelope,
   makeTestShareEnvelope,
   makeTestShareEvent,
   toLiveEnvelope,
-} from './test-events.ts';
+} from '../../../../src/widgets/shared/test-events.ts';
 
 function setup(options: { visibleMs?: number; queueCapacity?: number } = {}) {
   const fake = createFakeClock();

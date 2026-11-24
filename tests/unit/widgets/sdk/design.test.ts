@@ -1,5 +1,5 @@
-import { expect, test } from 'bun:test';
-import { designFromHash, normalizeDesign, parseDesign } from './design.ts';
+import { expect, test } from 'vitest';
+import { designFromHash, normalizeDesign, parseDesign } from '../../../../src/widgets/sdk/design.ts';
 
 test('portable designs reject invalid JSON, CSS and unknown properties', () => {
   expect(parseDesign('{')).toEqual({});

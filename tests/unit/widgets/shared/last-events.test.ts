@@ -1,8 +1,8 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
-import { parseLiveEvent } from './event-parser.ts';
-import { LastEventCache } from './last-events.ts';
-import { makeTestEnvelopeFor, makeTestGapEnvelope, makeTestGiftEnvelope } from './test-events.ts';
+import { parseLiveEvent } from '../../../../src/widgets/shared/event-parser.ts';
+import { LastEventCache } from '../../../../src/widgets/shared/last-events.ts';
+import { makeTestEnvelopeFor, makeTestGapEnvelope, makeTestGiftEnvelope } from '../../../../src/widgets/shared/test-events.ts';
 
 describe('LastEventCache', () => {
   test('records one envelope per type and ignores non-live frames', () => {

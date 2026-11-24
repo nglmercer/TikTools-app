@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'bun:test';
-import { NativeLikesController } from './native-likes-controller.ts';
-import type { LikeBoardEntry } from './likes-controller.ts';
+import { describe, expect, test } from 'vitest';
+import { NativeLikesController } from '../../../../src/widgets/shared/native-likes-controller.ts';
+import type { LikeBoardEntry } from '../../../../src/widgets/shared/likes-controller.ts';
 
 describe('native likes snapshot', () => {
   test('reports degraded snapshots and clears on disconnect', () => {

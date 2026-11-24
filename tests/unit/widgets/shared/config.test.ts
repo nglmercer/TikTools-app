@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   DEFAULT_GATEWAY_HOST,
@@ -6,8 +6,8 @@ import {
   parseDemoMode,
   parseFollowSettings,
   parseGiftSettings,
-} from './config.ts';
-import { CredentialProvider } from './credentials.ts';
+} from '../../../../src/widgets/shared/config.ts';
+import { CredentialProvider } from '../../../../src/widgets/shared/credentials.ts';
 
 describe('credential provider', () => {
   test('reads token, host, and port from the URL fragment', () => {

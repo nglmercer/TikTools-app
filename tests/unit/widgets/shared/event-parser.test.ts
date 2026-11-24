@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
-import { FOLLOW_EVENT_TYPE, GIFT_EVENT_TYPE } from './config.ts';
+import { FOLLOW_EVENT_TYPE, GIFT_EVENT_TYPE } from '../../../../src/widgets/shared/config.ts';
 import {
   isDomainEventEnvelope,
   isFollowEvent,
@@ -9,14 +9,14 @@ import {
   isHistoryEvent,
   parseEventGap,
   parseLiveEvent,
-} from './event-parser.ts';
-import { displayNameFor, handleFor } from './event-types.ts';
+} from '../../../../src/widgets/shared/event-parser.ts';
+import { displayNameFor, handleFor } from '../../../../src/widgets/shared/event-types.ts';
 import {
   makeTestFollowEnvelope,
   makeTestGapEnvelope,
   makeTestGiftEnvelope,
   makeTestUser,
-} from './test-events.ts';
+} from '../../../../src/widgets/shared/test-events.ts';
 
 describe('event parser', () => {
   test('accepts well-formed envelopes and rejects malformed frames', () => {

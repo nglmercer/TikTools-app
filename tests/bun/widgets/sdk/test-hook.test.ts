@@ -4,7 +4,7 @@ import {
   isWidgetTestHookEnabled,
   resolveWidgetTestHookEnabled,
   WIDGET_TEST_HOOK_ENV,
-} from './test-hook.ts';
+} from '../../../../src/widgets/sdk/test-hook.ts';
 
 describe('widget test hook flag', () => {
   test('exposes the documented E2E env name', () => {

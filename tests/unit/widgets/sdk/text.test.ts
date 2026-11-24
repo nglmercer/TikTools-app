@@ -1,6 +1,6 @@
-import { expect, test } from 'bun:test';
-import { coreTextFields, interpolateText, isHiddenField, textDefaults } from './text.ts';
-import { normalizeDesign } from './design.ts';
+import { expect, test } from 'vitest';
+import { coreTextFields, interpolateText, isHiddenField, textDefaults } from '../../../../src/widgets/sdk/text.ts';
+import { normalizeDesign } from '../../../../src/widgets/sdk/design.ts';
 
 test('text placeholders use one pass and preserve unknown tokens', () => {
   expect(interpolateText('Thanks {{ name }} / {{name}}! {{unknown}}', { name: '{{message}}' }))

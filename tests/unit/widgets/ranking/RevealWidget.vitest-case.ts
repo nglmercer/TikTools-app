@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { mount } from '@vue/test-utils';
-import RevealWidget from './RevealWidget.vue';
-import { RevealController, parseRevealResult } from '../shared/reveal-controller.ts';
+import RevealWidget from '../../../../src/widgets/ranking/RevealWidget.vue';
+import { RevealController, parseRevealResult } from '../../../../src/widgets/shared/reveal-controller.ts';
 const event = { topic: 'competition.result', data: { result: { schemaVersion: 1, competitionId: 'poll', rankingId: 'r', generation: 1, selection: { mode: 'weighted_random', winner: 'b', eligible: [{ key: 'a', weight: 1 }, { key: 'b', weight: 3 }] } } } };
 describe('committed result reveal', () => {
   test('reuses the committed selection and ignores refresh duplicates', async () => {

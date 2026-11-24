@@ -1,7 +1,7 @@
-import { expect, test } from 'bun:test';
-import { resolveWidgetDesign, styleVariables } from './template.ts';
-import { widgetTemplates } from './templates.ts';
-import { textDefaults, type TextField } from './text.ts';
+import { expect, test } from 'vitest';
+import { resolveWidgetDesign, styleVariables } from '../../../../src/widgets/sdk/template.ts';
+import { widgetTemplates } from '../../../../src/widgets/sdk/templates.ts';
+import { textDefaults, type TextField } from '../../../../src/widgets/sdk/text.ts';
 
 test('editor styling rejects CSS injection and bounds geometry', () => {
   expect(styleVariables({ background: '#112233', textColor: '#ffffffff', accent: 'url(https://example.com)', radius: 100 })).toEqual({

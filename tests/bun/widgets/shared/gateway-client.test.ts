@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
-import { DEFAULT_TOPICS, EVENT_GAP_TOPIC, LIVE_EVENT_TOPIC } from './config.ts';
-import { GatewayClient, type GatewayStatus } from './gateway-client.ts';
-import type { DomainEventEnvelope, EventGapData } from './event-types.ts';
-import { makeTestFollowEnvelope, makeTestGapEnvelope } from './test-events.ts';
+import { DEFAULT_TOPICS, EVENT_GAP_TOPIC, LIVE_EVENT_TOPIC } from '../../../../src/widgets/shared/config.ts';
+import { GatewayClient, type GatewayStatus } from '../../../../src/widgets/shared/gateway-client.ts';
+import type { DomainEventEnvelope, EventGapData } from '../../../../src/widgets/shared/event-types.ts';
+import { makeTestFollowEnvelope, makeTestGapEnvelope } from '../../../../src/widgets/shared/test-events.ts';
 
 type FakeGateway = {
   port: number;

@@ -1,11 +1,11 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
 import {
   SubscribeController,
   type SubscribeAlert,
-} from './subscribe-controller.ts';
-import { createFakeClock } from './test-clock.ts';
-import { makeTestGiftEnvelope, makeTestSubscribeEnvelope } from './test-events.ts';
+} from '../../../../src/widgets/shared/subscribe-controller.ts';
+import { createFakeClock } from '../../../../src/widgets/shared/test-clock.ts';
+import { makeTestGiftEnvelope, makeTestSubscribeEnvelope } from '../../../../src/widgets/shared/test-events.ts';
 
 function setup(options: { visibleMs?: number; queueCapacity?: number } = {}) {
   const fake = createFakeClock();

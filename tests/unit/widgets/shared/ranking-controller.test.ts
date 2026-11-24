@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test';
-import { RankingController, parseRankingSnapshot } from './ranking-controller.ts';
+import { describe, expect, test } from 'vitest';
+import { RankingController, parseRankingSnapshot } from '../../../../src/widgets/shared/ranking-controller.ts';
 
 const snapshot = (revision: number, score = 5) => ({ topic: 'ranking.updated', data: { snapshot: {
   rankingId: 'r', schemaVersion: 1, creatorId: 'c', roomId: 'room', revision, integrityStatus: 'unknown', paused: false,

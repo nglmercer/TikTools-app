@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { liveFieldsFrom } from './cloud-overlay-fields.ts';
+import { liveFieldsFrom } from '../../../../src/widgets/shared/cloud-overlay-fields.ts';
 
 const gift = (overrides: Record<string, unknown> = {}) => ({
   topic: 'live.event',

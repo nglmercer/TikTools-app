@@ -1,13 +1,13 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 
-import { giftCounts, GiftController, type GiftAlertView } from './gift-controller.ts';
-import { createFakeClock } from './test-clock.ts';
+import { giftCounts, GiftController, type GiftAlertView } from '../../../../src/widgets/shared/gift-controller.ts';
+import { createFakeClock } from '../../../../src/widgets/shared/test-clock.ts';
 import {
   makeTestFollowEnvelope,
   makeTestGiftCombo,
   makeTestGiftEnvelope,
-} from './test-events.ts';
-import type { GiftAutomationData } from './event-types.ts';
+} from '../../../../src/widgets/shared/test-events.ts';
+import type { GiftAutomationData } from '../../../../src/widgets/shared/event-types.ts';
 
 function giftData(overrides: Partial<GiftAutomationData> = {}): GiftAutomationData {
   return {

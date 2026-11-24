@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { join, resolve } from 'node:path';
-import { GATEWAY_WIDGET_KINDS } from '../../scripts/lib/gateway-widgets.ts';
-import { createWidgetViteConfig } from './create-widget-vite-config.ts';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { GATEWAY_WIDGET_KINDS } from '../../../scripts/lib/gateway-widgets.ts';
+import { createWidgetViteConfig } from '../../../src/widgets/create-widget-vite-config.ts';
 
-const repositoryRoot = resolve(import.meta.dir, '..', '..');
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 describe('createWidgetViteConfig', () => {
   test('builds one independent bundle per widget into dist/widgets/<kind>', () => {
@@ -32,7 +33,7 @@ describe('createWidgetViteConfig', () => {
 
   test('every gateway widget config delegates to it and stays inside its own output directory', async () => {
     for (const kind of GATEWAY_WIDGET_KINDS) {
-      const { default: config } = await import(`./${kind}/vite.config.ts`);
+      const { default: config } = await import(`../../../src/widgets/${kind}/vite.config.ts`);
       expect(config.build.outDir).toBe(join(repositoryRoot, 'dist', 'widgets', kind));
       expect(config.root).toBe(join(repositoryRoot, 'src', 'widgets', kind));
     }
