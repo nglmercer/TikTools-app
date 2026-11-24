@@ -17,6 +17,11 @@
   align-items: start;
 }
 
+/* Label first, switch flush to the right edge of the section header. */
+.event-editor__enable {
+  flex-direction: row-reverse;
+}
+
 /* A disabled event stays fully editable: only the presentation is muted. */
 .event-editor__columns--inactive {
   filter: saturate(0.82);

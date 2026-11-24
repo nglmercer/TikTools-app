@@ -220,6 +220,7 @@ function runCustom(kind: 'test' | 'fire'): void {
             <template #actions>
               <BaseSwitch
                 :id="`${id}-enabled`"
+                class="event-editor__enable"
                 :model-value="draft.enabled"
                 @update:model-value="update({ enabled: $event })"
               >

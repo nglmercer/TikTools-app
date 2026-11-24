@@ -19,9 +19,12 @@ import {
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconRecord from '@/shared/ui/icon/icons/IconRecord.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
+import BaseContextMenu from '@/shared/ui/menu/BaseContextMenu.vue';
+import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BaseSearchSelect from '@/shared/ui/search-select/BaseSearchSelect.vue';
 import type { SearchOption } from '@/shared/ui/search-select/search-option.ts';
 import BaseTagsInput from '@/shared/ui/tags-input/BaseTagsInput.vue';
@@ -45,6 +48,11 @@ const fields = computed(() => conditionFields(props.trigger, locale.value));
 const fieldOptions = computed(() => [
   ...fields.value.map((field) => ({ value: field.path, label: field.label })),
   { value: CUSTOM, label: t('automations.conditions.custom') },
+]);
+
+/** One action list for the kebab, right-click and touch long-press. */
+const rowMenu = computed<MenuEntry[]>(() => [
+  { id: 'remove', label: t('automations.conditions.remove'), icon: IconTrash },
 ]);
 
 const rows = computed(() =>
@@ -101,6 +109,24 @@ function remove(index: number): void {
   filters.value = filters.value.filter((_, position) => position !== index);
 }
 
+/** The kebab feeds the same menu as right-click (desktop) and long-press (mobile). */
+function openRowMenu(event: MouseEvent): void {
+  const button = event.currentTarget as HTMLElement;
+  const rect = button.getBoundingClientRect();
+  button.dispatchEvent(
+    new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.right,
+      clientY: rect.bottom,
+    }),
+  );
+}
+
+function onRowAction(action: MenuAction, index: number): void {
+  if (action.id === 'remove') remove(index);
+}
+
 function pickerFor(kind: string): readonly SearchOption[] {
   return kind === 'gift' ? props.gifts : props.viewers;
 }
@@ -152,104 +178,110 @@ onBeforeUnmount(stopRecording);
         <span role="columnheader">{{ t('automations.conditions.value') }}</span>
         <span />
       </div>
-      <div
+      <BaseContextMenu
         v-for="row in rows"
         :key="`${row.index}-${row.filter.path}`"
-        class="conditions__row"
-        role="row"
+        :items="rowMenu"
+        @select="onRowAction($event, row.index)"
       >
-        <BaseComboBox
-          :model-value="row.known ? row.filter.path : CUSTOM"
-          :options="fieldOptions"
-          size="sm"
-          :aria-label="t('automations.conditions.field')"
-          @update:model-value="setField(row.index, $event)"
-        />
-        <BaseComboBox
-          :model-value="row.filter.operator"
-          :options="row.operators"
-          size="sm"
-          :aria-label="t('automations.conditions.operator')"
-          @update:model-value="setOperator(row.index, $event)"
-        />
-        <div class="conditions__value">
-          <span
-            v-if="!needsValue(row.filter.operator)"
-            class="conditions__fixed"
-          >{{ row.filter.operator === 'is-true' ? t('automations.conditions.yes') : t('automations.conditions.no') }}</span>
-          <BaseTagsInput
-            v-else-if="row.filter.operator === 'in'"
-            :model-value="filterValues(row.filter)"
-            :placeholder="t('automations.conditions.addValue')"
-            :aria-label="t('automations.conditions.value')"
-            @update:model-value="setList(row.index, $event)"
-          />
-          <BaseSearchSelect
-            v-else-if="row.kind === 'gift' || row.kind === 'user'"
-            :model-value="row.filter.value"
-            :options="pickerFor(row.kind)"
-            :placeholder="row.kind === 'gift' ? t('automations.pickers.giftSearch') : t('automations.pickers.viewerSearch')"
-            allow-custom
-            :invalid="row.missing"
-            :aria-label="t('automations.conditions.value')"
-            @update:model-value="setValue(row.index, $event)"
-          />
-          <span
-            v-else-if="row.options.length"
-            class="conditions__option"
-          >
-            <BaseComboBox
-              :model-value="row.filter.value"
-              :options="row.options"
-              size="sm"
-              :aria-label="t('automations.conditions.value')"
-              @update:model-value="setValue(row.index, String($event ?? ''))"
-            />
-            <BaseIconButton
-              :label="recording === row.index ? t('automations.conditions.recording') : t('automations.conditions.record')"
-              size="sm"
-              :pressed="recording === row.index"
-              @click="recording === row.index ? stopRecording() : startRecording(row.index)"
-            >
-              <IconRecord />
-            </BaseIconButton>
-          </span>
-          <BaseTextField
-            v-else
-            :model-value="row.filter.value"
+        <div
+          class="conditions__row"
+          role="row"
+        >
+          <BaseComboBox
+            :model-value="row.known ? row.filter.path : CUSTOM"
+            :options="fieldOptions"
             size="sm"
-            :invalid="row.missing || (row.kind === 'number' && row.filter.value.trim() !== '' && Number.isNaN(Number(row.filter.value)))"
-            :aria-label="t('automations.conditions.value')"
-            :inputmode="row.kind === 'number' ? 'decimal' : undefined"
-            @update:model-value="setValue(row.index, $event)"
+            :aria-label="t('automations.conditions.field')"
+            @update:model-value="setField(row.index, $event)"
           />
+          <BaseComboBox
+            :model-value="row.filter.operator"
+            :options="row.operators"
+            size="sm"
+            :aria-label="t('automations.conditions.operator')"
+            @update:model-value="setOperator(row.index, $event)"
+          />
+          <div class="conditions__value">
+            <span
+              v-if="!needsValue(row.filter.operator)"
+              class="conditions__fixed"
+            >{{ row.filter.operator === 'is-true' ? t('automations.conditions.yes') : t('automations.conditions.no') }}</span>
+            <BaseTagsInput
+              v-else-if="row.filter.operator === 'in'"
+              :model-value="filterValues(row.filter)"
+              :placeholder="t('automations.conditions.addValue')"
+              :aria-label="t('automations.conditions.value')"
+              @update:model-value="setList(row.index, $event)"
+            />
+            <BaseSearchSelect
+              v-else-if="row.kind === 'gift' || row.kind === 'user'"
+              :model-value="row.filter.value"
+              :options="pickerFor(row.kind)"
+              :placeholder="row.kind === 'gift' ? t('automations.pickers.giftSearch') : t('automations.pickers.viewerSearch')"
+              allow-custom
+              :invalid="row.missing"
+              :aria-label="t('automations.conditions.value')"
+              @update:model-value="setValue(row.index, $event)"
+            />
+            <span
+              v-else-if="row.options.length"
+              class="conditions__option"
+            >
+              <BaseComboBox
+                :model-value="row.filter.value"
+                :options="row.options"
+                size="sm"
+                :aria-label="t('automations.conditions.value')"
+                @update:model-value="setValue(row.index, String($event ?? ''))"
+              />
+              <BaseIconButton
+                :label="recording === row.index ? t('automations.conditions.recording') : t('automations.conditions.record')"
+                size="sm"
+                :pressed="recording === row.index"
+                @click="recording === row.index ? stopRecording() : startRecording(row.index)"
+              >
+                <IconRecord />
+              </BaseIconButton>
+            </span>
+            <BaseTextField
+              v-else
+              :model-value="row.filter.value"
+              size="sm"
+              :invalid="row.missing || (row.kind === 'number' && row.filter.value.trim() !== '' && Number.isNaN(Number(row.filter.value)))"
+              :aria-label="t('automations.conditions.value')"
+              :inputmode="row.kind === 'number' ? 'decimal' : undefined"
+              @update:model-value="setValue(row.index, $event)"
+            />
+          </div>
+          <BaseIconButton
+            :label="t('automations.conditions.actions')"
+            size="sm"
+            aria-haspopup="menu"
+            @click="openRowMenu($event)"
+          >
+            <IconMoreVertical />
+          </BaseIconButton>
+          <BaseTextField
+            v-if="!row.known"
+            :id="`${id}-path-${row.index}`"
+            class="conditions__path"
+            :model-value="row.filter.path"
+            size="sm"
+            :placeholder="t('automations.conditions.customPlaceholder')"
+            :aria-label="t('automations.conditions.customPath')"
+            spellcheck="false"
+            @update:model-value="setPath(row.index, $event)"
+          />
+          <p
+            v-if="row.missing"
+            class="conditions__missing"
+            role="status"
+          >
+            {{ t('automations.conditions.missing') }}
+          </p>
         </div>
-        <BaseIconButton
-          :label="t('automations.conditions.remove')"
-          size="sm"
-          @click="remove(row.index)"
-        >
-          <IconTrash />
-        </BaseIconButton>
-        <BaseTextField
-          v-if="!row.known"
-          :id="`${id}-path-${row.index}`"
-          class="conditions__path"
-          :model-value="row.filter.path"
-          size="sm"
-          :placeholder="t('automations.conditions.customPlaceholder')"
-          :aria-label="t('automations.conditions.customPath')"
-          spellcheck="false"
-          @update:model-value="setPath(row.index, $event)"
-        />
-        <p
-          v-if="row.missing"
-          class="conditions__missing"
-          role="status"
-        >
-          {{ t('automations.conditions.missing') }}
-        </p>
-      </div>
+      </BaseContextMenu>
     </div>
     <p
       v-else

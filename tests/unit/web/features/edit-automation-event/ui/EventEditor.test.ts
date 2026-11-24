@@ -1,7 +1,7 @@
 import { DOMWrapper, enableAutoUnmount, type VueWrapper } from '@vue/test-utils';
 import { afterEach, expect, it } from 'vitest';
 import { nextTick } from 'vue';
-import type { LiveAction, LiveEvent } from '../../../../../../src/automation/behavior/types.ts';
+import type { EventFilter, LiveAction, LiveEvent } from '../../../../../../src/automation/behavior/types.ts';
 import { cloneRecord, createEvent } from '@/entities/automation/lib/automation-records.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
@@ -112,4 +112,39 @@ it('groups dry-run, real fire and custom data behind the flask menu', async () =
   dryRun.click();
   await nextTick();
   expect(wrapper.emitted('test')).toHaveLength(1);
+});
+
+it('keeps the enable switch in the General section header and mutes an inactive editor', async () => {
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat' };
+  const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
+    event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
+  } });
+  const input = wrapper.get<HTMLInputElement>('input[role="switch"]');
+  expect(input.element.closest('.base-section__actions')).not.toBeNull();
+  expect(input.element.closest('.base-section__header')?.textContent).toContain(t('automations.event.general'));
+  expect(wrapper.get('.event-editor__columns').classes()).not.toContain('event-editor__columns--inactive');
+  await input.setValue(false);
+  expect(wrapper.text()).toContain(t('automations.editor.disabled'));
+  expect(wrapper.get('.event-editor__columns').classes()).toContain('event-editor__columns--inactive');
+});
+
+it('removes a condition through the row action menu', async () => {
+  const filters: EventFilter[] = [
+    { path: 'event.data.text', operator: 'starts-with', value: '!play' },
+    { path: 'event.data.text', operator: 'starts-with', value: '/play' },
+  ];
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
+  const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
+    event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
+  } });
+  await button(wrapper, 'automations.conditions.actions').trigger('click');
+  await nextTick();
+  // MenuList teleports to body.
+  const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .filter((item) => item.textContent === t('automations.conditions.remove'));
+  expect(items).toHaveLength(1);
+  items[0]!.click();
+  await nextTick();
+  const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
+  expect(changed.filters).toEqual([filters[1]]);
 });
