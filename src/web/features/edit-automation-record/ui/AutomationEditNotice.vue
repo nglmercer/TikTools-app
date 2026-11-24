@@ -1,18 +1,31 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AutomationEdit } from '../model/automation-editor.ts';
 import ReviewDocsLink from '../../review-shared/ui/ReviewDocsLink.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import BaseNotification from '@/shared/ui/notification/BaseNotification.vue';
 import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
-defineProps<{ edit: AutomationEdit | null; hostChanged: boolean; memory: boolean }>();
+const props = defineProps<{ edit: AutomationEdit | null; hostChanged: boolean; memory: boolean }>();
 defineEmits<{ compare: [] }>();
 const { t } = useI18n();
+// An automatic rebase is informational and transient: show it as a toast
+// instead of reserving a permanent row at the top of the editor.
+const autoDismissed = ref(false);
+watch(() => props.edit?.autoResolved, (resolved) => { if (resolved) autoDismissed.value = false; });
 </script>
 <template>
   <div
     v-if="edit"
     class="automation-edit-notice"
   >
+    <BaseNotification
+      v-if="edit.autoResolved && !autoDismissed"
+      class="automation-edit-notice__toast"
+      tone="info"
+      :message="t('automations.conflict.autoResolved')"
+      @dismiss="autoDismissed = true"
+    />
     <div class="automation-edit-notice__messages">
       <p
         v-if="edit.busy"
@@ -26,12 +39,6 @@ const { t } = useI18n();
       >
         {{ t(edit.failure === 'unconfirmed' ? 'automations.conflict.unconfirmed' : 'automations.conflict.changed') }}
         <span v-if="edit.message">{{ edit.message }}</span>
-      </p>
-      <p
-        v-else-if="edit.autoResolved"
-        role="status"
-      >
-        {{ t('automations.conflict.autoResolved') }}
       </p>
       <p
         v-else-if="edit.revision === undefined"
@@ -82,6 +89,14 @@ const { t } = useI18n();
   border-bottom: var(--border-width) solid var(--color-border);
 }
 .automation-edit-notice p { margin: 0 0 var(--space-2); }
+.automation-edit-notice__toast {
+  position: fixed;
+  z-index: 110;
+  top: 42px;
+  right: var(--space-4);
+  width: 440px;
+  max-width: calc(100vw - 32px);
+}
 .automation-edit-notice__messages { min-width: 0; }
 .automation-edit-notice__actions { display: flex; align-items: center; gap: var(--space-3); flex: none; }
 .automation-edit-notice__compare { opacity: 0; transition: opacity var(--duration-fast); }

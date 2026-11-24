@@ -33,6 +33,7 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
   <EventEditor
     v-if="editing.kind === 'event'"
     :key="state?.token"
+    :class="{ 'automation-record-editor--sheet': isNarrow }"
     :baseline="eventBaseline ?? undefined"
     :busy="state?.busy"
     :save-blocked="saveBlocked"
@@ -68,6 +69,7 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
   <ActionEditor
     v-else
     :key="state?.token"
+    :class="{ 'automation-record-editor--sheet': isNarrow }"
     :baseline="actionBaseline ?? undefined"
     :busy="state?.busy"
     :save-blocked="saveBlocked"

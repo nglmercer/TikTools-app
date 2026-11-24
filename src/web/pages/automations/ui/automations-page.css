@@ -146,3 +146,9 @@
     flex-wrap: nowrap;
   }
 }
+
+/* The sheet bar already carries the record name; hide the panel's duplicate
+   title while keeping its subtitle (unsaved state) and toolbar actions. */
+.automation-record-editor--sheet .base-panel__title {
+  display: none;
+}
