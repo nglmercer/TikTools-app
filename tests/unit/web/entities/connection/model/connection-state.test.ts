@@ -1,8 +1,9 @@
-import { describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 
 import type { ControlClient, RpcParams } from '@/shared/api/control-client.ts';
 import { ControlCallError } from '@/shared/api/control-client.ts';
 import { useConnection } from '../../../../../../src/web/entities/connection/model/connection-state.ts';
+import { getSavedUsername } from '../../../../../../src/web/entities/connection/lib/creator-preferences.ts';
 
 function stubControl(overrides?: Partial<ControlClient>): ControlClient & {
   calls: Array<{ method: string; params?: RpcParams }>;
@@ -37,6 +38,37 @@ async function flushPromises(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }
+
+describe('useConnection monitored connection', () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+
+  test('persists the creator and applies the feed preference without calling live.connect', () => {
+    const control = stubControl();
+    let feedOpens = 0;
+    const connection = useConnection(control, {
+      ...callbacks,
+      goFeed: () => { feedOpens += 1; },
+    });
+    connection.setOpenFeedAfterConnect(true);
+    const target = connection.prepareMonitoredConnection(' @last ');
+    expect(target).toBe('last');
+    expect(control.calls).toHaveLength(0);
+    expect(connection.uniqueId.value).toBe('last');
+    expect(getSavedUsername()).toBe('last');
+    expect(connection.recents.value).toContain('last');
+    expect(feedOpens).toBe(1);
+  });
+
+  test('rejects an empty creator before starting the monitor', () => {
+    const control = stubControl();
+    const connection = useConnection(control, callbacks);
+    connection.setUniqueId('');
+    expect(connection.prepareMonitoredConnection()).toBe('');
+    expect(connection.error.value).toBe('connection.handleRequired');
+    expect(control.calls).toHaveLength(0);
+  });
+});
 
 describe('useConnection pick-live', () => {
   test('missing username feedback clears when a username is entered', () => {

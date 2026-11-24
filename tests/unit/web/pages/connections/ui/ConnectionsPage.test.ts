@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
+import type { LiveMonitorStatus } from '@/entities/connection/model/live-monitor-state.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
@@ -140,5 +141,30 @@ describe('ConnectionsPage', () => {
     // The same panel switched area: no third panel was stacked.
     expect(announced.wrapper.findAll('.base-panel')).toHaveLength(panels);
     expect(announced.calls.some((call) => call.method === 'integrations.connections')).toBe(true);
+  });
+
+  it('starts the monitor with the typed creator and follows the host when it stops', async () => {
+    const { wrapper, calls, connection } = await mountPage();
+    await wrapper.get('#live-handle').setValue('mango');
+    const monitorSwitch = wrapper.findAll<HTMLInputElement>('input[role="switch"]')[1]!;
+    await monitorSwitch.setValue(true);
+    await buttonByText(wrapper, t('connection.connect')).trigger('click');
+    await flushPromises();
+    expect(calls.find((call) => call.method === 'live.monitor.start')?.params).toMatchObject({ uniqueId: 'mango' });
+    expect(calls.some((call) => call.method === 'live.connect')).toBe(false);
+    expect(monitorSwitch.element.checked).toBe(true);
+
+    const status = (enabled: boolean): LiveMonitorStatus => ({
+      enabled, uniqueId: 'mango', phase: enabled ? 'waiting' : 'stopped',
+      pollIntervalSeconds: 30, checks: 0, failures: 0,
+      lastCheckedAt: null, nextCheckAt: null, lastError: null,
+    });
+    connection.monitorStatus = status(true);
+    await nextTick();
+    expect(monitorSwitch.element.checked).toBe(true);
+    // The host can stop on its own (e.g. a manual disconnect elsewhere).
+    connection.monitorStatus = status(false);
+    await nextTick();
+    expect(monitorSwitch.element.checked).toBe(false);
   });
 });

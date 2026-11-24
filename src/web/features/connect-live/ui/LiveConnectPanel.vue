@@ -145,12 +145,14 @@ function onRecent(action: MenuAction): void {
         :disabled="locked"
         autocomplete="off"
       />
-      <BaseSwitch
-        v-model="autoConnect"
-        :disabled="monitorBusy || (!monitorEnabled && (live || busy))"
-      >
-        {{ t('connections.monitor.start') }}
-      </BaseSwitch>
+      <span :title="t('connections.monitor.startHint')">
+        <BaseSwitch
+          v-model="autoConnect"
+          :disabled="monitorBusy || (!monitorEnabled && (live || busy))"
+        >
+          {{ t('connections.monitor.start') }}
+        </BaseSwitch>
+      </span>
       <BaseSwitch
         v-model="openFeedAfterConnect"
         data-testid="connection-open-feed"

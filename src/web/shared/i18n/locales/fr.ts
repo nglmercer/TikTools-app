@@ -423,7 +423,7 @@ export default {
   connections: {
     tabs: { servers: 'Serveurs', webhooks: 'Webhooks' },
     monitor: {
-      start: 'Surveiller et connecter automatiquement', stop: 'Arrêter la surveillance', status: 'Surveillance du LIVE : {phase}',
+      start: 'Surveiller et connecter automatiquement', startHint: 'La surveillance démarre quand vous cliquez sur Connecter. Elle attend le direct et se connecte automatiquement.', stop: 'Arrêter la surveillance', status: 'Surveillance du LIVE : {phase}',
       phases: { stopped: 'Arrêtée', waiting: 'En attente d’un LIVE', checking: 'Vérification du créateur', connecting: 'Connexion', live: 'Connecté ; la surveillance reste active', error: 'Nouvelle tentative après une erreur' },
     },
 
@@ -622,6 +622,12 @@ export default {
       searchActions: 'Rechercher des actions…',
       newEvent: 'Nouvel événement',
       newAction: 'Nouvelle action…',
+      duplicate: 'Dupliquer',
+      delete: 'Supprimer',
+      rowActions: 'Actions de {name}',
+      duplicateName: 'Copie de {name}',
+      deleteTitle: 'Supprimer {name} ?',
+      deleteMessage: '« {name} » sera supprimé. Cette action est irréversible.',
       sort: 'Trier',
       sorts: {
         name: 'Nom de A à Z',

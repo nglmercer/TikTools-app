@@ -421,7 +421,7 @@ export default {
   connections: {
     tabs: { servers: "服务器", webhooks: "Webhook" },
     monitor: {
-      start: "监控并自动连接", stop: "停止监控", status: "直播监控：{phase}",
+      start: "监控并自动连接", startHint: "点击“连接”后开始监控；主播开播时会自动连接。", stop: "停止监控", status: "直播监控：{phase}",
       phases: { stopped: "已停止", waiting: "等待开播", checking: "正在检查主播", connecting: "正在连接", live: "已连接；监控仍在运行", error: "出错后正在重试" },
     },
 
@@ -620,6 +620,12 @@ export default {
       searchActions: "搜索操作…",
       newEvent: "新建事件",
       newAction: "新建操作…",
+      duplicate: "复制",
+      delete: "删除",
+      rowActions: "{name} 的操作",
+      duplicateName: "{name} 的副本",
+      deleteTitle: "删除 {name}？",
+      deleteMessage: "将删除「{name}」。此操作无法撤销。",
       sort: "排序",
       sorts: {
         name: "名称 A–Z",

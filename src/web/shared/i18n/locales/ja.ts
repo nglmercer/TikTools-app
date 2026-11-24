@@ -421,7 +421,7 @@ export default {
   connections: {
     tabs: { servers: "サーバー", webhooks: "Webhook" },
     monitor: {
-      start: "監視して自動接続", stop: "監視を停止", status: "LIVE監視：{phase}",
+      start: "監視して自動接続", startHint: "監視は「接続」を押すと開始します。配信が始まると自動的に接続します。", stop: "監視を停止", status: "LIVE監視：{phase}",
       phases: { stopped: "停止中", waiting: "LIVE待機中", checking: "クリエイターを確認中", connecting: "接続中", live: "接続済み・監視を継続中", error: "エラー後に再試行中" },
     },
 
@@ -620,6 +620,12 @@ export default {
       searchActions: "アクションを検索…",
       newEvent: "新規イベント",
       newAction: "新規アクション…",
+      duplicate: "複製",
+      delete: "削除",
+      rowActions: "{name} の操作",
+      duplicateName: "{name} のコピー",
+      deleteTitle: "{name} を削除しますか？",
+      deleteMessage: "「{name}」を削除します。この操作は取り消せません。",
       sort: "並べ替え",
       sorts: {
         name: "名前の昇順",

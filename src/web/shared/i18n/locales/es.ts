@@ -423,7 +423,7 @@ export default {
   connections: {
     tabs: { servers: 'Servidores', webhooks: 'Webhooks' },
     monitor: {
-      start: 'Vigilar y conectar automáticamente', stop: 'Detener monitor', status: 'Monitor LIVE: {phase}',
+      start: 'Vigilar y conectar automáticamente', startHint: 'El monitor se inicia al pulsar Conectar. Vigila el canal y conecta cuando esté en directo.', stop: 'Detener monitor', status: 'Monitor LIVE: {phase}',
       phases: { stopped: 'Detenido', waiting: 'Esperando el LIVE', checking: 'Consultando creador', connecting: 'Conectando', live: 'Conectado; monitor activo', error: 'Reintentando tras un error' },
     },
 
@@ -622,6 +622,12 @@ export default {
       searchActions: 'Buscar acciones…',
       newEvent: 'Nuevo evento',
       newAction: 'Nueva acción…',
+      duplicate: 'Duplicar',
+      delete: 'Eliminar',
+      rowActions: 'Acciones de {name}',
+      duplicateName: 'Copia de {name}',
+      deleteTitle: '¿Eliminar {name}?',
+      deleteMessage: 'Se eliminará «{name}». Esta acción no se puede deshacer.',
       sort: 'Ordenar',
       sorts: {
         name: 'Nombre A–Z',

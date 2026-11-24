@@ -128,23 +128,40 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     }
   };
 
-  const handleConnect = (userToConnect?: string, roomId?: string, sessionCookie = cookie.value): void => {
-    const target = normalizeUsername(userToConnect || uniqueId.value);
-    if (!target) {
-      error.value = callbacks.translate('connection.handleRequired');
-      return;
-    }
+  /** Shared by direct and monitored connections: the monitor never calls live.connect. */
+  const prepareConnection = (target: string): void => {
     error.value = '';
     if (target !== activeCreatorRef.value) callbacks.resetFeed();
-    status.value = 'connecting';
-    clearReconnect();
     activeCreator.value = target;
     activeCreatorRef.value = target;
     uniqueId.value = target;
     saveUsername(target);
     recents.value = addRecentUsername(target);
     if (openFeedAfterConnect.value) callbacks.goFeed();
+  };
+
+  const resolveTarget = (userToConnect?: string): string => {
+    const target = normalizeUsername(userToConnect || uniqueId.value);
+    if (!target) error.value = callbacks.translate('connection.handleRequired');
+    return target;
+  };
+
+  const handleConnect = (userToConnect?: string, roomId?: string, sessionCookie = cookie.value): void => {
+    const target = resolveTarget(userToConnect);
+    if (!target) return;
+    prepareConnection(target);
+    status.value = 'connecting';
+    clearReconnect();
     void requestConnect(target, sessionCookie.trim(), roomId);
+  };
+
+  /** Persists the creator and applies the feed preference before live.monitor.start. */
+  const prepareMonitoredConnection = (userToConnect?: string): string => {
+    const target = resolveTarget(userToConnect);
+    if (!target) return '';
+    prepareConnection(target);
+    clearReconnect();
+    return target;
   };
 
   const handleConnectRoom = (uniqueId: string, roomId: string): void => {
@@ -243,6 +260,7 @@ export function useConnection(control: ControlClient, callbacks: ConnectionCallb
     mergeRecentNames,
     handleConnect,
     handleConnectRoom,
+    prepareMonitoredConnection,
     handlePickLive,
     handleDisconnect,
     handleReconnect,

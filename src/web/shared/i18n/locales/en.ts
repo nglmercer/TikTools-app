@@ -421,7 +421,7 @@ export default {
   connections: {
     tabs: { servers: 'Servers', webhooks: 'Webhooks' },
     monitor: {
-      start: 'Monitor and auto-connect', stop: 'Stop monitoring', status: 'LIVE monitor: {phase}',
+      start: 'Monitor and auto-connect', startHint: 'Monitoring starts when you press Connect. It watches the creator and connects when they go live.', stop: 'Stop monitoring', status: 'LIVE monitor: {phase}',
       phases: { stopped: 'Stopped', waiting: 'Waiting for LIVE', checking: 'Checking creator', connecting: 'Connecting', live: 'Connected; monitoring remains active', error: 'Retrying after an error' },
     },
 
@@ -620,6 +620,12 @@ export default {
       searchActions: 'Search actions…',
       newEvent: 'New event',
       newAction: 'New action…',
+      duplicate: 'Duplicate',
+      delete: 'Delete',
+      rowActions: 'Actions for {name}',
+      duplicateName: 'Copy of {name}',
+      deleteTitle: 'Delete {name}?',
+      deleteMessage: '“{name}” will be deleted. This cannot be undone.',
       sort: 'Sort',
       sorts: {
         name: 'Name A–Z',

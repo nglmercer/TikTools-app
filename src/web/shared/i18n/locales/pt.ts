@@ -423,7 +423,7 @@ export default {
   connections: {
     tabs: { servers: 'Servidores', webhooks: 'Webhooks' },
     monitor: {
-      start: 'Monitorar e conectar automaticamente', stop: 'Parar monitoramento', status: 'Monitor da LIVE: {phase}',
+      start: 'Monitorar e conectar automaticamente', startHint: 'O monitor começa ao clicar em Conectar. Ele aguarda a live e conecta automaticamente.', stop: 'Parar monitoramento', status: 'Monitor da LIVE: {phase}',
       phases: { stopped: 'Parado', waiting: 'Aguardando a LIVE', checking: 'Verificando o criador', connecting: 'Conectando', live: 'Conectado; o monitoramento continua ativo', error: 'Tentando novamente após um erro' },
     },
 
@@ -622,6 +622,12 @@ export default {
       searchActions: 'Pesquisar ações…',
       newEvent: 'Novo evento',
       newAction: 'Nova ação…',
+      duplicate: 'Duplicar',
+      delete: 'Excluir',
+      rowActions: 'Ações de {name}',
+      duplicateName: 'Cópia de {name}',
+      deleteTitle: 'Excluir {name}?',
+      deleteMessage: '«{name}» será excluído. Esta ação não pode ser desfeita.',
       sort: 'Ordenar',
       sorts: {
         name: 'Nome de A–Z',

@@ -22,6 +22,14 @@ const autoConnect = computed({
     if (!value && connection.monitorStatus?.enabled) void connection.stopMonitor();
   },
 });
+// The host can stop monitoring on its own (manual disconnect, shutdown). Keep
+// the local intent in sync so the switch does not stay on with no monitor running.
+watch(
+  () => connection.monitorStatus?.enabled,
+  (enabled, previous) => {
+    if (enabled === false && previous === true) autoConnectOption.value = false;
+  },
+);
 
 const openFeedAfterConnect = computed({
   get: () => connection.openFeedAfterConnect,
@@ -48,8 +56,13 @@ function connectRoom(room: LiveChannel): void {
 }
 
 function connect(): void {
-  if (autoConnect.value) void connection.startMonitor(connection.uniqueId, useCookie.value ? connection.cookie : '');
-  else connection.handleConnect(undefined, undefined, useCookie.value ? connection.cookie : '');
+  const sessionCookie = useCookie.value ? connection.cookie : '';
+  if (autoConnect.value) {
+    const target = connection.prepareMonitoredConnection();
+    if (target) void connection.startMonitor(target, sessionCookie);
+    return;
+  }
+  connection.handleConnect(undefined, undefined, sessionCookie);
 }
 
 function selectRecent(username: string): void {
