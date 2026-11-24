@@ -30,6 +30,3 @@ pub enum Error {
     Capacity,
     VoteLimit,
 }
-
-#[cfg(test)]
-mod tests;

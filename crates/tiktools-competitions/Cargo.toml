@@ -10,3 +10,7 @@ serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
 getrandom.workspace = true
+
+[[test]]
+name = "competitions"
+path = "../../tests/rust/tiktools-competitions/competitions.rs"

@@ -379,21 +379,4 @@ mod tests {
         response.meta.as_mut().unwrap().resource_versions[0].revision = "4".into();
         assert!(validate_revocation(&response, &request, &metadata()).is_err());
     }
-
-    #[test]
-    fn receipt_shapes_reject_additional_authority_or_source_data() {
-        let original = serde_json::to_value(activation().result).unwrap();
-        for field in [
-            "record",
-            "source",
-            "authority",
-            "provenance",
-            "grant",
-            "permit",
-        ] {
-            let mut extra = original.clone();
-            extra[field] = json!({});
-            assert!(serde_json::from_value::<ApprovalActivateReceipt>(extra).is_err());
-        }
-    }
 }

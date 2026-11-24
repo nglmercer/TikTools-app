@@ -43,3 +43,15 @@ tokio = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
+
+[[test]]
+name = "native_stage"
+path = "../../tests/rust/tiktools-plugin-sdk/native_stage.rs"
+
+[[test]]
+name = "sdk"
+path = "../../tests/rust/tiktools-plugin-sdk/sdk.rs"
+
+[[test]]
+name = "native_providers"
+path = "../../tests/rust/tiktools-plugin-sdk/native_providers.rs"

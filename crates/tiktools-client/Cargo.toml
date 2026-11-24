@@ -51,3 +51,7 @@ tokio = { workspace = true, features = ["test-util"] }
 tiktools-core = { path = "../tiktools-core" }
 tempfile = "3"
 rcgen = "=0.14.10"
+
+[[test]]
+name = "automation_approval"
+path = "../../tests/rust/tiktools-client/automation_approval.rs"

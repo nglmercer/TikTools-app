@@ -11,3 +11,7 @@ publish = false
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+
+[[test]]
+name = "store"
+path = "../../tests/rust/tiktools-plugin-store/store.rs"

@@ -1,4 +1,4 @@
-use super::*;
+use tiktools_competitions::*;
 #[test]
 fn persisted_highest_score_selection_enforces_tie_policy() {
     let eligible = vec![
@@ -60,7 +60,7 @@ fn reveal_projection_keeps_winner_and_omitted_weight() {
 }
 #[test]
 fn command_index_is_scoped_reusable_and_updates_atomically() {
-    use crate::participants::CommandIndex;
+    use tiktools_competitions::participants::CommandIndex;
     let option = |id: &str, command: &str| OptionDefinition {
         id: id.into(),
         label: id.into(),
