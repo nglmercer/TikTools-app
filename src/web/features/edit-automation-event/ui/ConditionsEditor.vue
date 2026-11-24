@@ -20,6 +20,7 @@ import { useAutomationText } from '@/entities/automation/model/use-automation-te
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import IconCopy from '@/shared/ui/icon/icons/IconCopy.vue';
+import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconRecord from '@/shared/ui/icon/icons/IconRecord.vue';
@@ -47,6 +48,10 @@ const matchMode = defineModel<ConditionMatchMode>('matchMode', { default: 'and' 
 const { t, locale, operatorName } = useAutomationText();
 const id = useId();
 const recording = ref<number | null>(null);
+/** Aliases are an advanced option: hidden until requested or already in use. */
+const aliasesVisible = ref(
+  [...filters.value, ...anyOf.value.flat()].some((filter) => Boolean(captureAlias(filter.as))),
+);
 
 const fields = computed(() => conditionFields(props.trigger, locale.value));
 const modeOptions = computed(() => [
@@ -319,7 +324,7 @@ onBeforeUnmount(stopRecording);
               @update:model-value="setValue(row.index, $event)"
             />
             <BaseTextField
-              v-if="needsValue(row.filter.operator)"
+              v-if="aliasesVisible && needsValue(row.filter.operator)"
               :model-value="row.filter.as ?? ''"
               class="conditions__alias"
               size="sm"
@@ -328,6 +333,11 @@ onBeforeUnmount(stopRecording);
               spellcheck="false"
               @update:model-value="setAlias(row.index, $event)"
             />
+            <span
+              v-else-if="row.filter.as"
+              class="conditions__aliaschip"
+              :title="t('automations.conditions.alias')"
+            >{{ row.filter.as }}</span>
           </div>
           <BaseTextField
             v-if="!row.known"
@@ -365,6 +375,14 @@ onBeforeUnmount(stopRecording);
         @click="add"
       >
         <IconPlus />
+      </BaseIconButton>
+      <BaseIconButton
+        :label="t('automations.conditions.alias')"
+        size="sm"
+        :pressed="aliasesVisible"
+        @click="aliasesVisible = !aliasesVisible"
+      >
+        <IconFlow />
       </BaseIconButton>
       <div
         v-if="rows.length > 1"
@@ -438,6 +456,13 @@ onBeforeUnmount(stopRecording);
 
 .conditions__alias {
   margin-top: var(--space-1);
+}
+
+.conditions__aliaschip {
+  margin-top: var(--space-1);
+  color: var(--color-text-subtle);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
 }
 
 .conditions__option {

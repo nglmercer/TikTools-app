@@ -35,6 +35,8 @@ Template `params` are substituted when applying a template; `globals` are read a
 
 Conditions can also publish per-match values. When a filter declares a capture alias, the value that satisfied it is available while the event's actions render as `{{ match.<alias> }}` (or `{{ match.<position> }}` when no alias is set). For example, a `starts with` condition on the comment with alias `prefix` lets a log action print `{{ match.prefix }}`. Captures are bounded plain text, are only produced by the filters and alternatives that actually matched, and do not change cooldown keys.
 
+Press **+** beside a templated field to open **Insert variable**: the exact path appears on the right and choosing a row appends `{{ path }}` to the field. This event's capture paths are listed there too, but they resolve only when their condition actually matched. Give a condition an alias in the Conditions section (the **Capture as** button in the footer reveals the alias fields) to write `{{ match.<alias> }}`; otherwise use the positional `{{ match.<position> }}`.
+
 ## Review Cloud changes separately {#review-cloud-changes-separately}
 
 The Variables **Changes** control has native reviewed send, fetch, apply/adopt and withdraw operations when supported. Save local edits first, select a comparison, inspect its type and value, and choose the intended direction explicitly. Fetching a Cloud candidate is separate from applying it locally. Withdrawing a shared value is separate from deleting a local row.

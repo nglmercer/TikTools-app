@@ -28,6 +28,18 @@ describe('template variables', () => {
     expect(new Set(values).size).toBe(values.length);
   });
 
+  it('offers event captures even for a text field, after globals', () => {
+    const values = templateVariables({
+      scope: 'text', locale: 'en', globals: { score: '1' }, captures: ['match.prefix', 'match.1'],
+    });
+    expect(values.at(-2)).toEqual({
+      value: 'match.prefix',
+      label: testMessage('en', 'schemaForm.captureVariable'),
+      detail: testMessage('en', 'schemaForm.captureVariableHint'),
+    });
+    expect(values.at(-1)?.value).toBe('match.1');
+  });
+
   for (const locale of ['zh', 'ja'] as const) it(`localizes ${locale} field labels while preserving machine paths and globals`, async () => {
     await activateLocale(locale);
     const values = templateVariables({ trigger: 'tiktok.gift', scope: 'all', locale, globals: { score: '1' } });

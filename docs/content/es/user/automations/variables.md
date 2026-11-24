@@ -35,6 +35,8 @@ Los `params` se sustituyen al aplicar una plantilla; los `globals` se leen duran
 
 Las condiciones también pueden publicar valores por coincidencia. Cuando un filtro declara un alias de captura, el valor que lo satisfizo queda disponible mientras se renderizan las acciones del evento como `{{ match.<alias> }}` (o `{{ match.<posición> }}` sin alias). Por ejemplo, una condición «empieza por» sobre el comentario con el alias `prefix` permite que una acción de registro imprima `{{ match.prefix }}`. Las capturas son texto plano acotado, solo las producen los filtros y las alternativas que realmente coincidieron, y no cambian las claves de cooldown.
 
+Pulsa **+** junto a un campo compatible con plantillas para abrir **Insertar variable**: la ruta exacta aparece a la derecha y al elegir una fila se añade `{{ ruta }}` al campo. Las capturas de este evento también aparecen allí, pero solo se resuelven si su condición coincidió realmente. Asigna un alias a una condición en la sección Condiciones (el botón **Capturar como** del pie muestra los campos de alias) para escribir `{{ match.<alias> }}`; si no, usa la posición `{{ match.<posición> }}`.
+
 ## Revisar cambios de Cloud por separado {#review-cloud-changes-separately}
 
 El control **Changes** de Variables ofrece operaciones nativas revisadas de envío, consulta, aplicación/adopción y retirada cuando el host las admite. Guarda primero la edición local, selecciona una comparación, inspecciona tipo y valor y elige explícitamente la dirección. Consultar una propuesta de Cloud es distinto de aplicarla localmente. Retirar un valor compartido también es distinto de borrar una fila local.
