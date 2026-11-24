@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { externalPluginDirectories, resolvePluginsRepository } from './external-plugins.ts';
+import { externalPluginDirectories, resolvePluginsRepository } from '../../../../scripts/lib/external-plugins.ts';
 
 test('a host checkout works without any sibling plugin repository', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tiktools-standalone-'));

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildPluginUi, executableName, pluginCargoManifest, processBinaryName } from './plugin-build.ts';
+import { buildPluginUi, executableName, pluginCargoManifest, processBinaryName } from '../../../../scripts/lib/plugin-build.ts';
 
 describe('external plugin builds', () => {
   test('resolves a backend crate independently of its nested install entry', async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { selectUpdateChannels } from './update-channel.ts';
+import { selectUpdateChannels } from '../../../../scripts/lib/update-channel.ts';
 
 describe('update feed promotion', () => {
   test('stable releases advance both channels only when newer', () => {

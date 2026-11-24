@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { runSiteTask, type SiteTaskRunner } from './site-tasks.ts';
+import { runSiteTask, type SiteTaskRunner } from '../../../../scripts/lib/site-tasks.ts';
 
 function recorder() {
   const calls: string[][] = [];

@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { readWorkspaceVersion } from './bump-version.ts';
-import { validateVersions } from './check-version.ts';
+import { readWorkspaceVersion } from '../../../scripts/bump-version.ts';
+import { validateVersions } from '../../../scripts/check-version.ts';
 
 describe('release version validation', () => {
   test('rejects the historical v0.5.0 tag with 0.3.3 manifests', () => {
@@ -24,7 +24,7 @@ describe('release version validation', () => {
       const binary = join(dir, 'desktop');
       await writeFile(binary, '#!/bin/sh\nprintf "0.3.3\\n"\n');
       await chmod(binary, 0o755);
-      const root = resolve(import.meta.dir, '..');
+      const root = resolve(import.meta.dir, '..', '..', '..');
       const version = readWorkspaceVersion(await readFile(join(root, 'Cargo.toml'), 'utf8'));
       const child = Bun.spawn([process.execPath, 'scripts/check-version.ts', '--binary'], {
         cwd: root,

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { partitionTestNames } from './test-shards.ts';
+import { partitionTestNames } from '../../../../scripts/lib/test-shards.ts';
 
 test('partitions names into balanced, lossless shards', () => {
   const names = ['a', 'b', 'c', 'd', 'e'];

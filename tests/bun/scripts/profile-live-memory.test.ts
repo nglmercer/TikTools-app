@@ -9,7 +9,7 @@ import {
   windowsSnapshot,
   type ProcInfo,
   type SampleOptions,
-} from './profile-live-memory.ts';
+} from '../../../scripts/profile-live-memory.ts';
 
 function proc(overrides: Partial<ProcInfo> = {}): ProcInfo {
   return { ppid: 0, name: 'host', created: '2026-01-01T00:00:00', rss: 0, threads: 1, cpu: 0, ...overrides };

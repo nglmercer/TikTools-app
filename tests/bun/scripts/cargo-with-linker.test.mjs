@@ -8,7 +8,7 @@ import {
   resolveMsvcEnvironment,
   resolveWindowsPerlEnvironment,
   shouldLogCargoToolchain,
-} from './cargo-with-linker.mjs';
+} from '../../../scripts/cargo-with-linker.mjs';
 
 const X64_LINKER = 'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER';
 const ARM64_LINKER = 'CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER';

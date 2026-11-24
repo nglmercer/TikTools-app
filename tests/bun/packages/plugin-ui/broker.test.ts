@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
 
-import { createBrokerClient, PluginBroker } from './broker.ts';
+import { createBrokerClient, PluginBroker } from '../../../../packages/plugin-ui/src/broker.ts';
 
 type FakeWindow = {
   parent: unknown;

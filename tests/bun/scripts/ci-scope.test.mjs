@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { eventComparison, fullScope, scopeForPaths, selectScope } from './ci-scope.mjs';
+import { eventComparison, fullScope, scopeForPaths, selectScope } from '../../../scripts/ci-scope.mjs';
 
 test('documentation changes do not compile native applications', () => {
   assert.ok(Object.values(scopeForPaths(['docs/content/es/user/live/feed.md', 'docs/package.json', 'README.md'])).every((value) => value === false));

@@ -12,7 +12,7 @@ import {
   MAX_POLL_EVENTS,
   pollResult,
   type PluginCall,
-} from './plugin.ts';
+} from '../../../../packages/plugin-sdk/src/plugin.ts';
 
 test('action helpers build the host wire format', () => {
   expect(actionResult('done', { logs: ['ok'] })).toEqual({ summary: 'done', logs: ['ok'] });
@@ -87,7 +87,7 @@ const PARSER_KEYS = [
 ];
 
 test('the manifest schema covers every key the host parser reads', () => {
-  const schema = JSON.parse(readFileSync(join(import.meta.dir, '..', 'plugin.schema.json'), 'utf8')) as {
+  const schema = JSON.parse(readFileSync(join(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk', 'plugin.schema.json'), 'utf8')) as {
     properties: Record<string, unknown>;
     required: string[];
   };
@@ -96,10 +96,10 @@ test('the manifest schema covers every key the host parser reads', () => {
 });
 
 test('repository manifests only use keys the schema knows', () => {
-  const schema = JSON.parse(readFileSync(join(import.meta.dir, '..', 'plugin.schema.json'), 'utf8')) as {
+  const schema = JSON.parse(readFileSync(join(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk', 'plugin.schema.json'), 'utf8')) as {
     properties: Record<string, unknown>;
   };
-  const fixtures = join(import.meta.dir, '..', '..', '..', 'tests', 'fixtures', 'plugins');
+  const fixtures = join(import.meta.dir, '..', '..', '..', '..', 'tests', 'fixtures', 'plugins');
   const manifests = readdirSync(fixtures).filter((name) => name.endsWith('.plugin.json'));
   expect(manifests.length).toBeGreaterThan(0);
   for (const manifest of manifests) {

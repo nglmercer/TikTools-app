@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { assertWidgetBundle, GATEWAY_WIDGET_KINDS } from './gateway-widgets.ts';
+import { assertWidgetBundle, GATEWAY_WIDGET_KINDS } from '../../../../scripts/lib/gateway-widgets.ts';
 
 async function sandbox(): Promise<string> {
   const dir = join(tmpdir(), `tiktools-gateway-widgets-${Date.now()}-${Math.random().toString(36).slice(2)}`);

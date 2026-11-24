@@ -11,8 +11,8 @@ import {
   stageNativeBuildArgs,
   stageNativeExecutable,
   typescriptCompilerArgs,
-} from './napi-vm.ts';
-import { resolveRustTarget } from './plugin-targets.ts';
+} from '../../../../scripts/lib/napi-vm.ts';
+import { resolveRustTarget } from '../../../../scripts/lib/plugin-targets.ts';
 
 const linux = resolveRustTarget('x86_64-unknown-linux-gnu');
 const windows = resolveRustTarget('x86_64-pc-windows-msvc');

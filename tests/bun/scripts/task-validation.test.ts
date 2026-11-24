@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 
-const root = join(import.meta.dir, '..');
+const root = join(import.meta.dir, '..', '..', '..');
 
 function task(...args: string[]): { code: number; output: string } {
   const result = Bun.spawnSync({

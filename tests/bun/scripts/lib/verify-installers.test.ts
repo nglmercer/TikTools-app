@@ -2,7 +2,7 @@ import { readFile, chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { compareGlibcVersions, verifyAppImageAppRun, verifyAppImageGlibcBaseline, verifyAppImageWebKit, verifyDebDependencies, verifyInstaller, verifyLinuxDesktop } from './verify-installers.ts';
+import { compareGlibcVersions, verifyAppImageAppRun, verifyAppImageGlibcBaseline, verifyAppImageWebKit, verifyDebDependencies, verifyInstaller, verifyLinuxDesktop } from '../../../../scripts/lib/verify-installers.ts';
 
 test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle without bundled plugins and rejects changed web assets', async () => {
   const root = await mkdtemp(join(tmpdir(), 'tiktools-deb-bundle-'));
@@ -28,7 +28,7 @@ test.skipIf(process.platform !== 'linux')('DEB verifies the current bundle witho
     await chmod(binary, 0o755);
     await copyFile(binary, join(data, 'usr/bin/tiktools-desktop'));
     await writeFile(join(data, 'usr/share/applications/tiktools-desktop.desktop'), '[Desktop Entry]\nType=Application\nExec=tiktools-desktop\nIcon=tiktools-desktop\n');
-    await copyFile(resolve(import.meta.dir, '../../assets/tiktools-icon.png'), join(data, 'usr/share/icons/hicolor/256x256/apps/tiktools-desktop.png'));
+    await copyFile(resolve(import.meta.dir, '../../../../assets/tiktools-icon.png'), join(data, 'usr/share/icons/hicolor/256x256/apps/tiktools-desktop.png'));
     await writeFile(join(control, 'control'), 'Depends: libgtk-3-0, libwebkit2gtk-4.1-0\n');
     await writeFile(join(root, 'debian-binary'), '2.0\n');
     const pack = () => {
@@ -77,7 +77,7 @@ describe('Linux installer metadata', () => {
       const desktop = join(applications, 'tiktools-desktop.desktop');
       await writeFile(desktop, '[Desktop Entry]\nType=Application\nExec=tiktools-desktop\nIcon=tiktools-desktop\n');
       await expect(verifyLinuxDesktop(root)).rejects.toThrow();
-      await copyFile(resolve(import.meta.dir, '../../assets/tiktools-icon.png'), join(icons, 'tiktools-desktop.png'));
+      await copyFile(resolve(import.meta.dir, '../../../../assets/tiktools-icon.png'), join(icons, 'tiktools-desktop.png'));
       await expect(verifyLinuxDesktop(root)).resolves.toBeUndefined();
       await writeFile(desktop, '[Desktop Entry]\nType=Application\nExec=other\nIcon=tiktools-desktop\n');
       await expect(verifyLinuxDesktop(root)).rejects.toThrow();
@@ -112,7 +112,7 @@ describe('Linux installer metadata', () => {
       await expect(verifyAppImageWebKit(root)).rejects.toThrow('missing GStreamer plugin');
       const gst = join(root, 'usr/lib/gstreamer-1.0');
       await mkdir(gst, { recursive: true });
-      const plugins = (await readFile(resolve(import.meta.dir, '../appimage/gstreamer-plugins.txt'), 'utf8')).trim().split(/\s+/);
+      const plugins = (await readFile(resolve(import.meta.dir, '../../../../scripts/appimage/gstreamer-plugins.txt'), 'utf8')).trim().split(/\s+/);
       for (const plugin of plugins) await writeFile(join(gst, `libgst${plugin}.so`), elf);
       await expect(verifyAppImageWebKit(root)).rejects.toThrow('missing GStreamer plugin scanner');
       await mkdir(join(root, 'usr/libexec/gstreamer-1.0'), { recursive: true });

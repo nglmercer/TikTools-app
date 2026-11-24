@@ -14,7 +14,7 @@ import {
   parseWhoamiSid,
   waitForHttp,
   windowsUserSid,
-} from './dev-launch.ts';
+} from '../../../../scripts/lib/dev-launch.ts';
 
 describe('dev-launch', () => {
   test('devUrl pins loopback host', () => {

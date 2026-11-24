@@ -25,7 +25,7 @@ async function loadConfig(query: string, adapter: string | undefined) {
   if (adapter === undefined) delete process.env.TIKTOOLS_DEV_WEB_ADAPTER;
   else process.env.TIKTOOLS_DEV_WEB_ADAPTER = adapter;
   process.env.TIKTOOLS_WEB_PORT = '3999';
-  const module = (await import(`../../vite.config.ts?${query}`)) as { default: { plugins: Array<{ name?: string }>; server: { proxy?: Record<string, unknown> } } };
+  const module = (await import(`../../../../vite.config.ts?${query}`)) as { default: { plugins: Array<{ name?: string }>; server: { proxy?: Record<string, unknown> } } };
   return module.default;
 }
 

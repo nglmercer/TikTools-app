@@ -2,7 +2,7 @@ import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } fro
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test } from 'bun:test';
-import { verifyAppImageWebKit, verifyAppImageXkb } from './verify-installers.ts';
+import { verifyAppImageWebKit, verifyAppImageXkb } from '../../../../scripts/lib/verify-installers.ts';
 
 const runtimes = ['libxkbcommon-x11.so.0', 'libxkbcommon.so.0', 'libxcb-xkb.so.1'];
 
@@ -63,8 +63,8 @@ test.skipIf(process.platform !== 'linux' || !linuxdeploy)('linuxdeploy plugin bu
       await copyFile('/bin/true', join(helperDir, helper));
     }
     const plugin = join(tools, 'linuxdeploy-plugin-tiktoolswebkit.sh');
-    await copyFile(resolve(import.meta.dir, '../appimage/linuxdeploy-plugin-tiktoolswebkit.sh'), plugin);
-    await copyFile(resolve(import.meta.dir, '../appimage/gstreamer-plugins.txt'), join(tools, 'gstreamer-plugins.txt'));
+    await copyFile(resolve(import.meta.dir, '../../../../scripts/appimage/linuxdeploy-plugin-tiktoolswebkit.sh'), plugin);
+    await copyFile(resolve(import.meta.dir, '../../../../scripts/appimage/gstreamer-plugins.txt'), join(tools, 'gstreamer-plugins.txt'));
     await symlink(resolve(linuxdeploy!), join(tools, 'linuxdeploy-x86_64.AppImage'));
     const plugins = (await readFile(join(tools, 'gstreamer-plugins.txt'), 'utf8')).trim().split(/\s+/);
     for (const name of plugins) await copyFile('/bin/true', join(hostLib, `libgst${name}.so`));

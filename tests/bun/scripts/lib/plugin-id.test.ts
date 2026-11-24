@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { PLUGIN_ID_PATTERN, assertPluginId, isValidPluginId } from './plugin-id.ts';
+import { PLUGIN_ID_PATTERN, assertPluginId, isValidPluginId } from '../../../../scripts/lib/plugin-id.ts';
 
 type Corpus = { valid: Array<{ label: string; id: string }>; invalid: Array<{ label: string; id: string }> };
 
-const sdkRoot = resolve(import.meta.dir, '..', '..', 'packages', 'plugin-sdk');
+const sdkRoot = resolve(import.meta.dir, '..', '..', '..', '..', 'packages', 'plugin-sdk');
 // The same file is read by the Rust host test (`validation.rs`).
 const corpus = JSON.parse(readFileSync(resolve(sdkRoot, 'plugin-id-corpus.json'), 'utf8')) as Corpus;
 const schema = JSON.parse(readFileSync(resolve(sdkRoot, 'plugin.schema.json'), 'utf8')) as {

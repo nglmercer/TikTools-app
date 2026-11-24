@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ProcessCancelled, createProcessRunner, exitCodeForSignal, forwardTerminationSignals } from './process-runner.ts';
+import { ProcessCancelled, createProcessRunner, exitCodeForSignal, forwardTerminationSignals } from '../../../../scripts/lib/process-runner.ts';
 
 const bun = process.execPath;
 const quiet = { cwd: process.cwd(), log: () => {} };

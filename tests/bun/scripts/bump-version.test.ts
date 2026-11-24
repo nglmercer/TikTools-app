@@ -14,7 +14,7 @@ import {
   setWorkspaceVersion,
   updateStandaloneLockfiles,
   usesWorkspaceVersion,
-} from './bump-version.ts';
+} from '../../../scripts/bump-version.ts';
 
 describe('normalizeVersion', () => {
   test('compares prereleases with SemVer precedence and rejects downgrades', () => {

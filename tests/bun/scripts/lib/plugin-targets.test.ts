@@ -4,7 +4,7 @@ import {
   detectHostTarget,
   pluginTargetFromRustTarget,
   resolveRustTarget,
-} from './plugin-targets.ts';
+} from '../../../../scripts/lib/plugin-targets.ts';
 
 describe('plugin target mapping', () => {
   const cases: Array<[string, string]> = [

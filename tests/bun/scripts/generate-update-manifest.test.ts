@@ -2,9 +2,9 @@ import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { beforeAll, describe, expect, test } from 'bun:test';
-import { readWorkspaceVersion } from './bump-version.ts';
+import { readWorkspaceVersion } from '../../../scripts/bump-version.ts';
 
-const root = resolve(import.meta.dir, '..');
+const root = resolve(import.meta.dir, '..', '..', '..');
 let verifyBin: string | undefined;
 
 // Build the verifier once; each CLI invocation below can then reuse the

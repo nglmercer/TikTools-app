@@ -8,7 +8,7 @@ import {
   SITE_MANIFEST, loadSiteArtifact, parseSiteManifest, planSiteUpdate,
   publicationRepository, publishSite, publishUpdateFeed, reapplyWithCas,
   type ExistingFile, type SiteArtifact, type SiteManifest,
-} from './publish-site.ts';
+} from '../../../scripts/publish-site.ts';
 
 const base = '/TikTools-app/';
 const encoder = new TextEncoder();
@@ -291,7 +291,7 @@ describe('real Git publication against temporary local repositories', () => {
 });
 
 test('site publication is manual, branch-bound and coordinated with the release writer', async () => {
-  const workflow = await readFile(new URL('../.github/workflows/site.yml', import.meta.url), 'utf8');
+  const workflow = await readFile(new URL('../../../.github/workflows/site.yml', import.meta.url), 'utf8');
   expect(workflow).toContain("github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/remake'");
   expect(workflow).not.toContain('false &&');
   expect(workflow).toContain('vars.RELEASE_REPO || github.repository');
@@ -299,7 +299,7 @@ test('site publication is manual, branch-bound and coordinated with the release 
   expect(workflow).toContain('bun scripts/task.ts docs test');
   expect(workflow).toContain('bun scripts/task.ts site build');
   expect(workflow).not.toContain('cargo ');
-  const release = await readFile(new URL('../.github/workflows/release.yml', import.meta.url), 'utf8');
+  const release = await readFile(new URL('../../../.github/workflows/release.yml', import.meta.url), 'utf8');
   const feedStep = release.split('      - name: Publish update feed')[1]?.split('      - name: Wait for the live update feed')[0] ?? '';
   expect(feedStep).toContain('bun scripts/publish-site.ts --feed-candidate update-candidate');
   expect(feedStep).not.toContain('git clone');

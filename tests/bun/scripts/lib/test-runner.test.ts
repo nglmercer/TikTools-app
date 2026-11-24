@@ -15,8 +15,8 @@ import {
   runTargetedTests,
   rustFilterMatchesList,
   validateRustCrate,
-} from './test-runner.ts';
-import { ProcessCancelled, createProcessRunner } from './process-runner.ts';
+} from '../../../../scripts/lib/test-runner.ts';
+import { ProcessCancelled, createProcessRunner } from '../../../../scripts/lib/process-runner.ts';
 
 const CRATES = ['tiktools-cli', 'tiktools-core', 'tiktools-desktop'];
 
