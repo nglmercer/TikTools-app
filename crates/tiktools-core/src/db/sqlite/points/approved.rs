@@ -147,7 +147,10 @@ impl DatabaseManager {
         )?;
         let mut db = self.open(&self.points_path())?;
         db.busy_timeout(timeout)?;
-        db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA foreign_keys=ON; PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         // Bound every stored string before generic command recovery copies
         // metadata or parses JSON into Rust. Exact resource identity is checked

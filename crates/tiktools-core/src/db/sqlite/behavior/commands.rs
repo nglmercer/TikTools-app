@@ -198,7 +198,10 @@ impl DatabaseManager {
             &command.request.expected_revision,
         )?;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let identity = operation
             .authorize_remote(auth)

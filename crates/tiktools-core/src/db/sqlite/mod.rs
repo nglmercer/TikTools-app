@@ -3,6 +3,13 @@
 //! Domain payloads that have not yet gained a Rust type stay as JSON so an
 //! existing database can be opened without a destructive migration.
 
+/// `synchronous` level applied to every SQLite connection. Tests run with
+/// `OFF`: process-death tests kill the process, not the OS, so committed
+/// transactions still survive in the page cache while each commit skips the
+/// ~40ms fsync that dominates fixture and runtime-write latency. Integration
+/// tests link the non-`cfg(test)` library and keep production `FULL`.
+pub(crate) const SQLITE_SYNCHRONOUS: &str = if cfg!(test) { "OFF" } else { "FULL" };
+
 mod aggregations;
 mod automation_library;
 mod behavior;

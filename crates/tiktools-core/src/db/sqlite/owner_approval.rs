@@ -426,7 +426,10 @@ impl DatabaseManager {
             return Err(invalid());
         }
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if pending(&tx, host)?.is_some()
             || super::owner_adoption::has_pending(&tx, host)?
@@ -467,7 +470,10 @@ impl DatabaseManager {
         rejection: Option<&str>,
     ) -> Result<(), DatabaseError> {
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let Some(stored) = pending(&tx, host)? else {
             return Ok(());

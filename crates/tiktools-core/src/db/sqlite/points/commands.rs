@@ -133,7 +133,10 @@ impl DatabaseManager {
         let hash = hash(operation, command)?;
         let mut db = self.open(&self.points_path())?;
         db.busy_timeout(admission)?;
-        db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA foreign_keys=ON; PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         #[cfg(test)]
         if let Some(pause) = after_admission {

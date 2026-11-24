@@ -257,7 +257,10 @@ impl DatabaseManager {
         let values = legacy_values(self)?;
         let catalog = legacy_catalog(&values)?;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if !initialized(&tx)? {
             let version: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM control_resource_versions WHERE kind='automation' AND scope='library')",[],|row|row.get(0))?;
@@ -376,7 +379,10 @@ impl DatabaseManager {
         }
         self.ensure_automation_library()?;
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if super::owner_adoption::has_pending(&tx, host)?
             || super::owner_approval::has_pending(&tx, host)?

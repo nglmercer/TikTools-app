@@ -126,7 +126,10 @@ impl DatabaseManager {
         apply: impl FnOnce(&Transaction<'_>) -> Result<T, DatabaseError>,
     ) -> Result<T, DatabaseError> {
         let mut db = self.open(&self.automation_path())?;
-        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let result = apply(&tx)?;
         #[cfg(test)]
@@ -210,7 +213,10 @@ impl DatabaseManager {
         enabled: bool,
     ) -> Result<Value, DatabaseError> {
         let mut connection = self.open(&self.automation_path())?;
-        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        connection.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         advance_plugin_source(&tx, id)?;
         tx.execute(
@@ -226,7 +232,10 @@ impl DatabaseManager {
     #[allow(dead_code)]
     pub(crate) fn remove_plugin_state(&self, id: &str) -> Result<(), DatabaseError> {
         let mut connection = self.open(&self.automation_path())?;
-        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        connection.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         advance_plugin_source(&tx, id)?;
         tx.execute("DELETE FROM behavior_plugins WHERE id = ?", [id])?;
@@ -261,7 +270,10 @@ impl DatabaseManager {
             return Err(DatabaseError::Invalid("invalid plugin package id".into()));
         }
         let mut connection = self.open(&self.automation_path())?;
-        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        connection.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let generation = advance_plugin_source(&tx, id)?;
         if mark_untracked {
@@ -286,7 +298,10 @@ impl DatabaseManager {
         generation: i64,
     ) -> Result<bool, DatabaseError> {
         let mut connection = self.open(&self.automation_path())?;
-        connection.execute_batch("PRAGMA synchronous=FULL;")?;
+        connection.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let current: Option<i64> = tx
             .query_row(

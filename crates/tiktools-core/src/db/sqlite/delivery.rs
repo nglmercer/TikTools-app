@@ -310,7 +310,10 @@ impl DatabaseManager {
         } else {
             self.automation_path()
         })?;
-        db.execute_batch("PRAGMA foreign_keys=ON; PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA foreign_keys=ON; PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let timestamp = now();
         for token in tokens.iter().filter(|token| belongs(token)) {

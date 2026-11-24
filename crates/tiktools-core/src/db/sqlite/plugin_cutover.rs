@@ -43,9 +43,12 @@ impl DatabaseManager {
             db.busy_timeout(std::time::Duration::ZERO)
                 .map_err(DatabaseError::from)
                 .map_err(inventory_db_error)?;
-            db.execute_batch("PRAGMA synchronous=FULL")
-                .map_err(DatabaseError::from)
-                .map_err(inventory_db_error)?;
+            db.execute_batch(&format!(
+                "PRAGMA synchronous={}",
+                crate::db::sqlite::SQLITE_SYNCHRONOUS
+            ))
+            .map_err(DatabaseError::from)
+            .map_err(inventory_db_error)?;
             let tx = db
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(DatabaseError::from)

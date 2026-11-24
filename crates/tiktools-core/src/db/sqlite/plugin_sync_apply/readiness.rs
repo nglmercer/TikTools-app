@@ -14,7 +14,10 @@ impl DatabaseManager {
         }
         let encoded = payload(intent)?;
         let db = self.open(&self.automation_path())?;
-        db.execute_batch("PRAGMA synchronous=FULL;")?;
+        db.execute_batch(&format!(
+            "PRAGMA synchronous={};",
+            crate::db::sqlite::SQLITE_SYNCHRONOUS
+        ))?;
         let changed = db.execute(
             "UPDATE plugin_sync_apply_intents SET phase='ready' WHERE intent_id=?1 AND plugin_id=?2
              AND payload_json=?3 AND phase='prepared' AND EXISTS(
