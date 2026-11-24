@@ -24,15 +24,7 @@ impl Fixture {
             std::process::id(),
             fastrand::u64(..)
         ));
-        let paths = paths(&root);
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
+        let paths = crate::db::test_templates::materialize(&root);
         let db = DatabaseManager::new(paths);
         let service = CollaborationService::open(&root.join("identity")).unwrap();
         let mut config = service.configuration().unwrap();

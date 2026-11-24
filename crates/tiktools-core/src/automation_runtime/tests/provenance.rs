@@ -15,24 +15,7 @@ fn fixture() -> (Arc<AppCore>, std::path::PathBuf) {
         std::process::id(),
         fastrand::u64(..)
     ));
-    let paths = AppPaths {
-        data: root.join("data"),
-        plugins: root.join("plugins"),
-        plugin_data: root.join("plugin-data"),
-        builtin_plugins: root.join("absent-builtin"),
-        development_plugins: None,
-        logs: root.join("logs"),
-        temp: root.join("temp"),
-        root: root.clone(),
-    };
-    paths.ensure_directories().unwrap();
-    for path in [
-        paths.points_database(),
-        paths.automation_database(),
-        paths.analytics_database(),
-    ] {
-        std::fs::File::create(path).unwrap();
-    }
+    let paths = crate::db::test_templates::materialize(&root);
     let core = reopen(paths);
     core.points
         .award_points(

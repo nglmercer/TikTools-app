@@ -33,19 +33,11 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        let paths = paths(std::env::temp_dir().join(format!(
+        let paths = crate::db::test_templates::materialize(&std::env::temp_dir().join(format!(
             "tt-owner-library-{}-{}",
             std::process::id(),
             fastrand::u64(..)
         )));
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
         Self {
             core: Some(open(&paths)),
             paths,
@@ -613,139 +605,159 @@ fn crash_child() {
     panic!("library crash hook did not terminate the child");
 }
 
-#[test]
-fn actual_process_termination_for_all_library_operations_recovers_original_receipts_without_replay()
-{
-    for operation in [
-        OwnerLibraryOperation::CreateProfile,
-        OwnerLibraryOperation::SwitchProfile,
-        OwnerLibraryOperation::DeleteProfile,
-        OwnerLibraryOperation::ApplyTemplate,
-        OwnerLibraryOperation::ImportProfile,
-        OwnerLibraryOperation::AssignRecord,
-        OwnerLibraryOperation::ImportTemplates,
-        OwnerLibraryOperation::DeleteTemplate,
+fn actual_process_termination_matrix_case(operation: OwnerLibraryOperation) {
+    for (stage, committed, code) in [
+        ("before_intent", false, 90),
+        ("after_intent", false, 90),
+        ("before_dispatch", false, 90),
+        ("business_before", false, 91),
+        ("business_after", true, 92),
+        ("after_effect", true, 90),
+        ("after_record", true, 90),
     ] {
-        for (stage, committed, code) in [
-            ("before_intent", false, 90),
-            ("after_intent", false, 90),
-            ("before_dispatch", false, 90),
-            ("business_before", false, 91),
-            ("business_after", true, 92),
-            ("after_effect", true, 90),
-            ("after_record", true, 90),
-        ] {
-            let mut f = Fixture::new();
-            f.seed();
-            let before = f
-                .core()
-                .owner_library_snapshot()
-                .unwrap()
-                .revision
-                .parse::<i64>()
-                .unwrap();
-            drop(f.core.take());
-            let mut child = std::process::Command::new(std::env::current_exe().unwrap());
-            child
-                .args([
-                    "--exact",
-                    "control::owner_library::tests::crash_child",
-                    "--ignored",
-                    "--nocapture",
-                ])
-                .env("TIKTOOLS_OWNER_LIBRARY_ROOT", &f.paths.root)
-                .env(
-                    "TIKTOOLS_OWNER_LIBRARY_OPERATION",
-                    serde_json::to_value(operation).unwrap().as_str().unwrap(),
-                );
-            if let Some(stage) = stage.strip_prefix("business_") {
-                child.env("TIKTOOLS_BEHAVIOR_CRASH", stage);
-            } else {
-                child.env("TIKTOOLS_OWNER_LIBRARY_CRASH", stage);
-            }
-            let output = child.output().unwrap();
-            assert_eq!(
-                output.status.code(),
-                Some(code),
-                "{operation:?}/{stage}: {}",
-                String::from_utf8_lossy(&output.stderr)
+        let mut f = Fixture::new();
+        f.seed();
+        let before = f
+            .core()
+            .owner_library_snapshot()
+            .unwrap()
+            .revision
+            .parse::<i64>()
+            .unwrap();
+        drop(f.core.take());
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+        child
+            .args([
+                "--exact",
+                "control::owner_library::tests::crash_child",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("TIKTOOLS_OWNER_LIBRARY_ROOT", &f.paths.root)
+            .env(
+                "TIKTOOLS_OWNER_LIBRARY_OPERATION",
+                serde_json::to_value(operation).unwrap().as_str().unwrap(),
             );
-            f.core = Some(open(&f.paths));
-            let mut newer = None;
-            if committed {
-                // A newer owner write (including recreation after profile
-                // deletion) precedes outcome lookup, so replay would be visible.
-                let old = f
-                    .core()
-                    .automation_get_versioned(AutomationKind::Action, "existing-a")
-                    .unwrap();
-                let revision = old.resource_versions[0].revision.clone();
-                let mut source = action("existing-a");
-                source["name"] = json!("newer after process death");
-                if old.value.is_some() {
-                    f.core()
-                        .automation_update_versioned(
-                            AutomationKind::Action,
-                            "existing-a",
-                            source.clone(),
-                            Some(&revision),
-                        )
-                        .unwrap();
-                } else {
-                    f.core()
-                        .automation_create_versioned(
-                            AutomationKind::Action,
-                            source.clone(),
-                            Some(&revision),
-                        )
-                        .unwrap();
-                }
-                newer = Some(source);
-            }
-            let resolved = f.core().owner_library_resolve().unwrap();
-            if committed {
-                assert!(resolved.pending.is_none());
-                assert_eq!(resolved.recent.len(), 1);
-                let row = &resolved.recent[0];
-                assert_eq!(row.outcome, OwnerLibraryOutcome::Succeeded);
-                assert_eq!(
-                    row.receipt.as_ref().unwrap().revision,
-                    (before + 1).to_string()
-                );
-                assert_eq!(
-                    f.core()
-                        .automation_get(AutomationKind::Action, "existing-a")
-                        .unwrap(),
-                    newer.unwrap()
-                );
-                let snapshot = f.core().owner_library_snapshot().unwrap();
-                assert_ne!(
-                    row.receipt.as_ref().unwrap().definition_digest,
-                    snapshot.definition_digest
-                );
-            } else if stage == "before_intent" {
-                assert!(resolved.pending.is_none());
-                assert!(resolved.recent.is_empty());
-            } else {
-                let pending = resolved.pending.unwrap();
-                let archived = f
-                    .core()
-                    .owner_library_review_unknown(OwnerLibraryReviewUnknown {
-                        command_id: pending.command_id,
-                        acknowledge_unknown: true,
-                    })
-                    .unwrap();
-                assert_eq!(
-                    archived.recent[0].outcome,
-                    OwnerLibraryOutcome::ReviewedUnknown
-                );
-            }
-            assert_eq!(
-                f.core().owner_library_snapshot().unwrap().revision,
-                (before + i64::from(committed)).to_string()
-            );
-            assert_eq!(f.db().query_row("SELECT count(*) FROM control_commands WHERE method='automation.library.apply'",[],|row|row.get::<_,i64>(0)).unwrap(),i64::from(committed));
-            assert_eq!(f.db().query_row("SELECT count(*) FROM control_command_outbox o JOIN control_command_resources l ON l.event_id=o.event_id WHERE o.method='automation.library.apply'",[],|row|row.get::<_,i64>(0)).unwrap(),i64::from(committed));
+        if let Some(stage) = stage.strip_prefix("business_") {
+            child.env("TIKTOOLS_BEHAVIOR_CRASH", stage);
+        } else {
+            child.env("TIKTOOLS_OWNER_LIBRARY_CRASH", stage);
         }
+        let output = child.output().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(code),
+            "{operation:?}/{stage}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        f.core = Some(open(&f.paths));
+        let mut newer = None;
+        if committed {
+            // A newer owner write (including recreation after profile
+            // deletion) precedes outcome lookup, so replay would be visible.
+            let old = f
+                .core()
+                .automation_get_versioned(AutomationKind::Action, "existing-a")
+                .unwrap();
+            let revision = old.resource_versions[0].revision.clone();
+            let mut source = action("existing-a");
+            source["name"] = json!("newer after process death");
+            if old.value.is_some() {
+                f.core()
+                    .automation_update_versioned(
+                        AutomationKind::Action,
+                        "existing-a",
+                        source.clone(),
+                        Some(&revision),
+                    )
+                    .unwrap();
+            } else {
+                f.core()
+                    .automation_create_versioned(
+                        AutomationKind::Action,
+                        source.clone(),
+                        Some(&revision),
+                    )
+                    .unwrap();
+            }
+            newer = Some(source);
+        }
+        let resolved = f.core().owner_library_resolve().unwrap();
+        if committed {
+            assert!(resolved.pending.is_none());
+            assert_eq!(resolved.recent.len(), 1);
+            let row = &resolved.recent[0];
+            assert_eq!(row.outcome, OwnerLibraryOutcome::Succeeded);
+            assert_eq!(
+                row.receipt.as_ref().unwrap().revision,
+                (before + 1).to_string()
+            );
+            assert_eq!(
+                f.core()
+                    .automation_get(AutomationKind::Action, "existing-a")
+                    .unwrap(),
+                newer.unwrap()
+            );
+            let snapshot = f.core().owner_library_snapshot().unwrap();
+            assert_ne!(
+                row.receipt.as_ref().unwrap().definition_digest,
+                snapshot.definition_digest
+            );
+        } else if stage == "before_intent" {
+            assert!(resolved.pending.is_none());
+            assert!(resolved.recent.is_empty());
+        } else {
+            let pending = resolved.pending.unwrap();
+            let archived = f
+                .core()
+                .owner_library_review_unknown(OwnerLibraryReviewUnknown {
+                    command_id: pending.command_id,
+                    acknowledge_unknown: true,
+                })
+                .unwrap();
+            assert_eq!(
+                archived.recent[0].outcome,
+                OwnerLibraryOutcome::ReviewedUnknown
+            );
+        }
+        assert_eq!(
+            f.core().owner_library_snapshot().unwrap().revision,
+            (before + i64::from(committed)).to_string()
+        );
+        assert_eq!(
+            f.db()
+                .query_row(
+                    "SELECT count(*) FROM control_commands WHERE method='automation.library.apply'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            i64::from(committed)
+        );
+        assert_eq!(f.db().query_row("SELECT count(*) FROM control_command_outbox o JOIN control_command_resources l ON l.event_id=o.event_id WHERE o.method='automation.library.apply'",[],|row|row.get::<_,i64>(0)).unwrap(),i64::from(committed));
     }
+}
+
+macro_rules! owner_library_process_death {
+    ($($name:ident => $op:expr),+ $(,)?) => {
+        $(
+            #[test]
+            fn $name() {
+                actual_process_termination_matrix_case($op);
+            }
+        )+
+    };
+}
+
+// Each operation is its own test so nextest runs the matrix in parallel;
+// every case already uses PID+random isolated roots and child processes.
+owner_library_process_death! {
+    process_termination_create_profile => OwnerLibraryOperation::CreateProfile,
+    process_termination_switch_profile => OwnerLibraryOperation::SwitchProfile,
+    process_termination_delete_profile => OwnerLibraryOperation::DeleteProfile,
+    process_termination_apply_template => OwnerLibraryOperation::ApplyTemplate,
+    process_termination_import_profile => OwnerLibraryOperation::ImportProfile,
+    process_termination_assign_record => OwnerLibraryOperation::AssignRecord,
+    process_termination_import_templates => OwnerLibraryOperation::ImportTemplates,
+    process_termination_delete_template => OwnerLibraryOperation::DeleteTemplate,
 }

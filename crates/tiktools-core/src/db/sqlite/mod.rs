@@ -63,6 +63,8 @@ mod plugin_sync_rebase;
 pub(crate) use plugin_sync::{LocalPluginSyncIntent, PluginSyncOutboxEntry, UntrackedPluginReview};
 mod schema;
 #[cfg(test)]
+pub(crate) mod test_templates;
+#[cfg(test)]
 mod tests;
 mod util;
 mod workflows;

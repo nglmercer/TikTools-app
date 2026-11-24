@@ -526,16 +526,8 @@ fn crash_child() {
     panic!("process-death failpoint did not terminate");
 }
 
-#[test]
-fn process_death_at_acceptance_handoff_sink_and_outcome_never_replays_uncertainty() {
-    for (stage, code) in [
-        ("before_accept", 86),
-        ("after_accept", 87),
-        ("before_dispatch", 86),
-        ("after_dispatch", 87),
-        ("after_sink", 88),
-        ("after_outcome", 89),
-    ] {
+fn process_death_matrix_case(stage: &'static str, code: i32) {
+    {
         let f = Fixture::new();
         let child = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
@@ -578,4 +570,36 @@ fn process_death_at_acceptance_handoff_sink_and_outcome_never_replays_uncertaint
             "{stage}"
         );
     }
+}
+
+// Each stage is its own test so nextest runs them in parallel; every case
+// already uses PID+random isolated roots and child processes.
+#[test]
+fn process_death_before_accept() {
+    process_death_matrix_case("before_accept", 86);
+}
+
+#[test]
+fn process_death_after_accept() {
+    process_death_matrix_case("after_accept", 87);
+}
+
+#[test]
+fn process_death_before_dispatch() {
+    process_death_matrix_case("before_dispatch", 86);
+}
+
+#[test]
+fn process_death_after_dispatch() {
+    process_death_matrix_case("after_dispatch", 87);
+}
+
+#[test]
+fn process_death_after_sink() {
+    process_death_matrix_case("after_sink", 88);
+}
+
+#[test]
+fn process_death_after_outcome() {
+    process_death_matrix_case("after_outcome", 89);
 }

@@ -90,15 +90,7 @@ impl Fixture {
             std::process::id(),
             fastrand::u64(..)
         ));
-        let paths = paths(&root);
-        paths.ensure_directories().unwrap();
-        for p in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(p).unwrap();
-        }
+        let paths = crate::db::test_templates::materialize(&root);
         let core = open_core(&paths);
         let author = author(&core);
         Self {
@@ -877,107 +869,116 @@ fn owner_approval_crash_child() {
     panic!("native approval failpoint did not terminate");
 }
 
-#[test]
-fn real_process_death_around_native_intent_business_commit_and_result_never_replays() {
-    for operation in ["activate", "revoke"] {
-        for stage in [
-            "before_intent",
-            "after_intent",
-            "before_dispatch",
-            "before_business_commit",
-            "after_business_commit",
-            "after_effect",
-            "after_record",
-        ] {
-            let mut f = Fixture::new();
-            f.graph();
-            if operation == "revoke" {
-                f.core()
-                    .owner_approval_submit(f.activate(AutomationKind::Event, "rule"))
-                    .unwrap();
-            }
-            let before = f.revision(AutomationKind::Event, "rule");
-            let commands = f.commands();
-            drop(f.core.take());
-            let child = std::process::Command::new(std::env::current_exe().unwrap())
-                .args([
-                    "--exact",
-                    "control::owner_approval::tests::owner_approval_crash_child",
-                    "--ignored",
-                    "--nocapture",
-                ])
-                .env("TIKTOOLS_OWNER_APPROVAL_CRASH_ROOT", &f.paths.root)
-                .env("TIKTOOLS_OWNER_APPROVAL_CRASH_OPERATION", operation)
-                .env("TIKTOOLS_OWNER_APPROVAL_CRASH", stage)
-                .output()
+fn real_process_death_around_native_intent_matrix_case(operation: &'static str) {
+    for stage in [
+        "before_intent",
+        "after_intent",
+        "before_dispatch",
+        "before_business_commit",
+        "after_business_commit",
+        "after_effect",
+        "after_record",
+    ] {
+        let mut f = Fixture::new();
+        f.graph();
+        if operation == "revoke" {
+            f.core()
+                .owner_approval_submit(f.activate(AutomationKind::Event, "rule"))
                 .unwrap();
-            assert_eq!(
-                child.status.code(),
-                Some(89),
-                "{operation}/{stage}: {}",
-                String::from_utf8_lossy(&child.stderr)
-            );
-            f.core = Some(open_core(&f.paths));
-            let committed = matches!(
-                stage,
-                "after_business_commit" | "after_effect" | "after_record"
-            );
-            assert_eq!(
-                f.commands(),
-                commands + i64::from(committed),
-                "{operation}/{stage}"
-            );
-            let expected = if committed {
-                (before.parse::<u64>().unwrap() + 1).to_string()
-            } else {
-                before
-            };
-            assert_eq!(
-                f.revision(AutomationKind::Event, "rule"),
-                expected,
-                "{operation}/{stage}"
-            );
-            let state = f.core().owner_approval_state().unwrap();
-            metadata_only(&state);
-            if stage == "before_intent" {
-                assert!(state.pending.is_none());
-                assert_eq!(state.recent.len(), usize::from(operation == "revoke"));
-            } else if stage == "after_record" {
-                assert!(state.pending.is_none());
-                assert_eq!(state.recent[0].outcome, OwnerApprovalOutcome::Succeeded);
-            } else {
-                let pending = state.pending.unwrap();
-                assert_ne!(pending.host_instance_id, state.host_instance_id);
-                assert_eq!(
-                    f.core().owner_approval_resolve().unwrap().pending.is_none(),
-                    committed
-                );
-                if !committed {
-                    let out = f
-                        .core()
-                        .owner_approval_review_unknown(OwnerApprovalReviewUnknown {
-                            command_id: pending.command_id,
-                            acknowledge_unknown: true,
-                        })
-                        .unwrap();
-                    assert_eq!(out.recent[0].outcome, OwnerApprovalOutcome::ReviewedUnknown);
-                }
-            }
-            assert_eq!(f.commands(), commands + i64::from(committed));
-            assert_eq!(f.revision(AutomationKind::Event, "rule"), expected);
-            let db = f.db();
-            let status:Option<String>=db.query_row("SELECT state FROM behavior_execution_approvals WHERE scope='event' AND resource_id='rule'",[],|r|r.get(0)).ok();
-            assert_eq!(
-                status.as_deref(),
-                match (operation, committed) {
-                    ("activate", true) => Some("active"),
-                    ("activate", false) => None,
-                    ("revoke", true) => Some("revoked"),
-                    ("revoke", false) => Some("active"),
-                    _ => unreachable!(),
-                },
-                "{operation}/{stage}"
-            );
         }
+        let before = f.revision(AutomationKind::Event, "rule");
+        let commands = f.commands();
+        drop(f.core.take());
+        let child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "control::owner_approval::tests::owner_approval_crash_child",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("TIKTOOLS_OWNER_APPROVAL_CRASH_ROOT", &f.paths.root)
+            .env("TIKTOOLS_OWNER_APPROVAL_CRASH_OPERATION", operation)
+            .env("TIKTOOLS_OWNER_APPROVAL_CRASH", stage)
+            .output()
+            .unwrap();
+        assert_eq!(
+            child.status.code(),
+            Some(89),
+            "{operation}/{stage}: {}",
+            String::from_utf8_lossy(&child.stderr)
+        );
+        f.core = Some(open_core(&f.paths));
+        let committed = matches!(
+            stage,
+            "after_business_commit" | "after_effect" | "after_record"
+        );
+        assert_eq!(
+            f.commands(),
+            commands + i64::from(committed),
+            "{operation}/{stage}"
+        );
+        let expected = if committed {
+            (before.parse::<u64>().unwrap() + 1).to_string()
+        } else {
+            before
+        };
+        assert_eq!(
+            f.revision(AutomationKind::Event, "rule"),
+            expected,
+            "{operation}/{stage}"
+        );
+        let state = f.core().owner_approval_state().unwrap();
+        metadata_only(&state);
+        if stage == "before_intent" {
+            assert!(state.pending.is_none());
+            assert_eq!(state.recent.len(), usize::from(operation == "revoke"));
+        } else if stage == "after_record" {
+            assert!(state.pending.is_none());
+            assert_eq!(state.recent[0].outcome, OwnerApprovalOutcome::Succeeded);
+        } else {
+            let pending = state.pending.unwrap();
+            assert_ne!(pending.host_instance_id, state.host_instance_id);
+            assert_eq!(
+                f.core().owner_approval_resolve().unwrap().pending.is_none(),
+                committed
+            );
+            if !committed {
+                let out = f
+                    .core()
+                    .owner_approval_review_unknown(OwnerApprovalReviewUnknown {
+                        command_id: pending.command_id,
+                        acknowledge_unknown: true,
+                    })
+                    .unwrap();
+                assert_eq!(out.recent[0].outcome, OwnerApprovalOutcome::ReviewedUnknown);
+            }
+        }
+        assert_eq!(f.commands(), commands + i64::from(committed));
+        assert_eq!(f.revision(AutomationKind::Event, "rule"), expected);
+        let db = f.db();
+        let status:Option<String>=db.query_row("SELECT state FROM behavior_execution_approvals WHERE scope='event' AND resource_id='rule'",[],|r|r.get(0)).ok();
+        assert_eq!(
+            status.as_deref(),
+            match (operation, committed) {
+                ("activate", true) => Some("active"),
+                ("activate", false) => None,
+                ("revoke", true) => Some("revoked"),
+                ("revoke", false) => Some("active"),
+                _ => unreachable!(),
+            },
+            "{operation}/{stage}"
+        );
     }
+}
+
+// Each operation is its own test so nextest runs them in parallel; every
+// case already uses PID+random isolated roots and child processes.
+#[test]
+fn real_process_death_activate_never_replays() {
+    real_process_death_around_native_intent_matrix_case("activate");
+}
+
+#[test]
+fn real_process_death_revoke_never_replays() {
+    real_process_death_around_native_intent_matrix_case("revoke");
 }

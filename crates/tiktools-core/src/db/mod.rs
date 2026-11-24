@@ -11,6 +11,8 @@ mod sqlite;
 #[cfg(feature = "persistence")]
 pub(crate) use analytics::writer::{AnalyticsWrite, AnalyticsWriter};
 
+#[cfg(all(test, feature = "persistence"))]
+pub(crate) use sqlite::test_templates;
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::validate_owner_approval_input;
 #[cfg(feature = "persistence")]

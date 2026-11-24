@@ -39,19 +39,11 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        let paths = paths(std::env::temp_dir().join(format!(
+        let paths = crate::db::test_templates::materialize(&std::env::temp_dir().join(format!(
             "tt-owner-definition-{}-{}",
             std::process::id(),
             fastrand::u64(..)
         )));
-        paths.ensure_directories().unwrap();
-        for file in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(file).unwrap();
-        }
         Self {
             core: Some(open(&paths)),
             paths,
@@ -636,138 +628,153 @@ fn crash_child() {
     panic!("native definition crash hook did not exit");
 }
 
-#[test]
-fn real_process_death_at_every_native_and_business_boundary_recovers_original_outcome_only() {
-    for kind in [AutomationKind::Action, AutomationKind::Event] {
-        for operation in [
-            OwnerDefinitionOperation::Create,
-            OwnerDefinitionOperation::Update,
-            OwnerDefinitionOperation::Delete,
-            OwnerDefinitionOperation::Enable,
-            OwnerDefinitionOperation::Disable,
-        ] {
-            for (stage, committed, code) in [
-                ("before_intent", false, 90),
-                ("after_intent", false, 90),
-                ("before_dispatch", false, 90),
-                ("business_before", false, 91),
-                ("business_after", true, 92),
-                ("after_effect", true, 90),
-                ("after_record", true, 90),
-            ] {
-                let mut f = Fixture::new();
-                if operation != OwnerDefinitionOperation::Create {
-                    f.seed(kind);
-                }
-                drop(f.core.take());
-                let mut child = std::process::Command::new(std::env::current_exe().unwrap());
-                child
-                    .args([
-                        "--exact",
-                        "control::owner_definition::tests::crash_child",
-                        "--ignored",
-                        "--nocapture",
-                    ])
-                    .env("TIKTOOLS_OWNER_DEFINITION_ROOT", &f.paths.root)
-                    .env(
-                        "TIKTOOLS_OWNER_DEFINITION_KIND",
-                        match kind {
-                            AutomationKind::Action => "action",
-                            AutomationKind::Event => "event",
-                        },
-                    )
-                    .env(
-                        "TIKTOOLS_OWNER_DEFINITION_OPERATION",
-                        serde_json::to_value(operation).unwrap().as_str().unwrap(),
-                    );
-                if let Some(boundary) = stage.strip_prefix("business_") {
-                    child.env("TIKTOOLS_BEHAVIOR_CRASH", boundary);
-                } else {
-                    child.env("TIKTOOLS_OWNER_DEFINITION_CRASH", stage);
-                }
-                let output = child.output().unwrap();
-                assert_eq!(
-                    output.status.code(),
-                    Some(code),
-                    "{kind:?}/{operation:?}/{stage}: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                );
-                f.core = Some(open(&f.paths));
-                let before = if operation == OwnerDefinitionOperation::Create {
-                    0
-                } else {
-                    1
-                };
-                let expected = before + i32::from(committed);
-                let resolved = f.core().owner_definition_resolve().unwrap();
-                if committed {
-                    assert!(resolved.pending.is_none());
-                    assert_eq!(resolved.recent.len(), 1);
-                    assert_eq!(
-                        resolved.recent[0].outcome,
-                        OwnerDefinitionOutcome::Succeeded
-                    );
-                    assert_eq!(
-                        resolved.recent[0].receipt.as_ref().unwrap().revision,
-                        expected.to_string()
-                    );
-                    assert_eq!(persisted_revision(&f, kind), expected.to_string());
-                } else if stage == "before_intent" {
-                    assert!(resolved.pending.is_none());
-                    assert!(resolved.recent.is_empty());
-                } else {
-                    let pending = resolved.pending.unwrap();
-                    let cleared = f
-                        .core()
-                        .owner_definition_review_unknown(OwnerDefinitionReviewUnknown {
-                            command_id: pending.command_id,
-                            acknowledge_unknown: true,
-                        })
-                        .unwrap();
-                    assert_eq!(
-                        cleared.recent[0].outcome,
-                        OwnerDefinitionOutcome::ReviewedUnknown
-                    );
-                }
-                let ledger: i64 = f
-                    .db()
-                    .query_row(
-                        "SELECT count(*) FROM control_commands WHERE principal_id='local-owner'",
-                        [],
-                        |r| r.get(0),
+fn real_process_death_matrix_case(kind: AutomationKind, operation: OwnerDefinitionOperation) {
+    for (stage, committed, code) in [
+        ("before_intent", false, 90),
+        ("after_intent", false, 90),
+        ("before_dispatch", false, 90),
+        ("business_before", false, 91),
+        ("business_after", true, 92),
+        ("after_effect", true, 90),
+        ("after_record", true, 90),
+    ] {
+        let mut f = Fixture::new();
+        if operation != OwnerDefinitionOperation::Create {
+            f.seed(kind);
+        }
+        drop(f.core.take());
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+        child
+            .args([
+                "--exact",
+                "control::owner_definition::tests::crash_child",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("TIKTOOLS_OWNER_DEFINITION_ROOT", &f.paths.root)
+            .env(
+                "TIKTOOLS_OWNER_DEFINITION_KIND",
+                match kind {
+                    AutomationKind::Action => "action",
+                    AutomationKind::Event => "event",
+                },
+            )
+            .env(
+                "TIKTOOLS_OWNER_DEFINITION_OPERATION",
+                serde_json::to_value(operation).unwrap().as_str().unwrap(),
+            );
+        if let Some(boundary) = stage.strip_prefix("business_") {
+            child.env("TIKTOOLS_BEHAVIOR_CRASH", boundary);
+        } else {
+            child.env("TIKTOOLS_OWNER_DEFINITION_CRASH", stage);
+        }
+        let output = child.output().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(code),
+            "{kind:?}/{operation:?}/{stage}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        f.core = Some(open(&f.paths));
+        let before = if operation == OwnerDefinitionOperation::Create {
+            0
+        } else {
+            1
+        };
+        let expected = before + i32::from(committed);
+        let resolved = f.core().owner_definition_resolve().unwrap();
+        if committed {
+            assert!(resolved.pending.is_none());
+            assert_eq!(resolved.recent.len(), 1);
+            assert_eq!(
+                resolved.recent[0].outcome,
+                OwnerDefinitionOutcome::Succeeded
+            );
+            assert_eq!(
+                resolved.recent[0].receipt.as_ref().unwrap().revision,
+                expected.to_string()
+            );
+            assert_eq!(persisted_revision(&f, kind), expected.to_string());
+        } else if stage == "before_intent" {
+            assert!(resolved.pending.is_none());
+            assert!(resolved.recent.is_empty());
+        } else {
+            let pending = resolved.pending.unwrap();
+            let cleared = f
+                .core()
+                .owner_definition_review_unknown(OwnerDefinitionReviewUnknown {
+                    command_id: pending.command_id,
+                    acknowledge_unknown: true,
+                })
+                .unwrap();
+            assert_eq!(
+                cleared.recent[0].outcome,
+                OwnerDefinitionOutcome::ReviewedUnknown
+            );
+        }
+        let ledger: i64 = f
+            .db()
+            .query_row(
+                "SELECT count(*) FROM control_commands WHERE principal_id='local-owner'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(ledger, i64::from(committed));
+        if committed {
+            // A later independent Owner write must remain installed
+            // after another original-result lookup.
+            if operation == OwnerDefinitionOperation::Delete {
+                f.core()
+                    .automation_create_versioned(
+                        kind,
+                        source(kind, "newer owner source"),
+                        Some(&expected.to_string()),
                     )
                     .unwrap();
-                assert_eq!(ledger, i64::from(committed));
-                if committed {
-                    // A later independent Owner write must remain installed
-                    // after another original-result lookup.
-                    if operation == OwnerDefinitionOperation::Delete {
-                        f.core()
-                            .automation_create_versioned(
-                                kind,
-                                source(kind, "newer owner source"),
-                                Some(&expected.to_string()),
-                            )
-                            .unwrap();
-                    } else {
-                        f.core()
-                            .automation_update_versioned(
-                                kind,
-                                "target",
-                                source(kind, "newer owner source"),
-                                Some(&expected.to_string()),
-                            )
-                            .unwrap();
-                    }
-                    let state = f.core().owner_definition_resolve().unwrap();
-                    assert_eq!(state.recent, resolved.recent);
-                    assert_eq!(
-                        f.core().automation_get(kind, "target").unwrap()["name"],
-                        "newer owner source"
-                    );
-                    assert_eq!(persisted_revision(&f, kind), (expected + 1).to_string());
-                }
+            } else {
+                f.core()
+                    .automation_update_versioned(
+                        kind,
+                        "target",
+                        source(kind, "newer owner source"),
+                        Some(&expected.to_string()),
+                    )
+                    .unwrap();
             }
+            let state = f.core().owner_definition_resolve().unwrap();
+            assert_eq!(state.recent, resolved.recent);
+            assert_eq!(
+                f.core().automation_get(kind, "target").unwrap()["name"],
+                "newer owner source"
+            );
+            assert_eq!(persisted_revision(&f, kind), (expected + 1).to_string());
         }
     }
+}
+
+macro_rules! owner_definition_process_death {
+    ($($name:ident => ($kind:expr, $op:expr)),+ $(,)?) => {
+        $(
+            #[test]
+            fn $name() {
+                real_process_death_matrix_case($kind, $op);
+            }
+        )+
+    };
+}
+
+// Each operation is its own test so nextest runs the matrix in parallel;
+// every case already uses PID+random isolated roots and child processes.
+owner_definition_process_death! {
+    real_process_death_action_create => (AutomationKind::Action, OwnerDefinitionOperation::Create),
+    real_process_death_action_update => (AutomationKind::Action, OwnerDefinitionOperation::Update),
+    real_process_death_action_delete => (AutomationKind::Action, OwnerDefinitionOperation::Delete),
+    real_process_death_action_enable => (AutomationKind::Action, OwnerDefinitionOperation::Enable),
+    real_process_death_action_disable => (AutomationKind::Action, OwnerDefinitionOperation::Disable),
+    real_process_death_event_create => (AutomationKind::Event, OwnerDefinitionOperation::Create),
+    real_process_death_event_update => (AutomationKind::Event, OwnerDefinitionOperation::Update),
+    real_process_death_event_delete => (AutomationKind::Event, OwnerDefinitionOperation::Delete),
+    real_process_death_event_enable => (AutomationKind::Event, OwnerDefinitionOperation::Enable),
+    real_process_death_event_disable => (AutomationKind::Event, OwnerDefinitionOperation::Disable),
 }

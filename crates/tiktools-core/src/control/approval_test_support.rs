@@ -23,29 +23,11 @@ pub(crate) struct Fixture {
 }
 impl Fixture {
     pub(crate) fn new() -> Self {
-        let root = std::env::temp_dir().join(format!(
+        let paths = crate::db::test_templates::materialize(&std::env::temp_dir().join(format!(
             "tt-approval-test-{}-{}",
             std::process::id(),
             fastrand::u64(..)
-        ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root,
-        };
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
+        )));
         let opened = Self::open(&paths);
         // Approved adjustments retain the ordinary adjustment contract:
         // viewers already exist. Zero-point awards seed private real rows.

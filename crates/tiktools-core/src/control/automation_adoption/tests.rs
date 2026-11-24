@@ -91,15 +91,7 @@ impl Fixture {
             std::process::id(),
             fastrand::u64(..)
         ));
-        let paths = paths(&root);
-        paths.ensure_directories().unwrap();
-        for path in [
-            paths.points_database(),
-            paths.automation_database(),
-            paths.analytics_database(),
-        ] {
-            std::fs::File::create(path).unwrap();
-        }
+        let paths = crate::db::test_templates::materialize(&root);
         let core = open_core(&paths);
         let author = author(&core);
         Self {
@@ -845,15 +837,8 @@ fn owner_adoption_crash_child() {
     panic!("owner adoption failpoint did not terminate");
 }
 
-#[test]
-fn owner_adoption_process_death_at_every_dispatch_boundary_preserves_intent_and_never_replays() {
-    for stage in [
-        "before_intent",
-        "after_intent",
-        "before_dispatch",
-        "after_effect",
-        "after_record",
-    ] {
+fn owner_adoption_process_death_matrix_case(stage: &'static str) {
+    {
         let mut f = Fixture::new();
         f.graph();
         f.core()
@@ -1010,4 +995,31 @@ fn owner_adoption_process_death_at_every_dispatch_boundary_preserves_intent_and_
         );
         assert_eq!(f.count("control_resource_outbox"), outbox);
     }
+}
+
+// Each stage is its own test so nextest runs them in parallel; every case
+// already uses PID+random isolated roots and child processes.
+#[test]
+fn process_death_adoption_before_intent() {
+    owner_adoption_process_death_matrix_case("before_intent");
+}
+
+#[test]
+fn process_death_adoption_after_intent() {
+    owner_adoption_process_death_matrix_case("after_intent");
+}
+
+#[test]
+fn process_death_adoption_before_dispatch() {
+    owner_adoption_process_death_matrix_case("before_dispatch");
+}
+
+#[test]
+fn process_death_adoption_after_effect() {
+    owner_adoption_process_death_matrix_case("after_effect");
+}
+
+#[test]
+fn process_death_adoption_after_record() {
+    owner_adoption_process_death_matrix_case("after_record");
 }
