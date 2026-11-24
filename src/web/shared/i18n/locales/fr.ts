@@ -587,6 +587,8 @@ export default {
     browseMedia: 'Parcourir…',
     changeMedia: 'Changer…',
     insertVariable: 'Insérer une variable',
+    captureVariable: 'Capture de la condition',
+    captureVariableHint: 'Résolu uniquement si la condition a correspondu',
     diamonds: '{count} diamants',
   },
   automations: {

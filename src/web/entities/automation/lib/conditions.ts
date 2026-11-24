@@ -1,5 +1,5 @@
 import { fieldsForTrigger, findField, operatorsFor, operatorsForPath, type FieldValueKind } from '../../../../automation/behavior/fields.ts';
-import type { EventFilter, FilterOperator } from '../../../../automation/behavior/types.ts';
+import type { EventFilter, FilterOperator, LiveEvent } from '../../../../automation/behavior/types.ts';
 import { fieldsForEventType } from '../../../../automation/event-registry.ts';
 
 export type { FieldValueKind };
@@ -77,6 +77,28 @@ export function takesValues(operator: FilterOperator): boolean {
 export function filterValues(filter: EventFilter): string[] {
   if (filter.values !== undefined) return [...filter.values];
   return filter.value ? [filter.value] : [];
+}
+
+const CAPTURE_ALIAS = /^[a-zA-Z][a-zA-Z0-9_]{0,31}$/;
+const RESERVED_CAPTURE_KEYS = new Set(['match', 'event', 'globals', 'data', 'user']);
+
+/** Same alias rules as the host matcher; anything else falls back to the position. */
+export function captureAlias(value: string | undefined): string | undefined {
+  if (!value || !CAPTURE_ALIAS.test(value) || RESERVED_CAPTURE_KEYS.has(value)) return undefined;
+  return value;
+}
+
+/** `match.*` paths an event can publish, in declaration order. */
+export function captureVariables(filters: readonly EventFilter[]): string[] {
+  return filters.map((filter, index) => `match.${captureAlias(filter.as) ?? index}`);
+}
+
+export function eventCaptures(event: Pick<LiveEvent, 'filters' | 'anyOf'>): string[] {
+  const paths = new Set(captureVariables(event.filters));
+  for (const group of event.anyOf ?? []) {
+    for (const path of captureVariables(group)) paths.add(path);
+  }
+  return [...paths];
 }
 
 export function isFilterMissing(filter: EventFilter, options: readonly { value: string }[] = []): boolean {

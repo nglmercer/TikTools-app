@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import type { BehaviorSnapshot, LiveEvent, LiveAction } from '../../../../automation/behavior/types.ts';
 import type { AutomationEdit } from '@/features/edit-automation-record/model/automation-editor.ts';
 import type { AutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
+import { eventCaptures } from '@/entities/automation/lib/conditions.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import ActionEditor from '@/features/edit-automation-action/ui/ActionEditor.vue';
 import EventEditor from '@/features/edit-automation-event/ui/EventEditor.vue';
@@ -26,6 +27,18 @@ const emit = defineEmits<{ saveEvent: [event: LiveEvent]; saveAction: [action: L
 const { t } = useAutomationText();
 const eventBaseline = computed(() => props.state?.kind === 'event' ? props.state.base as LiveEvent | null : null);
 const actionBaseline = computed(() => props.state?.kind === 'action' ? props.state.base as LiveAction | null : null);
+/** Captures exposed by the events that reference the action being edited. */
+const actionCaptures = computed(() => {
+  if (props.editing.kind !== 'action') return [];
+  const id = props.editing.record.id;
+  const paths = new Set<string>();
+  for (const event of props.snapshot.events) {
+    if (event.actionIds.includes(id)) {
+      for (const path of eventCaptures(event)) paths.add(path);
+    }
+  }
+  return [...paths];
+});
 </script>
 
 <template>
@@ -76,6 +89,7 @@ const actionBaseline = computed(() => props.state?.kind === 'action' ? props.sta
     :action-options="automation.actionOptions.value"
     :action-option-errors="automation.actionOptionErrors.value"
     :open-media-picker="automation.openMediaPicker"
+    :captures="actionCaptures"
     :error="automation.error.value"
     @save="emit('saveAction', $event)"
     @compare="emit('compare')"

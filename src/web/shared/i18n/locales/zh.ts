@@ -585,6 +585,8 @@ export default {
     browseMedia: "浏览…",
     changeMedia: "更改…",
     insertVariable: "插入变量",
+    captureVariable: "条件捕获值",
+    captureVariableHint: "仅在条件匹配时才会解析",
     diamonds: "{count} 颗钻石",
   },
   automations: {

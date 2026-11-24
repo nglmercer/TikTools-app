@@ -38,6 +38,8 @@ export function templateVariables(options: {
   scope: VariableScope;
   locale: string;
   globals?: Readonly<Record<string, string>>;
+  /** `match.*` paths published by the event's conditions. */
+  captures?: readonly string[];
 }): TemplateVariable[] {
   const locale = normalizeLocale(options.locale) ?? 'en';
   const lang = locale === 'es' ? 'es' : 'en';
@@ -62,6 +64,14 @@ export function templateVariables(options: {
   }
   for (const key of Object.keys(options.globals ?? {}).sort((left, right) => left.localeCompare(right))) {
     push({ value: `globals.${key}`, label: key, detail: `globals.${key}` });
+  }
+  for (const path of options.captures ?? []) {
+    // Captures are host-injected, so they bypass the registry leaf-name scope.
+    push({
+      value: path,
+      label: i18n.global.t('schemaForm.captureVariable', {}, { locale }),
+      detail: i18n.global.t('schemaForm.captureVariableHint', {}, { locale }),
+    });
   }
   return variables;
 }

@@ -585,6 +585,8 @@ export default {
     browseMedia: "参照…",
     changeMedia: "変更…",
     insertVariable: "変数を挿入",
+    captureVariable: "条件のキャプチャ",
+    captureVariableHint: "条件が一致した場合のみ解決されます",
     diamonds: "{count}ダイヤモンド",
   },
   automations: {

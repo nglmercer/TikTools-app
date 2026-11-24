@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, useId } from 'vue';
 import type { ConditionMatchMode, EventFilter, FilterOperator } from '../../../../automation/behavior/types.ts';
 import { normalizeCapturedKey } from '@/entities/automation/lib/key-capture.ts';
 import {
+  captureAlias,
   conditionFields,
   fieldKind,
   filterValues,
@@ -99,6 +100,7 @@ function toSimple(filter: EventFilter): EventFilter {
     operator: filter.operator,
     value: values[0] ?? '',
     ...(filter.operator === 'in' ? { values } : {}),
+    ...(needsValue(filter.operator) ? { as: captureAlias(filter.as) } : {}),
   };
 }
 
@@ -127,6 +129,10 @@ function setValue(index: number, value: string): void {
 
 function setList(index: number, values: string[]): void {
   replace(index, { ...conditions.value[index]!, values, value: '' });
+}
+
+function setAlias(index: number, alias: string): void {
+  replace(index, { ...conditions.value[index]!, as: captureAlias(alias) });
 }
 
 function setPath(index: number, path: string): void {
@@ -312,6 +318,16 @@ onBeforeUnmount(stopRecording);
               :inputmode="row.kind === 'number' ? 'decimal' : undefined"
               @update:model-value="setValue(row.index, $event)"
             />
+            <BaseTextField
+              v-if="needsValue(row.filter.operator)"
+              :model-value="row.filter.as ?? ''"
+              class="conditions__alias"
+              size="sm"
+              :placeholder="t('automations.conditions.aliasPlaceholder')"
+              :aria-label="t('automations.conditions.alias')"
+              spellcheck="false"
+              @update:model-value="setAlias(row.index, $event)"
+            />
           </div>
           <BaseTextField
             v-if="!row.known"
@@ -418,6 +434,10 @@ onBeforeUnmount(stopRecording);
 
 .conditions__value {
   min-width: 0;
+}
+
+.conditions__alias {
+  margin-top: var(--space-1);
 }
 
 .conditions__option {

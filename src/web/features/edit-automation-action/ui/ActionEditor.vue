@@ -40,9 +40,11 @@ const props = withDefaults(
     actionOptions: Readonly<Record<string, ActionOptionItem[]>>;
     actionOptionErrors: Readonly<Record<string, string>>;
     openMediaPicker?: OpenMediaPicker;
+    /** `match.*` paths available from the events that use this action. */
+    captures?: readonly string[];
     error?: string;
   }>(),
-  { baseline: undefined, isNew: false, busy: false, saveBlocked: false, openMediaPicker: undefined, error: '' },
+  { baseline: undefined, isNew: false, busy: false, saveBlocked: false, openMediaPicker: undefined, captures: () => [], error: '' },
 );
 
 const emit = defineEmits<{
@@ -87,7 +89,12 @@ const config = computed<JsonObject>({
 });
 
 function suggestionsFor(field: string) {
-  return templateVariables({ scope: variableScope(draft.value.typeId, field), locale: locale.value, globals: props.globals });
+  return templateVariables({
+    scope: variableScope(draft.value.typeId, field),
+    locale: locale.value,
+    globals: props.globals,
+    captures: props.captures,
+  });
 }
 
 function requestOptions(refresh: boolean): void {
