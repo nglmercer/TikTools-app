@@ -1,20 +1,59 @@
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { beforeAll, describe, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { readWorkspaceVersion } from '../../../scripts/bump-version.ts';
 
 const root = resolve(import.meta.dir, '..', '..', '..');
 let verifyBin: string | undefined;
+let buildProcess: ReturnType<typeof Bun.spawn> | undefined;
+
+// Keep a handle on the Cargo build so an interrupted or timed-out hook cannot
+// leave a background build (and its rustc children) behind.
+function stopBuild() {
+  if (buildProcess && buildProcess.exitCode === null) buildProcess.kill();
+}
+function onSignal(signal: 'SIGINT' | 'SIGTERM') {
+  stopBuild();
+  process.exit(signal === 'SIGINT' ? 130 : 143);
+}
+process.on('exit', stopBuild);
+process.on('SIGINT', onSignal);
+process.on('SIGTERM', onSignal);
+afterAll(() => {
+  stopBuild();
+  process.off('exit', stopBuild);
+  process.off('SIGINT', onSignal);
+  process.off('SIGTERM', onSignal);
+});
 
 // Build the verifier once; each CLI invocation below can then reuse the
-// binary instead of starting Cargo again for every sign/stage case.
+// binary instead of starting Cargo again for every sign/stage case. A cold
+// Cargo build can take well over Bun's default 5-second hook timeout, so give
+// this hook a generous 120 seconds.
 beforeAll(async () => {
   if (!Bun.which('cargo')) return;
-  const child = Bun.spawn(['cargo', 'build', '--locked', '-p', 'tiktools-app-update', '--bin', 'verify-update'], { cwd: root, stdout: 'pipe', stderr: 'pipe' });
-  const code = await child.exited;
-  if (code === 0) verifyBin = join(root, 'target', 'debug', process.platform === 'win32' ? 'verify-update.exe' : 'verify-update');
-});
+  const child = Bun.spawn(
+    ['cargo', 'build', '--locked', '-p', 'tiktools-app-update', '--bin', 'verify-update'],
+    { cwd: root, stdout: 'pipe', stderr: 'pipe' },
+  );
+  buildProcess = child;
+  // Drain both pipes while waiting so a chatty build cannot stall on pipe
+  // backpressure, and surface its output if the build fails.
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  buildProcess = undefined;
+  if (code !== 0) {
+    throw new Error(
+      `cargo build --locked -p tiktools-app-update --bin verify-update failed with exit code ${code}\n` +
+      `--- stdout ---\n${stdout}\n--- stderr ---\n${stderr}`,
+    );
+  }
+  verifyBin = join(root, 'target', 'debug', process.platform === 'win32' ? 'verify-update.exe' : 'verify-update');
+}, 120_000);
 
 describe('signed release metadata', () => {
   test.skipIf(!Bun.which('cargo-packager'))('signs actual files and rejects tampering or missing credentials', async () => {
