@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { dismissSpotlight, vSpotlight } from '@/shared/ui/spotlight/v-spotlight.ts';
 import type { NavigationSection } from '../model/navigation-types.ts';
 
 withDefaults(
   defineProps<{
     sections: readonly NavigationSection[];
     collapsed?: boolean;
-    /** Section suggested by the app state, e.g. the feed after a connection succeeds. */
-    suggested?: string;
   }>(),
-  { collapsed: false, suggested: '' },
+  { collapsed: false },
 );
 
 const { t } = useI18n();
@@ -40,14 +37,11 @@ const { t } = useI18n();
           :key="item.id"
         >
           <RouterLink
-            v-spotlight="item.id === suggested"
             class="app-navigation__link"
-            :class="{ 'app-navigation__link--suggested': item.id === suggested }"
             exact-active-class="app-navigation__link--active"
             :to="item.to"
             :aria-label="collapsed ? item.label : undefined"
             :title="collapsed ? item.label : undefined"
-            @click="dismissSpotlight()"
           >
             <component
               :is="item.icon"
@@ -129,22 +123,6 @@ const { t } = useI18n();
   border-color: var(--color-border-selected);
   background: var(--color-bg-selected);
   color: var(--color-text-on-accent);
-}
-
-/* A connected creator has events to read: point the reader at the feed. */
-.app-navigation__link--suggested:not(.app-navigation__link--active) {
-  border-color: var(--color-accent);
-  color: var(--color-text);
-  box-shadow: inset 3px 0 0 var(--color-accent);
-}
-
-.app-navigation__link--suggested:not(.app-navigation__link--active)::after {
-  content: '';
-  width: 6px;
-  height: 6px;
-  margin-left: auto;
-  border-radius: 50%;
-  background: var(--color-accent);
 }
 
 .app-navigation__icon {

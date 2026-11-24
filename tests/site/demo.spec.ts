@@ -33,32 +33,16 @@ test('the feed panel title follows the live state and viewer count', async ({ pa
   await expect(title).toContainText('Actividad en vivo');
 });
 
-test('a successful connection highlights the feed section to read events', async ({ page }) => {
+test('a successful connection leaves the navigation without a special highlight', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en&instance=feed-suggestion');
   // Playback connects through the simulated RPC without leaving the section.
   await page.getByTestId('demo-play').click();
   await expect(page.getByTestId('demo-playback-status')).toHaveAttribute('data-status', 'playing');
   const feed = page.locator('#app-sidebar').getByRole('link', { name: t('navigation.feed'), exact: true });
-  await expect(feed).toHaveClass(/app-navigation__link--suggested/);
-  // The spotlight is state-driven: no pointer interaction is needed.
-  const spotlight = page.locator('#app-spotlight');
-  await expect(spotlight).toBeVisible();
-  await page.mouse.move(900, 700);
-  await expect(spotlight).toBeVisible();
-  const [cutout, link] = await Promise.all([spotlight.boundingBox(), feed.boundingBox()]);
-  expect(Math.abs(cutout!.x - link!.x)).toBeLessThan(6);
+  await expect(feed).not.toHaveClass(/app-navigation__link--suggested/);
+  await expect(page.locator('#app-spotlight')).toBeHidden();
   await feed.click();
-  await expect(spotlight).toBeHidden();
   await expect(page).toHaveURL(/#\/feed$/);
-});
-
-test('the spotlight can be dismissed with Escape or an outside click', async ({ page }) => {
-  await page.goto('demo/?scenario=connection&locale=en&instance=spotlight-dismiss');
-  await page.getByTestId('demo-play').click();
-  const spotlight = page.locator('#app-spotlight');
-  await expect(spotlight).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(spotlight).toBeHidden();
 });
 
 test('non-feed scenarios start offline and connect on first playback', async ({ page }) => {
@@ -70,14 +54,14 @@ test('non-feed scenarios start offline and connect on first playback', async ({ 
   await expect(indicator).toContainText('Live');
 });
 
-test('Connect without Play stays on Connections and the guide owns the feed step', async ({ page }) => {
+test('Connect without Play stays on Connections until the redirect is enabled', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en&instance=connect-guide');
   await page.getByRole('textbox').first().fill('demo_creator');
   await page.getByRole('button', { name: t('connection.connect'), exact: true }).first().click();
   await expect(page).toHaveURL(/#\/connections$/);
   const feed = page.locator('#app-sidebar').getByRole('link', { name: t('navigation.feed'), exact: true });
-  await expect(feed).toHaveClass(/app-navigation__link--suggested/);
-  await expect(page.locator('#app-spotlight')).toBeVisible();
+  await expect(feed).not.toHaveClass(/app-navigation__link--suggested/);
+  await expect(page.locator('#app-spotlight')).toBeHidden();
 
   // The opt-in switch lives on the Connections page, not in demo controls.
   await expect(page.getByTestId('demo-redirect-on-connect')).toHaveCount(0);
