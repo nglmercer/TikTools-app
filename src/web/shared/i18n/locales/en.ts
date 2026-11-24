@@ -833,6 +833,7 @@ export default {
       value: 'Value',
       add: 'Add condition',
       remove: 'Remove condition',
+      duplicate: 'Duplicate condition',
       actions: 'Condition actions',
       custom: 'Custom field…',
       customPath: 'Custom path',

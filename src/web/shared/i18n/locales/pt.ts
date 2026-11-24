@@ -835,6 +835,7 @@ export default {
       value: 'Valor',
       add: 'Adicionar condição',
       remove: 'Remover condição',
+      duplicate: 'Duplicar condição',
       actions: 'Ações da condição',
       custom: 'Campo personalizado…',
       customPath: 'Caminho personalizado',

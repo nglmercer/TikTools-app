@@ -19,6 +19,7 @@ import {
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import IconCopy from '@/shared/ui/icon/icons/IconCopy.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconRecord from '@/shared/ui/icon/icons/IconRecord.vue';
@@ -52,6 +53,7 @@ const fieldOptions = computed(() => [
 
 /** One action list for the kebab, right-click and touch long-press. */
 const rowMenu = computed<MenuEntry[]>(() => [
+  { id: 'duplicate', label: t('automations.conditions.duplicate'), icon: IconCopy },
   { id: 'remove', label: t('automations.conditions.remove'), icon: IconTrash },
 ]);
 
@@ -109,6 +111,12 @@ function remove(index: number): void {
   filters.value = filters.value.filter((_, position) => position !== index);
 }
 
+function duplicate(index: number): void {
+  const source = filters.value[index]!;
+  const copy: EventFilter = { ...source, ...(source.values ? { values: [...source.values] } : {}) };
+  filters.value = [...filters.value.slice(0, index + 1), copy, ...filters.value.slice(index + 1)];
+}
+
 /** The kebab feeds the same menu as right-click (desktop) and long-press (mobile). */
 function openRowMenu(event: MouseEvent): void {
   const button = event.currentTarget as HTMLElement;
@@ -124,7 +132,8 @@ function openRowMenu(event: MouseEvent): void {
 }
 
 function onRowAction(action: MenuAction, index: number): void {
-  if (action.id === 'remove') remove(index);
+  if (action.id === 'duplicate') duplicate(index);
+  else if (action.id === 'remove') remove(index);
 }
 
 function pickerFor(kind: string): readonly SearchOption[] {

@@ -60,6 +60,26 @@ it('reorders actions by dragging the grip with a pointer', async () => {
   expect((wrapper.emitted('save')![0]![0] as LiveEvent).actionIds).toEqual(['second', 'first']);
 });
 
+it('duplicates a condition right below itself from the row action menu', async () => {
+  const filters: EventFilter[] = [
+    { path: 'event.data.text', operator: 'starts-with', value: '!play' },
+    { path: 'event.data.text', operator: 'starts-with', value: '/play' },
+  ];
+  const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat', filters };
+  const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
+    event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
+  } });
+  await button(wrapper, 'automations.conditions.actions').trigger('click');
+  await nextTick();
+  const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .find((entry) => entry.textContent === t('automations.conditions.duplicate'))!;
+  item.click();
+  await nextTick();
+  const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
+  expect(changed.filters).toEqual([filters[0], filters[0], filters[1]]);
+  expect(changed.filters[0]).not.toBe(changed.filters[1]);
+});
+
 it('configures a condition template and discards it with the other unsaved edits', async () => {
   const { event, wrapper } = mountEditor();
   await wrapper.get('input[placeholder="' + t('automations.editor.name') + '"]').setValue(t('packages.categories.moderation'));

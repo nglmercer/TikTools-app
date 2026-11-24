@@ -833,6 +833,7 @@ export default {
       value: "値",
       add: "条件を追加",
       remove: "条件を削除",
+      duplicate: "条件を複製",
       actions: "条件の操作",
       custom: "カスタムフィールド…",
       customPath: "カスタムパス",

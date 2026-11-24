@@ -833,6 +833,7 @@ export default {
       value: "值",
       add: "添加条件",
       remove: "移除条件",
+      duplicate: "复制条件",
       actions: "条件操作",
       custom: "自定义字段…",
       customPath: "自定义路径",
