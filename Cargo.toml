@@ -43,6 +43,20 @@ resolver = "2"
 [profile.test]
 debug = 1
 
+# Bundled C dependencies are compiled by their -sys build scripts at the
+# profile's opt-level; at dev's opt-level=0 every DDL statement and commit
+# runs ~10x slower, which dominated fixture setup (~4.5s per AppCore::new),
+# and QuickJS/TLS runs unoptimized in plugin and cloud tests. Optimize just
+# these C dependencies; Rust code stays at debug speed for build times.
+[profile.test.package.libsqlite3-sys]
+opt-level = 3
+[profile.test.package.rquickjs-sys]
+opt-level = 3
+[profile.test.package.ring]
+opt-level = 3
+[profile.test.package.aws-lc-sys]
+opt-level = 3
+
 [workspace.package]
 version = "4.5.0"
 edition = "2021"

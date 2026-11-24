@@ -11,7 +11,9 @@ use tokio::sync::{mpsc, watch};
 
 const CAPACITY: usize = 1024;
 const BATCH_SIZE: usize = 128;
-const FLUSH_DEADLINE: Duration = Duration::from_secs(10);
+// Tests exercise the same deadline-bounded recovery path with a shorter
+// fuse; production keeps the 10s safety window.
+const FLUSH_DEADLINE: Duration = Duration::from_secs(if cfg!(test) { 2 } else { 10 });
 const MAX_RECOVERY_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Clone, Serialize, Deserialize)]

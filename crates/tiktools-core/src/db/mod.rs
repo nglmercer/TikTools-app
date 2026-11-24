@@ -35,6 +35,8 @@ pub(crate) mod test_templates {
         paths.ensure_directories().unwrap();
         paths
     }
+
+    pub(crate) fn prime(_paths: &AppPaths) {}
 }
 #[cfg(feature = "persistence")]
 pub(crate) use sqlite::validate_owner_approval_input;

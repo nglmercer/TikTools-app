@@ -40,7 +40,7 @@ impl AppPaths {
                 path.exists().then_some(path)
             });
 
-        Self {
+        let paths = Self {
             data: configured_path("TIKTOOLS_DATA_DIR", root.join("data")),
             plugins: configured_path("TIKTOOLS_PLUGINS_DIR", root.join("plugins")),
             plugin_data: configured_path("TIKTOOLS_PLUGIN_DATA_DIR", root.join("plugin-data")),
@@ -49,7 +49,12 @@ impl AppPaths {
             root,
             builtin_plugins,
             development_plugins,
-        }
+        };
+        // Tests get pre-initialized database files so `DatabaseManager::new`
+        // skips the ~1s schema pass; existing files are never overwritten.
+        #[cfg(test)]
+        crate::db::test_templates::prime(&paths);
+        paths
     }
 
     pub fn ensure_directories(&self) -> io::Result<()> {

@@ -8,7 +8,9 @@ use tiktools_plugin_api::DomainEventEnvelope;
 /// Event delivery is background work. A process that stops answering is
 /// retired by the loader after this deadline and cannot hold the observer
 /// forever.
-const PLUGIN_EVENT_DELIVERY_TIMEOUT: Duration = Duration::from_secs(5);
+// Tests shrink the fuse so shutdown-during-stuck-delivery scenarios do not
+// each wait out the full production window; delivery semantics are unchanged.
+const PLUGIN_EVENT_DELIVERY_TIMEOUT: Duration = Duration::from_secs(if cfg!(test) { 1 } else { 5 });
 
 pub(crate) async fn deliver_event(
     core: &Arc<AppCore>,
