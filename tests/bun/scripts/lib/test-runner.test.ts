@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
-  BUN_AREA_DIRS,
   FAST_BUN_ROOTS,
   WIDGETS_VITEST_CONFIG,
   buildTestCommands,
@@ -146,7 +145,7 @@ describe('workspace metadata and crate validation', () => {
   });
 
   test('unknown bun target fails without falling back', () => {
-    expect(bunTargetDir('automation')).toBe(BUN_AREA_DIRS['automation']);
+    expect(bunTargetDir('automation')).toBe('tests/unit/automation');
     expect(() => bunTargetDir('nope')).toThrow(/unknown bun test target/);
   });
 
@@ -173,7 +172,7 @@ describe('command dispatch', () => {
     expect(cmds).toEqual(fastSuiteCommands());
     expect(cmds).toHaveLength(3);
     expect(cmds[0]?.slice(1)).toEqual(['test', ...FAST_BUN_ROOTS.map(bunPathArg)]);
-    expect(cmds[0]?.[2]).toBe('./src/automation');
+    expect(cmds[0]?.[2]).toBe('./tests/bun');
     expect(cmds[1]?.slice(1)).toEqual(['x', '--no-install', 'vitest', 'run']);
     expect(cmds[2]?.slice(1)).toEqual(['x', '--no-install', 'vitest', 'run', '--config', WIDGETS_VITEST_CONFIG]);
   });
@@ -199,8 +198,13 @@ describe('command dispatch', () => {
   });
 
   test('a bun area filter narrows by test name instead of adding a path', () => {
+    const [cmd] = buildTestCommands({ area: 'bun', target: 'scripts', filter: 'batched', watch: false, changed: false }, {})!;
+    expect(cmd?.slice(1)).toEqual(['test', './tests/bun/scripts', '--test-name-pattern', 'batched']);
+  });
+
+  test('a tests/unit bun area runs on vitest with a name filter', () => {
     const [cmd] = buildTestCommands({ area: 'bun', target: 'automation', filter: 'batched', watch: false, changed: false }, {})!;
-    expect(cmd?.slice(1)).toEqual(['test', './src/automation', '--test-name-pattern', 'batched']);
+    expect(cmd?.slice(1)).toEqual(['x', '--no-install', 'vitest', 'run', 'tests/unit/automation', '-t', 'batched']);
   });
 
   test('rust builds a locked linker-wrapped cargo command', () => {
