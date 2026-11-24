@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
+import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
 import type { TableColumn } from '@/shared/ui/table/table-types.ts';
 import { actionTypeIcon } from '../lib/action-type-icon.ts';
@@ -13,7 +15,7 @@ defineProps<{
   query: string;
   checkboxKey: (id: string) => number;
 }>();
-const emit = defineEmits<{ setEnabled: [id: string, enabled: boolean] }>();
+const emit = defineEmits<{ setEnabled: [id: string, enabled: boolean]; rowMenu: [id: string, event: MouseEvent] }>();
 const selected = defineModel<string | null>('selected', { default: null });
 const { t } = useAutomationText();
 </script>
@@ -56,6 +58,18 @@ const { t } = useAutomationText();
     </template>
     <template #cell-lastRun="{ row }">
       <span :class="{ 'automation-library__failed': row.failed }">{{ row.lastRun }}</span>
+    </template>
+    <template #cell-menu="{ row }">
+      <span @pointerdown.stop>
+        <BaseIconButton
+          :label="t('automations.library.rowActions', { name: row.name })"
+          size="sm"
+          aria-haspopup="menu"
+          @click="emit('rowMenu', row.id, $event)"
+        >
+          <IconMoreVertical />
+        </BaseIconButton>
+      </span>
     </template>
     <template #empty>
       <BaseEmptyState

@@ -4,17 +4,20 @@ import { recordSorts, type RecordSort } from '@/entities/automation/lib/automati
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import IconCopy from '@/shared/ui/icon/icons/IconCopy.vue';
 import IconFilter from '@/shared/ui/icon/icons/IconFilter.vue';
 import IconHash from '@/shared/ui/icon/icons/IconHash.vue';
 import IconPlay from '@/shared/ui/icon/icons/IconPlay.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
+import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
 import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
+import BaseContextMenu from '@/shared/ui/menu/BaseContextMenu.vue';
 import BaseMenu from '@/shared/ui/menu/BaseMenu.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
-import type { LibraryArea, LibraryTab } from '../model/library-tab.ts';
+import { isLibraryTab, type LibraryArea, type LibraryTab } from '../model/library-tab.ts';
 
 import type { AutomationLibraryProps } from '../model/library-props.ts';
 import { useAutomationLibraryRows } from '../model/use-automation-library-rows.ts';
@@ -27,7 +30,36 @@ const emit = defineEmits<{
   newEvent: [];
   newAction: [];
   setEnabled: [kind: LibraryTab, id: string, enabled: boolean];
+  duplicate: [kind: LibraryTab, id: string];
+  delete: [kind: LibraryTab, id: string];
 }>();
+
+// One context menu serves right-click, Shift+F10, touch long-press and the
+// per-row kebab. The triggering row is read from the event target.
+const rowTarget = shallowRef<{ kind: LibraryTab; id: string } | null>(null);
+const rowMenu = computed<MenuEntry[]>(() => [
+  { id: 'duplicate', label: t('automations.library.duplicate'), icon: IconCopy },
+  { id: 'delete', label: t('automations.library.delete'), icon: IconTrash },
+]);
+function onContextOpen(event: MouseEvent | KeyboardEvent): void {
+  const row = (event.target as HTMLElement | null)?.closest?.('[data-row-id]');
+  const id = row?.getAttribute('data-row-id');
+  const active = tab.value;
+  rowTarget.value = id && isLibraryTab(active) ? { kind: active, id } : null;
+}
+function onRowMenu(kind: LibraryTab, id: string, event: MouseEvent): void {
+  rowTarget.value = { kind, id };
+  const button = event.currentTarget as HTMLElement;
+  const rect = button.getBoundingClientRect();
+  button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rect.right, clientY: rect.bottom }));
+}
+function onRowAction(action: MenuAction): void {
+  const target = rowTarget.value;
+  rowTarget.value = null;
+  if (!target) return;
+  if (action.id === 'duplicate') emit('duplicate', target.kind, target.id);
+  else if (action.id === 'delete') emit('delete', target.kind, target.id);
+}
 
 // The checkbox reflects committed state while the page confirms a transition.
 // Remount only the last requested checkbox to undo its native optimistic tick.
@@ -110,73 +142,79 @@ const sort = computed({
       class="automation-library__tabs"
       :tabs="tabs"
     >
-      <div
+      <BaseContextMenu
         v-if="records"
-        class="automation-library__pane"
+        :items="rowMenu"
+        @open="onContextOpen"
+        @select="onRowAction"
       >
-        <div class="automation-library__toolbar">
-          <BaseTextField
-            v-model="query"
-            class="automation-library__search"
-            type="search"
-            :placeholder="tab === 'events' ? t('automations.library.searchEvents') : t('automations.library.searchActions')"
-            :aria-label="tab === 'events' ? t('automations.library.searchEvents') : t('automations.library.searchActions')"
-          >
-            <template #prefix>
-              <IconSearch />
-            </template>
-          </BaseTextField>
-          <slot
-            name="sync"
-            :kind="tab"
+        <div class="automation-library__pane">
+          <div class="automation-library__toolbar">
+            <BaseTextField
+              v-model="query"
+              class="automation-library__search"
+              type="search"
+              :placeholder="tab === 'events' ? t('automations.library.searchEvents') : t('automations.library.searchActions')"
+              :aria-label="tab === 'events' ? t('automations.library.searchEvents') : t('automations.library.searchActions')"
+            >
+              <template #prefix>
+                <IconSearch />
+              </template>
+            </BaseTextField>
+            <slot
+              name="sync"
+              :kind="tab"
+            />
+            <BaseIconButton
+              class="automation-library__sort"
+              :class="{ 'automation-library__sort--active': sort !== 'name' }"
+              :label="`${t('automations.library.sort')}: ${t(`automations.library.sorts.${sort}`)}`"
+              variant="default"
+              aria-haspopup="menu"
+              :aria-expanded="sortMenuOpen"
+              @click="openSortMenu"
+            >
+              <IconFilter />
+            </BaseIconButton>
+            <BaseMenu
+              v-model:open="sortMenuOpen"
+              :items="sortMenu"
+              :anchor="sortMenuAnchor"
+              placement="bottom-end"
+              @select="onSortMenu"
+            />
+            <BaseButton
+              variant="primary"
+              @click="tab === 'events' ? emit('newEvent') : emit('newAction')"
+            >
+              <template #icon>
+                <IconPlus />
+              </template>
+              {{ tab === 'events' ? t('automations.library.newEvent') : t('automations.library.newAction') }}
+            </BaseButton>
+          </div>
+          <AutomationEventTable
+            v-if="tab === 'events'"
+            v-model:selected="selected"
+            :columns="eventColumns"
+            :rows="eventRows"
+            :query="eventQuery"
+            :checkbox-key="(id) => checkboxKey('events', id)"
+            @set-enabled="(id, enabled) => requestToggle('events', id, enabled)"
+            @row-menu="(id, event) => onRowMenu('events', id, event)"
           />
-          <BaseIconButton
-            class="automation-library__sort"
-            :class="{ 'automation-library__sort--active': sort !== 'name' }"
-            :label="`${t('automations.library.sort')}: ${t(`automations.library.sorts.${sort}`)}`"
-            variant="default"
-            aria-haspopup="menu"
-            :aria-expanded="sortMenuOpen"
-            @click="openSortMenu"
-          >
-            <IconFilter />
-          </BaseIconButton>
-          <BaseMenu
-            v-model:open="sortMenuOpen"
-            :items="sortMenu"
-            :anchor="sortMenuAnchor"
-            placement="bottom-end"
-            @select="onSortMenu"
+          <AutomationActionTable
+            v-else
+            v-model:selected="selected"
+            :columns="actionColumns"
+            :rows="actionRows"
+            :query="actionQuery"
+            :checkbox-key="(id) => checkboxKey('actions', id)"
+            @set-enabled="(id, enabled) => requestToggle('actions', id, enabled)"
+            @row-menu="(id, event) => onRowMenu('actions', id, event)"
           />
-          <BaseButton
-            variant="primary"
-            @click="tab === 'events' ? emit('newEvent') : emit('newAction')"
-          >
-            <template #icon>
-              <IconPlus />
-            </template>
-            {{ tab === 'events' ? t('automations.library.newEvent') : t('automations.library.newAction') }}
-          </BaseButton>
         </div>
-        <AutomationEventTable
-          v-if="tab === 'events'"
-          v-model:selected="selected"
-          :columns="eventColumns"
-          :rows="eventRows"
-          :query="eventQuery"
-          :checkbox-key="(id) => checkboxKey('events', id)"
-          @set-enabled="(id, enabled) => requestToggle('events', id, enabled)"
-        />
-        <AutomationActionTable
-          v-else
-          v-model:selected="selected"
-          :columns="actionColumns"
-          :rows="actionRows"
-          :query="actionQuery"
-          :checkbox-key="(id) => checkboxKey('actions', id)"
-          @set-enabled="(id, enabled) => requestToggle('actions', id, enabled)"
-        />
-      </div>
+      </BaseContextMenu>
       <div
         v-if="areas?.includes('variables') && visited.has('variables')"
         v-show="tab === 'variables'"

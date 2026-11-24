@@ -23,12 +23,14 @@ export function useAutomationLibraryRows(props: Readonly<AutomationLibraryProps>
     { key: 'name', label: t('automations.library.columns.name'), width: isPhone.value ? '50%' : '32%' },
     { key: 'trigger', label: t('automations.library.columns.trigger'), width: isPhone.value ? undefined : '30%' },
     ...(isPhone.value ? [] : [{ key: 'actions', label: t('automations.library.columns.actions') }]),
+    { key: 'menu', label: '', width: '40px', align: 'center' as const },
   ]);
   const actionColumns = computed<TableColumn[]>(() => [
     { key: 'enabled', label: t('automations.library.columns.enabled'), width: '52px', align: 'center' },
     { key: 'name', label: t('automations.library.columns.name'), width: isPhone.value ? '55%' : '38%' },
     { key: 'type', label: t('automations.library.columns.type') },
     ...(isPhone.value ? [] : [{ key: 'lastRun', label: t('automations.library.columns.lastRun'), width: '110px', align: 'end' as const }]),
+    { key: 'menu', label: '', width: '40px', align: 'center' as const },
   ]);
 
   const eventRows = computed(() =>

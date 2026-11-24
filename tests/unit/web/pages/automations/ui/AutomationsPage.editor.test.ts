@@ -1,4 +1,6 @@
 import { t, mountPage, buttonByText, buttonByLabel, goBack, documentButton, selectRow, it, expect, vi, nextTick, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
+import { i18n } from '@/shared/i18n/i18n.ts';
+const itn = (key: string, params?: Record<string, string>) => i18n.global.t(key, params ?? {});
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
 afterEach(() => resetResolutionPreference('automatic'));
@@ -87,6 +89,31 @@ it('offers the sync panel for the events and for the actions, but not on the var
     expect(wrapper.text()).not.toContain(t('automations.editor.unsaved'));
     await goBack(wrapper);
     expect(document.body.textContent).not.toContain(t('automations.editor.discardTitle'));
+  });
+
+  it('duplicates and deletes events from their library row menu', async () => {
+    const { wrapper, calls } = await mountPage();
+    const kebab = (name: string) => wrapper.get(`button[aria-label="${itn('automations.library.rowActions', { name })}"]`);
+    const item = (key: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      .find((entry) => entry.textContent?.trim() === t(key))!;
+
+    await kebab('Big gifts').trigger('click');
+    await nextTick();
+    item('automations.library.duplicate').click();
+    await flushPromises();
+    const created = calls.find((call) => call.method === 'automation.definition.submit' && call.params?.operation === 'create');
+    const copy = created?.params?.record as { id?: string; name?: string } | undefined;
+    expect(copy).toMatchObject({ name: itn('automations.library.duplicateName', { name: 'Big gifts' }) });
+    expect(copy?.id).not.toBe('e1');
+
+    await kebab('Chat hello').trigger('click');
+    await nextTick();
+    item('automations.library.delete').click();
+    await flushPromises();
+    expect(document.body.textContent).toContain(itn('automations.library.deleteTitle', { name: 'Chat hello' }));
+    documentButton(t('automations.library.delete')).click();
+    await flushPromises();
+    expect(calls.some((call) => call.method === 'automation.definition.submit' && call.params?.operation === 'delete' && call.params?.id === 'e2')).toBe(true);
   });
 
   it('asks before leaving unsaved changes', async () => {

@@ -90,10 +90,24 @@ const session = useAutomationRecordSession(automation, { tab, area, selected }, 
 const {
   editor, discardOpen, confirmDiscard, toggle, observedDefinitionState, reviewOpen,
   editing, hostChanged, librarySelected, libraryTab,
-  closeEditor, newEvent, newAction, saveEvent, saveAction, removeRecord, setEnabled,
+  closeEditor, newEvent, newAction, saveEvent, saveAction, removeRecord, duplicateRecord, deleteFromLibrary, setEnabled,
   compare, useReviewedBase, switchProfile,
 } = session;
 const snapshot = computed(() => automation.snapshot.value);
+const deleteTarget = ref<{ kind: LibraryTab; id: string; name: string } | null>(null);
+const deleteDialogOpen = computed({
+  get: () => !!deleteTarget.value,
+  set: (open) => { if (!open) deleteTarget.value = null; },
+});
+function requestDelete(kind: LibraryTab, id: string): void {
+  const record = (kind === 'events' ? snapshot.value.events : snapshot.value.actions).find((entry) => entry.id === id);
+  if (record) deleteTarget.value = { kind, id, name: record.name };
+}
+function confirmDeleteRecord(): void {
+  const target = deleteTarget.value;
+  deleteTarget.value = null;
+  if (target) void deleteFromLibrary(target.kind, target.id);
+}
 const guideTaskState = () => {
   const owner = automation.sourceHost.value;
   const definition = observedDefinitionState.value;
@@ -111,7 +125,7 @@ const { packs, events, actions, eventTypes, availableTypes, gifts, viewers } = u
 function onSheetKeydown(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || event.defaultPrevented) return;
   if (!isNarrow.value || !editing.value) return;
-  if (discardOpen.value || pickerOpen.value || templatesOpen.value || profileImportOpen.value || reviewOpen.value || toggle.open.value) return;
+  if (discardOpen.value || deleteDialogOpen.value || pickerOpen.value || templatesOpen.value || profileImportOpen.value || reviewOpen.value || toggle.open.value) return;
   closeEditor();
 }
 
@@ -255,6 +269,8 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
           @new-event="newEvent"
           @new-action="pickerOpen = true"
           @set-enabled="setEnabled"
+          @duplicate="duplicateRecord"
+          @delete="requestDelete"
         >
           <template #sync="{ kind }">
             <SyncButton
@@ -344,6 +360,14 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
       :confirm-label="t('automations.editor.discardConfirm')"
       danger
       @confirm="confirmDiscard"
+    />
+    <BaseConfirmDialog
+      v-model:open="deleteDialogOpen"
+      :title="t('automations.library.deleteTitle', { name: deleteTarget?.name ?? '' })"
+      :message="t('automations.library.deleteMessage', { name: deleteTarget?.name ?? '' })"
+      :confirm-label="t('automations.library.delete')"
+      danger
+      @confirm="confirmDeleteRecord"
     />
     <AutomationEditorReview
       v-model:open="reviewOpen"

@@ -1,5 +1,6 @@
 import { enableAutoUnmount } from '@vue/test-utils';
 import { afterEach, expect, it } from 'vitest';
+import { nextTick } from 'vue';
 import type { LiveAction, LiveEvent } from '../../../../../../src/automation/behavior/types.ts';
 import { i18n } from '@/shared/i18n/i18n.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
@@ -29,6 +30,29 @@ it.each(['events', 'actions'] as const)('a %s switch requests a toggle without s
 
   await wrapper.get('.automation-library__name').trigger('pointerdown');
   expect(wrapper.emitted('update:selected')).toEqual([[tab === 'events' ? event.id : action.id]]);
+});
+
+it.each(['events', 'actions'] as const)('the %s row menu duplicates and deletes the right record', async (tab) => {
+  const id = tab === 'events' ? event.id : action.id;
+  const wrapper = mountWithPlugins(AutomationLibrary, {
+    attachTo: document.body,
+    props: { tab, events: [event], actions: [action], actionTypes: [], availableTypes: new Set(['core.log']), eventTypes: [], runs: [] },
+  });
+  const kebab = () => wrapper.get(`button[aria-label="${i18n.global.t('automations.library.rowActions', { name: tab === 'events' ? event.name : action.name })}"]`);
+  const item = (key: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .find((entry) => entry.textContent?.trim() === i18n.global.t(key))!;
+  await kebab().trigger('click');
+  await nextTick();
+  expect(item('automations.library.duplicate')).toBeTruthy();
+  item('automations.library.duplicate').click();
+  await nextTick();
+  expect(wrapper.emitted('duplicate')).toEqual([[tab, id]]);
+
+  await kebab().trigger('click');
+  await nextTick();
+  item('automations.library.delete').click();
+  await nextTick();
+  expect(wrapper.emitted('delete')).toEqual([[tab, id]]);
 });
 
 it.each(['events', 'actions'] as const)('the %s table distinguishes an unmatched query from an empty library', async (tab) => {

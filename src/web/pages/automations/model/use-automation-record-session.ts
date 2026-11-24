@@ -7,7 +7,7 @@ import { useAutomationEditor } from '@/features/edit-automation-record/model/aut
 import type { DefinitionState } from '@/entities/automation/model/definition-contracts.ts';
 import type { LibraryState } from '@/entities/rule-template/model/library-contracts.ts';
 import { recordKey } from '@/entities/automation/model/record-versions.ts';
-import { createActionFromType, createEvent } from '@/entities/automation/lib/automation-records.ts';
+import { cloneRecord, createActionFromType, createEvent } from '@/entities/automation/lib/automation-records.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import { isLibraryTab, type LibraryArea, type LibraryTab } from '@/widgets/automation-library/model/library-tab.ts';
@@ -15,7 +15,7 @@ import type { EditingRecord } from './editing-record.ts';
 
 type RecordSessionControls = Pick<AutomationControls,
   'snapshot' | 'persistent' | 'sourceHost' | 'revisionFor' | 'readRecord' |
-  'saveEvent' | 'saveAction' | 'deleteRecord' | 'setRecordEnabled' | 'switchProfile'>;
+  'saveEvent' | 'saveAction' | 'deleteRecord' | 'deleteEvent' | 'deleteAction' | 'setRecordEnabled' | 'switchProfile'>;
 
 /** Owns the page-lifetime record draft, navigation guard and revision review. */
 export function useAutomationRecordSession(
@@ -148,6 +148,40 @@ export function useAutomationRecordSession(
     });
   }
 
+  /** Library row actions: duplicate creates a fresh record with a new id and
+   * name; delete goes through the same gateway the editor uses. */
+  async function duplicateRecord(kind: LibraryTab, id: string): Promise<void> {
+    const stored = kind === 'events' ? snapshot.value.events : snapshot.value.actions;
+    const record = stored.find((entry) => entry.id === id);
+    if (!record) return;
+    const copy = cloneRecord(record);
+    copy.id = crypto.randomUUID();
+    copy.name = t('automations.library.duplicateName', { name: record.name });
+    const base = {
+      revision: automation.persistent.value === false ? null : '0',
+      create: true,
+      ...(automation.sourceHost.value !== undefined ? { host: automation.sourceHost.value } : {}),
+    };
+    try {
+      if (kind === 'events') await automation.saveEvent(copy as LiveEvent, base);
+      else await automation.saveAction(copy as LiveAction, base);
+    } catch {
+      // The automation store surfaces gateway failures through its own error.
+    }
+  }
+
+  async function deleteFromLibrary(kind: LibraryTab, id: string): Promise<void> {
+    const revision = automation.revisionFor(kind === 'events' ? 'event' : 'action', id);
+    if (revision === undefined) return;
+    const host = automation.sourceHost.value;
+    try {
+      if (kind === 'events') await automation.deleteEvent(id, revision, host);
+      else await automation.deleteAction(id, revision, host);
+    } catch {
+      // The automation store surfaces gateway failures through its own error.
+    }
+  }
+
   function setEnabled(kind: LibraryTab, id: string, enabled: boolean): void {
     toggle.request(kind === 'events' ? 'event' : 'action', id, enabled);
   }
@@ -188,7 +222,7 @@ export function useAutomationRecordSession(
     editor, discardOpen, confirmDiscard, toggle, observedDefinitionState,
     reviewOpen, editing, proposalTarget, proposalVersions, hostChanged,
     librarySelected, libraryTab, closeEditor, newEvent, newAction,
-    saveEvent, saveAction, removeRecord, setEnabled, compare,
+    saveEvent, saveAction, removeRecord, duplicateRecord, deleteFromLibrary, setEnabled, compare,
     recoveredDefinition, useReviewedBase, switchProfile,
   };
 }

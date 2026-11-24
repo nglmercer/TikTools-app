@@ -112,6 +112,7 @@ function onKeydown(event: KeyboardEvent): void {
           v-for="(row, index) in rows"
           :key="keys[index]"
           class="base-table__row"
+          :data-row-id="keys[index]"
           :aria-selected="selectable ? index === selectedIndex : undefined"
           @pointerdown="select(index)"
           @dblclick="emit('activate', row)"
