@@ -1,5 +1,6 @@
 use std::{
     fs,
+    path::PathBuf,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -7,12 +8,16 @@ use super::*;
 use crate::paths::AppPaths;
 use serde_json::json;
 
-fn paths() -> AppPaths {
+fn root() -> PathBuf {
     let suffix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root = std::env::temp_dir().join(format!("tiktools-rust-sqlite-{suffix}"));
+    std::env::temp_dir().join(format!("tiktools-rust-sqlite-{suffix}"))
+}
+
+fn paths() -> AppPaths {
+    let root = root();
     AppPaths {
         data: root.join("data"),
         plugins: root.join("plugins"),
@@ -23,6 +28,10 @@ fn paths() -> AppPaths {
         temp: root.join("temp"),
         root,
     }
+}
+
+fn templated_paths() -> AppPaths {
+    crate::db::test_templates::materialize(&root())
 }
 
 #[test]
@@ -56,7 +65,7 @@ fn initializes_compatible_schemas_and_round_trips_records() {
 #[test]
 fn ranking_definitions_survive_reopen_and_delete() {
     use tiktools_aggregation::model::{Definition, SourceRule};
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let definition = Definition {
@@ -131,7 +140,7 @@ fn ranking_definitions_survive_reopen_and_delete() {
 fn runtime_checkpoint_survives_unclean_exit() {
     use tiktools_aggregation::engine::Engine;
     use tiktools_aggregation::model::{Contribution, Definition, SourceRule};
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let definition = Definition {
@@ -191,7 +200,7 @@ fn runtime_checkpoint_survives_unclean_exit() {
 fn rolling_checkpoint_survives_sqlite_and_preserves_limits() {
     use tiktools_aggregation::engine::Engine;
     use tiktools_aggregation::model::{Contribution, Definition, SourceRule, UserLimits, Window};
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let definition = Definition {
@@ -258,7 +267,7 @@ fn competition_result_is_immutable_across_retry_and_reopen() {
     use tiktools_competitions::{
         Candidate, ResultRecord, Selection, SelectionMode, TiePolicy, WinnerAction,
     };
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     use tiktools_competitions::{
@@ -535,7 +544,7 @@ fn competition_definition_survives_reopen() {
     use tiktools_competitions::{
         CompetitionKind, Definition, OptionDefinition, SelectionMode, TiePolicy,
     };
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let definition = Definition {
@@ -617,7 +626,7 @@ fn competition_deadline_expiry_is_durable_and_idempotent() {
         CompetitionKind, Definition, Lifecycle, OptionDefinition, SelectionMode, TiePolicy,
         Transition,
     };
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let definition = Definition {
@@ -667,7 +676,7 @@ fn competition_command_votes_are_transactional_scoped_and_replay_safe() {
         CommandParticipation, CompetitionKind, Definition, OptionDefinition,
         ParticipationOutcome as Outcome, SelectionMode, TiePolicy, Transition,
     };
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let option = |id: &str| OptionDefinition {
@@ -1099,7 +1108,7 @@ fn competition_command_votes_are_transactional_scoped_and_replay_safe() {
 #[test]
 fn gift_combo_high_water_is_durable_scoped_and_transactional() {
     use super::gift_accounting::{advance_combo, GiftDelta};
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let mut connection = db.open(&db.automation_path()).unwrap();
@@ -1165,7 +1174,7 @@ fn competition_gift_admission_commits_identity_combo_and_score_together() {
     use tiktools_competitions::{
         CompetitionKind, Definition, OptionDefinition, SelectionMode, TiePolicy, Transition,
     };
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     db.insert_aggregation_definition(&tiktools_aggregation::model::Definition {
@@ -1326,7 +1335,7 @@ fn competition_gift_admission_commits_identity_combo_and_score_together() {
 
 #[test]
 fn workflow_versions_include_local_toggles_and_keep_delete_recreate_tombstones() {
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let graph = json!({"id":"welcome","name":"Welcome","enabled":false,"nodes":[],"edges":[],"custom":{"keep":true}});
@@ -1393,7 +1402,7 @@ fn workflow_versions_include_local_toggles_and_keep_delete_recreate_tombstones()
 
 #[test]
 fn concurrent_workflow_saves_with_one_revision_have_one_winner() {
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     db.save_workflow(&json!({"id":"concurrent","name":"Original"}), None)
@@ -1434,7 +1443,7 @@ fn concurrent_workflow_saves_with_one_revision_have_one_winner() {
 
 #[test]
 fn workflow_invalidation_failure_rolls_back_graph_revision_and_delete() {
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let graph = json!({"id":"atomic","name":"Original","enabled":false});
@@ -1502,7 +1511,7 @@ fn legacy_workflow_migration_preserves_graph_and_seeds_only_once() {
 
 #[test]
 fn invalid_or_exhausted_workflow_versions_cannot_change_business_state() {
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     let graph = json!({"id":"bounded","name":"Original"});
@@ -1550,7 +1559,7 @@ fn invalid_or_exhausted_workflow_versions_cannot_change_business_state() {
 
 #[test]
 fn workflow_writes_reject_unbounded_or_ambiguous_ids_before_creating_outbox_rows() {
-    let paths = paths();
+    let paths = templated_paths();
     paths.ensure_directories().unwrap();
     let db = DatabaseManager::new(paths.clone());
     for id in [

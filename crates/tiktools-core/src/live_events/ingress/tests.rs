@@ -313,16 +313,7 @@ async fn verified_native_lifecycle_authorizes_only_exact_current_scoped_status()
         std::path::PathBuf::from(std::env::var_os(ROOT).expect("child fixture root"));
     for verified in [true, false] {
         let root = fixture_root.join(if verified { "verified" } else { "unverified" });
-        let paths = crate::paths::AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
+        let paths = crate::db::test_templates::materialize(&root);
         let core = Arc::new(AppCore::with_paths(
             Arc::new(NoopEmitter),
             Arc::new(crate::NoopMediaHost),

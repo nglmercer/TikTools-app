@@ -565,16 +565,7 @@ mod tests {
     };
 
     fn paths(root: PathBuf) -> AppPaths {
-        AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root,
-        }
+        crate::db::test_templates::materialize(&root)
     }
     struct Fixture {
         db: DatabaseManager,

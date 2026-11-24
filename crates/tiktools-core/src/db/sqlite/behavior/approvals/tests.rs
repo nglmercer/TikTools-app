@@ -1,5 +1,5 @@
 use super::*;
-use crate::{collaboration::*, paths::AppPaths, services::automation_manifest as manifest};
+use crate::{collaboration::*, services::automation_manifest as manifest};
 use std::sync::Arc;
 
 struct Fixture {
@@ -14,17 +14,7 @@ impl Fixture {
             std::process::id(),
             fastrand::u64(..)
         ));
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.clone(),
-        };
-        paths.ensure_directories().unwrap();
+        let paths = crate::db::test_templates::materialize(&root);
         for path in [
             paths.points_database(),
             paths.automation_database(),

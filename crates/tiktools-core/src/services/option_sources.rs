@@ -759,17 +759,7 @@ mod tests {
             std::process::id(),
             fastrand::u64(..)
         ));
-        let paths = crate::AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("absent"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root,
-        };
-        paths.ensure_directories().unwrap();
+        let paths = crate::db::test_templates::materialize(&root);
         std::sync::Arc::new(crate::AppCore::with_paths(
             std::sync::Arc::new(Emitter),
             std::sync::Arc::new(crate::NoopMediaHost),

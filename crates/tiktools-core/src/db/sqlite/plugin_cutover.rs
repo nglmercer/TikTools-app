@@ -279,7 +279,6 @@ fn inventory_db_error(error: DatabaseError) -> crate::control::OperationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::paths::AppPaths;
 
     struct TestDir(std::path::PathBuf);
     impl Drop for TestDir {
@@ -295,17 +294,7 @@ mod tests {
             fastrand::u64(..)
         )));
         let root = &dir.0;
-        let paths = AppPaths {
-            data: root.join("data"),
-            plugins: root.join("plugins"),
-            plugin_data: root.join("plugin-data"),
-            builtin_plugins: root.join("builtins"),
-            development_plugins: None,
-            logs: root.join("logs"),
-            temp: root.join("temp"),
-            root: root.to_owned(),
-        };
-        paths.ensure_directories().unwrap();
+        let paths = crate::db::test_templates::materialize(root);
         for file in [
             paths.points_database(),
             paths.automation_database(),
