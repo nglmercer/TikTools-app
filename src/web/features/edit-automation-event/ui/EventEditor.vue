@@ -81,7 +81,9 @@ function onCustomValidation(result: { value?: Record<string, unknown>; error: st
   customValue.value = result.value;
   customError.value = result.error;
 }
-const changed = computed(() => props.isNew || JSON.stringify(draft.value) !== JSON.stringify(props.baseline ?? props.event));
+const changed = computed(() => JSON.stringify(draft.value) !== JSON.stringify(props.baseline ?? props.event));
+// A new record may be saved with its defaults, but it is not "unsaved" until edited.
+const canSave = computed(() => props.isNew || changed.value);
 const triggerOptions = computed(() =>
   triggers(props.eventTypes).map((option) => ({
     value: option.value,
@@ -185,7 +187,7 @@ function runCustom(kind: 'test' | 'fire'): void {
         :label="t('automations.editor.save')"
         variant="primary"
         size="sm"
-        :disabled="!changed || busy || saveBlocked"
+        :disabled="!canSave || busy || saveBlocked"
         @click="emit('save', draft)"
       >
         <IconCheck />

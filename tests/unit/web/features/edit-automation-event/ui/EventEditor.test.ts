@@ -68,6 +68,20 @@ it('configures a condition template and discards it with the other unsaved edits
   expect(wrapper.emitted('update:dirty')!.at(-1)).toEqual([false]);
 });
 
+it('does not mark a brand-new event as unsaved until it is edited', async () => {
+  const event = createEvent('New event');
+  const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
+    event, baseline: event, isNew: true, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
+  } });
+  await nextTick();
+  expect(wrapper.text()).not.toContain(t('automations.editor.unsaved'));
+  expect(button(wrapper, 'automations.editor.save').attributes('disabled')).toBeUndefined();
+  await wrapper.get('input[placeholder="' + t('automations.editor.name') + '"]').setValue('Renamed');
+  await nextTick();
+  expect(wrapper.emitted('update:dirty')!.at(-1)).toEqual([true]);
+  expect(wrapper.text()).toContain(t('automations.editor.unsaved'));
+});
+
 it('groups dry-run, real fire and custom data behind the flask menu', async () => {
   const { wrapper } = mountEditor();
   await button(wrapper, 'automations.runMenu.label').trigger('click');

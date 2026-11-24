@@ -42,7 +42,10 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
   let readEpoch = 0;
   let resolving = false;
   let disposed = false;
-  const dirty = computed(() => !!state.value && (state.value.create || state.value.busy || state.value.reviewRequired || !equal(state.value.base, state.value.candidate)));
+  // A new record is not dirty until its draft actually differs from the
+  // template it was opened with; create alone must not trigger the discard
+  // guard or the "unsaved changes" label.
+  const dirty = computed(() => !!state.value && (state.value.busy || state.value.reviewRequired || !equal(state.value.base, state.value.candidate)));
   const saveBlocked = computed(() => !state.value || state.value.busy || state.value.reviewRequired || state.value.revision === undefined);
   const canAdoptReview = computed(() => !!state.value && !!review.value && !state.value.busy &&
     state.value.token === review.value.token && state.value.generation === review.value.generation);
@@ -54,7 +57,7 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
   function open(kind: AutomationKind, record: AutomationRecord, revision: AutomationRevision | undefined, create = false, host?: AutomationHost | null): void {
     if (disposed) return;
     close();
-    state.value = { token, generation: 0, kind, candidate: cloneRecord(record), base: create ? null : cloneRecord(record),
+    state.value = { token, generation: 0, kind, candidate: cloneRecord(record), base: cloneRecord(record),
       revision, ...(host !== undefined ? { host: host && { ...host } } : {}), create, busy: false, reviewRequired: false, autoResolved: false, failure: null, message: '' };
   }
   function change(record: AutomationRecord): void {
@@ -75,7 +78,8 @@ export function useAutomationEditor(gateway: AutomationEditorGateway) {
   }
   async function save(): Promise<void> {
     const captured = state.value;
-    if (disposed || !captured || !dirty.value || saveBlocked.value || captured.revision === undefined) return;
+    // A pristine new record still has to be saveable as created.
+    if (disposed || !captured || (!dirty.value && !captured.create) || saveBlocked.value || captured.revision === undefined) return;
     const submitted = cloneRecord(captured.candidate);
     state.value = { ...captured, busy: true, message: '' };
     try {

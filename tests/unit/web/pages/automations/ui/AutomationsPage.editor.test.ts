@@ -80,6 +80,15 @@ it('offers the sync panel for the events and for the actions, but not on the var
     });
   });
 
+  it('does not ask to discard an untouched new event', async () => {
+    const { wrapper } = await mountPage();
+    await buttonByText(wrapper, t('automations.library.newEvent')).trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).not.toContain(t('automations.editor.unsaved'));
+    await goBack(wrapper);
+    expect(document.body.textContent).not.toContain(t('automations.editor.discardTitle'));
+  });
+
   it('asks before leaving unsaved changes', async () => {
     const { wrapper } = await mountPage();
     await selectRow(wrapper, 'Big gifts');

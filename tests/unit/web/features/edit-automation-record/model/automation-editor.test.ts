@@ -97,6 +97,19 @@ describe('automation editor base and outcome fencing', () => {
     expect(host.save).toHaveBeenCalledTimes(1);
   });
 
+  test('a new record is clean until edited, but can still be saved as created', async () => {
+    const host = gateway();
+    const editor = useAutomationEditor(host);
+    editor.open('event', event, '0', true);
+    expect(editor.dirty.value).toBe(false);
+    await editor.save();
+    expect(host.save).toHaveBeenCalledWith('event', event, { revision: '0', create: true });
+    expect(editor.state.value?.create).toBe(false);
+    expect(editor.dirty.value).toBe(false);
+    editor.change({ ...event, name: 'Edited' });
+    expect(editor.dirty.value).toBe(true);
+  });
+
   test('deletion requires explicit preparation against the tombstone before a separate create', async () => {
     const host = gateway();
     host.save = vi.fn(async () => { throw new ControlCallError('automation_not_found', 'Deleted'); });

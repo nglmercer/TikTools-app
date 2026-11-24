@@ -68,7 +68,9 @@ const optionErrors = computed(() =>
 );
 const permissions = computed(() => deriveActionPermissions(draft.value, type.value));
 const runs = computed(() => props.testRuns.filter((run) => run.actionId === draft.value.id));
-const changed = computed(() => props.isNew || JSON.stringify(draft.value) !== JSON.stringify(props.baseline ?? props.action));
+const changed = computed(() => JSON.stringify(draft.value) !== JSON.stringify(props.baseline ?? props.action));
+// A new record may be saved with its defaults, but it is not "unsaved" until edited.
+const canSave = computed(() => props.isNew || changed.value);
 const origin = computed(() => {
   const source = type.value?.source;
   if (!source) return draft.value.typeId;
@@ -145,7 +147,7 @@ function confirmDelete(): void {
         :label="t('automations.editor.save')"
         variant="primary"
         size="sm"
-        :disabled="!changed || busy || saveBlocked"
+        :disabled="!canSave || busy || saveBlocked"
         @click="emit('save', draft)"
       >
         <IconCheck />
