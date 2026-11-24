@@ -421,7 +421,7 @@ jobs:
         if: runner.os == 'Windows'
         env:
           TIKTOOLS_TEST_WINDOWS_PERL: '1'
-        run: node --test scripts/cargo-with-linker.test.mjs
+        run: node --test tests/bun/scripts/cargo-with-linker.test.mjs
 
       - name: Cache Cargo dependencies and build output
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
