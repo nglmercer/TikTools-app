@@ -114,6 +114,19 @@ it('groups dry-run, real fire and custom data behind the flask menu', async () =
   expect(wrapper.emitted('test')).toHaveLength(1);
 });
 
+it('filters the action list without changing selection on save', async () => {
+  const { wrapper } = mountEditor();
+  await wrapper.get('input[placeholder="' + t('automations.editor.name') + '"]').setValue('Renamed');
+  const search = wrapper.get<HTMLInputElement>('input[type="search"]');
+  await search.setValue('second');
+  expect(wrapper.findAll('[data-action-id]').map((row) => row.attributes('data-action-id'))).toEqual(['second']);
+  await button(wrapper, 'automations.editor.save').trigger('click');
+  expect((wrapper.emitted('save')![0]![0] as LiveEvent).actionIds).toEqual(['first', 'second']);
+  await search.setValue('nothing matches');
+  expect(wrapper.findAll('[data-action-id]')).toHaveLength(0);
+  expect(wrapper.text()).toContain(t('automations.event.noMatchingActions'));
+});
+
 it('keeps the enable switch in the General section header and mutes an inactive editor', async () => {
   const event: LiveEvent = { ...createEvent('Original'), enabled: true, trigger: 'tiktok.chat' };
   const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {

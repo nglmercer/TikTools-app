@@ -4,22 +4,29 @@ import type { LiveEvent, LiveAction } from '../../../../automation/behavior/type
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseSection from '@/shared/ui/section/BaseSection.vue';
-import { moveId, toggleId } from '@/entities/automation/lib/automation-records.ts';
+import { matchesQuery, moveId, toggleId } from '@/entities/automation/lib/automation-records.ts';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
 import IconDice from '@/shared/ui/icon/icons/IconDice.vue';
 import IconGrip from '@/shared/ui/icon/icons/IconGrip.vue';
+import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
+import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 const props = defineProps<{ event: LiveEvent; actions: readonly LiveAction[] }>();
 const emit = defineEmits<{ change: [patch: Partial<Pick<LiveEvent, 'actionIds' | 'runMode'>>] }>();
 const { t } = useAutomationText();
 const list = ref<HTMLElement | null>(null);
 const dragging = ref<string | null>(null);
 const over = ref<string | null>(null);
+const query = ref('');
 const orderedActions = computed(() => {
   const chosen = props.event.actionIds
     .map((actionId) => props.actions.find((action) => action.id === actionId))
     .filter((action): action is LiveAction => action !== undefined);
   return [...chosen, ...props.actions.filter((action) => !props.event.actionIds.includes(action.id))];
 });
+/** Filtering only hides rows: selection and drag indices still use the full list. */
+const visibleActions = computed(() =>
+  orderedActions.value.filter((action) => matchesQuery(query.value, action.name, action.typeId, action.id)),
+);
 
 /** Pointer-based reordering works with a mouse and with touch; the grip keeps
  * ArrowUp/ArrowDown available for keyboard users. */
@@ -68,11 +75,21 @@ function onKeydown(event: KeyboardEvent, id: string): void {
 
 <template>
   <BaseSection :title="t('automations.event.run')">
-    <template
-      v-if="event.actionIds.length > 1"
-      #actions
-    >
+    <template #actions>
+      <BaseTextField
+        v-model="query"
+        type="search"
+        class="event-editor__action-search"
+        size="sm"
+        :placeholder="t('automations.event.search')"
+        :aria-label="t('automations.event.search')"
+      >
+        <template #prefix>
+          <IconSearch />
+        </template>
+      </BaseTextField>
       <BaseIconButton
+        v-if="event.actionIds.length > 1"
         :label="t('automations.event.random')"
         size="sm"
         :pressed="event.runMode === 'random'"
@@ -87,13 +104,19 @@ function onKeydown(event: KeyboardEvent, id: string): void {
     >
       {{ t('automations.event.noActions') }}
     </p>
+    <p
+      v-else-if="!visibleActions.length"
+      class="event-editor__muted"
+    >
+      {{ t('automations.event.noMatchingActions') }}
+    </p>
     <ul
       v-else
       ref="list"
       class="event-editor__actions"
     >
       <li
-        v-for="action in orderedActions"
+        v-for="action in visibleActions"
         :key="action.id"
         class="event-editor__action"
         :class="{

@@ -107,6 +107,16 @@
   cursor: grabbing;
 }
 
+.base-section__actions .event-editor__action-search {
+  width: 160px;
+}
+
+@media (width < 700px) {
+  .base-section__actions .event-editor__action-search {
+    width: 120px;
+  }
+}
+
 .event-editor__scope {
   display: flex;
   gap: var(--space-2);

@@ -802,6 +802,8 @@ export default {
       run: 'Acciones',
       runHint: 'Marca las acciones que ejecuta. Se ejecutan en el orden mostrado.',
       noActions: 'Crea una acción primero.',
+      search: 'Buscar acciones…',
+      noMatchingActions: 'Ninguna acción coincide con la búsqueda.',
       random: 'Ejecutar solo una, elegida al azar',
       cooldown: 'Enfriamiento',
       cooldownNone: 'Sin enfriamiento',

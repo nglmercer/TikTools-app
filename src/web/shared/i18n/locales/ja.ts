@@ -800,6 +800,8 @@ export default {
       run: "アクション",
       runHint: "実行するアクションにチェックを入れてください。表示順に実行されます。",
       noActions: "先にアクションを作成してください。",
+      search: "アクションを検索…",
+      noMatchingActions: "検索に一致するアクションはありません。",
       random: "ランダムに選んだ1件のみ実行",
       cooldown: "クールダウン",
       cooldownNone: "クールダウンなし",

@@ -800,6 +800,8 @@ export default {
       run: "操作",
       runHint: "勾选要运行的操作。它们会按显示顺序运行。",
       noActions: "请先创建操作。",
+      search: "搜索操作…",
+      noMatchingActions: "没有匹配搜索的操作。",
       random: "仅随机选择一个运行",
       cooldown: "冷却时间",
       cooldownNone: "无冷却时间",

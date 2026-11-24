@@ -802,6 +802,8 @@ export default {
       run: 'Ações',
       runHint: 'Marque as ações que ele executa. Elas rodam na ordem exibida.',
       noActions: 'Crie uma ação primeiro.',
+      search: 'Buscar ações…',
+      noMatchingActions: 'Nenhuma ação corresponde à busca.',
       random: 'Executar apenas uma, escolhida ao acaso',
       cooldown: 'Intervalo de espera',
       cooldownNone: 'Sem intervalo de espera',

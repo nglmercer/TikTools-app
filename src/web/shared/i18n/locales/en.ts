@@ -800,6 +800,8 @@ export default {
       run: 'Actions',
       runHint: 'Tick the actions it runs. They run in the order shown.',
       noActions: 'Create an action first.',
+      search: 'Search actions…',
+      noMatchingActions: 'No actions match the search.',
       random: 'Run only one, chosen at random',
       cooldown: 'Cooldown',
       cooldownNone: 'No cooldown',
