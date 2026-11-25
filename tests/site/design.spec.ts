@@ -1,6 +1,7 @@
 import { docLocales } from '../../docs/locales.ts';
 import { experienceCopy } from '../../docs/experience/copy.ts';
 import { test, expect } from '@playwright/test';
+import { docCopy } from '../../docs/locales.ts';
 
 test('demo toolbar shares real controls, contains menus and fits desktop and mobile', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
@@ -62,7 +63,7 @@ test('mobile shows one full-name language selector at the top of the menu', asyn
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('es/');
   await expect(page.locator('.site-language--bar')).toBeHidden();
-  await page.locator('button[aria-label="mobile navigation"]').click();
+  await page.getByRole('button', { name: docCopy.es.mobileMenu, exact: true }).click();
   const selector = page.locator('.site-language--screen');
   await expect(selector).toHaveCount(1);
   await expect(selector).toBeVisible();
