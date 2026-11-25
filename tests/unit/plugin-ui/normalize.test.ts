@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { expect, test } from 'vitest';
 
 import type { JsonValue } from '../../../src/shared/json.ts';
@@ -40,6 +43,26 @@ test('normalizes a nested declarative page', () => {
   expect(page?.id).toBe('tts');
   expect(page?.body.type).toBe('stack');
   if (page?.body.type === 'stack') expect(page.body.children).toHaveLength(11);
+});
+
+
+test('normalizes the Twitch reference page with settings input, sections, and video icon', () => {
+  const manifest = JSON.parse(readFileSync(join(process.cwd(), 'examples/plugin-twitch/plugin.json'), 'utf8')) as {
+    id: string;
+    ui: JsonValue;
+  };
+  const ui = normalizeUiDescriptor({ ...(manifest.ui as object), pluginId: manifest.id } as JsonValue);
+  expect(ui?.mode).toBe('declarative');
+  const page = ui?.pages[0];
+  expect(page?.icon).toBe('video');
+  const body = page?.body;
+  if (body?.type !== 'stack') throw new Error('expected stack body');
+  const cards = body.children.filter((node) => node.type === 'card');
+  expect(cards.length).toBeGreaterThanOrEqual(3);
+  const serialized = JSON.stringify(body);
+  expect(serialized).toContain('"type":"form"');
+  expect(serialized).toContain('anonymous read-only IRC');
+  expect(serialized).toContain('No OAuth token required');
 });
 
 test('rejects unknown node types, bad bindings, and over-deep trees', () => {

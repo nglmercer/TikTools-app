@@ -82,7 +82,7 @@ struct TwitchPlugin {
     runtime: Mutex<Option<tokio::runtime::Runtime>>,
     stop: Mutex<Option<CancellationToken>>,
     queue: Queue,
-    status: Mutex<String>,
+    status: Arc<Mutex<String>>,
     worker_alive: Arc<AtomicBool>,
 }
 
@@ -120,9 +120,10 @@ impl TwitchPlugin {
         let queue = self.queue.clone();
         let worker_stop = stop.clone();
         let worker_alive = self.worker_alive.clone();
+        let status = self.status.clone();
         worker_alive.store(true, Ordering::SeqCst);
         runtime.spawn(async move {
-            run_connection_loop(channel, queue, worker_stop).await;
+            run_connection_loop(channel, queue, worker_stop, status).await;
             worker_alive.store(false, Ordering::SeqCst);
         });
         *self
@@ -174,7 +175,8 @@ fn configured_value(config: &Map<String, Value>, key: &str) -> Option<String> {
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
         .or_else(|| {
-            let path = data_dir().ok()?.join("settings.json");
+            let plugin_id = std::env::var("TIKTOOLS_PLUGIN_ID").ok()?;
+            let path = data_dir().ok()?.join(plugin_id).join("settings.json");
             let value: Value = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
             value
                 .get(key)
@@ -217,11 +219,7 @@ impl Plugin for TwitchPlugin {
                     .lock()
                     .map_err(|error| PluginError::other(error.to_string()))?
                     .clone();
-                let running = self
-                    .runtime
-                    .lock()
-                    .map_err(|error| PluginError::other(error.to_string()))?
-                    .is_some();
+                let running = self.worker_alive.load(Ordering::SeqCst);
                 Ok(ActionResult::summary(format!(
                     "Twitch: {} ({})",
                     if running { "running" } else { "stopped" },
@@ -279,7 +277,7 @@ impl Plugin for TwitchPlugin {
     }
 }
 
-async fn run_connection_loop(channel: String, queue: Queue, stop: CancellationToken) {
+async fn run_connection_loop(channel: String, queue: Queue, stop: CancellationToken, status: Arc<Mutex<String>>) {
     for attempt in 0..=5_u32 {
         if stop.is_cancelled() {
             break;
@@ -287,11 +285,14 @@ async fn run_connection_loop(channel: String, queue: Queue, stop: CancellationTo
         let failure = tokio::select! {
             biased;
             () = stop.cancelled() => break,
-            result = session(&channel, &queue, &stop) => result,
+            result = session(&channel, &queue, &stop, &status) => result,
         };
         if let Err(error) = failure {
             let retry = (2_000_u64 << attempt).min(60_000);
             if attempt == 5 || error.code != "transport" {
+                if let Ok(mut slot) = status.lock() {
+                    *slot = format!("failed: {}", error.message);
+                }
                 push(
                     &queue,
                     PlatformIngestMessage::SessionEnd {
@@ -303,6 +304,9 @@ async fn run_connection_loop(channel: String, queue: Queue, stop: CancellationTo
                     },
                 );
                 break;
+            }
+            if let Ok(mut slot) = status.lock() {
+                *slot = format!("reconnecting: {}", error.message);
             }
             push(
                 &queue,
@@ -367,6 +371,7 @@ async fn session(
     channel: &str,
     queue: &Queue,
     stop: &CancellationToken,
+    status: &Arc<Mutex<String>>,
 ) -> Result<(), TwitchError> {
     let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
         .max_message_size(Some(1024 * 1024))
@@ -447,6 +452,9 @@ async fn session(
                     .get("room-id")
                     .filter(|room| !room.is_empty())
                     .ok_or_else(|| TwitchError::new("invalid_response", "Twitch did not verify the channel ID"))?;
+                if let Ok(mut slot) = status.lock() {
+                    *slot = format!("connected to #{channel}");
+                }
                 push(
                     queue,
                     PlatformIngestMessage::SessionStart {

@@ -35,6 +35,33 @@ const title = computed(() => {
 const custom = computed(() => props.context.customNodes[(props.node as { type: string }).type]);
 const label = computed(() => (props.node.label ? localizedText(props.node.label) : ''));
 const children = computed(() => (props.node.type === 'stack' || props.node.type === 'card' ? props.node.children : []));
+type ChildEntry = { node: PluginUiNode; index: number };
+type ChildItem = { key: string; buttons: boolean; node: ChildEntry; entries: ChildEntry[] };
+const childItems = computed<ChildItem[]>(() => {
+  const items: ChildItem[] = [];
+  let index = 0;
+  while (index < children.value.length) {
+    const child = children.value[index];
+    if (!child) break;
+    if (child.type !== 'button') {
+      items.push({ key: `node-${index}`, buttons: false, node: { node: child, index }, entries: [{ node: child, index }] });
+      index += 1;
+      continue;
+    }
+    const first = { node: child, index };
+    const entries: ChildEntry[] = [first];
+    const start = index;
+    index += 1;
+    while (index < children.value.length) {
+      const button = children.value[index];
+      if (!button || button.type !== 'button') break;
+      entries.push({ node: button, index });
+      index += 1;
+    }
+    items.push({ key: `buttons-${start}-${index}`, buttons: true, node: first, entries });
+  }
+  return items;
+});
 const bound = computed<BindingValue | undefined>(() => ('bind' in props.node ? readBinding(props.context, props.node.bind) : undefined));
 
 const formSchema = computed(() => (props.node.type === 'form' ? (props.node.schema ?? props.context.settings.state?.schema) : undefined));
@@ -69,8 +96,17 @@ function saveForm(): void {
   if (values) props.context.settings.save(toSettingValues(values));
 }
 
+function pressNode(node: PluginUiNode): void {
+  if (node.type === 'button') runAction(props.context, node.action);
+}
+
 function press(): void {
-  if (props.node.type === 'button') runAction(props.context, props.node.action);
+  pressNode(props.node);
+}
+
+function actionLabel(node: PluginUiNode): string {
+  if (node.type !== 'button') return '';
+  return node.title ? localizedText(node.title) : node.label ? localizedText(node.label) : '';
 }
 </script>
 
@@ -79,26 +115,62 @@ function press(): void {
     v-if="node.type === 'stack'"
     class="plugin-node__stack"
   >
-    <PluginUiNode
-      v-for="(child, index) in children"
-      :key="index"
-      :node="child"
-      :context="context"
-      :node-key="`${nodeKey}/${index}`"
-    />
+    <template
+      v-for="item in childItems"
+      :key="item.key"
+    >
+      <div
+        v-if="item.buttons"
+        class="plugin-node__actions"
+      >
+        <BaseButton
+          v-for="entry in item.entries"
+          :key="entry.index"
+          size="sm"
+          :variant="entry.node.type === 'button' ? (entry.node.variant ?? 'default') : 'default'"
+          @click="pressNode(entry.node)"
+        >
+          {{ actionLabel(entry.node) }}
+        </BaseButton>
+      </div>
+      <PluginUiNode
+        v-else
+        :node="item.node.node"
+        :context="context"
+        :node-key="`${nodeKey}/${item.node.index}`"
+      />
+    </template>
   </div>
   <BaseGroupBox
     v-else-if="node.type === 'card'"
     :title="title"
   >
     <div class="plugin-node__stack">
-      <PluginUiNode
-        v-for="(child, index) in children"
-        :key="index"
-        :node="child"
-        :context="context"
-        :node-key="`${nodeKey}/${index}`"
-      />
+      <template
+        v-for="item in childItems"
+        :key="item.key"
+      >
+        <div
+          v-if="item.buttons"
+          class="plugin-node__actions"
+        >
+          <BaseButton
+            v-for="entry in item.entries"
+            :key="entry.index"
+            size="sm"
+            :variant="entry.node.type === 'button' ? (entry.node.variant ?? 'default') : 'default'"
+            @click="pressNode(entry.node)"
+          >
+            {{ actionLabel(entry.node) }}
+          </BaseButton>
+        </div>
+        <PluginUiNode
+          v-else
+          :node="item.node.node"
+          :context="context"
+          :node-key="`${nodeKey}/${item.node.index}`"
+        />
+      </template>
     </div>
   </BaseGroupBox>
   <section
@@ -358,6 +430,9 @@ function press(): void {
 
 .plugin-node__actions {
   display: flex;
+  align-items: center;
+  align-self: flex-start;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 

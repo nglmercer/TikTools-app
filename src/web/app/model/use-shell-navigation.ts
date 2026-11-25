@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { pluginNavId, type PluginNavigationPage } from '../../../automation/plugins/declarative.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
+import { pluginIcon } from '@/shared/ui/icon/plugin-icon-registry.ts';
 import type { AppTab, BuiltinAppTab } from '@/types.ts';
 import type { NavigationItem, NavigationSection } from '@/widgets/app-navigation/model/navigation-types.ts';
 import { tabFromRoute, tabLocation } from '../router/tab-routes.ts';
@@ -54,7 +55,7 @@ export function useShellNavigation(
       .filter((page) => !page.connectionOnly)
       .map((page) => {
         const tab = pluginNavId(page.pluginId, page.id);
-        return { id: tab, label: localizedText(page.title), icon: markRaw(IconPuzzle), to: tabLocation(tab) };
+        return { id: tab, label: localizedText(page.title), icon: markRaw(pluginIcon(page.icon)), to: tabLocation(tab) };
       }),
   );
 
