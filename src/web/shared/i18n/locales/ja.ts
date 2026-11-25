@@ -40,6 +40,8 @@ export default {
     back: "戻る",
     apply: "適用",
     close: "閉じる",
+    copy: "コピー",
+    copied: "コピーしました",
     defaults: "初期値",
     increase: "増やす",
     decrease: "減らす",

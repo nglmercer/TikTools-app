@@ -40,6 +40,8 @@ export default {
     back: 'Back',
     apply: 'Apply',
     close: 'Close',
+    copy: 'Copy',
+    copied: 'Copied',
     defaults: 'Defaults',
     increase: 'Increase',
     decrease: 'Decrease',

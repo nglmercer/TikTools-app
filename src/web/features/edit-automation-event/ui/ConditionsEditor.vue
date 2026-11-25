@@ -26,6 +26,7 @@ import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconRecord from '@/shared/ui/icon/icons/IconRecord.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
+import { fallbackCopy } from '@/shared/ui/json/use-json-copy.ts';
 import BaseContextMenu from '@/shared/ui/menu/BaseContextMenu.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BaseSearchSelect from '@/shared/ui/search-select/BaseSearchSelect.vue';
@@ -65,10 +66,11 @@ function conditionLabel(index: number): string {
 }
 
 async function copyCapture(index: number): Promise<void> {
+  const text = captureToken(index);
   try {
-    await navigator.clipboard.writeText(captureToken(index));
+    await navigator.clipboard.writeText(text);
   } catch {
-    return;
+    try { fallbackCopy(text); } catch { return; }
   }
   copiedRow.value = index;
   clearTimeout(copiedTimer);
@@ -403,7 +405,7 @@ onBeforeUnmount(() => {
         @update:model-value="setAlias(row.index, $event)"
       />
       <BaseIconButton
-        :label="copiedRow === row.index ? t('jsonView.copied') : t('jsonView.copy')"
+        :label="copiedRow === row.index ? t('common.copied') : t('common.copy')"
         size="sm"
         @click="copyCapture(row.index)"
       >

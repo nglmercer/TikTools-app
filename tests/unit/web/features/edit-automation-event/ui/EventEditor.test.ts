@@ -228,7 +228,35 @@ it('edits capture aliases in their own tab', async () => {
   const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
   expect(changed.filters[0]?.as).toBe('commandPrefix');
   await wrapper.findAll('button')
-    .find((item) => item.attributes('aria-label') === t('jsonView.copy'))!
+    .find((item) => item.attributes('aria-label') === t('common.copy'))!
     .trigger('click');
   expect(writeText).toHaveBeenCalledWith('{{ match.commandPrefix }}');
+});
+
+it('falls back to execCommand when the clipboard API rejects', async () => {
+  const writeText = vi.fn().mockRejectedValue(new Error('denied'));
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  const execCommand = vi.fn().mockReturnValue(true);
+  Object.defineProperty(document, 'execCommand', { value: execCommand, configurable: true });
+  const event: LiveEvent = {
+    ...createEvent('Original'),
+    enabled: true,
+    trigger: 'tiktok.chat',
+    filters: [{ path: 'event.data.text', operator: 'starts-with', value: '!play', as: 'prefix' }],
+  };
+  const wrapper = mountWithPlugins(EventEditor, { attachTo: document.body, props: {
+    event, baseline: event, actions: [], eventTypes: [], gifts: [], viewers: [], testRuns: [],
+  } });
+  await wrapper.findAll('button')
+    .find((item) => item.attributes('aria-label') === t('automations.conditions.captures'))!
+    .trigger('click');
+  await nextTick();
+  await wrapper.findAll('button')
+    .find((item) => item.attributes('aria-label') === t('common.copy'))!
+    .trigger('click');
+  expect(execCommand).toHaveBeenCalledWith('copy');
+  await nextTick();
+  expect(wrapper.findAll('button').some(
+    (item) => item.attributes('aria-label') === t('common.copied'),
+  )).toBe(true);
 });

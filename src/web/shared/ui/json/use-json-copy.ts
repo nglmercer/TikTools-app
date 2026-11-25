@@ -22,7 +22,7 @@ export function useJsonCopy(textSource: () => string, onCopy: (text: string) => 
   return { copied, copy };
 }
 
-function fallbackCopy(text: string): void {
+export function fallbackCopy(text: string): void {
   const area = document.createElement('textarea');
   area.value = text;
   area.setAttribute('readonly', '');

@@ -42,6 +42,8 @@ export default {
     back: 'Atrás',
     apply: 'Aplicar',
     close: 'Cerrar',
+    copy: 'Copiar',
+    copied: 'Copiado',
     defaults: 'Por defecto',
     increase: 'Aumentar',
     decrease: 'Disminuir',

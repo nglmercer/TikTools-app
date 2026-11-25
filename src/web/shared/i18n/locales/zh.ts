@@ -40,6 +40,8 @@ export default {
     back: "返回",
     apply: "应用",
     close: "关闭",
+    copy: "复制",
+    copied: "已复制",
     defaults: "默认值",
     increase: "增加",
     decrease: "减少",
