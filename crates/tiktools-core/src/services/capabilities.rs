@@ -121,6 +121,32 @@ pub fn redact_secret_settings(manifest: &PluginManifest, values: &Value) -> Valu
     Value::Object(redacted)
 }
 
+/// Projection safe for WebView display. The schema is the UI contract: keys
+/// removed by a plugin update stay in storage for compatibility, but they are
+/// neither editable nor displayable. This also prevents a formerly secret key
+/// from becoming visible when its schema entry is removed.
+fn displayable_settings(manifest: &PluginManifest, values: &Value) -> Value {
+    let Some(properties) = manifest
+        .settings_schema
+        .as_ref()
+        .and_then(|schema| schema.get("properties"))
+        .and_then(Value::as_object)
+    else {
+        return Value::Object(Default::default());
+    };
+    let filtered = values
+        .as_object()
+        .map(|object| {
+            object
+                .iter()
+                .filter(|(key, _)| properties.contains_key(*key))
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect::<serde_json::Map<_, _>>()
+        })
+        .unwrap_or_default();
+    redact_secret_settings(manifest, &Value::Object(filtered))
+}
+
 #[derive(Debug, Clone)]
 pub struct CapabilityBroker {
     plugin_data_root: PathBuf,
@@ -377,7 +403,7 @@ impl CapabilityBroker {
         manifest: &PluginManifest,
     ) -> Result<Value, CapabilityError> {
         self.load_plugin_settings(manifest)
-            .map(|values| redact_secret_settings(manifest, &values))
+            .map(|values| displayable_settings(manifest, &values))
     }
 
     pub fn save_plugin_settings(
@@ -429,7 +455,7 @@ impl CapabilityBroker {
         project_settings(&directory, &stored_values)?;
         // The echo overlays defaults so it matches what a later load returns.
         let stored = apply_settings_defaults(manifest, &Value::Object(stored_values));
-        Ok(redact_secret_settings(manifest, &stored))
+        Ok(displayable_settings(manifest, &stored))
     }
 
     pub(crate) fn reset_plugin_settings(
@@ -562,6 +588,38 @@ mod tests {
             }"#,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn display_hides_stored_keys_removed_from_the_schema() {
+        let root =
+            std::env::temp_dir().join(format!("tiktools-legacy-secret-{}", fastrand::u128(..)));
+        let broker = CapabilityBroker::new(root.clone());
+        let old = secret_manifest();
+        broker
+            .save_plugin_settings(
+                &old,
+                &BTreeMap::from([("apiToken".to_owned(), Value::String("tok-123".to_owned()))]),
+            )
+            .unwrap();
+        let updated = PluginManifest::from_json_str(
+            r#"{
+                "schemaVersion": 3,
+                "id": "secret.plugin",
+                "name": "Secret",
+                "version": "1.0.1",
+                "runtime": "declarative",
+                "settings": {"schema": {"type": "object", "properties": {
+                    "serverUrl": {"type": "string"}
+                }}}
+            }"#,
+        )
+        .unwrap();
+        let display = broker.load_plugin_settings_for_display(&updated).unwrap();
+        assert!(display.get("apiToken").is_none());
+        let raw = broker.load_plugin_settings_raw(&updated).unwrap();
+        assert_eq!(raw.get("apiToken").and_then(Value::as_str), Some("tok-123"));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
