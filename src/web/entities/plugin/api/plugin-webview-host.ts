@@ -1,5 +1,7 @@
 
 import type { ControlClient } from '@/shared/api/control-client.ts';
+import type { JsonObject } from '../../../../shared/json.ts';
+import { optionContext } from '../lib/plugin-options.ts';
 
 export const BROKER_API_VERSION = 1;
 
@@ -57,7 +59,7 @@ export interface BrokerBackend {
   getSettings(signal?: AbortSignal): Promise<Record<string, unknown>>;
   setSettings(values: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown>>;
   executeAction(action: string, config: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
-  getOptions(source: string, refresh: boolean, signal?: AbortSignal): Promise<{ options: unknown[]; selected: string | null }>;
+  getOptions(source: string, refresh: boolean, context?: JsonObject, signal?: AbortSignal): Promise<{ options: unknown[]; selected: string | null }>;
   getLocale(): Promise<string>;
   getTheme(): Promise<string>;
 }
@@ -160,11 +162,15 @@ export function controlBackend(
     async getOptions(
       source: string,
       refresh: boolean,
+      context?: JsonObject,
       signal?: AbortSignal,
     ): Promise<{ options: unknown[]; selected: string | null }> {
+      const params: Record<string, unknown> = { source, refresh, pluginId };
+      const cleanContext = optionContext(context);
+      if (cleanContext) params.context = cleanContext;
       const result = await control.call<{ options?: unknown[]; selected?: string | null }>(
         'plugins.options',
-        { source, refresh, pluginId }, { signal },
+        params, { signal },
       );
       return {
         options: Array.isArray(result.options) ? result.options : [],
@@ -358,8 +364,15 @@ export class PluginWebviewHost {
         if (typeof source !== 'string' || source.length === 0 || source.length > MAX_SOURCE_LENGTH) {
           throw new Error('options.get needs an option source');
         }
+        let context: JsonObject | undefined;
+        if (params.context !== undefined) {
+          if (typeof params.context !== 'object' || params.context === null || Array.isArray(params.context)) {
+            throw new Error('options.get context must be an object');
+          }
+          context = optionContext(params.context as JsonObject) ?? {};
+        }
         return {
-          value: await backend.getOptions(source, params.refresh === true, signal),
+          value: await backend.getOptions(source, params.refresh === true, context, signal),
           topics: [],
         };
       }

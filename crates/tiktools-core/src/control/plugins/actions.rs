@@ -18,6 +18,7 @@ impl AppCore {
         self: &Arc<Self>,
         source: &str,
         refresh: bool,
+        context: Option<&Value>,
     ) -> Result<(Vec<Value>, Option<String>), OperationError> {
         let source = source.trim();
         if source.is_empty() || source.len() > 256 {
@@ -25,7 +26,8 @@ impl AppCore {
                 "option source must be 1..=256 characters",
             ));
         }
-        let (options, selected, error) = self.resolve_action_options(source, refresh).await;
+        let (options, selected, error) =
+            self.resolve_action_options(source, refresh, context).await;
         if let Some(error) = error {
             return Err(OperationError::internal(error));
         }
@@ -42,6 +44,7 @@ impl AppCore {
         requesting_plugin: &str,
         source: &str,
         refresh: bool,
+        context: Option<&Value>,
     ) -> Result<(Vec<Value>, Option<String>), OperationError> {
         let requesting = clean_plugin_id(requesting_plugin)?;
         let source = source.trim();
@@ -51,7 +54,7 @@ impl AppCore {
             ));
         }
         if crate::services::option_sources::is_host_option_source(source) {
-            return self.plugin_action_options(source, refresh).await;
+            return self.plugin_action_options(source, refresh, context).await;
         }
         let Some((action_type, _)) = crate::services::option_sources::parse_option_source(source)
         else {
@@ -60,7 +63,7 @@ impl AppCore {
             )));
         };
         self.verify_action_owner(&action_type, &requesting)?;
-        self.plugin_action_options(source, refresh).await
+        self.plugin_action_options(source, refresh, context).await
     }
 
     /// Resolves the owning plugin of an action type from the action catalog

@@ -506,14 +506,12 @@ fn body_transforms_need_a_text_body_and_known_ops() {
         serde_json::json!([{"op": "trim", "side": "middle"}]),
         serde_json::json!(vec![serde_json::json!({"op": "trim"}); 9]),
     ] {
-        assert!(
-            manifest(serde_json::json!({
-                "path": "/speak",
-                "body": "{{ config.text }}",
-                "bodyTransforms": transforms
-            }))
-            .is_err()
-        );
+        assert!(manifest(serde_json::json!({
+            "path": "/speak",
+            "body": "{{ config.text }}",
+            "bodyTransforms": transforms
+        }))
+        .is_err());
     }
     assert!(manifest(serde_json::json!({
         "path": "/speak",
@@ -527,6 +525,55 @@ fn body_transforms_need_a_text_body_and_known_ops() {
         "bodyTransforms": [{"op": "trim"}]
     }))
     .is_err());
+}
+
+#[test]
+fn option_source_params_stay_bounded_template_strings() {
+    let manifest = |params: serde_json::Value| {
+        PluginManifest::from_json_str(
+            &serde_json::json!({
+                "schemaVersion": 3,
+                "id": "demo.http",
+                "name": "Demo",
+                "version": "1.0.0",
+                "runtime": "declarative",
+                "actionTypes": [{
+                    "id": "demo.speak",
+                    "optionSources": {"voice": {
+                        "path": "/voices",
+                        "params": params
+                    }}
+                }]
+            })
+            .to_string(),
+        )
+    };
+    // Contextual params: template strings rendered into query arguments.
+    assert!(manifest(serde_json::json!({
+        "provider": "{{ config.provider }}",
+        "lang": "{{ settings.language }}"
+    }))
+    .is_ok());
+    // Empty maps, non-string values, oversized entries and non-object
+    // params all fail closed at discovery time.
+    for params in [
+        serde_json::json!({}),
+        serde_json::json!({"provider": 3}),
+        serde_json::json!({"provider": ""}),
+        serde_json::json!({"provider": "x".repeat(1025)}),
+        serde_json::json!(["provider"]),
+        serde_json::json!("provider"),
+    ] {
+        assert!(
+            manifest(params.clone()).is_err(),
+            "params {params} must be rejected"
+        );
+    }
+    // More than eight entries is refused.
+    let oversized: serde_json::Map<String, serde_json::Value> = (0..9)
+        .map(|index| (format!("k{index}"), serde_json::json!("v")))
+        .collect();
+    assert!(manifest(serde_json::Value::Object(oversized)).is_err());
 }
 
 #[test]

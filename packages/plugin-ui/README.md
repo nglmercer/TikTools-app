@@ -34,7 +34,7 @@ const stop = broker.subscribe('plugin.settings-changed', () => location.reload()
 | --- | --- |
 | `getSettings()` / `setSettings(values)` | `settings.get` / `settings.set` for this plugin |
 | `executeAction(action, config)` | `actions.execute`, restricted to this plugin's own actions |
-| `getOptions(source, refresh?)` | `options.get`, restricted to this plugin's option sources |
+| `getOptions(source, refresh?, context?)` | `options.get`, restricted to this plugin's option sources; `context` feeds `optionSources.*.params` templates (bounded scalars) |
 | `subscribe(event, listener)` | `events.subscribe` / `events.unsubscribe` |
 | `getLocale()` / `getTheme()` | `host.locale` / `host.theme` |
 

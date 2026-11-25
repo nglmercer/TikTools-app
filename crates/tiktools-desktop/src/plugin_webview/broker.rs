@@ -188,6 +188,12 @@ impl PluginUiBroker {
             .get("refresh")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        // Contextual option sources: the page may pass its current form
+        // values; the control API bounds and sanitizes them downstream.
+        let context = params
+            .get("context")
+            .filter(|value| value.is_object())
+            .cloned();
         let response = self
             .control
             .execute_value(&serde_json::json!({
@@ -198,6 +204,7 @@ impl PluginUiBroker {
                     "source": source,
                     "refresh": refresh,
                     "pluginId": self.plugin_id,
+                    "context": context,
                 },
             }))
             .await;

@@ -113,7 +113,11 @@
       execute: function (action, config) { return call('actions.execute', { action: action, config: config || {} }); }
     },
     options: {
-      get: function (source, refresh) { return call('options.get', { source: source, refresh: refresh === true }); }
+      get: function (source, refresh, context) {
+        var params = { source: source, refresh: refresh === true };
+        if (context && typeof context === 'object' && !Array.isArray(context)) params.context = context;
+        return call('options.get', params);
+      }
     },
     events: {
       subscribe: function (topics, listener) {

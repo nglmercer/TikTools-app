@@ -21897,6 +21897,9 @@ Resolves action-type/field option documents
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
+    "context": {
+      "description": "Optional form context (flat scalars) rendered into the source's\ndeclared `params` templates. Bounded to 2 KiB serialized."
+    },
     "pluginId": {
       "description": "Requesting plugin id. When present, the host verifies the option\nsource owner matches before resolving (plugin UI broker scoping).",
       "type": [

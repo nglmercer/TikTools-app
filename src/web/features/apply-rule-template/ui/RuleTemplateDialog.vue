@@ -2,6 +2,8 @@
 import { computed, ref, useId, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BehaviorSnapshot, LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
+import type { JsonObject } from '../../../../automation/types.ts';
+import type { ActionOptionItem } from '../../../../shared/messages.ts';
 import { exportRuleTemplate, MAX_RULE_TEMPLATE_BYTES, type RuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
 import type { RuleTemplateTab } from '../model/template-tab.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
@@ -28,8 +30,10 @@ const props = withDefaults(
     customTemplates: readonly RuleTemplate[];
     customError?: string | null;
     working?: boolean;
+    actionOptions?: Readonly<Record<string, readonly ActionOptionItem[]>>;
+    loadOptions?: (source: string, context?: JsonObject) => void;
   }>(),
-  { customError: null, working: false },
+  { customError: null, working: false, actionOptions: () => ({}), loadOptions: undefined },
 );
 
 const emit = defineEmits<{
@@ -115,6 +119,8 @@ function remove(template: RuleTemplate): void {
         :selected="selected"
         :field-id="id"
         :error="error"
+        :action-options="actionOptions"
+        :load-options="loadOptions"
       />
       <RuleTemplateCatalog
         v-else

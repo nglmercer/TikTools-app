@@ -258,6 +258,7 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
                     source,
                     refresh: false,
                     plugin_id: None,
+                    context: None,
                 })
                 .await?,
         ),

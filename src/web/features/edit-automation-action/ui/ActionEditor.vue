@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { deriveActionPermissions } from '../../../../automation/behavior/schema.ts';
 import type { ActionTypeDefinition, BehaviorRun, LiveAction } from '../../../../automation/behavior/types.ts';
@@ -9,7 +9,7 @@ import { actionForm, variableScope } from '@/entities/automation/lib/action-form
 import { actionTypeOf, cloneRecord } from '@/entities/automation/lib/automation-records.ts';
 import { templateVariables } from '@/entities/automation/lib/template-variables.ts';
 import TestRunList from '@/entities/automation/ui/TestRunList.vue';
-import { fieldOptionsFor, optionSources } from '@/entities/plugin/lib/plugin-options.ts';
+import { fieldOptionsFor, optionContext, optionContextSignature, optionSources } from '@/entities/plugin/lib/plugin-options.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
@@ -52,7 +52,7 @@ const emit = defineEmits<{
   change: [action: LiveAction];
   delete: [id: string];
   test: [action: LiveAction];
-  loadOptions: [source: string, refresh: boolean];
+  loadOptions: [source: string, refresh: boolean, context?: JsonObject];
   compare: [];
 }>();
 
@@ -97,9 +97,24 @@ function suggestionsFor(field: string) {
   });
 }
 
+// Contextual option sources (`optionSources.*.params`) re-resolve against
+// the sibling config values, so edits debounce into a fresh options read.
+// The host caches per rendered params, making repeat contexts free.
+const optionCtx = computed(() => optionContext(draft.value.config));
+const optionCtxSig = computed(() => optionContextSignature(optionCtx.value));
+let optionsTimer: ReturnType<typeof setTimeout> | undefined;
+
 function requestOptions(refresh: boolean): void {
-  for (const source of sources.value) emit('loadOptions', source, refresh);
+  for (const source of sources.value) emit('loadOptions', source, refresh, optionCtx.value);
 }
+
+watch(optionCtxSig, () => {
+  if (optionsTimer) clearTimeout(optionsTimer);
+  optionsTimer = setTimeout(() => requestOptions(false), 300);
+});
+onBeforeUnmount(() => {
+  if (optionsTimer) clearTimeout(optionsTimer);
+});
 
 watch(
   () => props.action,

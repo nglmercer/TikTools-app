@@ -66,7 +66,7 @@
             "default": "Text",
             "i18key": "sonicboom.server.speak.text.label"
           },
-          "kind": "textarea",
+          "kind": "text",
           "value": "{{ event.data.comment }}",
           "template": true,
           "placeholder": "{{ event.data.comment }}",
@@ -172,6 +172,16 @@
       "optionSources": {
         "voice": {
           "path": "/api/tts/plugin/voices",
+          "params": {
+            "provider": "{{ config.provider }}"
+          },
+          "timeoutMs": 8000
+        },
+        "voiceStored": {
+          "path": "/api/tts/plugin/voices",
+          "params": {
+            "provider": "{{ settings.tts.providerId }}"
+          },
           "timeoutMs": 8000
         },
         "provider": {
@@ -369,7 +379,7 @@
           "secret": true
         },
         "defaultVoice": {
-          "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice",
+          "optionsFrom": "plugin-action-options:sonicboom.server.speak:voiceStored",
           "advanced": true
         },
         "defaultLanguage": {
@@ -492,7 +502,7 @@
         {
           "kind": "tts",
           "actionType": "sonicboom.server.speak",
-          "voicesFrom": "plugin-action-options:sonicboom.server.speak:voice",
+          "voicesFrom": "plugin-action-options:sonicboom.server.speak:voiceStored",
           "outputsFrom": "plugin-action-options:sonicboom.server.set-output-device:device"
         }
       ]

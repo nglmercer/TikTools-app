@@ -97,7 +97,7 @@ const context = computed<PluginUiContext>(() => {
       values: actionOptions.value,
       errors: actionOptionErrors.value,
       selected: actionOptionSelected.value,
-      get: (source, refresh) => pluginsStore.handleGetActionOptions(source, refresh, id),
+      get: (source, refresh, context) => pluginsStore.handleGetActionOptions(source, refresh, id, context),
     },
     actions: {
       execute: (actionType, config) => pluginsStore.executeAction(id, actionType, config, true),

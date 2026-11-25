@@ -57,7 +57,7 @@ export interface NativeTikTools {
     execute(action: string, config: Record<string, unknown>): Promise<ActionOutcome>;
   };
   options: {
-    get(source: string, refresh?: boolean): Promise<OptionsResult>;
+    get(source: string, refresh?: boolean, context?: Record<string, unknown>): Promise<OptionsResult>;
   };
   events: {
     subscribe(topics: string[], listener: (event: string, data: unknown) => void): Unsubscribe;
@@ -177,6 +177,7 @@ export class PluginBroker {
         return native.options.get(
           String(params.source ?? ''),
           params.refresh === true,
+          params.context as Record<string, unknown> | undefined,
         ) as Promise<unknown>;
       case 'host.locale':
         return native.host.locale() as Promise<unknown>;
@@ -200,8 +201,8 @@ export class PluginBroker {
     return (await this.post('actions.execute', { action, config })) as ActionOutcome;
   }
 
-  async getOptions(source: string, refresh = false): Promise<OptionsResult> {
-    const result = (await this.post('options.get', { source, refresh })) as Partial<OptionsResult> & { error?: string };
+  async getOptions(source: string, refresh = false, context?: Record<string, unknown>): Promise<OptionsResult> {
+    const result = (await this.post('options.get', { source, refresh, context })) as Partial<OptionsResult> & { error?: string };
     if (result.error) throw new Error(result.error);
     return {
       options: Array.isArray(result.options) ? result.options : [],

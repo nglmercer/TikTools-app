@@ -11,6 +11,7 @@ import type {
 } from '../../../../shared/messages.ts';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { errorMessage } from '@/shared/api/control-client.ts';
+import { optionContext } from '../lib/plugin-options.ts';
 import type { PluginSettingsState } from '@/types.ts';
 
 export interface PluginSettingsResult {
@@ -215,15 +216,32 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
       });
   };
 
-  const handleGetActionOptions = (source: string, refresh?: boolean, pluginId?: string): void => {
+  // Contextual option sources re-resolve per form context; only the latest
+  // request per source may write back so a slow earlier response cannot
+  // clobber the options of the context the user is editing now.
+  const optionRequestSeq = new Map<string, number>();
+
+  const handleGetActionOptions = (
+    source: string,
+    refresh?: boolean,
+    pluginId?: string,
+    context?: JsonObject,
+  ): void => {
     const params: Record<string, unknown> = { source };
     if (refresh) params.refresh = true;
     if (pluginId) params.pluginId = pluginId;
+    const cleanContext = optionContext(context);
+    if (cleanContext) params.context = cleanContext;
+    const seq = (optionRequestSeq.get(source) ?? 0) + 1;
+    optionRequestSeq.set(source, seq);
     void control
       .call<PluginOptionsResult>('plugins.options', params)
-      .then((result) => applyOptions(result))
+      .then((result) => {
+        if (disposed || optionRequestSeq.get(source) !== seq) return;
+        applyOptions(result);
+      })
       .catch((failure: unknown) => {
-        if (disposed) return;
+        if (disposed || optionRequestSeq.get(source) !== seq) return;
         applyOptions({ source, options: [], selected: null }, errorMessage(failure));
       });
   };

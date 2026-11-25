@@ -244,6 +244,28 @@ fn validate_option_source(source: &Value) -> Result<(), ManifestError> {
         validate_http_timeout(timeout, MAX_HTTP_FETCH_TIMEOUT_MS)
             .map_err(|_| ManifestError::InvalidField("actionTypes"))?;
     }
+    if let Some(params) = object.get("params") {
+        // Contextual option sources: each entry renders a `{{ config.* }}`/
+        // `{{ settings.* }}` template into one query argument. Bounded like
+        // other untrusted descriptor text.
+        let valid = params.as_object().is_some_and(|params| {
+            !params.is_empty()
+                && params.len() <= 8
+                && params.iter().all(|(key, value)| {
+                    !key.is_empty()
+                        && key.len() <= 128
+                        && key
+                            .chars()
+                            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+                        && value
+                            .as_str()
+                            .is_some_and(|value| !value.is_empty() && value.len() <= 1024)
+                })
+        });
+        if !valid {
+            return Err(ManifestError::InvalidField("actionTypes"));
+        }
+    }
     Ok(())
 }
 

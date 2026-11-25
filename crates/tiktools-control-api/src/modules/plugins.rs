@@ -74,6 +74,10 @@ pub struct PluginOptionsParams {
     /// source owner matches before resolving (plugin UI broker scoping).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plugin_id: Option<String>,
+    /// Optional form context (flat scalars) rendered into the source's
+    /// declared `params` templates. Bounded to 2 KiB serialized.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -288,14 +292,33 @@ pub fn register(router: &mut ControlRouter) {
         "Resolves action-type/field option documents",
         false,
         |core: Arc<AppCore>, params: PluginOptionsParams| async move {
+            if let Some(context) = params.context.as_ref() {
+                let size = serde_json::to_string(context)
+                    .map(|encoded| encoded.len())
+                    .unwrap_or(usize::MAX);
+                if !context.is_object() || size > 2048 {
+                    return Err(ApiError::invalid_params(
+                        "option context must be an object of at most 2048 bytes",
+                    ));
+                }
+            }
             let outcome = match params.plugin_id.as_deref() {
                 Some(requesting) => {
-                    core.plugin_action_options_scoped(requesting, &params.source, params.refresh)
-                        .await
+                    core.plugin_action_options_scoped(
+                        requesting,
+                        &params.source,
+                        params.refresh,
+                        params.context.as_ref(),
+                    )
+                    .await
                 }
                 None => {
-                    core.plugin_action_options(&params.source, params.refresh)
-                        .await
+                    core.plugin_action_options(
+                        &params.source,
+                        params.refresh,
+                        params.context.as_ref(),
+                    )
+                    .await
                 }
             };
             outcome

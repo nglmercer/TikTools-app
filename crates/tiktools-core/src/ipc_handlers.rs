@@ -230,8 +230,17 @@ impl AppCore {
             PageMessage::UninstallPluginPackage { id } => {
                 self.handle_uninstall_plugin_package(id);
             }
-            PageMessage::GetActionOptions { source, refresh } => {
-                match self.plugin_action_options(&source, refresh).await {
+            PageMessage::GetActionOptions {
+                source,
+                refresh,
+                context,
+            } => {
+                let context = context
+                    .map(|map| Value::Object(map.into_iter().collect::<serde_json::Map<_, _>>()));
+                match self
+                    .plugin_action_options(&source, refresh, context.as_ref())
+                    .await
+                {
                     Ok((options, selected)) => self.emit(HostMessage::ActionOptions {
                         source,
                         options,

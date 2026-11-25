@@ -217,7 +217,7 @@ export type PageMessage =
   | { type: 'set-plugin-enabled'; id: string; enabled: boolean }
   | { type: 'get-plugin-settings'; id: string }
   | { type: 'save-plugin-settings'; id: string; values: PluginSettingValues }
-  | { type: 'get-action-options'; source: string }
+  | { type: 'get-action-options'; source: string; refresh?: boolean; context?: JsonObject }
   | { type: 'execute-plugin-action'; actionType: string; config: PluginSettingValues }
   | { type: 'test-plugin-connection'; id: string }
   | { type: 'provision-plugin-token'; id: string; username: string; password: string }

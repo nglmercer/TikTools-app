@@ -1,5 +1,6 @@
 import { storeToRefs } from 'pinia';
 import type { Ref } from 'vue';
+import type { JsonObject } from '../../../../automation/types.ts';
 import type { BehaviorRun, BehaviorSnapshot } from '../../../../automation/behavior/types.ts';
 import type { GiftCatalogEntry, HotkeyStatusData } from '../../../../shared/messages.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
@@ -63,7 +64,8 @@ export function useAutomationControls() {
     setEventEnabled: automation.handleSetEventEnabled,
     testEvent: automation.handleTestEvent,
     fireEvent: automation.handleFireEvent,
-    loadOptions: plugins.handleGetActionOptions,
+    loadOptions: (source: string, refresh: boolean, context?: JsonObject) =>
+      plugins.handleGetActionOptions(source, refresh, undefined, context),
     applyTemplate: automation.handleApplyRuleTemplate,
     loadCustomTemplates: templates.loadCustom,
     importTemplates: templates.importTemplates,

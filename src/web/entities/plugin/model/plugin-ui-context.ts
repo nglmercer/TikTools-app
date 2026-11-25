@@ -17,7 +17,7 @@ export interface PluginUiContext {
     values: Readonly<Record<string, ActionOptionItem[]>>;
     errors: Readonly<Record<string, string>>;
     selected: Readonly<Record<string, string>>;
-    get(source: string, refresh?: boolean): void;
+    get(source: string, refresh?: boolean, context?: JsonObject): void;
   };
   actions: {
     execute(actionType: string, config: PluginSettingValues): void;

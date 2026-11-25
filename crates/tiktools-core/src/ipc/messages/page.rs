@@ -166,6 +166,10 @@ pub enum PageMessage {
         source: String,
         #[serde(default)]
         refresh: bool,
+        /// Optional flat-scalar form context rendered into the source's
+        /// declared `params` templates (contextual option sources).
+        #[serde(default)]
+        context: Option<JsonObject>,
     },
     #[serde(rename = "execute-plugin-action")]
     ExecutePluginAction {
@@ -325,9 +329,24 @@ impl PageMessage {
                     return Err(IpcMessageError::InvalidField("source/offset"));
                 }
             }
-            Self::GetActionOptions { source, .. } => {
+            Self::GetActionOptions {
+                source, context, ..
+            } => {
                 if !valid_option_source(source) {
                     return Err(IpcMessageError::InvalidField("source"));
+                }
+                if let Some(context) = context {
+                    let oversized = serde_json::to_string(context)
+                        .map(|encoded| encoded.len() > 2048)
+                        .unwrap_or(true);
+                    if context.len() > 32
+                        || oversized
+                        || context.iter().any(|(key, value)| {
+                            !valid_setting_key(key) || !is_primitive_setting(value)
+                        })
+                    {
+                        return Err(IpcMessageError::InvalidField("context"));
+                    }
                 }
             }
             Self::SavePluginSettings { id, values } => {

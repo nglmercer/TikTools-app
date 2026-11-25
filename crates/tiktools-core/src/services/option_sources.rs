@@ -120,8 +120,12 @@ impl OptionSourceService {
     /// Drops one cached option list. Explicit refresh after a
     /// state-changing action calls this so the next read re-fetches instead
     /// of serving the pre-mutation selection until the TTL expires.
+    /// Contextual entries (`source\u{1f}…`) are dropped with their source.
     pub fn invalidate(&self, source: &str) {
-        recover_mutex(&self.cache, "option cache").remove(source);
+        let mut cache = recover_mutex(&self.cache, "option cache");
+        cache.remove(source);
+        let prefix = format!("{source}\u{1f}");
+        cache.retain(|key, _| !key.starts_with(&prefix));
     }
 
     /// Drops every cached option list owned by one action type (all fields).
@@ -131,12 +135,14 @@ impl OptionSourceService {
     pub fn invalidate_action(&self, action_type: &str) {
         let owned: Vec<String> = recover_mutex(&self.cache, "option cache")
             .keys()
-            .filter(|source| {
-                parse_option_source(source)
-                    .map(|(owner, _)| owner == action_type)
-                    .unwrap_or(false)
+            .filter_map(|source| {
+                // Contextual cache keys carry a `\u{1f}`-suffixed query; the
+                // source id itself never contains that separator.
+                let base = source.split('\u{1f}').next().unwrap_or(source);
+                parse_option_source(base)
+                    .filter(|(owner, _)| owner == action_type)
+                    .map(|_| base.to_owned())
             })
-            .cloned()
             .collect();
         for source in owned {
             self.invalidate(&source);
@@ -253,6 +259,60 @@ pub fn map_option_items(
         }
     }
     Ok(options)
+}
+
+/// Bounds caller-supplied option context to flat scalar entries. Nested
+/// objects, arrays and oversized strings are dropped — option templates only
+/// ever read top-level `{{ config.<key> }}` scalars.
+pub(crate) fn sanitize_option_context(context: Option<&Value>) -> Value {
+    let Some(object) = context.and_then(Value::as_object) else {
+        return json!({});
+    };
+    let mut clean = serde_json::Map::new();
+    for (key, value) in object.iter().take(32) {
+        if key.is_empty() || key.len() > 128 {
+            continue;
+        }
+        let scalar = match value {
+            Value::String(text) if text.len() <= 512 => Value::String(text.clone()),
+            Value::Number(_) | Value::Bool(_) => value.clone(),
+            _ => continue,
+        };
+        clean.insert(key.clone(), scalar);
+    }
+    Value::Object(clean)
+}
+
+fn url_encode(text: &str) -> String {
+    url::form_urlencoded::byte_serialize(text.as_bytes()).collect()
+}
+
+/// Renders a source's declared `params` map into one sorted, URL-encoded
+/// query string. Every value is a `{{ config.* }}`/`{{ settings.* }}`
+/// template resolved against the fetch scope; empty renders are dropped.
+/// Manifest validation bounds the map (≤8 entries, ≤1024 chars each), so
+/// the result stays small enough to double as the cache-key suffix.
+fn render_option_params(params: Option<&Value>, scope: &Value) -> String {
+    let Some(object) = params.and_then(Value::as_object) else {
+        return String::new();
+    };
+    let mut pairs: Vec<(String, String)> = object
+        .iter()
+        .filter_map(|(key, raw)| {
+            let rendered =
+                crate::services::declarative_http::render_scoped_template(raw.as_str()?, scope);
+            if rendered.is_empty() {
+                return None;
+            }
+            Some((key.clone(), rendered))
+        })
+        .collect();
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    pairs
+        .iter()
+        .map(|(key, value)| format!("{}={}", url_encode(key), url_encode(value)))
+        .collect::<Vec<_>>()
+        .join("&")
 }
 
 fn find_option_items<'a>(
@@ -388,6 +448,7 @@ impl crate::AppCore {
         self: &std::sync::Arc<Self>,
         source: &str,
         force_refresh: bool,
+        context: Option<&Value>,
     ) -> (Vec<Value>, Option<String>, Option<String>) {
         let fail = |message: String| (Vec::new(), None, Some(message));
         let generation = self.option_sources.generation();
@@ -445,12 +506,43 @@ impl crate::AppCore {
             Ok(settings) => settings,
             Err(error) => return fail(error.to_string()),
         };
-        let scope = json!({"settings": settings});
+        let config = sanitize_option_context(context);
+        let scope = json!({"settings": settings, "config": config});
+        let has_params = option
+            .get("params")
+            .and_then(Value::as_object)
+            .is_some_and(|params| !params.is_empty());
+        let query = render_option_params(option.get("params"), &scope);
+        // Contextual sources cache per rendered query: provider=A and
+        // provider=B must never share a list. The `\u{1f}` separator keeps
+        // contextual keys distinct from the bare source id, so the early
+        // `cached(source)` probe above can only ever hit non-contextual
+        // entries.
+        let cache_key = if has_params {
+            format!("{source}\u{1f}{query}")
+        } else {
+            source.to_owned()
+        };
+        if has_params && !force_refresh {
+            if let Some((options, selected)) = self.option_sources.cached(&cache_key) {
+                return (options, selected, None);
+            }
+        }
+        let path = if query.is_empty() {
+            path.to_owned()
+        } else {
+            format!(
+                "{}{}{}",
+                path,
+                if path.contains('?') { "&" } else { "?" },
+                query
+            )
+        };
         let body = match self
             .fetch_declarative_json(
                 &plugin.manifest,
                 "GET",
-                path,
+                &path,
                 option.get("timeoutMs").and_then(Value::as_u64),
                 &scope,
             )
@@ -472,7 +564,7 @@ impl crate::AppCore {
         };
         let selected = selected_option_value(&body, items_path, value_path);
         if !self.option_sources.store_if_current(
-            source,
+            &cache_key,
             options.clone(),
             selected.clone(),
             generation,
@@ -777,14 +869,14 @@ mod tests {
             Some("default".to_owned()),
         );
         // Normal read: cache hit, no plugin lookup, no fetch.
-        let (options, selected, error) = core.resolve_action_options(source, false).await;
+        let (options, selected, error) = core.resolve_action_options(source, false, None).await;
         assert!(error.is_none());
         assert_eq!(options.len(), 1);
         assert_eq!(selected.as_deref(), Some("default"));
         // Forced read: the cache is skipped, so resolution proceeds to the
         // plugin lookup and fails there (no plugins registered in this
         // core) instead of returning the stale cached selection.
-        let (options, selected, error) = core.resolve_action_options(source, true).await;
+        let (options, selected, error) = core.resolve_action_options(source, true, None).await;
         assert!(options.is_empty());
         assert!(selected.is_none());
         assert!(error.unwrap().contains("not available"));
@@ -800,12 +892,14 @@ mod tests {
     #[tokio::test]
     async fn resolution_errors_stay_display_safe() {
         let core = std::sync::Arc::new(crate::AppCore::new(std::sync::Arc::new(Emitter)));
-        let (options, selected, error) = core.resolve_action_options("not-a-source", false).await;
+        let (options, selected, error) = core
+            .resolve_action_options("not-a-source", false, None)
+            .await;
         assert!(options.is_empty());
         assert!(selected.is_none());
         assert!(error.unwrap().contains("Unknown option source"));
         let (options, selected, error) = core
-            .resolve_action_options("plugin-action-options:missing.action:field", false)
+            .resolve_action_options("plugin-action-options:missing.action:field", false, None)
             .await;
         assert!(options.is_empty());
         assert!(selected.is_none());
@@ -819,13 +913,14 @@ mod tests {
         // contents are machine state, so only the envelope is asserted
         // here; the mapping itself is covered by the pure tests above.
         let core = std::sync::Arc::new(crate::AppCore::new(std::sync::Arc::new(Emitter)));
-        let (options, selected, error) =
-            core.resolve_action_options(HOST_GIFTS_SOURCE, false).await;
+        let (options, selected, error) = core
+            .resolve_action_options(HOST_GIFTS_SOURCE, false, None)
+            .await;
         assert!(error.is_none());
         assert!(selected.is_none());
         assert_eq!(options, map_host_gift_options(&core.gift_catalog()));
         // Anything else under the host namespace still fails closed.
-        let (options, _, error) = core.resolve_action_options("host.state", false).await;
+        let (options, _, error) = core.resolve_action_options("host.state", false, None).await;
         assert!(options.is_empty());
         assert!(error.unwrap().contains("Unknown option source"));
     }
@@ -839,12 +934,16 @@ mod tests {
             None,
         );
         // Normal read serves the cached catalog snapshot.
-        let (options, _, error) = core.resolve_action_options(HOST_GIFTS_SOURCE, false).await;
+        let (options, _, error) = core
+            .resolve_action_options(HOST_GIFTS_SOURCE, false, None)
+            .await;
         assert!(error.is_none());
         assert_eq!(options.len(), 1);
         // Forced read re-reads the live catalog instead of serving the
         // snapshot, then caches the fresh result.
-        let (options, _, error) = core.resolve_action_options(HOST_GIFTS_SOURCE, true).await;
+        let (options, _, error) = core
+            .resolve_action_options(HOST_GIFTS_SOURCE, true, None)
+            .await;
         assert!(error.is_none());
         assert_eq!(options, map_host_gift_options(&core.gift_catalog()));
         let (cached, _) = core.option_sources.cached(HOST_GIFTS_SOURCE).unwrap();
@@ -864,6 +963,56 @@ mod tests {
         assert_eq!(options[1]["disabled"], false);
         assert!(options[2].get("disabled").is_none());
     }
+    #[test]
+    fn option_context_keeps_only_flat_bounded_scalars() {
+        let context = json!({
+            "provider": "supertonic",
+            "count": 3,
+            "flag": true,
+            "nested": {"a": 1},
+            "list": [1, 2],
+            "long": "x".repeat(600),
+            "": "empty-key",
+        });
+        let clean = sanitize_option_context(Some(&context));
+        let object = clean.as_object().expect("object context");
+        assert_eq!(object.len(), 3);
+        assert_eq!(object["provider"], json!("supertonic"));
+        assert_eq!(object["count"], json!(3));
+        assert_eq!(object["flag"], json!(true));
+        assert!(sanitize_option_context(None)
+            .as_object()
+            .expect("object")
+            .is_empty());
+        assert!(sanitize_option_context(Some(&json!("nope")))
+            .as_object()
+            .expect("object")
+            .is_empty());
+    }
+
+    #[test]
+    fn option_params_render_templates_and_drop_empty_values() {
+        let scope = json!({
+            "settings": {"defaultProvider": "edge", "tts": {"providerId": "reverb-tts"}},
+            "config": {"provider": "supertonic", "voice": "af heart"}
+        });
+        let params = json!({
+            "provider": "{{ config.provider }}",
+            "voice": "{{ config.voice }}",
+            "fallback": "{{ settings.defaultProvider }}",
+            "storedProvider": "{{ settings.tts.providerId }}",
+            "missing": "{{ config.absent }}",
+        });
+        // Keys sort for a deterministic cache suffix; empty renders drop and
+        // values are URL-encoded (`af heart` → `af+heart`).
+        assert_eq!(
+            render_option_params(Some(&params), &scope),
+            "fallback=edge&provider=supertonic&storedProvider=reverb-tts&voice=af+heart"
+        );
+        assert_eq!(render_option_params(None, &scope), "");
+        assert_eq!(render_option_params(Some(&json!({})), &scope), "");
+    }
+
     #[test]
     fn settings_change_rejects_inflight_old_tenant_catalog() {
         let service = OptionSourceService::new();

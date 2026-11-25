@@ -7,6 +7,7 @@ import { storeToRefs } from 'pinia';
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { routeLocationKey, routerKey } from 'vue-router';
 import type { LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
+import type { JsonObject } from '../../../../automation/types.ts';
 import { useAutomationControls } from '@/features/manage-automations/model/use-automation-controls.ts';
 import { useAutomationSyncAdapters } from '@/features/manage-automations/model/use-automation-sync-adapter.ts';
 import SyncButton from '@/features/sync-changes/ui/SyncButton.vue';
@@ -45,6 +46,10 @@ import AutomationRunsPanel from '@/widgets/automation-runs/ui/AutomationRunsPane
 const { t } = useAutomationText();
 const guideCapabilities = useCapabilityStore();
 const automation = useAutomationControls();
+// The template dialog asks for (source, context); the store signature is
+// (source, refresh, pluginId, context).
+const templateLoadOptions = (source: string, context?: JsonObject) =>
+  automation.loadOptions(source, false, context);
 const syncAdapters = useAutomationSyncAdapters();
 const variableSync = useVariableSyncAdapter();
 const library = libraryJournal(useControlClient());
@@ -343,6 +348,8 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
       :custom-templates="automation.customTemplates.value"
       :custom-error="automation.templateError.value"
       :working="library.working.value || library.gate.busy.value"
+      :action-options="automation.actionOptions.value"
+      :load-options="templateLoadOptions"
       @apply="applyTemplate"
       @import="importTemplates"
       @delete-custom="automation.deleteCustomTemplate"

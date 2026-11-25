@@ -138,7 +138,12 @@ async fn scoped_options_rejects_cross_plugin_sources() {
     let (core, root) = core_with_two_plugins();
     // plugin-a cannot read plugin-b's option source.
     let error = core
-        .plugin_action_options_scoped("plugina", "plugin-action-options:pluginb.echo:field", false)
+        .plugin_action_options_scoped(
+            "plugina",
+            "plugin-action-options:pluginb.echo:field",
+            false,
+            None,
+        )
         .await
         .expect_err("cross-plugin options read must fail");
     assert_eq!(error.code(), "forbidden");
@@ -148,6 +153,7 @@ async fn scoped_options_rejects_cross_plugin_sources() {
             "plugina",
             "plugin-action-options:plugina.spoof:field",
             false,
+            None,
         )
         .await
         .expect_err("prefix-spoofed options read must fail");
@@ -155,7 +161,12 @@ async fn scoped_options_rejects_cross_plugin_sources() {
     // Own source passes ownership: it proceeds to resolution, which
     // reports the (declared-shape) absence of options — never forbidden.
     let error = core
-        .plugin_action_options_scoped("plugina", "plugin-action-options:plugina.echo:field", false)
+        .plugin_action_options_scoped(
+            "plugina",
+            "plugin-action-options:plugina.echo:field",
+            false,
+            None,
+        )
         .await
         .expect_err("undeclared options must fail resolution");
     assert_ne!(error.code(), "forbidden");
@@ -238,7 +249,7 @@ async fn scoped_options_allow_host_sources_for_any_plugin() {
     // Host-owned data belongs to no plugin: either caller may read it.
     for requesting in ["plugina", "pluginb"] {
         let (options, selected) = core
-            .plugin_action_options_scoped(requesting, "host.gifts", false)
+            .plugin_action_options_scoped(requesting, "host.gifts", false, None)
             .await
             .expect("host source must resolve for any plugin");
         assert!(selected.is_none());
