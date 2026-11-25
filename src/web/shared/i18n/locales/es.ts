@@ -874,7 +874,7 @@ export default {
       alias: 'Capturar como',
       aliasPlaceholder: 'nombre',
       captures: 'Capturas',
-      capturesHint: 'El valor que coincida en cada condición estará disponible en las acciones como match.alias.',
+      capturesHint: 'Úsalo en acciones como match.alias.',
       alternative: 'Alternativa {n}',
       addAlternative: 'Añadir alternativa',
       removeAlternative: 'Quitar alternativa',

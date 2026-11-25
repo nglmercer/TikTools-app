@@ -872,7 +872,7 @@ export default {
       alias: "キャプチャ名",
       aliasPlaceholder: "名前",
       captures: "キャプチャ",
-      capturesHint: "各条件に一致した値はアクションで match.alias として使えます。",
+      capturesHint: "アクションでは match.alias を使います。",
       alternative: "代替 {n}",
       addAlternative: "代替を追加",
       removeAlternative: "代替を削除",

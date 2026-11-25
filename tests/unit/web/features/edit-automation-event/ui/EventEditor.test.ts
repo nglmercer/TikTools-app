@@ -216,9 +216,9 @@ it('edits capture aliases in their own tab', async () => {
   const aliasLabel = t('automations.conditions.alias');
   const aliasInputs = () => wrapper.findAll('input').filter((item) => item.attributes('aria-label') === aliasLabel);
   expect(aliasInputs()).toHaveLength(0);
-  const capturesTab = wrapper.findAll('[role="tab"]')
-    .find((item) => item.text() === t('automations.conditions.captures'))!;
-  await capturesTab.trigger('click');
+  const capturesToggle = wrapper.findAll('button')
+    .find((item) => item.attributes('aria-label') === t('automations.conditions.captures'))!;
+  await capturesToggle.trigger('click');
   await nextTick();
   expect(aliasInputs()).toHaveLength(2);
   await aliasInputs()[0]!.setValue('commandPrefix');
