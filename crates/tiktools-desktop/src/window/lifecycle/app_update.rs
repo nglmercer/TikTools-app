@@ -66,8 +66,6 @@ impl DesktopApp {
         } else {
             dialog
         };
-        #[cfg(target_os = "linux")]
-        let dialog = dialog;
         if dialog.show() != rfd::MessageDialogResult::Yes {
             return;
         }

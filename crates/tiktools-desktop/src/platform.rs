@@ -83,17 +83,17 @@ fn configure_webkit_renderer() {
         return;
     }
     std::env::set_var("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1");
-    // Empirical on exotic/fragile GPU drivers (e.g. the AMD BC-250 compute
-    // card): the GL pipeline composes frames that never fully present —
-    // windows repaint only after a resize. Skia CPU rendering bypasses the
-    // GPU entirely and measured correct on hardware where the GL path
-    // visibly breaks; typical web UI cost is modest either way. Opt out
-    // with TIKTOOLS_WEBKIT_GPU=1 on machines with healthy drivers.
-    if std::env::var_os("TIKTOOLS_WEBKIT_GPU").is_none() {
+    // GPU rendering is the default again: the skia CPU fallback only ever
+    // worked around the broken X11 child-window compositing, which no longer
+    // exists — on the native GTK shell the GL pipeline is the well-trodden
+    // path and measured dramatically faster even on weak GPUs (CPU rasterization
+    // of the full app UI saturates small CPUs). Hosts with genuinely broken
+    // GL drivers can still opt into CPU rendering explicitly.
+    if std::env::var_os("TIKTOOLS_WEBKIT_CPU").is_some() {
         std::env::set_var("WEBKIT_SKIA_ENABLE_CPU_RENDERING", "1");
     }
     tracing::debug!(
-        "forcing WebKitGTK shared-memory transport + skia CPU rendering; set TIKTOOLS_WEBKIT_GPU=1 or any WEBKIT_* variable to override"
+        "forcing WebKitGTK shared-memory transport; set TIKTOOLS_WEBKIT_CPU=1 for software rendering or any WEBKIT_* variable to override"
     );
 }
 
@@ -153,6 +153,7 @@ fn next_startup_wake(now: Instant, deadline: Instant, interval: std::time::Durat
 /// not always track window focus on X11: without an explicit re-focus, a
 /// field can keep its `:focus` visuals while keyboard focus (caret, typing)
 /// never returns to the page.
+#[cfg(not(target_os = "linux"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowFocusAction {
     /// Move keyboard focus into the page.
@@ -164,6 +165,7 @@ pub enum WindowFocusAction {
 /// Pure policy behind the `WindowEvent::Focused` arms: focus gains move
 /// keyboard focus into the WebView, focus losses preserve DOM focus so the
 /// user's place (caret, selection, focused field) survives window switches.
+#[cfg(not(target_os = "linux"))]
 pub fn window_focus_action(gained: bool) -> WindowFocusAction {
     if gained {
         WindowFocusAction::FocusWebview

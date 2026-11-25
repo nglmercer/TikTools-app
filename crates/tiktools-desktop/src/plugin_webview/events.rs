@@ -7,6 +7,9 @@ impl PluginUiWindows {
     /// `CloseRequested` never destroys handles re-entrantly: the entry is
     /// marked `Closing`, hidden for immediate feedback, and torn down by a
     /// deferred `ClosePluginUi` command outside window-event dispatch.
+    // Winit-era window event dispatch: dead on linux where pop-outs cannot
+    // open until the GTK migration replaces this machinery wholesale.
+    #[cfg(not(target_os = "linux"))]
     pub fn on_window_event(
         &mut self,
         proxy: &EventLoopProxy<DesktopEvent>,

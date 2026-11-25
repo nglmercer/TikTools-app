@@ -15,6 +15,7 @@ impl PluginWindowState {
     /// `CloseRequested` transition: `Open -> Closing` returns true (the
     /// caller must post the deferred teardown command); `Closing` returns
     /// false (a teardown is already queued).
+    #[cfg_attr(target_os = "linux", allow(dead_code))] // revives with the GTK pop-out migration
     pub(super) fn begin_close(&mut self) -> bool {
         if *self == PluginWindowState::Closing {
             return false;
@@ -92,6 +93,7 @@ impl PluginUiWindow {
     /// stale BadWindow the sync exists to prevent). `self` then drops with
     /// both handles taken, so the normal `Drop` is a no-op: no double
     /// destroy, and no leak on the normal close path.
+    #[cfg_attr(target_os = "linux", allow(dead_code))] // revives with the GTK pop-out migration
     pub(super) fn disown_destroyed(mut self) {
         let _ = self.ipc_shutdown.send(true);
         self.ipc_slots.close();

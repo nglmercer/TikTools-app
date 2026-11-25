@@ -44,7 +44,6 @@ use serde_json::Value;
 use tiktools_control_api::ControlApi;
 use tiktools_core::AppCore;
 use tokio::runtime::Handle;
-use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 use winit::window::{Window, WindowId};
 use wry::dpi::{PhysicalPosition as WryPhysicalPosition, PhysicalSize as WryPhysicalSize};

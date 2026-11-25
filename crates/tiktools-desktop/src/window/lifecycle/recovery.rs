@@ -17,6 +17,7 @@ impl DesktopApp {
     /// advances the generation and restarts the bounded watchdog, so a
     /// manual refresh flows through the same lifecycle as a programmatic
     /// one. Never touches `AppCore` or user data.
+    #[cfg_attr(target_os = "linux", allow(dead_code))] // revives when the GTK shell wires manual reload
     pub(super) fn reload_webview(&mut self) {
         if self.shutting_down {
             return;
@@ -165,7 +166,7 @@ impl DesktopApp {
             None => Err("linux shell window missing its GTK container".to_owned()),
         };
         #[cfg(target_os = "linux")]
-        if let Ok(_) = result.as_ref() {
+        if result.is_ok() {
             if let Some(content) = window.gtk_content() {
                 for child in content.children() {
                     child.set_hexpand(true);
