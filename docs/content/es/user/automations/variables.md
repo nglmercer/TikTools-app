@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "20ba9e681b63ffa9aff2ff5d868738d242fd4eab4d520d9e08656760ee8361ba"
-translationRevision: "0523914c120b4b083151d3d0cc7c2337a1d82156f7bcd0f1d05e5f4a594b2650"
+sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
+translationRevision: "cdc69918ebe2ccea33b7347692053ea6575b77b921ef0e4606a1de16e48c51c4"
 order: 40
 ---
 
@@ -33,9 +33,9 @@ Cambia una vez un valor compartido y reutilízalo en varias acciones. Necesitas 
 
 Los `params` se sustituyen al aplicar una plantilla; los `globals` se leen durante la ejecución. Una clave ausente produce texto vacío: verifica su escritura antes de usarla como destino o identificador. Las sugerencias del campo ofrecen rutas de evento apropiadas para el disparador.
 
-Las condiciones también pueden publicar valores por coincidencia. Cuando un filtro declara un alias de captura, el valor que lo satisfizo queda disponible mientras se renderizan las acciones del evento como `{{ match.<alias> }}` (o `{{ match.<posición> }}` sin alias). Por ejemplo, una condición «empieza por» sobre el comentario con el alias `prefix` permite que una acción de registro imprima `{{ match.prefix }}`. Las capturas son texto plano acotado, solo las producen los filtros y las alternativas que realmente coincidieron, y no cambian las claves de cooldown.
+Las condiciones también pueden publicar valores por coincidencia. Cuando un filtro declara un alias de captura, el valor que lo satisfizo queda disponible mientras se renderizan las acciones del evento como <code v-pre>{{ match.&lt;alias&gt; }}</code> (o <code v-pre>{{ match.&lt;posición&gt; }}</code> sin alias). Por ejemplo, una condición «empieza por» sobre el comentario con el alias `prefix` permite que una acción de registro imprima <code v-pre>{{ match.prefix }}</code>. Las capturas son texto plano acotado, solo las producen los filtros y las alternativas que realmente coincidieron, y no cambian las claves de cooldown.
 
-Pulsa **+** junto a un campo compatible con plantillas para abrir **Insertar variable**: la ruta exacta aparece a la derecha y al elegir una fila se añade `{{ ruta }}` al campo. Las capturas de este evento también aparecen allí, pero solo se resuelven si su condición coincidió realmente. Asigna un alias a una condición en la sección Condiciones (el botón **Capturar como** del pie muestra los campos de alias) para escribir `{{ match.<alias> }}`; si no, usa la posición `{{ match.<posición> }}`.
+Pulsa **+** junto a un campo compatible con plantillas para abrir **Insertar variable**: la ruta exacta aparece a la derecha y al elegir una fila se añade <code v-pre>{{ ruta }}</code> al campo. Las capturas de este evento también aparecen allí, pero solo se resuelven si su condición coincidió realmente. Asigna un alias a una condición en la sección Condiciones (el botón **Capturar como** del pie muestra los campos de alias) para escribir <code v-pre>{{ match.&lt;alias&gt; }}</code>; si no, usa la posición <code v-pre>{{ match.&lt;posición&gt; }}</code>.
 
 ## Revisar cambios de Cloud por separado {#review-cloud-changes-separately}
 

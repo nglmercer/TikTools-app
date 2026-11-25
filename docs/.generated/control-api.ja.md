@@ -10,13 +10,13 @@
 | [`automation.adopt`](#rpc-automation-adopt) | true | false | false | compare-and-set | true |
 | [`automation.adoption.get`](#rpc-automation-adoption-get) | false | false | false | — | false |
 | [`automation.adoption.resolve`](#rpc-automation-adoption-resolve) | true | false | false | exclusive-transition | false |
-| [`automation.adoption.review_unknown`](#rpc-automation-adoption-review_unknown) | true | false | false | exclusive-transition | false |
+| [`automation.adoption.review_unknown`](#rpc-automation-adoption-review-unknown) | true | false | false | exclusive-transition | false |
 | [`automation.adoption.submit`](#rpc-automation-adoption-submit) | true | false | false | exclusive-transition | false |
 | [`automation.approval.activate`](#rpc-automation-approval-activate) | true | false | false | compare-and-set | true |
 | [`automation.approval.get`](#rpc-automation-approval-get) | false | false | false | — | false |
 | [`automation.approval.resolve`](#rpc-automation-approval-resolve) | true | false | false | exclusive-transition | false |
 | [`automation.approval.review`](#rpc-automation-approval-review) | false | false | false | — | false |
-| [`automation.approval.review_unknown`](#rpc-automation-approval-review_unknown) | true | false | false | exclusive-transition | false |
+| [`automation.approval.review_unknown`](#rpc-automation-approval-review-unknown) | true | false | false | exclusive-transition | false |
 | [`automation.approval.revoke`](#rpc-automation-approval-revoke) | true | false | false | compare-and-set | true |
 | [`automation.approval.submit`](#rpc-automation-approval-submit) | true | false | false | exclusive-transition | false |
 | [`automation.authority.get`](#rpc-automation-authority-get) | false | false | false | — | false |
@@ -24,7 +24,7 @@
 | [`automation.create`](#rpc-automation-create) | true | false | false | compare-and-set | true |
 | [`automation.definition.get`](#rpc-automation-definition-get) | false | false | false | — | false |
 | [`automation.definition.resolve`](#rpc-automation-definition-resolve) | true | false | false | exclusive-transition | false |
-| [`automation.definition.review_unknown`](#rpc-automation-definition-review_unknown) | true | false | false | exclusive-transition | false |
+| [`automation.definition.review_unknown`](#rpc-automation-definition-review-unknown) | true | false | false | exclusive-transition | false |
 | [`automation.definition.submit`](#rpc-automation-definition-submit) | true | true | false | exclusive-transition | false |
 | [`automation.delegation.preflight`](#rpc-automation-delegation-preflight) | false | false | false | — | false |
 | [`automation.delete`](#rpc-automation-delete) | true | true | false | compare-and-set | true |
@@ -36,25 +36,25 @@
 | [`automation.get`](#rpc-automation-get) | false | false | false | — | false |
 | [`automation.library.get`](#rpc-automation-library-get) | false | false | false | — | false |
 | [`automation.library.resolve`](#rpc-automation-library-resolve) | true | false | false | exclusive-transition | false |
-| [`automation.library.review_unknown`](#rpc-automation-library-review_unknown) | true | false | false | exclusive-transition | false |
+| [`automation.library.review_unknown`](#rpc-automation-library-review-unknown) | true | false | false | exclusive-transition | false |
 | [`automation.library.snapshot`](#rpc-automation-library-snapshot) | false | false | false | — | false |
 | [`automation.library.submit`](#rpc-automation-library-submit) | true | true | false | exclusive-transition | false |
 | [`automation.library.sync.now`](#rpc-automation-library-sync-now) | true | false | false | exclusive-transition | false |
-| [`automation.library.sync.replace_unreadable`](#rpc-automation-library-sync-replace_unreadable) | true | false | false | exclusive-transition | false |
+| [`automation.library.sync.replace_unreadable`](#rpc-automation-library-sync-replace-unreadable) | true | false | false | exclusive-transition | false |
 | [`automation.list`](#rpc-automation-list) | false | false | false | — | false |
 | [`automation.manifest.get`](#rpc-automation-manifest-get) | false | false | false | — | false |
 | [`automation.nodes.list`](#rpc-automation-nodes-list) | false | false | false | — | false |
 | [`automation.review`](#rpc-automation-review) | false | false | false | — | false |
 | [`automation.runs`](#rpc-automation-runs) | false | false | false | — | false |
 | [`automation.script.analyze`](#rpc-automation-script-analyze) | false | false | false | — | false |
-| [`automation.set_enablement`](#rpc-automation-set_enablement) | true | false | false | exclusive-transition | false |
+| [`automation.set_enablement`](#rpc-automation-set-enablement) | true | false | false | exclusive-transition | false |
 | [`automation.snapshot`](#rpc-automation-snapshot) | false | false | false | — | false |
 | [`automation.source.get`](#rpc-automation-source-get) | false | false | false | — | false |
 | [`automation.test`](#rpc-automation-test) | false | false | false | — | false |
 | [`automation.update`](#rpc-automation-update) | true | false | false | compare-and-set | true |
 | [`bundles.assets.delete`](#rpc-bundles-assets-delete) | true | false | false | — | false |
 | [`bundles.assets.list`](#rpc-bundles-assets-list) | false | false | false | — | false |
-| [`bundles.assets.setLabel`](#rpc-bundles-assets-setLabel) | true | false | false | — | false |
+| [`bundles.assets.setLabel`](#rpc-bundles-assets-set-label) | true | false | false | — | false |
 | [`bundles.assets.upload`](#rpc-bundles-assets-upload) | true | false | false | — | false |
 | [`bundles.overlays.create`](#rpc-bundles-overlays-create) | true | false | false | — | false |
 | [`bundles.overlays.delete`](#rpc-bundles-overlays-delete) | true | false | false | — | false |
@@ -72,13 +72,13 @@
 | [`catalog.items`](#rpc-catalog-items) | false | false | false | — | false |
 | [`catalog.mine`](#rpc-catalog-mine) | false | false | false | — | false |
 | [`cloud.backup.create`](#rpc-cloud-backup-create) | false | false | false | — | false |
-| [`cloud.backup.createNamed`](#rpc-cloud-backup-createNamed) | true | false | false | — | false |
+| [`cloud.backup.createNamed`](#rpc-cloud-backup-create-named) | true | false | false | — | false |
 | [`cloud.backup.delete`](#rpc-cloud-backup-delete) | true | true | true | — | false |
 | [`cloud.backup.get`](#rpc-cloud-backup-get) | false | false | false | — | false |
 | [`cloud.backup.list`](#rpc-cloud-backup-list) | false | false | false | — | false |
 | [`cloud.backup.preview`](#rpc-cloud-backup-preview) | false | false | false | — | false |
 | [`cloud.backup.restore`](#rpc-cloud-backup-restore) | true | true | true | — | false |
-| [`cloud.backup.restoreStored`](#rpc-cloud-backup-restoreStored) | true | true | true | — | false |
+| [`cloud.backup.restoreStored`](#rpc-cloud-backup-restore-stored) | true | true | true | — | false |
 | [`cloud.login.begin`](#rpc-cloud-login-begin) | true | false | false | — | false |
 | [`cloud.login.cancel`](#rpc-cloud-login-cancel) | true | false | false | — | false |
 | [`cloud.login.code.resend`](#rpc-cloud-login-code-resend) | true | false | false | — | false |
@@ -91,8 +91,8 @@
 | [`cloud.plan.get`](#rpc-cloud-plan-get) | false | false | false | — | false |
 | [`cloud.restore`](#rpc-cloud-restore) | false | false | false | — | false |
 | [`cloud.status`](#rpc-cloud-status) | false | false | false | — | false |
-| [`cloudLibrary.list`](#rpc-cloudLibrary-list) | false | false | false | — | false |
-| [`cloudLibrary.read`](#rpc-cloudLibrary-read) | false | false | false | — | false |
+| [`cloudLibrary.list`](#rpc-cloud-library-list) | false | false | false | — | false |
+| [`cloudLibrary.read`](#rpc-cloud-library-read) | false | false | false | — | false |
 | [`collaboration.audit.list`](#rpc-collaboration-audit-list) | false | false | false | — | false |
 | [`collaboration.commands.get`](#rpc-collaboration-commands-get) | false | false | false | — | false |
 | [`collaboration.configure`](#rpc-collaboration-configure) | true | false | false | — | false |
@@ -122,12 +122,12 @@
 | [`competitions.finish`](#rpc-competitions-finish) | true | false | false | — | false |
 | [`competitions.get`](#rpc-competitions-get) | false | false | false | — | false |
 | [`competitions.list`](#rpc-competitions-list) | false | false | false | — | false |
-| [`competitions.markActionUncertain`](#rpc-competitions-markActionUncertain) | true | false | false | — | false |
+| [`competitions.markActionUncertain`](#rpc-competitions-mark-action-uncertain) | true | false | false | — | false |
 | [`competitions.pause`](#rpc-competitions-pause) | true | false | false | compare-and-set | true |
-| [`competitions.resolveAction`](#rpc-competitions-resolveAction) | true | false | false | — | false |
+| [`competitions.resolveAction`](#rpc-competitions-resolve-action) | true | false | false | — | false |
 | [`competitions.results`](#rpc-competitions-results) | false | false | false | — | false |
 | [`competitions.resume`](#rpc-competitions-resume) | true | false | false | compare-and-set | true |
-| [`competitions.selectWinner`](#rpc-competitions-selectWinner) | true | false | false | — | false |
+| [`competitions.selectWinner`](#rpc-competitions-select-winner) | true | false | false | — | false |
 | [`competitions.start`](#rpc-competitions-start) | true | false | false | compare-and-set | true |
 | [`competitions.state`](#rpc-competitions-state) | false | false | false | — | false |
 | [`competitions.summary`](#rpc-competitions-summary) | false | false | false | — | false |
@@ -221,10 +221,10 @@
 | [`rankings.resume`](#rpc-rankings-resume) | true | false | false | — | false |
 | [`rankings.snapshot`](#rpc-rankings-snapshot) | false | false | false | — | false |
 | [`rankings.update`](#rpc-rankings-update) | true | false | false | — | false |
-| [`registry.cloudCatalog`](#rpc-registry-cloudCatalog) | false | false | false | — | false |
-| [`registry.cloudCatalogPaginationCapabilities`](#rpc-registry-cloudCatalogPaginationCapabilities) | false | false | false | — | false |
-| [`registry.cloudCatalogSummaries`](#rpc-registry-cloudCatalogSummaries) | false | false | false | — | false |
-| [`registry.cloudCatalogVersions`](#rpc-registry-cloudCatalogVersions) | false | false | false | — | false |
+| [`registry.cloudCatalog`](#rpc-registry-cloud-catalog) | false | false | false | — | false |
+| [`registry.cloudCatalogPaginationCapabilities`](#rpc-registry-cloud-catalog-pagination-capabilities) | false | false | false | — | false |
+| [`registry.cloudCatalogSummaries`](#rpc-registry-cloud-catalog-summaries) | false | false | false | — | false |
+| [`registry.cloudCatalogVersions`](#rpc-registry-cloud-catalog-versions) | false | false | false | — | false |
 | [`registry.defaults.get`](#rpc-registry-defaults-get) | false | false | false | — | false |
 | [`registry.defaults.set`](#rpc-registry-defaults-set) | true | false | false | — | false |
 | [`registry.list`](#rpc-registry-list) | false | false | false | — | false |
@@ -254,9 +254,9 @@
 | [`sync.v2.rebuild`](#rpc-sync-v2-rebuild) | true | false | false | — | false |
 | [`sync.v2.section`](#rpc-sync-v2-section) | true | false | false | — | false |
 | [`sync.v2.selected`](#rpc-sync-v2-selected) | false | false | false | — | false |
-| [`sync.v2.stagePluginSettings`](#rpc-sync-v2-stagePluginSettings) | true | false | false | — | false |
-| [`sync.v2.stagePreferences`](#rpc-sync-v2-stagePreferences) | true | false | false | — | false |
-| [`sync.v2.stageVariables`](#rpc-sync-v2-stageVariables) | true | false | false | — | false |
+| [`sync.v2.stagePluginSettings`](#rpc-sync-v2-stage-plugin-settings) | true | false | false | — | false |
+| [`sync.v2.stagePreferences`](#rpc-sync-v2-stage-preferences) | true | false | false | — | false |
+| [`sync.v2.stageVariables`](#rpc-sync-v2-stage-variables) | true | false | false | — | false |
 | [`sync.v2.variables.apply`](#rpc-sync-v2-variables-apply) | true | true | false | — | false |
 | [`sync.v2.variables.fetch`](#rpc-sync-v2-variables-fetch) | false | false | false | — | false |
 | [`sync.v2.variables.review`](#rpc-sync-v2-variables-review) | false | false | false | — | false |
@@ -266,8 +266,8 @@
 | [`system.health`](#rpc-system-health) | false | false | false | — | false |
 | [`system.info`](#rpc-system-info) | false | false | false | — | false |
 | [`system.ping`](#rpc-system-ping) | false | false | false | — | false |
-| [`system.requestInputAccess`](#rpc-system-requestInputAccess) | true | false | false | — | false |
-| [`system.saveFile`](#rpc-system-saveFile) | true | false | false | — | false |
+| [`system.requestInputAccess`](#rpc-system-request-input-access) | true | false | false | — | false |
+| [`system.saveFile`](#rpc-system-save-file) | true | false | false | — | false |
 | [`system.shutdown`](#rpc-system-shutdown) | true | true | false | — | false |
 | [`system.snapshot`](#rpc-system-snapshot) | false | false | false | — | false |
 | [`teams.accessible.list`](#rpc-teams-accessible-list) | false | false | false | — | false |
@@ -297,8 +297,8 @@
 | [`ui.feed.backfill`](#rpc-ui-feed-backfill) | false | false | false | — | false |
 | [`ui.feed.browser`](#rpc-ui-feed-browser) | false | false | false | — | false |
 | [`ui.feed.creator`](#rpc-ui-feed-creator) | false | false | false | — | false |
-| [`widgets.copyCloudOverlayUrl`](#rpc-widgets-copyCloudOverlayUrl) | true | false | true | — | false |
-| [`widgets.copyObsUrl`](#rpc-widgets-copyObsUrl) | true | false | true | — | false |
+| [`widgets.copyCloudOverlayUrl`](#rpc-widgets-copy-cloud-overlay-url) | true | false | true | — | false |
+| [`widgets.copyObsUrl`](#rpc-widgets-copy-obs-url) | true | false | true | — | false |
 | [`widgets.status`](#rpc-widgets-status) | false | false | false | — | false |
 | [`workflows.delete`](#rpc-workflows-delete) | true | true | false | compare-and-set | true |
 | [`workflows.disable`](#rpc-workflows-disable) | true | false | false | compare-and-set | true |
@@ -1046,7 +1046,7 @@ Queries original owner adoption outcome without dispatch
 
 :::
 
-### automation.adoption.review_unknown {#rpc-automation-adoption-review_unknown}
+### automation.adoption.review_unknown {#rpc-automation-adoption-review-unknown}
 
 契約の説明:
 
@@ -2564,7 +2564,7 @@ Owner-only atomic saved source, execution manifest, current grants and approval 
 
 :::
 
-### automation.approval.review_unknown {#rpc-automation-approval-review_unknown}
+### automation.approval.review_unknown {#rpc-automation-approval-review-unknown}
 
 契約の説明:
 
@@ -3784,7 +3784,7 @@ Looks up the original Owner definition outcome without dispatch or historical so
 
 :::
 
-### automation.definition.review_unknown {#rpc-automation-definition-review_unknown}
+### automation.definition.review_unknown {#rpc-automation-definition-review-unknown}
 
 契約の説明:
 
@@ -5551,7 +5551,7 @@ Read the original library outcome without source or another dispatch
 
 :::
 
-### automation.library.review_unknown {#rpc-automation-library-review_unknown}
+### automation.library.review_unknown {#rpc-automation-library-review-unknown}
 
 契約の説明:
 
@@ -6681,7 +6681,7 @@ Synchronize the Owner automation library with Cloud now
 
 :::
 
-### automation.library.sync.replace_unreadable {#rpc-automation-library-sync-replace_unreadable}
+### automation.library.sync.replace_unreadable {#rpc-automation-library-sync-replace-unreadable}
 
 契約の説明:
 
@@ -7170,7 +7170,7 @@ Validates an automation script and returns diagnostics
 
 :::
 
-### automation.set_enablement {#rpc-automation-set_enablement}
+### automation.set_enablement {#rpc-automation-set-enablement}
 
 契約の説明:
 
@@ -7656,7 +7656,7 @@ Lists the owner's Cloud images, newest first; needs media.operations list
 
 :::
 
-### bundles.assets.setLabel {#rpc-bundles-assets-setLabel}
+### bundles.assets.setLabel {#rpc-bundles-assets-set-label}
 
 契約の説明:
 
@@ -9100,7 +9100,7 @@ Creates a portable, versioned backup of all Cloud-owned data
 
 :::
 
-### cloud.backup.createNamed {#rpc-cloud-backup-createNamed}
+### cloud.backup.createNamed {#rpc-cloud-backup-create-named}
 
 契約の説明:
 
@@ -9459,7 +9459,7 @@ Restores a backup manifest on this device
 
 :::
 
-### cloud.backup.restoreStored {#rpc-cloud-backup-restoreStored}
+### cloud.backup.restoreStored {#rpc-cloud-backup-restore-stored}
 
 契約の説明:
 
@@ -10906,7 +10906,7 @@ Shows the Cloud account state without exposing any credentials
 
 :::
 
-### cloudLibrary.list {#rpc-cloudLibrary-list}
+### cloudLibrary.list {#rpc-cloud-library-list}
 
 契約の説明:
 
@@ -11061,7 +11061,7 @@ Lists published or private Cloud documents without importing them
 
 :::
 
-### cloudLibrary.read {#rpc-cloudLibrary-read}
+### cloudLibrary.read {#rpc-cloud-library-read}
 
 契約の説明:
 
@@ -17680,7 +17680,7 @@ List competition definitions
 
 :::
 
-### competitions.markActionUncertain {#rpc-competitions-markActionUncertain}
+### competitions.markActionUncertain {#rpc-competitions-mark-action-uncertain}
 
 契約の説明:
 
@@ -17786,7 +17786,7 @@ Transition a competition with a revision-bound command
 
 :::
 
-### competitions.resolveAction {#rpc-competitions-resolveAction}
+### competitions.resolveAction {#rpc-competitions-resolve-action}
 
 契約の説明:
 
@@ -18092,7 +18092,7 @@ Transition a competition with a revision-bound command
 
 :::
 
-### competitions.selectWinner {#rpc-competitions-selectWinner}
+### competitions.selectWinner {#rpc-competitions-select-winner}
 
 契約の説明:
 
@@ -20928,6 +20928,9 @@ Executes one plugin action (dry run unless live is true)
     },
     "ok": {
       "type": "boolean"
+    },
+    "result": {
+      "description": "Structured plugin-authored outcome for read-only status/inspection\nactions. Kept optional so existing callers and action results are\nunchanged."
     },
     "summary": {
       "type": "string"
@@ -28774,7 +28777,7 @@ Update a paused ranking; score changes require reset
 
 :::
 
-### registry.cloudCatalog {#rpc-registry-cloudCatalog}
+### registry.cloudCatalog {#rpc-registry-cloud-catalog}
 
 契約の説明:
 
@@ -28855,7 +28858,7 @@ Discovers plugin metadata from the configured Cloud instance; installation requi
 
 :::
 
-### registry.cloudCatalogPaginationCapabilities {#rpc-registry-cloudCatalogPaginationCapabilities}
+### registry.cloudCatalogPaginationCapabilities {#rpc-registry-cloud-catalog-pagination-capabilities}
 
 契約の説明:
 
@@ -28925,7 +28928,7 @@ Discovers bounded Cloud catalog pagination capabilities
 
 :::
 
-### registry.cloudCatalogSummaries {#rpc-registry-cloudCatalogSummaries}
+### registry.cloudCatalogSummaries {#rpc-registry-cloud-catalog-summaries}
 
 契約の説明:
 
@@ -29034,7 +29037,7 @@ Reads bounded Cloud plugin summaries without granting installation trust
 
 :::
 
-### registry.cloudCatalogVersions {#rpc-registry-cloudCatalogVersions}
+### registry.cloudCatalogVersions {#rpc-registry-cloud-catalog-versions}
 
 契約の説明:
 
@@ -31794,7 +31797,7 @@ Reads the selected Cloud protocol without contacting the server
 
 :::
 
-### sync.v2.stagePluginSettings {#rpc-sync-v2-stagePluginSettings}
+### sync.v2.stagePluginSettings {#rpc-sync-v2-stage-plugin-settings}
 
 契約の説明:
 
@@ -31839,7 +31842,7 @@ Stages plugin settings for v2 sync
 
 :::
 
-### sync.v2.stagePreferences {#rpc-sync-v2-stagePreferences}
+### sync.v2.stagePreferences {#rpc-sync-v2-stage-preferences}
 
 契約の説明:
 
@@ -31872,7 +31875,7 @@ Stages desktop preferences for v2 sync
 
 :::
 
-### sync.v2.stageVariables {#rpc-sync-v2-stageVariables}
+### sync.v2.stageVariables {#rpc-sync-v2-stage-variables}
 
 契約の説明:
 
@@ -32615,7 +32618,7 @@ Liveness probe (always { ok: true })
 
 :::
 
-### system.requestInputAccess {#rpc-system-requestInputAccess}
+### system.requestInputAccess {#rpc-system-request-input-access}
 
 契約の説明:
 
@@ -32663,7 +32666,7 @@ Probe raw-input access; install the seat rule via one polkit prompt when blocked
 
 :::
 
-### system.saveFile {#rpc-system-saveFile}
+### system.saveFile {#rpc-system-save-file}
 
 契約の説明:
 
@@ -34773,7 +34776,7 @@ Creator-scoped bounded LIVE history
 
 :::
 
-### widgets.copyCloudOverlayUrl {#rpc-widgets-copyCloudOverlayUrl}
+### widgets.copyCloudOverlayUrl {#rpc-widgets-copy-cloud-overlay-url}
 
 契約の説明:
 
@@ -34825,7 +34828,7 @@ Copies the OBS Browser Source URL of a cloud overlay, with its widget credential
 
 :::
 
-### widgets.copyObsUrl {#rpc-widgets-copyObsUrl}
+### widgets.copyObsUrl {#rpc-widgets-copy-obs-url}
 
 契約の説明:
 

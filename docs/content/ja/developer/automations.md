@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
-translationRevision: "000141c29cd17b95559883f5a453a17e86c565a397a7e380845283d29c845576"
+sourceRevision: "3e39c947b170f92475e3ccbbcd579c67f16a5d241954285c740aaca66e196bd3"
+translationRevision: "a2fd0816b5b796e8f99a382592317f18435c37377ca10ab7c9be3c06d755a6e3"
 order: 150
 ---
 
@@ -44,6 +44,8 @@ target/debug/tiktools automation context --event-type tiktok.chat
 ```
 
 ドライランはフィルターを評価し、各アクションの動作を報告しますが、実行はしません。レスポンスには `eventSource`（`live`、`sample`、`custom`）、`eventData`（実際に使われたペイロード）、`pinned`（フィルターからサンプルへコピーされた値）が含まれます。
+
+フィルターは `crates/tiktools-core/src/services/automation/filters.rs` の契約であり、テスト用に `src/automation/behavior/filter-simulation.ts` へミラーされ、`tests/fixtures/automation-filters/filter-corpus.json` でケースごとに固定されます。各値演算子は `values: string[]` と `quantifier`（既定 `any`、`all`。`neq` リストは `all` = «none of» に正規化）および任意の `as` エイリアスを受け取ります。一致レコードの勝ち候補は、アクション描画へ <code v-pre>{{ match.&lt;alias&gt; }}</code> / <code v-pre>{{ match.&lt;index&gt; }}</code> として公開されます。値は bounded・sanitized で、クールダウン確保後に注入され、明示的な `match.*` 描画フィールド許可リストを超えた委譲投影へは入りません。レコードは `anyOf` も持てます。これは最大 4 個の平坦なグループ（各最大 12 フィルター）で、グループ同士は OR、`filters` 全体とは AND になります。キャプチャを提供するのは最初に勝ったグループだけです。
 
 ```sh
 target/debug/tiktools --json automation test --id <id>

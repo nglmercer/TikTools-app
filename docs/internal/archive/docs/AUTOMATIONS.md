@@ -48,27 +48,7 @@ trigger/filters/cooldown pipeline. See `docs/PLUGINS.md` for the manifest
 contract.
 
 Filters use dotted JSON paths such as `event.data.diamondCount` and
-`event.user.uniqueId`. Every value operator (`eq`, `neq`, `contains`,
-`starts-with`, the four range operators and `in`) accepts `values:
-string[]` plus an optional `quantifier`: `any` (default) passes when at
-least one entry satisfies the operator, `all` requires every entry, and
-`neq` with a list always means «none of» (`any` normalizes to `all`).
-`in` keeps its own trim + ASCII case-fold semantics and ignores
-`quantifier`. A filter may declare `as: "<alias>"`; the winning candidate
-is published to action templates as `{{ match.<alias> }}` (positional
-fallback `{{ match.<index> }>`). Captures are bounded (8 per record, 200
-chars, no control characters), sanitized, and join the event envelope
-only for action rendering — cooldown claims, liveness checks and
-delegated projections see the original event, and delegated execution
-allowlists `match.*` render fields explicitly. A record may also carry
-`anyOf`: up to 4 flat groups of up to 12 filters that OR against each
-other while still AND-ing with `filters`; only the first winning group
-contributes captures. The Rust matcher in
-`crates/tiktools-core/src/services/automation/filters.rs` is the contract;
-`src/automation/behavior/filter-simulation.ts` mirrors it for tests and
-`tests/fixtures/automation-filters/filter-corpus.json` pins both sides.
-
-The registry at
+`event.user.uniqueId`. The registry at
 `src/automation/contracts/generated/event-registry.generated.ts` is generated
 from the Rust contracts in `crates/tiktools-core/src/contracts/` and provides
 editor samples, labels, types, and source-field metadata. `AutomationEvent` and

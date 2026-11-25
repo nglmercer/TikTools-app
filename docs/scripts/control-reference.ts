@@ -23,7 +23,7 @@ const labels = {
 
 export function renderControlReference(methods: readonly ReferenceMethod[], locale: DocLocale): string {
   const t = labels[locale];
-  const anchor = (name: string) => `rpc-${name.replaceAll('.', '-')}`;
+  const anchor = (name: string) => `rpc-${name.replace(/(?<=[a-z0-9])(?=[A-Z])/g, '-').replaceAll('.', '-').replaceAll('_', '-').toLowerCase()}`;
   let text = `| ${t[0]} | ${t[1]} | ${t[2]} | Desktop | ${t[3]} | ${t[4]} |\n| --- | --- | --- | --- | --- | --- |\n`;
   text += methods.map((m) => `| [\`${m.name}\`](#${anchor(m.name)}) | ${m.sideEffect} | ${m.destructive} | ${m.requiresDesktop} | ${m.concurrency ?? '—'} | ${m.durableCommands} |`).join('\n') + '\n';
   for (const m of methods) {

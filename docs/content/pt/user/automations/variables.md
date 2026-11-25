@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "20ba9e681b63ffa9aff2ff5d868738d242fd4eab4d520d9e08656760ee8361ba"
-translationRevision: "d20bdf1421e729be7924c171ad9418c14ce948d1021fcf443aa7f09cc8b2fc4d"
+sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
+translationRevision: "da5006cdf4a12e413ed520649c53995d33e7a0ed4d8d25223cfd00cc25a8451e"
 order: 40
 ---
 
@@ -33,9 +33,9 @@ Altere um valor compartilhado uma vez e reutilize-o em várias ações. Você pr
 
 Os `params` do modelo são substituídos na aplicação do modelo; `globals` são lidos na execução. Uma chave ausente em tempo de execução é renderizada como texto vazio, portanto confira a grafia antes de usá-la em um destino ou identificador. Use as sugestões de variáveis do campo para caminhos de evento adequados ao seu acionador.
 
-As condições também podem publicar valores por correspondência. Quando um filtro declara um alias de captura, o valor que o satisfez fica disponível durante a renderização das ações do evento como `{{ match.<alias> }}` (ou `{{ match.<posição> }}` sem alias). Por exemplo, uma condição “começa com” no comentário com o alias `prefix` permite que uma ação de registro imprima `{{ match.prefix }}`. As capturas são texto simples limitado, só são produzidas pelos filtros e alternativas que realmente corresponderam e não alteram as chaves de espera.
+As condições também podem publicar valores por correspondência. Quando um filtro declara um alias de captura, o valor que o satisfez fica disponível durante a renderização das ações do evento como <code v-pre>{{ match.&lt;alias&gt; }}</code> (ou <code v-pre>{{ match.&lt;posição&gt; }}</code> sem alias). Por exemplo, uma condição “começa com” no comentário com o alias `prefix` permite que uma ação de registro imprima <code v-pre>{{ match.prefix }}</code>. As capturas são texto simples limitado, só são produzidas pelos filtros e alternativas que realmente corresponderam e não alteram as chaves de espera.
 
-Prima **+** junto a um campo compatível com modelos para abrir **Inserir variável**: o caminho exato aparece à direita e escolher uma linha acrescenta `{{ caminho }}` ao campo. As capturas deste evento também aparecem nessa lista, mas só são resolvidas se a sua condição correspondeu. Defina um alias na secção Condições (o botão **Capturar** no rodapé mostra os campos de alias) para escrever `{{ match.<alias> }}`; caso contrário, use a posição `{{ match.<posição> }}`.
+Prima **+** junto a um campo compatível com modelos para abrir **Inserir variável**: o caminho exato aparece à direita e escolher uma linha acrescenta <code v-pre>{{ caminho }}</code> ao campo. As capturas deste evento também aparecem nessa lista, mas só são resolvidas se a sua condição correspondeu. Defina um alias na secção Condições (o botão **Capturar** no rodapé mostra os campos de alias) para escrever <code v-pre>{{ match.&lt;alias&gt; }}</code>; caso contrário, use a posição <code v-pre>{{ match.&lt;posição&gt; }}</code>.
 
 ## Revise alterações do Cloud separadamente {#review-cloud-changes-separately}
 

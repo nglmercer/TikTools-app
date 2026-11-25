@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "20ba9e681b63ffa9aff2ff5d868738d242fd4eab4d520d9e08656760ee8361ba"
-translationRevision: "acc4f3a79719d384958589a30c249aee1d7c2cda9184b81c49eaf073a552ac83"
+sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
+translationRevision: "db4ed3e2de80298897ca58bc1fdc06c3206fd77c55dc41eb84ae3e670c91ead6"
 order: 40
 ---
 
@@ -33,9 +33,9 @@ Modifier une valeur partagée une seule fois et la réutiliser dans plusieurs ac
 
 Les `params` du modèle sont substitués lors de son application ; les `globals` sont lues à l’exécution. Une clé d’exécution manquante produit un texte vide : vérifiez donc son orthographe avant de l’utiliser dans une destination ou un identifiant. Utilisez les suggestions de variables du champ pour choisir les chemins d’événement adaptés à son déclencheur.
 
-Les conditions peuvent aussi publier des valeurs par correspondance. Lorsqu'un filtre déclare un alias de capture, la valeur qui l'a satisfait est disponible pendant le rendu des actions de l'événement sous la forme `{{ match.<alias> }}` (ou `{{ match.<position> }}` sans alias). Par exemple, une condition « commence par » sur le commentaire avec l'alias `prefix` permet à une action de journal d'afficher `{{ match.prefix }}`. Les captures sont du texte brut borné, ne sont produites que par les filtres et alternatives qui ont réellement correspondu, et ne modifient pas les clés de délai.
+Les conditions peuvent aussi publier des valeurs par correspondance. Lorsqu'un filtre déclare un alias de capture, la valeur qui l'a satisfait est disponible pendant le rendu des actions de l'événement sous la forme <code v-pre>{{ match.&lt;alias&gt; }}</code> (ou <code v-pre>{{ match.&lt;position&gt; }}</code> sans alias). Par exemple, une condition « commence par » sur le commentaire avec l'alias `prefix` permet à une action de journal d'afficher <code v-pre>{{ match.prefix }}</code>. Les captures sont du texte brut borné, ne sont produites que par les filtres et alternatives qui ont réellement correspondu, et ne modifient pas les clés de délai.
 
-Appuyez sur **+** à côté d'un champ compatible avec les modèles pour ouvrir **Insérer une variable** : le chemin exact apparaît à droite et choisir une ligne ajoute `{{ chemin }}` au champ. Les captures de cet événement figurent aussi dans la liste, mais ne sont résolues que si leur condition a réellement correspondu. Déclarez un alias dans la section Conditions (le bouton **Capturer** du pied affiche les champs d'alias) pour écrire `{{ match.<alias> }}` ; sinon, utilisez la position `{{ match.<position> }}`.
+Appuyez sur **+** à côté d'un champ compatible avec les modèles pour ouvrir **Insérer une variable** : le chemin exact apparaît à droite et choisir une ligne ajoute <code v-pre>{{ chemin }}</code> au champ. Les captures de cet événement figurent aussi dans la liste, mais ne sont résolues que si leur condition a réellement correspondu. Déclarez un alias dans la section Conditions (le bouton **Capturer** du pied affiche les champs d'alias) pour écrire <code v-pre>{{ match.&lt;alias&gt; }}</code> ; sinon, utilisez la position <code v-pre>{{ match.&lt;position&gt; }}</code>.
 
 ## Examiner séparément les changements Cloud {#review-cloud-changes-separately}
 

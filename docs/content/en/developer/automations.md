@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
-translationRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
+sourceRevision: "3e39c947b170f92475e3ccbbcd579c67f16a5d241954285c740aaca66e196bd3"
+translationRevision: "3e39c947b170f92475e3ccbbcd579c67f16a5d241954285c740aaca66e196bd3"
 order: 150
 ---
 
@@ -45,7 +45,7 @@ target/debug/tiktools automation context --event-type tiktok.chat
 
 A dry run evaluates filters and reports what each action would do; it executes nothing. The response includes `eventSource` (`live`, `sample`, `custom`), `eventData` (the payload actually used) and `pinned` (values copied from filters into a sample).
 
-Filters are the contract in `crates/tiktools-core/src/services/automation/filters.rs`, mirrored for tests by `src/automation/behavior/filter-simulation.ts` and pinned case-by-case by `tests/fixtures/automation-filters/filter-corpus.json`. Every value operator accepts `values: string[]` plus `quantifier` (`any` default, `all`; `neq` lists normalize to `all` = «none of»), and an optional `as` alias. A matched record's winning candidates are published to action rendering as `{{ match.<alias> }}` / `{{ match.<index> }}` — bounded, sanitized, injected after the cooldown claim and never into delegated projections beyond the explicit `match.*` render-field allowlist. Records may also carry `anyOf`: up to 4 flat groups of up to 12 filters that OR against each other while still AND-ing with `filters`; only the first winning group contributes captures.
+Filters are the contract in `crates/tiktools-core/src/services/automation/filters.rs`, mirrored for tests by `src/automation/behavior/filter-simulation.ts` and pinned case-by-case by `tests/fixtures/automation-filters/filter-corpus.json`. Every value operator accepts `values: string[]` plus `quantifier` (`any` default, `all`; `neq` lists normalize to `all` = «none of»), and an optional `as` alias. A matched record's winning candidates are published to action rendering as <code v-pre>{{ match.&lt;alias&gt; }}</code> / <code v-pre>{{ match.&lt;index&gt; }}</code> — bounded, sanitized, injected after the cooldown claim and never into delegated projections beyond the explicit `match.*` render-field allowlist. Records may also carry `anyOf`: up to 4 flat groups of up to 12 filters that OR against each other while still AND-ing with `filters`; only the first winning group contributes captures.
 
 ```sh
 target/debug/tiktools --json automation test --id <id>

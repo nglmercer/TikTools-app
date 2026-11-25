@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
-translationRevision: "50616be9e5b99a01a92dc79f2e247512fa7c72a684de06cd06694d578834467c"
+sourceRevision: "ff33cc9431cab4491b09c4bcf5219c2dc0881c83862c2d7961c56881d04465e5"
+translationRevision: "51c052e9867eb33af5bf679b32f10001709ccb4b8c710f207c683241aec466e3"
 order: 10
 ---
 
@@ -29,7 +29,7 @@ Uma **Action** é uma operação configurada reutilizável, como escrever uma li
 5. Vincule as ações desejadas na ordem. O modo normal executa a lista escolhida; o modo aleatório seleciona uma ação dela. Uma ação de atraso adia as ações seguintes, sem reduzir a velocidade de ingestão da LIVE.
 6. Salve, revise as alterações de definição exibidas e ative explicitamente os registros que pretende executar. Confira no histórico de execução o nome da ação, o resultado e o erro.
 
-Toda comparação aceita uma lista de valores em vez de um único valor. A combinação padrão é “qualquer”: a condição é atendida quando pelo menos um valor corresponde. Mude o quantificador para “todos” quando todos os valores precisarem corresponder — com “não é”, isso significa “não é nenhum”. Uma condição também pode nomear um alias de captura: o valor vencedor fica disponível nos modelos de ação como `{{ match.<alias> }}` (ou `{{ match.<posição> }}` sem alias). Abaixo das condições sempre obrigatórias, você pode adicionar até quatro **alternativas**: grupos em que todas as condições precisam passar internamente, e basta um único grupo para o evento disparar.
+Toda comparação aceita uma lista de valores em vez de um único valor. A combinação padrão é “qualquer”: a condição é atendida quando pelo menos um valor corresponde. Mude o quantificador para “todos” quando todos os valores precisarem corresponder — com “não é”, isso significa “não é nenhum”. Uma condição também pode nomear um alias de captura: o valor vencedor fica disponível nos modelos de ação como <code v-pre>{{ match.&lt;alias&gt; }}</code> (ou <code v-pre>{{ match.&lt;posição&gt; }}</code> sem alias). Abaixo das condições sempre obrigatórias, você pode adicionar até quatro **alternativas**: grupos em que todas as condições precisam passar internamente, e basta um único grupo para o evento disparar.
 
 Os testes podem executar os efeitos configurados. Leia a lista de ações selecionadas antes de pressionar **Test** ou disparar um evento, especialmente para áudio, HTTP, pontos e operações de plugins. Use registros enquanto aprende.
 

@@ -16,3 +16,16 @@ test('RPC summary links to complete contract metadata and schemas', () => {
   expect(text).toContain(JSON.stringify(method.resultSchema, null, 2));
   expect(text).toContain(method.description);
 });
+
+test('anchors stay slugify-stable for underscore and camelCase method names', () => {
+  const methods: ReferenceMethod[] = ['automation.set_enablement', 'widgets.copyObsUrl', 'cloudLibrary.list'].map((name) => ({
+    name, description: 'x', sideEffect: false, destructive: false, requiresDesktop: false,
+    concurrency: null, durableCommands: false, paramsSchema: {}, resultSchema: {},
+  }));
+  const text = renderControlReference(methods, 'en');
+  expect(text).toContain('[`automation.set_enablement`](#rpc-automation-set-enablement)');
+  expect(text).toContain('### automation.set_enablement {#rpc-automation-set-enablement}');
+  expect(text).toContain('[`widgets.copyObsUrl`](#rpc-widgets-copy-obs-url)');
+  expect(text).toContain('### cloudLibrary.list {#rpc-cloud-library-list}');
+  expect(text).not.toMatch(/#rpc-[a-z0-9-]*[_A-Z]/);
+});

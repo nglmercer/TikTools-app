@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
-translationRevision: "2b7fe0a5e451594c7bd76482312a8ba8dde0f69cc5475fa71698e1aa86ed7fb9"
+sourceRevision: "3e39c947b170f92475e3ccbbcd579c67f16a5d241954285c740aaca66e196bd3"
+translationRevision: "31a8003baf63d6be321afe79bf47dc12c054404c0cc54d2f35ce8271e40083eb"
 order: 150
 ---
 
@@ -44,6 +44,8 @@ target/debug/tiktools automation context --event-type tiktok.chat
 ```
 
 试运行会评估过滤器并报告每个操作将执行什么，但不实际执行。响应包含 `eventSource`（`live`、`sample`、`custom`）、`eventData`（实际使用的负载）和 `pinned`（从过滤器复制到样本的值）。
+
+过滤器契约位于 `crates/tiktools-core/src/services/automation/filters.rs`，测试镜像为 `src/automation/behavior/filter-simulation.ts`，并由 `tests/fixtures/automation-filters/filter-corpus.json` 按用例固定。每个值运算符都接受 `values: string[]` 和 `quantifier`（默认 `any`，`all`；`neq` 列表规范为 `all` = «none of»），以及可选的 `as` 别名。匹配记录的获胜候选项会以 <code v-pre>{{ match.&lt;alias&gt; }}</code> / <code v-pre>{{ match.&lt;index&gt; }}</code> 发布到操作渲染中——有边界、已脱敏、在冷却占位之后注入，并且绝不会进入超出显式 `match.*` 渲染字段允许列表的委托投影。记录还可以携带 `anyOf`：最多 4 个扁平分组，每组最多 12 个过滤器；组间按 OR 计算，同时仍与 `filters` 按 AND 组合，只有第一个获胜分组提供捕获值。
 
 ```sh
 target/debug/tiktools --json automation test --id <id>

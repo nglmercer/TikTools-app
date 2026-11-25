@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "33d5d9aa4db49a70a3b416ea817479822f06d7cb028699ab9bd344c14cd79892"
-translationRevision: "d70b4d5c76c5095a0877c77861d4e6a10267c17f2df8d19a3b0660a398995d5e"
+sourceRevision: "ff33cc9431cab4491b09c4bcf5219c2dc0881c83862c2d7961c56881d04465e5"
+translationRevision: "f5b83c32de83c8d83122fa23fc1bdb24c0ec380043f0c7fe2ff78fef9b9aa8fd"
 order: 10
 ---
 
@@ -29,7 +29,7 @@ Une **Action** est une opération configurée réutilisable, comme écrire une l
 5. Reliez les actions voulues dans l’ordre. Le mode normal exécute la liste choisie ; le mode aléatoire y sélectionne une action. Une action de délai reporte les actions suivantes sans ralentir l’ingestion LIVE.
 6. Enregistrez, examinez les changements de définition affichés, puis activez explicitement les enregistrements à exécuter. Consultez l’historique pour le nom de l’action, son résultat et son erreur.
 
-Toute comparaison accepte une liste de valeurs au lieu d'une seule. La combinaison par défaut est « au moins un » : la condition est remplie quand au moins une valeur correspond. Passez le quantificateur à « tous » quand chaque valeur doit correspondre — avec « n'est pas », cela se lit « n'est aucun de ». Une condition peut aussi nommer un alias de capture : la valeur gagnante est alors disponible pour les modèles d'action sous la forme `{{ match.<alias> }}` (ou `{{ match.<position> }}` sans alias). Sous les conditions toujours requises, vous pouvez ajouter jusqu'à quatre **alternatives** : des groupes dont toutes les conditions doivent être remplies, et un seul groupe suffit pour déclencher l'événement.
+Toute comparaison accepte une liste de valeurs au lieu d'une seule. La combinaison par défaut est « au moins un » : la condition est remplie quand au moins une valeur correspond. Passez le quantificateur à « tous » quand chaque valeur doit correspondre — avec « n'est pas », cela se lit « n'est aucun de ». Une condition peut aussi nommer un alias de capture : la valeur gagnante est alors disponible pour les modèles d'action sous la forme <code v-pre>{{ match.&lt;alias&gt; }}</code> (ou <code v-pre>{{ match.&lt;position&gt; }}</code> sans alias). Sous les conditions toujours requises, vous pouvez ajouter jusqu'à quatre **alternatives** : des groupes dont toutes les conditions doivent être remplies, et un seul groupe suffit pour déclencher l'événement.
 
 Les tests peuvent exécuter les effets configurés. Lisez la liste d’actions sélectionnée avant d’appuyer sur **Test** ou de déclencher un événement, surtout pour l’audio, HTTP, les points et les opérations de plugins. Utilisez la journalisation pendant l’apprentissage.
 

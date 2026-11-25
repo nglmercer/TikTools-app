@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "53beca9878c74b282c8ffc0354132e854357ba73b462514f3b635ded16a71708"
-translationRevision: "c54236573d8d96eef81e9eac613a3eed0f98f4dd2e96f962af5ff270aa90f2c1"
+sourceRevision: "3e39c947b170f92475e3ccbbcd579c67f16a5d241954285c740aaca66e196bd3"
+translationRevision: "b4daeff977a79f94bea7e42c1588d7e00a52ff9bdec31aa73030b239de11f329"
 order: 150
 ---
 
@@ -44,6 +44,8 @@ target/debug/tiktools automation context --event-type tiktok.chat
 ```
 
 Um teste a seco avalia os filtros e indica o que cada ação faria, sem executar nada. A resposta inclui `eventSource` (`live`, `sample`, `custom`), `eventData` (o payload efetivamente usado) e `pinned` (valores copiados dos filtros para a amostra).
+
+Os filtros são o contrato em `crates/tiktools-core/src/services/automation/filters.rs`, espelhado para testes por `src/automation/behavior/filter-simulation.ts` e fixado caso a caso por `tests/fixtures/automation-filters/filter-corpus.json`. Cada operador de valor aceita `values: string[]` além de `quantifier` (`any` por padrão, `all`; listas `neq` normalizam para `all` = «nenhum de»), e um alias opcional `as`. Os candidatos vencedores de um registro correspondente são publicados na renderização de ações como <code v-pre>{{ match.&lt;alias&gt; }}</code> / <code v-pre>{{ match.&lt;index&gt; }}</code> — limitados, sanitizados, injetados após a reserva de cooldown e nunca em projeções delegadas fora da lista explícita de campos `match.*`. Registros também podem carregar `anyOf`: até 4 grupos planos de até 12 filtros que fazem OR entre si enquanto continuam em AND com `filters`; somente o primeiro grupo vencedor contribui capturas.
 
 ```sh
 target/debug/tiktools --json automation test --id <id>

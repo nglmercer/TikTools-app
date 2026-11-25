@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "20ba9e681b63ffa9aff2ff5d868738d242fd4eab4d520d9e08656760ee8361ba"
-translationRevision: "3b5bf05569394ae4cc42628131128b679f54631b55ca5394ef1ab496604a15b4"
+sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
+translationRevision: "8f6bb5652c09403045d011580eb26d84b27fd4f0ec24005072b11276eb76c2d4"
 order: 40
 ---
 
@@ -33,9 +33,9 @@ order: 40
 
 模板的 `params` 在应用模板时替换；`globals` 则在执行时读取。缺失的运行时键会渲染为空文本，因此用作目标或标识符前，请验证拼写。使用字段的变量建议，选择适合其触发器的事件路径。
 
-条件还可以按匹配发布值。当过滤器声明捕获别名时，满足它的值会在该事件的操作渲染期间以 `{{ match.<alias> }}`（无别名时为 `{{ match.<位置> }}`）的形式可用。例如，对评论使用别名为 `prefix` 的“开头为”条件，可以让日志操作输出 `{{ match.prefix }}`。捕获是有上限的纯文本，仅由实际匹配的过滤器和备选生成，且不会改变冷却键。
+条件还可以按匹配发布值。当过滤器声明捕获别名时，满足它的值会在该事件的操作渲染期间以 <code v-pre>{{ match.&lt;alias&gt; }}</code>（无别名时为 <code v-pre>{{ match.&lt;位置&gt; }}</code>）的形式可用。例如，对评论使用别名为 `prefix` 的“开头为”条件，可以让日志操作输出 <code v-pre>{{ match.prefix }}</code>。捕获是有上限的纯文本，仅由实际匹配的过滤器和备选生成，且不会改变冷却键。
 
-点击模板字段旁的 **+** 可打开 **插入变量**：右侧显示精确路径，选择一行会把 `{{ 路径 }}` 追加到字段中。此事件的捕获值也在列表中，但只有在对应条件实际匹配时才会解析。要使用 `{{ match.<alias> }}`，请在“条件”区域设置别名（底部 **捕获** 按钮可显示别名字段）；否则使用位置形式 `{{ match.<位置> }}`。
+点击模板字段旁的 **+** 可打开 **插入变量**：右侧显示精确路径，选择一行会把 <code v-pre>{{ 路径 }}</code> 追加到字段中。此事件的捕获值也在列表中，但只有在对应条件实际匹配时才会解析。要使用 <code v-pre>{{ match.&lt;alias&gt; }}</code>，请在“条件”区域设置别名（底部 **捕获** 按钮可显示别名字段）；否则使用位置形式 <code v-pre>{{ match.&lt;位置&gt; }}</code>。
 
 ## 单独审查 Cloud 变更 {#review-cloud-changes-separately}
 

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "20ba9e681b63ffa9aff2ff5d868738d242fd4eab4d520d9e08656760ee8361ba"
-translationRevision: "20ba9e681b63ffa9aff2ff5d868738d242fd4eab4d520d9e08656760ee8361ba"
+sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
+translationRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
 order: 40
 ---
 
@@ -33,9 +33,9 @@ Change a shared value once and reuse it in several actions. You need **Automatio
 
 Template `params` are substituted when applying a template; `globals` are read at execution. A missing runtime key renders as empty text, so verify spelling before using it in a destination or identifier. Use the field's variable suggestions for event paths appropriate to its trigger.
 
-Conditions can also publish per-match values. When a filter declares a capture alias, the value that satisfied it is available while the event's actions render as `{{ match.<alias> }}` (or `{{ match.<position> }}` when no alias is set). For example, a `starts with` condition on the comment with alias `prefix` lets a log action print `{{ match.prefix }}`. Captures are bounded plain text, are only produced by the filters and alternatives that actually matched, and do not change cooldown keys.
+Conditions can also publish per-match values. When a filter declares a capture alias, the value that satisfied it is available while the event's actions render as <code v-pre>{{ match.&lt;alias&gt; }}</code> (or <code v-pre>{{ match.&lt;position&gt; }}</code> when no alias is set). For example, a `starts with` condition on the comment with alias `prefix` lets a log action print <code v-pre>{{ match.prefix }}</code>. Captures are bounded plain text, are only produced by the filters and alternatives that actually matched, and do not change cooldown keys.
 
-Press **+** beside a templated field to open **Insert variable**: the exact path appears on the right and choosing a row appends `{{ path }}` to the field. This event's capture paths are listed there too, but they resolve only when their condition actually matched. Give a condition an alias in the Conditions section (the **Capture as** button in the footer reveals the alias fields) to write `{{ match.<alias> }}`; otherwise use the positional `{{ match.<position> }}`.
+Press **+** beside a templated field to open **Insert variable**: the exact path appears on the right and choosing a row appends <code v-pre>{{ path }}</code> to the field. This event's capture paths are listed there too, but they resolve only when their condition actually matched. Give a condition an alias in the Conditions section (the **Capture as** button in the footer reveals the alias fields) to write <code v-pre>{{ match.&lt;alias&gt; }}</code>; otherwise use the positional <code v-pre>{{ match.&lt;position&gt; }}</code>.
 
 ## Review Cloud changes separately {#review-cloud-changes-separately}
 
