@@ -45,9 +45,10 @@ const locale = computed<Locale>({
 </script>
 
 <template>
-  <div class="settings-page">
+  <div class="settings-page" data-guide-scope="settings">
     <BaseTabs
       v-model="section"
+      data-guide="settings-sections"
       class="settings-page__tabs"
       :tabs="tabs"
     >
@@ -57,7 +58,7 @@ const locale = computed<Locale>({
         :aria-label="t(`settingsLayout.labels.${section}`)"
       >
         <template v-if="section === 'general'">
-          <BaseGroupBox :title="t('settings.language.group')">
+          <BaseGroupBox data-guide="settings-language" :title="t('settings.language.group')">
             <SettingsRow
               for="settings-language"
               :label="t('settings.language.label')"
@@ -69,7 +70,7 @@ const locale = computed<Locale>({
               />
             </SettingsRow>
           </BaseGroupBox>
-          <BaseGroupBox :title="t('settingsLayout.resolution.group')">
+          <BaseGroupBox data-guide="settings-review" :title="t('settingsLayout.resolution.group')">
             <SettingsRow
               for="settings-review-mode"
               :label="t('settingsLayout.resolution.label')"
@@ -78,7 +79,7 @@ const locale = computed<Locale>({
               <ReviewModeSetting id="settings-review-mode" />
             </SettingsRow>
           </BaseGroupBox>
-          <AppUpdater />
+          <AppUpdater data-guide="settings-updater" />
         </template>
         <template v-else-if="section === 'account'">
           <CloudAccountEditor />

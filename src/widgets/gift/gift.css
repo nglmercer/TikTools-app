@@ -162,27 +162,27 @@
   }
 }
 
-/* Enter/exit driven by Vue <Transition>. */
+/* Enter/exit driven by Vue <Transition> and the portable motion design. */
 .gift-enter-active {
   transition:
-    opacity 400ms ease-out,
-    transform 400ms cubic-bezier(0.2, 0.9, 0.25, 1.2);
+    opacity var(--widget-motion-enter-duration, 400ms) var(--widget-motion-enter-easing, cubic-bezier(0.2, 0.9, 0.25, 1.2)),
+    transform var(--widget-motion-enter-duration, 400ms) var(--widget-motion-enter-easing, cubic-bezier(0.2, 0.9, 0.25, 1.2));
 }
 
 .gift-leave-active {
   transition:
-    opacity 400ms ease-in,
-    transform 400ms ease-in;
+    opacity var(--widget-motion-exit-duration, 400ms) var(--widget-motion-exit-easing, ease-in),
+    transform var(--widget-motion-exit-duration, 400ms) var(--widget-motion-exit-easing, ease-in);
 }
 
 .gift-enter-from {
   opacity: 0;
-  transform: translateY(18px) scale(0.96);
+  transform: var(--widget-motion-enter-transform, translateY(18px) scale(0.96));
 }
 
 .gift-leave-to {
   opacity: 0;
-  transform: translateY(10px) scale(0.98);
+  transform: var(--widget-motion-exit-transform, translateY(10px) scale(0.98));
 }
 
 @media (prefers-reduced-motion: reduce) {

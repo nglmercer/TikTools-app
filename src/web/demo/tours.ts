@@ -2,13 +2,15 @@ import { tourRegistry } from '@/features/guided-help/model/registry.ts';
 import type { TourId } from '@/features/guided-help/model/types.ts';
 import { scenarios, type ScenarioId } from './scenarios.ts';
 
-/** The signed-out demo has no cloud account, so the account and backup tour is real-app only. */
-export type DemoTourId = Exclude<TourId, 'backup'>;
+/** Cloud-account and experimental ranking tours are real-app only; the signed-out demo cannot honestly prepare those states. */
+export type DemoTourId = Exclude<TourId, 'backup' | 'cloudOverlays' | 'rankings' | 'backupRestore'>;
 export const isDemoTour = (id: string): id is DemoTourId => Object.hasOwn(demoTourScenarios, id);
 
 export const demoTourScenarios = {
   connection: 'connection', automation: 'automation', plugin: 'plugins', overlay: 'overlays',
   points: 'points', changes: 'cloud', diagnostics: 'diagnostics', feed: 'feed',
+  analytics: 'analytics', variables: 'cloud', settings: 'settings', overlayObs: 'overlays',
+  automationAdvanced: 'automation', pluginSetup: 'plugins', connectionRecovery: 'connection', feedInspector: 'feed',
 } as const satisfies Record<DemoTourId, ScenarioId>;
 
 /** Tours offered by the demo catalog, in catalog order. */
@@ -22,7 +24,7 @@ export function scenarioTour(scenario: ScenarioId): DemoTourId {
 export function tourForRoute(fullPath: string, scenario: ScenarioId): DemoTourId {
   const [pathAndQuery] = fullPath.split('#');
   const [path = '', query = ''] = (pathAndQuery ?? '').split('?');
-  if (path === '/automations') return query.includes('view=variables') ? 'changes' : 'automation';
+  if (path === '/automations') return query.includes('view=variables') ? 'variables' : 'automation';
   return demoTutorialIds.find((id) => {
     const tourPath = tourRegistry[id].route.split('?')[0] ?? '';
     return path === tourPath || path.startsWith(`${tourPath}/`);

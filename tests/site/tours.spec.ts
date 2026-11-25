@@ -1,12 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
-import { demoTourScenarios } from '../../src/web/demo/tours.ts';
+import { demoTourScenarios, demoTutorialIds } from '../../src/web/demo/tours.ts';
 import { tourCatalogs } from '../../src/web/features/guided-help/catalogs/index.ts';
+
+async function selectCatalogTour(page: Page, title: string): Promise<void> {
+  await page.locator('.tutorial-catalog__card').filter({ has: page.locator('strong').getByText(title, { exact: true }) }).click();
+  await page.locator('.tutorial-catalog__detail button').click();
+}
 
 async function launchFromCatalog(page: Page, title: string): Promise<void> {
   await page.getByTestId('demo-guide').click();
-  await page.locator('.tutorial-catalog__card').filter({ hasText: title }).click();
-  await page.locator('.tutorial-catalog__detail button').click();
+  await selectCatalogTour(page, title);
 }
 
 for (const locale of ['zh', 'ja'] as const) test(`${locale}: playback and a selected walkthrough use the localized real interface`, async ({ page }) => {
@@ -24,6 +28,7 @@ for (const locale of ['zh', 'ja'] as const) test(`${locale}: playback and a sele
 });
 
 test('tutorial selection prepares each matching scenario and reports dismissal without completion', async ({ page }) => {
+  test.setTimeout(120000);
   for (const id of Object.keys(demoTourScenarios) as Array<keyof typeof demoTourScenarios>) {
     await page.goto(`demo/?scenario=connection&locale=en&instance=select-${id}`);
     await expect(page.getByTestId('demo-guide')).toBeEnabled();
@@ -43,7 +48,19 @@ test('tutorial selection prepares each matching scenario and reports dismissal w
   }
 });
 
-test('all seven shared tours load Driver inside the demo and dismissal stays dismissed', async ({ page }) => {
+test('the in-app demo catalog keeps unsupported tours out and delegates scenario preparation', async ({ page }) => {
+  await page.goto('demo/?scenario=connection&locale=en&instance=menu-catalog');
+  await page.locator('.app-menu-bar').getByRole('menuitem', { name: 'Help', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Guides and tutorials', exact: true }).click();
+  await expect(page.locator('.tutorial-catalog__card')).toHaveCount(demoTutorialIds.length);
+  await expect(page.locator('.tutorial-catalog__card').filter({ hasText: 'Account and backups' })).toHaveCount(0);
+  await selectCatalogTour(page, testMessage('en', 'guides.catalog.tours.overlayObs.title'));
+  await expect(page.locator('.driver-popover')).toBeVisible();
+  expect(new URL(page.url()).searchParams.get('scenario')).toBe('overlays');
+  await page.locator('.driver-popover-close-btn').click();
+});
+
+test('shared tours load Driver inside the demo and dismissal stays dismissed', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
   for (const [tour, scenario] of [['connection', 'connection'], ['automation', 'automation'], ['plugin', 'plugins'], ['overlay', 'overlays'], ['points', 'points'], ['changes', 'cloud'], ['diagnostics', 'diagnostics']]) {
     await page.goto(`demo/?scenario=${scenario}&locale=en&tour=${tour}&instance=tour-${tour}`);

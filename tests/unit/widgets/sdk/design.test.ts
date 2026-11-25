@@ -38,6 +38,14 @@ test('design normalization drops invalid enums, colors, and empty groups', () =>
   expect(normalizeDesign({ avatar: [], badge: { visible: 'yes' } })).toEqual({});
 });
 
+test('portable motion normalizes enums and bounded durations', () => {
+  expect(normalizeDesign({
+    motion: { preset: 'pop', enterMs: 5000.4, exitMs: -10, easing: 'spring', staggerMs: 999, evil: true },
+  })).toEqual({ motion: { preset: 'pop', enterMs: 2000, exitMs: 0, easing: 'spring', staggerMs: 500 } });
+  expect(normalizeDesign({ motion: { preset: 'spin', easing: 'bounce', enterMs: 'fast' } })).toEqual({});
+  expect(normalizeDesign({ motion: 'pop' })).toEqual({});
+});
+
 test('OBS parses encoded designs without mixing in the authentication token', () => {
   const design = { background: '#112233', accent: '#ff00ff', radius: 0 };
   expect(designFromHash(`#token=secret&design=${encodeURIComponent(JSON.stringify(design))}`)).toEqual(design);

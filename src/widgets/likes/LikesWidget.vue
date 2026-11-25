@@ -41,7 +41,7 @@ function rowText(field: 'name' | 'count', entry: LikeBoardEntry): string {
     <div class="likes-board" role="status" aria-label="Top likes">
       <p v-if="title" class="likes-title">{{ title }}</p>
       <p v-if="props.degraded" class="likes-empty">Ranking incomplete</p>
-      <ol class="likes-list">
+      <TransitionGroup name="likes" tag="ol" class="likes-list">
         <li
           v-for="(entry, index) in props.entries"
           :key="entry.userId || entry.uniqueId || entry.displayName"
@@ -66,7 +66,7 @@ function rowText(field: 'name' | 'count', entry: LikeBoardEntry): string {
           >{{ entry.uniqueId }}</span>
           <span class="likes-count">{{ rowText('count', entry) }}</span>
         </li>
-      </ol>
+      </TransitionGroup>
       <p v-if="!props.entries.length" class="likes-empty">No likes yet</p>
     </div>
   </WidgetStage>

@@ -44,6 +44,26 @@ test('style variables omit unset optionals and invalid values', () => {
   expect(styleVariables({ avatar: { visible: true }, badge: {} })).toEqual({});
 });
 
+test('style variables expose bounded portable motion tokens', () => {
+  expect(styleVariables({
+    motion: { preset: 'slide-left', enterMs: 5000, exitMs: -20, easing: 'spring', staggerMs: 40 },
+  })).toEqual({
+    '--widget-motion-enter-transform': 'translateX(24px) scale(0.98)',
+    '--widget-motion-exit-transform': 'translateX(16px) scale(0.98)',
+    '--widget-motion-enter-duration': '2000ms',
+    '--widget-motion-exit-duration': '0ms',
+    '--widget-motion-enter-easing': 'cubic-bezier(0.2, 0.9, 0.25, 1.2)',
+    '--widget-motion-exit-easing': 'cubic-bezier(0.5, 0, 0.75, 0.4)',
+    '--widget-motion-stagger': '40ms',
+  });
+  expect(styleVariables({ motion: { preset: 'none' } })).toEqual({
+    '--widget-motion-enter-transform': 'none',
+    '--widget-motion-exit-transform': 'none',
+    '--widget-motion-enter-duration': '0ms',
+    '--widget-motion-exit-duration': '0ms',
+  });
+});
+
 test('every template exposes one schema for editor and preview defaults', () => {
   for (const [kind, template] of Object.entries(widgetTemplates)) {
     const defaults = Object.keys(textDefaults[kind as keyof typeof textDefaults]) as TextField[];

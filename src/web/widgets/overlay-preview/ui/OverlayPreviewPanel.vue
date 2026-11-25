@@ -123,6 +123,7 @@ onBeforeUnmount(() => {
       <div class="overlay-preview__source">
         <RankingSourceOptions
           v-if="kind === 'ranking'"
+          data-guide="overlay-ranking-source"
           v-model="rankingSource"
         />
         <label
@@ -130,7 +131,7 @@ onBeforeUnmount(() => {
           for="overlay-source-url"
           :title="t('overlays.source.note')"
         >{{ t('overlays.source.title') }}</label>
-        <div class="overlay-preview__url">
+        <div class="overlay-preview__url" data-guide="overlay-url">
           <BaseTextField
             id="overlay-source-url"
             :model-value="url"

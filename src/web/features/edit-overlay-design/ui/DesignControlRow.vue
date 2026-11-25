@@ -30,6 +30,11 @@ const controlDisabled = computed(
 const alignOptions = computed(() =>
   (['left', 'center', 'right'] as const).map((option) => ({ value: option, label: t(`overlays.editor.align.${option}`) })),
 );
+const choiceOptions = computed(() =>
+  props.control.kind === 'choice'
+    ? props.control.options.map((option) => ({ value: option, label: t(`overlays.editor.${props.control.kind === 'choice' ? props.control.labelKey : ''}.${option}`) }))
+    : [],
+);
 const unitLabel = computed(() => (props.control.kind === 'range' ? props.control.unit : ''));
 </script>
 
@@ -67,6 +72,15 @@ const unitLabel = computed(() => (props.control.kind === 'range' ? props.control
       v-else-if="control.kind === 'toggle'"
       :id="id"
       :model-value="Boolean(value)"
+      :disabled="controlDisabled"
+      @update:model-value="emit('update', $event)"
+    />
+    <BaseSegmented
+      v-else-if="control.kind === 'choice'"
+      :id="id"
+      :model-value="String(value)"
+      :options="choiceOptions"
+      size="sm"
       :disabled="controlDisabled"
       @update:model-value="emit('update', $event)"
     />

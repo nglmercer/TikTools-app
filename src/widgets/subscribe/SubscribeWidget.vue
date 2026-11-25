@@ -20,6 +20,12 @@ type SubscribeWidgetProps = {
 const props = defineProps<SubscribeWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
 const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('subscribe', design.value));
+const enterMs = computed(() => props.settings.enterMsCustom ? props.settings.enterMs : design?.value.motion?.enterMs ?? props.settings.enterMs);
+const exitMs = computed(() => props.settings.exitMsCustom ? props.settings.exitMs : design?.value.motion?.exitMs ?? props.settings.exitMs);
+const timingStyle = computed(() => ({
+  ...(props.settings.enterMsCustom ? { '--subscribe-enter-ms': `${props.settings.enterMs}ms` } : {}),
+  ...(props.settings.exitMsCustom ? { '--subscribe-exit-ms': `${props.settings.exitMs}ms` } : {}),
+}));
 
 const avatarFailed = ref(false);
 
@@ -36,12 +42,9 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
 <template>
   <WidgetStage :debug="props.debug" :status="props.status"
     class="subscribe-stage"
-    :style="{
-      '--subscribe-enter-ms': `${props.settings.enterMs}ms`,
-      '--subscribe-exit-ms': `${props.settings.exitMs}ms`,
-    }"
+    :style="timingStyle"
   >
-    <Transition name="subscribe" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
+    <Transition name="subscribe" mode="out-in" :duration="{ enter: enterMs, leave: exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="subscribe-card" role="alert">
         <WidgetLayerStack v-if="layered" variant="subscribe" :layers="design?.layers ?? []" :event="props.alert"
           :avatar-url="props.alert.avatarUrl ?? undefined" />

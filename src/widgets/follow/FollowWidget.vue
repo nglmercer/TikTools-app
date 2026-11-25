@@ -20,6 +20,12 @@ type FollowWidgetProps = {
 const props = defineProps<FollowWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
 const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('follow', design.value));
+const enterMs = computed(() => props.settings.enterMsCustom ? props.settings.enterMs : design?.value.motion?.enterMs ?? props.settings.enterMs);
+const exitMs = computed(() => props.settings.exitMsCustom ? props.settings.exitMs : design?.value.motion?.exitMs ?? props.settings.exitMs);
+const timingStyle = computed(() => ({
+  ...(props.settings.enterMsCustom ? { '--follow-enter-ms': `${props.settings.enterMs}ms` } : {}),
+  ...(props.settings.exitMsCustom ? { '--follow-exit-ms': `${props.settings.exitMs}ms` } : {}),
+}));
 
 const avatarFailed = ref(false);
 
@@ -36,12 +42,9 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
 <template>
   <WidgetStage :debug="props.debug" :status="props.status"
     class="follow-stage"
-    :style="{
-      '--follow-enter-ms': `${props.settings.enterMs}ms`,
-      '--follow-exit-ms': `${props.settings.exitMs}ms`,
-    }"
+    :style="timingStyle"
   >
-    <Transition name="follow" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
+    <Transition name="follow" mode="out-in" :duration="{ enter: enterMs, leave: exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="follow-card" role="alert">
         <WidgetLayerStack v-if="layered" variant="follow" :layers="design?.layers ?? []" :event="props.alert"
           :avatar-url="props.alert.avatarUrl ?? undefined" />

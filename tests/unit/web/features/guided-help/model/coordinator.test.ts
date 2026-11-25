@@ -117,6 +117,34 @@ it('does not treat the Done button or a failing host-state reader as task succes
   expect(readTourProgress(sessionStorage, 'points', 1, ['rules', 'leaderboard'])?.status).toBe('dismissed');
 });
 
+it('completes an informational walkthrough when its final step finishes without inventing host state', async () => {
+  const test = setup();
+  const targets = tourRegistry.analytics.steps.map((step) => step.target);
+  mountTargets('analytics', targets);
+  expect(tourRegistry.analytics.task).toBeUndefined();
+  const session = test.coordinator.startTour('analytics');
+  await flushPromises();
+  expect(await session.ready).toBe(true);
+  for (let index = 1; index < targets.length; index++) {
+    test.next();
+    await flushPromises();
+  }
+  test.done();
+  expect(await session.done).toBe('completed');
+  expect(readTourProgress(sessionStorage, 'analytics', 1, tourRegistry.analytics.steps.map((step) => step.id))?.status).toBe('completed');
+});
+
+it('does not let the session API complete an informational walkthrough before its final step', async () => {
+  const test = setup();
+  mountTargets('settings', tourRegistry.settings.steps.map((step) => step.target));
+  const session = test.coordinator.startTour('settings');
+  await flushPromises();
+  expect(await session.ready).toBe(true);
+  session.stop('completed');
+  expect(await session.done).toBe('dismissed');
+  expect(readTourProgress(sessionStorage, 'settings', 1, tourRegistry.settings.steps.map((step) => step.id))?.status).toBe('dismissed');
+});
+
 it('resumes stable step IDs and ignores progress from another version or malformed storage', async () => {
   const test = setup();
   mountTargets('points', ['points-rules', 'points-leaderboard']);
@@ -398,8 +426,8 @@ it('replaces the previous guide and tolerates unavailable storage', async () => 
 });
 
 describe('versioned registry and localized copy', () => {
-  it('publishes nine versioned tours with complete catalogs for every supported locale', () => {
-    expect(Object.keys(tourRegistry)).toHaveLength(9);
+  it('publishes twenty versioned tours with complete catalogs for every supported locale', () => {
+    expect(Object.keys(tourRegistry)).toHaveLength(20);
     for (const tour of Object.values(tourRegistry)) {
       expect(tour.version).toBeGreaterThan(0);
       expect(tour.route.startsWith('/')).toBe(true);

@@ -21,6 +21,11 @@ type ChatWidgetProps = {
 const props = defineProps<ChatWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
 const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('chat', design.value));
+const staggerMs = computed(() => design?.value.motion?.staggerMs ?? 0);
+function staggerStyle(index: number): Record<string, string> {
+  const delay = Math.min(index, 5) * staggerMs.value;
+  return delay > 0 ? { '--chat-stagger': `${delay}ms` } : {};
+}
 
 const failedAvatars = ref<Record<string, boolean>>({});
 
@@ -37,7 +42,7 @@ function initialsFor(message: ChatMessageView): string {
 <template>
   <WidgetStage :debug="props.debug" :status="props.status" align="bottom" class="chat-stage">
     <TransitionGroup name="chat" tag="div" class="chat-list" aria-live="polite">
-      <div v-for="message in props.messages" :key="message.id" class="chat-message">
+      <div v-for="(message, index) in props.messages" :key="message.id" class="chat-message" :style="staggerStyle(index)">
         <WidgetLayerStack v-if="layered" variant="chat" :layers="design?.layers ?? []" :event="message"
           :avatar-url="props.settings.showAvatars ? message.avatarUrl ?? undefined : undefined" />
         <template v-else>

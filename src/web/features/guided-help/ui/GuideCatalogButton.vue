@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { inject, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import type { TutorialTag } from '../model/tutorial-catalog.ts';
-import type { TourCapabilities, TourTaskState } from '../model/types.ts';
+import { guideCatalogContextKey } from '../model/catalog-context.ts';
+import type { TourCapabilities, TourId, TourTaskState } from '../model/types.ts';
 import TutorialCatalogDialog from './TutorialCatalogDialog.vue';
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   capabilities?: TourCapabilities;
   taskState?: TourTaskState | (() => TourTaskState);
   /** Preselect a category, e.g. `feed` when opened from the live feed. */
@@ -16,9 +18,13 @@ withDefaults(defineProps<{
   label?: string;
   /** Hide the trigger but keep the dialog mounted (e.g. when moved into an overflow menu). */
   hideButton?: boolean;
-}>(), { capabilities: undefined, taskState: undefined, category: undefined, label: undefined, hideButton: false });
+  tours?: readonly TourId[];
+  onLaunch?: (id: TourId, trigger?: HTMLElement) => void;
+}>(), { capabilities: undefined, taskState: undefined, category: undefined, label: undefined, hideButton: false, tours: undefined, onLaunch: undefined });
 
 const { t } = useI18n();
+const hostCapabilities = useCapabilityStore();
+const catalogContext = inject(guideCatalogContextKey, {});
 const catalogOpen = ref(false);
 defineExpose({ open: () => { catalogOpen.value = true; } });
 </script>
@@ -43,10 +49,14 @@ defineExpose({ open: () => { catalogOpen.value = true; } });
       ?
     </BaseIconButton>
   </span>
-  <TutorialCatalogDialog
-    v-model:open="catalogOpen"
-    :capabilities="capabilities"
-    :task-state="taskState"
-    :initial-category="category"
-  />
+  <Teleport to="body">
+    <TutorialCatalogDialog
+      v-model:open="catalogOpen"
+      :capabilities="props.capabilities ?? hostCapabilities"
+      :task-state="taskState"
+      :initial-category="category"
+      :tours="props.tours ?? catalogContext.tours"
+      :on-launch="props.onLaunch ?? catalogContext.onLaunch"
+    />
+  </Teleport>
 </template>

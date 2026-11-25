@@ -95,7 +95,7 @@ watch([range, metric, query, customStart, customEnd], persist);
 </script>
 
 <template>
-  <div class="analytics-page">
+  <div class="analytics-page" data-guide-scope="analytics">
     <header class="analytics-page__header">
       <div class="analytics-page__heading">
         <h1 class="analytics-page__title">
@@ -112,6 +112,7 @@ watch([range, metric, query, customStart, customEnd], persist);
       </div>
       <div class="analytics-page__controls">
         <AnalyticsRangeBar
+          data-guide="analytics-range"
           v-model:range="range"
           v-model:start="customStart"
           v-model:end="customEnd"
@@ -151,16 +152,18 @@ watch([range, metric, query, customStart, customEnd], persist);
 
     <template v-else>
       <AnalyticsMetricStrip
+        data-guide="analytics-metrics"
         v-model="metric"
         :totals="summary.totals"
       />
       <div class="analytics-page__main">
         <AnalyticsActivityPanel
+          data-guide="analytics-activity"
           class="analytics-page__activity"
           :summary="summary"
           :metric="metric"
         />
-        <BasePanel :title="t('analytics.facts.title')">
+        <BasePanel data-guide="analytics-facts" :title="t('analytics.facts.title')">
           <AnalyticsFacts
             :totals="summary.totals"
             :sessions="summary.sessions"
@@ -168,6 +171,7 @@ watch([range, metric, query, customStart, customEnd], persist);
         </BasePanel>
       </div>
       <BasePanel
+        data-guide="analytics-contributors"
         class="analytics-page__contributors"
         :title="t('analytics.contributors.title')"
         flush

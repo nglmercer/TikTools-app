@@ -1,7 +1,5 @@
 import type {
   WidgetAlign,
-  WidgetAvatarStyle,
-  WidgetBadgeStyle,
   WidgetEditorControl,
   WidgetStyle,
   WidgetTemplateSchema,
@@ -20,6 +18,11 @@ export interface DesignDefaults {
   width: number;
   avatarSize: number;
   badgeSize: number;
+  motionPreset: string;
+  motionEnterMs: number;
+  motionExitMs: number;
+  motionEasing: string;
+  motionStaggerMs: number;
   badgeWeight: number;
   badgeSpacing: number;
 }
@@ -41,10 +44,15 @@ export function designDefaults(schema: WidgetTemplateSchema): DesignDefaults {
     badgeSize: base.badge?.fontSize ?? 11,
     badgeWeight: base.badge?.fontWeight ?? 700,
     badgeSpacing: base.badge?.letterSpacing ?? 1.5,
+    motionPreset: base.motion?.preset ?? 'slide-up',
+    motionEnterMs: base.motion?.enterMs ?? 400,
+    motionExitMs: base.motion?.exitMs ?? 400,
+    motionEasing: base.motion?.easing ?? 'spring',
+    motionStaggerMs: base.motion?.staggerMs ?? 35,
   };
 }
 
-type Nested = 'avatar' | 'badge';
+type Nested = 'avatar' | 'badge' | 'motion';
 type NestedValue = string | number | boolean | undefined;
 
 export function withNested<K extends Nested>(
@@ -58,7 +66,7 @@ export function withNested<K extends Nested>(
   else current[key as string] = value;
   const next = { ...design };
   if (Object.keys(current).length === 0) delete next[group];
-  else (next as Record<string, unknown>)[group] = current as WidgetAvatarStyle & WidgetBadgeStyle;
+  else (next as Record<string, unknown>)[group] = current;
   return next;
 }
 
@@ -85,7 +93,7 @@ export interface RangeControl extends ControlBase<number> {
   min: number;
   max: number;
   step: number;
-  unit: 'px' | '%' | '';
+  unit: 'px' | '%' | 'ms' | '';
   disabled?: (design: WidgetStyle) => boolean;
 }
 
@@ -97,7 +105,13 @@ export interface AlignControl extends ControlBase<WidgetAlign> {
   kind: 'align';
 }
 
-export type ScalarControl = ColorControl | RangeControl | ToggleControl | AlignControl;
+export interface ChoiceControl extends ControlBase<string> {
+  kind: 'choice';
+  options: readonly string[];
+  labelKey: 'motionPreset' | 'motionEasing';
+}
+
+export type ScalarControl = ColorControl | RangeControl | ToggleControl | AlignControl | ChoiceControl;
 
 export type StructuralControl = Extract<WidgetEditorControl, 'layers' | 'textFields' | 'addTextField'>;
 export type ScalarControlId = Exclude<WidgetEditorControl, StructuralControl>;
@@ -145,13 +159,49 @@ function nestedRange<K extends Nested>(
   };
 }
 
-function nestedVisible(label: string, group: Nested): ToggleControl {
+function nestedVisible(label: string, group: Exclude<Nested, 'motion'>): ToggleControl {
   return {
     kind: 'toggle',
     label,
     resetKeys: [`${group}.visible`],
     get: (design) => design[group]?.visible !== false,
     set: (design, value) => withNested(design, group, 'visible', value ? undefined : false),
+  };
+}
+
+
+function motionRange(
+  label: string,
+  key: 'enterMs' | 'exitMs' | 'staggerMs',
+  bounds: Pick<RangeControl, 'min' | 'max' | 'step'>,
+  fallback: keyof DesignDefaults,
+): RangeControl {
+  return {
+    kind: 'range',
+    label,
+    resetKeys: [`motion.${key}`],
+    ...bounds,
+    unit: 'ms',
+    get: (design, defaults) => design.motion?.[key] ?? Number(defaults[fallback]),
+    set: (design, value) => withNested(design, 'motion', key, value),
+  };
+}
+
+function motionChoice(
+  label: string,
+  key: 'preset' | 'easing',
+  labelKey: ChoiceControl['labelKey'],
+  options: readonly string[],
+  fallback: keyof DesignDefaults,
+): ChoiceControl {
+  return {
+    kind: 'choice',
+    label,
+    labelKey,
+    options,
+    resetKeys: [`motion.${key}`],
+    get: (design, defaults) => design.motion?.[key] ?? String(defaults[fallback]),
+    set: (design, value) => withNested(design, 'motion', key, value),
   };
 }
 
@@ -217,6 +267,11 @@ export function scalarControls(labels: ControlLabels): Record<ScalarControlId, S
     headingFontSize: nestedRange(labels.headingFontSize, 'badge', 'fontSize', { min: 8, max: 32, step: 1, unit: 'px' }, (_, d) => d.badgeSize),
     headingWeight: nestedRange(labels.headingWeight, 'badge', 'fontWeight', { min: 400, max: 900, step: 100, unit: '' }, (_, d) => d.badgeWeight),
     headingSpacing: nestedRange(labels.headingSpacing, 'badge', 'letterSpacing', { min: 0, max: 8, step: 0.5, unit: 'px' }, (_, d) => d.badgeSpacing),
+    motionPreset: motionChoice(labels.motionPreset, 'preset', 'motionPreset', ['slide-up', 'slide-down', 'slide-left', 'slide-right', 'pop', 'fade', 'none'], 'motionPreset'),
+    motionEnterMs: motionRange(labels.motionEnterMs, 'enterMs', { min: 0, max: 2000, step: 50 }, 'motionEnterMs'),
+    motionExitMs: motionRange(labels.motionExitMs, 'exitMs', { min: 0, max: 2000, step: 50 }, 'motionExitMs'),
+    motionEasing: motionChoice(labels.motionEasing, 'easing', 'motionEasing', ['spring', 'standard', 'linear'], 'motionEasing'),
+    motionStaggerMs: motionRange(labels.motionStaggerMs, 'staggerMs', { min: 0, max: 500, step: 5 }, 'motionStaggerMs'),
   };
 }
 
@@ -228,7 +283,7 @@ export function withoutKeys(design: WidgetStyle, keys: readonly string[]): Widge
   let next = { ...design };
   for (const key of keys) {
     const [parent, child] = key.split('.');
-    if (child && (parent === 'text' || parent === 'avatar' || parent === 'badge')) {
+    if (child && (parent === 'text' || parent === 'avatar' || parent === 'badge' || parent === 'motion')) {
       const nested = next[parent];
       if (!nested) continue;
       const updated = { ...nested } as Record<string, unknown>;

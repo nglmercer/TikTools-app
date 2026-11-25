@@ -40,7 +40,7 @@ function start(event: MouseEvent): void {
     capabilities: props.capabilities,
     taskState: () => ({
       ...(typeof props.taskState === 'function' ? props.taskState() : props.taskState),
-      ...(props.completed === true ? { [tourRegistry[props.tour!].task]: true } : {}),
+      ...(props.completed === true && tourRegistry[props.tour!].task ? { [tourRegistry[props.tour!].task!]: true } : {}),
     }),
   }) : startInlineGuide({
     ...context, id: props.id ?? 'inline', steps: () => props.steps ?? [], completed: () => props.completed === true,

@@ -91,6 +91,13 @@ function readPositiveInt(params: URLSearchParams, name: string, fallback: number
   return value;
 }
 
+function hasPositiveInt(params: URLSearchParams, name: string): boolean {
+  const raw = params.get(name);
+  if (raw === null || raw.trim() === '') return false;
+  const value = Number.parseInt(raw, 10);
+  return Number.isFinite(value) && value >= 0;
+}
+
 function readBoolean(params: URLSearchParams, name: string, fallback: boolean): boolean {
   const raw = params.get(name);
   if (raw === null || raw.trim() === '') return fallback;
@@ -103,6 +110,9 @@ export interface FollowWidgetSettings {
   visibleMs: number;
   enterMs: number;
   exitMs: number;
+  /** Legacy URL timing overrides; absent means portable design motion wins. */
+  enterMsCustom?: boolean;
+  exitMsCustom?: boolean;
   showUniqueId: boolean;
 }
 
@@ -112,6 +122,8 @@ export function parseFollowSettings(search: string): FollowWidgetSettings {
     visibleMs: readPositiveInt(params, 'duration', DEFAULT_FOLLOW_VISIBLE_MS),
     enterMs: readPositiveInt(params, 'enter', DEFAULT_FOLLOW_ENTER_MS),
     exitMs: readPositiveInt(params, 'exit', DEFAULT_FOLLOW_EXIT_MS),
+    ...(hasPositiveInt(params, 'enter') ? { enterMsCustom: true } : {}),
+    ...(hasPositiveInt(params, 'exit') ? { exitMsCustom: true } : {}),
     showUniqueId: readBoolean(params, 'handle', true),
   };
 }
@@ -155,6 +167,9 @@ export interface ShareWidgetSettings {
   visibleMs: number;
   enterMs: number;
   exitMs: number;
+  /** Legacy URL timing overrides; absent means portable design motion wins. */
+  enterMsCustom?: boolean;
+  exitMsCustom?: boolean;
   showUniqueId: boolean;
 }
 
@@ -164,6 +179,8 @@ export function parseShareSettings(search: string): ShareWidgetSettings {
     visibleMs: readPositiveInt(params, 'duration', DEFAULT_SHARE_VISIBLE_MS),
     enterMs: readPositiveInt(params, 'enter', DEFAULT_SHARE_ENTER_MS),
     exitMs: readPositiveInt(params, 'exit', DEFAULT_SHARE_EXIT_MS),
+    ...(hasPositiveInt(params, 'enter') ? { enterMsCustom: true } : {}),
+    ...(hasPositiveInt(params, 'exit') ? { exitMsCustom: true } : {}),
     showUniqueId: readBoolean(params, 'handle', true),
   };
 }
@@ -172,6 +189,9 @@ export interface SubscribeWidgetSettings {
   visibleMs: number;
   enterMs: number;
   exitMs: number;
+  /** Legacy URL timing overrides; absent means portable design motion wins. */
+  enterMsCustom?: boolean;
+  exitMsCustom?: boolean;
   showUniqueId: boolean;
 }
 
@@ -181,6 +201,8 @@ export function parseSubscribeSettings(search: string): SubscribeWidgetSettings 
     visibleMs: readPositiveInt(params, 'duration', DEFAULT_SUBSCRIBE_VISIBLE_MS),
     enterMs: readPositiveInt(params, 'enter', DEFAULT_SUBSCRIBE_ENTER_MS),
     exitMs: readPositiveInt(params, 'exit', DEFAULT_SUBSCRIBE_EXIT_MS),
+    ...(hasPositiveInt(params, 'enter') ? { enterMsCustom: true } : {}),
+    ...(hasPositiveInt(params, 'exit') ? { exitMsCustom: true } : {}),
     showUniqueId: readBoolean(params, 'handle', true),
   };
 }

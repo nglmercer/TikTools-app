@@ -76,6 +76,14 @@ describe('widget display settings', () => {
       exitMs: 400,
       showUniqueId: true,
     });
+    expect(parseFollowSettings('?enter=250&exit=150')).toEqual({
+      visibleMs: 4000,
+      enterMs: 250,
+      exitMs: 150,
+      enterMsCustom: true,
+      exitMsCustom: true,
+      showUniqueId: true,
+    });
   });
 
   test('gift settings default and parse query overrides', () => {

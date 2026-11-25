@@ -1,7 +1,9 @@
 import type { Router } from 'vue-router';
 import type { Locale } from '@/shared/i18n/supported-locales.ts';
 
-export type TourId = 'connection' | 'automation' | 'plugin' | 'overlay' | 'points' | 'changes' | 'diagnostics' | 'feed' | 'backup';
+export type TourId = 'connection' | 'automation' | 'plugin' | 'overlay' | 'points' | 'changes' | 'diagnostics' | 'feed' | 'backup'
+  | 'analytics' | 'variables' | 'settings' | 'overlayObs' | 'cloudOverlays' | 'automationAdvanced' | 'rankings' | 'pluginSetup'
+  | 'connectionRecovery' | 'feedInspector' | 'backupRestore';
 export type TourLocale = Locale;
 export interface GuideStep { id: string; selector: string; title: string; description: string }
 export interface TourStepDefinition {
@@ -19,7 +21,8 @@ export interface TourDefinition {
   version: number;
   route: string;
   scope: string;
-  task: string;
+  /** External task key for action-oriented tours. Informational walkthroughs leave it undefined and complete when their final step finishes. */
+  task?: string;
   steps: readonly TourStepDefinition[];
 }
 export type TourCapabilities = readonly string[] | { supports(method: string): boolean | undefined };

@@ -127,8 +127,10 @@ async function launch(id: TourId): Promise<void> {
       />
     </div>
     <div class="tutorial-catalog__layout">
-      <ul
+      <TransitionGroup
         v-if="filtered.length"
+        name="tutorial-catalog"
+        tag="ul"
         class="tutorial-catalog__list"
       >
         <li
@@ -164,7 +166,7 @@ async function launch(id: TourId): Promise<void> {
             </span>
           </button>
         </li>
-      </ul>
+      </TransitionGroup>
       <p
         v-else
         class="tutorial-catalog__empty"
@@ -173,6 +175,7 @@ async function launch(id: TourId): Promise<void> {
       </p>
       <aside
         v-if="selected"
+        :key="selected.id"
         class="tutorial-catalog__detail"
       >
         <div class="tutorial-catalog__detail-head">
@@ -258,6 +261,40 @@ async function launch(id: TourId): Promise<void> {
 .tutorial-catalog__step-list { display: grid; gap: var(--space-3); margin: 0; padding-inline-start: var(--space-5); font-size: var(--font-size-sm); }
 .tutorial-catalog__step-list li { display: grid; gap: 2px; }
 .tutorial-catalog__step-list span { color: var(--color-text-muted); }
+
+.tutorial-catalog-enter-active,
+.tutorial-catalog-leave-active,
+.tutorial-catalog-move {
+  transition:
+    opacity var(--duration-normal) ease-out,
+    transform var(--duration-normal) ease-out;
+}
+
+.tutorial-catalog-enter-from,
+.tutorial-catalog-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.tutorial-catalog__detail {
+  animation: tutorial-detail-in var(--duration-normal) ease-out;
+}
+
+@keyframes tutorial-detail-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-catalog-enter-active,
+  .tutorial-catalog-leave-active,
+  .tutorial-catalog-move,
+  .tutorial-catalog__detail {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
+}
+
 .tutorial-catalog__empty { margin: var(--space-4) 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 @media (width < 760px) {
   .tutorial-catalog__filters { flex-wrap: wrap; }

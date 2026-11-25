@@ -284,7 +284,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
             />
           </template>
           <template #variables>
-            <RuntimeGlobalsEditor>
+            <RuntimeGlobalsEditor data-guide="automation-variables">
               <template #sync="{ dirty }">
                 <SyncButton
                   v-if="variableSync.supported.value"
@@ -309,6 +309,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
               :memory="automation.persistent.value === false"
             />
             <AutomationRecordEditor
+              data-guide="automation-editor"
               :editing="editing"
               :state="editor.state.value"
               :save-blocked="editor.saveBlocked.value"
@@ -329,6 +330,7 @@ onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); }
         </div>
       </div>
       <AutomationRunsPanel
+        data-guide="automation-runs"
         class="automations-page__runs"
         :runs="automation.runs.value"
       />

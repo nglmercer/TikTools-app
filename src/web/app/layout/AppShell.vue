@@ -3,7 +3,7 @@ import { useDiagnostics } from '../model/use-diagnostics.ts';
 import { diagnosticLog, diagnosticView } from '@/shared/diagnostics/log.ts';
 import { useDiagnosticNavigation } from '@/shared/diagnostics/navigation.ts';
 import { storeToRefs } from 'pinia';
-import { computed, defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent, useTemplateRef } from 'vue';
 
 // The panel and its code load only when Diagnostics is opened; closing unmounts it but never clears the log.
 const DiagnosticsPanel = defineAsyncComponent(() => import('@/shared/diagnostics/DiagnosticsPanel.vue'));
@@ -35,6 +35,7 @@ useAppRuntime();
 useDiagnostics();
 void loadResolutionPreference(useControlClient());
 const diagnosticNavigation = useDiagnosticNavigation();
+const menuBar = useTemplateRef<InstanceType<typeof AppMenuBar>>('menuBar');
 const { unread } = diagnosticLog;
 
 const { t } = useI18n();
@@ -98,6 +99,7 @@ if (desktopShell) {
     else if (kind === 'navigate' && value) navigate(value);
     else if (kind === 'locale' && value) localeStore.setLocale(value as Locale);
     else if (kind === 'toggle-sidebar') toggleSidebar();
+    else if (kind === 'help' && value === 'guides') menuBar.value?.openGuides();
   });
 }
 
@@ -110,6 +112,7 @@ if (desktopShell) {
   >
     <AppNotifications @open-settings="router.push(tabLocation('settings'))" />
     <AppMenuBar
+      ref="menuBar"
       v-show="!desktopShell"
       :status="status"
       :locale="locale"

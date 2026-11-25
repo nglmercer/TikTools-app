@@ -43,6 +43,7 @@ function alertDesign(accent: string, options: {
     width: options.width ?? 440,
     avatar: { size: options.avatarSize ?? 56 },
     badge: { fontSize: 11, fontWeight: 700, letterSpacing: 1.5 },
+    motion: { preset: 'slide-up', enterMs: 400, exitMs: 400, easing: 'spring', staggerMs: 35 },
   };
 }
 
@@ -57,6 +58,7 @@ function templateSchema(
     { id: 'card', groups: [
       { title: 'appearance', controls: ['background', 'accent', 'radius', 'borderColor', 'borderWidth', 'shadow', 'opacity'] },
       { title: 'layout', controls: ['align', 'autoWidth', 'width', 'padding', 'gap'] },
+      { title: 'motion', controls: ['motionPreset', 'motionEnterMs', 'motionExitMs', 'motionEasing', 'motionStaggerMs'] },
     ] },
   ];
   return {

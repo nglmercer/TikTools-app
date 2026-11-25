@@ -98,6 +98,28 @@ onMounted(() => sync(open.value));
 .base-dialog[open] {
   display: flex;
   flex-direction: column;
+  animation: base-dialog-in var(--duration-normal) cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+.base-dialog[open]::backdrop {
+  animation: base-dialog-backdrop-in var(--duration-normal) ease-out;
+}
+
+@keyframes base-dialog-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes base-dialog-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .base-dialog[open],
+  .base-dialog[open]::backdrop {
+    animation-duration: 0.01ms;
+  }
 }
 
 .base-dialog::backdrop {

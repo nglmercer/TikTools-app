@@ -36,6 +36,21 @@ export interface WidgetBadgeStyle {
 
 export type WidgetAlign = 'left' | 'center' | 'right';
 
+export type WidgetMotionPreset = 'none' | 'fade' | 'slide-up' | 'slide-down' | 'slide-left' | 'slide-right' | 'pop';
+export type WidgetMotionEasing = 'linear' | 'standard' | 'spring';
+
+/** Portable motion preferences shared by the editor, preview and OBS widget. */
+export interface WidgetMotionStyle {
+  preset?: WidgetMotionPreset;
+  /** Enter transition duration in ms. */
+  enterMs?: number;
+  /** Exit transition duration in ms. */
+  exitMs?: number;
+  easing?: WidgetMotionEasing;
+  /** Small per-row delay used by list widgets, in ms. */
+  staggerMs?: number;
+}
+
 export type WidgetTemplateToken = 'name' | 'username' | 'gift' | 'count' | 'diamonds' | 'message';
 
 export interface WidgetLayer {
@@ -61,10 +76,11 @@ export type WidgetEditorControl =
   | 'background' | 'accent' | 'radius' | 'borderColor' | 'borderWidth' | 'shadow' | 'opacity'
   | 'align' | 'autoWidth' | 'width' | 'padding' | 'gap'
   | 'avatarVisible' | 'avatarSize' | 'avatarRadius' | 'avatarBorderColor' | 'avatarBorderWidth'
-  | 'headingVisible' | 'headingColor' | 'headingFontSize' | 'headingWeight' | 'headingSpacing';
+  | 'headingVisible' | 'headingColor' | 'headingFontSize' | 'headingWeight' | 'headingSpacing'
+  | 'motionPreset' | 'motionEnterMs' | 'motionExitMs' | 'motionEasing' | 'motionStaggerMs';
 
 export interface WidgetEditorGroup {
-  title?: 'fields' | 'textAppearance' | 'appearance' | 'layout';
+  title?: 'fields' | 'textAppearance' | 'appearance' | 'layout' | 'motion';
   controls: readonly WidgetEditorControl[];
 }
 
@@ -103,6 +119,7 @@ export interface WidgetStyle {
   width?: number;
   avatar?: WidgetAvatarStyle;
   badge?: WidgetBadgeStyle;
+  motion?: WidgetMotionStyle;
 }
 
 /**
@@ -157,6 +174,26 @@ function pxVariable(variables: Record<string, string>, name: string, value: unkn
 }
 
 const ALIGN_ITEMS: Record<WidgetAlign, string> = { left: 'flex-start', center: 'center', right: 'flex-end' };
+const MOTION_PRESETS: Record<WidgetMotionPreset, { enter: string; exit: string }> = {
+  none: { enter: 'none', exit: 'none' },
+  fade: { enter: 'none', exit: 'none' },
+  'slide-up': { enter: 'translateY(18px) scale(0.98)', exit: 'translateY(10px) scale(0.98)' },
+  'slide-down': { enter: 'translateY(-18px) scale(0.98)', exit: 'translateY(-10px) scale(0.98)' },
+  'slide-left': { enter: 'translateX(24px) scale(0.98)', exit: 'translateX(16px) scale(0.98)' },
+  'slide-right': { enter: 'translateX(-24px) scale(0.98)', exit: 'translateX(-16px) scale(0.98)' },
+  pop: { enter: 'scale(0.88)', exit: 'scale(1.04)' },
+};
+const MOTION_EASING: Record<WidgetMotionEasing, { enter: string; exit: string }> = {
+  linear: { enter: 'linear', exit: 'linear' },
+  standard: { enter: 'cubic-bezier(0.2, 0.9, 0.25, 1)', exit: 'cubic-bezier(0.4, 0, 0.6, 1)' },
+  spring: { enter: 'cubic-bezier(0.2, 0.9, 0.25, 1.2)', exit: 'cubic-bezier(0.5, 0, 0.75, 0.4)' },
+};
+
+function msVariable(variables: Record<string, string>, name: string, value: unknown, min: number, max: number): void {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    variables[name] = `${Math.max(min, Math.min(max, Math.round(value)))}ms`;
+  }
+}
 
 export function styleVariables(style: WidgetStyle = {}): Record<string, string> {
   const variables: Record<string, string> = {};
@@ -195,6 +232,28 @@ export function styleVariables(style: WidgetStyle = {}): Record<string, string> 
     }
     pxVariable(variables, '--widget-badge-spacing', badge.letterSpacing, 0, 8);
   }
+  const motion = style.motion;
+  if (motion && typeof motion === 'object') {
+    const preset = motion.preset && Object.hasOwn(MOTION_PRESETS, motion.preset) ? motion.preset : undefined;
+    if (preset) {
+      variables['--widget-motion-enter-transform'] = MOTION_PRESETS[preset].enter;
+      variables['--widget-motion-exit-transform'] = MOTION_PRESETS[preset].exit;
+      if (preset === 'none') {
+        variables['--widget-motion-enter-duration'] = '0ms';
+        variables['--widget-motion-exit-duration'] = '0ms';
+      }
+    }
+    if (preset !== 'none') {
+      msVariable(variables, '--widget-motion-enter-duration', motion.enterMs, 0, 2000);
+      msVariable(variables, '--widget-motion-exit-duration', motion.exitMs, 0, 2000);
+    }
+    const easing = motion.easing && Object.hasOwn(MOTION_EASING, motion.easing) ? motion.easing : undefined;
+    if (easing) {
+      variables['--widget-motion-enter-easing'] = MOTION_EASING[easing].enter;
+      variables['--widget-motion-exit-easing'] = MOTION_EASING[easing].exit;
+    }
+    msVariable(variables, '--widget-motion-stagger', motion.staggerMs, 0, 500);
+  }
   return variables;
 }
 
@@ -217,6 +276,9 @@ export function resolveWidgetDesign(template: Pick<WidgetTemplate, 'schema'>, de
       : undefined,
     badge: defaults.badge || design.badge
       ? { ...(defaults.badge ?? {}), ...(design.badge ?? {}) }
+      : undefined,
+    motion: defaults.motion || design.motion
+      ? { ...(defaults.motion ?? {}), ...(design.motion ?? {}) }
       : undefined,
   };
 }

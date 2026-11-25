@@ -100,3 +100,26 @@
   color: var(--widget-textMuted, #8a8a96);
   font-size: 13px;
 }
+
+/* Reordering stays cheap for OBS: transform/opacity only. */
+.likes-enter-active,
+.likes-leave-active,
+.likes-move {
+  transition:
+    opacity var(--widget-motion-enter-duration, 220ms) var(--widget-motion-enter-easing, ease-out),
+    transform var(--widget-motion-enter-duration, 220ms) var(--widget-motion-enter-easing, ease-out);
+}
+
+.likes-enter-from,
+.likes-leave-to {
+  opacity: 0;
+  transform: var(--widget-motion-enter-transform, translateY(8px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .likes-enter-active,
+  .likes-leave-active,
+  .likes-move {
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -48,6 +48,16 @@ describe('useDesignEditor', () => {
     expect(editor.draft.value.radius).toBeUndefined();
   });
 
+
+  it('applies nested motion controls and resets them with the card section', () => {
+    const { editor } = setup('follow', { motion: { preset: 'fade', enterMs: 300 } });
+    editor.setScalar(controls.motionPreset, 'motionPreset', 'pop');
+    editor.setScalar(controls.motionStaggerMs, 'motionStaggerMs', 80);
+    expect(editor.draft.value.motion).toMatchObject({ preset: 'pop', enterMs: 300, staggerMs: 80 });
+    editor.resetSection('card', controls);
+    expect(editor.draft.value.motion).toBeUndefined();
+  });
+
   it('inserts tokens at the caret and respects the length limit', () => {
     const { editor } = setup();
     const caret = editor.insertToken('message', 'name', 0, 0);

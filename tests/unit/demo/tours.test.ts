@@ -15,12 +15,12 @@ describe('demo tour recommendations', () => {
     expect(tourForRoute('/points', 'connection')).toBe('points');
     expect(tourForRoute('/debug', 'connection')).toBe('diagnostics');
     expect(tourForRoute('/automations', 'connection')).toBe('automation');
-    expect(tourForRoute('/automations?view=variables', 'connection')).toBe('changes');
+    expect(tourForRoute('/automations?view=variables', 'connection')).toBe('variables');
   });
 
   it('falls back to the scenario tour on catalog and settings pages', () => {
     expect(tourForRoute('/components/buttons', 'points')).toBe('points');
-    expect(tourForRoute('/settings', 'plugins')).toBe('plugin');
-    expect(scenarioTour('analytics')).toBe('connection');
+    expect(tourForRoute('/settings', 'plugins')).toBe('settings');
+    expect(scenarioTour('analytics')).toBe('analytics');
   });
 });

@@ -3,6 +3,7 @@ import IconChart from '@/shared/ui/icon/icons/IconChart.vue';
 import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
 import IconCloud from '@/shared/ui/icon/icons/IconCloud.vue';
 import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
+import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
 import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
 import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
@@ -25,6 +26,9 @@ export const tutorialTags = [
   'diagnostics',
   'feed',
   'account',
+  'analytics',
+  'settings',
+  'rankings',
 ] as const;
 export type TutorialTag = (typeof tutorialTags)[number];
 
@@ -45,19 +49,33 @@ export const tagIcons: Record<TutorialTag, Component> = {
   diagnostics: IconChart,
   feed: IconChat,
   account: IconCloud,
+  analytics: IconChart,
+  settings: IconGear,
+  rankings: IconCoins,
 };
 
 /** All driver.js tours, in the order they appear in the catalog. */
 export const tutorialEntries: readonly TutorialEntry[] = [
   { id: 'automation', tags: ['events', 'actions'], icon: IconZap },
+  { id: 'automationAdvanced', tags: ['events', 'actions'], icon: IconZap },
   { id: 'changes', tags: ['events', 'actions', 'changes'], icon: IconGitMerge },
+  { id: 'variables', tags: ['events', 'actions', 'changes'], icon: IconGitMerge },
   { id: 'connection', tags: ['connection'], icon: IconLink },
+  { id: 'connectionRecovery', tags: ['connection'], icon: IconLink },
   { id: 'plugin', tags: ['plugins'], icon: IconPuzzle },
+  { id: 'pluginSetup', tags: ['plugins'], icon: IconPuzzle },
   { id: 'overlay', tags: ['overlays'], icon: IconLayers },
+  { id: 'overlayObs', tags: ['overlays'], icon: IconLayers },
+  { id: 'cloudOverlays', tags: ['overlays', 'account'], icon: IconCloud },
   { id: 'points', tags: ['points'], icon: IconCoins },
+  { id: 'rankings', tags: ['points', 'rankings'], icon: IconCoins },
+  { id: 'analytics', tags: ['analytics'], icon: IconChart },
   { id: 'diagnostics', tags: ['diagnostics'], icon: IconChart },
   { id: 'feed', tags: ['feed'], icon: IconChat },
+  { id: 'feedInspector', tags: ['feed'], icon: IconChat },
+  { id: 'settings', tags: ['settings'], icon: IconGear },
   { id: 'backup', tags: ['account'], icon: IconCloud },
+  { id: 'backupRestore', tags: ['account'], icon: IconCloud },
 ];
 
 export interface TutorialStepText {

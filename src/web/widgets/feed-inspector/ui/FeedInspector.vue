@@ -78,6 +78,7 @@ const tabs = computed(() => [
   <BasePanel
     ref="panel"
     class="feed-inspector"
+    data-guide="feed-inspector"
     :title="t('feed.inspector.title')"
     flush
   >
@@ -98,7 +99,7 @@ const tabs = computed(() => [
       <template #default="{ value }">
         <div class="feed-inspector__body">
           <template v-if="value === 'viewers'">
-            <div class="feed-inspector__viewer-bar">
+            <div class="feed-inspector__viewer-bar" data-guide="feed-inspector-viewers">
               <BaseSegmented
                 v-model="viewerMode"
                 class="feed-inspector__viewer-filter"
@@ -123,6 +124,7 @@ const tabs = computed(() => [
           <template v-else-if="value === 'event'">
             <EventDetails
               v-if="event"
+              data-guide="feed-inspector-details"
               :event="event"
               :images="images"
               @open-viewer="emit('open-viewer', $event)"
@@ -137,6 +139,7 @@ const tabs = computed(() => [
           <template v-else>
             <ViewerProfile
               v-if="viewer"
+              data-guide="feed-inspector-profile"
               :viewer="viewer"
               :images="images"
             >

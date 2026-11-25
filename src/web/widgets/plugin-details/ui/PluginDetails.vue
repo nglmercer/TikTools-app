@@ -156,6 +156,7 @@ function uninstall(): void {
 <template>
   <BasePanel
     class="plugin-details"
+    data-guide="plugin-details"
     :title="name"
     flush
   >
@@ -248,6 +249,7 @@ function uninstall(): void {
           <div
             v-else-if="value === 'settings'"
             class="plugin-details__pane"
+            data-guide="plugin-settings"
           >
             <PluginSettingsEditor
               :plugin-id="id"
@@ -271,6 +273,7 @@ function uninstall(): void {
           </div>
           <PluginConnectionPane
             v-else
+            data-guide="plugin-connection"
             :descriptor="descriptor"
             :name="name"
             :connection="connection"

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
-translationRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
+sourceRevision: "f90de71b607d3606d779d9b812a1c0431d8356aa328ddd2cbd573098764f13dc"
+translationRevision: "f90de71b607d3606d779d9b812a1c0431d8356aa328ddd2cbd573098764f13dc"
 order: 140
 ---
 
@@ -40,7 +40,7 @@ Documentation controls communicate with the iframe through a bounded message bri
 
 Reset clears only the current `tiktools.demo.<instance>.*` prefix and reloads the frame. Reloading resets module singletons, journals, i18n and diagnostics. Different embedded frames receive distinct instance IDs. Page exit unmounts Vue, disposes stores, detaches the client/transport and clears both timers. The demo does not install a `window.ipc` bridge or perform arbitrary HTTP, shell, RCON, visitor-script execution or native update installation. Its CSP rejects network connections. Log templates and filter simulation use pure shared functions; these are examples of the frontend contract, not a replacement for Rust execution.
 
-The shared entry `startTour(id, {router, capabilities, taskState})` and exported `tourRegistry` live in `src/web/features/guided-help/index.ts`. Seven versioned tours use stable page targets and separate catalogs for each supported language. They load Driver.js only on request, constrain targets to the workspace, respect reduced motion, restore focus and cancel bounded waits on navigation. Dismissal never completes a task or executes an application action. Tutorial selection names the complete task, prepares its matching scenario and pauses playback before starting. Driver’s close control dismisses the guide; the toolbar reports the outcome. Reset clears this instance’s versioned progress.
+The shared entry `startTour(id, {router, capabilities, taskState})` and exported `tourRegistry` live in `src/web/features/guided-help/index.ts`. Twenty versioned tours use stable page targets and separate catalogs for each supported language. They load Driver.js only on request, constrain targets to the workspace, respect reduced motion, restore focus and cancel bounded waits on navigation. Dismissal never completes a task or executes an application action; informational walkthroughs complete only when their final step finishes, while action tours still require verified host state. Tutorial selection names the complete task, prepares its matching scenario and pauses playback before starting. Driver’s close control dismisses the guide; the toolbar reports the outcome. Reset clears this instance’s versioned progress.
 
 ## Expected result and status {#expected-result-and-status}
 

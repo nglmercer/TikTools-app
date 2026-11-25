@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
-translationRevision: "d3224096493d8174191482db12752f29d842bc796403035ad407de8f9530a565"
+sourceRevision: "f90de71b607d3606d779d9b812a1c0431d8356aa328ddd2cbd573098764f13dc"
+translationRevision: "8b03f09dc3409f15bd26429ba15b7b22fa4d8e5561ad8c7a2083ead97b222619"
 order: 140
 ---
 
@@ -38,7 +38,7 @@ bun scripts/task.ts site preview
 
 「デモをリセット」は現在の `tiktools.demo.<instance>.*` 接頭辞だけを消し、フレームを再読み込みします。モジュールのシングルトン、ジャーナル、i18n、診断も初期化します。各埋め込みフレームに別のインスタンス ID を与えます。ページ退出時は Vue を解除し、ストアを破棄し、クライアント・通信を外して2つのタイマーを消します。`window.ipc` 橋渡しや任意の HTTP、shell、RCON、訪問者スクリプト、ネイティブ更新インストールは実行しません。CSP はネットワーク接続を拒否します。ログテンプレートとフィルター模擬は純粋な共有関数を使います。これはフロントエンド契約の例で、Rust 実行の代替ではありません。
 
-共有入口 `startTour(id, {router, capabilities, taskState})` と公開 `tourRegistry` は `src/web/features/guided-help/index.ts` にあります。7つのバージョン付きツアーは安定したページ対象と、各対応言語の個別カタログを使います。要求時だけ Driver.js を読み、対象をワークスペース内に制限し、動きを減らす設定を尊重してフォーカスを戻し、移動時に上限付き待機を取り消します。閉じても作業完了にはならず、アプリ操作もしません。チュートリアル選択は作業全体を名指しし、対応シナリオを準備して再生を止めてから開始します。Driver の閉じる操作はガイドを終了し、ツールバーが結果を表示します。「デモをリセット」はこのインスタンスのバージョン付き進捗を消します。
+共有入口 `startTour(id, {router, capabilities, taskState})` と公開 `tourRegistry` は `src/web/features/guided-help/index.ts` にあります。20のバージョン付きツアーは安定したページ対象と、各対応言語の個別カタログを使います。要求時だけ Driver.js を読み、対象をワークスペース内に制限し、動きを減らす設定を尊重してフォーカスを戻し、移動時に上限付き待機を取り消します。閉じても作業完了にはならず、アプリ操作もしません。情報向けツアーは最終ステップを終えた場合だけ完了し、操作ツアーは引き続き検証済みのホスト状態を必要とします。チュートリアル選択は作業全体を名指しし、対応シナリオを準備して再生を止めてから開始します。Driver の閉じる操作はガイドを終了し、ツールバーが結果を表示します。「デモをリセット」はこのインスタンスのバージョン付き進捗を消します。
 
 ## 期待される結果と提供状況 {#expected-result-and-status}
 

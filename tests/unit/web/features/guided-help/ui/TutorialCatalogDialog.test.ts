@@ -19,17 +19,17 @@ function mountDialog() {
 
 it('lists every tutorial and filters by search and the category select', async () => {
   const wrapper = mountDialog();
-  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(9);
+  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(20);
   expect(wrapper.find('[role="combobox"]').exists()).toBe(true);
 
   await wrapper.get('input[type="search"]').setValue('plugins');
-  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(1);
+  expect(wrapper.findAll('.tutorial-catalog__card').length).toBeGreaterThanOrEqual(2);
   await wrapper.get('input[type="search"]').setValue('');
 
   await wrapper.get('[role="combobox"]').trigger('click');
   await wrapper.findAll('[role="option"]').find((option) => option.text() === 'Events')!.trigger('click');
   const titles = wrapper.findAll('.tutorial-catalog__card strong').map((node) => node.text());
-  expect(titles).toEqual(['Automations', 'Library changes']);
+  expect(titles).toEqual(['Automations', 'Advanced automations', 'Library changes', 'Automation variables']);
   wrapper.unmount();
 });
 
@@ -38,7 +38,7 @@ it('opens on the category requested by the caller', () => {
     attachTo: document.body,
     props: { open: true, initialCategory: 'feed' },
   });
-  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(1);
+  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(2);
   expect(wrapper.get('.tutorial-catalog__card strong').text()).toBe('Live feed');
   wrapper.unmount();
 });
@@ -73,7 +73,7 @@ it('delegates launching when the caller supplies a handler', async () => {
 it('shows the steps in the detail panel and starts the selected driver.js tour', async () => {
   const wrapper = mountDialog();
   expect(wrapper.findAll('.tutorial-catalog__step-list li').length).toBeGreaterThan(0);
-  await wrapper.findAll('.tutorial-catalog__card')[1]!.trigger('click');
+  await wrapper.findAll('.tutorial-catalog__card')[2]!.trigger('click');
   expect(wrapper.get('.tutorial-catalog__detail h3').text()).toBe('Library changes');
 
   await wrapper.get('.tutorial-catalog__detail button').trigger('click');

@@ -142,6 +142,7 @@ onBeforeUnmount(() => store.dispose());
         />
         <BaseButton
           v-if="cloudAvailable"
+          data-guide="overlay-cloud-open"
           :aria-label="t('overlays.cloud')"
           aria-haspopup="dialog"
           variant="primary"
@@ -210,6 +211,7 @@ onBeforeUnmount(() => store.dispose());
       >
         <BaseList
           v-model:selected="selected"
+          data-guide="overlay-widgets"
           class="overlays-page__kinds"
           :items="items"
           :item-key="(item) => item.kind"

@@ -20,6 +20,12 @@ type ShareWidgetProps = {
 const props = defineProps<ShareWidgetProps>();
 const design = inject(widgetDesignKey, undefined);
 const layered = computed(() => !!design?.value.layers && !canRenderLegacyLayers('share', design.value));
+const enterMs = computed(() => props.settings.enterMsCustom ? props.settings.enterMs : design?.value.motion?.enterMs ?? props.settings.enterMs);
+const exitMs = computed(() => props.settings.exitMsCustom ? props.settings.exitMs : design?.value.motion?.exitMs ?? props.settings.exitMs);
+const timingStyle = computed(() => ({
+  ...(props.settings.enterMsCustom ? { '--share-enter-ms': `${props.settings.enterMs}ms` } : {}),
+  ...(props.settings.exitMsCustom ? { '--share-exit-ms': `${props.settings.exitMs}ms` } : {}),
+}));
 
 const avatarFailed = ref(false);
 
@@ -36,12 +42,9 @@ const showAvatar = computed(() => !!props.alert?.avatarUrl && !avatarFailed.valu
 <template>
   <WidgetStage :debug="props.debug" :status="props.status"
     class="share-stage"
-    :style="{
-      '--share-enter-ms': `${props.settings.enterMs}ms`,
-      '--share-exit-ms': `${props.settings.exitMs}ms`,
-    }"
+    :style="timingStyle"
   >
-    <Transition name="share" mode="out-in" :duration="{ enter: props.settings.enterMs, leave: props.settings.exitMs }">
+    <Transition name="share" mode="out-in" :duration="{ enter: enterMs, leave: exitMs }">
       <div v-if="props.alert" :key="props.alert.id" class="share-card" role="alert">
         <WidgetLayerStack v-if="layered" variant="share" :layers="design?.layers ?? []" :event="props.alert"
           :avatar-url="props.alert.avatarUrl ?? undefined" />

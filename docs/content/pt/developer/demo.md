@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
-translationRevision: "007a34c402de0c0250b98b96a98199f3cdc2998f187839999a47a821f9a68e45"
+sourceRevision: "f90de71b607d3606d779d9b812a1c0431d8356aa328ddd2cbd573098764f13dc"
+translationRevision: "0a0f8a85657ee3a7ed0a26ba13ab97b57fb056f14bcd8cf4dd529a649ce21271"
 order: 140
 ---
 
@@ -42,7 +42,7 @@ A comunicação entre `DemoFrame` e o iframe verifica a origem, a janela de orig
 
 Reset limpa apenas o prefixo atual `tiktools.demo.<instance>.*` e recarrega o quadro. Recarregar redefine singletons de módulos, diários, i18n e diagnósticos. Quadros incorporados diferentes recebem IDs distintos de instância. Sair da página desmonta Vue, descarta stores, desconecta cliente/transporte e limpa os dois temporizadores. A demonstração não instala uma ponte `window.ipc` nem realiza HTTP arbitrário, shell, RCON, execução de scripts de visitantes ou instalação nativa de atualizações. Sua CSP rejeita conexões de rede. Modelos de registro e simulação de filtros usam funções compartilhadas puras; são exemplos do contrato de frontend, não substitutos da execução Rust.
 
-A entrada compartilhada `startTour(id, {router, capabilities, taskState})` e o `tourRegistry` exportado ficam em `src/web/features/guided-help/index.ts`. Sete tutoriais versionados usam alvos estáveis de página e catálogos separados para cada idioma compatível. Eles carregam Driver.js apenas sob solicitação, restringem alvos ao workspace, respeitam movimento reduzido, restauram o foco e cancelam esperas limitadas na navegação. Dispensar nunca conclui uma tarefa nem executa uma ação do aplicativo. A seleção de tutorial nomeia a tarefa completa, prepara o cenário correspondente e pausa a reprodução antes de iniciar. O controle de fechar do Driver dispensa o guia; a barra de ferramentas informa o resultado. Reset limpa o progresso versionado desta instância.
+A entrada compartilhada `startTour(id, {router, capabilities, taskState})` e o `tourRegistry` exportado ficam em `src/web/features/guided-help/index.ts`. Vinte tutoriais versionados usam alvos estáveis de página e catálogos separados para cada idioma compatível. Eles carregam Driver.js apenas sob solicitação, restringem alvos ao workspace, respeitam movimento reduzido, restauram o foco e cancelam esperas limitadas na navegação. Dispensar nunca conclui uma tarefa nem executa uma ação do aplicativo; tutoriais informativos só são concluídos quando a etapa final termina, enquanto tutoriais de ação ainda exigem estado verificado do host. A seleção de tutorial nomeia a tarefa completa, prepara o cenário correspondente e pausa a reprodução antes de iniciar. O controle de fechar do Driver dispensa o guia; a barra de ferramentas informa o resultado. Reset limpa o progresso versionado desta instância.
 
 ## Resultado esperado e status {#expected-result-and-status}
 

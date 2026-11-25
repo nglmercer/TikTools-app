@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
-translationRevision: "d41aab35cdf635b3f12020b141842d24ae66dae3cf06b396ec6835dbbc262f7b"
+sourceRevision: "f90de71b607d3606d779d9b812a1c0431d8356aa328ddd2cbd573098764f13dc"
+translationRevision: "569fd7de9f3a28f80027a6e86ac9e367de327f7bcf03c77f717717dbb70e2c8f"
 order: 140
 ---
 
@@ -42,7 +42,7 @@ El parámetro `embed=connection|feed|automation|points|overlays` selecciona una 
 
 Todos los iframes documentales utilizan `framed=1`, que oculta la barra grande `DemoToolbar`. **Reproducir**, **Pausar**, **Siguiente evento** y **Reiniciar** aparecen en una fila compacta del componente padre `DemoFrame`; la demo independiente conserva su barra completa. El puente de mensajes entre padre e iframe solo admite los controles previstos de reproducción, reinicio y selección de casos de recuperación de conexión, valida el origen, la ventana emisora (`source`) y el identificador de instancia, y no expone llamadas RPC arbitrarias. El transporte simulado y el almacenamiento aislado mantienen sus límites anteriores.
 
-La entrada `startTour(id, {router, capabilities, taskState})` y el registro `tourRegistry` están en `src/web/features/guided-help/index.ts`. Siete recorridos versionados utilizan objetivos estables y catálogos separados para cada idioma admitido. Driver.js carga bajo demanda, limita objetivos al workspace, respeta movimiento reducido, restaura foco y cancela esperas acotadas al navegar. Cerrar una guía nunca completa tareas ni ejecuta acciones de la aplicación. El selector nombra la tarea completa, prepara su escenario y pausa la reproducción antes de iniciar. El cierre de Driver descarta la guía y la barra muestra el resultado. Reiniciar limpia el progreso versionado de esta instancia.
+La entrada `startTour(id, {router, capabilities, taskState})` y el registro `tourRegistry` están en `src/web/features/guided-help/index.ts`. Veinte recorridos versionados utilizan objetivos estables y catálogos separados para cada idioma admitido. Driver.js carga bajo demanda, limita objetivos al workspace, respeta movimiento reducido, restaura foco y cancela esperas acotadas al navegar. Cerrar una guía nunca completa tareas ni ejecuta acciones de la aplicación; los recorridos informativos solo se completan al terminar su último paso, mientras que los recorridos de acción siguen exigiendo un estado verificado del host. El selector nombra la tarea completa, prepara su escenario y pausa la reproducción antes de iniciar. El cierre de Driver descarta la guía y la barra muestra el resultado. Reiniciar limpia el progreso versionado de esta instancia.
 
 ## Resultado esperado y estado {#expected-result-and-status}
 

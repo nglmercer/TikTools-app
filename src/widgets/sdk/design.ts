@@ -1,4 +1,4 @@
-import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetLayer, WidgetStyle } from './template.ts';
+import type { WidgetAlign, WidgetAvatarStyle, WidgetBadgeStyle, WidgetLayer, WidgetMotionStyle, WidgetStyle } from './template.ts';
 import { textFields, type TextField } from './text.ts';
 
 const COLOR_PATTERN = /^#[\da-f]{6}([\da-f]{2})?$/i;
@@ -89,6 +89,25 @@ function normalizeBadge(value: unknown): WidgetBadgeStyle | undefined {
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
+
+function normalizeMotion(value: unknown): WidgetMotionStyle | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const result: WidgetMotionStyle = {};
+  const preset = source.preset;
+  if (preset === 'none' || preset === 'fade' || preset === 'slide-up' || preset === 'slide-down'
+    || preset === 'slide-left' || preset === 'slide-right' || preset === 'pop') result.preset = preset;
+  const enterMs = readNumber(source, 'enterMs', 0, 2000);
+  if (enterMs !== undefined) result.enterMs = Math.round(enterMs);
+  const exitMs = readNumber(source, 'exitMs', 0, 2000);
+  if (exitMs !== undefined) result.exitMs = Math.round(exitMs);
+  const easing = source.easing;
+  if (easing === 'linear' || easing === 'standard' || easing === 'spring') result.easing = easing;
+  const staggerMs = readNumber(source, 'staggerMs', 0, 500);
+  if (staggerMs !== undefined) result.staggerMs = Math.round(staggerMs);
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 /** Only portable, validated style tokens may cross the editor/OBS boundary. */
 export function normalizeDesign(value: unknown): WidgetStyle {
   const result: WidgetStyle = {};
@@ -141,6 +160,8 @@ export function normalizeDesign(value: unknown): WidgetStyle {
   if (avatar !== undefined) result.avatar = avatar;
   const badge = normalizeBadge(source.badge);
   if (badge !== undefined) result.badge = badge;
+  const motion = normalizeMotion(source.motion);
+  if (motion !== undefined) result.motion = motion;
   return result;
 }
 

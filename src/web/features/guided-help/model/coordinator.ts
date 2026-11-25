@@ -139,17 +139,20 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     let moveGeneration = 0;
     let activeIndex = -1;
     let lastStepId = '';
+    let reachedFinalStep = false;
     let suppliedTaskState: TourTaskState | undefined;
     let resolveReady!: (active: boolean) => void;
     let resolveDone!: (outcome: GuideOutcome) => void;
     const ready = new Promise<boolean>((resolve) => { resolveReady = resolve; });
     const done = new Promise<GuideOutcome>((resolve) => { resolveDone = resolve; });
+    const requiresVerification = options.completed !== undefined || options.task !== undefined;
     const taskComplete = () => {
       try {
         const state = suppliedTaskState ?? (typeof options.taskState === 'function' ? options.taskState() : options.taskState);
         return options.completed?.() === true || (options.task !== undefined && state?.[options.task] === true);
       } catch { return false; }
     };
+    const completionAccepted = () => taskComplete() || (!requiresVerification && reachedFinalStep);
     function save(status: 'in-progress' | 'dismissed' | 'completed'): void {
       if (!lastStepId && status === 'completed') lastStepId = options.steps().at(-1)?.id ?? '';
       if (!lastStepId) return;
@@ -162,7 +165,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     }
     function finish(reason: GuideOutcome, destroy = true): void {
       if (finished) return;
-      const verified = taskComplete();
+      const verified = completionAccepted();
       const outcome = (reason === 'completed' || reason === 'task-completed') && !verified ? 'dismissed' : reason;
       finished = true;
       stepAbort?.abort();
@@ -220,12 +223,12 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         onHighlighted: (_element, step) => { lastStepId = String(step.data?.id ?? ''); save('in-progress'); },
         onNextClick: () => {
           if (options.version !== undefined) { if (!moving) void moveToStep(activeIndex + 1); }
-          else if (engine?.isLastStep()) finish(taskComplete() ? 'completed' : 'dismissed');
+          else if (engine?.isLastStep()) { reachedFinalStep = true; finish(completionAccepted() ? 'completed' : 'dismissed'); }
           else engine?.moveNext();
         },
         onDoneClick: () => {
           if (options.version !== undefined && activeIndex < options.steps().length - 1) { if (!moving) void moveToStep(activeIndex + 1); }
-          else finish(taskComplete() ? 'completed' : 'dismissed');
+          else { reachedFinalStep = true; finish(completionAccepted() ? 'completed' : 'dismissed'); }
         },
         onPrevClick: () => {
           if (options.version !== undefined) { if (!moving) void moveToStep(activeIndex - 1, -1); }
@@ -292,7 +295,10 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
           resolveReady(true);
           return;
         }
-        if (direction > 0) finish(active ? taskComplete() ? 'completed' : 'dismissed' : 'unavailable');
+        if (direction > 0) {
+          if (active) reachedFinalStep = true;
+          finish(active ? completionAccepted() ? 'completed' : 'dismissed' : 'unavailable');
+        }
       } catch { finish('unavailable'); }
       finally { if (ticket === moveGeneration) moving = false; }
     }

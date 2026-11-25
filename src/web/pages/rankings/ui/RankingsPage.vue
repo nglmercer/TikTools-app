@@ -100,7 +100,7 @@ onBeforeUnmount(() => { disposed = true; request += 1; snapshotController?.dispo
 </script>
 
 <template>
-  <main class="rankings-page">
+  <main class="rankings-page" data-guide-scope="rankings">
     <h1>{{ t('rankingsPage.title') }}</h1>
     <p
       v-if="error || message"
@@ -112,6 +112,7 @@ onBeforeUnmount(() => { disposed = true; request += 1; snapshotController?.dispo
     </p>
     <BaseTabs
       v-model="tab"
+      data-guide="rankings-tabs"
       :tabs="tabs"
     >
       <div
@@ -119,6 +120,7 @@ onBeforeUnmount(() => { disposed = true; request += 1; snapshotController?.dispo
         class="workspace"
       >
         <EntityList
+          data-guide="rankings-list"
           :title="t('rankingsPage.list.title')"
           :create-label="t('rankingsPage.list.new')"
           :empty-label="t('rankingsPage.list.emptyTitle')"
@@ -129,6 +131,7 @@ onBeforeUnmount(() => { disposed = true; request += 1; snapshotController?.dispo
         />
         <RankingForm
           v-if="form"
+          data-guide="rankings-form"
           :key="form.editing?.id ?? 'new'"
           :metrics="metrics"
           :editing="form.editing"
@@ -137,6 +140,7 @@ onBeforeUnmount(() => { disposed = true; request += 1; snapshotController?.dispo
         />
         <RankingDetail
           v-else-if="current"
+          data-guide="rankings-detail"
           :ranking="current"
           :snapshot="snapshot"
           :busy="busy"
@@ -148,6 +152,7 @@ onBeforeUnmount(() => { disposed = true; request += 1; snapshotController?.dispo
       </div>
       <CompetitionPanel
         v-else
+        data-guide="rankings-competitions"
         :rankings="rankings"
       />
     </BaseTabs>

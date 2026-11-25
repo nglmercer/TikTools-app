@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
-translationRevision: "aea5b65160e32edcccc996308bd386fbff9007d4047fef801c1f43ab72cc004e"
+sourceRevision: "f90de71b607d3606d779d9b812a1c0431d8356aa328ddd2cbd573098764f13dc"
+translationRevision: "112a0fd3f7d2ae8b936748559fe923e20fa560b780230e84ed37b82ec08cd85d"
 order: 140
 ---
 
@@ -40,7 +40,7 @@ Les commandes documentaires communiquent avec l’iframe par un échange de mess
 
 Reset efface uniquement le préfixe courant `tiktools.demo.<instance>.*` et recharge le cadre. Le rechargement réinitialise les singletons de modules, journaux, i18n et diagnostics. Les cadres intégrés reçoivent des identifiants d’instance distincts. Quitter la page démonte Vue, libère les stores, détache le client/transport et supprime les deux temporisateurs. La démo n’installe pas de pont `window.ipc` et n’effectue ni HTTP arbitraire, shell, RCON, exécution de scripts de visiteurs ou installation de mise à jour native. Sa CSP rejette les connexions réseau. Les modèles de journal et la simulation des filtres utilisent des fonctions partagées pures ; ce sont des exemples du contrat de l’interface, pas un remplacement de l’exécution Rust.
 
-L’entrée partagée `startTour(id, {router, capabilities, taskState})` et le `tourRegistry` exporté se trouvent dans `src/web/features/guided-help/index.ts`. Sept visites versionnées utilisent des cibles de page stables et des catalogues séparés pour chaque langue prise en charge. Elles chargent Driver.js uniquement sur demande, limitent les cibles à l’espace de travail, respectent la réduction des animations, restaurent le focus et annulent les attentes bornées lors de la navigation. Fermer une visite ne termine jamais une tâche et n’exécute aucune action applicative. La sélection d’un tutoriel nomme la tâche complète, prépare le scénario correspondant et suspend la lecture avant de commencer. La commande de fermeture de Driver ferme le guide ; la barre d’outils rapporte le résultat. Reset efface la progression versionnée de cette instance.
+L’entrée partagée `startTour(id, {router, capabilities, taskState})` et le `tourRegistry` exporté se trouvent dans `src/web/features/guided-help/index.ts`. Vingt visites versionnées utilisent des cibles de page stables et des catalogues séparés pour chaque langue prise en charge. Elles chargent Driver.js uniquement sur demande, limitent les cibles à l’espace de travail, respectent la réduction des animations, restaurent le focus et annulent les attentes bornées lors de la navigation. Fermer une visite ne termine jamais une tâche et n’exécute aucune action applicative ; les visites informatives ne se terminent que lorsque leur dernière étape est finie, tandis que les visites d’action exigent toujours un état vérifié de l’hôte. La sélection d’un tutoriel nomme la tâche complète, prépare le scénario correspondant et suspend la lecture avant de commencer. La commande de fermeture de Driver ferme le guide ; la barre d’outils rapporte le résultat. Reset efface la progression versionnée de cette instance.
 
 ## Résultat attendu et état {#expected-result-and-status}
 

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "8a02c25ed5b4e3f2406227c7be0aa57cf6f0acd97e4ecf2e7cb95340852e3b73"
-translationRevision: "8bf2c4e76a896fac8d575c2d64d66403d1f49102cfc4aba59b6391fad809bfb9"
+sourceRevision: "f90de71b607d3606d779d9b812a1c0431d8356aa328ddd2cbd573098764f13dc"
+translationRevision: "168a29f036bda2dfd76b9dd037267213bfcac5f4992692cfd13bcf30aa9b92a0"
 order: 140
 ---
 
@@ -40,7 +40,7 @@ bun scripts/task.ts site preview
 
 重置演示仅清空当前 `tiktools.demo.<instance>.*` 前缀，并重新加载框架。重新加载重置模块单例、日志、i18n 和诊断。不同嵌入框架获得不同实例 ID。页面退出时卸载 Vue、释放 store、分离客户端/传输，并清空两个定时器。演示不会安装 `window.ipc` 桥，也不会执行任意 HTTP、shell、RCON、访客脚本或原生更新安装。其 CSP 拒绝网络连接。日志模板和筛选模拟使用纯共享函数；它们是前端契约示例，不替代 Rust 执行。
 
-共享入口 `startTour(id, {router, capabilities, taskState})` 和导出的 `tourRegistry` 位于 `src/web/features/guided-help/index.ts`。七个版本化导览使用稳定页面目标，并为每种受支持语言提供独立目录。它们仅在请求时加载 Driver.js，将目标限制在工作区内，尊重减少动态效果偏好，恢复焦点，并在导航时取消有界等待。关闭导览绝不会完成任务或执行应用操作。选择教程会注明完整任务，准备匹配场景，并在开始前暂停播放。Driver 的关闭控件会关闭指南；工具栏报告结果。重置演示清空该实例的版本化进度。
+共享入口 `startTour(id, {router, capabilities, taskState})` 和导出的 `tourRegistry` 位于 `src/web/features/guided-help/index.ts`。二十个版本化导览使用稳定页面目标，并为每种受支持语言提供独立目录。它们仅在请求时加载 Driver.js，将目标限制在工作区内，尊重减少动态效果偏好，恢复焦点，并在导航时取消有界等待。关闭导览绝不会完成任务或执行应用操作；信息型导览只有完成最后一步才会标记完成，操作型导览仍要求经过验证的宿主状态。选择教程会注明完整任务，准备匹配场景，并在开始前暂停播放。Driver 的关闭控件会关闭指南；工具栏报告结果。重置演示清空该实例的版本化进度。
 
 ## 预期结果与状态 {#expected-result-and-status}
 

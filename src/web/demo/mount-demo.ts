@@ -11,11 +11,12 @@ import '@/app/styles/tokens.css';
 import '@/app/styles/base.css';
 import '@/app/styles/responsive.css';
 import { startTour, stopTour, type GuideSession } from '@/features/guided-help/index.ts';
+import { guideCatalogContextKey } from '@/features/guided-help/model/catalog-context.ts';
 import { configureAppClock } from '@/shared/lib/app-clock.ts';
 import { DEMO_AT } from './fixtures/scenario-state.ts';
 import { diagnosticLog, diagnosticView } from '@/shared/diagnostics/log.ts';
 import { createDemoPlayback, type PlaybackState } from './playback.ts';
-import { demoTourScenarios, demoTourUrl, isDemoTour, scenarioTour, tourForRoute } from './tours.ts';
+import { demoTourScenarios, demoTourUrl, isDemoTour, scenarioTour, tourForRoute, demoTutorialIds } from './tours.ts';
 import type { GuideOutcome } from '@/features/guided-help/model/types.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
 import { useNavigationStore } from '@/shared/model/navigation-store.ts';
@@ -65,6 +66,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   toolbarApp.mount(toolbar);
   let workspaceRouter: Router | undefined;
   const app = await mountWorkspace({ client, locale: options.locale, configure(app) {
+    app.provide(guideCatalogContextKey, { tours: demoTutorialIds, onLaunch: (id, trigger) => tourActions.start?.(id, trigger) });
     const router = app.config.globalProperties.$router as Router;
     workspaceRouter = router;
     router.beforeEach((to) => options.embed && to.path !== options.route && to.path !== '/debug' ? false : validDemoRoute(to.fullPath) ? true : '/feed');

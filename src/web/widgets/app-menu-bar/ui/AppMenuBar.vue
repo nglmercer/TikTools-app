@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, watch, type Component } from 'vue';
+import { computed, markRaw, useTemplateRef, watch, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isConnectionBusy } from '@/entities/connection/lib/connection-status.ts';
 import { supportedLocales, type Locale } from '@/shared/i18n/i18n.ts';
@@ -7,6 +7,7 @@ import { localeLabel } from '@/shared/i18n/locale-label.ts';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconMenu from '@/shared/ui/icon/icons/IconMenu.vue';
+import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseMenuBar from '@/shared/ui/menu/BaseMenuBar.vue';
 import type { MenuAction, MenuBarMenu, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
@@ -35,6 +36,9 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const guideCatalog = useTemplateRef<InstanceType<typeof GuideCatalogButton>>('guideCatalog');
+function openGuides(): void { guideCatalog.value?.open(); }
+defineExpose({ openGuides });
 
 const menus = computed<MenuBarMenu[]>(() => [
   {
@@ -65,6 +69,11 @@ const menus = computed<MenuBarMenu[]>(() => [
         })),
       },
     ],
+  },
+  {
+    id: 'help',
+    label: t('menu.help'),
+    items: [{ id: 'help:guides', label: t('guides.catalog.button') }],
   },
 ]);
 
@@ -102,6 +111,7 @@ function onSelect(action: MenuAction): void {
   const separator = action.id.indexOf(':');
   const kind = separator < 0 ? action.id : action.id.slice(0, separator);
   const value = separator < 0 ? undefined : action.id.slice(separator + 1);
+  if (kind === 'help' && value === 'guides') { openGuides(); return; }
   if (kind === 'connect') emit('connect');
   else if (kind === 'reconnect') emit('reconnect');
   else if (kind === 'disconnect') emit('disconnect');
@@ -126,6 +136,7 @@ function onSelect(action: MenuAction): void {
       :menus="menus"
       @select="onSelect"
     />
+    <GuideCatalogButton ref="guideCatalog" />
     <span class="app-menu-bar__title">TikTools</span>
   </header>
 </template>

@@ -49,6 +49,7 @@ const onPointerDown = (event: PointerEvent): void => {
 };
 
 function listen(active: boolean): void {
+  if (typeof document === 'undefined') return;
   if (active) {
     document.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('blur', dismiss);

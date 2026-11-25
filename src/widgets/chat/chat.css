@@ -83,27 +83,32 @@
   object-fit: contain;
 }
 
-/* Enter/leave driven by Vue <TransitionGroup>. */
+/* Enter/leave driven by Vue <TransitionGroup> and portable motion design. */
 .chat-enter-active {
-  transition: opacity 260ms ease-out, transform 260ms cubic-bezier(0.2, 0.9, 0.25, 1.1);
+  transition:
+    opacity var(--widget-motion-enter-duration, 260ms) var(--widget-motion-enter-easing, cubic-bezier(0.2, 0.9, 0.25, 1.1)),
+    transform var(--widget-motion-enter-duration, 260ms) var(--widget-motion-enter-easing, cubic-bezier(0.2, 0.9, 0.25, 1.1));
+  transition-delay: var(--chat-stagger, 0ms);
 }
 
 .chat-leave-active {
-  transition: opacity 200ms ease-in, transform 200ms ease-in;
+  transition:
+    opacity var(--widget-motion-exit-duration, 200ms) var(--widget-motion-exit-easing, ease-in),
+    transform var(--widget-motion-exit-duration, 200ms) var(--widget-motion-exit-easing, ease-in);
 }
 
 .chat-enter-from {
   opacity: 0;
-  transform: translateY(12px);
+  transform: var(--widget-motion-enter-transform, translateY(12px));
 }
 
 .chat-leave-to {
   opacity: 0;
-  transform: translateY(6px);
+  transform: var(--widget-motion-exit-transform, translateY(6px));
 }
 
 .chat-move {
-  transition: transform 260ms ease-out;
+  transition: transform var(--widget-motion-enter-duration, 260ms) var(--widget-motion-enter-easing, ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
