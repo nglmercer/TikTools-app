@@ -85,9 +85,14 @@ async function frontendLint(): Promise<void> {
   await tool('oxlint-vize', '-c', '.oxlintrc.json', '--deny-warnings', 'src');
   await tool('oxlint-vize', '-c', '.oxlintrc.json', '--deny-warnings', 'scripts', 'tests/unit', 'tests/bun', 'packages', 'vite.config.ts', 'vitest.config.ts', 'vitest.widgets.config.ts');
   await script('lint-custom.ts');
-  await tool('vue-tsc', '--noEmit');
-  await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-sdk/tsconfig.json');
-  await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-ui/tsconfig.json');
+  // The gate typecheck is the native TypeScript 7.1 beta through Vize's
+  // content mapper: measured zero divergences against vue-tsc on this
+  // codebase at ~7x the speed. vue-tsc stays available as
+  // `frontend-typecheck:full` for periodic validation; any divergence is an
+  // upstream report, never a local silence (see AGENTS.md).
+  await frontendTypecheckVize();
+  await run(process.execPath, join(root, 'node_modules', 'typescript-vize', 'bin', 'tsc'), '--noEmit', '-p', 'packages/plugin-sdk/tsconfig.json');
+  await run(process.execPath, join(root, 'node_modules', 'typescript-vize', 'bin', 'tsc'), '--noEmit', '-p', 'packages/plugin-ui/tsconfig.json');
 }
 
 
@@ -244,6 +249,12 @@ try {
     case 'frontend-typecheck:vize':
       needNoArgs('frontend-typecheck:vize', args);
       await frontendTypecheckVize();
+      break;
+    case 'frontend-typecheck:full':
+      needNoArgs('frontend-typecheck:full', args);
+      await tool('vue-tsc', '--noEmit');
+      await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-sdk/tsconfig.json');
+      await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-ui/tsconfig.json');
       break;
     case 'rust-lint':
       needNoArgs('rust-lint', args);

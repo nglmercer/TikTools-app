@@ -25,8 +25,11 @@
   [Vize](https://github.com/ubugeeei-prod/vize)'s content mapper on TypeScript
   7.1 beta (`tsconfig.vize.json`, aliased package `typescript-vize` — the main
   `typescript` dependency stays on the line `vue-tsc` needs).
-- **`vue-tsc` remains the authoritative gate.** The Vize run is parallel and
-  experimental; it must never block or replace `frontend-lint`.
+- **The Vize typecheck is the gate** inside `frontend-lint` (inverted after
+  measuring zero divergences against vue-tsc across the whole codebase).
+  `bun scripts/task.ts frontend-typecheck:full` keeps the vue-tsc run
+  available — run it periodically (weekly, before releases) and any
+  divergence is an upstream report, never a local silence.
 - Measured on this machine: ~5 s vs ~37 s for `vue-tsc` (7x+).
 - **Reporting policy — this is a collaboration with upstream, not just a tool:**
   - Every failure or divergence from `vue-tsc` must be reported: minimize a
