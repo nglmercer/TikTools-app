@@ -47,31 +47,29 @@ impl EventBus {
                 }
             }
             let event = Arc::new(event);
+            // Creator history uses a small allowlisted projection. Build it
+            // once here rather than once for eligibility and again for storage.
+            let mut projection = match event.as_ref() {
+                DomainEvent::LiveUiEvent { event } => project_creator_event(0, event),
+                _ => None,
+            };
             {
                 let mut history = self
                     .feed_history
                     .lock()
                     .unwrap_or_else(|error| error.into_inner());
-                let creator = match event.as_ref() {
-                    DomainEvent::LiveUiEvent { event }
-                        if project_creator_event(0, event).is_some() =>
-                    {
-                        creator.filter(|id| valid_creator_id(id))
-                    }
-                    _ => None,
-                };
+                let creator = projection
+                    .as_ref()
+                    .and_then(|_| creator.filter(|id| valid_creator_id(id)));
                 let scoped = creator.and_then(|creator| {
                     let stream = history.creator_stream(creator, *sequence, |bytes| {
                         getrandom::fill(bytes).is_ok()
                     })?;
                     stream.next = stream.next.checked_add(1)?;
                     stream.last_global = *sequence;
-                    let DomainEvent::LiveUiEvent { event } = event.as_ref() else {
-                        return None;
-                    };
-                    stream
-                        .events
-                        .push_back(project_creator_event(stream.next, event)?);
+                    let mut projected = projection.take()?;
+                    projected.cursor = stream.next.to_string();
+                    stream.events.push_back(projected);
                     while stream.events.len() > 64 {
                         stream.events.pop_front();
                     }

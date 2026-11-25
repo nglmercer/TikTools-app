@@ -1,4 +1,4 @@
-import { callbacks, createControl, chatEvent, describe, expect, it, createLiveFeedState } from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
+import { callbacks, createControl, chatEvent, describe, expect, it, createLiveFeedState, likeEvent } from '../../../../../../src/web/entities/live-event/model/testing/live-feed-fixture.ts';
 
 describe('live feed rendering', () => {
   it('renders every event immediately, capped at 100 per category', () => {
@@ -22,6 +22,30 @@ describe('live feed rendering', () => {
     }
     expect(live.events.value.filter((event) => event.kind === 'chat')).toHaveLength(1);
     expect(live.events.value.filter((event) => event.kind === 'like')).toHaveLength(100);
+    live.dispose();
+  });
+
+  it('room switches reset category retention counts with the cleared feed', () => {
+    const harness = createControl();
+    Object.assign(harness.control, {
+      call: async (method: string) => method === 'rankings.list' ? { rankings: [] } : null,
+    });
+    const history = {
+      load: () => ({ scope: JSON.stringify(['creator', 'room-one']), savedAt: Date.now(), events: [] }),
+      save: () => {},
+      clear: () => {},
+    };
+    const live = createLiveFeedState(harness.control, { ...callbacks('system'), history });
+    harness.emit('live.connected', { uniqueId: 'creator', roomId: 'room-one' } as never);
+    for (let i = 0; i < 100; i += 1) {
+      harness.emit('live.ui-event', likeEvent('fan', 1, i + 1, `one-${i}`, 'room-one') as never);
+    }
+    expect(live.events.value.filter((event) => event.kind === 'like')).toHaveLength(100);
+
+    harness.emit('live.connected', { uniqueId: 'creator', roomId: 'room-two' } as never);
+    harness.emit('live.ui-event', likeEvent('fan', 1, 101, 'two-1', 'room-two') as never);
+    expect(live.events.value).toHaveLength(1);
+    expect(live.events.value[0]?.roomId).toBe('room-two');
     live.dispose();
   });
 

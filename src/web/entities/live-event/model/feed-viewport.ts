@@ -86,22 +86,63 @@ export function createFeedViewport(events: Ref<DisplayEvent[]>, isActive: () => 
   // a later frame is what makes new rows look like they "jump" into place.
   let beforeHeight = 0;
   let beforeTop = 0;
+  let pausedAnchor: { id: number; offset: number } | null = null;
+
+  const capturePausedAnchor = (container: HTMLElement, nextEvents: readonly DisplayEvent[]): { id: number; offset: number } | null => {
+    const surviving = new Set(nextEvents.map((event) => event.id));
+    const containerRect = container.getBoundingClientRect();
+    let firstSurviving: { id: number; offset: number } | null = null;
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: (node) => node instanceof HTMLElement && node.dataset.eventId !== undefined
+        ? NodeFilter.FILTER_ACCEPT
+        : NodeFilter.FILTER_SKIP,
+    });
+    for (let element = walker.nextNode(); element instanceof HTMLElement; element = walker.nextNode()) {
+      const id = Number(element.dataset.eventId);
+      if (!surviving.has(id)) continue;
+      const rect = element.getBoundingClientRect();
+      const anchor = { id, offset: rect.top - containerRect.top };
+      if (firstSurviving === null) firstSurviving = anchor;
+      if (rect.bottom > containerRect.top && rect.top < containerRect.bottom) return anchor;
+    }
+    return firstSurviving;
+  };
+
+  const restorePausedAnchor = (container: HTMLElement): boolean => {
+    if (pausedAnchor === null) return false;
+    const target = container.querySelector<HTMLElement>(`[data-event-id="${pausedAnchor.id}"]`);
+    if (!target) return false;
+    const containerTop = container.getBoundingClientRect().top;
+    const offset = target.getBoundingClientRect().top - containerTop;
+    const delta = offset - pausedAnchor.offset;
+    if (delta !== 0) container.scrollTop = Math.max(0, container.scrollTop + delta);
+    return true;
+  };
   unsubscribers.push(watch(events, () => {
     const container = streamContainerRef.value;
     if (!container) return;
     beforeHeight = container.scrollHeight;
     beforeTop = container.scrollTop;
+    pausedAnchor = !autoScroll.value && restoreScrollTop === undefined
+      ? capturePausedAnchor(container, events.value)
+      : null;
   }, { flush: 'pre' }));
   unsubscribers.push(watch(events, () => {
     const container = streamContainerRef.value;
     if (disposed || !isActive() || !container) return;
     if (autoScroll.value) {
       container.scrollTop = container.scrollHeight;
+      pausedAnchor = null;
       return;
     }
-    // Rows evicted above shrink the content; keep the same rows in view.
-    const delta = container.scrollHeight - beforeHeight;
-    if (delta < 0) container.scrollTop = Math.max(0, beforeTop + delta);
+    // Rows evicted above must not shift the paused reading position. Prefer a
+    // surviving row as the anchor because appends below can hide the removal
+    // in the total scrollHeight delta.
+    if (!restorePausedAnchor(container)) {
+      const delta = container.scrollHeight - beforeHeight;
+      if (delta < 0) container.scrollTop = Math.max(0, beforeTop + delta);
+    }
+    pausedAnchor = null;
   }, { flush: 'post' }));
 
   const setStreamContainerRef = (element: Element | null): void => {

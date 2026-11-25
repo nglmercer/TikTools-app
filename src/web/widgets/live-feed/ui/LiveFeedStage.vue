@@ -27,10 +27,22 @@ let timer: ReturnType<typeof setInterval> | null = null;
 onMounted(() => { timer = setInterval(() => { now.value = Date.now(); }, 1000); });
 onBeforeUnmount(() => { if (timer !== null) clearInterval(timer); });
 
+// One pass per feed update partitions permanent cards from reactions. The
+// one-second expiry timer then rescans only the small reaction partition,
+// rather than the whole retained buffer.
+const partitioned = computed(() => {
+  const permanent: DisplayEvent[] = [];
+  const ephemeral: DisplayEvent[] = [];
+  for (const event of props.events) {
+    if (isEphemeralEvent(event)) ephemeral.push(event);
+    else permanent.push(event);
+  }
+  return { permanent, ephemeral };
+});
 /** Chat, gifts, follows and shares stay on the wall; reactions fade out. */
-const important = computed(() => props.events.filter((event) => !isEphemeralEvent(event)));
+const important = computed(() => partitioned.value.permanent);
 // Keep only the newest like/join so the reaction strip stays a single compact line.
-const reactions = computed(() => visibleEphemeralEvents(props.events, now.value, 1));
+const reactions = computed(() => visibleEphemeralEvents(partitioned.value.ephemeral, now.value, 1));
 
 function reactionText(event: DisplayEvent): string {
   const value = eventText(event, (key, params) => String(t(key, params ?? {})));
@@ -76,6 +88,7 @@ function reactionText(event: DisplayEvent): string {
         :key="reaction.id"
         class="live-stage__reaction"
         :class="`live-stage__reaction--${reaction.kind}`"
+        :data-event-id="reaction.id"
       >
         <component
           :is="eventTypeIcon(reaction)"

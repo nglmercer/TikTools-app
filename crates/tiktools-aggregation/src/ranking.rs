@@ -27,4 +27,12 @@ impl RankingIndex {
             .take(limit)
             .map(|(Reverse(score), key)| (key.as_str(), *score))
     }
+
+    /// Membership in the visible top-N without materializing the snapshot.
+    pub fn is_in_top(&self, key: &str, limit: usize) -> bool {
+        self.entries
+            .iter()
+            .take(limit)
+            .any(|(_, candidate)| candidate == key)
+    }
 }

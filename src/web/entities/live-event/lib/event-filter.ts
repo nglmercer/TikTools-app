@@ -41,8 +41,11 @@ function matchesKind(event: DisplayEvent, filter: EventFilter): boolean {
   return event.kind === filter;
 }
 
-export function filterEvents(events: readonly DisplayEvent[], filter: EventFilter, query: string): DisplayEvent[] {
+export function filterEvents(events: readonly DisplayEvent[], filter: EventFilter, query: string): readonly DisplayEvent[] {
   const needle = query.trim().toLowerCase();
+  // The default feed view is already the complete buffer. Returning it
+  // directly avoids an O(n) copy before the windowing pass on every packet.
+  if (filter === 'all' && !needle) return events;
   const key = `${filter}::${needle}`;
   const cached = cache.get(events);
   if (cached?.key === key) return cached.result;
@@ -55,11 +58,25 @@ export function filterEvents(events: readonly DisplayEvent[], filter: EventFilte
   return result;
 }
 
+function exceedsPerCategory(events: readonly DisplayEvent[], limit: number): boolean {
+  const counts = new Map<EventCategory, number>();
+  for (const event of events) {
+    const category = eventCategory(event);
+    const count = (counts.get(category) ?? 0) + 1;
+    if (count > limit) return true;
+    counts.set(category, count);
+  }
+  return false;
+}
+
 export function windowEvents(
   events: readonly DisplayEvent[],
   options: { autoScroll: boolean; filter: EventFilter; query: string; limit: number },
 ): { visible: readonly DisplayEvent[]; windowed: boolean } {
   const windowed = options.autoScroll && options.filter === 'all' && !options.query.trim() && events.length > options.limit;
   // Cap per category, not globally: a flood of likes/joins must not hide chat.
-  return { visible: windowed ? retainPerCategory(events, options.limit) : events, windowed };
+  // The live buffer already applies the default retention cap, so the common
+  // path only verifies that invariant and reuses the input instead of building
+  // another reversed copy for every packet.
+  return { visible: windowed && exceedsPerCategory(events, options.limit) ? retainPerCategory(events, options.limit) : events, windowed };
 }

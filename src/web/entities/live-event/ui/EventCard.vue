@@ -40,6 +40,7 @@ function openViewer(): void {
     v-motion="motion"
     class="event-card"
     :class="[`event-card--${event.kind}`, { 'event-card--selected': selected }]"
+    :data-event-id="event.id"
     role="listitem"
     :aria-current="selected || undefined"
   >
@@ -111,6 +112,8 @@ function openViewer(): void {
   border-left: 3px solid var(--event-accent);
   border-radius: var(--radius-md);
   background: var(--color-bg-field);
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 64px;
 }
 
 .event-card--gift { --event-accent: var(--color-chart-2); }

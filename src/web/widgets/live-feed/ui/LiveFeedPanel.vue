@@ -60,7 +60,10 @@ const view = ref<ViewMode>('stage');
 // The label names the destination, so a click is unambiguous without relying on the icon.
 const viewLabel = computed(() => view.value === 'stage' ? t('feed.stage.switchToList') : t('feed.stage.switchToFeed'));
 const viewIcon = computed(() => view.value === 'stage' ? IconRows : IconLayers);
-function toggleView(): void { view.value = view.value === 'stage' ? 'list' : 'stage'; }
+function toggleView(): void {
+  view.value = view.value === 'stage' ? 'list' : 'stage';
+  if (autoScroll.value) store.scrollToBottom();
+}
 
 const filterOptions = computed(() => eventFilters.map((value) => ({ value, label: t(`feed.filters.${value}`), icon: filterIcon(value) })));
 const activeFilter = computed<EventFilter>({ get: () => filter.value, set: (value) => store.setFilter(value) });

@@ -98,6 +98,37 @@ fn gift_name_filter_and_user_cooldown_respect_projected_live_events() {
     assert!(service.claim_projected_event(&record, &alice, 1100, || true));
 }
 #[test]
+fn trigger_dispatch_index_tracks_upserts_and_removals() {
+    let service = AutomationService::default();
+    let record = |trigger: &str| json!({"id":"event","enabled":true,"trigger":trigger,"filters":[],"actionIds":[]});
+    let chat = json!({"type":"tiktok.chat","user":{"uniqueId":"alice"}});
+    let gift = json!({"type":"tiktok.gift","user":{"uniqueId":"alice"}});
+
+    service.upsert_event(record("tiktok.chat"));
+    assert_eq!(service.matching_events(&chat).len(), 1);
+    assert!(service.matching_events(&gift).is_empty());
+
+    let mut changed = record("tiktok.gift");
+    changed["persistedRevision"] = json!("2");
+    service.upsert_event(changed);
+    assert!(service.matching_events(&chat).is_empty());
+    assert_eq!(service.matching_events(&gift).len(), 1);
+    {
+        let index = recover_rwlock_read(&service.index, "automation index");
+        assert!(index.events_by_trigger.get("tiktok.chat").is_none());
+        assert_eq!(
+            index.events_by_trigger.get("tiktok.gift"),
+            Some(&vec!["event".to_owned()])
+        );
+    }
+
+    service.remove_event("event");
+    assert!(service.matching_events(&gift).is_empty());
+    let index = recover_rwlock_read(&service.index, "automation index");
+    assert!(index.events_by_trigger.get("tiktok.gift").is_none());
+}
+
+#[test]
 fn plugin_triggers_match_only_while_their_plugin_is_active() {
     let service = AutomationService::default();
     service.replace_snapshot(&json!({

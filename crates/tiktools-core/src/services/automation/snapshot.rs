@@ -57,6 +57,7 @@ impl AutomationService {
         }) {
             index.actions.clear();
             index.events.clear();
+            index.events_by_trigger.clear();
             index.catalog_epoch = None;
             index.authorities = None;
             index.authority_available = false;
@@ -92,6 +93,7 @@ impl AutomationService {
         index.sequence = sequence;
         index.actions = actions;
         index.events = events;
+        index.events_by_trigger = events_by_trigger(&index.events);
         index.trigger_owners = owners;
         index.enabled_plugins = plugins;
         index.authorities = authorities;
@@ -184,11 +186,14 @@ impl AutomationService {
                     generation,
                 },
             );
+            index.events_by_trigger = events_by_trigger(&index.events);
         }
     }
     pub fn remove_event(&self, id: &str) {
         let mut index = recover_rwlock_write(&self.index, "automation index");
-        index.events.remove(id);
+        if index.events.remove(id).is_some() {
+            index.events_by_trigger = events_by_trigger(&index.events);
+        }
         #[cfg(feature = "persistence")]
         approval::clear(&mut index);
         drop(index);
@@ -336,6 +341,19 @@ fn records_by_id(value: Option<&Value>) -> BTreeMap<String, Value> {
                 .map(|id| (id.to_owned(), value.clone()))
         })
         .collect()
+}
+
+fn events_by_trigger(events: &BTreeMap<String, IndexedRecord>) -> BTreeMap<String, Vec<String>> {
+    let mut grouped = BTreeMap::new();
+    for (id, record) in events {
+        if let Some(trigger) = record.definition.get("trigger").and_then(Value::as_str) {
+            grouped
+                .entry(trigger.to_owned())
+                .or_insert_with(Vec::new)
+                .push(id.clone());
+        }
+    }
+    grouped
 }
 
 fn invalidate_dependents(index: &mut BehaviorIndex, action: &str) {

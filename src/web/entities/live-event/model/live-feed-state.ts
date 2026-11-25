@@ -1,6 +1,6 @@
 import { createFeedViewport } from './feed-viewport.ts';
 import { createFeedRecovery } from './feed-recovery.ts';
-import { retainPerCategory } from '../lib/event-filter.ts';
+import { eventCategory, MAX_PER_CATEGORY, retainPerCategory } from '../lib/event-filter.ts';
 import type { FeedHistoryAdapter } from '../lib/feed-history.ts';
 import { liveMessageIdentity, LIVE_IDENTITY_CAPACITY, LIVE_IDENTITY_TTL_MS } from '../../../../shared/live-identity.ts';
 import { ref, shallowRef } from 'vue';
@@ -43,6 +43,15 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   let disposed = false;
   let presentationActive = true;
   const events = shallowRef<DisplayEvent[]>(restoredEvents);
+  const countCategories = (list: readonly DisplayEvent[]): Map<ReturnType<typeof eventCategory>, number> => {
+    const counts = new Map<ReturnType<typeof eventCategory>, number>();
+    for (const event of list) {
+      const category = eventCategory(event);
+      counts.set(category, (counts.get(category) ?? 0) + 1);
+    }
+    return counts;
+  };
+  let categoryCounts = countCategories(restoredEvents);
   const viewport = createFeedViewport(events, () => !disposed && presentationActive);
   const {
     filter, imagesEnabled, renderLimit, searchQuery, autoScroll, unreadCount, streamContainerRef,
@@ -81,7 +90,8 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   const appendEvent = (input: Omit<DisplayEvent, 'receivedAt'>): void => {
     if (disposed) return;
     const list = events.value;
-    list.push({ ...input, receivedAt: Date.now() });
+    const appendedEvent: DisplayEvent = { ...input, receivedAt: Date.now() };
+    list.push(appendedEvent);
     if (needsCursorSort) {
       // Sort only journal-backed slots: system notices retain their positions.
       const ordered = list.filter((row) => row.feedCursor !== undefined).sort((a, b) => a.feedCursor! - b.feedCursor!);
@@ -89,9 +99,30 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       for (let i = 0; i < list.length; i += 1) if (list[i]!.feedCursor !== undefined) list[i] = ordered[position++]!;
       needsCursorSort = false;
     }
-    const kept = retainPerCategory(list);
-    retentionEvicted += list.length - kept.length;
-    events.value = [...kept];
+    const category = eventCategory(appendedEvent);
+    const count = categoryCounts.get(category) ?? 0;
+    let next: DisplayEvent[];
+    if (count < MAX_PER_CATEGORY) {
+      categoryCounts.set(category, count + 1);
+      next = [...list];
+    } else {
+      // The append can overflow only its own category by one. Evicting that
+      // category's oldest row avoids the previous full-buffer retention scan
+      // on every live packet; the fallback preserves the invariant if a
+      // restored or externally mutated buffer ever diverges.
+      const evictIndex = list.findIndex((row) => eventCategory(row) === category);
+      if (evictIndex >= 0) {
+        list.splice(evictIndex, 1);
+        retentionEvicted += 1;
+        next = [...list];
+      } else {
+        const kept = retainPerCategory(list);
+        retentionEvicted += list.length - kept.length;
+        next = [...kept];
+        categoryCounts = countCategories(next);
+      }
+    }
+    events.value = next;
     scheduleHistorySave();
     if (!autoScroll.value) unreadCount.value += 1;
     if (autoScroll.value) scrollToBottom();
@@ -102,6 +133,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     history?.clear();
     historyScope = sessionScope;
     nextEventId = 0;
+    categoryCounts.clear();
     events.value = [];
     unreadCount.value = 0;
     topViewers.value = [];
@@ -199,6 +231,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
         if (historyTimer !== null) { clearTimeout(historyTimer); historyTimer = null; }
         history?.clear();
         events.value = [];
+        categoryCounts.clear();
         nextEventId = 0;
         unreadCount.value = 0;
       }

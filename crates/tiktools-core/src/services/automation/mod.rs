@@ -73,6 +73,10 @@ struct BehaviorIndex {
     identity: std::sync::Arc<()>,
     actions: BTreeMap<String, IndexedRecord>,
     events: BTreeMap<String, IndexedRecord>,
+    /// Event ids grouped by their declared trigger, in the same id order as
+    /// `events`. Rebuilt only when the catalog changes so live dispatch does
+    /// not scan unrelated rules for every incoming event.
+    events_by_trigger: BTreeMap<String, Vec<String>>,
     trigger_owners: BTreeMap<String, String>,
     enabled_plugins: std::collections::BTreeSet<String>,
     sequence: u64,
@@ -91,6 +95,7 @@ impl Default for BehaviorIndex {
             identity: std::sync::Arc::new(()),
             actions: BTreeMap::new(),
             events: BTreeMap::new(),
+            events_by_trigger: BTreeMap::new(),
             trigger_owners: BTreeMap::new(),
             enabled_plugins: Default::default(),
             sequence: 0,
