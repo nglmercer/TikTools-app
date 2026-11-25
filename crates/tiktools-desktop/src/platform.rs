@@ -89,8 +89,17 @@ fn configure_webkit_renderer() {
         return;
     }
     std::env::set_var("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1");
+    // Empirical on exotic/fragile GPU drivers (e.g. the AMD BC-250 compute
+    // card): the GL pipeline composes frames that never fully present —
+    // windows repaint only after a resize. Skia CPU rendering bypasses the
+    // GPU entirely and measured correct on hardware where the GL path
+    // visibly breaks; typical web UI cost is modest either way. Opt out
+    // with TIKTOOLS_WEBKIT_GPU=1 on machines with healthy drivers.
+    if std::env::var_os("TIKTOOLS_WEBKIT_GPU").is_none() {
+        std::env::set_var("WEBKIT_SKIA_ENABLE_CPU_RENDERING", "1");
+    }
     tracing::debug!(
-        "forcing WebKitGTK shared-memory buffer transport; set any WEBKIT_*DMABUF*/COMPOSITING variable to override"
+        "forcing WebKitGTK shared-memory transport + skia CPU rendering; set TIKTOOLS_WEBKIT_GPU=1 or any WEBKIT_* variable to override"
     );
 }
 
