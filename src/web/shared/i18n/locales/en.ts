@@ -2012,7 +2012,6 @@ export default {
     back: 'Back', overview: 'Overview',
     guides: '{count} guide | {count} guides', specializedGuides: 'Specialized guides',
     wizardLabel: 'Tutorial catalog progress', stepPreview: 'Step preview', demoPreview: 'Miniature demo',
-    demoHint: 'The miniature follows the selected step.',
     screens: { catalog: 'Catalog', category: 'Category', guide: 'Guide' },
     empty: 'No tutorials match your search.',
     tags: { automations: 'Automations', events: 'Events', actions: 'Actions', variables: 'Variables', connection: 'Connection', plugins: 'Plugins', overlays: 'Overlays', points: 'Points', changes: 'Changes', diagnostics: 'Diagnostics', feed: 'Live feed', account: 'Account', analytics: 'Analytics', settings: 'Settings', rankings: 'Rankings' },

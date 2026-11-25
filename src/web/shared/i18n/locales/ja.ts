@@ -2012,7 +2012,6 @@ export default {
     back: "戻る", overview: "概要",
     guides: "{count}件のガイド", specializedGuides: "特化ガイド",
     wizardLabel: "チュートリアルカタログの進行", stepPreview: "ステッププレビュー", demoPreview: "ミニデモ",
-    demoHint: "ミニデモは選択したステップに連動します。",
     screens: { catalog: "カタログ", category: "カテゴリ", guide: "ガイド" },
     empty: "検索に一致するチュートリアルはありません。",
     tags: { automations: "オートメーション", events: "イベント", actions: "アクション", variables: "変数", connection: "接続", plugins: "プラグイン", overlays: "オーバーレイ", points: "ポイント", changes: "変更", diagnostics: "診断", feed: "ライブフィード", account: "アカウント", analytics: "分析", settings: "設定", rankings: "ランキング" },

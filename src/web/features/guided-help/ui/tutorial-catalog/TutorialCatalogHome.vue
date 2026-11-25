@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n';
 import type { LocalizedTutorialEntry, TutorialCategory } from '../../model/tutorial-catalog.ts';
 import TutorialCard from './TutorialCard.vue';
+import { tutorialToneClass } from './tutorial-tone.ts';
 import type { TutorialCategorySummary } from './types.ts';
 
 defineProps<{
@@ -48,6 +49,7 @@ const { t } = useI18n();
         :key="category.id"
         type="button"
         class="tutorial-catalog__category-card"
+        :class="tutorialToneClass(category.id)"
         @click="emit('openCategory', category.id)"
       >
         <span class="tutorial-catalog__card-icon">

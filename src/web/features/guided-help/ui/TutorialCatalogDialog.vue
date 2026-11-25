@@ -137,6 +137,17 @@ const searchResults = computed(() => {
 
 const selected = computed(() => tutorials.value.find((entry) => entry.id === selectedId.value) ?? null);
 
+function focusDetail(): void {
+  void nextTick().then(() => {
+    document.querySelector<HTMLElement>('dialog[open] .tutorial-catalog__detail')?.focus({ preventScroll: true });
+  });
+}
+function focusTutorialCard(id: TourId): void {
+  void nextTick().then(() => {
+    document.querySelector<HTMLElement>(`dialog[open] [data-tutorial-id="${id}"]`)?.focus({ preventScroll: true });
+  });
+}
+
 function tagForCategory(id: TutorialCategory, preferred: 'all' | TutorialTag = 'all'): 'all' | TutorialTag {
   if (preferred === 'all') return 'all';
   const entries = tutorials.value.filter((entry) => entry.category === id);
@@ -171,15 +182,20 @@ function openTutorial(id: TourId): void {
   query.value = '';
   selectedId.value = id;
   screen.value = 'detail';
+  focusDetail();
 }
 function navigateWizard(target: 'catalog' | 'category'): void {
-  selectedId.value = target === 'catalog' ? null : selectedId.value;
+  const focusId = target === 'category' ? selectedId.value : null;
+  selectedId.value = null;
   screen.value = target === 'category' && category.value ? 'category' : 'catalog';
   if (screen.value === 'catalog') activeFilter.value = 'all';
+  if (focusId) focusTutorialCard(focusId);
 }
 function backToCategory(): void {
+  const focusId = selectedId.value;
   selectedId.value = null;
   screen.value = category.value ? 'category' : 'catalog';
+  if (focusId) focusTutorialCard(focusId);
 }
 
 watch(visibleCategories, (visible) => {

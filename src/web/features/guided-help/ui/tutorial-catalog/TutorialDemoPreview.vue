@@ -35,6 +35,7 @@ const logicalHeight = 720;
 const viewport = ref<HTMLElement | null>(null);
 const frame = ref<HTMLIFrameElement | null>(null);
 const viewportWidth = ref(logicalWidth);
+const viewportHeight = ref(logicalHeight);
 const frameReady = ref(false);
 let resizeObserver: ResizeObserver | undefined;
 let syncGeneration = 0;
@@ -49,10 +50,11 @@ const frameSrc = computed(() => {
     return url.origin === window.location.origin ? url.href : '';
   } catch { return ''; }
 });
-const scale = computed(() => Math.min(1, viewportWidth.value / logicalWidth));
+const scale = computed(() => Math.min(1, viewportWidth.value / logicalWidth, viewportHeight.value / logicalHeight));
 const frameStyle = computed(() => ({
   width: `${logicalWidth}px`,
   height: `${logicalHeight}px`,
+  left: `${Math.max(0, (viewportWidth.value - logicalWidth * scale.value) / 2)}px`,
   transform: `scale(${scale.value})`,
 }));
 
@@ -143,9 +145,11 @@ function observeViewport(element: HTMLElement | null): void {
   resizeObserver?.disconnect();
   resizeObserver = undefined;
   viewportWidth.value = element?.clientWidth || logicalWidth;
+  viewportHeight.value = element?.clientHeight || logicalHeight;
   if (!element || typeof ResizeObserver === 'undefined') return;
   resizeObserver = new ResizeObserver((entries) => {
     viewportWidth.value = entries[0]?.contentRect.width || logicalWidth;
+    viewportHeight.value = entries[0]?.contentRect.height || logicalHeight;
   });
   resizeObserver.observe(element);
 }
@@ -164,66 +168,66 @@ watch([frameSrc, frameReady, () => props.activeStep], () => { void synchronizeFr
     class="tutorial-demo-preview"
     :aria-label="t('guides.catalog.demoPreview')"
   >
-    <header class="tutorial-demo-preview__header">
-      <strong>{{ t('guides.catalog.demoPreview') }}</strong>
-      <span>{{ tour.route }}</span>
-    </header>
-    <div
-      v-if="frameSrc"
-      ref="viewport"
-      class="tutorial-demo-preview__real"
-    >
-      <iframe
-        ref="frame"
-        data-testid="tutorial-demo-frame"
-        :src="frameSrc"
-        :style="frameStyle"
-        :title="`${t('guides.catalog.demoPreview')} - ${tour.route}`"
-        loading="lazy"
-        @load="onFrameLoad"
-      />
-    </div>
-    <div
-      v-else
-      class="tutorial-demo-preview__window"
-      aria-hidden="true"
-    >
-      <div class="tutorial-demo-preview__chrome">
-        <i /><i /><i />
+    <div class="tutorial-demo-preview__shell">
+      <header class="tutorial-demo-preview__chrome">
+        <span
+          class="tutorial-demo-preview__dots"
+          aria-hidden="true"
+        ><i /><i /><i /></span>
+        <strong>{{ t('guides.catalog.demoPreview') }}</strong>
+        <span class="tutorial-demo-preview__route">{{ tour.route }}</span>
+      </header>
+      <div
+        v-if="frameSrc"
+        ref="viewport"
+        class="tutorial-demo-preview__real"
+      >
+        <iframe
+          ref="frame"
+          data-testid="tutorial-demo-frame"
+          :src="frameSrc"
+          :style="frameStyle"
+          :title="`${t('guides.catalog.demoPreview')} - ${tour.route}`"
+          loading="lazy"
+          @load="onFrameLoad"
+        />
       </div>
-      <div class="tutorial-demo-preview__app">
-        <aside class="tutorial-demo-preview__nav">
-          <span
-            v-for="item in 5"
-            :key="item"
-          />
-        </aside>
-        <main
-          class="tutorial-demo-preview__canvas"
-          :data-scope="tour.scope"
-        >
-          <div
-            v-for="zone in zones"
-            :key="zone"
-            class="tutorial-demo-preview__zone"
-            :class="[`tutorial-demo-preview__zone--${zone}`, { 'tutorial-demo-preview__zone--active': zone === activeZone }]"
+      <div
+        v-else
+        class="tutorial-demo-preview__window"
+        aria-hidden="true"
+      >
+        <div class="tutorial-demo-preview__app">
+          <aside class="tutorial-demo-preview__nav">
+            <span
+              v-for="item in 5"
+              :key="item"
+            />
+          </aside>
+          <main
+            class="tutorial-demo-preview__canvas"
+            :data-scope="tour.scope"
           >
-            <span
-              v-for="line in lineCount[zone]"
-              :key="`line-${line}`"
-              class="tutorial-demo-preview__line"
-            />
-            <span
-              v-for="block in blockCount[zone]"
-              :key="`block-${block}`"
-              class="tutorial-demo-preview__block"
-            />
-          </div>
-        </main>
+            <div
+              v-for="zone in zones"
+              :key="zone"
+              class="tutorial-demo-preview__zone"
+              :class="[`tutorial-demo-preview__zone--${zone}`, { 'tutorial-demo-preview__zone--active': zone === activeZone }]"
+            >
+              <span
+                v-for="line in lineCount[zone]"
+                :key="`line-${line}`"
+                class="tutorial-demo-preview__line"
+              />
+              <span
+                v-for="block in blockCount[zone]"
+                :key="`block-${block}`"
+                class="tutorial-demo-preview__block"
+              />
+            </div>
+          </main>
+        </div>
       </div>
     </div>
-    <p class="tutorial-demo-preview__hint">
-      {{ t('guides.catalog.demoHint') }}
-    </p>
   </section>
 </template>

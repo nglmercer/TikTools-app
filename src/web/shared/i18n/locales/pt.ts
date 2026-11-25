@@ -2014,7 +2014,6 @@ export default {
     back: 'Voltar', overview: 'Visão geral',
     guides: '{count} guia | {count} guias', specializedGuides: 'Guias especializados',
     wizardLabel: 'Progresso do catálogo de tutoriais', stepPreview: 'Prévia das etapas', demoPreview: 'Demo em miniatura',
-    demoHint: 'A miniatura acompanha a etapa selecionada.',
     screens: { catalog: 'Catálogo', category: 'Categoria', guide: 'Guia' },
     empty: 'Nenhum tutorial corresponde à sua busca.',
     tags: { automations: 'Automações', events: 'Eventos', actions: 'Ações', variables: 'Variáveis', connection: 'Conexão', plugins: 'Plugins', overlays: 'Overlays', points: 'Pontos', changes: 'Alterações', diagnostics: 'Diagnóstico', feed: 'Feed ao vivo', account: 'Conta', analytics: 'Análises', settings: 'Configurações', rankings: 'Rankings' },

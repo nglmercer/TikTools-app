@@ -128,12 +128,12 @@ it('navigates catalog, category and detail as a three-step wizard', async () => 
   wrapper.unmount();
 });
 
-it('shows step tabs with previous and next controls synchronized with the miniature demo', async () => {
+it('shows one step indicator with previous and next controls synchronized with the miniature demo', async () => {
   const wrapper = mountDialog();
   await openTutorialByTitle(wrapper, titleOf('automationEvents'));
 
   const steps = tutorialSteps('en', 'automationEvents');
-  expect(wrapper.findAll('.tutorial-step-preview [role="tab"]')).toHaveLength(steps.length);
+  expect(wrapper.findAll('.tutorial-step-preview__numbers button')).toHaveLength(steps.length);
   expect(wrapper.find('.tutorial-demo-preview').exists()).toBe(true);
   expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[0]!.title);
   expect(wrapper.get('.tutorial-demo-preview__zone--toolbar').classes()).toContain('tutorial-demo-preview__zone--active');
@@ -142,10 +142,36 @@ it('shows step tabs with previous and next controls synchronized with the miniat
   await controls.at(-1)!.trigger('click');
   expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[1]!.title);
   expect(wrapper.get('.tutorial-demo-preview__zone--tabs').classes()).toContain('tutorial-demo-preview__zone--active');
-  expect(wrapper.get('.tutorial-step-preview__controls').text()).toContain(testMessage('en', 'guides.progress', { current: 2, total: steps.length }));
+  expect(wrapper.get('.tutorial-step-preview__numbers button[aria-current=\'step\']').text()).toBe('2');
 
   await controls[0]!.trigger('click');
   expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[0]!.title);
+  wrapper.unmount();
+});
+
+it('moves focus into detail, restores it to the card and supports step arrow keys', async () => {
+  const wrapper = mountDialog();
+  await wrapper.get('input[type="search"]').setValue(titleOf('automationEvents'));
+  await flushPromises();
+  const card = wrapper.findAll('.tutorial-catalog__card').find((node) => node.text().includes(titleOf('automationEvents')));
+  if (!card) throw new Error('automation events card not found');
+  (card.element as HTMLElement).focus();
+  await card.trigger('click');
+  await flushPromises();
+
+  expect(document.activeElement).toBe(wrapper.get('.tutorial-catalog__detail').element);
+
+  const steps = tutorialSteps('en', 'automationEvents');
+  const numbers = wrapper.findAll('.tutorial-step-preview__numbers button');
+  (numbers[1]!.element as HTMLElement).focus();
+  await numbers[1]!.trigger('keydown', { key: 'ArrowRight' });
+  await flushPromises();
+  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain(steps[2]!.title);
+  expect(document.activeElement).toBe(numbers[2]!.element);
+
+  await wrapper.get('.tutorial-catalog__back').trigger('click');
+  await flushPromises();
+  expect((document.activeElement as HTMLElement).dataset.tutorialId).toBe('automationEvents');
   wrapper.unmount();
 });
 
@@ -196,7 +222,7 @@ it('shows the registry steps in the detail screen and starts the selected driver
   const wrapper = mountDialog();
   await openTutorialByTitle(wrapper, titleOf('changes'));
   expect(wrapper.get('.tutorial-catalog__detail h3').text()).toBe(titleOf('changes'));
-  expect(wrapper.findAll('.tutorial-step-preview [role="tab"]')).toHaveLength(tourRegistry.changes.steps.length);
+  expect(wrapper.findAll('.tutorial-step-preview__numbers button')).toHaveLength(tourRegistry.changes.steps.length);
 
   await wrapper.get('.tutorial-catalog__detail .tutorial-catalog__start').trigger('click');
   await flushPromises();
