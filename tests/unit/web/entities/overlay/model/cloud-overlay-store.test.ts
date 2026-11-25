@@ -36,7 +36,7 @@ describe('overlay store', () => {
     overlay.startNew('follow', 'Follow');
     overlay.add('avatar');
     expect(await overlay.save()).toBe(true);
-    expect((calls[0]?.params as { document: { capabilities?: string[] } }).document.capabilities).toEqual(['live.read']);
+    expect((calls[0]!.params as { document: { capabilities?: string[] } }).document.capabilities).toEqual(['live.read']);
   });
 
   it('copies the draft as an OBS URL payload and refuses one that does not fit', async () => {

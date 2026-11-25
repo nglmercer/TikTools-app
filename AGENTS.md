@@ -16,7 +16,7 @@
 ## Verification
 
 - Rust: `cargo test -p tiktools-core`, `cargo test -p tiktools-plugin-api`, `cargo clippy`
-- Web: `bun scripts/task.ts frontend-lint`, `bun scripts/task.ts test web <filter>`
+- Web: `bun scripts/task.ts frontend-lint` (oxlint-vize + lint-custom + vue-tsc), `bun scripts/task.ts test web <filter>`
 - Contracts: `bun run check`
 
 ## Experimental Vize typecheck (upstream collaboration)
@@ -41,3 +41,22 @@
 - Version policy: `vize` and `typescript-vize` are pinned exact. Bump them
   deliberately every couple of weeks as part of the collaboration — never
   float. Before adopting a bump, run both typecheckers and diff the output.
+
+## Linting: oxlint + vize (eslint retired)
+
+- Linting runs through `oxlint-vize` (oxlint 1.x + oxlint-plugin-vize native Vue
+  template rules) configured in `.oxlintrc.json`; eslint, typescript-eslint,
+  eslint-plugin-vue and vue-eslint-parser were removed entirely.
+- `scripts/lint-custom.ts` carries the two project-specific enforcements
+  oxlint cannot express (no `<details>`/`<summary>` in templates — use
+  BaseDisclosure; no hardcoded locale ternaries in tests — use testMessage).
+  Retire it if upstream gains equivalent rule support.
+- `src` is linted in its own invocation because the vize bridge fails on
+  HTML-bearing trees combined with other targets — reported upstream as
+  https://github.com/ubugeeei-prod/vize/issues/13652. Revisit once fixed.
+- Same collaboration policy as the typecheck: every oxlint/vize divergence or
+  false positive gets an upstream issue, then an evaluation of whether it
+  warrants a PR. Never silence one locally without linking the issue.
+- Version matrix is pinned exact: oxlint + oxlint-plugin-vize + vize. The
+  bridge validates specific oxlint versions — bump them together, never
+  independently, and rerun the full lint before adopting.

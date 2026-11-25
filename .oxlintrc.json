@@ -1,0 +1,26 @@
+{
+  "plugins": ["vue", "typescript", "oxc"],
+  "jsPlugins": ["oxlint-plugin-vize"],
+  "settings": {
+    "vize": { "helpLevel": "short", "preset": "essential" }
+  },
+  "env": { "browser": true, "node": true, "es2024": true },
+  "categories": { "correctness": "error" },
+  "rules": {
+    "no-empty": ["error", { "allowEmptyCatch": true }],
+    "typescript/no-empty-object-type": ["error", { "allowInterfaces": "with-single-extends" }],
+    "typescript/no-explicit-any": "error",
+    "typescript/no-unused-vars": "error",
+    "typescript/no-non-null-asserted-optional-chain": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/prefer-as-const": "error",
+    "vize/vue/require-v-for-key": "error",
+    "vize/vue/no-v-html": "error"
+  },
+  "ignorePatterns": [
+    "dist/**", "node_modules/**", "out/**", "release/**", "target/**",
+    "vendor/**", ".dev-plugins/**", ".plugin-staging/**", "docs/.generated/**",
+    "src/universal/**", "**/*.html"
+  ]
+}

@@ -71,7 +71,7 @@ describe('AppShell library review', () => {
       if (method === 'app.state.get') return { state: {} };
       if (method === 'cloudLibrary.read') return { meta: { id: libraryDocumentId, revision: '1', sha256: 'a'.repeat(64) }, document: template };
       if (method === 'automation.create') {
-        options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params?.record as { id: string }).id, revision: '1' }] });
+        options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
         return params?.record;
       }
       return { methods: [], items: [] };

@@ -75,9 +75,17 @@ async function widgets(): Promise<void> {
 }
 
 async function frontendLint(): Promise<void> {
-  await tool('eslint', 'src', 'scripts', 'tests/unit', 'tests/bun', 'vite.config.ts', 'vitest.config.ts', 'vitest.widgets.config.ts', '--cache', '--max-warnings=0');
+  // oxlint-vize covers core/typescript/vue-template rules at native speed;
+  // scripts/lint-custom.ts carries the two project-specific enforcements
+  // oxlint cannot express. Both must stay zero-diagnostic, same as the
+  // retired eslint pipeline did.
+  // `src` runs in its own invocation: the vize bridge mishandles HTML-bearing
+  // trees combined with other targets (upstream-reported). Standalone HTML was
+  // never linted by the retired eslint pipeline either.
+  await tool('oxlint-vize', '-c', '.oxlintrc.json', '--deny-warnings', 'src');
+  await tool('oxlint-vize', '-c', '.oxlintrc.json', '--deny-warnings', 'scripts', 'tests/unit', 'tests/bun', 'packages', 'vite.config.ts', 'vitest.config.ts', 'vitest.widgets.config.ts');
+  await script('lint-custom.ts');
   await tool('vue-tsc', '--noEmit');
-  await tool('eslint', 'packages', '--cache', '--max-warnings=0');
   await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-sdk/tsconfig.json');
   await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-ui/tsconfig.json');
 }

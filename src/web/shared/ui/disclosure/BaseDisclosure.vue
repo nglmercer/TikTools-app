@@ -5,7 +5,7 @@ import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 
 /**
  * The single disclosure primitive used in this app. Raw <details>/<summary>
- * are forbidden (see eslint.config.js): native summaries cannot be styled or
+ * are forbidden (see scripts/lint-custom.ts): native summaries cannot be styled or
  * placed inline consistently, and this component keeps one accessible
  * button/region pair everywhere.
  *

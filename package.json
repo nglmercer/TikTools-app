@@ -19,7 +19,6 @@
     "e2e:sync": "bun scripts/e2e/two-workspace-sync.ts"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.0",
     "@tiktools/plugin-sdk": "workspace:*",
     "@tiktools/plugin-ui": "workspace:*",
@@ -28,17 +27,14 @@
     "@types/qrcode": "1.5.6",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/test-utils": "^2.5.1",
-    "eslint": "^10.14.0",
-    "eslint-plugin-vue": "^10.12.0",
-    "globals": "^17.14.0",
     "happy-dom": "^21.0.4",
+    "oxlint": "1.81.0",
+    "oxlint-plugin-vize": "0.775.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.1",
     "typescript-vize": "npm:typescript@7.1.0-beta",
     "vite": "^8.3.6",
     "vitest": "^5.1.0",
     "vize": "0.775.0",
-    "vue-eslint-parser": "^10.4.2",
     "vue-tsc": "^3.3.14"
   },
   "dependencies": {

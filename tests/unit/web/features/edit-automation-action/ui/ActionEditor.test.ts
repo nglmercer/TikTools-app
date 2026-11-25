@@ -74,7 +74,7 @@ it('renders an empty default for a templated text field as empty, not "true"', a
   });
   await flushPromises();
   const input = wrapper.findAll('input').find((el) => (el.element as HTMLInputElement).placeholder === 'Daft Punk');
-  expect((input?.element as HTMLInputElement).value).toBe('');
+  expect((input!.element as HTMLInputElement).value).toBe('');
 });
 
 it('keeps the enable switch in the General section header and mutes an inactive action', async () => {

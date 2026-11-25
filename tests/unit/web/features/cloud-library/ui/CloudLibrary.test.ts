@@ -174,7 +174,7 @@ describe('CloudLibrary', () => {
         if (method === 'cloudLibrary.list') return { items: [summary()], nextCursor: null };
         if (method === 'cloudLibrary.read') return { meta: summary(), document: template };
         if (method === 'automation.create') {
-          options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params?.record as { id: string }).id, revision: '1' }] });
+          options?.onMetadata?.({ resourceVersions: [{ kind: 'automation', scope: params?.kind as string, id: (params!.record as { id: string }).id, revision: '1' }] });
           return params?.record;
         }
         throw new Error(`unexpected ${method}`);
