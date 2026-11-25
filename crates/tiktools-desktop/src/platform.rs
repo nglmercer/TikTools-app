@@ -15,8 +15,14 @@ use std::time::Instant;
 /// How often the Linux event loop wakes while idle. GTK/libappindicator has
 /// no source attached to Winit's loop, so both the steady-state wait and the
 /// WebView startup wait reuse this interval to keep GTK/WebKit progressing.
+/// The webview is a GTK child window: every keystroke, click and WebKit frame
+/// callback only advances inside these iterations, so the interval is also
+/// the worst-case input latency and the effective animation cadence. 16ms
+/// matches a 60Hz display; the idle cost is one non-blocking iteration per
+/// wake, while backlog batches chain immediate wakes regardless (see
+/// `flush_webview_batch`), so message throughput is not tied to this value.
 #[cfg(target_os = "linux")]
-const GTK_PUMP_INTERVAL: Duration = Duration::from_millis(50);
+const GTK_PUMP_INTERVAL: Duration = Duration::from_millis(16);
 
 pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
@@ -40,6 +46,7 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
         {
             std::env::set_var("GDK_BACKEND", "x11");
         }
+        configure_webkit_renderer();
         gtk::init()?;
         tracing::debug!(
             display = ?std::env::var_os("DISPLAY"),
@@ -55,6 +62,36 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     Ok(())
+}
+
+/// WebKitGTK renderer policy. WebKitGTK 2.54 composes through DMA-BUF
+/// buffers shared with the GPU by default; on drivers whose buffer-sharing
+/// path is broken (reported across NVIDIA and uncommon AMD parts) the frames
+/// never present, so the window only repaints when a resize or unminimize
+/// damages it wholesale. Forcing the shared-memory transport keeps the
+/// composited renderer — measured within a few ms of the hardware transport
+/// upstream — while dropping the driver-dependent buffer sharing. Never
+/// override an explicit operator choice: any of the renderer variables being
+/// set means the user already picked a policy. Must run before `gtk::init`
+/// so the WebKitWebProcess children inherit it.
+#[cfg(target_os = "linux")]
+fn configure_webkit_renderer() {
+    const RENDERER_VARS: [&str; 4] = [
+        "WEBKIT_DMABUF_RENDERER_FORCE_SHM",
+        "WEBKIT_DISABLE_DMABUF_RENDERER",
+        "WEBKIT_DISABLE_COMPOSITING_MODE",
+        "WEBKIT_FORCE_COMPOSITING_MODE",
+    ];
+    if RENDERER_VARS
+        .iter()
+        .any(|name| std::env::var_os(name).is_some())
+    {
+        return;
+    }
+    std::env::set_var("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1");
+    tracing::debug!(
+        "forcing WebKitGTK shared-memory buffer transport; set any WEBKIT_*DMABUF*/COMPOSITING variable to override"
+    );
 }
 
 pub fn configure_event_loop<T>(_builder: &mut EventLoopBuilder<T>) {
