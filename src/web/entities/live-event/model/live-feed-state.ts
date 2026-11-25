@@ -243,6 +243,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
           categoryCounts = countCategories(platformRows);
           nextEventId = platformRows.reduce((max, row) => Math.max(max, row.id + 1), 0);
           historyScope = scope;
+          sessionScope = scope;
           persistHistory();
         } else {
           history?.clear();
@@ -254,7 +255,10 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       }
       historyScope = scope;
       seenMsgIds.clear();
-      if (events.value.length === 0) seenCursors.clear();
+      if (events.value.length === 0) {
+        seenCursors.clear();
+        lastFeedCursor = null;
+      }
       // Lossy ranking snapshots can be delivered before reliable
       // live.connected. Preserve a snapshot from the SAME room in that case.
       if (rankingCreator !== (data.uniqueId ?? '') ||
