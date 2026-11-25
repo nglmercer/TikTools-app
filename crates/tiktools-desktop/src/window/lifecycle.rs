@@ -115,6 +115,17 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             DesktopEvent::Command(DesktopCommand::OpenPluginDevtools { window_id }) => {
                 self.plugin_ui.open_devtools_for_window(window_id)
             }
+            DesktopEvent::Command(DesktopCommand::ShellMenuModel { menus }) => {
+                #[cfg(target_os = "linux")]
+                {
+                    self.native_menu_model = Some(menus.clone());
+                    if let Some(menubar) = self.window.as_ref().and_then(|w| w.gtk_menubar()) {
+                        crate::shell::rebuild_native_menu(menubar, &menus, &self.emitter);
+                    }
+                }
+                #[cfg(not(target_os = "linux"))]
+                let _ = menus;
+            }
             DesktopEvent::Command(DesktopCommand::MainWindowCloseRequested) => {
                 // Same policy as the Winit CloseRequested arm: hide to the
                 // tray when one exists, shut the process down otherwise.

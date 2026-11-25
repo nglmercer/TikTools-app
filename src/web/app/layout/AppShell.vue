@@ -9,6 +9,7 @@ import { computed, defineAsyncComponent } from 'vue';
 const DiagnosticsPanel = defineAsyncComponent(() => import('@/shared/diagnostics/DiagnosticsPanel.vue'));
 const diagnosticsOpen = computed(() => diagnosticView.open.value);
 import { useI18n } from 'vue-i18n';
+import type { Locale } from '@/shared/i18n/i18n.ts';
 import { applyAppTheme } from '@/shared/lib/app-theme.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { loadResolutionPreference } from '@/features/review-shared/model/resolution-preference.ts';
@@ -77,6 +78,27 @@ function connect(): void {
   }
 }
 
+// The desktop shell renders the menu bar natively in the GTK header bar and
+// reports activations back as pushes; dispatch them through the exact same
+// handlers the in-page menu uses. The in-page bar stays mounted (hidden) so
+// the menu model keeps shipping, but only one of the two is ever visible.
+const desktopShell = typeof window !== 'undefined' && !!window.ipc;
+if (desktopShell) {
+  useControlClient().onPush('shell-menu-action', (message) => {
+    if (message.type !== 'shell-menu-action') return;
+    const id = message.id;
+    const separator = id.indexOf(':');
+    const kind = separator < 0 ? id : id.slice(0, separator);
+    const value = separator < 0 ? undefined : id.slice(separator + 1);
+    if (kind === 'connect') connect();
+    else if (kind === 'reconnect') connection.handleReconnect();
+    else if (kind === 'disconnect') connection.handleDisconnect();
+    else if (kind === 'navigate' && value) navigate(value);
+    else if (kind === 'locale' && value) localeStore.setLocale(value as Locale);
+    else if (kind === 'toggle-sidebar') toggleSidebar();
+  });
+}
+
 </script>
 
 <template>
@@ -86,6 +108,7 @@ function connect(): void {
   >
     <AppNotifications @open-settings="router.push(tabLocation('settings'))" />
     <AppMenuBar
+      v-show="!desktopShell"
       :status="status"
       :locale="locale"
       :pages="menuPages"

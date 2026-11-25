@@ -253,6 +253,14 @@ pub(crate) async fn handle_webview_ipc_message(
                 admission,
             }));
         }
+        InboundRoute::Legacy(value) if value["type"] == "shell-menu" && raw.len() <= 256 * 1024 => {
+            let _ = proxy.send_event(DesktopEvent::Command(DesktopCommand::AdmittedCommand {
+                command: Box::new(DesktopCommand::ShellMenuModel {
+                    menus: value["menus"].clone(),
+                }),
+                admission,
+            }));
+        }
         InboundRoute::Legacy(value) if is_app_restart_command(&value) => {
             // One prompt per process. The guard is intentionally not cleared
             // after the dialog: a second install must not nag the user again.

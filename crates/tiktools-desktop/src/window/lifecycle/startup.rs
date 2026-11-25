@@ -168,6 +168,7 @@ impl DesktopApp {
             pending_update: None,
             update_ready_for_handoff: false,
             restart_requested: None,
+            native_menu_model: None,
         }
     }
 
@@ -220,7 +221,12 @@ impl DesktopApp {
     #[cfg(target_os = "linux")]
     pub(super) fn create_window(&mut self, _event_loop: &ActiveEventLoop) -> Result<(), String> {
         tracing::debug!("creating desktop window (native GTK shell)");
-        let (window, content) = crate::shell::create_gtk_shell_window("TikTools", 900, 680);
+        let (window, content, menubar) = crate::shell::create_gtk_shell_window(
+            "TikTools",
+            900,
+            680,
+            self.emitter.clone(),
+        );
         // Close button replicates the Winit CloseRequested policy through
         // the command channel: hide to tray when available, shut down else.
         {
@@ -240,7 +246,14 @@ impl DesktopApp {
             child.set_hexpand(true);
             child.set_vexpand(true);
         }
-        self.window = Some(crate::shell::ShellWindow::Gtk { window, content });
+        if let Some(model) = self.native_menu_model.clone() {
+            crate::shell::rebuild_native_menu(&menubar, &model, &self.emitter);
+        }
+        self.window = Some(crate::shell::ShellWindow::Gtk {
+            window,
+            content,
+            menubar,
+        });
         self.finish_window_creation(webview);
         Ok(())
     }

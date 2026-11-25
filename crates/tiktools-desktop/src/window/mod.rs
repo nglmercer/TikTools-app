@@ -64,6 +64,9 @@ pub struct DesktopApp {
     update_ready_for_handoff: bool,
     /// Locale of the user who accepted the one-shot restart prompt.
     restart_requested: Option<String>,
+    /// Last frontend-owned menu model, re-applied when the shell window is
+    /// recreated after a hide/show cycle.
+    native_menu_model: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

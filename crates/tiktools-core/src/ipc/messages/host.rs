@@ -37,6 +37,11 @@ pub enum HostMessage {
     },
     #[serde(rename = "live-event")]
     LiveEvent { event: Value },
+    /// Native shell menu activation. The frontend owns the menu model and
+    /// ships it rendered-agnostic; the host only reports which action id
+    /// was clicked, so menu semantics never duplicate in Rust.
+    #[serde(rename = "shell-menu-action")]
+    ShellMenuAction { id: String },
     #[serde(rename = "room-stats")]
     RoomStats {
         viewers: u64,

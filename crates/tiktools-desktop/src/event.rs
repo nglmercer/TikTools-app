@@ -22,6 +22,10 @@ pub enum DesktopCommand {
     /// GTK shell close button: mirrors the Winit `CloseRequested` policy
     /// (hide to tray when available, shut down otherwise).
     MainWindowCloseRequested,
+    /// Frontend-owned native menu model: rebuild the shell menu bar.
+    ShellMenuModel {
+        menus: serde_json::Value,
+    },
     ShowWindow,
     HideWindow,
     OpenDevtools,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, markRaw, type Component } from 'vue';
+import { computed, markRaw, watch, type Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { isConnectionBusy } from '@/entities/connection/lib/connection-status.ts';
 import { supportedLocales, type Locale } from '@/shared/i18n/i18n.ts';
@@ -9,7 +9,7 @@ import IconGlobe from '@/shared/ui/icon/icons/IconGlobe.vue';
 import IconMenu from '@/shared/ui/icon/icons/IconMenu.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseMenuBar from '@/shared/ui/menu/BaseMenuBar.vue';
-import type { MenuAction, MenuBarMenu } from '@/shared/ui/menu/menu-types.ts';
+import type { MenuAction, MenuBarMenu, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import type { ConnectionStatus } from '@/types.ts';
 
 interface MenuPage {
@@ -67,6 +67,36 @@ const menus = computed<MenuBarMenu[]>(() => [
     ],
   },
 ]);
+
+// The desktop shell renders these menus natively in the GTK header bar.
+// The frontend stays the single owner of the menu model (connection state,
+// plugin pages, locale) and ships it serialized; the host only renders and
+// reports activations back. Icons are Vue components and cannot cross.
+type WireMenuEntry = {
+  type?: 'separator';
+  id: string;
+  label?: string;
+  disabled?: boolean;
+  checked?: boolean;
+  children?: WireMenuEntry[];
+};
+
+function serializeMenuEntry(entry: MenuEntry): WireMenuEntry {
+  if (entry.type === 'separator') return { type: 'separator', id: entry.id };
+  const wire: WireMenuEntry = { id: entry.id, label: entry.label };
+  if (entry.disabled) wire.disabled = true;
+  if (entry.checked !== undefined) wire.checked = entry.checked;
+  if (entry.children?.length) wire.children = entry.children.map(serializeMenuEntry);
+  return wire;
+}
+
+watch(menus, (value) => {
+  if (!window.ipc) return;
+  window.ipc.postMessage(JSON.stringify({
+    type: 'shell-menu',
+    menus: value.map((menu) => ({ id: menu.id, label: menu.label, items: menu.items.map(serializeMenuEntry) })),
+  }));
+}, { immediate: true });
 
 function onSelect(action: MenuAction): void {
   const separator = action.id.indexOf(':');

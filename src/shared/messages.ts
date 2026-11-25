@@ -289,6 +289,7 @@ export type HostMessage =
       avatarUrl?: string;
     }
   | { type: 'live-event'; event: UiEvent }
+  | { type: 'shell-menu-action'; id: string }
   | { type: 'room-stats'; viewers: number; totalUsers: number; topViewers: TopViewerPayload[] }
   | { type: 'reconnecting'; attempt: number; delayMs: number }
   | { type: 'error'; phase: 'connect' | 'live'; message: string }
