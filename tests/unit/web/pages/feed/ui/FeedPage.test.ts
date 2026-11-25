@@ -1,6 +1,6 @@
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp, nextTick } from 'vue';
 import type { UiEvent } from '../../../../../../src/shared/messages.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
@@ -201,6 +201,15 @@ describe('FeedPage', () => {
     await wrapper.findAll('button').find((button) => button.text().startsWith('Jump to latest'))!.trigger('click');
     await nextTick();
     expect(wrapper.text()).not.toContain('Jump to latest');
+  });
+
+  it('repins auto-scroll when switching feed views', async () => {
+    const { wrapper, store } = await mountFeed(undefined, 'stage');
+    const scrollToBottom = vi.spyOn(store, 'scrollToBottom');
+
+    await wrapper.get('[data-test="feed-view-toggle"]').trigger('click');
+
+    expect(scrollToBottom).toHaveBeenCalledOnce();
   });
 
   it('hides and restores the inspector', async () => {
