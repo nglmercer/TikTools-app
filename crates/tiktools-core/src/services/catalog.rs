@@ -289,3 +289,32 @@ mod tests {
             .any(|node| node["type"] == "action.play-sound"));
     }
 }
+
+/// Host-owned automation rule templates, shipped as data and validated
+/// against the same grammar every client parses. Served in the behavior
+/// snapshot so all clients (WebView, CLI, a future cloud registry) read
+/// one catalog instead of the WebView hardcoding its own.
+pub fn builtin_rule_templates() -> Vec<Value> {
+    static CATALOG: std::sync::OnceLock<Vec<Value>> = std::sync::OnceLock::new();
+    CATALOG
+        .get_or_init(|| {
+            serde_json::from_str(include_str!("builtin-templates.json"))
+                .expect("builtin rule templates JSON is valid")
+        })
+        .clone()
+}
+
+#[cfg(test)]
+mod catalog_tests {
+    #[test]
+    fn builtin_rule_templates_pass_the_client_grammar() {
+        // Host-owned templates ship in the snapshot for every client to
+        // instantiate, so each one must pass the same validator the plugin
+        // catalog merge applies — a drift here means a template that renders
+        // but never applies.
+        for template in crate::services::builtin_rule_templates() {
+            tiktools_plugin_api::manifest::validate_plugin_template(&template)
+                .unwrap_or_else(|error| panic!("builtin template invalid: {error}: {template}"));
+        }
+    }
+}

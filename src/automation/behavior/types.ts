@@ -307,35 +307,16 @@ export interface BehaviorSnapshot {
   eventTypes?: PluginEventType[];
   /** Plugin-declared autocomplete contributions, stamped by the host; absent on old hosts. */
   autocompleteContributions?: PluginAutocompleteContribution[];
-  /** Plugin-contributed automation templates, stamped by the host; absent on old hosts. */
-  pluginTemplates?: PluginTemplateDescriptor[];
+  /** Host-owned rule templates shipped with the app; absent on old hosts. */
+  hostTemplates?: unknown[];
+  /** Plugin-contributed rule templates, stamped `<pluginId>/<id>` by the host; absent on old hosts. */
+  pluginTemplates?: unknown[];
   /** Plugin-contributed configuration pages, stamped by the host; absent on old hosts. */
   pluginPages?: PluginPageDescriptor[];
   /** Typed `ui` descriptors, stamped by the host; absent on old hosts. */
   pluginUis?: PluginUiDescriptor[];
   /** Host and loaded plugin translations, keyed by locale and i18key. */
   translations: TranslationCatalog;
-}
-
-/** One automation template contributed by a plugin manifest (schema v3). */
-export interface PluginTemplateDescriptor {
-  /** Namespaced by the host as `<pluginId>/<templateId>`. */
-  id: string;
-  pluginId: string;
-  title: Localized;
-  description?: Localized;
-  icon?: string;
-  eventType: string;
-  requiredNodeTypes: string[];
-  category?: string;
-  /** JSON Schema subset for the creation-time parameters form. */
-  params?: JsonObject;
-  uiHints?: JsonObject;
-  /** Node chain instantiated by the template modal. */
-  workflow: {
-    nodes: Array<{ type: string; config?: JsonObject }>;
-  };
-  source: ActionSource;
 }
 
 export type PluginPageSectionKind = 'text' | 'form' | 'connection' | 'list' | 'tts';

@@ -305,6 +305,13 @@ impl AppCore {
             Value::Array(autocomplete),
         );
         object.insert("translations".to_owned(), translations);
+        // Host-owned rule templates ride the snapshot like the rest of the
+        // builtin catalog: same documents for the WebView, the CLI and any
+        // future registry sync, instead of a frontend-hardcoded list.
+        object.insert(
+            "hostTemplates".to_owned(),
+            Value::Array(builtin_rule_templates()),
+        );
     }
 
     pub(super) fn emit_plugin_settings(&self, id: &str) {

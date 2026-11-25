@@ -59,6 +59,7 @@ const PARSER_KEYS = [
   'entry',
   'trust',
   'capabilities',
+  'capabilityProviders',
   'permissions',
   'protocolVersion',
   'abiVersion',

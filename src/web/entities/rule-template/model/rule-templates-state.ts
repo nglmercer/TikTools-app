@@ -4,7 +4,6 @@ import { ref } from 'vue';
 import type { ControlClient } from '@/shared/api/control-client.ts';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 import {
-  BUILTIN_RULE_TEMPLATES,
   MAX_RULE_TEMPLATE_BYTES,
   parseRuleTemplateList,
   type RuleTemplate,
@@ -29,12 +28,10 @@ export function parseRuleTemplateImport(text: string): { templates: RuleTemplate
   return parseRuleTemplateList(value);
 }
 
-export function useRuleTemplates(control: ControlClient, persistence: () => boolean | null = () => null) {
+export function useRuleTemplates(control: ControlClient, persistence: () => boolean | null = () => null, builtinIds: () => ReadonlySet<string> = () => new Set()) {
   const custom = ref<RuleTemplate[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
-
-  const builtinIds = new Set(BUILTIN_RULE_TEMPLATES.map((template) => template.id));
 
   const loadCustom = async (): Promise<void> => {
     loading.value = true;
@@ -71,7 +68,7 @@ export function useRuleTemplates(control: ControlClient, persistence: () => bool
   };
 
   const importTemplates = async (templates: RuleTemplate[]): Promise<number> => {
-    const taken = new Set([...builtinIds, ...custom.value.map((template) => template.id)]);
+    const taken = new Set([...builtinIds(), ...custom.value.map((template) => template.id)]);
     const next = [...custom.value];
     for (const template of templates) {
       const id = taken.has(template.id) ? freshCustomId() : template.id;

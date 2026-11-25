@@ -7,7 +7,7 @@
   "license": "MIT",
   "engines": { "tiktools": ">=0.3.3, <5.0.0" },
   "categories": ["games", "integrations"],
-  "repository": "https://github.com/nglmercer/TikTools-app",
+  "repository": "https://github.com/nglmercer/plugins-example-tiktools",
   "description": "Control R.E.P.O. gameplay through its local REST API.",
   "icon": "terminal",
   "tags": [

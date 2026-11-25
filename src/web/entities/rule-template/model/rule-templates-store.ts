@@ -4,11 +4,11 @@ import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useRuleTemplates } from './rule-templates-state.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { libraryJournal } from './library-journal.ts';
-import { BUILTIN_RULE_TEMPLATES, parseRuleTemplate, type RuleTemplate } from '../lib/rule-templates.ts';
+import { parseRuleTemplate, snapshotRuleTemplates, type RuleTemplate } from '../lib/rule-templates.ts';
 import { ControlCallError, errorMessage } from '@/shared/api/control-client.ts';
 
 export const useRuleTemplatesStore = defineStore('rule-templates', () => {
-  const client = useControlClient(); const automation = useAutomationStore(); const legacy = useRuleTemplates(client, () => automation.persistent); const library = libraryJournal(client);
+  const client = useControlClient(); const automation = useAutomationStore(); const builtinIds = () => new Set(snapshotRuleTemplates(automation.behavior).map((template) => template.id)); const legacy = useRuleTemplates(client, () => automation.persistent, builtinIds); const library = libraryJournal(client);
   const error = ref<string | null>(null);
   const stagedImports = new WeakMap<RuleTemplate[], RuleTemplate[]>();
   let customSerial = 0;
@@ -23,7 +23,7 @@ export const useRuleTemplatesStore = defineStore('rule-templates', () => {
   async function importTemplates(templates: RuleTemplate[]): Promise<number> {
     if (memory.value) return legacy.importTemplates(templates);
     error.value = null;
-    const taken = new Set([...BUILTIN_RULE_TEMPLATES, ...custom.value].map((template) => template.id));
+    const taken = new Set([...builtinIds(), ...custom.value.map((template) => template.id)]);
     const captured = stagedImports.get(templates) ?? templates.map(({ custom: _custom, ...template }) => {
       void _custom;
       let id = template.id;

@@ -110,7 +110,7 @@ use crate::{
         AutomationRuntimeState, PluginRuntimeState, ProcessorRuntimeState, TransportHealthState,
     },
     services::{
-        builtin_action_types, builtin_node_catalog, builtin_translations,
+        builtin_action_types, builtin_node_catalog, builtin_rule_templates, builtin_translations,
         media_selection_from_path_with_kind, option_sources::OptionSourceService,
         validate_media_picker_options, AppStateService, AutomationService, AwardOptions,
         CapabilityBroker, LiveService, PointAction, PointsService,

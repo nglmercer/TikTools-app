@@ -396,11 +396,11 @@ fn reads_declarative_manifest_without_entry() {
                 "optionSources": {"voice": {"path": "/v1/voices"}}
             }],
             "templates": [{
+                "templateVersion": 1,
                 "id": "chat-tts",
                 "title": {"default": "Chat to TTS"},
-                "eventType": "tiktok.chat",
-                "requiredNodeTypes": ["trigger.event", "action.http"],
-                "workflow": {"nodes": [{"type": "trigger.event"}, {"type": "action.http"}]}
+                "actions": [{"name": "Speak", "typeId": "sonicboom.server.speak", "config": {}}],
+                "event": {"name": "Chat TTS", "trigger": "tiktok.chat"}
             }],
             "pages": [{
                 "id": "connection",
@@ -449,15 +449,41 @@ fn rejects_malformed_declarative_blocks() {
         r#"{"schemaVersion":3,"id":"ok","name":"Ok","version":"1.0.0","runtime":"declarative","http":{"baseUrl":"http://localhost:3000","tokenProvisioning":{"strategy":"future-v2"}}}"#,
     )
     .is_ok());
-    // Template without workflow nodes.
-    assert!(validate_plugin_template(&serde_json::json!({
-        "id": "empty",
-        "title": {"default": "Empty"},
-        "eventType": "tiktok.chat",
-        "requiredNodeTypes": ["trigger.event"],
-        "workflow": {"nodes": []}
-    }))
-    .is_err());
+    // Templates are rule documents: missing actions or event, empty action
+    // lists, unknown filter operators and unversioned documents all fail.
+    for template in [
+        serde_json::json!({
+            "id": "empty", "title": {"default": "Empty"},
+            "actions": [{"name": "Speak", "typeId": "a.b", "config": {}}],
+            "event": {"name": "Chat", "trigger": "tiktok.chat"}
+        }),
+        serde_json::json!({
+            "templateVersion": 1, "id": "empty", "title": {"default": "Empty"},
+            "actions": [],
+            "event": {"name": "Chat", "trigger": "tiktok.chat"}
+        }),
+        serde_json::json!({
+            "templateVersion": 1, "id": "empty", "title": {"default": "Empty"},
+            "actions": [{"name": "Speak", "typeId": "a.b", "config": {}}]
+        }),
+        serde_json::json!({
+            "templateVersion": 1, "id": "empty", "title": {"default": "Empty"},
+            "actions": [{"name": "Speak", "typeId": "a.b", "config": {}}],
+            "event": {"name": "Chat", "trigger": "tiktok.chat",
+                "filters": [{"path": "event.data.comment", "operator": "regex", "value": "x"}]}
+        }),
+        serde_json::json!({
+            "templateVersion": 1, "id": "empty", "title": {"default": "Empty"},
+            "actions": [{"name": "Speak", "typeId": "a.b", "config": {}}],
+            "event": {"name": "Chat", "trigger": "tiktok.chat",
+                "filters": [{"path": "event.data.comment", "operator": "is-true", "as": "match"}]}
+        }),
+    ] {
+        assert!(
+            validate_plugin_template(&template).is_err(),
+            "template {template} must be rejected"
+        );
+    }
     // Unknown page section kinds never reach the WebView.
     for kind in ["html", "script", "component", "iframe"] {
         assert!(

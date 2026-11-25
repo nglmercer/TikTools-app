@@ -7,7 +7,7 @@
   "license": "MIT",
   "engines": { "tiktools": ">=0.3.3, <5.0.0" },
   "categories": ["audio", "chat"],
-  "repository": "https://github.com/nglmercer/TikTools-app",
+  "repository": "https://github.com/nglmercer/plugins-example-tiktools",
   "description": "Speak chat and events through a local or remote SonicBoom TTS server. The plugin owns its backend policy and isolated UI; the host enforces capabilities and ownership.",
   "longDescription": "Speak chat and events through a local or remote SonicBoom TTS server over plain HTTP. The plugin backend owns TTS policy and the isolated UI; the host interprets HTTP actions and enforces capabilities.\n\n- Voices and audio outputs load live from the server\n- API tokens are required when server authentication is enabled, including loopback\n- Track server playback and skip, pause, resume or clear the queue",
   "icon": "voice",
@@ -37,6 +37,7 @@
     "health": {
       "path": "/api/info",
       "strategy": "sonicboom",
+      "authProbePath": "/api/tts/plugin/providers",
       "timeoutMs": 5000
     },
     "tokenProvisioning": {
@@ -390,74 +391,145 @@
   },
   "templates": [
     {
+      "templateVersion": 1,
       "id": "chat-tts",
       "title": {
-        "default": "Chat to TTS (SonicBoom)",
+        "default": "Chat command to speech",
         "i18key": "sonicboom.server.template.chat-tts.title"
       },
       "description": {
-        "default": "Speak incoming chat through the SonicBoom server.",
+        "default": "Speak chat messages that start with a command prefix through SonicBoom TTS. Apply it once per voice preset (!voice1, !voice2…).",
         "i18key": "sonicboom.server.template.chat-tts.description"
       },
       "icon": "voice",
-      "eventType": "tiktok.chat",
-      "requiredNodeTypes": [
-        "trigger.event",
-        "action.http"
-      ],
-      "category": "Voice",
       "params": {
         "type": "object",
         "properties": {
-          "serverUrl": {
+          "command": {
             "type": "string",
-            "title": "Server URL",
-            "default": "http://127.0.0.1:17842"
+            "title": {
+              "default": "Command prefix",
+              "i18key": "automations.builtinTemplates.paramCommand"
+            },
+            "default": "!voice"
           },
           "voice": {
             "type": "string",
-            "title": "Voice",
-            "default": "M1"
-          },
-          "language": {
-            "type": "string",
-            "title": "Language",
-            "default": "en"
-          },
-          "playNow": {
-            "type": "boolean",
-            "title": "Interrupt and play now",
-            "default": false
+            "title": {
+              "default": "Voice",
+              "i18key": "sonicboom.server.speak.voice.label"
+            },
+            "default": "",
+            "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice"
           },
           "provider": {
             "type": "string",
-            "title": "TTS provider",
-            "default": "supertonic"
+            "title": {
+              "default": "TTS provider",
+              "i18key": "sonicboom.server.speak.provider.label"
+            },
+            "default": "",
+            "optionsFrom": "plugin-action-options:sonicboom.server.speak:provider"
+          }
+        },
+        "required": [
+          "command"
+        ]
+      },
+      "actions": [
+        {
+          "name": "Speak command",
+          "typeId": "sonicboom.server.speak",
+          "config": {
+            "text": "{{ event.data.comment }}",
+            "provider": "{{ params.provider }}",
+            "voice": "{{ params.voice }}",
+            "language": "",
+            "playNow": "false",
+            "stripPrefix": "{{ params.command }}"
           }
         }
+      ],
+      "event": {
+        "name": "Chat TTS command",
+        "trigger": "tiktok.chat",
+        "filters": [
+          {
+            "path": "event.data.comment",
+            "operator": "starts-with",
+            "value": "{{ params.command }}"
+          }
+        ]
+      }
+    },
+    {
+      "templateVersion": 1,
+      "id": "gift-tts",
+      "title": {
+        "default": "Gift speech alert",
+        "i18key": "sonicboom.server.template.gift-tts.title"
       },
-      "workflow": {
-        "nodes": [
-          {
-            "type": "trigger.event",
-            "config": {
-              "eventType": "tiktok.chat"
-            }
+      "description": {
+        "default": "Announce a gift through SonicBoom TTS when it arrives.",
+        "i18key": "sonicboom.server.template.gift-tts.description"
+      },
+      "icon": "voice",
+      "params": {
+        "type": "object",
+        "properties": {
+          "giftName": {
+            "type": "string",
+            "title": {
+              "default": "Gift name",
+              "i18key": "automations.builtinTemplates.paramGiftName"
+            },
+            "default": "Rose"
           },
+          "voice": {
+            "type": "string",
+            "title": {
+              "default": "Voice",
+              "i18key": "sonicboom.server.speak.voice.label"
+            },
+            "default": "",
+            "optionsFrom": "plugin-action-options:sonicboom.server.speak:voice"
+          },
+          "provider": {
+            "type": "string",
+            "title": {
+              "default": "TTS provider",
+              "i18key": "sonicboom.server.speak.provider.label"
+            },
+            "default": "",
+            "optionsFrom": "plugin-action-options:sonicboom.server.speak:provider"
+          }
+        },
+        "required": [
+          "giftName"
+        ]
+      },
+      "actions": [
+        {
+          "name": "Announce gift",
+          "typeId": "sonicboom.server.speak",
+          "config": {
+            "text": "{{ event.user.nickname }} sent {{ event.data.giftName }}",
+            "provider": "{{ params.provider }}",
+            "voice": "{{ params.voice }}",
+            "language": "",
+            "playNow": "false",
+            "stripPrefix": ""
+          }
+        }
+      ],
+      "event": {
+        "name": "Gift TTS",
+        "trigger": "tiktok.gift",
+        "filters": [
           {
-            "type": "action.http",
-            "config": {
-              "method": "POST",
-              "url": "{{ params.serverUrl }}/api/tts/play?provider={{ params.provider }}&voice={{ params.voice }}&lang={{ params.language }}&play_now={{ params.playNow }}",
-              "headers": {
-                "Content-Type": "text/plain"
-              },
-              "body": "{{ event.data.comment }}",
-              "bodyMode": "text",
-              "timeoutMs": 120000,
-              "responseType": "json",
-              "allowPrivateNetwork": true
-            }
+            "path": "event.data.giftName",
+            "operator": "eq",
+            "value": "{{ params.giftName }}"
           }
         ]
       }
@@ -558,8 +630,10 @@
       "sonicboom.server.speak.title": "Hablar con SonicBoom",
       "sonicboom.server.speak.voice.hint": "Las voces se cargan en vivo desde el servidor. Vacío mantiene la predeterminada del servidor.",
       "sonicboom.server.speak.voice.label": "Voz",
-      "sonicboom.server.template.chat-tts.description": "Lee el chat entrante a través del servidor SonicBoom.",
-      "sonicboom.server.template.chat-tts.title": "Chat a TTS (SonicBoom)"
+      "sonicboom.server.template.chat-tts.description": "Lee por TTS los mensajes que empiezan con un prefijo de comando en SonicBoom. Aplícalo una vez por preset de voz (!voice1, !voice2…).",
+      "sonicboom.server.template.chat-tts.title": "Comando de chat a voz",
+      "sonicboom.server.template.gift-tts.title": "Alerta de voz por regalo",
+      "sonicboom.server.template.gift-tts.description": "Anuncia un regalo por TTS de SonicBoom cuando llega."
     },
     "fr": {
       "sonicboom.server.page.connection.intro": "Pointez TikTools vers un serveur SonicBoom, puis testez la connexion avant de créer des automatisations.",
@@ -581,8 +655,10 @@
       "sonicboom.server.speak.title": "Parler avec SonicBoom",
       "sonicboom.server.speak.voice.hint": "Les voix se chargent en direct depuis le serveur. Vide conserve la voix par défaut du serveur.",
       "sonicboom.server.speak.voice.label": "Voix",
-      "sonicboom.server.template.chat-tts.description": "Lit le chat entrant via le serveur SonicBoom.",
-      "sonicboom.server.template.chat-tts.title": "Chat vers TTS (SonicBoom)"
+      "sonicboom.server.template.chat-tts.description": "Prononce en TTS les messages commençant par un préfixe de commande via SonicBoom. À appliquer une fois par preset de voix (!voice1, !voice2…).",
+      "sonicboom.server.template.chat-tts.title": "Commande de chat en voix",
+      "sonicboom.server.template.gift-tts.title": "Annonce vocale de cadeau",
+      "sonicboom.server.template.gift-tts.description": "Annonce un cadeau en TTS SonicBoom à son arrivée."
     },
     "ja": {
       "sonicboom.server.page.connection.intro": "TikToolsをSonicBoomサーバーに接続し、自動化を作成する前に接続をテストしてください。",
@@ -604,8 +680,10 @@
       "sonicboom.server.speak.title": "SonicBoomで読み上げ",
       "sonicboom.server.speak.voice.hint": "音声はサーバーからライブで読み込まれます。空欄の場合はサーバーのデフォルトを使用します。",
       "sonicboom.server.speak.voice.label": "ボイス",
-      "sonicboom.server.template.chat-tts.description": "受信したチャットをSonicBoomサーバーで読み上げます。",
-      "sonicboom.server.template.chat-tts.title": "チャットをTTSに（SonicBoom）"
+      "sonicboom.server.template.chat-tts.description": "コマンドプレフィックスで始まるチャットメッセージをSonicBoom TTSで読み上げます。音声プリセットごとに1回適用してください（!voice1、!voice2…）。",
+      "sonicboom.server.template.chat-tts.title": "チャットコマンドを音声読み上げ",
+      "sonicboom.server.template.gift-tts.title": "ギフト音声アナウンス",
+      "sonicboom.server.template.gift-tts.description": "ギフトが届いたときにSonicBoom TTSでアナウンスします。"
     },
     "pt": {
       "sonicboom.server.page.connection.intro": "Aponte o TikTools para um servidor SonicBoom e teste a conexão antes de criar automações.",
@@ -627,8 +705,10 @@
       "sonicboom.server.speak.title": "Falar com SonicBoom",
       "sonicboom.server.speak.voice.hint": "As vozes carregam ao vivo do servidor. Vazio mantém o padrão do servidor.",
       "sonicboom.server.speak.voice.label": "Voz",
-      "sonicboom.server.template.chat-tts.description": "Lê o chat recebido através do servidor SonicBoom.",
-      "sonicboom.server.template.chat-tts.title": "Chat para TTS (SonicBoom)"
+      "sonicboom.server.template.chat-tts.description": "Fala por TTS as mensagens que começam com um prefixo de comando via SonicBoom. Aplique uma vez por preset de voz (!voice1, !voice2…).",
+      "sonicboom.server.template.chat-tts.title": "Comando de chat em voz",
+      "sonicboom.server.template.gift-tts.title": "Alerta de voz por presente",
+      "sonicboom.server.template.gift-tts.description": "Anuncia um presente por TTS do SonicBoom quando ele chega."
     },
     "zh": {
       "sonicboom.server.page.connection.intro": "将 TikTools 指向 SonicBoom 服务器，然后在构建自动化之前测试连接。",
@@ -650,8 +730,10 @@
       "sonicboom.server.speak.title": "用 SonicBoom 朗读",
       "sonicboom.server.speak.voice.hint": "语音从服务器实时加载。留空则使用服务器默认语音。",
       "sonicboom.server.speak.voice.label": "语音",
-      "sonicboom.server.template.chat-tts.description": "通过 SonicBoom 服务器朗读传入的聊天消息。",
-      "sonicboom.server.template.chat-tts.title": "聊天转语音（SonicBoom）"
+      "sonicboom.server.template.chat-tts.description": "通过 SonicBoom TTS 朗读以命令前缀开头的聊天消息。每个语音预设应用一次（!voice1、!voice2…）。",
+      "sonicboom.server.template.chat-tts.title": "聊天命令语音播报",
+      "sonicboom.server.template.gift-tts.title": "礼物语音提醒",
+      "sonicboom.server.template.gift-tts.description": "礼物到达时通过 SonicBoom TTS 播报。"
     }
   }
 }

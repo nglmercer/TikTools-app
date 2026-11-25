@@ -18,6 +18,7 @@
     "apiVersion": { "type": "integer" },
     "trust": { "enum": ["trusted", "sandboxed", "untrusted"] },
     "capabilities": { "type": "array", "maxItems": 128, "items": { "type": "string", "pattern": "^\\S{1,256}$" } },
+    "capabilityProviders": { "type": "array", "maxItems": 64, "items": { "type": "object", "properties": { "capability": { "type": "string", "pattern": "^\\S{1,256}$" }, "actionType": { "type": "string", "pattern": "^\\S{1,128}$" } }, "required": ["capability", "actionType"], "additionalProperties": false } },
     "permissions": { "type": "array", "maxItems": 128, "items": { "type": "string", "pattern": "^\\S{1,256}$" } },
     "protocolVersion": { "const": 1 },
     "abiVersion": { "const": 1 },

@@ -5,7 +5,7 @@ import { BEHAVIOR_TRIGGERS } from '../../../../automation/behavior/schema.ts';
 import type { BehaviorSnapshot } from '../../../../automation/behavior/types.ts';
 import { availableActionTypeIds, matchesQuery } from '@/entities/automation/lib/automation-records.ts';
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
-import { BUILTIN_RULE_TEMPLATES, missingRuleTemplateRequirements, type RuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
+import { missingRuleTemplateRequirements, snapshotRuleTemplates, type RuleTemplate } from '@/entities/rule-template/lib/rule-templates.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
@@ -14,7 +14,7 @@ const emit = defineEmits<{ configure: [template: RuleTemplate] }>();
 const query = defineModel<string>('query', { default: '' });
 const { t } = useI18n();
 const { triggerName } = useAutomationText();
-const templates = computed(() => [...BUILTIN_RULE_TEMPLATES, ...props.customTemplates]);
+const templates = computed(() => [...snapshotRuleTemplates(props.snapshot), ...props.customTemplates]);
 const availableTypes = computed(() => availableActionTypeIds(props.snapshot.plugins, props.snapshot.actionTypes));
 const knownTriggers = computed(() => [...BEHAVIOR_TRIGGERS, ...(props.snapshot.eventTypes ?? []).map((entry) => entry.type)]);
 const entries = computed(() =>

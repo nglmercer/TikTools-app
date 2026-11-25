@@ -2,22 +2,35 @@ import { expect, test } from 'vitest';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { createFakeControlClient, createStoreHarness } from '@/shared/lib/testing/fake-control-client.ts';
-import { BUILTIN_RULE_TEMPLATES } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
+import type { RuleTemplate } from '../../../../../../src/web/entities/rule-template/lib/rule-templates.ts';
 import { libraryJournal } from '../../../../../../src/web/entities/rule-template/model/library-journal.ts';
 import { useRuleTemplatesStore } from '../../../../../../src/web/entities/rule-template/model/rule-templates-store.ts';
+
+
+function hostTemplateDocument(id: string): RuleTemplate {
+  return {
+    templateVersion: 1,
+    id,
+    title: { default: id },
+    description: { default: '' },
+    icon: 'plugin',
+    actions: [{ name: 'Log', typeId: 'core.log', enabled: true, config: { message: 'hi' } }],
+    event: { name: id, enabled: true, trigger: 'tiktok.chat', filters: [], cooldownMs: 0, cooldownScope: 'global', runMode: 'all' },
+  };
+}
 
 test('template gallery imports freeze collision IDs across uncertainty and never fall back to app-state writes', async () => {
   const native = nativeDefinitionHost((method, _params, options) => {
     if (method === 'system.info') return { features: { persistence: true } };
     if (method === 'automation.runs') return { runs: [] };
     if (method === 'app.state.get') return { state: {} };
-    if (method === 'automation.snapshot') { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {} }; }
+    if (method === 'automation.snapshot') { options?.onMetadata?.({ resourceVersions: [] }); return { actions: [], events: [], plugins: [], actionTypes: [], translations: {}, hostTemplates: [hostTemplateDocument('host-gift-log')] }; }
     throw new Error(`Unexpected legacy mutation ${method}`);
   });
   const fake = createFakeControlClient(native.handle); const harness = createStoreHarness(fake.client);
   const automation = harness.use(() => useAutomationStore()); const templates = harness.use(() => useRuleTemplatesStore());
   await automation.refresh();
-  const journal = libraryJournal(fake.client); const documents = [structuredClone(BUILTIN_RULE_TEMPLATES[0]!)];
+  const journal = libraryJournal(fake.client); const documents = [hostTemplateDocument('host-gift-log')];
   native.library.loseNextReply();
   const importing = templates.importTemplates(documents); const original = journal.draft.value?.mutation;
   expect(original?.operation).toBe('import-templates');

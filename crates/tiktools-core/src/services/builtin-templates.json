@@ -1,0 +1,128 @@
+[
+  {
+    "templateVersion": 1,
+    "id": "gift-webhook",
+    "title": { "default": "Gift to webhook", "i18key": "automations.builtinTemplates.giftWebhookTitle" },
+    "description": { "default": "POST every gift to a server or webhook.", "i18key": "automations.builtinTemplates.giftWebhookDesc" },
+    "icon": "webhook",
+    "params": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "title": { "default": "Webhook URL", "i18key": "automations.builtinTemplates.paramWebhookUrl" }, "default": "https://" }
+      },
+      "required": ["url"]
+    },
+    "actions": [{
+      "name": "Send gift webhook",
+      "typeId": "core.fetch",
+      "config": {
+        "method": "POST",
+        "url": "{{ params.url }}",
+        "headers": {},
+        "body": "{\n  \"viewer\": \"{{ event.user.uniqueId }}\",\n  \"gift\": \"{{ event.data.giftName }}\",\n  \"count\": \"{{ event.data.repeatCount }}\"\n}",
+        "timeoutMs": 5000,
+        "emitResponseAs": "",
+        "allowPrivateNetwork": false
+      }
+    }],
+    "event": { "name": "Gift webhook", "trigger": "tiktok.gift" }
+  },
+  {
+    "templateVersion": 1,
+    "id": "chat-webhook",
+    "title": { "default": "Chat to webhook", "i18key": "automations.builtinTemplates.chatWebhookTitle" },
+    "description": { "default": "POST every chat message to a server or webhook.", "i18key": "automations.builtinTemplates.chatWebhookDesc" },
+    "icon": "webhook",
+    "params": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "title": { "default": "Webhook URL", "i18key": "automations.builtinTemplates.paramWebhookUrl" }, "default": "https://" }
+      },
+      "required": ["url"]
+    },
+    "actions": [{
+      "name": "Send chat webhook",
+      "typeId": "core.fetch",
+      "config": {
+        "method": "POST",
+        "url": "{{ params.url }}",
+        "headers": {},
+        "body": "{\n  \"viewer\": \"{{ event.user.uniqueId }}\",\n  \"comment\": \"{{ event.data.comment }}\"\n}",
+        "timeoutMs": 5000,
+        "emitResponseAs": "",
+        "allowPrivateNetwork": false
+      }
+    }],
+    "event": { "name": "Chat webhook", "trigger": "tiktok.chat" }
+  },
+  {
+    "templateVersion": 1,
+    "id": "gift-sound",
+    "title": { "default": "Gift sound alert", "i18key": "automations.builtinTemplates.giftSoundTitle" },
+    "description": { "default": "Play a local sound when a gift arrives.", "i18key": "automations.builtinTemplates.giftSoundDesc" },
+    "icon": "volume",
+    "params": {
+      "type": "object",
+      "properties": {
+        "giftName": { "type": "string", "title": { "default": "Gift name", "i18key": "automations.builtinTemplates.paramGiftName" }, "default": "Rose" },
+        "file": { "type": "string", "title": { "default": "Audio file path", "i18key": "automations.builtinTemplates.paramAudioFile" }, "default": "" }
+      },
+      "required": ["giftName", "file"]
+    },
+    "actions": [{
+      "name": "Play gift sound",
+      "typeId": "audio.play",
+      "config": { "file": "{{ params.file }}", "volume": 1, "overlap": "restart" }
+    }],
+    "event": {
+      "name": "Gift sound",
+      "trigger": "tiktok.gift",
+      "filters": [{ "path": "event.data.giftName", "operator": "eq", "value": "{{ params.giftName }}" }]
+    }
+  },
+  {
+    "templateVersion": 1,
+    "id": "chat-points",
+    "title": { "default": "Chat points", "i18key": "automations.builtinTemplates.chatPointsTitle" },
+    "description": { "default": "Award points for every chat message.", "i18key": "automations.builtinTemplates.chatPointsDesc" },
+    "icon": "points",
+    "params": {
+      "type": "object",
+      "properties": {
+        "delta": { "type": "number", "title": { "default": "Points", "i18key": "automations.builtinTemplates.paramPoints" }, "default": 10 }
+      },
+      "required": ["delta"]
+    },
+    "actions": [{
+      "name": "Award chat points",
+      "typeId": "core.points",
+      "config": { "uniqueId": "{{ event.user.uniqueId }}", "delta": "{{ params.delta }}" }
+    }],
+    "event": { "name": "Chat points", "trigger": "tiktok.chat" }
+  },
+  {
+    "templateVersion": 1,
+    "id": "moderation-subtract",
+    "title": { "default": "Moderation: subtract points", "i18key": "automations.builtinTemplates.moderationSubtractTitle" },
+    "description": { "default": "Deduct points when a chat message trips the repetition filter.", "i18key": "automations.builtinTemplates.moderationSubtractDesc" },
+    "icon": "shield",
+    "params": {
+      "type": "object",
+      "properties": {
+        "threshold": { "type": "number", "title": { "default": "Repetition threshold", "i18key": "automations.builtinTemplates.paramThreshold" }, "default": 0.7 },
+        "amount": { "type": "number", "title": { "default": "Points to subtract", "i18key": "automations.builtinTemplates.paramAmount" }, "default": 10 }
+      },
+      "required": ["threshold", "amount"]
+    },
+    "actions": [{
+      "name": "Subtract moderation points",
+      "typeId": "core.points.subtract",
+      "config": { "uniqueId": "{{ event.user.uniqueId }}", "amount": "{{ params.amount }}" }
+    }],
+    "event": {
+      "name": "Moderation penalty",
+      "trigger": "tiktok.chat",
+      "filters": [{ "path": "event.intel.comment.composition.repetitionScore", "operator": "gte", "value": "{{ params.threshold }}" }]
+    }
+  }
+]

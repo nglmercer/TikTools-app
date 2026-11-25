@@ -59,7 +59,6 @@ pub(crate) const MAX_HTTP_HEADERS: usize = 32;
 pub(crate) const MAX_BASE_URL_LEN: usize = 512;
 pub(crate) const MAX_HTTP_PATH_LEN: usize = 1_024;
 pub(crate) const MAX_OPTION_SOURCES: usize = 32;
-pub(crate) const MAX_TEMPLATE_NODES: usize = 16;
 pub(crate) const MAX_PAGE_SECTIONS: usize = 16;
 #[derive(Debug, Error)]
 pub enum ManifestError {

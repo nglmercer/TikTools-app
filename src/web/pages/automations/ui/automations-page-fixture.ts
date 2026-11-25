@@ -1,4 +1,6 @@
 import { resetResolutionPreference } from '@/features/review-shared/model/resolution-preference.ts';
+// Same host-owned catalog the real host stamps into every behavior snapshot.
+import hostTemplates from '../../../../../crates/tiktools-core/src/services/builtin-templates.json';
 import { nativeDefinitionHost } from '@/entities/automation/testing/native-definition-fixture.ts';
 import { enableAutoUnmount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { afterEach, beforeEach, expect, vi } from 'vitest';
@@ -75,7 +77,7 @@ interface MountExtras {
 }
 
 async function mountPage(intercept?: (method: string, params: RpcParams | undefined, options?: ControlCallOptions) => unknown, waitForInitial = true, extras: MountExtras = {}) {
-  const snapshot: BehaviorSnapshot = { actions: [logAction], events: [giftEvent, chatEvent], plugins: [], actionTypes, translations: {} };
+  const snapshot: BehaviorSnapshot = { actions: [logAction], events: [giftEvent, chatEvent], plugins: [], actionTypes, translations: {}, hostTemplates };
   const versions = new Map([['action:a1', '1'], ['event:e1', '1'], ['event:e2', '1']]);
   const requests: Array<{ method: string; meta?: RequestMetadata }> = [];
   const { client, calls } = createFakeControlClient(nativeDefinitionHost((method, params, options) => {

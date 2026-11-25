@@ -7,7 +7,6 @@ import {
   isHostOptionSource,
   mergePluginAutocomplete,
   mergePluginPages,
-  mergePluginTemplates,
   mergePluginUis,
   normalizeOptionsFrom,
   optionFields,
@@ -18,7 +17,6 @@ import {
   splitTemplateId,
   toPluginAutocompleteContribution,
   toPluginPageDescriptor,
-  toPluginTemplateDescriptor,
   isSecretField,
 } from '../../../../src/automation/plugins/declarative.ts';
 
@@ -91,23 +89,6 @@ test('template and nav ids round-trip', () => {
     pageId: 'connection',
   });
   expect(parsePluginNavId('feed')).toBeUndefined();
-});
-
-test('template descriptors reject malformed snapshots', () => {
-  const valid = {
-    id: 'sonicboom.server/chat-tts',
-    pluginId: 'sonicboom.server',
-    title: { default: 'Chat to TTS' },
-    eventType: 'tiktok.chat',
-    requiredNodeTypes: ['trigger.event', 'action.http'],
-    workflow: { nodes: [{ type: 'trigger.event' }, { type: 'action.http', config: {} }] },
-    source: { kind: 'plugin', pluginId: 'sonicboom.server' },
-  };
-  expect(toPluginTemplateDescriptor(valid)?.id).toBe('sonicboom.server/chat-tts');
-  expect(toPluginTemplateDescriptor({ ...valid, title: { default: '' } })).toBeUndefined();
-  expect(toPluginTemplateDescriptor({ ...valid, workflow: { nodes: [] } })).toBeUndefined();
-  expect(toPluginTemplateDescriptor({ ...valid, requiredNodeTypes: [] })).toBeUndefined();
-  expect(mergePluginTemplates(['chat-tts'], [valid, { ...valid }, 'nope'])).toHaveLength(1);
 });
 
 test('page descriptors enforce the fixed widget set', () => {

@@ -1,4 +1,7 @@
 import type { BehaviorSnapshot } from '../../../automation/behavior/types.ts';
+// The demo host serves the same host-owned catalog the real host stamps
+// into every behavior snapshot, so the template gallery is not empty.
+import hostTemplates from '../../../../crates/tiktools-core/src/services/builtin-templates.json';
 import { baseHostState } from './base-host.ts';
 import type { ScenarioId } from '../scenarios.ts';
 import { demoViewers, demoGifts } from './audience.ts';
@@ -24,7 +27,7 @@ export function scenarioState(id: ScenarioId) {
     events: [{ schemaVersion: 1, id: 'welcome-event', name: 'Welcome chat', enabled: true, trigger: 'tiktok.chat', filters: [], cooldownMs: 0, cooldownScope: 'global', actionIds: ['welcome-action'], runMode: 'all' }],
     actionTypes: [logType], plugins: [{ installed: true, enabled: true, available: true, running: true,
       descriptor: { id: 'demo.audio', name: text('Demo Audio'), version: '1.0.0', description: text('Simulated audio integration; no service or audio device is contacted.'), dependency: text('Demo runtime'), permissions: ['audio.play'], actionTypeIds: [], eventTypeIds: [], hasSettings: true, hasConnectionProbe: true } }],
-    eventTypes: [], pluginTemplates: [], pluginPages: [], translations: {},
+    eventTypes: [], pluginTemplates: [], pluginPages: [], translations: {}, hostTemplates,
   };
   const state = baseHostState({
     automationSnapshot: snapshot as unknown as Record<string, unknown>,

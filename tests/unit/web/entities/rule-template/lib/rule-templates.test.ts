@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import {
   applyRuleTemplate,
-  BUILTIN_RULE_TEMPLATES,
+  snapshotRuleTemplates,
   exportRuleTemplate,
   missingRuleTemplateRequirements,
   parseRuleTemplate,
@@ -21,12 +21,17 @@ const MINIMAL = {
   event: { name: 'Gift', trigger: 'tiktok.gift' },
 };
 
-test('builtins parse, stay available on installed types, and round-trip', () => {
-  expect(BUILTIN_RULE_TEMPLATES.length).toBeGreaterThanOrEqual(4);
-  // `sonicboom.server.speak` ships with the example TTS plugin; builtins
-  // that need it surface as unavailable until that plugin is installed.
-  const available = new Set(['core.fetch', 'core.points', 'core.points.subtract', 'audio.play', 'core.log', 'sonicboom.server.speak']);
-  for (const template of BUILTIN_RULE_TEMPLATES) {
+test('host templates parse, stay available on installed types, and round-trip', () => {
+  // The host serves these documents in the snapshot from
+  // crates/tiktools-core/src/services/builtin-templates.json; the frontend
+  // never hardcodes its own copy anymore.
+  const documents = JSON.parse(
+    readFileSync(join(process.cwd(), 'crates', 'tiktools-core', 'src', 'services', 'builtin-templates.json'), 'utf8'),
+  ) as unknown[];
+  const templates = snapshotRuleTemplates({ hostTemplates: documents });
+  expect(templates.length).toBeGreaterThanOrEqual(4);
+  const available = new Set(['core.fetch', 'core.points', 'core.points.subtract', 'audio.play', 'core.log']);
+  for (const template of templates) {
     const requirements = missingRuleTemplateRequirements(
       template,
       available,
@@ -36,6 +41,21 @@ test('builtins parse, stay available on installed types, and round-trip', () => 
     const reparsed = parseRuleTemplate(JSON.parse(exportRuleTemplate(template)));
     expect(reparsed.ok).toBe(true);
   }
+});
+
+test('snapshot templates dedupe by id and drop unparseable entries', () => {
+  const minimal = (id: string) => ({
+    templateVersion: 1,
+    id,
+    title: { default: id },
+    actions: [{ name: 'Log', typeId: 'core.log', config: {} }],
+    event: { name: id, trigger: 'tiktok.chat' },
+  });
+  const templates = snapshotRuleTemplates({
+    hostTemplates: [minimal('host-one')],
+    pluginTemplates: [minimal('host-one'), minimal('sonicboom.server/chat-tts'), { broken: true }],
+  });
+  expect(templates.map((template) => template.id)).toEqual(['host-one', 'sonicboom.server/chat-tts']);
 });
 
 test('minimal template normalizes defaults', () => {
@@ -128,7 +148,8 @@ test('builtin param titles carry i18keys that resolve in every shipped locale', 
   // key missing from a locale would silently fall back to English. Pin
   // full coverage for the host-supported locales instead.
   const seen = new Map<string, string>();
-  for (const template of BUILTIN_RULE_TEMPLATES) {
+  const documents = JSON.parse(readFileSync(join(process.cwd(), 'crates', 'tiktools-core', 'src', 'services', 'builtin-templates.json'), 'utf8')) as unknown[];
+  for (const template of snapshotRuleTemplates({ hostTemplates: documents })) {
     const properties = template.params?.['properties'];
     if (!properties || typeof properties !== 'object' || Array.isArray(properties)) continue;
     for (const property of Object.values(properties as Record<string, unknown>)) {
@@ -139,7 +160,7 @@ test('builtin param titles carry i18keys that resolve in every shipped locale', 
       if (typeof key === 'string' && key) seen.set(key, (title as Record<string, unknown>)['default'] as string);
     }
   }
-  expect(seen.size).toBeGreaterThanOrEqual(9);
+  expect(seen.size).toBeGreaterThanOrEqual(6);
   for (const locale of ['en', 'es', 'pt', 'fr', 'zh', 'ja']) {
     const messages = (await import(`../../../../../../src/web/shared/i18n/locales/${locale}.ts`)).default;
     const flat: Record<string, string> = {};

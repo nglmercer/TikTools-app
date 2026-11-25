@@ -16,7 +16,7 @@ export interface TemplateText {
 }
 
 export const RULE_TEMPLATE_VERSION = 1;
-export const RULE_TEMPLATE_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
+export const RULE_TEMPLATE_ID_PATTERN = /^[a-z0-9][a-z0-9._/-]{1,63}$/;
 export const MAX_RULE_TEMPLATE_BYTES = 65536;
 const MAX_ACTIONS = 8;
 const MAX_FILTERS = 12;
@@ -316,209 +316,23 @@ export function exportRuleTemplate(template: RuleTemplate): string {
   return JSON.stringify(document, null, 2);
 }
 
-const BUILTIN_DOCUMENTS: unknown[] = [
-  {
-    templateVersion: 1,
-    id: 'gift-webhook',
-    title: { default: 'Gift to webhook', i18key: 'automations.builtinTemplates.giftWebhookTitle' },
-    description: { default: 'POST every gift to a server or webhook.', i18key: 'automations.builtinTemplates.giftWebhookDesc' },
-    icon: 'webhook',
-    params: {
-      type: 'object',
-      properties: {
-        url: { type: 'string', title: { default: 'Webhook URL', i18key: 'automations.builtinTemplates.paramWebhookUrl' }, default: 'https://' },
-      },
-      required: ['url'],
-    },
-    actions: [{
-      name: 'Send gift webhook',
-      typeId: 'core.fetch',
-      config: {
-        method: 'POST',
-        url: '{{ params.url }}',
-        headers: {},
-        body: '{\n  "viewer": "{{ event.user.uniqueId }}",\n  "gift": "{{ event.data.giftName }}",\n  "count": "{{ event.data.repeatCount }}"\n}',
-        timeoutMs: 5000,
-        emitResponseAs: '',
-        allowPrivateNetwork: false,
-      },
-    }],
-    event: { name: 'Gift webhook', trigger: 'tiktok.gift' },
-  },
-  {
-    templateVersion: 1,
-    id: 'chat-webhook',
-    title: { default: 'Chat to webhook', i18key: 'automations.builtinTemplates.chatWebhookTitle' },
-    description: { default: 'POST every chat message to a server or webhook.', i18key: 'automations.builtinTemplates.chatWebhookDesc' },
-    icon: 'webhook',
-    params: {
-      type: 'object',
-      properties: {
-        url: { type: 'string', title: { default: 'Webhook URL', i18key: 'automations.builtinTemplates.paramWebhookUrl' }, default: 'https://' },
-      },
-      required: ['url'],
-    },
-    actions: [{
-      name: 'Send chat webhook',
-      typeId: 'core.fetch',
-      config: {
-        method: 'POST',
-        url: '{{ params.url }}',
-        headers: {},
-        body: '{\n  "viewer": "{{ event.user.uniqueId }}",\n  "comment": "{{ event.data.comment }}"\n}',
-        timeoutMs: 5000,
-        emitResponseAs: '',
-        allowPrivateNetwork: false,
-      },
-    }],
-    event: { name: 'Chat webhook', trigger: 'tiktok.chat' },
-  },
-  {
-    templateVersion: 1,
-    id: 'gift-sound',
-    title: { default: 'Gift sound alert', i18key: 'automations.builtinTemplates.giftSoundTitle' },
-    description: { default: 'Play a local sound when a gift arrives.', i18key: 'automations.builtinTemplates.giftSoundDesc' },
-    icon: 'volume',
-    params: {
-      type: 'object',
-      properties: {
-        giftName: { type: 'string', title: { default: 'Gift name', i18key: 'automations.builtinTemplates.paramGiftName' }, default: 'Rose' },
-        file: { type: 'string', title: { default: 'Audio file path', i18key: 'automations.builtinTemplates.paramAudioFile' }, default: '' },
-      },
-      required: ['giftName', 'file'],
-    },
-    actions: [{
-      name: 'Play gift sound',
-      typeId: 'audio.play',
-      config: { file: '{{ params.file }}', volume: 1, overlap: 'restart' },
-    }],
-    event: {
-      name: 'Gift sound',
-      trigger: 'tiktok.gift',
-      filters: [{ path: 'event.data.giftName', operator: 'eq', value: '{{ params.giftName }}' }],
-    },
-  },
-  {
-    templateVersion: 1,
-    id: 'chat-points',
-    title: { default: 'Chat points', i18key: 'automations.builtinTemplates.chatPointsTitle' },
-    description: { default: 'Award points for every chat message.', i18key: 'automations.builtinTemplates.chatPointsDesc' },
-    icon: 'points',
-    params: {
-      type: 'object',
-      properties: {
-        delta: { type: 'number', title: { default: 'Points', i18key: 'automations.builtinTemplates.paramPoints' }, default: 10 },
-      },
-      required: ['delta'],
-    },
-    actions: [{
-      name: 'Award chat points',
-      typeId: 'core.points',
-      config: { uniqueId: '{{ event.user.uniqueId }}', delta: '{{ params.delta }}' },
-    }],
-    event: { name: 'Chat points', trigger: 'tiktok.chat' },
-  },
-  {
-    templateVersion: 1,
-    id: 'moderation-subtract',
-    title: { default: 'Moderation: subtract points', i18key: 'automations.builtinTemplates.moderationSubtractTitle' },
-    description: { default: 'Deduct points when a chat message trips the repetition filter.', i18key: 'automations.builtinTemplates.moderationSubtractDesc' },
-    icon: 'shield',
-    params: {
-      type: 'object',
-      properties: {
-        threshold: { type: 'number', title: { default: 'Repetition threshold', i18key: 'automations.builtinTemplates.paramThreshold' }, default: 0.7 },
-        amount: { type: 'number', title: { default: 'Points to subtract', i18key: 'automations.builtinTemplates.paramAmount' }, default: 10 },
-      },
-      required: ['threshold', 'amount'],
-    },
-    actions: [{
-      name: 'Subtract moderation points',
-      typeId: 'core.points.subtract',
-      config: { uniqueId: '{{ event.user.uniqueId }}', amount: '{{ params.amount }}' },
-    }],
-    event: {
-      name: 'Moderation penalty',
-      trigger: 'tiktok.chat',
-      filters: [{ path: 'event.intel.comment.composition.repetitionScore', operator: 'gte', value: '{{ params.threshold }}' }],
-    },
-  },
-  {
-    templateVersion: 1,
-    id: 'chat-tts-command',
-    title: { default: 'Chat command to speech', i18key: 'automations.builtinTemplates.chatTtsCommandTitle' },
-    description: { default: 'Speak chat messages that start with a command prefix through SonicBoom TTS. Apply it once per voice preset (!voice1, !voice2…).', i18key: 'automations.builtinTemplates.chatTtsCommandDesc' },
-    icon: 'voice',
-    params: {
-      type: 'object',
-      properties: {
-        command: { type: 'string', title: { default: 'Command prefix', i18key: 'automations.builtinTemplates.paramCommand' }, default: '!voice' },
-        voice: { type: 'string', title: { default: 'Voice', i18key: 'automations.builtinTemplates.paramVoice' }, default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
-        provider: { type: 'string', title: { default: 'TTS provider', i18key: 'automations.builtinTemplates.paramProvider' }, default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:provider' },
-      },
-      required: ['command'],
-    },
-    actions: [{
-      name: 'Speak command',
-      typeId: 'sonicboom.server.speak',
-      config: {
-        text: '{{ event.data.comment }}',
-        provider: '{{ params.provider }}',
-        voice: '{{ params.voice }}',
-        language: '',
-        playNow: 'false',
-        stripPrefix: '{{ params.command }}',
-      },
-    }],
-    event: {
-      name: 'Chat TTS command',
-      trigger: 'tiktok.chat',
-      filters: [{ path: 'event.data.comment', operator: 'starts-with', value: '{{ params.command }}' }],
-    },
-  },
-  {
-    templateVersion: 1,
-    id: 'gift-tts',
-    title: { default: 'Gift speech alert', i18key: 'automations.builtinTemplates.giftTtsTitle' },
-    description: { default: 'Announce a gift through SonicBoom TTS when it arrives.', i18key: 'automations.builtinTemplates.giftTtsDesc' },
-    icon: 'voice',
-    params: {
-      type: 'object',
-      properties: {
-        giftName: { type: 'string', title: { default: 'Gift name', i18key: 'automations.builtinTemplates.paramGiftName' }, default: 'Rose' },
-        voice: { type: 'string', title: { default: 'Voice', i18key: 'automations.builtinTemplates.paramVoice' }, default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
-        provider: { type: 'string', title: { default: 'TTS provider', i18key: 'automations.builtinTemplates.paramProvider' }, default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:provider' },
-      },
-      required: ['giftName'],
-    },
-    actions: [{
-      name: 'Announce gift',
-      typeId: 'sonicboom.server.speak',
-      config: {
-        text: '{{ event.user.nickname }} sent {{ event.data.giftName }}',
-        provider: '{{ params.provider }}',
-        voice: '{{ params.voice }}',
-        language: '',
-        playNow: 'false',
-        stripPrefix: '',
-      },
-    }],
-    event: {
-      name: 'Gift TTS',
-      trigger: 'tiktok.gift',
-      filters: [{ path: 'event.data.giftName', operator: 'eq', value: '{{ params.giftName }}' }],
-    },
-  },
-];
-
-function loadBuiltins(): RuleTemplate[] {
+/** Host and plugin rule templates ride the behavior snapshot as data: the
+ * host stamps its builtin catalog into `hostTemplates` and every installed,
+ * enabled plugin's manifest templates (namespaced `<pluginId>/<id>`) into
+ * `pluginTemplates`. Both parse through the same grammar as user imports;
+ * entries that fail are dropped instead of breaking the catalog, and the
+ * first id wins so host templates shadow plugin copies. */
+export function snapshotRuleTemplates(snapshot: {
+  hostTemplates?: readonly unknown[];
+  pluginTemplates?: readonly unknown[];
+}): RuleTemplate[] {
+  const seen = new Set<string>();
   const templates: RuleTemplate[] = [];
-  for (const document of BUILTIN_DOCUMENTS) {
+  for (const document of [...(snapshot.hostTemplates ?? []), ...(snapshot.pluginTemplates ?? [])]) {
     const parsed = parseRuleTemplate(document);
-    if (!parsed.ok) throw new Error(`builtin rule template invalid: ${parsed.errors.join('; ')}`);
+    if (!parsed.ok || seen.has(parsed.template.id)) continue;
+    seen.add(parsed.template.id);
     templates.push(parsed.template);
   }
   return templates;
 }
-
-export const BUILTIN_RULE_TEMPLATES: RuleTemplate[] = loadBuiltins();

@@ -6,7 +6,6 @@ import type {
   PluginPageDescriptor,
   PluginPageSection,
   PluginPageSectionKind,
-  PluginTemplateDescriptor,
 } from '../behavior/types.ts';
 import type { JsonObject, JsonValue } from '../types.ts';
 // Leaf imports only (see behavior/types.ts): these modules never import
@@ -168,61 +167,6 @@ function readLocalized(value: JsonValue | undefined): Localized | undefined {
   };
 }
 
-function readNodeList(value: JsonValue | undefined): Array<{ type: string; config?: JsonObject }> | undefined {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 16) return undefined;
-  const nodes: Array<{ type: string; config?: JsonObject }> = [];
-  for (const entry of value) {
-    if (!isRecord(entry) || typeof entry.type !== 'string' || !entry.type) return undefined;
-    const node: { type: string; config?: JsonObject } = { type: entry.type };
-    if (entry.config !== undefined) {
-      if (!isRecord(entry.config)) return undefined;
-      node.config = entry.config;
-    }
-    nodes.push(node);
-  }
-  return nodes;
-}
-
-/**
- * Converts a host-stamped template entry to a typed descriptor. The host
- * already validated the shape; this guards the renderer against malformed
- * snapshots (old hosts, corrupt caches) by rejecting them instead of
- * rendering partial forms.
- */
-export function toPluginTemplateDescriptor(value: JsonValue): PluginTemplateDescriptor | undefined {
-  if (!isRecord(value)) return undefined;
-  if (typeof value.id !== 'string' || !value.id) return undefined;
-  if (typeof value.pluginId !== 'string' || !value.pluginId) return undefined;
-  const title = readLocalized(value.title);
-  if (!title) return undefined;
-  if (typeof value.eventType !== 'string' || !value.eventType) return undefined;
-  if (!Array.isArray(value.requiredNodeTypes) || value.requiredNodeTypes.length === 0) return undefined;
-  if (!value.requiredNodeTypes.every((entry): entry is string => typeof entry === 'string' && !!entry)) {
-    return undefined;
-  }
-  const workflow = isRecord(value.workflow) ? readNodeList(value.workflow.nodes) : undefined;
-  if (!workflow) return undefined;
-  const source = isRecord(value.source) && value.source.kind === 'plugin' && value.source.pluginId === value.pluginId
-    ? (value.source as ActionSource)
-    : { kind: 'plugin', pluginId: value.pluginId } as ActionSource;
-  const descriptor: PluginTemplateDescriptor = {
-    id: value.id,
-    pluginId: value.pluginId,
-    title,
-    eventType: value.eventType,
-    requiredNodeTypes: [...value.requiredNodeTypes] as string[],
-    workflow: { nodes: workflow },
-    source,
-  };
-  const description = readLocalized(value.description);
-  if (description) descriptor.description = description;
-  if (typeof value.icon === 'string' && value.icon) descriptor.icon = value.icon;
-  if (typeof value.category === 'string' && value.category) descriptor.category = value.category;
-  if (isRecord(value.params)) descriptor.params = value.params;
-  if (isRecord(value.uiHints)) descriptor.uiHints = value.uiHints;
-  return descriptor;
-}
-
 function toPluginPageSection(value: JsonValue): PluginPageSection | undefined {
   if (!isRecord(value)) return undefined;
   if (typeof value.kind !== 'string') return undefined;
@@ -306,26 +250,6 @@ export function toPluginPageDescriptor(value: JsonValue): PluginPageDescriptor |
   };
   if (typeof value.icon === 'string' && value.icon) descriptor.icon = value.icon;
   return descriptor;
-}
-
-/**
- * Merges host-stamped plugin templates into the selectable list. Invalid
- * entries are dropped; builtin ids win over colliding plugin ids.
- */
-export function mergePluginTemplates(
-  builtinIds: readonly string[],
-  stamped: readonly unknown[] | undefined,
-): PluginTemplateDescriptor[] {
-  if (!stamped) return [];
-  const seen = new Set(builtinIds);
-  const merged: PluginTemplateDescriptor[] = [];
-  for (const entry of stamped) {
-    const descriptor = toPluginTemplateDescriptor(entry as JsonValue);
-    if (!descriptor || seen.has(descriptor.id)) continue;
-    seen.add(descriptor.id);
-    merged.push(descriptor);
-  }
-  return merged;
 }
 
 /** Same merge contract for plugin configuration pages. */

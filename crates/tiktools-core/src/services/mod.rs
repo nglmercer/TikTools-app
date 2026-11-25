@@ -53,7 +53,9 @@ pub use capabilities::{
     redact_secret_settings, secret_setting_keys, CapabilityBroker, CapabilityError,
     SECRET_SETTING_PLACEHOLDER,
 };
-pub use catalog::{builtin_action_types, builtin_node_catalog, builtin_translations};
+pub use catalog::{
+    builtin_action_types, builtin_node_catalog, builtin_rule_templates, builtin_translations,
+};
 pub use live::LiveService;
 pub use media::{
     audio_file_ref_from_config, media_directory_ref, media_file_ref, media_selection_from_path,
