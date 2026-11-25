@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue';
+import { computed, ref, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { JsonObject } from '../../../../automation/types.ts';
 import type { PluginUiNode } from '../../../../plugin-ui/index.ts';
@@ -7,7 +7,9 @@ import { toSettingValues } from '../../../../shared/settings-values.ts';
 import { fieldOptionsFor } from '@/entities/plugin/lib/plugin-options.ts';
 import { readBinding, runAction, writeBinding, type BindingValue } from '@/entities/plugin/lib/plugin-ui-runtime.ts';
 import type { PluginUiContext } from '@/entities/plugin/model/plugin-ui-context.ts';
+import type { PluginActionOutcome } from '@/entities/plugin/model/plugins-state.ts';
 import PluginConnectionEditor from '@/features/configure-plugin-connection/ui/PluginConnectionEditor.vue';
+import PluginActionStatus from './PluginActionStatus.vue';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseCheckbox from '@/shared/ui/checkbox/BaseCheckbox.vue';
@@ -27,6 +29,9 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const id = useId();
+
+type ActionFeedback = { busy: boolean; outcome?: PluginActionOutcome };
+const actionFeedback = ref<Record<string, ActionFeedback>>({});
 
 const title = computed(() => {
   const node = props.node;
@@ -96,12 +101,45 @@ function saveForm(): void {
   if (values) props.context.settings.save(toSettingValues(values));
 }
 
-function pressNode(node: PluginUiNode): void {
-  if (node.type === 'button') runAction(props.context, node.action);
+function actionKey(node: PluginUiNode): string {
+  if (node.type !== 'button') return '';
+  return node.action.type === 'plugin-action' ? node.action.actionType : node.action.type;
+}
+
+function feedbackFor(node: PluginUiNode): ActionFeedback | undefined {
+  return actionFeedback.value[actionKey(node)];
+}
+
+function isActionDisabled(node: PluginUiNode): boolean {
+  if (node.type !== 'button') return false;
+  if (feedbackFor(node)?.busy) return true;
+  if (!node.disabledWhen) return false;
+  const value = readBinding(props.context, node.disabledWhen.bind);
+  return typeof value === 'string' && node.disabledWhen.values.includes(value);
+}
+
+async function pressNode(node: PluginUiNode): Promise<void> {
+  if (node.type !== 'button') return;
+  const key = actionKey(node);
+  if (actionFeedback.value[key]?.busy) return;
+  actionFeedback.value = { ...actionFeedback.value, [key]: { busy: true } };
+  try {
+    const outcome = await runAction(props.context, node.action);
+    actionFeedback.value = { ...actionFeedback.value, [key]: { busy: false, outcome: outcome ?? undefined } };
+  } catch {
+    actionFeedback.value = { ...actionFeedback.value, [key]: { busy: false } };
+  }
 }
 
 function press(): void {
-  pressNode(props.node);
+  void pressNode(props.node);
+}
+
+function feedbackText(node: PluginUiNode): string {
+  const feedback = feedbackFor(node);
+  if (!feedback) return '';
+  if (feedback.busy) return t('plugins.page.working');
+  return feedback.outcome?.error ?? feedback.outcome?.summary ?? '';
 }
 
 function actionLabel(node: PluginUiNode): string {
@@ -123,15 +161,25 @@ function actionLabel(node: PluginUiNode): string {
         v-if="item.buttons"
         class="plugin-node__actions"
       >
-        <BaseButton
+        <template
           v-for="entry in item.entries"
           :key="entry.index"
-          size="sm"
-          :variant="entry.node.type === 'button' ? (entry.node.variant ?? 'default') : 'default'"
-          @click="pressNode(entry.node)"
         >
-          {{ actionLabel(entry.node) }}
-        </BaseButton>
+          <BaseButton
+            size="sm"
+            :variant="entry.node.type === 'button' ? (entry.node.variant ?? 'default') : 'default'"
+            :disabled="isActionDisabled(entry.node)"
+            @click="pressNode(entry.node)"
+          >
+            {{ actionLabel(entry.node) }}
+          </BaseButton>
+          <span
+            v-if="feedbackText(entry.node)"
+            class="plugin-node__action-feedback"
+            :class="{ 'plugin-node__action-feedback--error': feedbackFor(entry.node)?.outcome?.ok === false }"
+            role="status"
+          >{{ feedbackText(entry.node) }}</span>
+        </template>
       </div>
       <PluginUiNode
         v-else
@@ -154,15 +202,25 @@ function actionLabel(node: PluginUiNode): string {
           v-if="item.buttons"
           class="plugin-node__actions"
         >
-          <BaseButton
+          <template
             v-for="entry in item.entries"
             :key="entry.index"
-            size="sm"
-            :variant="entry.node.type === 'button' ? (entry.node.variant ?? 'default') : 'default'"
-            @click="pressNode(entry.node)"
           >
-            {{ actionLabel(entry.node) }}
-          </BaseButton>
+            <BaseButton
+              size="sm"
+              :variant="entry.node.type === 'button' ? (entry.node.variant ?? 'default') : 'default'"
+              :disabled="isActionDisabled(entry.node)"
+              @click="pressNode(entry.node)"
+            >
+              {{ actionLabel(entry.node) }}
+            </BaseButton>
+            <span
+              v-if="feedbackText(entry.node)"
+              class="plugin-node__action-feedback"
+              :class="{ 'plugin-node__action-feedback--error': feedbackFor(entry.node)?.outcome?.ok === false }"
+              role="status"
+            >{{ feedbackText(entry.node) }}</span>
+          </template>
         </div>
         <PluginUiNode
           v-else
@@ -239,6 +297,11 @@ function actionLabel(node: PluginUiNode): string {
     @test="context.connection.test()"
     @import-token="(_id, options) => context.provisioning.importToken(options)"
     @provision="(_id, username, password) => context.provisioning.provision(username, password)"
+  />
+  <PluginActionStatus
+    v-else-if="node.type === 'action-status'"
+    :node="node"
+    :context="context"
   />
   <section
     v-else-if="node.type === 'list'"
@@ -324,10 +387,17 @@ function actionLabel(node: PluginUiNode): string {
     <BaseButton
       size="sm"
       :variant="node.variant ?? 'default'"
+      :disabled="isActionDisabled(node)"
       @click="press"
     >
       {{ title }}
     </BaseButton>
+    <span
+      v-if="feedbackText(node)"
+      class="plugin-node__action-feedback"
+      :class="{ 'plugin-node__action-feedback--error': feedbackFor(node)?.outcome?.ok === false }"
+      role="status"
+    >{{ feedbackText(node) }}</span>
   </div>
   <component
     :is="custom"

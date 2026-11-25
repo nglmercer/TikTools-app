@@ -2,6 +2,7 @@ import type { JsonObject } from '../../../../automation/types.ts';
 import { parseBinding, settingsPathSegments, type PluginUiAction, type PluginUiNode } from '../../../../plugin-ui/index.ts';
 import { readSettingsPath, toSettingValues, writeSettingsPath } from '../../../../shared/settings-values.ts';
 import type { PluginUiContext } from '../model/plugin-ui-context.ts';
+import type { PluginActionOutcome } from '../model/plugins-state.ts';
 
 export type BindingValue = string | number | boolean;
 
@@ -30,7 +31,7 @@ export function writeBinding(context: PluginUiContext, bind: string, value: Bind
   context.settings.save(toSettingValues(next));
 }
 
-export function runAction(context: PluginUiContext, action: PluginUiAction): void {
+export function runAction(context: PluginUiContext, action: PluginUiAction): void | Promise<PluginActionOutcome> {
   switch (action.type) {
     case 'save-settings': {
       const merged: JsonObject = { ...(context.settings.state?.values ?? {}) };
@@ -39,8 +40,7 @@ export function runAction(context: PluginUiContext, action: PluginUiAction): voi
       return;
     }
     case 'plugin-action':
-      context.actions.execute(action.actionType, toSettingValues(action.config ?? {}));
-      return;
+      return context.actions.execute(action.actionType, toSettingValues(action.config ?? {}));
     case 'refresh-source':
       context.options.get(action.source, true);
       return;

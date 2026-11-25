@@ -70,6 +70,7 @@ impl SharedQueue {
 }
 
 type Queue = Arc<Mutex<SharedQueue>>;
+type SharedStatus = Arc<Mutex<RuntimeStatus>>;
 
 fn push(queue: &Queue, message: PlatformIngestMessage) {
     if let Ok(mut shared) = queue.lock() {
@@ -77,20 +78,89 @@ fn push(queue: &Queue, message: PlatformIngestMessage) {
     }
 }
 
+#[derive(Debug, Clone)]
+struct RuntimeStatus {
+    phase: String,
+    channel: Option<String>,
+    message: String,
+    error_code: Option<String>,
+    error_message: Option<String>,
+    reconnect_attempt: u32,
+    retry_after_ms: Option<u64>,
+    updated_at: u64,
+}
+
+impl Default for RuntimeStatus {
+    fn default() -> Self {
+        Self {
+            phase: "stopped".into(),
+            channel: None,
+            message: "Stopped".into(),
+            error_code: None,
+            error_message: None,
+            reconnect_attempt: 0,
+            retry_after_ms: None,
+            updated_at: 0,
+        }
+    }
+}
+
+fn write_status(
+    slot: &SharedStatus,
+    phase: &str,
+    message: impl Into<String>,
+    channel: Option<String>,
+    error: Option<&TwitchError>,
+    reconnect_attempt: u32,
+    retry_after_ms: Option<u64>,
+) {
+    if let Ok(mut status) = slot.lock() {
+        *status = RuntimeStatus {
+            phase: phase.into(),
+            channel,
+            message: message.into(),
+            error_code: error.map(|entry| entry.code.clone()),
+            error_message: error.map(|entry| entry.message.clone()),
+            reconnect_attempt,
+            retry_after_ms,
+            updated_at: tiktools_live::now_millis(),
+        };
+    }
+}
+
+fn status_result(status: &RuntimeStatus, worker_running: bool) -> Value {
+    json!({
+        "phase": status.phase,
+        "workerRunning": worker_running,
+        "channel": status.channel,
+        "message": status.message,
+        "error": status.error_code.as_ref().map(|code| json!({
+            "code": code,
+            "message": status.error_message.clone().unwrap_or_default(),
+        })),
+        "reconnectAttempt": status.reconnect_attempt,
+        "retryAfterMs": status.retry_after_ms,
+        "updatedAt": status.updated_at,
+    })
+}
+
 #[derive(Default)]
 struct TwitchPlugin {
     runtime: Mutex<Option<tokio::runtime::Runtime>>,
     stop: Mutex<Option<CancellationToken>>,
     queue: Queue,
-    status: Arc<Mutex<String>>,
+    status: SharedStatus,
     worker_alive: Arc<AtomicBool>,
 }
 
 impl TwitchPlugin {
-    fn set_status(&self, status: impl Into<String>) {
-        if let Ok(mut slot) = self.status.lock() {
-            *slot = status.into();
-        }
+    fn set_stopped(&self) {
+        let channel = self
+            .status
+            .lock()
+            .ok()
+            .and_then(|status| status.channel.clone());
+        write_status(&self.status, "stopped", "Stopped", channel, None, 0, None);
     }
 
     fn start(&self, channel: String) -> PluginResult<()> {
@@ -121,6 +191,7 @@ impl TwitchPlugin {
         let worker_stop = stop.clone();
         let worker_alive = self.worker_alive.clone();
         let status = self.status.clone();
+        let status_channel = channel.clone();
         worker_alive.store(true, Ordering::SeqCst);
         runtime.spawn(async move {
             run_connection_loop(channel, queue, worker_stop, status).await;
@@ -134,7 +205,15 @@ impl TwitchPlugin {
             .stop
             .lock()
             .map_err(|error| PluginError::other(error.to_string()))? = Some(stop);
-        self.set_status("connecting");
+        write_status(
+            &self.status,
+            "connecting",
+            "Connecting",
+            Some(status_channel),
+            None,
+            0,
+            None,
+        );
         Ok(())
     }
 
@@ -156,7 +235,7 @@ impl TwitchPlugin {
         {
             runtime.shutdown_timeout(Duration::from_secs(5));
         }
-        self.set_status("stopped");
+        self.set_stopped();
         Ok(())
     }
 }
@@ -220,11 +299,13 @@ impl Plugin for TwitchPlugin {
                     .map_err(|error| PluginError::other(error.to_string()))?
                     .clone();
                 let running = self.worker_alive.load(Ordering::SeqCst);
+                let result = status_result(&status, running);
                 Ok(ActionResult::summary(format!(
                     "Twitch: {} ({})",
                     if running { "running" } else { "stopped" },
-                    if status.is_empty() { "idle".into() } else { status }
-                )))
+                    status.message
+                ))
+                .result(result))
             }
             other => Err(PluginError::other(format!("unknown action {other:?}"))),
         }
@@ -277,7 +358,12 @@ impl Plugin for TwitchPlugin {
     }
 }
 
-async fn run_connection_loop(channel: String, queue: Queue, stop: CancellationToken, status: Arc<Mutex<String>>) {
+async fn run_connection_loop(
+    channel: String,
+    queue: Queue,
+    stop: CancellationToken,
+    status: SharedStatus,
+) {
     for attempt in 0..=5_u32 {
         if stop.is_cancelled() {
             break;
@@ -290,9 +376,15 @@ async fn run_connection_loop(channel: String, queue: Queue, stop: CancellationTo
         if let Err(error) = failure {
             let retry = (2_000_u64 << attempt).min(60_000);
             if attempt == 5 || error.code != "transport" {
-                if let Ok(mut slot) = status.lock() {
-                    *slot = format!("failed: {}", error.message);
-                }
+                write_status(
+                    &status,
+                    "failed",
+                    error.message.clone(),
+                    Some(channel.clone()),
+                    Some(&error),
+                    attempt,
+                    None,
+                );
                 push(
                     &queue,
                     PlatformIngestMessage::SessionEnd {
@@ -305,9 +397,15 @@ async fn run_connection_loop(channel: String, queue: Queue, stop: CancellationTo
                 );
                 break;
             }
-            if let Ok(mut slot) = status.lock() {
-                *slot = format!("reconnecting: {}", error.message);
-            }
+            write_status(
+                &status,
+                "reconnecting",
+                error.message.clone(),
+                Some(channel.clone()),
+                Some(&error),
+                attempt + 1,
+                Some(retry),
+            );
             push(
                 &queue,
                 PlatformIngestMessage::SessionState {
@@ -371,25 +469,40 @@ async fn session(
     channel: &str,
     queue: &Queue,
     stop: &CancellationToken,
-    status: &Arc<Mutex<String>>,
+    status: &SharedStatus,
+) -> Result<(), TwitchError> {
+    session_with_url(
+        channel,
+        queue,
+        stop,
+        status,
+        "wss://irc-ws.chat.twitch.tv:443",
+    )
+    .await
+}
+
+async fn session_with_url(
+    channel: &str,
+    queue: &Queue,
+    stop: &CancellationToken,
+    status: &SharedStatus,
+    url: &str,
 ) -> Result<(), TwitchError> {
     let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
         .max_message_size(Some(1024 * 1024))
         .max_frame_size(Some(1024 * 1024));
     let (mut socket, _) = tokio::time::timeout(
         Duration::from_secs(20),
-        tokio_tungstenite::connect_async_with_config(
-            "wss://irc-ws.chat.twitch.tv:443",
-            Some(config),
-            false,
-        ),
+        tokio_tungstenite::connect_async_with_config(url, Some(config), false),
     )
     .await
     .map_err(|_| TwitchError::new("transport", "Twitch connection timed out"))?
     .map_err(|_| TwitchError::new("transport", "Could not connect to Twitch chat"))?;
     for command in registration_commands(channel, &anonymous_login()) {
         socket
-            .send(tokio_tungstenite::tungstenite::Message::Text(command.into()))
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                command.into(),
+            ))
             .await
             .map_err(|_| TwitchError::new("transport", "Twitch registration could not be sent"))?;
     }
@@ -409,11 +522,16 @@ async fn session(
                 socket
                     .send(tokio_tungstenite::tungstenite::Message::Pong(bytes))
                     .await
-                    .map_err(|_| TwitchError::new("transport", "Could not acknowledge Twitch heartbeat"))?;
+                    .map_err(|_| {
+                        TwitchError::new("transport", "Could not acknowledge Twitch heartbeat")
+                    })?;
                 continue;
             }
             tokio_tungstenite::tungstenite::Message::Close(_) => {
-                return Err(TwitchError::new("transport", "Twitch closed the chat connection"));
+                return Err(TwitchError::new(
+                    "transport",
+                    "Twitch closed the chat connection",
+                ));
             }
             _ => continue,
         };
@@ -434,11 +552,16 @@ async fn session(
                         format!("PONG :{}\r\n", message.trailing.unwrap_or("tmi.twitch.tv")).into(),
                     ))
                     .await
-                    .map_err(|_| TwitchError::new("transport", "Could not acknowledge Twitch heartbeat"))?;
+                    .map_err(|_| {
+                        TwitchError::new("transport", "Could not acknowledge Twitch heartbeat")
+                    })?;
                 continue;
             }
             if message.command == "RECONNECT" {
-                return Err(TwitchError::new("transport", "Twitch requested reconnection"));
+                return Err(TwitchError::new(
+                    "transport",
+                    "Twitch requested reconnection",
+                ));
             }
             if message.target != Some(format!("#{channel}").as_str()) {
                 continue;
@@ -451,10 +574,18 @@ async fn session(
                     .tags
                     .get("room-id")
                     .filter(|room| !room.is_empty())
-                    .ok_or_else(|| TwitchError::new("invalid_response", "Twitch did not verify the channel ID"))?;
-                if let Ok(mut slot) = status.lock() {
-                    *slot = format!("connected to #{channel}");
-                }
+                    .ok_or_else(|| {
+                        TwitchError::new("invalid_response", "Twitch did not verify the channel ID")
+                    })?;
+                write_status(
+                    status,
+                    "connected",
+                    format!("Connected to #{channel}"),
+                    Some(channel.to_owned()),
+                    None,
+                    0,
+                    None,
+                );
                 push(
                     queue,
                     PlatformIngestMessage::SessionStart {
@@ -645,6 +776,91 @@ mod tests {
         assert!(commands
             .iter()
             .all(|command| !command.starts_with("PASS") && !command.contains("oauth")));
+    }
+
+    #[tokio::test]
+    async fn fake_irc_session_verifies_channel_and_ingests_chat() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let mut registration = String::new();
+            for _ in 0..3 {
+                match socket.next().await {
+                    Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text))) => {
+                        registration.push_str(&text);
+                    }
+                    other => panic!("unexpected registration frame: {other:?}"),
+                }
+            }
+            assert!(registration.contains("CAP REQ :twitch.tv/tags twitch.tv/commands"));
+            assert!(registration.contains("NICK justinfan"));
+            assert!(registration.contains("JOIN #room"));
+            assert!(!registration.contains("PASS"));
+            socket
+                .send(tokio_tungstenite::tungstenite::Message::Text(
+                    "@room-id=12345 :tmi.twitch.tv ROOMSTATE #room\r\n".into(),
+                ))
+                .await
+                .unwrap();
+            socket
+                .send(tokio_tungstenite::tungstenite::Message::Text(
+                    "@id=msg-1;user-id=42;display-name=Alice;tmi-sent-ts=1700000000000 :alice!a@b PRIVMSG #room :hello fake IRC\r\n".into(),
+                ))
+                .await
+                .unwrap();
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        });
+
+        let queue: Queue = Default::default();
+        let status: SharedStatus = Default::default();
+        let stop = CancellationToken::new();
+        let client_stop = stop.clone();
+        let client_queue = queue.clone();
+        let client = tokio::spawn(async move {
+            session_with_url(
+                "room",
+                &client_queue,
+                &client_stop,
+                &status,
+                &format!("ws://{address}"),
+            )
+            .await
+        });
+
+        let mut saw_chat = false;
+        for _ in 0..100 {
+            let (saw_start, saw_event) = {
+                let shared = queue.lock().unwrap();
+                (
+                    shared.messages.iter().any(|message| {
+                        matches!(
+                            message,
+                            PlatformIngestMessage::SessionStart { channel, .. }
+                                if channel.id == "12345" && channel.handle == "room"
+                        )
+                    }),
+                    shared.messages.iter().any(|message| {
+                        matches!(
+                            message,
+                            PlatformIngestMessage::Event { event, .. }
+                                if matches!(&event.payload, LivePayload::Chat { comment } if comment == "hello fake IRC")
+                        )
+                    }),
+                )
+            };
+            assert!(saw_start || !saw_event);
+            if saw_start && saw_event {
+                saw_chat = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(saw_chat, "fake IRC session did not ingest the chat message");
+        stop.cancel();
+        assert!(client.await.unwrap().is_ok());
+        server.await.unwrap();
     }
 
     #[test]

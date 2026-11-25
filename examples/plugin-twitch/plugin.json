@@ -95,61 +95,107 @@
           "children": [
             {
               "type": "card",
-              "title": { "default": "Channel" },
+              "title": {
+                "default": "Connection"
+              },
               "children": [
                 {
                   "type": "text",
                   "key": "channelHelp",
-                  "text": { "default": "Enter the Twitch channel login to watch, save it, then connect. The input is stored in this plugin's settings." }
-                },
-                { "type": "form", "key": "channelForm" }
-              ]
-            },
-            {
-              "type": "card",
-              "title": { "default": "Anonymous read-only IRC" },
-              "children": [
-                {
-                  "type": "status",
-                  "key": "anonymousStatus",
-                  "tone": "ok",
-                  "text": { "default": "No OAuth token required — this reference uses Twitch's historical anonymous read-only IRC login." }
+                  "text": {
+                    "default": "Enter the Twitch channel login, save it, then connect. The input is stored in this plugin's settings."
+                  }
                 },
                 {
-                  "type": "text",
-                  "key": "coverage",
-                  "text": { "default": "Receives public chat, subscription notifications and Bits only. It cannot send messages, moderate, or receive follows, channel-point redeems or private monetary data." }
+                  "type": "form",
+                  "key": "channelForm"
+                },
+                {
+                  "type": "action-status",
+                  "key": "runtimeStatus",
+                  "title": {
+                    "default": "Connection status"
+                  },
+                  "action": {
+                    "type": "plugin-action",
+                    "actionType": "tiktools.twitch.status"
+                  },
+                  "pollMs": 2000,
+                  "stateKey": "connectionPhase"
                 },
                 {
                   "type": "button",
                   "key": "connect",
-                  "label": { "default": "Connect" },
+                  "title": {
+                    "default": "Connect"
+                  },
                   "variant": "primary",
-                  "action": { "type": "plugin-action", "actionType": "tiktools.twitch.connect" }
+                  "action": {
+                    "type": "plugin-action",
+                    "actionType": "tiktools.twitch.connect"
+                  },
+                  "disabledWhen": {
+                    "bind": "local.connectionPhase",
+                    "values": [
+                      "connecting",
+                      "connected",
+                      "reconnecting"
+                    ]
+                  }
                 },
                 {
                   "type": "button",
                   "key": "disconnect",
-                  "label": { "default": "Disconnect" },
+                  "title": {
+                    "default": "Disconnect"
+                  },
                   "variant": "danger",
-                  "action": { "type": "plugin-action", "actionType": "tiktools.twitch.disconnect" }
-                },
-                {
-                  "type": "button",
-                  "key": "refresh",
-                  "label": { "default": "Refresh status" },
-                  "action": { "type": "plugin-action", "actionType": "tiktools.twitch.status" }
+                  "action": {
+                    "type": "plugin-action",
+                    "actionType": "tiktools.twitch.disconnect"
+                  },
+                  "disabledWhen": {
+                    "bind": "local.connectionPhase",
+                    "values": [
+                      "stopped",
+                      "failed"
+                    ]
+                  }
                 }
               ]
             },
             {
               "type": "card",
-              "title": { "default": "Reference scope" },
+              "title": {
+                "default": "Anonymous read-only IRC"
+              },
+              "children": [
+                {
+                  "type": "status",
+                  "tone": "info",
+                  "text": {
+                    "default": "No OAuth token required. This reference uses Twitch's historical anonymous read-only IRC login."
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": {
+                    "default": "Receives public chat, subscription notifications and Bits only. It cannot send messages, moderate, or receive follows, channel point redeems or private monetary data."
+                  }
+                }
+              ]
+            },
+            {
+              "type": "card",
+              "title": {
+                "default": "Production path"
+              },
               "children": [
                 {
                   "type": "text",
-                  "key": "migration",
-                  "text": { "default": "Production providers should migrate to authenticated IRC with chat:read or EventSub. Feed, automation, points and analytics remain host-owned." }
+                  "text": {
+                    "default": "Production providers should migrate to authenticated IRC with chat:read or EventSub. Feed, automation, points and analytics remain host-owned."
+                  }
                 }
               ]
             }

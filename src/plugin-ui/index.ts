@@ -11,6 +11,7 @@ export {
   PLUGIN_UI_MODES,
   PLUGIN_UI_NODE_TYPES,
   PLUGIN_UI_VERSION,
+  type ActionStatusNode,
   type CheckboxNode,
   type PluginUiAction,
   type PluginUiActionType,

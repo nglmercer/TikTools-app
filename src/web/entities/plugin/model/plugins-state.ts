@@ -2,7 +2,7 @@ import type { TokenSetupOptions, PluginCredentialState, TokenSetupCandidate } fr
 import { ownControlSubscriptions } from '@/shared/api/control-owner.ts';
 import { ref } from 'vue';
 
-import type { JsonObject } from '../../../../automation/types.ts';
+import type { JsonObject, JsonValue } from '../../../../automation/types.ts';
 import type { PluginConnectionState, SonicBoomConnectionInfo } from '../../../../automation/plugins/declarative.ts';
 import type {
   ActionOptionItem,
@@ -52,6 +52,7 @@ export interface PluginActionOutcome {
   logs: string[];
   durationMs: number;
   error?: string | null;
+  result?: JsonValue;
 }
 
 export interface PluginsCallbacks {
@@ -125,7 +126,7 @@ export function usePlugins(control: ControlClient, callbacks: PluginsCallbacks) 
       });
     } catch (failure) {
       const message = errorMessage(failure);
-      return { actionType, ok: false, summary: message, logs: [], durationMs: 0, error: message };
+      return { actionType, ok: false, summary: message, logs: [], durationMs: 0, error: message, result: undefined };
     }
   };
 

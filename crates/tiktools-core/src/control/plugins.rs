@@ -41,6 +41,11 @@ pub struct PluginActionOutcome {
     pub logs: Vec<String>,
     pub duration_ms: u64,
     pub error: Option<String>,
+    /// Structured plugin-authored outcome for read-only status/inspection
+    /// actions. Kept optional so existing callers and action results are
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]

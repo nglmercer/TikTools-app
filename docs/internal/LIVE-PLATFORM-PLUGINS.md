@@ -54,6 +54,36 @@ Provider user IDs must be stable provider IDs, not display names or lossy JavaSc
 
 The page is surfaced as a normal plugin tab by the existing shell navigation. Connection controls should be plugin actions (`connect`, `disconnect`, `status`); secrets belong in the plugin settings schema with `"secret": true` or in action fields and must never appear in emitted events or logs.
 
+## Runtime status surface
+
+A live-platform `status` action should return a small structured result in addition to its human summary:
+
+```json
+{
+  "phase": "stopped|connecting|connected|reconnecting|failed",
+  "workerRunning": false,
+  "channel": "example",
+  "message": "Connected to #example",
+  "error": { "code": "transport", "message": "..." },
+  "reconnectAttempt": 0,
+  "retryAfterMs": null,
+  "updatedAt": 0
+}
+```
+
+Declarative pages render that result with the generic `action-status` node. The node owner-scopes and polls one declared plugin action (1–60 seconds); it is not a platform-specific UI node. `stateKey` may publish the phase to page-local state, and buttons may use `disabledWhen` against that local value so incompatible lifecycle actions are disabled without expressions or plugin-supplied markup:
+
+```json
+{
+  "type": "action-status",
+  "action": { "type": "plugin-action", "actionType": "example.platform.status" },
+  "pollMs": 2000,
+  "stateKey": "connectionPhase"
+}
+```
+
+CLI action calls remain dry-run unless `--live` is passed. Use `target/debug/tiktools --json plugin action example.platform.status --live` when verifying real runtime state.
+
 ## Twitch reference implementation
 
 `examples/plugin-twitch` is the reference provider. It demonstrates:

@@ -158,7 +158,7 @@ impl AppCore {
         });
         let mut logs = Vec::new();
         match self
-            .execute_plugin_action(
+            .execute_plugin_action_output(
                 action_type,
                 &action,
                 &event,
@@ -168,7 +168,7 @@ impl AppCore {
             )
             .await
         {
-            Ok(summary) => {
+            Ok(output) => {
                 // A live execution may have changed server state (audio
                 // output switches, renames): drop this action's cached
                 // option lists so the follow-up re-read reports the new
@@ -180,10 +180,11 @@ impl AppCore {
                 Ok(PluginActionOutcome {
                     action_type: action_type.to_owned(),
                     ok: true,
-                    summary,
+                    summary: output.summary,
                     logs: logs.into_iter().take(20).collect(),
                     duration_ms: now_millis().saturating_sub(started),
                     error: None,
+                    result: output.result,
                 })
             }
             Err(error) => Ok(PluginActionOutcome {
@@ -193,6 +194,7 @@ impl AppCore {
                 logs: logs.into_iter().take(20).collect(),
                 duration_ms: now_millis().saturating_sub(started),
                 error: Some(error),
+                result: None,
             }),
         }
     }

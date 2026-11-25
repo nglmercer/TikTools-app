@@ -293,6 +293,7 @@ watch(() => context.value.settings.state?.uiHints, requestSources);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  max-width: 820px;
+  width: 100%;
+  max-width: 920px;
 }
 </style>

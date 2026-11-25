@@ -4,6 +4,7 @@ import type { JsonObject } from '../../../../automation/types.ts';
 import type { ActionOptionItem, OpenMediaPicker, PluginSettingValues } from '../../../../shared/messages.ts';
 import type { PluginCredentialState, TokenSetupOptions } from '../../../../shared/token-import.ts';
 import type { PluginSettingsState } from '@/types.ts';
+import type { PluginActionOutcome } from './plugins-state.ts';
 
 export interface PluginUiContext {
   pluginId: string;
@@ -20,7 +21,7 @@ export interface PluginUiContext {
     get(source: string, refresh?: boolean, context?: JsonObject): void;
   };
   actions: {
-    execute(actionType: string, config: PluginSettingValues): void;
+    execute(actionType: string, config: PluginSettingValues): Promise<PluginActionOutcome>;
   };
   connection: {
     state?: PluginConnectionState;

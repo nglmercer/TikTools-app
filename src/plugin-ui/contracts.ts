@@ -37,6 +37,7 @@ export type PluginUiNodeType =
   | 'range'
   | 'checkbox'
   | 'button'
+  | 'action-status'
   | 'list'
   | 'status'
   | 'separator'
@@ -51,6 +52,7 @@ export const PLUGIN_UI_NODE_TYPES: readonly PluginUiNodeType[] = [
   'range',
   'checkbox',
   'button',
+  'action-status',
   'list',
   'status',
   'separator',
@@ -156,6 +158,22 @@ export interface ButtonNode extends PluginUiNodeBase {
   type: 'button';
   action: PluginUiAction;
   variant?: 'primary' | 'danger';
+  /** Disable while a local page-state value is one of the listed phases. */
+  disabledWhen?: { bind: string; values: string[] };
+}
+
+export interface ActionStatusNode extends PluginUiNodeBase {
+  type: 'action-status';
+  /**
+   * Read-only plugin action inspected by the host renderer. The action is
+   * declared by the plugin manifest and executed owner-scoped; arbitrary
+   * RPCs remain impossible.
+   */
+  action: Extract<PluginUiAction, { type: 'plugin-action' }>;
+  /** Poll interval in milliseconds. Host clamps/validates 1000..60000. */
+  pollMs?: number;
+  /** Optional page-local key receiving the structured result's phase. */
+  stateKey?: string;
 }
 
 export interface ListNode extends PluginUiNodeBase {
@@ -187,6 +205,7 @@ export type PluginUiNode =
   | RangeNode
   | CheckboxNode
   | ButtonNode
+  | ActionStatusNode
   | ListNode
   | StatusNode
   | SeparatorNode

@@ -36,6 +36,9 @@ pub enum PluginUiNodeType {
     Range,
     Checkbox,
     Button,
+    /// Polls a declared plugin action and renders its structured result.
+    /// Generic action inspection primitive; not platform-specific.
+    ActionStatus,
     List,
     Status,
     Separator,
@@ -109,4 +112,10 @@ pub struct PluginUiNode {
     pub variant: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tone: Option<String>,
+    #[serde(rename = "pollMs", default, skip_serializing_if = "Option::is_none")]
+    pub poll_ms: Option<u64>,
+    #[serde(rename = "stateKey", default, skip_serializing_if = "Option::is_none")]
+    pub state_key: Option<String>,
+    #[serde(rename = "disabledWhen", default, skip_serializing_if = "Option::is_none")]
+    pub disabled_when: Option<Value>,
 }

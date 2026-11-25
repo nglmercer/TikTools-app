@@ -1,14 +1,32 @@
-import { enableAutoUnmount } from '@vue/test-utils';
-import { afterEach, describe, expect, test } from 'vitest';
+import { enableAutoUnmount, flushPromises } from '@vue/test-utils';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import type { PluginUiNode as PluginUiNodeContract } from '../../../../../src/plugin-ui/index.ts';
 import type { PluginUiContext } from '@/entities/plugin/model/plugin-ui-context.ts';
+import type { PluginActionOutcome } from '@/entities/plugin/model/plugins-state.ts';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import PluginUiNode from '@/widgets/plugin-page/ui/PluginUiNode.vue';
 
 enableAutoUnmount(afterEach);
 
-function context(): PluginUiContext {
+function outcome(actionType: string): PluginActionOutcome {
+  return {
+    actionType,
+    ok: true,
+    summary: 'Twitch: running (Connected to #room)',
+    logs: [],
+    durationMs: 1,
+    result: {
+      phase: 'connected',
+      workerRunning: true,
+      channel: 'room',
+      message: 'Connected to #room',
+      updatedAt: 1700000000000,
+    },
+  };
+}
+
+function context(execute: (actionType: string) => Promise<ReturnType<typeof outcome>> = (actionType) => Promise.resolve(outcome(actionType))): PluginUiContext {
   const drafts = new Map<string, Record<string, never>>();
   return {
     pluginId: 'tiktools.twitch',
@@ -28,7 +46,7 @@ function context(): PluginUiContext {
       save() {},
     },
     options: { values: {}, errors: {}, selected: {}, get() {} },
-    actions: { execute() {} },
+    actions: { execute },
     connection: { test() {} },
     media: {},
     provisioning: {
@@ -89,5 +107,66 @@ describe('PluginUiNode', () => {
     expect(actions?.text()).toContain('Disconnect');
     expect(actions?.text()).toContain('Refresh status');
     expect(actions?.findAll('button')).toHaveLength(3);
+  });
+
+  test('renders structured action status from the plugin outcome', async () => {
+    const node: PluginUiNodeContract = {
+      type: 'action-status',
+      action: { type: 'plugin-action', actionType: 'tiktools.twitch.status' },
+      pollMs: 60_000,
+    };
+    const wrapper = mountWithPlugins(PluginUiNode, {
+      props: { node, context: context(), nodeKey: 's0' },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Connected to #room');
+    expect(wrapper.text()).toContain('room');
+    expect(wrapper.text()).toContain('connected');
+    expect(wrapper.text()).toContain('running');
+  });
+
+
+  test('disables incompatible actions from published local state', () => {
+    const ctx = context();
+    ctx.local.get = (name) => (name === 'connectionPhase' ? 'connected' : undefined);
+    const node: PluginUiNodeContract = {
+      type: 'button',
+      label: { default: 'Connect', i18key: '' },
+      action: { type: 'plugin-action', actionType: 'tiktools.twitch.connect' },
+      disabledWhen: { bind: 'local.connectionPhase', values: ['connected', 'connecting'] },
+    };
+    const wrapper = mountWithPlugins(PluginUiNode, {
+      props: { node, context: ctx, nodeKey: 's0' },
+    });
+    expect(wrapper.get('button').attributes('disabled')).toBeDefined();
+  });
+
+  test('shows inline pending and persistent error feedback for actions', async () => {
+    let settle!: (value: ReturnType<typeof outcome>) => void;
+    const execute = vi.fn(
+      (actionType: string) =>
+        new Promise<ReturnType<typeof outcome>>((resolve) => {
+          settle = resolve;
+          void actionType;
+        }),
+    );
+    const node: PluginUiNodeContract = {
+      type: 'button',
+      label: { default: 'Connect', i18key: '' },
+      action: { type: 'plugin-action', actionType: 'tiktools.twitch.connect' },
+    };
+    const wrapper = mountWithPlugins(PluginUiNode, {
+      props: { node, context: context(execute), nodeKey: 's0' },
+    });
+
+    await wrapper.get('button').trigger('click');
+    expect(wrapper.get('button').attributes('disabled')).toBeDefined();
+    expect(wrapper.text()).toContain('Working…');
+
+    settle({ ...outcome('tiktools.twitch.connect'), ok: false, error: 'channel is required' });
+    await flushPromises();
+    expect(wrapper.get('button').attributes('disabled')).toBeUndefined();
+    expect(wrapper.text()).toContain('channel is required');
   });
 });

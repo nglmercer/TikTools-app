@@ -131,6 +131,28 @@ fn validate_option_source(source: &str) -> Result<(), UiValidationError> {
     Ok(())
 }
 
+fn validate_disabled_when(value: &Option<Value>) -> Result<(), UiValidationError> {
+    let Some(value) = value else { return Ok(()) };
+    let Some(bind) = value.get("bind").and_then(Value::as_str) else {
+        return Err(UiValidationError::InvalidBinding(String::new()));
+    };
+    if !bind.starts_with("local.") || !is_valid_binding(bind) {
+        return Err(UiValidationError::InvalidBinding(bind.to_string()));
+    }
+    let Some(values) = value.get("values").and_then(Value::as_array) else {
+        return Err(UiValidationError::InvalidBinding(bind.to_string()));
+    };
+    if values.is_empty() || values.len() > 16 {
+        return Err(UiValidationError::InvalidBinding(bind.to_string()));
+    }
+    if !values.iter().all(|entry| {
+        entry.as_str().is_some_and(|text| !text.is_empty() && text.len() <= 64)
+    }) {
+        return Err(UiValidationError::InvalidBinding(bind.to_string()));
+    }
+    Ok(())
+}
+
 /// Validates one node recursively (depth-limited).
 pub fn validate_ui_node(node: &PluginUiNode, depth: usize) -> Result<(), UiValidationError> {
     if depth > MAX_UI_DEPTH {
@@ -256,6 +278,28 @@ pub fn validate_ui_node(node: &PluginUiNode, depth: usize) -> Result<(), UiValid
                     return Err(UiValidationError::InvalidVariant);
                 }
             }
+            validate_disabled_when(&node.disabled_when)?;
+            Ok(())
+        }
+        PluginUiNodeType::ActionStatus => {
+            let action = node
+                .action
+                .as_ref()
+                .ok_or(UiValidationError::InvalidAction(node.node_type))?;
+            if !matches!(action, super::nodes::PluginUiAction::PluginAction { .. }) {
+                return Err(UiValidationError::InvalidAction(node.node_type));
+            }
+            validate_action(action)?;
+            if let Some(poll_ms) = node.poll_ms {
+                if !(1_000..=60_000).contains(&poll_ms) {
+                    return Err(UiValidationError::InvalidAction(node.node_type));
+                }
+            }
+            if let Some(state_key) = &node.state_key {
+                if !is_key_segment(state_key) {
+                    return Err(UiValidationError::InvalidKey);
+                }
+            }
             Ok(())
         }
         PluginUiNodeType::List => {
@@ -379,6 +423,9 @@ mod tests {
             action: None,
             variant: None,
             tone: None,
+            poll_ms: None,
+            state_key: None,
+            disabled_when: None,
         }
     }
 
@@ -450,6 +497,36 @@ mod tests {
             config: None,
         });
         assert!(validate_ui_node(&button, 0).is_err());
+
+        let mut status = node(PluginUiNodeType::ActionStatus);
+        status.action = Some(PluginUiAction::PluginAction {
+            action_type: "example.status".to_string(),
+            config: None,
+        });
+        status.poll_ms = Some(2_000);
+        status.state_key = Some("phase".to_string());
+        assert!(validate_ui_node(&status, 0).is_ok());
+        status.poll_ms = Some(200);
+        assert!(validate_ui_node(&status, 0).is_err());
+        status.poll_ms = Some(2_000);
+        status.state_key = Some("bad key".to_string());
+        assert!(validate_ui_node(&status, 0).is_err());
+
+        let mut disabled = node(PluginUiNodeType::Button);
+        disabled.action = Some(PluginUiAction::PluginAction {
+            action_type: "example.connect".to_string(),
+            config: None,
+        });
+        disabled.disabled_when = Some(serde_json::json!({
+            "bind": "local.phase",
+            "values": ["connected"]
+        }));
+        assert!(validate_ui_node(&disabled, 0).is_ok());
+        disabled.disabled_when = Some(serde_json::json!({
+            "bind": "settings.phase",
+            "values": ["connected"]
+        }));
+        assert!(validate_ui_node(&disabled, 0).is_err());
 
         // Unknown node types never deserialize either.
         let raw: Result<PluginUiNode, _> =

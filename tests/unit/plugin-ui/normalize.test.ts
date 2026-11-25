@@ -61,6 +61,10 @@ test('normalizes the Twitch reference page with settings input, sections, and vi
   expect(cards.length).toBeGreaterThanOrEqual(3);
   const serialized = JSON.stringify(body);
   expect(serialized).toContain('"type":"form"');
+  expect(serialized).toContain('"type":"action-status"');
+  expect(serialized).toContain('"pollMs":2000');
+  expect(serialized).toContain('"stateKey":"connectionPhase"');
+  expect(serialized).toContain('"disabledWhen"');
   expect(serialized).toContain('anonymous read-only IRC');
   expect(serialized).toContain('No OAuth token required');
 });
@@ -73,6 +77,12 @@ test('rejects unknown node types, bad bindings, and over-deep trees', () => {
   expect(normalizeNode({ type: 'select', bind: 'eval(x)' })).toBeUndefined();
   expect(normalizeNode({ type: 'range', bind: 'settings.v', min: 5, max: 1 })).toBeUndefined();
   expect(normalizeNode({ type: 'button', action: { type: 'rpc' } })).toBeUndefined();
+  expect(normalizeNode({ type: 'action-status', action: { type: 'refresh-source', source: 'x' } })).toBeUndefined();
+  expect(normalizeNode({ type: 'action-status', action: { type: 'plugin-action', actionType: 'x.y' }, pollMs: 200 })).toBeUndefined();
+  expect(normalizeNode({ type: 'action-status', action: { type: 'plugin-action', actionType: 'x.y' }, pollMs: 2000, stateKey: 'phase' })).toBeDefined();
+  expect(normalizeNode({ type: 'action-status', action: { type: 'plugin-action', actionType: 'x.y' }, stateKey: 'bad key' })).toBeUndefined();
+  expect(normalizeNode({ type: 'button', action: { type: 'plugin-action', actionType: 'x.y' }, disabledWhen: { bind: 'local.phase', values: ['connected'] } })).toBeDefined();
+  expect(normalizeNode({ type: 'button', action: { type: 'plugin-action', actionType: 'x.y' }, disabledWhen: { bind: 'settings.phase', values: ['connected'] } })).toBeUndefined();
   expect(normalizeNode({ type: 'list' })).toBeUndefined();
   expect(normalizeNode({ type: 'stack', children: [] })).toBeUndefined();
   expect(

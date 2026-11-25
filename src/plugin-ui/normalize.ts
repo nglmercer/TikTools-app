@@ -200,6 +200,41 @@ export function normalizeNode(value: JsonValue, depth = 0): PluginUiNode | undef
       if (variant !== undefined && variant !== 'primary' && variant !== 'danger') return undefined;
       const node: PluginUiNode = { type: 'button', action };
       if (variant === 'primary' || variant === 'danger') node.variant = variant;
+      if (value.disabledWhen !== undefined) {
+        if (!isRecord(value.disabledWhen)) return undefined;
+        const disabledBind = value.disabledWhen.bind;
+        const disabledValues = value.disabledWhen.values;
+        if (
+          typeof disabledBind !== 'string' ||
+          !disabledBind.startsWith('local.') ||
+          !parseBinding(disabledBind) ||
+          !Array.isArray(disabledValues) ||
+          disabledValues.length === 0 ||
+          disabledValues.length > 16 ||
+          !disabledValues.every((entry) => typeof entry === 'string' && entry.length > 0 && entry.length <= 64)
+        ) {
+          return undefined;
+        }
+        node.disabledWhen = { bind: disabledBind, values: disabledValues as string[] };
+      }
+      if (key) node.key = key;
+      if (title) node.title = title;
+      if (label) node.label = label;
+      return node;
+    }
+    case 'action-status': {
+      const action = normalizeAction(value.action);
+      if (!action || action.type !== 'plugin-action') return undefined;
+      const pollMs = readNumber(value.pollMs);
+      if (value.pollMs !== undefined && (pollMs === undefined || pollMs < 1_000 || pollMs > 60_000)) {
+        return undefined;
+      }
+      const node: PluginUiNode = { type: 'action-status', action };
+      if (pollMs !== undefined) node.pollMs = pollMs;
+      if (value.stateKey !== undefined) {
+        if (typeof value.stateKey !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(value.stateKey)) return undefined;
+        node.stateKey = value.stateKey;
+      }
       if (key) node.key = key;
       if (title) node.title = title;
       if (label) node.label = label;
