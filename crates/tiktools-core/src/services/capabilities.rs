@@ -419,26 +419,39 @@ impl CapabilityBroker {
         // value; only a changed value overwrites it. Placeholder text is
         // never persisted, so the file cannot fill with bullets.
         let mut merged = values.clone();
+        let stored = self
+            .load_plugin_settings_unlocked(manifest)
+            .unwrap_or_else(|_| Value::Object(Default::default()));
+        let stored = stored.as_object().cloned().unwrap_or_default();
         let secrets = secret_setting_keys(manifest);
-        if !secrets.is_empty() {
-            let stored = self
-                .load_plugin_settings_unlocked(manifest)
-                .unwrap_or_else(|_| Value::Object(Default::default()));
-            let stored = stored.as_object();
-            for key in &secrets {
-                let is_placeholder =
-                    merged.get(key).and_then(Value::as_str) == Some(SECRET_SETTING_PLACEHOLDER);
-                if !is_placeholder {
-                    continue;
+        for key in &secrets {
+            let is_placeholder =
+                merged.get(key).and_then(Value::as_str) == Some(SECRET_SETTING_PLACEHOLDER);
+            if !is_placeholder {
+                continue;
+            }
+            match stored.get(key) {
+                Some(previous) => {
+                    merged.insert(key.clone(), previous.clone());
                 }
-                match stored.and_then(|object| object.get(key)) {
-                    Some(previous) => {
-                        merged.insert(key.clone(), previous.clone());
-                    }
-                    None => {
-                        merged.remove(key);
-                    }
+                None => {
+                    merged.remove(key);
                 }
+            }
+        }
+        // Keys hidden because an update removed them from the schema are not
+        // editable, but they remain compatibility storage. Carry them through
+        // unrelated saves; declared keys still follow the editor's complete map.
+        let declared = manifest
+            .settings_schema
+            .as_ref()
+            .and_then(|schema| schema.get("properties"))
+            .and_then(Value::as_object);
+        for (key, value) in stored {
+            if !merged.contains_key(&key)
+                && declared.is_some_and(|properties| !properties.contains_key(&key))
+            {
+                merged.insert(key, value);
             }
         }
         let directory = self.ensure_plugin_data_dir(manifest)?;
@@ -617,8 +630,19 @@ mod tests {
         .unwrap();
         let display = broker.load_plugin_settings_for_display(&updated).unwrap();
         assert!(display.get("apiToken").is_none());
+        broker
+            .save_plugin_settings(
+                &updated,
+                &BTreeMap::from([(
+                    "serverUrl".to_owned(),
+                    Value::String("http://localhost:17842".to_owned()),
+                )]),
+            )
+            .unwrap();
         let raw = broker.load_plugin_settings_raw(&updated).unwrap();
         assert_eq!(raw.get("apiToken").and_then(Value::as_str), Some("tok-123"));
+        let display = broker.load_plugin_settings_for_display(&updated).unwrap();
+        assert!(display.get("apiToken").is_none());
         let _ = std::fs::remove_dir_all(root);
     }
 
