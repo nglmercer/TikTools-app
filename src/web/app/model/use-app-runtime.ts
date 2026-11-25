@@ -100,11 +100,13 @@ export function useAppRuntime() {
     if (typeof data.visible === 'boolean') hostVisible.value = data.visible;
   });
 
-  function applyPresentation(visible: boolean, tab: AppTab): void {
-    const feed = tab === 'feed';
-    live.setPresentationActive(visible && feed);
-    points.setPresentationActive(visible && (feed || tab === 'points'));
-    automation.setPresentationActive(visible && tab === 'behavior');
+  // Visibility/tab gating retired: rendering is cheap on the native shell,
+  // so streams stay active always. Pausing them skipped live events purely
+  // to save CPU, which users experience as missing chat history.
+  function applyPresentation(_visible: boolean, _tab: AppTab): void {
+    live.setPresentationActive(true);
+    points.setPresentationActive(true);
+    automation.setPresentationActive(true);
   }
 
   function updatePresentation(): void {
@@ -114,7 +116,7 @@ export function useAppRuntime() {
     if (!presentationMounted || disposed) return;
     const feed = tab === 'feed';
     void control
-      .setPresentation?.({ visible, feed, points: feed || tab === 'points', behavior: tab === 'behavior' })
+      .setPresentation?.({ visible: true, feed: true, points: true, behavior: true })
       .catch((failure: unknown) => {
         if (disposed || (failure instanceof Error && 'code' in failure && failure.code === 'stale')) return;
         console.warn(`presentation handshake failed: ${errorMessage(failure)}`);
