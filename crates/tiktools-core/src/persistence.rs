@@ -106,11 +106,13 @@ impl AppCore {
                     tracing::warn!(plugin = %plugin.manifest.id, "plugin event type is invalid; skipped");
                     continue;
                 };
-                if event_types.insert(event_type.clone(), entry).is_some() {
-                    tracing::warn!(plugin = %plugin.manifest.id, event_type = %event_type, "plugin event type overrides an earlier declaration");
-                }
-                if !event_type_ids.contains(&event_type) {
-                    event_type_ids.push(event_type);
+                if event_type != tiktools_live::INGEST_EVENT_TYPE {
+                    if event_types.insert(event_type.clone(), entry).is_some() {
+                        tracing::warn!(plugin = %plugin.manifest.id, event_type = %event_type, "plugin event type overrides an earlier declaration");
+                    }
+                    if !event_type_ids.contains(&event_type) {
+                        event_type_ids.push(event_type);
+                    }
                 }
             }
             plugins.push(json!({
