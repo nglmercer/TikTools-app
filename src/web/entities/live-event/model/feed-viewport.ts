@@ -115,7 +115,7 @@ export function createFeedViewport(events: Ref<DisplayEvent[]>, isActive: () => 
     const containerTop = container.getBoundingClientRect().top;
     const offset = target.getBoundingClientRect().top - containerTop;
     const delta = offset - pausedAnchor.offset;
-    if (delta !== 0) container.scrollTop = Math.max(0, beforeTop + delta);
+    if (delta !== 0) container.scrollTop = Math.max(0, container.scrollTop + delta);
     return true;
   };
   unsubscribers.push(watch(events, () => {
