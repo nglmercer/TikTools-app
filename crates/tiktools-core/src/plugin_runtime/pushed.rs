@@ -54,6 +54,18 @@ impl AppCore {
             return;
         }
         if crate::live_platforms::is_live_ingest_event(&emitted.event_type) {
+            let ingest_allowed = self
+                .capabilities
+                .require_capability(manifest, tiktools_plugin_api::capabilities::LIVE_INGEST)
+                .is_ok()
+                && self
+                    .capabilities
+                    .require_capability(&current.manifest, tiktools_plugin_api::capabilities::LIVE_INGEST)
+                    .is_ok();
+            if !ingest_allowed {
+                self.record_plugin_drops(&plugin_id, 1);
+                return;
+            }
             match self
                 .ingest_live_platform_batch(&plugin_id, emitted.data)
                 .await
