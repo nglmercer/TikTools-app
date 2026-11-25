@@ -146,14 +146,12 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     return true;
   };
 
-  const insertDiscontinuity = (): void => {
-    appendEvent({
-      kind: 'member',
-      author: callbacks.systemAuthor(),
-      text: callbacks.discontinuityText(),
-      id: nextEventId++,
-    });
-  };
+  // Discontinuity markers retired: the recovery loop still backfills missed
+  // events silently, but a "events were skipped" system notice is noise in a
+  // chat feed — users read it as an error, and since streams no longer pause
+  // the notice only ever fired after full app restarts, where missing events
+  // are obvious anyway.
+  const insertDiscontinuity = (): void => {};
 
   const recovery = createFeedRecovery(control, {
     active: () => !disposed && presentationActive,

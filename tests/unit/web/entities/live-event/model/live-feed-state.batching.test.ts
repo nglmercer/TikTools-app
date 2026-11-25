@@ -92,7 +92,7 @@ describe('live feed rendering', () => {
     controlStats(harness, { feedSuspended: 5, feedBusDropped: 3, feedForwarded: 4 });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(live.diagnostics()).not.toHaveProperty('dropped');
-    expect(live.events.value.some((event) => event.text?.includes('Feed resumed'))).toBe(true);
+    expect(live.events.value.some((event) => event.text?.includes('Feed resumed'))).toBe(false);
     live.dispose();
   });
 });

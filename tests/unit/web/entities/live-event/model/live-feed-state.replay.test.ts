@@ -30,7 +30,7 @@ it('hidden feed keeps accepting events and resumes without a marker when the jou
   live.dispose();
 });
 
-it('a gap in the native replay still inserts a discontinuity marker', async () => {
+it('a gap in the native replay backfills without a discontinuity marker', async () => {
   const harness = createBackfillControl(() => ({
     oldestCursor: 9,
     latestCursor: 12,
@@ -48,11 +48,11 @@ it('a gap in the native replay still inserts a discontinuity marker', async () =
   const texts = live.events.value.map((event) => event.text);
   expect(texts).toContain('hidden-11');
   expect(texts).toContain('recovered-12');
-  expect(texts.some((text) => text?.includes('Feed resumed'))).toBe(true);
+  expect(texts.some((text) => text?.includes('Feed resumed'))).toBe(false);
   live.dispose();
 });
 
-it('a failed native replay degrades to the remaining discontinuity marker', async () => {
+it('a failed native replay inserts no discontinuity marker', async () => {
   const harness = createBackfillControl(() => {
     throw new Error('host unavailable');
   });
@@ -62,7 +62,7 @@ it('a failed native replay degrades to the remaining discontinuity marker', asyn
   harness.emit('live.ui-event', { event: { kind: 'chat', author: 'a', text: 'hidden-11', msgId: 'h11' }, cursor: 11 } as never);
   live.setPresentationActive(true);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  expect(live.events.value.some((event) => event.text?.includes('Feed resumed'))).toBe(true);
+  expect(live.events.value.some((event) => event.text?.includes('Feed resumed'))).toBe(false);
   expect(live.events.value.some((event) => event.text === 'hidden-11')).toBe(true);
   live.dispose();
 });
