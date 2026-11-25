@@ -227,6 +227,9 @@ try {
       needNoArgs('lint', args);
       await frontendLint();
       await rustLint();
+      // Fixtures are byte-exact copies of the example-plugins checkout; a
+      // no-op success when the sibling repository is not present.
+      await script('sync-plugin-fixtures.ts', '--check');
       break;
     case 'ci':
       needNoArgs('ci', args);

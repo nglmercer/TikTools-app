@@ -864,11 +864,9 @@ fn parses_the_migrated_sonicboom_package_manifest() {
         .get("es")
         .expect("spanish catalog present");
     assert!(!spanish.is_empty());
-    assert!(
-        spanish
-            .keys()
-            .all(|key| key.starts_with("sonicboom.server."))
-    );
+    assert!(spanish
+        .keys()
+        .all(|key| key.starts_with("sonicboom.server.")));
 }
 
 #[test]
@@ -1656,10 +1654,7 @@ fn translations_stay_namespaced_and_bounded() {
     }))
     .expect("namespaced translations parse");
     assert_eq!(parsed.translations.len(), 2);
-    assert_eq!(
-        parsed.translations["es"]["demo.http.speak.title"],
-        "Hablar"
-    );
+    assert_eq!(parsed.translations["es"]["demo.http.speak.title"], "Hablar");
     // Missing the plugin-id prefix, wrong prefixes, malformed locales,
     // non-string or empty values and key/host charset violations all fail
     // closed at discovery time.

@@ -249,7 +249,8 @@ pub struct PluginManifest {
     /// host merges these into the behavior snapshot's `translations` while
     /// the plugin is installed, enabled and available; the frontend resolves
     /// them through the same `i18key` references the descriptors already carry.
-    pub translations: std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>,
+    pub translations:
+        std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>,
     /// Bundled native (`.node`) packages a `napi-vm` plugin may load. Empty
     /// for every other runtime and for pure-JavaScript plugins: with no
     /// declaration the guest stays inside the pure-Rust VM.

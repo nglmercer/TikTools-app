@@ -173,7 +173,10 @@ fn is_valid_locale_tag(value: &str) -> bool {
 /// plus the hard namespacing requirement: every key starts with `<pluginId>.`
 /// so one plugin can never overwrite host or other-plugin messages.
 fn is_valid_translation_key(key: &str, plugin_id: &str) -> bool {
-    let Some(suffix) = key.strip_prefix(plugin_id).and_then(|rest| rest.strip_prefix('.')) else {
+    let Some(suffix) = key
+        .strip_prefix(plugin_id)
+        .and_then(|rest| rest.strip_prefix('.'))
+    else {
         return false;
     };
     !suffix.is_empty()
@@ -231,7 +234,10 @@ pub(crate) fn parse_translations(
             if !valid {
                 return Err(super::ManifestError::InvalidField("translations"));
             }
-            entries.insert(key.clone(), text.as_str().expect("checked above").to_owned());
+            entries.insert(
+                key.clone(),
+                text.as_str().expect("checked above").to_owned(),
+            );
         }
         catalog.insert(locale.clone(), entries);
     }

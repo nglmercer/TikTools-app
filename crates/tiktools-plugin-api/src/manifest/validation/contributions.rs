@@ -1,8 +1,6 @@
 //! Host-rendered page sections and workflow templates declared by plugins.
 
-use super::fields::{
-    is_header_token, is_valid_plugin_id, validate_localized,
-};
+use super::fields::{is_header_token, is_valid_plugin_id, validate_localized};
 use super::{ManifestError, MAX_PAGE_SECTIONS};
 use serde_json::Value;
 
@@ -37,8 +35,12 @@ pub fn validate_plugin_template(entry: &Value) -> Result<(), ManifestError> {
             return Err(invalid());
         }
     }
-    if object.get("params").is_some_and(|params| !params.is_object())
-        || object.get("uiHints").is_some_and(|hints| !hints.is_object())
+    if object
+        .get("params")
+        .is_some_and(|params| !params.is_object())
+        || object
+            .get("uiHints")
+            .is_some_and(|hints| !hints.is_object())
     {
         return Err(invalid());
     }
@@ -95,7 +97,16 @@ pub fn validate_plugin_template(entry: &Value) -> Result<(), ManifestError> {
 /// closed at merge time instead of reaching a client half-parsed.
 fn validate_template_filter(filter: &Value, max_value_len: usize) -> Result<(), ManifestError> {
     const OPERATORS: [&str; 11] = [
-        "gte", "gt", "lte", "lt", "eq", "neq", "contains", "starts-with", "in", "is-true",
+        "gte",
+        "gt",
+        "lte",
+        "lt",
+        "eq",
+        "neq",
+        "contains",
+        "starts-with",
+        "in",
+        "is-true",
         "is-false",
     ];
     let invalid = || ManifestError::InvalidField("templates");
@@ -119,10 +130,11 @@ fn validate_template_filter(filter: &Value, max_value_len: usize) -> Result<(), 
     }
     if let Some(values) = object.get("values") {
         let values = values.as_array().ok_or_else(invalid)?;
-        if values
-            .iter()
-            .any(|value| value.as_str().is_none_or(|value| value.len() > max_value_len))
-        {
+        if values.iter().any(|value| {
+            value
+                .as_str()
+                .is_none_or(|value| value.len() > max_value_len)
+        }) {
             return Err(invalid());
         }
     }
@@ -137,7 +149,10 @@ fn validate_template_filter(filter: &Value, max_value_len: usize) -> Result<(), 
         }
     }
     if let Some(value) = object.get("value") {
-        if value.as_str().is_none_or(|value| value.len() > max_value_len) {
+        if value
+            .as_str()
+            .is_none_or(|value| value.len() > max_value_len)
+        {
             return Err(invalid());
         }
     }

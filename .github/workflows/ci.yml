@@ -218,10 +218,21 @@ jobs:
           restore-keys: |
             cargo-v2-rust-${{ runner.os }}-${{ runner.arch }}-${{ env.RUSTUP_TOOLCHAIN }}-
 
+      - name: Checkout example plugins repository for fixture drift check
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: nglmercer/plugins-example-tiktools
+          path: plugins-example-tiktools
+
       - name: Check generated contracts and dependencies
         run: |
           bun scripts/task.ts contracts --check
           bun scripts/check-tiktok-signer-revision.ts
+
+      - name: Check plugin fixtures are in sync with the example plugins repository
+        env:
+          TIKTOOLS_PLUGINS_REPO: ${{ github.workspace }}/plugins-example-tiktools
+        run: bun scripts/sync-plugin-fixtures.ts --check
 
       - name: Check Rust formatting
         run: node scripts/cargo-with-linker.mjs fmt --all -- --check

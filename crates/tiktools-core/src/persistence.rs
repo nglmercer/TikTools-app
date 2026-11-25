@@ -490,9 +490,7 @@ fn merge_plugin_translations(
         return;
     };
     for (locale, messages) in &manifest.translations {
-        let entry = root
-            .entry(locale.clone())
-            .or_insert_with(|| json!({}));
+        let entry = root.entry(locale.clone()).or_insert_with(|| json!({}));
         let Some(target) = entry.as_object_mut() else {
             continue;
         };
