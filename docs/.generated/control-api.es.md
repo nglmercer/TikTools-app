@@ -319,7 +319,7 @@ Per-day analytics summary for a creator (defaults to the current one)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -368,7 +368,7 @@ Per-day analytics summary for a creator (defaults to the current one)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -393,7 +393,7 @@ Reads app state (all keys, or a filtered subset)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -417,7 +417,7 @@ Reads app state (all keys, or a filtered subset)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -450,7 +450,7 @@ Writes one app state key
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -474,7 +474,7 @@ Writes one app state key
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -507,7 +507,7 @@ Check signed application update metadata
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "UpdateChannel": {
@@ -535,7 +535,7 @@ Check signed application update metadata
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -556,7 +556,7 @@ Download and verify the selected application update
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -569,7 +569,7 @@ Download and verify the selected application update
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -590,7 +590,7 @@ Install requires trusted native desktop confirmation
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -603,7 +603,7 @@ Install requires trusted native desktop confirmation
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -624,7 +624,7 @@ Application updater status
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -637,7 +637,7 @@ Application updater status
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -658,7 +658,7 @@ Explicit owner authority transfer; always leaves delegated record disabled
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ResourceKind": {
@@ -739,7 +739,7 @@ Explicit owner authority transfer; always leaves delegated record disabled
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -760,7 +760,7 @@ Owner-only durable adoption intent and recent metadata
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -773,7 +773,7 @@ Owner-only durable adoption intent and recent metadata
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -909,7 +909,7 @@ Queries original owner adoption outcome without dispatch
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -922,7 +922,7 @@ Queries original owner adoption outcome without dispatch
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -1058,7 +1058,7 @@ Archives an explicitly reviewed unresolved owner intent without replay
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -1083,7 +1083,7 @@ Archives an explicitly reviewed unresolved owner intent without replay
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -1219,7 +1219,7 @@ Persists native owner intent before reviewed authority transfer
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -1315,7 +1315,7 @@ Persists native owner intent before reviewed authority transfer
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -1451,7 +1451,7 @@ Owner-only reviewed delegated approval and explicit activation; authority remain
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ApprovalEnablement": {
@@ -1566,7 +1566,7 @@ Owner-only reviewed delegated approval and explicit activation; authority remain
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -1634,7 +1634,7 @@ Owner-only pending approval operation and recent durable metadata
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -1647,7 +1647,7 @@ Owner-only pending approval operation and recent durable metadata
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -1828,7 +1828,7 @@ Looks up the original owner approval outcome without dispatch
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -1841,7 +1841,7 @@ Looks up the original owner approval outcome without dispatch
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -2022,7 +2022,7 @@ Owner-only atomic saved source, execution manifest, current grants and approval 
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -2057,7 +2057,7 @@ Owner-only atomic saved source, execution manifest, current grants and approval 
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AudioEffectGrant": {
@@ -2576,7 +2576,7 @@ Archives an explicitly reviewed unresolved owner approval without replay
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -2601,7 +2601,7 @@ Archives an explicitly reviewed unresolved owner approval without replay
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -2782,7 +2782,7 @@ Owner-only durable revocation of future delegated execution
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -2821,7 +2821,7 @@ Owner-only durable revocation of future delegated execution
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -2875,7 +2875,7 @@ Persists a native owner intent before reviewed activation or revocation
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ApprovalEnablement": {
@@ -3048,7 +3048,7 @@ Persists a native owner intent before reviewed activation or revocation
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -3229,7 +3229,7 @@ Owner-only retained behavior provenance and generation
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -3256,7 +3256,7 @@ Owner-only retained behavior provenance and generation
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -3277,7 +3277,7 @@ Last automation event observed, for context panels and previews (eventType narro
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -3299,7 +3299,7 @@ Last automation event observed, for context panels and previews (eventType narro
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -3332,7 +3332,7 @@ Creates a behavior event or action (id generated when omitted)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -3357,7 +3357,7 @@ Creates a behavior event or action (id generated when omitted)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -3378,7 +3378,7 @@ Owner-only pending definition write and recent durable metadata
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -3391,7 +3391,7 @@ Owner-only pending definition write and recent durable metadata
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -3587,7 +3587,7 @@ Looks up the original Owner definition outcome without dispatch or historical so
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -3600,7 +3600,7 @@ Looks up the original Owner definition outcome without dispatch or historical so
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -3796,7 +3796,7 @@ Archives explicitly reviewed uncertainty for the original Owner definition ident
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -3821,7 +3821,7 @@ Archives explicitly reviewed uncertainty for the original Owner definition ident
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -4017,7 +4017,7 @@ Persists a native Owner intent before one checked create, update, delete or enab
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -4205,7 +4205,7 @@ Persists a native Owner intent before one checked create, update, delete or enab
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -4548,7 +4548,7 @@ Owner-only advisory reusable-grant check; never an execution permit
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -4584,7 +4584,7 @@ Owner-only advisory reusable-grant check; never an execution permit
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -4605,7 +4605,7 @@ Deletes a behavior event or action
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -4632,7 +4632,7 @@ Deletes a behavior event or action
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -4666,7 +4666,7 @@ Sets behavior event or action enablement
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -4693,7 +4693,7 @@ Sets behavior event or action enablement
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -4714,7 +4714,7 @@ Owner-only metadata receipt lookup; never retries an effect
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -4735,7 +4735,7 @@ Owner-only metadata receipt lookup; never retries an effect
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "EffectKind": {
@@ -4821,7 +4821,7 @@ Owner-only bounded metadata receipt history, including uncertain outcomes
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -4850,7 +4850,7 @@ Owner-only bounded metadata receipt history, including uncertain outcomes
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "EffectKind": {
@@ -4947,7 +4947,7 @@ Sets behavior event or action enablement
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -4974,7 +4974,7 @@ Sets behavior event or action enablement
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -4995,7 +4995,7 @@ Fires a synthetic event through the live pipeline: really triggers matching even
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -5024,7 +5024,7 @@ Fires a synthetic event through the live pipeline: really triggers matching even
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -5045,7 +5045,7 @@ One behavior event or action by id
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -5072,7 +5072,7 @@ One behavior event or action by id
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -5093,7 +5093,7 @@ Owner-only pending library intent and recent metadata outcomes
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -5106,7 +5106,7 @@ Owner-only pending library intent and recent metadata outcomes
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "OwnerLibraryCloudProvenance": {
@@ -5328,7 +5328,7 @@ Read the original library outcome without source or another dispatch
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -5341,7 +5341,7 @@ Read the original library outcome without source or another dispatch
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "OwnerLibraryCloudProvenance": {
@@ -5563,7 +5563,7 @@ Archive explicitly reviewed uncertainty for the original Owner library command
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -5588,7 +5588,7 @@ Archive explicitly reviewed uncertainty for the original Owner library command
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "OwnerLibraryCloudProvenance": {
@@ -5810,7 +5810,7 @@ Coherent Owner graph, profile and custom template catalog with its reviewed dige
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -5823,7 +5823,7 @@ Coherent Owner graph, profile and custom template catalog with its reviewed dige
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "OwnerLibraryCatalog": {
@@ -5977,7 +5977,7 @@ One durable Owner graph/catalog transaction bound to its reviewed library snapsh
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -6289,7 +6289,7 @@ One durable Owner graph/catalog transaction bound to its reviewed library snapsh
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CommandReceipt": {
@@ -6659,7 +6659,7 @@ Synchronize the Owner automation library with Cloud now
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -6672,7 +6672,7 @@ Synchronize the Owner automation library with Cloud now
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -6693,7 +6693,7 @@ Replace an unreadable Cloud library record with this device's library
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -6706,7 +6706,7 @@ Replace an unreadable Cloud library record with this device's library
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -6727,7 +6727,7 @@ Behavior events and actions (kind: event, action, all)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -6749,7 +6749,7 @@ Behavior events and actions (kind: event, action, all)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -6785,7 +6785,7 @@ Owner-only exact definition and delegated effect manifest preview; never approva
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -6821,7 +6821,7 @@ Owner-only exact definition and delegated effect manifest preview; never approva
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -6842,7 +6842,7 @@ Built-in node catalog for the workflow graph editor
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -6855,7 +6855,7 @@ Built-in node catalog for the workflow graph editor
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -6886,7 +6886,7 @@ Owner-only atomic definition, provenance and dependency review
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -6913,7 +6913,7 @@ Owner-only atomic definition, provenance and dependency review
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationKind": {
@@ -7053,7 +7053,7 @@ Recent behavior execution runs
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -7066,7 +7066,7 @@ Recent behavior execution runs
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7097,7 +7097,7 @@ Validates an automation script and returns diagnostics
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7137,7 +7137,7 @@ Validates an automation script and returns diagnostics
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7182,7 +7182,7 @@ Atomic owner bulk enablement across behavior families
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationEnablementUpdate": {
@@ -7231,7 +7231,7 @@ Atomic owner bulk enablement across behavior families
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutomationEnablementMiss": {
@@ -7291,7 +7291,7 @@ Merged owner behavior snapshot and runtime catalog
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -7304,7 +7304,7 @@ Merged owner behavior snapshot and runtime catalog
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -7325,7 +7325,7 @@ Reads an explicitly shared automation definition
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7352,7 +7352,7 @@ Reads an explicitly shared automation definition
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -7373,7 +7373,7 @@ Dry-runs a saved (id) or inline (record) event or action
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7418,7 +7418,7 @@ Dry-runs a saved (id) or inline (record) event or action
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -7439,7 +7439,7 @@ Replaces a behavior event or action (must already exist)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7468,7 +7468,7 @@ Replaces a behavior event or action (must already exist)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -7489,7 +7489,7 @@ Deletes a Cloud image; conflict while an overlay still uses it; needs media.oper
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -7510,7 +7510,7 @@ Deletes a Cloud image; conflict while an overlay still uses it; needs media.oper
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Acknowledgement of a Cloud delete (`{\"id\", \"deleted\": true}`).",
@@ -7545,7 +7545,7 @@ Lists the owner's Cloud images, newest first; needs media.operations list
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -7576,7 +7576,7 @@ Lists the owner's Cloud images, newest first; needs media.operations list
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CloudAsset": {
@@ -7668,7 +7668,7 @@ Renames a Cloud image, or clears its label with null; needs media.operations ren
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -7696,7 +7696,7 @@ Renames a Cloud image, or clears its label with null; needs media.operations ren
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7765,7 +7765,7 @@ Uploads a PNG, JPEG or WebP image to the owner's Cloud asset store
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -7787,7 +7787,7 @@ Uploads a PNG, JPEG or WebP image to the owner's Cloud asset store
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7856,7 +7856,7 @@ Creates a private overlay from a schema version 1 document
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -7875,7 +7875,7 @@ Creates a private overlay from a schema version 1 document
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -7914,7 +7914,7 @@ Deletes an overlay and all its revisions; conflict while a package pins it; need
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -7935,7 +7935,7 @@ Deletes an overlay and all its revisions; conflict while a package pins it; need
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Acknowledgement of a Cloud delete (`{\"id\", \"deleted\": true}`).",
@@ -7970,7 +7970,7 @@ Lists the owner's overlays without their documents; needs overlays.operations li
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8001,7 +8001,7 @@ Lists the owner's overlays without their documents; needs overlays.operations li
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "OverlaySummary": {
@@ -8087,7 +8087,7 @@ Reads one owned overlay with its document
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8108,7 +8108,7 @@ Reads one owned overlay with its document
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -8154,7 +8154,7 @@ Publishes a new overlay revision; requires the current revision
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8182,7 +8182,7 @@ Publishes a new overlay revision; requires the current revision
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -8221,7 +8221,7 @@ Reads one stored overlay revision with its document; needs overlays.operations r
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8248,7 +8248,7 @@ Reads one stored overlay revision with its document; needs overlays.operations r
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "One stored overlay revision with its document.",
@@ -8307,7 +8307,7 @@ Lists the revisions of one overlay, newest first; needs overlays.operations revi
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8342,7 +8342,7 @@ Lists the revisions of one overlay, newest first; needs overlays.operations revi
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "OverlayRevisionSummary": {
@@ -8424,7 +8424,7 @@ Creates a package that pins plugin versions and document revisions
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PackageItemParams": {
@@ -8490,7 +8490,7 @@ Creates a package that pins plugin versions and document revisions
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -8534,7 +8534,7 @@ Deletes a package, which releases the overlays it pinned; needs packages.operati
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8555,7 +8555,7 @@ Deletes a package, which releases the overlays it pinned; needs packages.operati
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Acknowledgement of a Cloud delete (`{\"id\", \"deleted\": true}`).",
@@ -8590,7 +8590,7 @@ Reports what applying a package needs; applies nothing
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8611,7 +8611,7 @@ Reports what applying a package needs; applies nothing
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PreflightItem": {
@@ -8706,7 +8706,7 @@ Reads one owned package
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8727,7 +8727,7 @@ Reads one owned package
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -8764,7 +8764,7 @@ Copies a public template or profile into the signed-in owner's library as a priv
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8795,7 +8795,7 @@ Copies a public template or profile into the signed-in owner's library as a priv
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CatalogForkOrigin": {
@@ -8858,7 +8858,7 @@ Reads one unified catalog item; installation still requires the signed release
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8889,7 +8889,7 @@ Reads one unified catalog item; installation still requires the signed release
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -8910,7 +8910,7 @@ Reads one bounded page of the unified catalog (plugins, templates, profiles); pr
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -8956,7 +8956,7 @@ Reads one bounded page of the unified catalog (plugins, templates, profiles); pr
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -9000,7 +9000,7 @@ Lists the signed-in owner's templates and profiles in any status (Míos)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9040,7 +9040,7 @@ Lists the signed-in owner's templates and profiles in any status (Míos)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -9078,7 +9078,7 @@ Creates a portable, versioned backup of all Cloud-owned data
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -9091,7 +9091,7 @@ Creates a portable, versioned backup of all Cloud-owned data
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -9112,7 +9112,7 @@ Stores a backup in the cloud under a name: the given manifest, or a snapshot of 
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9136,7 +9136,7 @@ Stores a backup in the cloud under a name: the given manifest, or a snapshot of 
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -9203,7 +9203,7 @@ Deletes one stored backup
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9224,7 +9224,7 @@ Deletes one stored backup
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -9245,7 +9245,7 @@ Downloads one stored backup manifest
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9266,7 +9266,7 @@ Downloads one stored backup manifest
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -9287,7 +9287,7 @@ Lists backups stored in the cloud for this account
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -9300,7 +9300,7 @@ Lists backups stored in the cloud for this account
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "StoredBackupView": {
@@ -9375,7 +9375,7 @@ Summarizes what a backup restore would import without changing anything
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9402,7 +9402,7 @@ Summarizes what a backup restore would import without changing anything
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -9423,7 +9423,7 @@ Restores a backup manifest on this device
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9450,7 +9450,7 @@ Restores a backup manifest on this device
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -9471,7 +9471,7 @@ Previews or restores a backup stored in the cloud
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9500,7 +9500,7 @@ Previews or restores a backup stored in the cloud
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -9521,7 +9521,7 @@ Starts the system-browser login and returns the URL to open
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9543,7 +9543,7 @@ Starts the system-browser login and returns the URL to open
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -9573,7 +9573,7 @@ Aborts an in-progress login and drops its secrets
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9595,7 +9595,7 @@ Aborts an in-progress login and drops its secrets
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AccountState": {
@@ -9735,7 +9735,7 @@ Relays the login code to connected devices again
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9757,7 +9757,7 @@ Relays the login code to connected devices again
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Nonsecret progress of a device-relayed login code.",
@@ -9806,7 +9806,7 @@ Sends a short-lived login code to connected devices (OAuth if no account)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9834,7 +9834,7 @@ Sends a short-lived login code to connected devices (OAuth if no account)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Nonsecret progress of a device-relayed login code.",
@@ -9883,7 +9883,7 @@ Redeems a relayed login code without exposing any credential
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9911,7 +9911,7 @@ Redeems a relayed login code without exposing any credential
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AccountState": {
@@ -10051,7 +10051,7 @@ Waits for the browser callback, redeems it, and signs in
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -10073,7 +10073,7 @@ Waits for the browser callback, redeems it, and signs in
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AccountState": {
@@ -10213,7 +10213,7 @@ Opens the pending login URL in the system browser
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -10235,7 +10235,7 @@ Opens the pending login URL in the system browser
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -10266,7 +10266,7 @@ Reserves a correlated login operation without starting a callback
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -10279,7 +10279,7 @@ Reserves a correlated login operation without starting a callback
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -10309,7 +10309,7 @@ Revokes the server session and wipes local credentials
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -10322,7 +10322,7 @@ Revokes the server session and wipes local credentials
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AccountState": {
@@ -10462,7 +10462,7 @@ Shows the Cloud plan, its ceilings and the current storage usage
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -10475,7 +10475,7 @@ Shows the Cloud plan, its ceilings and the current storage usage
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PlanLimitsView": {
@@ -10612,7 +10612,7 @@ Reconnects from the OS credential store after a restart
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -10625,7 +10625,7 @@ Reconnects from the OS credential store after a restart
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AccountState": {
@@ -10765,7 +10765,7 @@ Shows the Cloud account state without exposing any credentials
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -10778,7 +10778,7 @@ Shows the Cloud account state without exposing any credentials
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AccountState": {
@@ -10918,7 +10918,7 @@ Lists published or private Cloud documents without importing them
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CloudLibraryKind": {
@@ -10977,7 +10977,7 @@ Lists published or private Cloud documents without importing them
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CloudLibraryDocumentMeta": {
@@ -11073,7 +11073,7 @@ Reads a Cloud document revision without importing it
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CloudLibraryScope": {
@@ -11113,7 +11113,7 @@ Reads a Cloud document revision without importing it
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CloudLibraryDocumentMeta": {
@@ -11202,7 +11202,7 @@ Returns a bounded redacted collaboration audit page
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -11231,7 +11231,7 @@ Returns a bounded redacted collaboration audit page
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AuditEntry": {
@@ -11401,7 +11401,7 @@ Retrieves an authorized retained command outcome without executing it
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -11430,7 +11430,7 @@ Retrieves an authorized retained command outcome without executing it
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CommandReceipt": {
@@ -11582,7 +11582,7 @@ Configures or disables authenticated remote collaboration
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PeerConfiguration": {
@@ -11740,7 +11740,7 @@ Configures or disables authenticated remote collaboration
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Configuration": {
@@ -12087,7 +12087,7 @@ Updates an identity grant with an atomic revision precondition
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AudioEffectGrant": {
@@ -12462,7 +12462,7 @@ Updates an identity grant with an atomic revision precondition
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -12493,7 +12493,7 @@ Negotiates the authenticated remote protocol
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ClientKind": {
@@ -12534,7 +12534,7 @@ Negotiates the authenticated remote protocol
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Capability": {
@@ -12787,7 +12787,7 @@ Creates a one-use owner-approved invitation; secret returned once
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AudioEffectGrant": {
@@ -13160,7 +13160,7 @@ Creates a one-use owner-approved invitation; secret returned once
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Never implements Debug: the secret is returned only once to the owner.",
@@ -13200,7 +13200,7 @@ Returns a redacted invitation page
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -13232,7 +13232,7 @@ Returns a redacted invitation page
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AudioEffectGrant": {
@@ -13641,7 +13641,7 @@ Revokes an invitation and its pending exchange
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -13662,7 +13662,7 @@ Revokes an invitation and its pending exchange
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -13693,7 +13693,7 @@ Shows only the authenticated caller's effective identity and grants
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -13706,7 +13706,7 @@ Shows only the authenticated caller's effective identity and grants
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AudioEffectGrant": {
@@ -14111,7 +14111,7 @@ Returns one owner-visible identity and its current permission revision
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -14132,7 +14132,7 @@ Returns one owner-visible identity and its current permission revision
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AudioEffectGrant": {
@@ -14536,7 +14536,7 @@ Returns approved identities and grants in a bounded page
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -14568,7 +14568,7 @@ Returns approved identities and grants in a bounded page
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AudioEffectGrant": {
@@ -14992,7 +14992,7 @@ Revokes an identity and all its sessions
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -15013,7 +15013,7 @@ Revokes an identity and all its sessions
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -15044,7 +15044,7 @@ Approves a device with its invitation's maximum grant
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -15065,7 +15065,7 @@ Approves a device with its invitation's maximum grant
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -15096,7 +15096,7 @@ Returns devices awaiting owner approval in a bounded page
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -15128,7 +15128,7 @@ Returns devices awaiting owner approval in a bounded page
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AudioEffectGrant": {
@@ -15553,7 +15553,7 @@ Rejects a pending device
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -15574,7 +15574,7 @@ Rejects a pending device
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -15605,7 +15605,7 @@ Resumes retained reliable notifications under the same session and grant
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -15634,7 +15634,7 @@ Resumes retained reliable notifications under the same session and grant
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -15684,7 +15684,7 @@ Returns a redacted independent device session page
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -15716,7 +15716,7 @@ Returns a redacted independent device session page
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ClientKind": {
@@ -15807,7 +15807,7 @@ Revokes only the selected device session
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -15828,7 +15828,7 @@ Revokes only the selected device session
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -15859,7 +15859,7 @@ Captures an immutable authorized baseline or retrieves its next page
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -15887,7 +15887,7 @@ Captures an immutable authorized baseline or retrieves its next page
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ResourceKind": {
@@ -16034,7 +16034,7 @@ Local-owner collaboration configuration and session counts
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -16047,7 +16047,7 @@ Local-owner collaboration configuration and session counts
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Configuration": {
@@ -16394,7 +16394,7 @@ Creates one authorized bounded recovery stream for this connection
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "StreamDomain": {
@@ -16449,7 +16449,7 @@ Creates one authorized bounded recovery stream for this connection
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "StreamDomain": {
@@ -16544,7 +16544,7 @@ Read winner action status
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -16570,7 +16570,7 @@ Read winner action status
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ActionExecution": {
@@ -16661,7 +16661,7 @@ Transition a competition with a revision-bound command
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -16689,7 +16689,7 @@ Transition a competition with a revision-bound command
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -16710,7 +16710,7 @@ Read tied leaders awaiting manual selection
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -16730,7 +16730,7 @@ Read tied leaders awaiting manual selection
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Entry": {
@@ -16835,7 +16835,7 @@ Create a competition definition
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CompetitionKind": {
@@ -17022,7 +17022,7 @@ Create a competition definition
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -17053,7 +17053,7 @@ Delete a competition definition without results
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -17073,7 +17073,7 @@ Delete a competition definition without results
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -17104,7 +17104,7 @@ Close and finalize an eligible competition
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -17124,7 +17124,7 @@ Close and finalize an eligible competition
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Candidate": {
@@ -17251,7 +17251,7 @@ Get a competition definition
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -17271,7 +17271,7 @@ Get a competition definition
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CompetitionKind": {
@@ -17468,7 +17468,7 @@ List competition definitions
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -17481,7 +17481,7 @@ List competition definitions
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CompetitionKind": {
@@ -17692,7 +17692,7 @@ Mark a stranded running winner action uncertain
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -17718,7 +17718,7 @@ Mark a stranded running winner action uncertain
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -17749,7 +17749,7 @@ Transition a competition with a revision-bound command
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -17777,7 +17777,7 @@ Transition a competition with a revision-bound command
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -17798,7 +17798,7 @@ Resolve an uncertain winner action without dispatching it
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ActionResolution": {
@@ -17837,7 +17837,7 @@ Resolve an uncertain winner action without dispatching it
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -17868,7 +17868,7 @@ Read committed competition result history
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -17906,7 +17906,7 @@ Read committed competition result history
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Candidate": {
@@ -18055,7 +18055,7 @@ Transition a competition with a revision-bound command
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -18083,7 +18083,7 @@ Transition a competition with a revision-bound command
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -18104,7 +18104,7 @@ Resolve a closed manual highest-score tie
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -18134,7 +18134,7 @@ Resolve a closed manual highest-score tie
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Candidate": {
@@ -18261,7 +18261,7 @@ Transition a competition with a revision-bound command
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -18289,7 +18289,7 @@ Transition a competition with a revision-bound command
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -18310,7 +18310,7 @@ Read durable competition lifecycle state
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -18330,7 +18330,7 @@ Read durable competition lifecycle state
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Lifecycle": {
@@ -18397,7 +18397,7 @@ Read bounded authorized competition status without definitions or participants
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -18432,7 +18432,7 @@ Read bounded authorized competition status without definitions or participants
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CompetitionKind": {
@@ -18545,7 +18545,7 @@ Update a competition definition without results
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CompetitionKind": {
@@ -18732,7 +18732,7 @@ Update a competition definition without results
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -18763,7 +18763,7 @@ Creator record by uniqueId (defaults to the last connected creator)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -18784,7 +18784,7 @@ Creator record by uniqueId (defaults to the last connected creator)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -18809,7 +18809,7 @@ Clears creator history and the last-creator pointer
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -18822,7 +18822,7 @@ Clears creator history and the last-creator pointer
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -18853,7 +18853,7 @@ Recently connected creators, most recent first
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -18875,7 +18875,7 @@ Recently connected creators, most recent first
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -18906,7 +18906,7 @@ Gift icon lookup plus the catalog size
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -18927,7 +18927,7 @@ Gift icon lookup plus the catalog size
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -18975,7 +18975,7 @@ Persisted gift catalog ordered by diamond count
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -18988,7 +18988,7 @@ Persisted gift catalog ordered by diamond count
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19019,7 +19019,7 @@ Deletes one runtime global
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19039,7 +19039,7 @@ Deletes one runtime global
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19073,7 +19073,7 @@ Reads one runtime global by bare key
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19093,7 +19093,7 @@ Reads one runtime global by bare key
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19127,7 +19127,7 @@ Lists every runtime global (bare key to text value)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -19140,7 +19140,7 @@ Lists every runtime global (bare key to text value)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19173,7 +19173,7 @@ Creates or replaces one runtime global
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19197,7 +19197,7 @@ Creates or replaces one runtime global
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19231,7 +19231,7 @@ Reads local variable types, values and the revision required for saving
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -19244,7 +19244,7 @@ Reads local variable types, values and the revision required for saving
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "RuntimeVariable": {
@@ -19316,7 +19316,7 @@ Atomically saves the reviewed local variable revision; never syncs values
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "RuntimeVariable": {
@@ -19379,7 +19379,7 @@ Atomically saves the reviewed local variable revision; never syncs values
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "RuntimeVariable": {
@@ -19451,7 +19451,7 @@ Creates a webhook connection; the secret is returned once and is not stored by t
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -19472,7 +19472,7 @@ Creates a webhook connection; the secret is returned once and is not stored by t
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "The only reply that carries a secret. Callers must show it once and drop it.",
@@ -19519,7 +19519,7 @@ Lists the Cloud integration connections owned by the signed-in account
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -19532,7 +19532,7 @@ Lists the Cloud integration connections owned by the signed-in account
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "IntegrationConnection": {
@@ -19594,7 +19594,7 @@ Revokes a webhook connection; later deliveries are refused and stored events sta
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -19615,7 +19615,7 @@ Revokes a webhook connection; later deliveries are refused and stored events sta
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19649,7 +19649,7 @@ Reads the newest webhook events of one owned connection, bounded to the reply bu
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -19670,7 +19670,7 @@ Reads the newest webhook events of one owned connection, bounded to the reply bu
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "IntegrationEvent": {
@@ -19727,7 +19727,7 @@ Browses currently live rooms without connecting
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19772,7 +19772,7 @@ Browses currently live rooms without connecting
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "LiveChannel": {
@@ -19857,7 +19857,7 @@ Connects the native TikTok live client
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19888,7 +19888,7 @@ Connects the native TikTok live client
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -19940,7 +19940,7 @@ Disconnects the live client
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -19953,7 +19953,7 @@ Disconnects the live client
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20005,7 +20005,7 @@ Monitors a creator and connects when LIVE
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20038,7 +20038,7 @@ Monitors a creator and connects when LIVE
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20116,7 +20116,7 @@ Current native creator monitor state
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -20129,7 +20129,7 @@ Current native creator monitor state
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20207,7 +20207,7 @@ Stops monitoring and disconnects its LIVE session
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -20220,7 +20220,7 @@ Stops monitoring and disconnects its LIVE session
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20298,7 +20298,7 @@ Connects to the top live room for a session cookie
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20318,7 +20318,7 @@ Connects to the top live room for a session cookie
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20370,7 +20370,7 @@ Live connection status
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -20383,7 +20383,7 @@ Live connection status
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20435,7 +20435,7 @@ Opens the native file dialog (desktop hosts only)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "MediaKind": {
@@ -20510,7 +20510,7 @@ Opens the native file dialog (desktop hosts only)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "MediaDirectoryRef": {
@@ -20674,7 +20674,7 @@ Validates a media path and returns its canonical reference
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "MediaKind": {
@@ -20716,7 +20716,7 @@ Validates a media path and returns its canonical reference
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "MediaDirectoryRef": {
@@ -20865,7 +20865,7 @@ Executes one plugin action (dry run unless live is true)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20902,7 +20902,7 @@ Executes one plugin action (dry run unless live is true)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -20962,7 +20962,7 @@ In-memory plugin runtime diagnostics: last event, poll drops, hotkey sync state
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -20975,7 +20975,7 @@ In-memory plugin runtime diagnostics: last event, poll drops, hotkey sync state
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -20996,7 +20996,7 @@ Stops a plugin runtime and marks it disabled
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21016,7 +21016,7 @@ Stops a plugin runtime and marks it disabled
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -21047,7 +21047,7 @@ Marks a plugin installed+enabled and starts its runtime
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21067,7 +21067,7 @@ Marks a plugin installed+enabled and starts its runtime
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -21098,7 +21098,7 @@ One plugin summary by id
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21118,7 +21118,7 @@ One plugin summary by id
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21146,7 +21146,7 @@ Probes a plugin health endpoint (schema v3 http.health)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21166,7 +21166,7 @@ Probes a plugin health endpoint (schema v3 http.health)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21229,7 +21229,7 @@ Installs a .plugin archive (identity comes from plugin.json)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21253,7 +21253,7 @@ Installs a .plugin archive (identity comes from plugin.json)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21295,7 +21295,7 @@ Logical installed-state toggle (never touches the filesystem)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21319,7 +21319,7 @@ Logical installed-state toggle (never touches the filesystem)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -21350,7 +21350,7 @@ Requests cancellation of a running plugin package job
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21370,7 +21370,7 @@ Requests cancellation of a running plugin package job
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21400,7 +21400,7 @@ One plugin package job
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21420,7 +21420,7 @@ One plugin package job
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "InstallError": {
@@ -21628,7 +21628,7 @@ Recent plugin package jobs, newest first
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -21641,7 +21641,7 @@ Recent plugin package jobs, newest first
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "InstallError": {
@@ -21852,7 +21852,7 @@ Safe plugin summaries (never includes settings values)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -21865,7 +21865,7 @@ Safe plugin summaries (never includes settings values)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21896,7 +21896,7 @@ Resolves action-type/field option documents
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21931,7 +21931,7 @@ Resolves action-type/field option documents
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -21972,7 +21972,7 @@ Resolves, downloads, and verifies a package spec and returns its review (permiss
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PackageSpecInput": {
@@ -22074,7 +22074,7 @@ Resolves, downloads, and verifies a package spec and returns its review (permiss
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ChangeKind": {
@@ -22385,7 +22385,7 @@ Starts an install job for a reviewed package; the consent token comes from plugi
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutoUpdate": {
@@ -22527,7 +22527,7 @@ Starts an install job for a reviewed package; the consent token comes from plugi
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "InstallError": {
@@ -22735,7 +22735,7 @@ Updates a plugin's update channel, auto-update rule, or pin
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutoUpdate": {
@@ -22788,7 +22788,7 @@ Updates a plugin's update channel, auto-update rule, or pin
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutoUpdate": {
@@ -23095,7 +23095,7 @@ Install receipts (origin, signature, granted access, update policy) for managed 
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -23108,7 +23108,7 @@ Install receipts (origin, signature, granted access, update policy) for managed 
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutoUpdate": {
@@ -23418,7 +23418,7 @@ Restores a retained previous version of a plugin and pins it
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -23444,7 +23444,7 @@ Restores a retained previous version of a plugin and pins it
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "InstallError": {
@@ -23652,7 +23652,7 @@ Starts an update job for a registry plugin; omitting the consent token only appl
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -23684,7 +23684,7 @@ Starts an update job for a registry plugin; omitting the consent token only appl
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "InstallError": {
@@ -23892,7 +23892,7 @@ Installed, retained, and registry-available versions of one plugin
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -23912,7 +23912,7 @@ Installed, retained, and registry-available versions of one plugin
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Advisory": {
@@ -24353,7 +24353,7 @@ Re-reads plugin manifests from disk and refreshes the derived pages and behavior
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -24366,7 +24366,7 @@ Re-reads plugin manifests from disk and refreshes the derived pages and behavior
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Outcome of a trusted catalog refresh. The counts make a rescan observable\nwhen a manifest edit is supposed to add or change a sidebar page.",
@@ -24411,7 +24411,7 @@ Rescans manifests and restarts one plugin runtime without restarting the app
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24431,7 +24431,7 @@ Rescans manifests and restarts one plugin runtime without restarting the app
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Outcome of a trusted catalog refresh. The counts make a rescan observable\nwhen a manifest edit is supposed to add or change a sidebar page.",
@@ -24476,7 +24476,7 @@ Plugin settings schema plus redacted values
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24496,7 +24496,7 @@ Plugin settings schema plus redacted values
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24534,7 +24534,7 @@ Deletes stored settings so schema defaults apply again
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24554,7 +24554,7 @@ Deletes stored settings so schema defaults apply again
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24592,7 +24592,7 @@ Updates plugin settings (placeholder preserves stored secrets)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24617,7 +24617,7 @@ Updates plugin settings (placeholder preserves stored secrets)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24655,7 +24655,7 @@ Starts a plugin runtime without changing persisted state
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24675,7 +24675,7 @@ Starts a plugin runtime without changing persisted state
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -24706,7 +24706,7 @@ Stops a plugin runtime without changing persisted state
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24726,7 +24726,7 @@ Stops a plugin runtime without changing persisted state
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -24757,7 +24757,7 @@ Imports a secret token from a user-selected local configuration via the native p
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -24789,7 +24789,7 @@ Imports a secret token from a user-selected local configuration via the native p
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "TokenImportCandidate": {
@@ -24852,7 +24852,7 @@ Mints an API token via the plugin provisioning flow (password is used once, neve
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24880,7 +24880,7 @@ Mints an API token via the plugin provisioning flow (password is used once, neve
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24920,7 +24920,7 @@ Validated plugin UI assets for local transports
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -24940,7 +24940,7 @@ Validated plugin UI assets for local transports
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Validated UI asset root for trusted local transport adapters, not a file API.",
@@ -24986,7 +24986,7 @@ Removes a user-installed plugin package, its retained versions, and optionally i
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25010,7 +25010,7 @@ Removes a user-installed plugin package, its retained versions, and optionally i
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -25041,7 +25041,7 @@ Checks registries for plugin updates and advisories, applying permitted automati
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -25054,7 +25054,7 @@ Checks registries for plugin updates and advisories, applying permitted automati
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Advisory": {
@@ -25263,7 +25263,7 @@ The most recent plugin update report
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -25276,7 +25276,7 @@ The most recent plugin update report
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Advisory": {
@@ -25485,7 +25485,7 @@ Manual points adjustment (creates the viewer record if missing)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25516,7 +25516,7 @@ Manual points adjustment (creates the viewer record if missing)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25566,7 +25566,7 @@ Current points configuration
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -25579,7 +25579,7 @@ Current points configuration
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25673,7 +25673,7 @@ Updates points configuration (partial object)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25800,7 +25800,7 @@ Updates points configuration (partial object)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25894,7 +25894,7 @@ Points unit label for confirmation; no earning configuration
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -25907,7 +25907,7 @@ Points unit label for confirmation; no earning configuration
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25937,7 +25937,7 @@ Points leaderboard, highest first
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25959,7 +25959,7 @@ Points leaderboard, highest first
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -25990,7 +25990,7 @@ Resets points for one viewer, or all viewers when uniqueId is omitted
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26011,7 +26011,7 @@ Resets points for one viewer, or all viewers when uniqueId is omitted
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -26042,7 +26042,7 @@ Committed bounded leaderboard and selected viewer
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -26072,7 +26072,7 @@ Committed bounded leaderboard and selected viewer
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26114,7 +26114,7 @@ One viewer points record by uniqueId
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26134,7 +26134,7 @@ One viewer points record by uniqueId
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26162,7 +26162,7 @@ Indexed event processors
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -26175,7 +26175,7 @@ Indexed event processors
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26206,7 +26206,7 @@ Processor health and metrics snapshot
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -26219,7 +26219,7 @@ Processor health and metrics snapshot
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ProcessorStatusEntry": {
@@ -26363,7 +26363,7 @@ Runs one processor against a sample event
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26389,7 +26389,7 @@ Runs one processor against a sample event
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26441,7 +26441,7 @@ Requests a Cloud publisher namespace (starts pending admin approval)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26461,7 +26461,7 @@ Requests a Cloud publisher namespace (starts pending admin approval)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "A publisher namespace the signed-in account belongs to.",
@@ -26504,7 +26504,7 @@ Deletes an owned publisher namespace that has no other members, keys, uploads, r
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26524,7 +26524,7 @@ Deletes an owned publisher namespace that has no other members, keys, uploads, r
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Result of deleting a publisher namespace. `publisher_id` is the resolved\nid, which can differ from the namespace the caller typed.",
@@ -26559,7 +26559,7 @@ Lists the signing keys of one publisher, pending and approved
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26579,7 +26579,7 @@ Lists the signing keys of one publisher, pending and approved
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PublisherKeyRecord": {
@@ -26642,7 +26642,7 @@ Enrolls a signing key: step-up, challenge, local key generation and registration
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26673,7 +26673,7 @@ Enrolls a signing key: step-up, challenge, local key generation and registration
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PublisherKeyRecord": {
@@ -26742,7 +26742,7 @@ Lists the Cloud publisher namespaces the signed-in account belongs to
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -26755,7 +26755,7 @@ Lists the Cloud publisher namespaces the signed-in account belongs to
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PublisherSummary": {
@@ -26814,7 +26814,7 @@ Requests publication review for a release (needs a reviewer role)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26834,7 +26834,7 @@ Requests publication review for a release (needs a reviewer role)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Publication review request as the backend reports it.",
@@ -26873,7 +26873,7 @@ Fetches one plugin release for status review
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -26893,7 +26893,7 @@ Fetches one plugin release for status review
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PublisherReleaseView": {
@@ -26975,7 +26975,7 @@ Submits an uploaded artifact as a plugin release for review
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -27011,7 +27011,7 @@ Submits an uploaded artifact as a plugin release for review
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PublisherReleaseView": {
@@ -27093,7 +27093,7 @@ Uploads a local plugin artifact to object storage for a publisher
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -27118,7 +27118,7 @@ Uploads a local plugin artifact to object storage for a publisher
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -27152,7 +27152,7 @@ Apply an idempotent plugin or custom ranking contribution
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "One externally reported contribution (plugin or agent). `eventId` is a\ncaller-chosen idempotency key; replays are acknowledged without scoring.",
@@ -27230,7 +27230,7 @@ Apply an idempotent plugin or custom ranking contribution
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -27260,7 +27260,7 @@ Create a ranking definition
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "GroupBy": {
@@ -27473,7 +27473,7 @@ Create a ranking definition
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -27504,7 +27504,7 @@ Delete a ranking
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -27524,7 +27524,7 @@ Delete a ranking
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -27555,7 +27555,7 @@ Get a ranking definition
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -27575,7 +27575,7 @@ Get a ranking definition
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "GroupBy": {
@@ -27798,7 +27798,7 @@ List rankings
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -27811,7 +27811,7 @@ List rankings
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Definition": {
@@ -28048,7 +28048,7 @@ List available native delta metrics
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -28061,7 +28061,7 @@ List available native delta metrics
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "MetricDescriptor": {
@@ -28119,7 +28119,7 @@ Pause a ranking
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -28139,7 +28139,7 @@ Pause a ranking
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -28170,7 +28170,7 @@ Reset a ranking
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -28190,7 +28190,7 @@ Reset a ranking
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -28221,7 +28221,7 @@ Resume a ranking
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -28241,7 +28241,7 @@ Resume a ranking
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -28272,7 +28272,7 @@ Get a ranking snapshot
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -28292,7 +28292,7 @@ Get a ranking snapshot
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Entry": {
@@ -28530,7 +28530,7 @@ Update a paused ranking; score changes require reset
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Definition": {
@@ -28758,7 +28758,7 @@ Update a paused ranking; score changes require reset
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -28789,7 +28789,7 @@ Discovers plugin metadata from the configured Cloud instance; installation requi
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -28827,7 +28827,7 @@ Discovers plugin metadata from the configured Cloud instance; installation requi
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -28870,7 +28870,7 @@ Discovers bounded Cloud catalog pagination capabilities
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -28883,7 +28883,7 @@ Discovers bounded Cloud catalog pagination capabilities
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -28940,7 +28940,7 @@ Reads bounded Cloud plugin summaries without granting installation trust
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -28979,7 +28979,7 @@ Reads bounded Cloud plugin summaries without granting installation trust
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CloudCatalogSummary": {
@@ -29049,7 +29049,7 @@ Reads one bounded Cloud plugin version page
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -29088,7 +29088,7 @@ Reads one bounded Cloud plugin version page
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CloudCatalogAdvisory": {
@@ -29212,7 +29212,7 @@ Default update channel, auto-update rule, check interval, and sideload policy
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -29225,7 +29225,7 @@ Default update channel, auto-update rule, check interval, and sideload policy
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutoUpdate": {
@@ -29278,7 +29278,7 @@ Updates the default plugin update and sideload policy
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutoUpdate": {
@@ -29321,7 +29321,7 @@ Updates the default plugin update and sideload policy
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "AutoUpdate": {
@@ -29374,7 +29374,7 @@ Configured plugin registries with verification and refresh state
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -29387,7 +29387,7 @@ Configured plugin registries with verification and refresh state
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "RegistryStatus": {
@@ -29488,7 +29488,7 @@ The verified registry document of one plugin
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -29514,7 +29514,7 @@ The verified registry document of one plugin
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "Advisory": {
@@ -29811,7 +29811,7 @@ Re-reads and re-verifies registry keys and configuration
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -29831,7 +29831,7 @@ Re-reads and re-verifies registry keys and configuration
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "RegistryStatus": {
@@ -29932,7 +29932,7 @@ Searches enabled registries' catalogs
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -29968,7 +29968,7 @@ Searches enabled registries' catalogs
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "SearchEntry": {
@@ -30090,7 +30090,7 @@ Lists every method with descriptions and JSON Schemas
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -30103,7 +30103,7 @@ Lists every method with descriptions and JSON Schemas
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ConcurrencyStrategy": {
@@ -30194,7 +30194,7 @@ Returns one method metadata entry with its schemas
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -30214,7 +30214,7 @@ Returns one method metadata entry with its schemas
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "ConcurrencyStrategy": {
@@ -30291,7 +30291,7 @@ Opts this device out of Cloud plugin-selection sync
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -30304,7 +30304,7 @@ Opts this device out of Cloud plugin-selection sync
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Everything the UI may show. No tokens, no plugin code, ever.",
@@ -30370,7 +30370,7 @@ Opts this device into Cloud plugin-selection sync
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -30383,7 +30383,7 @@ Opts this device into Cloud plugin-selection sync
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Everything the UI may show. No tokens, no plugin code, ever.",
@@ -30449,7 +30449,7 @@ Pulls and pushes plugin selections without automatically applying remote changes
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -30462,7 +30462,7 @@ Pulls and pushes plugin selections without automatically applying remote changes
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -30524,7 +30524,7 @@ Conflict resolution is unavailable until local recovery is protected
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -30548,7 +30548,7 @@ Conflict resolution is unavailable until local recovery is protected
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Everything the UI may show. No tokens, no plugin code, ever.",
@@ -30614,7 +30614,7 @@ Shows the Cloud sync state without exposing any credentials
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -30627,7 +30627,7 @@ Shows the Cloud sync state without exposing any credentials
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Everything the UI may show. No tokens, no plugin code, ever.",
@@ -30693,7 +30693,7 @@ Lists selections with an uncertain upload outcome
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -30706,7 +30706,7 @@ Lists selections with an uncertain upload outcome
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "items": {
@@ -30731,7 +30731,7 @@ Resolves a reviewed uncertain upload
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "SyncRecoveryChoice": {
@@ -30766,7 +30766,7 @@ Resolves a reviewed uncertain upload
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "enum": [
@@ -30792,7 +30792,7 @@ Reads the current Cloud value for an uncertain upload
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -30813,7 +30813,7 @@ Reads the current Cloud value for an uncertain upload
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "SyncRecoveryValue": {
@@ -30889,7 +30889,7 @@ Reads the durable v2 workspace (cached Cloud values and pending edits) without c
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -30902,7 +30902,7 @@ Reads the durable v2 workspace (cached Cloud values and pending edits) without c
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "V2ChangeEntry": {
@@ -31024,7 +31024,7 @@ Lists v2 conflicts for the current account without contacting Cloud
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -31037,7 +31037,7 @@ Lists v2 conflicts for the current account without contacting Cloud
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "V2ConflictTarget": {
@@ -31080,7 +31080,7 @@ Resolves a reviewed v2 conflict
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "V2ConflictChoice": {
@@ -31114,7 +31114,7 @@ Resolves a reviewed v2 conflict
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "enum": [
@@ -31139,7 +31139,7 @@ Reads the Cloud comparison for one reviewed v2 conflict
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -31164,7 +31164,7 @@ Reads the Cloud comparison for one reviewed v2 conflict
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "V2ConflictValue": {
@@ -31253,7 +31253,7 @@ Checks Cloud v2 compatibility without enabling synchronization
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -31266,7 +31266,7 @@ Checks Cloud v2 compatibility without enabling synchronization
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "WorkspaceV2DiscoveryState": {
@@ -31317,7 +31317,7 @@ Archives and clears only reviewed absent local install flags; keeps Cloud queues
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -31338,7 +31338,7 @@ Archives and clears only reviewed absent local install flags; keeps Cloud queues
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Reviewed local-only reconciliation of install flags for absent packages.",
@@ -31376,7 +31376,7 @@ Reviews absent local packages without changing sync queues
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -31389,7 +31389,7 @@ Reviews absent local packages without changing sync queues
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Reviewed local-only reconciliation of install flags for absent packages.",
@@ -31427,7 +31427,7 @@ Migrates this account from v1 to v2 and activates the server write-epoch policy
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -31440,7 +31440,7 @@ Migrates this account from v1 to v2 and activates the server write-epoch policy
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Result of the one-time v1 to v2 migration. `completed` means the local\ncutover committed; `policy_activated` means the server write-epoch policy\nis active for this account. A completed migration with\n`policy_activated` false can be retried by calling migrate again.",
@@ -31499,7 +31499,7 @@ Synchronize an already selected v2 workspace without applying Cloud records
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -31512,7 +31512,7 @@ Synchronize an already selected v2 workspace without applying Cloud records
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "A v2 network pass persists its cache and attempts supported plugin state\nchanges; other Cloud records are not applied by this operation.",
@@ -31576,7 +31576,7 @@ Reviews local migration inputs without changing or enabling synchronization
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -31589,7 +31589,7 @@ Reviews local migration inputs without changing or enabling synchronization
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Informational local migration estimate; it is not an authorization token.",
@@ -31644,7 +31644,7 @@ Rebuilds the fetched Cloud baseline after cursor expiry
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -31657,7 +31657,7 @@ Rebuilds the fetched Cloud baseline after cursor expiry
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "null",
@@ -31679,7 +31679,7 @@ Publishes only the requested section and returns its application candidates; oth
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "SyncSection": {
@@ -31710,7 +31710,7 @@ Publishes only the requested section and returns its application candidates; oth
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "A v2 network pass persists its cache and attempts supported plugin state\nchanges; other Cloud records are not applied by this operation.",
@@ -31774,7 +31774,7 @@ Reads the selected Cloud protocol without contacting the server
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -31787,7 +31787,7 @@ Reads the selected Cloud protocol without contacting the server
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "boolean",
@@ -31809,7 +31809,7 @@ Stages plugin settings for v2 sync
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -31832,7 +31832,7 @@ Stages plugin settings for v2 sync
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "null",
@@ -31854,7 +31854,7 @@ Stages desktop preferences for v2 sync
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -31865,7 +31865,7 @@ Stages desktop preferences for v2 sync
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "null",
@@ -31887,7 +31887,7 @@ Stages runtime variables for v2 sync; secrets are excluded and never leave the h
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$defs": {
     "VariableInput": {
@@ -31952,7 +31952,7 @@ Stages runtime variables for v2 sync; secrets are excluded and never leave the h
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -32008,7 +32008,7 @@ Apply one exact reviewed cached record; rejects changed local, account or Cloud 
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -32029,7 +32029,7 @@ Apply one exact reviewed cached record; rejects changed local, account or Cloud 
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "null",
@@ -32051,7 +32051,7 @@ Refresh the account cache without publishing queues or applying records
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32064,7 +32064,7 @@ Refresh the account cache without publishing queues or applying records
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "A v2 network pass persists its cache and attempts supported plugin state\nchanges; other Cloud records are not applied by this operation.",
@@ -32128,7 +32128,7 @@ Compare local variables with the current account cache without network or applic
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32141,7 +32141,7 @@ Compare local variables with the current account cache without network or applic
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "RuntimeVariable": {
@@ -32275,7 +32275,7 @@ Publish only the native variable in an exact reviewed comparison
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -32296,7 +32296,7 @@ Publish only the native variable in an exact reviewed comparison
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "A v2 network pass persists its cache and attempts supported plugin state\nchanges; other Cloud records are not applied by this operation.",
@@ -32360,7 +32360,7 @@ Withdraw one reviewed Cloud variable without changing its local value
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -32381,7 +32381,7 @@ Withdraw one reviewed Cloud variable without changing its local value
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "A v2 network pass persists its cache and attempts supported plugin state\nchanges; other Cloud records are not applied by this operation.",
@@ -32445,7 +32445,7 @@ Structured diagnostics: storage, database, plugins, live, processors
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32458,7 +32458,7 @@ Structured diagnostics: storage, database, plugins, live, processors
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "DoctorCheck": {
@@ -32518,7 +32518,7 @@ Liveness summary: status, live, plugin and processor counts
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32531,7 +32531,7 @@ Liveness summary: status, live, plugin and processor counts
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -32552,7 +32552,7 @@ Host info: version, features, paths, pid
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32565,7 +32565,7 @@ Host info: version, features, paths, pid
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -32586,7 +32586,7 @@ Liveness probe (always { ok: true })
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32599,7 +32599,7 @@ Liveness probe (always { ok: true })
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "`{ ok: true }` result shared by fire-and-forget mutations.",
@@ -32630,7 +32630,7 @@ Probe raw-input access; install the seat rule via one polkit prompt when blocked
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32643,7 +32643,7 @@ Probe raw-input access; install the seat rule via one polkit prompt when blocked
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Outcome of [`request_input_access`]: whether capture is usable now,\nplus a human sentence for the UI (success) or the failure detail.",
@@ -32678,7 +32678,7 @@ Writes one text file into the user's Downloads folder
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -32702,7 +32702,7 @@ Writes one text file into the user's Downloads folder
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -32736,7 +32736,7 @@ Stops live, plugin polling, and plugin runtimes
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32749,7 +32749,7 @@ Stops live, plugin polling, and plugin runtimes
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -32783,7 +32783,7 @@ Safe observable state (never includes secrets)
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32796,7 +32796,7 @@ Safe observable state (never includes secrets)
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -32817,7 +32817,7 @@ Lists only teams approved for this PC, with owner nicknames instead of email add
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -32830,7 +32830,7 @@ Lists only teams approved for this PC, with owner nicknames instead of email add
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "PeerMembership": {
@@ -32894,7 +32894,7 @@ Sends one command to a team as this PC's viewer and waits for the host's result
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -32923,7 +32923,7 @@ Sends one command to a team as this PC's viewer and waits for the host's result
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -32964,7 +32964,7 @@ Enrolls this PC's device key as a controller or as a team host, after a signed c
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -32997,7 +32997,7 @@ Enrolls this PC's device key as a controller or as a team host, after a signed c
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -33055,7 +33055,7 @@ Lists the devices enrolled for the signed-in account
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -33068,7 +33068,7 @@ Lists the devices enrolled for the signed-in account
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "TeamDevice": {
@@ -33142,7 +33142,7 @@ Revokes an enrolled device and everything it authorizes
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33163,7 +33163,7 @@ Revokes an enrolled device and everything it authorizes
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -33184,7 +33184,7 @@ Lists grants of an owned team
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33205,7 +33205,7 @@ Lists grants of an owned team
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "TeamGrant": {
@@ -33274,7 +33274,7 @@ Revokes a grant and closes its sessions
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33304,7 +33304,7 @@ Revokes a grant and closes its sessions
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -33325,7 +33325,7 @@ Changes a grant's role or policy; the host must confirm the new revision
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33362,7 +33362,7 @@ Changes a grant's role or policy; the host must confirm the new revision
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -33383,7 +33383,7 @@ Starts this PC's outbound link for the team it serves; the team must be enrolled
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -33396,7 +33396,7 @@ Starts this PC's outbound link for the team it serves; the team must be enrolled
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -33438,7 +33438,7 @@ Status of this PC's outbound link as a team host
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -33451,7 +33451,7 @@ Status of this PC's outbound link as a team host
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -33493,7 +33493,7 @@ Stops this PC's outbound link; pending commands become unknown on the relay
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -33506,7 +33506,7 @@ Stops this PC's outbound link; pending commands become unknown on the relay
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -33548,7 +33548,7 @@ Creates a remote-control team owned by the signed-in account
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33569,7 +33569,7 @@ Creates a remote-control team owned by the signed-in account
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -33621,7 +33621,7 @@ Reads one owned team
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33642,7 +33642,7 @@ Reads one owned team
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -33694,7 +33694,7 @@ Lists the remote-control teams owned by the signed-in account
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -33707,7 +33707,7 @@ Lists the remote-control teams owned by the signed-in account
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "TeamHost": {
@@ -33775,7 +33775,7 @@ Renames, enables or disables an owned team; requires the current revision
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33813,7 +33813,7 @@ Renames, enables or disables an owned team; requires the current revision
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -33865,7 +33865,7 @@ Creates a single-use invitation; the token is returned once and not stored by th
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33903,7 +33903,7 @@ Creates a single-use invitation; the token is returned once and not stored by th
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "The only reply that carries an invitation token. The owner shares it once.",
@@ -33950,7 +33950,7 @@ Lists invitations of an owned team; tokens are never listed
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -33971,7 +33971,7 @@ Lists invitations of an owned team; tokens are never listed
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "TeamInvitation": {
@@ -34035,7 +34035,7 @@ Redeems an invitation token with this PC's viewer device; the owner still approv
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34057,7 +34057,7 @@ Redeems an invitation token with this PC's viewer device; the owner still approv
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -34099,7 +34099,7 @@ Revokes an unspent invitation
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34124,7 +34124,7 @@ Revokes an unspent invitation
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -34145,7 +34145,7 @@ Finds invitation recipients by nickname without returning email addresses
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34166,7 +34166,7 @@ Finds invitation recipients by nickname without returning email addresses
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "TeamPerson": {
@@ -34222,7 +34222,7 @@ Approves or denies a join request; approval creates a grant awaiting host confir
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34258,7 +34258,7 @@ Approves or denies a join request; approval creates a grant awaiting host confir
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -34279,7 +34279,7 @@ Lists join requests of an owned team
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34300,7 +34300,7 @@ Lists join requests of an owned team
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "TeamRequest": {
@@ -34362,7 +34362,7 @@ Lists open controller sessions of an owned team
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34383,7 +34383,7 @@ Lists open controller sessions of an owned team
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "TeamSession": {
@@ -34446,7 +34446,7 @@ Closes one controller session
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34471,7 +34471,7 @@ Closes one controller session
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -34492,7 +34492,7 @@ Bounded read-only LIVE render history
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -34529,7 +34529,7 @@ Bounded read-only LIVE render history
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "FeedEntry": {
@@ -34606,7 +34606,7 @@ Bounded browser-safe LIVE history
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34627,7 +34627,7 @@ Bounded browser-safe LIVE history
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -34648,7 +34648,7 @@ Creator-scoped bounded LIVE history
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34687,7 +34687,7 @@ Creator-scoped bounded LIVE history
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "CreatorFeedEvent": {
@@ -34788,7 +34788,7 @@ Copies the OBS Browser Source URL of a cloud overlay, with its widget credential
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -34810,7 +34810,7 @@ Copies the OBS Browser Source URL of a cloud overlay, with its widget credential
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -34840,7 +34840,7 @@ Copies one OBS Browser Source URL (with its widget credential) to the OS clipboa
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -34902,7 +34902,7 @@ Copies one OBS Browser Source URL (with its widget credential) to the OS clipboa
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -34932,7 +34932,7 @@ OBS widgets readiness: gateway state, loopback port, and a secret-free hint
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -34945,7 +34945,7 @@ OBS widgets readiness: gateway state, loopback port, and a secret-free hint
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$defs": {
     "WidgetsState": {
@@ -35035,7 +35035,7 @@ Deletes a graph workflow
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -35055,7 +35055,7 @@ Deletes a graph workflow
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -35089,7 +35089,7 @@ Disables a graph workflow
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -35109,7 +35109,7 @@ Disables a graph workflow
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -35130,7 +35130,7 @@ Enables a graph workflow
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -35150,7 +35150,7 @@ Enables a graph workflow
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -35171,7 +35171,7 @@ One graph workflow by id
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -35191,7 +35191,7 @@ One graph workflow by id
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"
@@ -35212,7 +35212,7 @@ Graph workflows for the node-canvas editor
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Empty `{}` params shared by read-only methods.",
@@ -35225,7 +35225,7 @@ Graph workflows for the node-canvas editor
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -35256,7 +35256,7 @@ Creates or replaces a graph workflow
 
 ::: details Parámetros
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "properties": {
@@ -35274,7 +35274,7 @@ Creates or replaces a graph workflow
 
 ::: details Resultado
 
-```json
+```json contract-schema
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AnyValue"

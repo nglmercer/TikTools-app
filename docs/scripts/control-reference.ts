@@ -30,7 +30,9 @@ export function renderControlReference(methods: readonly ReferenceMethod[], loca
     text += `\n### ${m.name} {#${anchor(m.name)}}\n\n${t[7]}:\n\n\`\`\`text\n${m.description}\n\`\`\`\n\n`;
     text += `\`${JSON.stringify({ sideEffect: m.sideEffect, destructive: m.destructive, requiresDesktop: m.requiresDesktop, concurrency: m.concurrency ?? null, durableCommands: m.durableCommands })}\`\n`;
     for (const [label, schema] of [[t[5], m.paramsSchema], [t[6], m.resultSchema]] as const) {
-      text += `\n::: details ${label}\n\n\`\`\`json\n${JSON.stringify(schema, null, 2)}\n\`\`\`\n\n:::\n`;
+      // `contract-schema` tells the docs theme to skip Shiki for these blocks.
+      // They are identical across locales and dominate VitePress build time.
+      text += `\n::: details ${label}\n\n\`\`\`json contract-schema\n${JSON.stringify(schema, null, 2)}\n\`\`\`\n\n:::\n`;
     }
   }
   return text;

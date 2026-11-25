@@ -12,15 +12,15 @@ test('RPC summary links to complete contract metadata and schemas', () => {
   expect(text).toContain('### points.adjust {#rpc-points-adjust}');
   expect(text).toContain('"durableCommands":true');
   expect(text).toContain('"concurrency":"additive"');
-  expect(text).toContain(JSON.stringify(method.paramsSchema, null, 2));
-  expect(text).toContain(JSON.stringify(method.resultSchema, null, 2));
+  expect(text).toContain(`\`\`\`json contract-schema\n${JSON.stringify(method.paramsSchema, null, 2)}\n\`\`\``);
+  expect(text).toContain(`\`\`\`json contract-schema\n${JSON.stringify(method.resultSchema, null, 2)}\n\`\`\``);
   expect(text).toContain(method.description);
 });
 
 test('anchors stay slugify-stable for underscore and camelCase method names', () => {
   const methods: ReferenceMethod[] = ['automation.set_enablement', 'widgets.copyObsUrl', 'cloudLibrary.list'].map((name) => ({
     name, description: 'x', sideEffect: false, destructive: false, requiresDesktop: false,
-    concurrency: null, durableCommands: false, paramsSchema: {}, resultSchema: {},
+    concurrency: undefined, durableCommands: false, paramsSchema: {}, resultSchema: {},
   }));
   const text = renderControlReference(methods, 'en');
   expect(text).toContain('[`automation.set_enablement`](#rpc-automation-set-enablement)');

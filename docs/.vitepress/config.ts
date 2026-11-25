@@ -5,6 +5,7 @@ import { audienceSidebar } from './navigation.ts';
 import { writeFile } from 'node:fs/promises';
 import { buildProvenance } from '../../scripts/lib/build-provenance.ts';
 import { renderDocSearch } from '../scripts/search-policy.ts';
+import { plainSchemaShikiSetup } from '../scripts/plain-schema-highlight.ts';
 import { tokenizeDocSearch } from '../scripts/search-tokenizer.ts';
 import { docLocales, docCopy, localizedDocumentPath, type DocLocale } from '../locales.ts';
 
@@ -61,5 +62,22 @@ export default defineConfig({
     const tail = localizedDocumentPath(path)?.tail;
     return [['link', { rel: 'canonical', href: url }], ...docLocales.map((lang): ['link', Record<string, string>] => ['link', { rel: 'alternate', hreflang: lang, href: new URL(tail === undefined ? `${lang}/` : `${lang}/${tail}`, site.url).href }]), ['link', { rel: 'alternate', hreflang: 'x-default', href: new URL(tail === undefined ? 'en/' : `en/${tail}`, site.url).href }]];
   },
-  vite: { resolve: { dedupe: ['vue'], alias: { '@': resolve(import.meta.dirname, '../../src/web') } }, server: { proxy: demoDevProxy } },
+  vite: {
+    resolve: { dedupe: ['vue'], alias: { '@': resolve(import.meta.dirname, '../../src/web') } },
+    server: { proxy: demoDevProxy },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              // Modules imported by two or more page entries get a shared chunk
+              // instead of being duplicated per page.
+              { name: 'shared', minShareCount: 2, minSize: 10000, priority: 5 },
+            ],
+          },
+        },
+      },
+    },
+  },
+  markdown: { shikiSetup: plainSchemaShikiSetup },
 });
