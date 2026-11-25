@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "sourceCommit": "fc770ef94f50e2f8b01309c554253aa955ec5ad6",
+  "sourceCommit": "67cdcf07df81576545332f4c34a615bf158980cd",
   "generator": "tiktools --standalone --json api discover",
   "schemaSha256": "7f328131f5a03b1414c191f458bd73e7600146c0365353b4157e8900f1d4b387",
   "sources": {
@@ -914,8 +914,8 @@
     "crates/tiktools-plugin-api/src/text.rs": "2160e38ad8d9a1ed954acc53fd34d697d3f9c77a2d47984e548ff73e946f3ee1",
     "crates/tiktools-plugin-api/src/ui/manifest.rs": "fb77492f6523f58c8c8ea10ddeea7a322fd73ac2eee239442dd20ba3aad9e5a2",
     "crates/tiktools-plugin-api/src/ui/mod.rs": "54efe057c16113491dd5b8e7a35e2142f11fe42e2292a24d8e274e71755e8bf8",
-    "crates/tiktools-plugin-api/src/ui/nodes.rs": "cf48de461a0ffeb0cde6ccdda1c3599cae80db45b36d291a3f5b8cd8918a7844",
-    "crates/tiktools-plugin-api/src/ui/validation.rs": "83622504f0b15d5352ca16e65f02b95e8844c1d7802cf75a768caf1ddd89984f",
+    "crates/tiktools-plugin-api/src/ui/nodes.rs": "8e00b31ab269e7270e47ef14a59cf994c16e8be96b17c50cd6418276c6b2677c",
+    "crates/tiktools-plugin-api/src/ui/validation.rs": "f8bf1259c883b1995dc6460a3dd912316168722000613902d0bcc22afceda0db",
     "crates/tiktools-plugin-devkit/Cargo.toml": "566d0939db4252679c4ad8c4ff6120a3107f8cc5f243ab1b2647943cb897faac",
     "crates/tiktools-plugin-devkit/src/args.rs": "8a93915e872f60b82afabde6a815e539c712511a8070f0a813e7196e3760bb5a",
     "crates/tiktools-plugin-devkit/src/bin/tiktools-plugin-pack.rs": "c2d663cdad564d33f4175893c3f47c34f7bf28d33ce3c6d6d7adac696f432f44",
