@@ -29,11 +29,17 @@ impl DesktopApp {
             .set_description(native_messages::restart_description(&locale))
             .set_level(rfd::MessageLevel::Warning)
             .set_buttons(rfd::MessageButtons::YesNo);
+        // Native dialog parenting needs a raw window handle; the GTK shell
+        // window does not expose one through the shell abstraction, so on
+        // Linux the dialog is simply unparented (still modal by default).
+        #[cfg(not(target_os = "linux"))]
         let dialog = if let Some(window) = self.window.as_ref() {
             dialog.set_parent(window)
         } else {
             dialog
         };
+        #[cfg(target_os = "linux")]
+        let dialog = dialog;
         if dialog.show() != rfd::MessageDialogResult::Yes {
             return;
         }

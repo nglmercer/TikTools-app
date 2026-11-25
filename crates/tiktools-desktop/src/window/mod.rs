@@ -24,11 +24,10 @@ use tiktools_core::ipc::IpcRouter;
 use tiktools_core::AppCore;
 use tokio::runtime::Handle;
 use winit::event_loop::EventLoopProxy;
-use winit::window::Window;
 use wry::WebView;
 
 pub struct DesktopApp {
-    window: Option<Window>,
+    window: Option<crate::shell::ShellWindow>,
     webview: Option<WebView>,
     #[cfg(all(test, feature = "live-benchmark"))]
     benchmark_context: Option<wry::WebContext>,

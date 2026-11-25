@@ -12,6 +12,7 @@ mod logging;
 mod media;
 mod native_messages;
 mod platform;
+mod shell;
 mod plugin_webview;
 mod single_instance;
 mod startup;

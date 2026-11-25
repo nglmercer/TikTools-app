@@ -44,7 +44,13 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
         window_id: WindowId,
         event: WindowEvent,
     ) {
+        // Linux owns no Winit windows (the shell is GTK), so no Winit window
+        // events ever arrive here; close/resize/focus are GTK signals wired
+        // at creation time.
+        #[cfg(not(target_os = "linux"))]
         self.handle_window_event(event_loop, window_id, event);
+        #[cfg(target_os = "linux")]
+        let _ = (event_loop, window_id, event);
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: DesktopEvent) {
@@ -108,6 +114,17 @@ impl ApplicationHandler<DesktopEvent> for DesktopApp {
             DesktopEvent::Command(DesktopCommand::OpenDevtools) => self.open_devtools(),
             DesktopEvent::Command(DesktopCommand::OpenPluginDevtools { window_id }) => {
                 self.plugin_ui.open_devtools_for_window(window_id)
+            }
+            DesktopEvent::Command(DesktopCommand::MainWindowCloseRequested) => {
+                // Same policy as the Winit CloseRequested arm: hide to the
+                // tray when one exists, shut the process down otherwise.
+                if self.tray.is_some() {
+                    tracing::debug!("window close requested; hiding TikTools in the tray");
+                    self.set_window_visible(false);
+                } else {
+                    tracing::debug!("window close requested without a tray; shutting down");
+                    self.shutdown(event_loop);
+                }
             }
             DesktopEvent::Command(DesktopCommand::Quit) => self.shutdown(event_loop),
             DesktopEvent::Command(DesktopCommand::RequestAppUpdateInstall {

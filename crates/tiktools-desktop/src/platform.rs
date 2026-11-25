@@ -36,16 +36,10 @@ pub fn initialize() -> Result<(), Box<dyn std::error::Error>> {
             unsafe { (*error).error_code == 170 }
         }));
 
-        // Wry's child-window backend is X11-only. When a desktop exposes both
-        // Wayland and X11/XWayland, select the same backend for GTK and Winit
-        // so the raw handles remain compatible. Native Wayland needs the
-        // GTK-container path kept behind this platform seam.
-        if std::env::var_os("DISPLAY").is_some()
-            && std::env::var_os("WAYLAND_DISPLAY").is_some()
-            && std::env::var_os("GDK_BACKEND").is_none()
-        {
-            std::env::set_var("GDK_BACKEND", "x11");
-        }
+        // The shell window is GTK-native since the child-window embedding was
+        // retired: GTK picks the session backend itself (Wayland when the
+        // compositor offers it, X11 otherwise), which is what makes native
+        // input, focus and compositing work without XWayland translation.
         configure_webkit_renderer();
         gtk::init()?;
         tracing::debug!(
@@ -104,16 +98,8 @@ fn configure_webkit_renderer() {
 }
 
 pub fn configure_event_loop<T>(_builder: &mut EventLoopBuilder<T>) {
-    #[cfg(target_os = "linux")]
-    if std::env::var_os("DISPLAY").is_some()
-        && std::env::var_os("WAYLAND_DISPLAY").is_some()
-        && std::env::var_os("GDK_BACKEND").as_deref() == Some(std::ffi::OsStr::new("x11"))
-    {
-        use winit::platform::x11::EventLoopBuilderExtX11;
-
-        _builder.with_x11();
-        tracing::debug!("using X11/XWayland for the Winit/Wry child WebView");
-    }
+    // Linux owns no Winit windows (the shell is native GTK), so the loop
+    // backend winit picks is irrelevant to rendering or input.
 }
 
 pub fn pump() {

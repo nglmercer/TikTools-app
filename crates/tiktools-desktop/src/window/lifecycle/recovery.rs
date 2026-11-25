@@ -5,6 +5,8 @@ use super::super::{
     reload::{failure_reasons, RecoveryDecision},
     DesktopApp, StartupState, FRONTEND_STARTUP_TIMEOUT,
 };
+#[cfg(target_os = "linux")]
+use gtk::prelude::*;
 use crate::platform;
 use std::{sync::atomic::Ordering, time::Instant};
 use winit::event_loop::ActiveEventLoop;
@@ -130,7 +132,7 @@ impl DesktopApp {
         // never by WebView readiness: no lifecycle call here.
         self.set_window_visible(true);
         if let Some(window) = self.window.as_ref() {
-            window.focus_window();
+            window.focus();
         }
     }
 
@@ -148,7 +150,30 @@ impl DesktopApp {
             drop(old);
         }
         platform::sync_gtk_display();
+        #[cfg(not(target_os = "linux"))]
         let result = self.build_main_webview(&window);
+        #[cfg(target_os = "linux")]
+        let result = match window.gtk_content() {
+            Some(content) => {
+                // The dead webview widget is still inside the container:
+                // removing it keeps exactly one page widget per recreate.
+                for child in content.children() {
+                    content.remove(&child);
+                }
+                self.build_main_webview_gtk(content)
+            }
+            None => Err("linux shell window missing its GTK container".to_owned()),
+        };
+        #[cfg(target_os = "linux")]
+        if let Ok(_) = result.as_ref() {
+            if let Some(content) = window.gtk_content() {
+                for child in content.children() {
+                    child.set_hexpand(true);
+                    child.set_vexpand(true);
+                    child.show();
+                }
+            }
+        }
         self.window = Some(window);
         match result {
             Ok(webview) => {

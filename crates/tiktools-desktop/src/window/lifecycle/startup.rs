@@ -17,10 +17,13 @@ use std::{
 };
 use tiktools_control_api::ControlApi;
 use tiktools_core::{ipc::IpcRouter, AppCore};
+#[cfg(target_os = "linux")]
+use gtk::prelude::*;
 use tokio::runtime::Handle;
+use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
+#[cfg(not(target_os = "linux"))]
 use winit::{
     dpi::LogicalSize,
-    event_loop::{ActiveEventLoop, EventLoopProxy},
     window::{Icon as WindowIcon, Window},
 };
 
@@ -168,25 +171,7 @@ impl DesktopApp {
         }
     }
 
-    pub(super) fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
-        tracing::debug!("creating desktop window");
-        let window_icon =
-            WindowIcon::from_rgba(crate::icon::rgba(), crate::icon::SIZE, crate::icon::SIZE)
-                .map_err(|error| format!("could not create window icon: {error}"))?;
-        let attributes = Window::default_attributes()
-            .with_title("TikTools")
-            .with_inner_size(LogicalSize::new(900_u32, 680_u32))
-            .with_resizable(true)
-            .with_window_icon(Some(window_icon))
-            .with_visible(false);
-        let window = event_loop
-            .create_window(attributes)
-            .map_err(|error| format!("could not create window: {error}"))?;
-
-        let webview = self.build_main_webview(&window)?;
-        tracing::info!("Wry WebView created successfully");
-
-        self.window = Some(window);
+    fn finish_window_creation(&mut self, webview: wry::WebView) {
         self.webview = Some(webview);
         self.startup_state = StartupState::WebViewLoading;
         let now = Instant::now();
@@ -206,6 +191,57 @@ impl DesktopApp {
         }
         self.flush_host_messages();
         tracing::debug!("main window created, waiting for frontend-ready");
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub(super) fn create_window(&mut self, event_loop: &ActiveEventLoop) -> Result<(), String> {
+        tracing::debug!("creating desktop window");
+        let window_icon =
+            WindowIcon::from_rgba(crate::icon::rgba(), crate::icon::SIZE, crate::icon::SIZE)
+                .map_err(|error| format!("could not create window icon: {error}"))?;
+        let attributes = Window::default_attributes()
+            .with_title("TikTools")
+            .with_inner_size(LogicalSize::new(900_u32, 680_u32))
+            .with_resizable(true)
+            .with_window_icon(Some(window_icon))
+            .with_visible(false);
+        let window = event_loop
+            .create_window(attributes)
+            .map_err(|error| format!("could not create window: {error}"))?;
+
+        let webview = self.build_main_webview(&window)?;
+        tracing::info!("Wry WebView created successfully");
+
+        self.window = Some(crate::shell::ShellWindow::Winit(window));
+        self.finish_window_creation(webview);
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(super) fn create_window(&mut self, _event_loop: &ActiveEventLoop) -> Result<(), String> {
+        tracing::debug!("creating desktop window (native GTK shell)");
+        let (window, content) = crate::shell::create_gtk_shell_window("TikTools", 900, 680);
+        // Close button replicates the Winit CloseRequested policy through
+        // the command channel: hide to tray when available, shut down else.
+        {
+            let proxy = self.proxy.clone();
+            window.connect_delete_event(move |_, _| {
+                let _ = proxy.send_coalesced(crate::event::DesktopEvent::Command(
+                    crate::event::DesktopCommand::MainWindowCloseRequested,
+                ));
+                // Always inhibit the default destroy: the command handler
+                // decides whether the window hides or the process exits.
+                gtk::glib::Propagation::Stop
+            });
+        }
+        let webview = self.build_main_webview_gtk(&content)?;
+        tracing::info!("Wry WebView created successfully");
+        for child in content.children() {
+            child.set_hexpand(true);
+            child.set_vexpand(true);
+        }
+        self.window = Some(crate::shell::ShellWindow::Gtk { window, content });
+        self.finish_window_creation(webview);
         Ok(())
     }
 

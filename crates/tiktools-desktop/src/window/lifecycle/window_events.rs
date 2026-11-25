@@ -2,11 +2,13 @@
 //! before the main-window identity filter.
 
 use super::super::{DesktopApp, StartupState};
-use crate::platform;
+
 use std::sync::atomic::Ordering;
+#[cfg(not(target_os = "linux"))]
 use winit::{event::WindowEvent, event_loop::ActiveEventLoop, window::WindowId};
 
 impl DesktopApp {
+    #[cfg(not(target_os = "linux"))]
     pub(super) fn on_keyboard_input(&mut self, event: winit::event::KeyEvent) {
         use winit::event::ElementState;
         use winit::keyboard::{KeyCode, PhysicalKey};
@@ -71,10 +73,11 @@ impl DesktopApp {
         }
         self.set_window_visible(true);
         if let Some(window) = self.window.as_ref() {
-            window.focus_window();
+            window.focus();
         }
     }
 
+    #[cfg(not(target_os = "linux"))]
     pub(super) fn handle_window_event(
         &mut self,
         event_loop: &ActiveEventLoop,

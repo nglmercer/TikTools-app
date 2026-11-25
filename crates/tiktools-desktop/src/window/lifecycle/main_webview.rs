@@ -3,13 +3,16 @@
 
 use super::super::DesktopApp;
 use super::bridge::MainIpcBridge;
+#[cfg(not(target_os = "linux"))]
 use crate::platform;
 use std::sync::atomic::Ordering;
+#[cfg(not(target_os = "linux"))]
 use winit::{dpi::PhysicalSize, window::Window};
-use wry::{
-    dpi::{PhysicalPosition as WryPhysicalPosition, PhysicalSize as WryPhysicalSize},
-    PageLoadEvent, Rect, WebViewBuilder,
-};
+#[cfg(not(target_os = "linux"))]
+use wry::dpi::{PhysicalPosition as WryPhysicalPosition, PhysicalSize as WryPhysicalSize};
+use wry::{PageLoadEvent, WebViewBuilder};
+#[cfg(not(target_os = "linux"))]
+use wry::Rect;
 
 const UPDATE_RELEASES_URL: &str = "https://github.com/nglmercer/TikTools-app/releases";
 
@@ -23,7 +26,10 @@ impl DesktopApp {
     /// protocols are identical for the first load and every recreate, so a
     /// recovered WebView never escapes the allowed origin and never touches
     /// `AppCore` or user data (only the WebView handle is rebuilt).
-    pub(super) fn build_main_webview(&mut self, window: &Window) -> Result<wry::WebView, String> {
+    /// Shared frontend WebView configuration: bridge, navigation policy,
+    /// asset protocols and URL are identical on every platform; only the
+    /// terminal embedding differs (native child window vs GTK widget).
+    fn main_webview_builder(&mut self) -> Result<wry::WebViewBuilder<'_>, String> {
         let bridge = MainIpcBridge::new(self);
         let page_emitter = self.emitter.clone();
         let navigation_frontend = self.frontend.clone();
@@ -91,19 +97,6 @@ impl DesktopApp {
             })
             .with_ipc_handler(move |request| bridge.handle(request.body()));
 
-        // Wry's Linux/X11 child-window path converts logical default bounds
-        // using the X11 screen millimeter dimensions. Some XWayland/KDE
-        // sessions report those dimensions as zero, which produces an invalid
-        // scale factor before the WebView is even attached. The window resize
-        // event already gives us physical pixels, so keep this boundary
-        // physical and avoid that conversion entirely.
-        let initial_size = window.inner_size();
-        builder = builder.with_bounds(Rect {
-            position: WryPhysicalPosition::new(0, 0).into(),
-            size: WryPhysicalSize::new(initial_size.width.max(1), initial_size.height.max(1))
-                .into(),
-        });
-
         if let Some(assets) = self.frontend.asset_server() {
             builder = builder.with_custom_protocol("tiktools".to_owned(), move |_id, request| {
                 assets.respond(request)
@@ -123,10 +116,43 @@ impl DesktopApp {
             url = %self.frontend.url(),
             "creating TikTools frontend WebView"
         );
+        Ok(builder)
+    }
+
+    /// Native-Wayland embedding: the webview is a regular GTK widget added to
+    /// the shell's container. No bounds are passed, so wry uses plain
+    /// `container.add` and GTK layout resizes the widget with the window —
+    /// there is no manual bounds management on this platform at all.
+    #[cfg(target_os = "linux")]
+    pub(super) fn build_main_webview_gtk(
+        &mut self,
+        container: &gtk::Box,
+    ) -> Result<wry::WebView, String> {
+        use wry::WebViewBuilderExtUnix;
+        let builder = self.main_webview_builder()?;
+        builder
+            .build_gtk(container)
+            .map_err(|error| format!("could not create Wry WebView: {error}"))
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub(super) fn build_main_webview(
+        &mut self,
+        window: &Window,
+    ) -> Result<wry::WebView, String> {
+        let initial_size = window.inner_size();
+        let builder = self
+            .main_webview_builder()?
+            .with_bounds(Rect {
+                position: WryPhysicalPosition::new(0, 0).into(),
+                size: WryPhysicalSize::new(initial_size.width.max(1), initial_size.height.max(1))
+                    .into(),
+            });
         platform::build_webview(builder, window)
             .map_err(|error| format!("could not create Wry WebView: {error}"))
     }
 
+    #[cfg(not(target_os = "linux"))]
     pub(super) fn resize_webview(&self, size: PhysicalSize<u32>) {
         let Some(webview) = self.webview.as_ref() else {
             return;

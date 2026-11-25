@@ -19,6 +19,9 @@ pub enum DesktopCommand {
     FrontendReady {
         generation: u64,
     },
+    /// GTK shell close button: mirrors the Winit `CloseRequested` policy
+    /// (hide to tray when available, shut down otherwise).
+    MainWindowCloseRequested,
     ShowWindow,
     HideWindow,
     OpenDevtools,
