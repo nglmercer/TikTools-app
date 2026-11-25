@@ -6,6 +6,10 @@ export interface MenuAction {
   label: string;
   icon?: Component;
   shortcut?: string;
+  /** Secondary line rendered under the label in muted mono — for long
+   *  technical values (variable paths, identifiers) that must never compete
+   *  with the label for horizontal space the way a shortcut does. */
+  detail?: string;
   disabled?: boolean;
   checked?: boolean;
   children?: readonly MenuEntry[];

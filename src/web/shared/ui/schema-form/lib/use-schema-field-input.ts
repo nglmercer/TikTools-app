@@ -18,7 +18,7 @@ export function useSchemaFieldInput(props: Readonly<SchemaFieldControlProps>, up
     (props.suggestions ?? []).map((suggestion) => ({
       id: suggestion.value,
       label: suggestion.label,
-      shortcut: suggestion.detail,
+      detail: suggestion.detail,
       icon: markRaw(IconFlow),
     })),
   );

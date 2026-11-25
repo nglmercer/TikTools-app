@@ -175,7 +175,14 @@ onBeforeUnmount(() => {
               v-else-if="entry.icon"
             />
           </span>
-          <span class="menu-list__label">{{ entry.label }}</span>
+          <span class="menu-list__text">
+            <span class="menu-list__label">{{ entry.label }}</span>
+            <span
+              v-if="entry.detail"
+              class="menu-list__detail"
+              :title="entry.detail"
+            >{{ entry.detail }}</span>
+          </span>
           <span
             v-if="entry.shortcut"
             class="menu-list__shortcut"
@@ -257,11 +264,36 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
-.menu-list__label {
+.menu-list__text {
+  display: flex;
   flex: 1;
   min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.menu-list__label {
   white-space: normal;
-  overflow-wrap: anywhere;
+  /* Break only when a single word exceeds the line; `anywhere` broke labels
+     eagerly letter-by-letter whenever a sibling squeezed the row. */
+  overflow-wrap: break-word;
+}
+
+.menu-list__detail {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-family: var(--font-family-mono, monospace);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* Paths share a long prefix (`event.intel.comment.`); the discriminating
+     part is the tail, so overflow clips the start, not the end. */
+  direction: rtl;
+  text-align: left;
+}
+
+.menu-list__item--active .menu-list__detail {
+  color: inherit;
 }
 
 .menu-list__shortcut {
