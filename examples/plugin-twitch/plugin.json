@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "publisher": "tiktools",
   "license": "MIT",
-  "description": "Reference Twitch live-platform source. Maps Twitch chat, subscriptions and Bits into canonical live events; the host owns validation, feed, automation, points and analytics.",
+  "description": "Reference Twitch live-platform source using anonymous read-only IRC. Maps Twitch public chat, subscriptions and Bits into canonical live events; the host owns validation, feed, automation, points and analytics.",
   "icon": "video",
   "tags": ["live", "twitch", "platform"],
   "runtime": "process",
@@ -29,12 +29,6 @@
           "type": "string",
           "title": { "default": "Twitch channel" },
           "description": { "default": "Login name of the channel to join, without #." }
-        },
-        "oauthToken": {
-          "type": "string",
-          "secret": true,
-          "title": { "default": "OAuth token" },
-          "description": { "default": "User OAuth token with the chat:read scope. It is never emitted in events." }
         }
       }
     }
@@ -44,10 +38,9 @@
       "id": "tiktools.twitch.connect",
       "version": 1,
       "title": { "default": "Connect Twitch" },
-      "description": { "default": "Connect to Twitch chat using the plugin settings or the supplied values." },
+      "description": { "default": "Connect anonymously to public Twitch chat in read-only mode using the configured channel." },
       "fields": [
-        { "key": "channel", "type": "string", "title": { "default": "Channel" } },
-        { "key": "oauthToken", "type": "string", "secret": true, "title": { "default": "OAuth token" } }
+        { "key": "channel", "type": "string", "title": { "default": "Channel" } }
       ],
       "requiredCapabilities": ["live.ingest"]
     },
@@ -68,7 +61,7 @@
     {
       "id": "connect",
       "actionType": "tiktools.twitch.connect",
-      "description": "Connect to Twitch chat"
+      "description": "Connect anonymously to Twitch chat in read-only mode"
     },
     {
       "id": "disconnect",
@@ -95,7 +88,7 @@
               "type": "text",
               "key": "help",
               "text": {
-                "default": "Configure channel and oauthToken in this plugin's settings, then connect. The plugin maps Twitch IRC events only; feed, automation, points and analytics stay host-owned."
+                "default": "Configure channel in this plugin's settings, then connect. This reference example uses Twitch's historical anonymous read-only IRC login and no OAuth token. It demonstrates public chat, subscriptions and Bits only; production providers should migrate to Twitch's officially supported authenticated IRC or EventSub path. Feed, automation, points and analytics stay host-owned."
               }
             },
             { "type": "separator" },

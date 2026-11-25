@@ -1,13 +1,12 @@
 //! Reference Twitch live-platform plugin.
 //!
-//! The plugin owns only Twitch transport, authentication, reconnects, IRC
-//! parsing and provider-to-canonical mapping. All feed, points, automation,
+//! The plugin owns only anonymous read-only Twitch transport, reconnects,
+//! IRC parsing and provider-to-canonical mapping. All feed, points, automation,
 //! identity, replay and analytics authority remains in the TikTools host.
 
 mod irc;
 
 use futures_util::{SinkExt, StreamExt};
-use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::{
     collections::VecDeque,
@@ -94,7 +93,7 @@ impl TwitchPlugin {
         }
     }
 
-    fn start(&self, channel: String, token: String) -> PluginResult<()> {
+    fn start(&self, channel: String) -> PluginResult<()> {
         {
             let runtime = self
                 .runtime
@@ -123,7 +122,7 @@ impl TwitchPlugin {
         let worker_alive = self.worker_alive.clone();
         worker_alive.store(true, Ordering::SeqCst);
         runtime.spawn(async move {
-            run_connection_loop(channel, token, queue, worker_stop).await;
+            run_connection_loop(channel, queue, worker_stop).await;
             worker_alive.store(false, Ordering::SeqCst);
         });
         *self
@@ -191,14 +190,15 @@ impl Plugin for TwitchPlugin {
         match call.action_type() {
             Some("tiktools.twitch.connect") => {
                 let channel = configured_value(call.config(), "channel")
-                    .ok_or_else(|| PluginError::other("channel is required"))?;
-                let token = configured_value(call.config(), "oauthToken")
-                    .ok_or_else(|| PluginError::other("oauthToken is required"))?;
+                    .ok_or_else(|| PluginError::other("channel is required"))?
+                    .to_ascii_lowercase();
                 if !valid_login(&channel) {
                     return Err(PluginError::other("channel must be a Twitch login name"));
                 }
-                self.start(channel, token)?;
-                Ok(ActionResult::summary("Twitch connection started"))
+                self.start(channel)?;
+                Ok(ActionResult::summary(
+                    "Twitch anonymous read-only connection started",
+                ))
             }
             Some("tiktools.twitch.disconnect") => {
                 self.stop_connection()?;
@@ -279,12 +279,7 @@ impl Plugin for TwitchPlugin {
     }
 }
 
-async fn run_connection_loop(
-    channel: String,
-    token: String,
-    queue: Queue,
-    stop: CancellationToken,
-) {
+async fn run_connection_loop(channel: String, queue: Queue, stop: CancellationToken) {
     for attempt in 0..=5_u32 {
         if stop.is_cancelled() {
             break;
@@ -292,11 +287,11 @@ async fn run_connection_loop(
         let failure = tokio::select! {
             biased;
             () = stop.cancelled() => break,
-            result = session(&channel, &token, &queue, &stop) => result,
+            result = session(&channel, &queue, &stop) => result,
         };
         if let Err(error) = failure {
-            let retry = error.retry_after_ms.unwrap_or((2_000_u64 << attempt).min(60_000));
-            if attempt == 5 || !matches!(error.code.as_str(), "transport" | "rate_limited") {
+            let retry = (2_000_u64 << attempt).min(60_000);
+            if attempt == 5 || error.code != "transport" {
                 push(
                     &queue,
                     PlatformIngestMessage::SessionEnd {
@@ -334,7 +329,6 @@ async fn run_connection_loop(
 struct TwitchError {
     code: String,
     message: String,
-    retry_after_ms: Option<u64>,
 }
 
 impl TwitchError {
@@ -342,77 +336,38 @@ impl TwitchError {
         Self {
             code: code.into(),
             message: message.into(),
-            retry_after_ms: None,
         }
     }
 }
 
-#[derive(Deserialize)]
-struct TokenIdentity {
-    login: String,
-    user_id: String,
-    scopes: Vec<String>,
-    expires_in: u64,
+fn anonymous_login() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let suffix = now
+        .as_secs()
+        .wrapping_mul(1_000_000_000)
+        .wrapping_add(u64::from(now.subsec_nanos()))
+        .wrapping_add(u64::from(std::process::id()))
+        % 10_000_000_000_000_000;
+    format!("justinfan{suffix:016}")
 }
 
-async fn validate_token(token: &str) -> Result<TokenIdentity, TwitchError> {
-    let http = reqwest::Client::builder()
-        .timeout(Duration::from_secs(20))
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .map_err(|_| TwitchError::new("unavailable", "Could not initialize Twitch HTTP client"))?;
-    let response = http
-        .get("https://id.twitch.tv/oauth2/validate")
-        .header("Authorization", format!("OAuth {token}"))
-        .send()
-        .await
-        .map_err(|_| TwitchError::new("transport", "Twitch token validation could not be reached"))?;
-    if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        return Err(TwitchError {
-            code: "rate_limited".into(),
-            message: "Twitch token validation is rate limited".into(),
-            retry_after_ms: Some(60_000),
-        });
-    }
-    if !response.status().is_success() {
-        return Err(TwitchError::new(
-            "unauthenticated",
-            "Twitch access token was rejected; sign in again",
-        ));
-    }
-    let identity: TokenIdentity = response
-        .json()
-        .await
-        .map_err(|_| TwitchError::new("invalid_response", "Invalid Twitch token validation response"))?;
-    if !valid_login(&identity.login)
-        || identity.user_id.is_empty()
-        || !identity.scopes.iter().any(|scope| scope == "chat:read")
-        || identity.expires_in < 60
-    {
-        return Err(TwitchError::new(
-            "unauthenticated",
-            "A valid Twitch user token with chat:read permission is required",
-        ));
-    }
-    Ok(identity)
+// This reference intentionally uses Twitch's legacy anonymous `justinfan` login.
+// Production providers should replace it with authenticated IRC or EventSub.
+fn registration_commands(channel: &str, nick: &str) -> [String; 3] {
+    [
+        "CAP REQ :twitch.tv/tags twitch.tv/commands\r\n".to_owned(),
+        format!("NICK {nick}\r\n"),
+        format!("JOIN #{channel}\r\n"),
+    ]
 }
 
 async fn session(
     channel: &str,
-    token: &str,
     queue: &Queue,
     stop: &CancellationToken,
 ) -> Result<(), TwitchError> {
-    let token = token.strip_prefix("oauth:").unwrap_or(token);
-    if token.is_empty()
-        || token.len() > 4096
-        || !token
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"-._~".contains(&byte))
-    {
-        return Err(TwitchError::new("unauthenticated", "Invalid Twitch OAuth token"));
-    }
-    let identity = validate_token(token).await?;
     let config = tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
         .max_message_size(Some(1024 * 1024))
         .max_frame_size(Some(1024 * 1024));
@@ -427,16 +382,11 @@ async fn session(
     .await
     .map_err(|_| TwitchError::new("transport", "Twitch connection timed out"))?
     .map_err(|_| TwitchError::new("transport", "Could not connect to Twitch chat"))?;
-    for command in [
-        "CAP REQ :twitch.tv/tags twitch.tv/commands\r\n".to_owned(),
-        format!("PASS oauth:{token}\r\n"),
-        format!("NICK {}\r\n", identity.login),
-        format!("JOIN #{channel}\r\n"),
-    ] {
+    for command in registration_commands(channel, &anonymous_login()) {
         socket
             .send(tokio_tungstenite::tungstenite::Message::Text(command.into()))
             .await
-            .map_err(|_| TwitchError::new("transport", "Twitch authentication could not be sent"))?;
+            .map_err(|_| TwitchError::new("transport", "Twitch registration could not be sent"))?;
     }
     let mut ready = false;
     loop {
@@ -657,6 +607,36 @@ mod tests {
         assert!(matches!(payload, LivePayload::Chat { .. }));
         assert_eq!(extensions["twitch"]["bits"], "100");
         assert!(extensions["twitch"].get("diamonds").is_none());
+    }
+
+    #[test]
+    fn plugin_manifest_is_valid_and_does_not_request_oauth() {
+        let manifest = tiktools_plugin_sdk::tiktools_plugin_api::PluginManifest::from_json_str(
+            include_str!("../plugin.json"),
+        )
+        .unwrap();
+        assert_eq!(manifest.id, "tiktools.twitch");
+        let settings = manifest.settings_schema.unwrap();
+        assert!(settings["properties"].get("channel").is_some());
+        assert!(settings["properties"].get("oauthToken").is_none());
+    }
+
+    #[test]
+    fn anonymous_registration_is_read_only_and_uses_no_password() {
+        let nick = anonymous_login();
+        assert!(nick.starts_with("justinfan"));
+        assert_eq!(nick.len(), 25);
+        assert!(valid_login(&nick));
+        let commands = registration_commands("room", &nick);
+        assert_eq!(
+            commands[0],
+            "CAP REQ :twitch.tv/tags twitch.tv/commands\r\n"
+        );
+        assert_eq!(commands[1], format!("NICK {nick}\r\n"));
+        assert_eq!(commands[2], "JOIN #room\r\n");
+        assert!(commands
+            .iter()
+            .all(|command| !command.starts_with("PASS") && !command.contains("oauth")));
     }
 
     #[test]

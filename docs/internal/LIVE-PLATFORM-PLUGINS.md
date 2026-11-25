@@ -58,8 +58,8 @@ The page is surfaced as a normal plugin tab by the existing shell navigation. Co
 
 `examples/plugin-twitch` is the reference provider. It demonstrates:
 
-- authenticated read-only Twitch IRC over TLS WebSocket;
-- token validation and reconnect/rate-limit handling;
+- anonymous read-only Twitch IRC over TLS WebSocket;
+- reconnect handling;
 - bounded IRC parsing;
 - mapping `PRIVMSG` to `live.chat`;
 - mapping subscription `USERNOTICE` messages to `live.subscription`;
@@ -74,7 +74,7 @@ cargo test
 cargo build --release
 ```
 
-Then package/copy `plugin.json` and the produced `tiktools-twitch-plugin` executable using the normal local plugin installation flow. Configure `channel` and `oauthToken` in the plugin settings or the connect action. The token needs Twitch's `chat:read` scope.
+Then package/copy `plugin.json` and the produced `tiktools-twitch-plugin` executable using the normal local plugin installation flow. Configure `channel` in the plugin settings or the connect action. No OAuth token is needed because the reference intentionally uses Twitch's historical anonymous read-only IRC login. That behavior is legacy/undocumented and can change without notice; production providers should migrate to authenticated IRC with a user token scoped `chat:read` or to Twitch's recommended EventSub/API path.
 
 ## Provider implementation checklist
 
