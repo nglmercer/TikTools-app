@@ -480,7 +480,10 @@ fn automation_envelope(event: &LiveEnvelope, event_id: &str) -> Value {
     automation
 }
 
-fn system_envelope(session: &PlatformSessionSnapshot, payload: LivePayload) -> Option<LiveEnvelope> {
+fn system_envelope(
+    session: &PlatformSessionSnapshot,
+    payload: LivePayload,
+) -> Option<LiveEnvelope> {
     let now = tiktools_live::now_millis();
     Some(LiveEnvelope {
         schema_version: SCHEMA_VERSION,
@@ -930,7 +933,9 @@ impl AppCore {
             if let Some(owner) = self.live_platforms.owner() {
                 dispatch_provider_disconnect(
                     &owner,
-                    AutomationEvent::owner_without_delegation(automation_envelope(&event, &event_id)),
+                    AutomationEvent::owner_without_delegation(automation_envelope(
+                        &event, &event_id,
+                    )),
                 );
             }
             #[cfg(feature = "persistence")]

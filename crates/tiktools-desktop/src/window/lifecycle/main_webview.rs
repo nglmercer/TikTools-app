@@ -10,9 +10,9 @@ use std::sync::atomic::Ordering;
 use winit::{dpi::PhysicalSize, window::Window};
 #[cfg(not(target_os = "linux"))]
 use wry::dpi::{PhysicalPosition as WryPhysicalPosition, PhysicalSize as WryPhysicalSize};
-use wry::{PageLoadEvent, WebViewBuilder};
 #[cfg(not(target_os = "linux"))]
 use wry::Rect;
+use wry::{PageLoadEvent, WebViewBuilder};
 
 const UPDATE_RELEASES_URL: &str = "https://github.com/nglmercer/TikTools-app/releases";
 
@@ -136,18 +136,13 @@ impl DesktopApp {
     }
 
     #[cfg(not(target_os = "linux"))]
-    pub(super) fn build_main_webview(
-        &mut self,
-        window: &Window,
-    ) -> Result<wry::WebView, String> {
+    pub(super) fn build_main_webview(&mut self, window: &Window) -> Result<wry::WebView, String> {
         let initial_size = window.inner_size();
-        let builder = self
-            .main_webview_builder()?
-            .with_bounds(Rect {
-                position: WryPhysicalPosition::new(0, 0).into(),
-                size: WryPhysicalSize::new(initial_size.width.max(1), initial_size.height.max(1))
-                    .into(),
-            });
+        let builder = self.main_webview_builder()?.with_bounds(Rect {
+            position: WryPhysicalPosition::new(0, 0).into(),
+            size: WryPhysicalSize::new(initial_size.width.max(1), initial_size.height.max(1))
+                .into(),
+        });
         platform::build_webview(builder, window)
             .map_err(|error| format!("could not create Wry WebView: {error}"))
     }

@@ -10,6 +10,8 @@ use crate::{
     tray::TrayController,
     webview::FrontendSource,
 };
+#[cfg(target_os = "linux")]
+use gtk::prelude::*;
 use std::{
     path::PathBuf,
     sync::{atomic::AtomicBool, Arc},
@@ -17,8 +19,6 @@ use std::{
 };
 use tiktools_control_api::ControlApi;
 use tiktools_core::{ipc::IpcRouter, AppCore};
-#[cfg(target_os = "linux")]
-use gtk::prelude::*;
 use tokio::runtime::Handle;
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 #[cfg(not(target_os = "linux"))]
@@ -221,12 +221,8 @@ impl DesktopApp {
     #[cfg(target_os = "linux")]
     pub(super) fn create_window(&mut self, _event_loop: &ActiveEventLoop) -> Result<(), String> {
         tracing::debug!("creating desktop window (native GTK shell)");
-        let (window, content, menubar) = crate::shell::create_gtk_shell_window(
-            "TikTools",
-            900,
-            680,
-            self.emitter.clone(),
-        );
+        let (window, content, menubar) =
+            crate::shell::create_gtk_shell_window("TikTools", 900, 680, self.emitter.clone());
         // Close button replicates the Winit CloseRequested policy through
         // the command channel: hide to tray when available, shut down else.
         {

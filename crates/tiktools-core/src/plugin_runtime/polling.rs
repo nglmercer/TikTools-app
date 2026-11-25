@@ -167,7 +167,10 @@ impl AppCore {
             .is_ok()
             && self
                 .capabilities
-                .require_capability(&current.manifest, tiktools_plugin_api::capabilities::LIVE_INGEST)
+                .require_capability(
+                    &current.manifest,
+                    tiktools_plugin_api::capabilities::LIVE_INGEST,
+                )
                 .is_ok();
         if !events_allowed && !progress_allowed {
             return;

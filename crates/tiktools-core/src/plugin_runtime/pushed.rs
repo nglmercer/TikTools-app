@@ -60,7 +60,10 @@ impl AppCore {
                 .is_ok()
                 && self
                     .capabilities
-                    .require_capability(&current.manifest, tiktools_plugin_api::capabilities::LIVE_INGEST)
+                    .require_capability(
+                        &current.manifest,
+                        tiktools_plugin_api::capabilities::LIVE_INGEST,
+                    )
                     .is_ok();
             if !ingest_allowed {
                 self.record_plugin_drops(&plugin_id, 1);

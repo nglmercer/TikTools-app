@@ -5,9 +5,9 @@ use super::super::{
     reload::{failure_reasons, RecoveryDecision},
     DesktopApp, StartupState, FRONTEND_STARTUP_TIMEOUT,
 };
+use crate::platform;
 #[cfg(target_os = "linux")]
 use gtk::prelude::*;
-use crate::platform;
 use std::{sync::atomic::Ordering, time::Instant};
 use winit::event_loop::ActiveEventLoop;
 

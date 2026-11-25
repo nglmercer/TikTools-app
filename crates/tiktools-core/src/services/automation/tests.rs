@@ -115,7 +115,7 @@ fn trigger_dispatch_index_tracks_upserts_and_removals() {
     assert_eq!(service.matching_events(&gift).len(), 1);
     {
         let index = recover_rwlock_read(&service.index, "automation index");
-        assert!(index.events_by_trigger.get("tiktok.chat").is_none());
+        assert!(!index.events_by_trigger.contains_key("tiktok.chat"));
         assert_eq!(
             index.events_by_trigger.get("tiktok.gift"),
             Some(&vec!["event".to_owned()])
@@ -125,7 +125,7 @@ fn trigger_dispatch_index_tracks_upserts_and_removals() {
     service.remove_event("event");
     assert!(service.matching_events(&gift).is_empty());
     let index = recover_rwlock_read(&service.index, "automation index");
-    assert!(index.events_by_trigger.get("tiktok.gift").is_none());
+    assert!(!index.events_by_trigger.contains_key("tiktok.gift"));
 }
 
 #[test]
