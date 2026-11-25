@@ -40,6 +40,7 @@ function openViewer(): void {
     v-motion="motion"
     class="event-card"
     :class="[`event-card--${event.kind}`, { 'event-card--selected': selected }]"
+    :data-event-id="event.id"
     role="listitem"
     :aria-current="selected || undefined"
   >

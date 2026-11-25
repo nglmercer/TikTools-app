@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { nextTick, shallowRef } from 'vue';
+import { defineComponent, h, nextTick, shallowRef } from 'vue';
 import type { DisplayEvent } from '@/types.ts';
+import { mount } from '@vue/test-utils';
 import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import { createFeedViewport } from '../../../../../../src/web/entities/live-event/model/feed-viewport.ts';
 
@@ -78,5 +79,60 @@ it('retains the paused position across container replacement and stops persistin
     expect(frames.size).toBe(0);
   } finally {
     viewport.dispose();
+  }
+});
+
+it('keeps the paused reading position anchored when eviction is hidden by appends', async () => {
+  saveViewState('feed', { autoScroll: false });
+  const row = (id: number): DisplayEvent => ({ id, kind: 'chat', author: `user${id}`, text: `message ${id}`, receivedAt: id });
+  const events = shallowRef<DisplayEvent[]>(Array.from({ length: 10 }, (_, index) => row(index + 1)));
+  const domRect = (top: number, height = 0): DOMRect => ({
+    x: 0,
+    y: top,
+    width: 0,
+    height,
+    top,
+    right: 0,
+    bottom: top + height,
+    left: 0,
+    toJSON: () => ({}),
+  }) as DOMRect;
+  const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    if (this.classList.contains('feed-stream-test')) return domRect(0, 100);
+    if (this.dataset.eventId) {
+      const parent = this.parentElement;
+      const index = parent ? Array.from(parent.children).indexOf(this) : 0;
+      const scrollTop = parent instanceof HTMLElement ? parent.scrollTop : 0;
+      const top = index * 28 - scrollTop;
+      return domRect(top, 28);
+    }
+    return domRect(0);
+  });
+  let viewport!: ReturnType<typeof createFeedViewport>;
+  const wrapper = mount(defineComponent({
+    setup() {
+      viewport = createFeedViewport(events, () => true);
+      return () => h('div', {
+        class: 'feed-stream-test',
+        ref: (element) => viewport.setStreamContainerRef(element as Element | null),
+      }, events.value.map((event) => h('div', { key: event.id, 'data-event-id': event.id })));
+    },
+  }), { attachTo: document.body });
+  try {
+    const element = wrapper.element as HTMLElement;
+    Object.defineProperty(element, 'scrollHeight', {
+      configurable: true,
+      get: () => element.childElementCount * 28,
+    });
+    element.scrollTop = 100;
+
+    events.value = [...events.value.slice(1), row(11), row(12)];
+    await nextTick();
+
+    expect(element.scrollTop).toBe(72);
+  } finally {
+    wrapper.unmount();
+    viewport.dispose();
+    rectSpy.mockRestore();
   }
 });

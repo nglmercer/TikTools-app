@@ -88,6 +88,7 @@ function reactionText(event: DisplayEvent): string {
         :key="reaction.id"
         class="live-stage__reaction"
         :class="`live-stage__reaction--${reaction.kind}`"
+        :data-event-id="reaction.id"
       >
         <component
           :is="eventTypeIcon(reaction)"
