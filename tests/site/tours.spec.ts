@@ -85,11 +85,13 @@ test('navigating away cancels the guide and reset clears only this instance prog
 test('the recommended tour follows in-app navigation without starting automatically', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en&instance=recommendation');
   const recommendation = page.locator('.demo-toolbar__recommendation');
-  await expect(recommendation).toContainText('First connection');
+  const connectionTitle = testMessage('en', 'guides.catalog.tours.connection.title');
+  const pointsTitle = testMessage('en', 'guides.catalog.tours.points.title');
+  await expect(recommendation).toContainText(connectionTitle);
   await expect(page.locator('.driver-popover')).toHaveCount(0);
   await page.getByRole('link', { name: 'Points', exact: true }).click();
-  await expect(recommendation).toContainText('Points');
+  await expect(recommendation).toContainText(pointsTitle);
   await expect(page.locator('.driver-popover')).toHaveCount(0);
   await page.getByTestId('demo-guide').click();
-  await expect(page.locator('.tutorial-catalog__card--active')).toContainText('Points');
+  await expect(page.locator('.tutorial-catalog__card--active')).toContainText(pointsTitle);
 });
