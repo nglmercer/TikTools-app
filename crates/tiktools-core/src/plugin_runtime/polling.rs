@@ -223,6 +223,16 @@ impl AppCore {
             if self.plugin_apply_quarantined(&plugin_id) {
                 return;
             }
+            if crate::live_platforms::is_live_ingest_event(&event_type) {
+                match self.ingest_live_platform_batch(&plugin_id, data).await {
+                    Ok(outcome) if outcome.rejected > 0 => {
+                        self.record_plugin_drops(&plugin_id, outcome.rejected as u64);
+                    }
+                    Ok(_) => {}
+                    Err(_) => self.record_plugin_drops(&plugin_id, 1),
+                }
+                continue;
+            }
             tracing::debug!(
                 plugin = %plugin_id,
                 event_type = %event_type,

@@ -17,6 +17,7 @@ members = [
     "crates/tiktools-plugin-registry",
     "crates/tiktools-plugin-installer",
     "crates/tiktools-plugin-devkit",
+    "crates/tiktools-live",
     "crates/tiktools-tls",
     "crates/cloud-client",
     "crates/cloud-contracts",
@@ -26,8 +27,9 @@ members = [
     "crates/tiktools-tiktok",
 ]
 exclude = [
-    # Installable-plugin example: built on its own, not part of the app workspace.
+    # Installable-plugin examples: built on their own, not part of the app workspace.
     "examples/plugin-remote",
+    "examples/plugin-twitch",
     "vendor/ttl-live-proto",
     # napi-rs fixture for the napi-vm native addon tests. Built on demand by
     # the integration test with its own lockfile, never by the workspace.

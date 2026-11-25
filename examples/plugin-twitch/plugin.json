@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 3,
+  "id": "tiktools.twitch",
+  "name": "Twitch Live",
+  "version": "0.1.0",
+  "publisher": "tiktools",
+  "license": "MIT",
+  "description": "Reference Twitch live-platform source. Maps Twitch chat, subscriptions and Bits into canonical live events; the host owns validation, feed, automation, points and analytics.",
+  "icon": "video",
+  "tags": ["live", "twitch", "platform"],
+  "runtime": "process",
+  "trust": "trusted",
+  "entry": "tiktools-twitch-plugin",
+  "protocolVersion": 1,
+  "permissions": ["network.connect"],
+  "capabilities": ["events.publish", "live.ingest"],
+  "eventTypes": [
+    {
+      "type": "platform.live.ingest",
+      "title": { "default": "Live platform ingestion" },
+      "description": { "default": "Host-validated canonical live ingestion batches." }
+    }
+  ],
+  "settings": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "title": { "default": "Twitch channel" },
+          "description": { "default": "Login name of the channel to join, without #." }
+        },
+        "oauthToken": {
+          "type": "string",
+          "secret": true,
+          "title": { "default": "OAuth token" },
+          "description": { "default": "User OAuth token with the chat:read scope. It is never emitted in events." }
+        }
+      }
+    }
+  },
+  "actionTypes": [
+    {
+      "id": "tiktools.twitch.connect",
+      "version": 1,
+      "title": { "default": "Connect Twitch" },
+      "description": { "default": "Connect to Twitch chat using the plugin settings or the supplied values." },
+      "fields": [
+        { "key": "channel", "type": "string", "title": { "default": "Channel" } },
+        { "key": "oauthToken", "type": "string", "secret": true, "title": { "default": "OAuth token" } }
+      ],
+      "requiredCapabilities": ["live.ingest"]
+    },
+    {
+      "id": "tiktools.twitch.disconnect",
+      "version": 1,
+      "title": { "default": "Disconnect Twitch" },
+      "description": { "default": "Stop the Twitch connection." }
+    },
+    {
+      "id": "tiktools.twitch.status",
+      "version": 1,
+      "title": { "default": "Twitch status" },
+      "description": { "default": "Show the current plugin connection state." }
+    }
+  ],
+  "cliCommands": [
+    {
+      "id": "connect",
+      "actionType": "tiktools.twitch.connect",
+      "description": "Connect to Twitch chat"
+    },
+    {
+      "id": "disconnect",
+      "actionType": "tiktools.twitch.disconnect",
+      "description": "Disconnect from Twitch chat"
+    },
+    {
+      "id": "status",
+      "actionType": "tiktools.twitch.status",
+      "description": "Show Twitch plugin status"
+    }
+  ],
+  "ui": {
+    "apiVersion": 1,
+    "mode": "declarative",
+    "pages": [
+      {
+        "id": "main",
+        "title": { "default": "Twitch Live" },
+        "body": {
+          "type": "stack",
+          "children": [
+            {
+              "type": "text",
+              "key": "help",
+              "text": {
+                "default": "Configure channel and oauthToken in this plugin's settings, then connect. The plugin maps Twitch IRC events only; feed, automation, points and analytics stay host-owned."
+              }
+            },
+            { "type": "separator" },
+            {
+              "type": "button",
+              "label": { "default": "Connect" },
+              "action": { "type": "plugin-action", "actionType": "tiktools.twitch.connect" }
+            },
+            {
+              "type": "button",
+              "label": { "default": "Disconnect" },
+              "action": { "type": "plugin-action", "actionType": "tiktools.twitch.disconnect" }
+            },
+            {
+              "type": "button",
+              "label": { "default": "Refresh status" },
+              "action": { "type": "plugin-action", "actionType": "tiktools.twitch.status" }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

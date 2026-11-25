@@ -108,6 +108,17 @@ pub enum DomainEvent {
     LiveMonitorChanged {
         status: crate::live_monitor::LiveMonitorStatus,
     },
+    /// Host-validated state of a plugin-owned live platform session.
+    #[serde(rename = "live.platform.session", rename_all = "camelCase")]
+    LivePlatformSession {
+        session: tiktools_live::PlatformSessionSnapshot,
+    },
+    /// Host-validated canonical live event emitted by a platform plugin.
+    #[serde(rename = "live.platform.event", rename_all = "camelCase")]
+    LivePlatformEvent { event: tiktools_live::LiveEnvelope },
+    /// The provider or host ingestion boundary reports lost events.
+    #[serde(rename = "live.platform.gap", rename_all = "camelCase")]
+    LivePlatformGap { connection_id: String, lost: u64 },
     #[serde(rename = "live.event", rename_all = "camelCase")]
     LiveEvent {
         event_type: String,

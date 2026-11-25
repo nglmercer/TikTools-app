@@ -116,6 +116,103 @@ const SHARED_REGISTRY_8 = {
 } as const;
 
 const SHARED_REGISTRY_9 = {
+  "path": "event.data.comment",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Comment",
+    "es": "Comment"
+  },
+  "hint": {
+    "en": "ChatAutomationData.comment",
+    "es": "ChatAutomationData.comment"
+  },
+  "sample": "Hello there",
+  "sourceField": "comment",
+  "sourceMethod": "WebcastChatMessage",
+  "sourcePath": "content",
+  "sourceTransform": "native",
+  "sourceJsonPath": "content",
+  "sourceProtoType": "string",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_10 = {
+  "path": "event.data.emotes",
+  "tsType": "{ \"emoteType\": number | null; \"id\": string; \"imageUrl\": string | null; \"index\": number | null; \"packageId\": string | null; \"shortcode\": string | null }[]",
+  "kind": "array",
+  "optional": true,
+  "label": {
+    "en": "Emotes",
+    "es": "Emotes"
+  },
+  "hint": {
+    "en": "ChatAutomationData.emotes",
+    "es": "ChatAutomationData.emotes"
+  },
+  "sample": [],
+  "sourceField": "emotes",
+  "sourceMethod": "WebcastChatMessage",
+  "sourcePath": "emotes",
+  "sourceTransform": "normalized-message-array",
+  "sourceJsonPath": "emotes",
+  "sourceProtoType": "message",
+  "sourceCardinality": "repeated"
+} as const;
+
+const SHARED_REGISTRY_11 = {
+  "path": "event.data.isHistory",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": false,
+  "label": {
+    "en": "Is History",
+    "es": "Is History"
+  },
+  "hint": {
+    "en": "ChatAutomationData.isHistory",
+    "es": "ChatAutomationData.isHistory"
+  },
+  "sample": false,
+  "sourceField": "isHistory"
+} as const;
+
+const SHARED_REGISTRY_12 = {
+  "path": "event.data.method",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Method",
+    "es": "Method"
+  },
+  "hint": {
+    "en": "ChatAutomationData.method",
+    "es": "ChatAutomationData.method"
+  },
+  "sample": "WebcastSampleMessage",
+  "sourceField": "method"
+} as const;
+
+const SHARED_REGISTRY_13 = {
+  "path": "event.data.msgId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Msg Id",
+    "es": "Msg Id"
+  },
+  "hint": {
+    "en": "ChatAutomationData.msgId",
+    "es": "ChatAutomationData.msgId"
+  },
+  "sample": "1",
+  "sourceField": "msgId"
+} as const;
+
+const SHARED_REGISTRY_14 = {
   "path": "event.intel.processing.status",
   "tsType": "string",
   "kind": "string",
@@ -131,7 +228,7 @@ const SHARED_REGISTRY_9 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_10 = {
+const SHARED_REGISTRY_15 = {
   "path": "event.intel.user.nickname.language.candidates",
   "tsType": "JsonValue[] | null",
   "kind": "array",
@@ -147,7 +244,7 @@ const SHARED_REGISTRY_10 = {
   "sample": []
 } as const;
 
-const SHARED_REGISTRY_11 = {
+const SHARED_REGISTRY_16 = {
   "path": "event.intel.user.nickname.language.confidence",
   "tsType": "number",
   "kind": "number",
@@ -163,7 +260,7 @@ const SHARED_REGISTRY_11 = {
   "sample": 1
 } as const;
 
-const SHARED_REGISTRY_12 = {
+const SHARED_REGISTRY_17 = {
   "path": "event.intel.user.nickname.language.top",
   "tsType": "string",
   "kind": "string",
@@ -179,7 +276,7 @@ const SHARED_REGISTRY_12 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_13 = {
+const SHARED_REGISTRY_18 = {
   "path": "event.intel.user.nickname.normalized",
   "tsType": "string | null",
   "kind": "string",
@@ -195,7 +292,7 @@ const SHARED_REGISTRY_13 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_14 = {
+const SHARED_REGISTRY_19 = {
   "path": "event.intel.user.nickname.tts.confidence",
   "tsType": "number | null",
   "kind": "number",
@@ -211,7 +308,7 @@ const SHARED_REGISTRY_14 = {
   "sample": 1
 } as const;
 
-const SHARED_REGISTRY_15 = {
+const SHARED_REGISTRY_20 = {
   "path": "event.intel.user.nickname.tts.language",
   "tsType": "string | null",
   "kind": "string",
@@ -227,12 +324,12 @@ const SHARED_REGISTRY_15 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_16 = {
+const SHARED_REGISTRY_21 = {
   "en": "EventIntel.user.nickname.tts.pronunciation.confidence",
   "es": "EventIntel.user.nickname.tts.pronunciation.confidence"
 } as const;
 
-const SHARED_REGISTRY_17 = {
+const SHARED_REGISTRY_22 = {
   "path": "event.intel.user.nickname.tts.pronunciation.confidence",
   "tsType": "number | null",
   "kind": "number",
@@ -241,11 +338,11 @@ const SHARED_REGISTRY_17 = {
     "en": "Confidence",
     "es": "Confidence"
   },
-  "hint": SHARED_REGISTRY_16,
+  "hint": SHARED_REGISTRY_21,
   "sample": 1
 } as const;
 
-const SHARED_REGISTRY_18 = {
+const SHARED_REGISTRY_23 = {
   "path": "event.intel.user.nickname.tts.pronunciation.dialect",
   "tsType": "string | null",
   "kind": "string",
@@ -261,7 +358,7 @@ const SHARED_REGISTRY_18 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_19 = {
+const SHARED_REGISTRY_24 = {
   "path": "event.intel.user.nickname.tts.pronunciation.ipa",
   "tsType": "string | null",
   "kind": "string",
@@ -277,7 +374,7 @@ const SHARED_REGISTRY_19 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_20 = {
+const SHARED_REGISTRY_25 = {
   "path": "event.intel.user.nickname.tts.pronunciation.language",
   "tsType": "string | null",
   "kind": "string",
@@ -293,7 +390,7 @@ const SHARED_REGISTRY_20 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_21 = {
+const SHARED_REGISTRY_26 = {
   "path": "event.intel.user.nickname.tts.reason",
   "tsType": "string | null",
   "kind": "string",
@@ -309,7 +406,7 @@ const SHARED_REGISTRY_21 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_22 = {
+const SHARED_REGISTRY_27 = {
   "path": "event.intel.user.nickname.tts.source",
   "tsType": "string | null",
   "kind": "string",
@@ -325,7 +422,7 @@ const SHARED_REGISTRY_22 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_23 = {
+const SHARED_REGISTRY_28 = {
   "path": "event.intel.user.nickname.tts.speak",
   "tsType": "boolean",
   "kind": "boolean",
@@ -341,7 +438,7 @@ const SHARED_REGISTRY_23 = {
   "sample": false
 } as const;
 
-const SHARED_REGISTRY_24 = {
+const SHARED_REGISTRY_29 = {
   "path": "event.intel.user.nickname.tts.text",
   "tsType": "string",
   "kind": "string",
@@ -357,13 +454,37 @@ const SHARED_REGISTRY_24 = {
   "sample": "sample"
 } as const;
 
-const SHARED_REGISTRY_25 = {
+const SHARED_REGISTRY_30 = {
   "name": "emotes",
   "tsType": "{ \"emoteType\": number | null; \"id\": string; \"imageUrl\": string | null; \"index\": number | null; \"packageId\": string | null; \"shortcode\": string | null }[]",
   "optional": true
 } as const;
 
-const SHARED_REGISTRY_26 = {
+const SHARED_REGISTRY_31 = [
+  {
+    "name": "comment",
+    "tsType": "string",
+    "optional": false
+  },
+  SHARED_REGISTRY_30,
+  {
+    "name": "isHistory",
+    "tsType": "boolean",
+    "optional": false
+  },
+  {
+    "name": "method",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "msgId",
+    "tsType": "string",
+    "optional": false
+  }
+] as const;
+
+const SHARED_REGISTRY_32 = {
   "confidence": 1,
   "language": "sample",
   "pronunciation": {
@@ -378,7 +499,7 @@ const SHARED_REGISTRY_26 = {
   "text": "sample"
 } as const;
 
-const SHARED_REGISTRY_27 = {
+const SHARED_REGISTRY_33 = {
   "casefolded": "sample",
   "composition": SHARED_REGISTRY_1,
   "language": {
@@ -404,7 +525,7 @@ const SHARED_REGISTRY_27 = {
     "score": 1
   },
   "truncated": false,
-  "tts": SHARED_REGISTRY_26,
+  "tts": SHARED_REGISTRY_32,
   "unicode": {
     "bidirectional": 1,
     "confusables": 1,
@@ -415,31 +536,587 @@ const SHARED_REGISTRY_27 = {
   }
 } as const;
 
-const SHARED_REGISTRY_28 = {
+const SHARED_REGISTRY_34 = {
   "language": {
     "candidates": [],
     "confidence": 1,
     "top": "sample"
   },
   "normalized": "sample",
-  "tts": SHARED_REGISTRY_26
+  "tts": SHARED_REGISTRY_32
 } as const;
 
-const SHARED_REGISTRY_29 = {
-  "nickname": SHARED_REGISTRY_28,
+const SHARED_REGISTRY_35 = {
+  "nickname": SHARED_REGISTRY_34,
   "uniqueId": SHARED_REGISTRY_3
 } as const;
 
-const SHARED_REGISTRY_30 = {
-  "comment": SHARED_REGISTRY_27,
+const SHARED_REGISTRY_36 = {
+  "comment": SHARED_REGISTRY_33,
   "processing": {
     "status": "sample"
   },
   "providers": {},
-  "user": SHARED_REGISTRY_29
+  "user": SHARED_REGISTRY_35
 } as const;
 
-const SHARED_REGISTRY_31 = {
+const SHARED_REGISTRY_37 = {
+  "aggregation": {
+    "cumulative": 1,
+    "diamonds": 1,
+    "increment": 1
+  },
+  "comboCount": 1,
+  "diamondCount": 1,
+  "giftIconUrl": "sample",
+  "giftId": "5655",
+  "giftName": "Rose",
+  "groupId": "sample",
+  "isHistory": false,
+  "method": "WebcastSampleMessage",
+  "msgId": "1",
+  "repeatCount": 1,
+  "repeatEnd": false,
+  "streakable": false
+} as const;
+
+const SHARED_REGISTRY_38 = {
+  "path": "event.data.aggregation",
+  "tsType": "{ \"cumulative\": number; \"diamonds\": number; \"increment\": number } | null",
+  "kind": "object",
+  "optional": true,
+  "label": {
+    "en": "Aggregation",
+    "es": "Aggregation"
+  },
+  "hint": {
+    "en": "GiftAutomationData.aggregation",
+    "es": "GiftAutomationData.aggregation"
+  },
+  "sample": {
+    "cumulative": 1,
+    "diamonds": 1,
+    "increment": 1
+  },
+  "sourceField": "aggregation"
+} as const;
+
+const SHARED_REGISTRY_39 = {
+  "path": "event.data.comboCount",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Combo Count",
+    "es": "Combo Count"
+  },
+  "hint": {
+    "en": "GiftAutomationData.comboCount",
+    "es": "GiftAutomationData.comboCount"
+  },
+  "sample": 1,
+  "sourceField": "comboCount",
+  "sourceMethod": "WebcastGiftMessage",
+  "sourcePath": "combo_count",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "comboCount",
+  "sourceProtoType": "int32",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_40 = {
+  "path": "event.data.diamondCount",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Diamond Count",
+    "es": "Diamond Count"
+  },
+  "hint": {
+    "en": "GiftAutomationData.diamondCount",
+    "es": "GiftAutomationData.diamondCount"
+  },
+  "sample": 1,
+  "sourceField": "diamondCount",
+  "sourceMethod": "WebcastGiftMessage",
+  "sourcePath": "gift.diamond_count",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "gift.diamondCount",
+  "sourceProtoType": "int32",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_41 = {
+  "path": "event.data.giftIconUrl",
+  "tsType": "string | null",
+  "kind": "string",
+  "optional": true,
+  "label": {
+    "en": "Gift Icon Url",
+    "es": "Gift Icon Url"
+  },
+  "hint": {
+    "en": "GiftAutomationData.giftIconUrl",
+    "es": "GiftAutomationData.giftIconUrl"
+  },
+  "sample": "sample",
+  "sourceField": "giftIconUrl"
+} as const;
+
+const SHARED_REGISTRY_42 = {
+  "path": "event.data.giftId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Gift Id",
+    "es": "Gift Id"
+  },
+  "hint": {
+    "en": "GiftAutomationData.giftId",
+    "es": "GiftAutomationData.giftId"
+  },
+  "sample": "5655",
+  "sourceField": "giftId",
+  "sourceMethod": "WebcastGiftMessage",
+  "sourcePath": "gift_id",
+  "sourceTransform": "u64-to-string",
+  "sourceJsonPath": "giftId",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_43 = {
+  "path": "event.data.giftName",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Gift Name",
+    "es": "Gift Name"
+  },
+  "hint": {
+    "en": "GiftAutomationData.giftName",
+    "es": "GiftAutomationData.giftName"
+  },
+  "sample": "Rose",
+  "sourceField": "giftName",
+  "sourceMethod": "WebcastGiftMessage",
+  "sourcePath": "gift.name",
+  "sourceTransform": "native",
+  "sourceJsonPath": "gift.name",
+  "sourceProtoType": "string",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_44 = {
+  "path": "event.data.groupId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Group Id",
+    "es": "Group Id"
+  },
+  "hint": {
+    "en": "GiftAutomationData.groupId",
+    "es": "GiftAutomationData.groupId"
+  },
+  "sample": "sample",
+  "sourceField": "groupId",
+  "sourceMethod": "WebcastGiftMessage",
+  "sourcePath": "group_id",
+  "sourceTransform": "integer-to-string",
+  "sourceJsonPath": "groupId",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_45 = {
+  "path": "event.data.isHistory",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": false,
+  "label": {
+    "en": "Is History",
+    "es": "Is History"
+  },
+  "hint": {
+    "en": "GiftAutomationData.isHistory",
+    "es": "GiftAutomationData.isHistory"
+  },
+  "sample": false,
+  "sourceField": "isHistory"
+} as const;
+
+const SHARED_REGISTRY_46 = {
+  "path": "event.data.method",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Method",
+    "es": "Method"
+  },
+  "hint": {
+    "en": "GiftAutomationData.method",
+    "es": "GiftAutomationData.method"
+  },
+  "sample": "WebcastSampleMessage",
+  "sourceField": "method"
+} as const;
+
+const SHARED_REGISTRY_47 = {
+  "path": "event.data.msgId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Msg Id",
+    "es": "Msg Id"
+  },
+  "hint": {
+    "en": "GiftAutomationData.msgId",
+    "es": "GiftAutomationData.msgId"
+  },
+  "sample": "1",
+  "sourceField": "msgId"
+} as const;
+
+const SHARED_REGISTRY_48 = {
+  "path": "event.data.repeatCount",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Repeat Count",
+    "es": "Repeat Count"
+  },
+  "hint": {
+    "en": "GiftAutomationData.repeatCount",
+    "es": "GiftAutomationData.repeatCount"
+  },
+  "sample": 1,
+  "sourceField": "repeatCount",
+  "sourceMethod": "WebcastGiftMessage",
+  "sourcePath": "repeat_count",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "repeatCount",
+  "sourceProtoType": "int32",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_49 = {
+  "path": "event.data.repeatEnd",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": false,
+  "label": {
+    "en": "Repeat End",
+    "es": "Repeat End"
+  },
+  "hint": {
+    "en": "GiftAutomationData.repeatEnd",
+    "es": "GiftAutomationData.repeatEnd"
+  },
+  "sample": false,
+  "sourceField": "repeatEnd",
+  "sourceMethod": "WebcastGiftMessage",
+  "sourcePath": "repeat_end",
+  "sourceTransform": "nonzero-to-boolean",
+  "sourceJsonPath": "repeatEnd",
+  "sourceProtoType": "int32",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_50 = {
+  "path": "event.data.streakable",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": false,
+  "label": {
+    "en": "Streakable",
+    "es": "Streakable"
+  },
+  "hint": {
+    "en": "GiftAutomationData.streakable",
+    "es": "GiftAutomationData.streakable"
+  },
+  "sample": false,
+  "sourceField": "streakable"
+} as const;
+
+const SHARED_REGISTRY_51 = {
+  "name": "aggregation",
+  "tsType": "{ \"cumulative\": number; \"diamonds\": number; \"increment\": number } | null",
+  "optional": true
+} as const;
+
+const SHARED_REGISTRY_52 = [
+  SHARED_REGISTRY_51,
+  {
+    "name": "comboCount",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "diamondCount",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "giftIconUrl",
+    "tsType": "string | null",
+    "optional": true
+  },
+  {
+    "name": "giftId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "giftName",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "groupId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "isHistory",
+    "tsType": "boolean",
+    "optional": false
+  },
+  {
+    "name": "method",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "msgId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "repeatCount",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "repeatEnd",
+    "tsType": "boolean",
+    "optional": false
+  },
+  {
+    "name": "streakable",
+    "tsType": "boolean",
+    "optional": false
+  }
+] as const;
+
+const SHARED_REGISTRY_53 = {
+  "aggregation": {
+    "global": {
+      "previous": 1,
+      "total": 1
+    },
+    "user": {
+      "previous": 1,
+      "total": 1
+    }
+  },
+  "count": 1,
+  "isHistory": false,
+  "method": "WebcastSampleMessage",
+  "msgId": "1",
+  "total": 1
+} as const;
+
+const SHARED_REGISTRY_54 = {
+  "path": "event.data.aggregation",
+  "tsType": "{ \"global\": { \"previous\": number; \"total\": number } | null; \"user\": { \"previous\": number; \"total\": number } | null } | null",
+  "kind": "object",
+  "optional": true,
+  "label": {
+    "en": "Aggregation",
+    "es": "Aggregation"
+  },
+  "hint": {
+    "en": "LikeAutomationData.aggregation",
+    "es": "LikeAutomationData.aggregation"
+  },
+  "sample": {
+    "global": {
+      "previous": 1,
+      "total": 1
+    },
+    "user": {
+      "previous": 1,
+      "total": 1
+    }
+  },
+  "sourceField": "aggregation"
+} as const;
+
+const SHARED_REGISTRY_55 = {
+  "path": "event.data.count",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Count",
+    "es": "Count"
+  },
+  "hint": {
+    "en": "LikeAutomationData.count",
+    "es": "LikeAutomationData.count"
+  },
+  "sample": 1,
+  "sourceField": "count",
+  "sourceMethod": "WebcastLikeMessage",
+  "sourcePath": "count",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "count",
+  "sourceProtoType": "int32",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_56 = {
+  "path": "event.data.isHistory",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": false,
+  "label": {
+    "en": "Is History",
+    "es": "Is History"
+  },
+  "hint": {
+    "en": "LikeAutomationData.isHistory",
+    "es": "LikeAutomationData.isHistory"
+  },
+  "sample": false,
+  "sourceField": "isHistory"
+} as const;
+
+const SHARED_REGISTRY_57 = {
+  "path": "event.data.method",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Method",
+    "es": "Method"
+  },
+  "hint": {
+    "en": "LikeAutomationData.method",
+    "es": "LikeAutomationData.method"
+  },
+  "sample": "WebcastSampleMessage",
+  "sourceField": "method"
+} as const;
+
+const SHARED_REGISTRY_58 = {
+  "path": "event.data.msgId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Msg Id",
+    "es": "Msg Id"
+  },
+  "hint": {
+    "en": "LikeAutomationData.msgId",
+    "es": "LikeAutomationData.msgId"
+  },
+  "sample": "1",
+  "sourceField": "msgId"
+} as const;
+
+const SHARED_REGISTRY_59 = {
+  "path": "event.data.total",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Total",
+    "es": "Total"
+  },
+  "hint": {
+    "en": "LikeAutomationData.total",
+    "es": "LikeAutomationData.total"
+  },
+  "sample": 1,
+  "sourceField": "total",
+  "sourceMethod": "WebcastLikeMessage",
+  "sourcePath": "total",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "total",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_60 = {
+  "name": "aggregation",
+  "tsType": "{ \"global\": { \"previous\": number; \"total\": number } | null; \"user\": { \"previous\": number; \"total\": number } | null } | null",
+  "optional": true
+} as const;
+
+const SHARED_REGISTRY_61 = [
+  SHARED_REGISTRY_60,
+  {
+    "name": "count",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "isHistory",
+    "tsType": "boolean",
+    "optional": false
+  },
+  {
+    "name": "method",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "msgId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "total",
+    "tsType": "number",
+    "optional": false
+  }
+] as const;
+
+const SHARED_REGISTRY_62 = {
+  "path": "event.data.action",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Action",
+    "es": "Action"
+  },
+  "hint": {
+    "en": "SocialAutomationData.action",
+    "es": "SocialAutomationData.action"
+  },
+  "sample": 1,
+  "sourceField": "action",
+  "sourceMethod": "WebcastSocialMessage",
+  "sourcePath": "action",
+  "sourceTransform": "native",
+  "sourceJsonPath": "action",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_63 = {
   "path": "event.data.followCount",
   "tsType": "number",
   "kind": "number",
@@ -462,7 +1139,7 @@ const SHARED_REGISTRY_31 = {
   "sourceCardinality": "optional"
 } as const;
 
-const SHARED_REGISTRY_32 = {
+const SHARED_REGISTRY_64 = {
   "path": "event.data.isHistory",
   "tsType": "boolean",
   "kind": "boolean",
@@ -479,7 +1156,7 @@ const SHARED_REGISTRY_32 = {
   "sourceField": "isHistory"
 } as const;
 
-const SHARED_REGISTRY_33 = {
+const SHARED_REGISTRY_65 = {
   "path": "event.data.method",
   "tsType": "string",
   "kind": "string",
@@ -496,7 +1173,7 @@ const SHARED_REGISTRY_33 = {
   "sourceField": "method"
 } as const;
 
-const SHARED_REGISTRY_34 = {
+const SHARED_REGISTRY_66 = {
   "path": "event.data.msgId",
   "tsType": "string",
   "kind": "string",
@@ -513,7 +1190,7 @@ const SHARED_REGISTRY_34 = {
   "sourceField": "msgId"
 } as const;
 
-const SHARED_REGISTRY_35 = {
+const SHARED_REGISTRY_67 = {
   "path": "event.data.shareCount",
   "tsType": "number",
   "kind": "number",
@@ -536,7 +1213,7 @@ const SHARED_REGISTRY_35 = {
   "sourceCardinality": "optional"
 } as const;
 
-const SHARED_REGISTRY_36 = [
+const SHARED_REGISTRY_68 = [
   {
     "name": "action",
     "tsType": "number",
@@ -569,7 +1246,301 @@ const SHARED_REGISTRY_36 = [
   }
 ] as const;
 
-const SHARED_REGISTRY_37 = {
+const SHARED_REGISTRY_69 = {
+  "path": "event.data.isHistory",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": false,
+  "label": {
+    "en": "Is History",
+    "es": "Is History"
+  },
+  "hint": {
+    "en": "MemberAutomationData.isHistory",
+    "es": "MemberAutomationData.isHistory"
+  },
+  "sample": false,
+  "sourceField": "isHistory"
+} as const;
+
+const SHARED_REGISTRY_70 = {
+  "path": "event.data.memberCount",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Member Count",
+    "es": "Member Count"
+  },
+  "hint": {
+    "en": "MemberAutomationData.memberCount",
+    "es": "MemberAutomationData.memberCount"
+  },
+  "sample": 1,
+  "sourceField": "memberCount",
+  "sourceMethod": "WebcastMemberMessage",
+  "sourcePath": "member_count",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "memberCount",
+  "sourceProtoType": "int32",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_71 = {
+  "path": "event.data.method",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Method",
+    "es": "Method"
+  },
+  "hint": {
+    "en": "MemberAutomationData.method",
+    "es": "MemberAutomationData.method"
+  },
+  "sample": "WebcastSampleMessage",
+  "sourceField": "method"
+} as const;
+
+const SHARED_REGISTRY_72 = {
+  "path": "event.data.msgId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Msg Id",
+    "es": "Msg Id"
+  },
+  "hint": {
+    "en": "MemberAutomationData.msgId",
+    "es": "MemberAutomationData.msgId"
+  },
+  "sample": "1",
+  "sourceField": "msgId"
+} as const;
+
+const SHARED_REGISTRY_73 = [
+  {
+    "name": "action",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "isHistory",
+    "tsType": "boolean",
+    "optional": false
+  },
+  {
+    "name": "memberCount",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "method",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "msgId",
+    "tsType": "string",
+    "optional": false
+  }
+] as const;
+
+const SHARED_REGISTRY_74 = {
+  "path": "event.data.anonymous",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Anonymous",
+    "es": "Anonymous"
+  },
+  "hint": {
+    "en": "RoomStatsAutomationData.anonymous",
+    "es": "RoomStatsAutomationData.anonymous"
+  },
+  "sample": 1,
+  "sourceField": "anonymous",
+  "sourceMethod": "WebcastRoomUserSeqMessage",
+  "sourcePath": "anonymous",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "anonymous",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_75 = {
+  "path": "event.data.isHistory",
+  "tsType": "boolean",
+  "kind": "boolean",
+  "optional": false,
+  "label": {
+    "en": "Is History",
+    "es": "Is History"
+  },
+  "hint": {
+    "en": "RoomStatsAutomationData.isHistory",
+    "es": "RoomStatsAutomationData.isHistory"
+  },
+  "sample": false,
+  "sourceField": "isHistory"
+} as const;
+
+const SHARED_REGISTRY_76 = {
+  "path": "event.data.method",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Method",
+    "es": "Method"
+  },
+  "hint": {
+    "en": "RoomStatsAutomationData.method",
+    "es": "RoomStatsAutomationData.method"
+  },
+  "sample": "WebcastSampleMessage",
+  "sourceField": "method"
+} as const;
+
+const SHARED_REGISTRY_77 = {
+  "path": "event.data.msgId",
+  "tsType": "string",
+  "kind": "string",
+  "optional": false,
+  "label": {
+    "en": "Msg Id",
+    "es": "Msg Id"
+  },
+  "hint": {
+    "en": "RoomStatsAutomationData.msgId",
+    "es": "RoomStatsAutomationData.msgId"
+  },
+  "sample": "1",
+  "sourceField": "msgId"
+} as const;
+
+const SHARED_REGISTRY_78 = {
+  "path": "event.data.popularity",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Popularity",
+    "es": "Popularity"
+  },
+  "hint": {
+    "en": "RoomStatsAutomationData.popularity",
+    "es": "RoomStatsAutomationData.popularity"
+  },
+  "sample": 1,
+  "sourceField": "popularity",
+  "sourceMethod": "WebcastRoomUserSeqMessage",
+  "sourcePath": "popularity",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "popularity",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_79 = {
+  "path": "event.data.totalUsers",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Total Users",
+    "es": "Total Users"
+  },
+  "hint": {
+    "en": "RoomStatsAutomationData.totalUsers",
+    "es": "RoomStatsAutomationData.totalUsers"
+  },
+  "sample": 1,
+  "sourceField": "totalUsers",
+  "sourceMethod": "WebcastRoomUserSeqMessage",
+  "sourcePath": "total_user",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "totalUser",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_80 = {
+  "path": "event.data.viewers",
+  "tsType": "number",
+  "kind": "number",
+  "optional": false,
+  "label": {
+    "en": "Viewers",
+    "es": "Viewers"
+  },
+  "hint": {
+    "en": "RoomStatsAutomationData.viewers",
+    "es": "RoomStatsAutomationData.viewers"
+  },
+  "sample": 1,
+  "sourceField": "viewers",
+  "sourceMethod": "WebcastRoomUserSeqMessage",
+  "sourcePath": "total",
+  "sourceTransform": "normalized-unsigned",
+  "sourceJsonPath": "total",
+  "sourceProtoType": "int64",
+  "sourceCardinality": "optional"
+} as const;
+
+const SHARED_REGISTRY_81 = [
+  SHARED_REGISTRY_74,
+  SHARED_REGISTRY_75,
+  SHARED_REGISTRY_76,
+  SHARED_REGISTRY_77,
+  SHARED_REGISTRY_78,
+  SHARED_REGISTRY_79,
+  SHARED_REGISTRY_80,
+  SHARED_REGISTRY_14
+] as const;
+
+const SHARED_REGISTRY_82 = [
+  {
+    "name": "anonymous",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "isHistory",
+    "tsType": "boolean",
+    "optional": false
+  },
+  {
+    "name": "method",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "msgId",
+    "tsType": "string",
+    "optional": false
+  },
+  {
+    "name": "popularity",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "totalUsers",
+    "tsType": "number",
+    "optional": false
+  },
+  {
+    "name": "viewers",
+    "tsType": "number",
+    "optional": false
+  }
+] as const;
+
+const SHARED_REGISTRY_83 = {
   "path": "event.data.roomId",
   "tsType": "string",
   "kind": "string",
@@ -586,7 +1557,7 @@ const SHARED_REGISTRY_37 = {
   "sourceField": "roomId"
 } as const;
 
-const SHARED_REGISTRY_38 = {
+const SHARED_REGISTRY_84 = {
   "path": "event.data.uniqueId",
   "tsType": "string",
   "kind": "string",
@@ -603,13 +1574,23 @@ const SHARED_REGISTRY_38 = {
   "sourceField": "uniqueId"
 } as const;
 
-const SHARED_REGISTRY_39 = [
-  SHARED_REGISTRY_37,
-  SHARED_REGISTRY_38,
-  SHARED_REGISTRY_9
+const SHARED_REGISTRY_85 = [
+  SHARED_REGISTRY_83,
+  SHARED_REGISTRY_84,
+  SHARED_REGISTRY_14
 ] as const;
 
-const SHARED_REGISTRY_40 = {
+const SHARED_REGISTRY_86 = [
+  SHARED_REGISTRY_62,
+  SHARED_REGISTRY_63,
+  SHARED_REGISTRY_64,
+  SHARED_REGISTRY_65,
+  SHARED_REGISTRY_66,
+  SHARED_REGISTRY_67,
+  SHARED_REGISTRY_14
+] as const;
+
+const SHARED_REGISTRY_87 = {
   "actionId": "sample",
   "actionStatus": "pending",
   "competitionId": "sample",
@@ -624,7 +1605,7 @@ const SHARED_REGISTRY_40 = {
   "winnerScore": 1
 } as const;
 
-const SHARED_REGISTRY_41 = {
+const SHARED_REGISTRY_88 = {
   "path": "event.data.actionId",
   "tsType": "string | null",
   "kind": "string",
@@ -641,7 +1622,7 @@ const SHARED_REGISTRY_41 = {
   "sourceField": "actionId"
 } as const;
 
-const SHARED_REGISTRY_42 = {
+const SHARED_REGISTRY_89 = {
   "path": "event.data.actionStatus",
   "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
   "kind": "string",
@@ -658,7 +1639,7 @@ const SHARED_REGISTRY_42 = {
   "sourceField": "actionStatus"
 } as const;
 
-const SHARED_REGISTRY_43 = {
+const SHARED_REGISTRY_90 = {
   "path": "event.data.competitionId",
   "tsType": "string",
   "kind": "string",
@@ -675,7 +1656,7 @@ const SHARED_REGISTRY_43 = {
   "sourceField": "competitionId"
 } as const;
 
-const SHARED_REGISTRY_44 = {
+const SHARED_REGISTRY_91 = {
   "path": "event.data.creatorId",
   "tsType": "string",
   "kind": "string",
@@ -692,7 +1673,7 @@ const SHARED_REGISTRY_44 = {
   "sourceField": "creatorId"
 } as const;
 
-const SHARED_REGISTRY_45 = {
+const SHARED_REGISTRY_92 = {
   "path": "event.data.generation",
   "tsType": "number",
   "kind": "number",
@@ -709,7 +1690,7 @@ const SHARED_REGISTRY_45 = {
   "sourceField": "generation"
 } as const;
 
-const SHARED_REGISTRY_46 = {
+const SHARED_REGISTRY_93 = {
   "path": "event.data.optionId",
   "tsType": "string | null",
   "kind": "string",
@@ -726,7 +1707,7 @@ const SHARED_REGISTRY_46 = {
   "sourceField": "optionId"
 } as const;
 
-const SHARED_REGISTRY_47 = {
+const SHARED_REGISTRY_94 = {
   "path": "event.data.rankingId",
   "tsType": "string",
   "kind": "string",
@@ -743,7 +1724,7 @@ const SHARED_REGISTRY_47 = {
   "sourceField": "rankingId"
 } as const;
 
-const SHARED_REGISTRY_48 = {
+const SHARED_REGISTRY_95 = {
   "path": "event.data.roomId",
   "tsType": "string",
   "kind": "string",
@@ -760,7 +1741,7 @@ const SHARED_REGISTRY_48 = {
   "sourceField": "roomId"
 } as const;
 
-const SHARED_REGISTRY_49 = {
+const SHARED_REGISTRY_96 = {
   "path": "event.data.selectionId",
   "tsType": "string | null",
   "kind": "string",
@@ -777,7 +1758,7 @@ const SHARED_REGISTRY_49 = {
   "sourceField": "selectionId"
 } as const;
 
-const SHARED_REGISTRY_50 = {
+const SHARED_REGISTRY_97 = {
   "path": "event.data.selectionMode",
   "tsType": "\"highest_score\" | \"uniform_random\" | \"weighted_random\" | null",
   "kind": "string",
@@ -794,7 +1775,7 @@ const SHARED_REGISTRY_50 = {
   "sourceField": "selectionMode"
 } as const;
 
-const SHARED_REGISTRY_51 = {
+const SHARED_REGISTRY_98 = {
   "path": "event.data.winnerId",
   "tsType": "string | null",
   "kind": "string",
@@ -811,7 +1792,7 @@ const SHARED_REGISTRY_51 = {
   "sourceField": "winnerId"
 } as const;
 
-const SHARED_REGISTRY_52 = {
+const SHARED_REGISTRY_99 = {
   "path": "event.data.winnerScore",
   "tsType": "number | null",
   "kind": "number",
@@ -828,35 +1809,35 @@ const SHARED_REGISTRY_52 = {
   "sourceField": "winnerScore"
 } as const;
 
-const SHARED_REGISTRY_53 = [
-  SHARED_REGISTRY_41,
-  SHARED_REGISTRY_42,
-  SHARED_REGISTRY_43,
-  SHARED_REGISTRY_44,
-  SHARED_REGISTRY_45,
-  SHARED_REGISTRY_46,
-  SHARED_REGISTRY_47,
-  SHARED_REGISTRY_48,
-  SHARED_REGISTRY_49,
-  SHARED_REGISTRY_50,
-  SHARED_REGISTRY_51,
-  SHARED_REGISTRY_52,
-  SHARED_REGISTRY_9
+const SHARED_REGISTRY_100 = [
+  SHARED_REGISTRY_88,
+  SHARED_REGISTRY_89,
+  SHARED_REGISTRY_90,
+  SHARED_REGISTRY_91,
+  SHARED_REGISTRY_92,
+  SHARED_REGISTRY_93,
+  SHARED_REGISTRY_94,
+  SHARED_REGISTRY_95,
+  SHARED_REGISTRY_96,
+  SHARED_REGISTRY_97,
+  SHARED_REGISTRY_98,
+  SHARED_REGISTRY_99,
+  SHARED_REGISTRY_14
 ] as const;
 
-const SHARED_REGISTRY_54 = {
+const SHARED_REGISTRY_101 = {
   "name": "actionStatus",
   "tsType": "\"pending\" | \"running\" | \"completed\" | \"failed\" | \"uncertain\" | null",
   "optional": true
 } as const;
 
-const SHARED_REGISTRY_55 = [
+const SHARED_REGISTRY_102 = [
   {
     "name": "actionId",
     "tsType": "string | null",
     "optional": true
   },
-  SHARED_REGISTRY_54,
+  SHARED_REGISTRY_101,
   {
     "name": "competitionId",
     "tsType": "string",
@@ -1025,98 +2006,11 @@ export const GENERATED_EVENT_REGISTRY = {
         SHARED_REGISTRY_6,
         SHARED_REGISTRY_7,
         SHARED_REGISTRY_8,
-        {
-          "path": "event.data.comment",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Comment",
-            "es": "Comment"
-          },
-          "hint": {
-            "en": "ChatAutomationData.comment",
-            "es": "ChatAutomationData.comment"
-          },
-          "sample": "Hello there",
-          "sourceField": "comment",
-          "sourceMethod": "WebcastChatMessage",
-          "sourcePath": "content",
-          "sourceTransform": "native",
-          "sourceJsonPath": "content",
-          "sourceProtoType": "string",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.emotes",
-          "tsType": "{ \"emoteType\": number | null; \"id\": string; \"imageUrl\": string | null; \"index\": number | null; \"packageId\": string | null; \"shortcode\": string | null }[]",
-          "kind": "array",
-          "optional": true,
-          "label": {
-            "en": "Emotes",
-            "es": "Emotes"
-          },
-          "hint": {
-            "en": "ChatAutomationData.emotes",
-            "es": "ChatAutomationData.emotes"
-          },
-          "sample": [],
-          "sourceField": "emotes",
-          "sourceMethod": "WebcastChatMessage",
-          "sourcePath": "emotes",
-          "sourceTransform": "normalized-message-array",
-          "sourceJsonPath": "emotes",
-          "sourceProtoType": "message",
-          "sourceCardinality": "repeated"
-        },
-        {
-          "path": "event.data.isHistory",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Is History",
-            "es": "Is History"
-          },
-          "hint": {
-            "en": "ChatAutomationData.isHistory",
-            "es": "ChatAutomationData.isHistory"
-          },
-          "sample": false,
-          "sourceField": "isHistory"
-        },
-        {
-          "path": "event.data.method",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Method",
-            "es": "Method"
-          },
-          "hint": {
-            "en": "ChatAutomationData.method",
-            "es": "ChatAutomationData.method"
-          },
-          "sample": "WebcastSampleMessage",
-          "sourceField": "method"
-        },
-        {
-          "path": "event.data.msgId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Msg Id",
-            "es": "Msg Id"
-          },
-          "hint": {
-            "en": "ChatAutomationData.msgId",
-            "es": "ChatAutomationData.msgId"
-          },
-          "sample": "1",
-          "sourceField": "msgId"
-        },
+        SHARED_REGISTRY_9,
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
         {
           "path": "event.intel.comment.casefolded",
           "tsType": "string | null",
@@ -1882,21 +2776,21 @@ export const GENERATED_EVENT_REGISTRY = {
           },
           "sample": false
         },
-        SHARED_REGISTRY_9,
-        SHARED_REGISTRY_10,
-        SHARED_REGISTRY_11,
-        SHARED_REGISTRY_12,
-        SHARED_REGISTRY_13,
         SHARED_REGISTRY_14,
         SHARED_REGISTRY_15,
+        SHARED_REGISTRY_16,
         SHARED_REGISTRY_17,
         SHARED_REGISTRY_18,
         SHARED_REGISTRY_19,
         SHARED_REGISTRY_20,
-        SHARED_REGISTRY_21,
         SHARED_REGISTRY_22,
         SHARED_REGISTRY_23,
         SHARED_REGISTRY_24,
+        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_26,
+        SHARED_REGISTRY_27,
+        SHARED_REGISTRY_28,
+        SHARED_REGISTRY_29,
         {
           "path": "event.intel.user.uniqueId.composition.allCaps",
           "tsType": "boolean | null",
@@ -2093,29 +2987,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": "sample"
         }
       ],
-      "sourceFields": [
-        {
-          "name": "comment",
-          "tsType": "string",
-          "optional": false
-        },
-        SHARED_REGISTRY_25,
-        {
-          "name": "isHistory",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "method",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "msgId",
-          "tsType": "string",
-          "optional": false
-        }
-      ],
+      "sourceFields": SHARED_REGISTRY_31,
       "note": "Generated from ChatAutomationData JSON Schema."
     },
     "tiktok.emote_chat": {
@@ -2138,7 +3010,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1"
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         SHARED_REGISTRY_4,
@@ -2216,24 +3088,24 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": "1",
           "sourceField": "msgId"
         },
-        SHARED_REGISTRY_10,
-        SHARED_REGISTRY_11,
-        SHARED_REGISTRY_12,
-        SHARED_REGISTRY_13,
-        SHARED_REGISTRY_14,
         SHARED_REGISTRY_15,
+        SHARED_REGISTRY_16,
         SHARED_REGISTRY_17,
         SHARED_REGISTRY_18,
         SHARED_REGISTRY_19,
         SHARED_REGISTRY_20,
-        SHARED_REGISTRY_21,
         SHARED_REGISTRY_22,
         SHARED_REGISTRY_23,
         SHARED_REGISTRY_24,
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_26,
+        SHARED_REGISTRY_27,
+        SHARED_REGISTRY_28,
+        SHARED_REGISTRY_29,
+        SHARED_REGISTRY_14
       ],
       "sourceFields": [
-        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_30,
         {
           "name": "isHistory",
           "tsType": "boolean",
@@ -2266,26 +3138,8 @@ export const GENERATED_EVENT_REGISTRY = {
           "uniqueId": "usuario_demo",
           "userId": "1"
         },
-        "data": {
-          "aggregation": {
-            "cumulative": 1,
-            "diamonds": 1,
-            "increment": 1
-          },
-          "comboCount": 1,
-          "diamondCount": 1,
-          "giftIconUrl": "sample",
-          "giftId": "5655",
-          "giftName": "Rose",
-          "groupId": "sample",
-          "isHistory": false,
-          "method": "WebcastSampleMessage",
-          "msgId": "1",
-          "repeatCount": 1,
-          "repeatEnd": false,
-          "streakable": false
-        },
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_37,
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         SHARED_REGISTRY_4,
@@ -2293,343 +3147,36 @@ export const GENERATED_EVENT_REGISTRY = {
         SHARED_REGISTRY_6,
         SHARED_REGISTRY_7,
         SHARED_REGISTRY_8,
-        {
-          "path": "event.data.aggregation",
-          "tsType": "{ \"cumulative\": number; \"diamonds\": number; \"increment\": number } | null",
-          "kind": "object",
-          "optional": true,
-          "label": {
-            "en": "Aggregation",
-            "es": "Aggregation"
-          },
-          "hint": {
-            "en": "GiftAutomationData.aggregation",
-            "es": "GiftAutomationData.aggregation"
-          },
-          "sample": {
-            "cumulative": 1,
-            "diamonds": 1,
-            "increment": 1
-          },
-          "sourceField": "aggregation"
-        },
-        {
-          "path": "event.data.comboCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Combo Count",
-            "es": "Combo Count"
-          },
-          "hint": {
-            "en": "GiftAutomationData.comboCount",
-            "es": "GiftAutomationData.comboCount"
-          },
-          "sample": 1,
-          "sourceField": "comboCount",
-          "sourceMethod": "WebcastGiftMessage",
-          "sourcePath": "combo_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "comboCount",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.diamondCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Diamond Count",
-            "es": "Diamond Count"
-          },
-          "hint": {
-            "en": "GiftAutomationData.diamondCount",
-            "es": "GiftAutomationData.diamondCount"
-          },
-          "sample": 1,
-          "sourceField": "diamondCount",
-          "sourceMethod": "WebcastGiftMessage",
-          "sourcePath": "gift.diamond_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "gift.diamondCount",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.giftIconUrl",
-          "tsType": "string | null",
-          "kind": "string",
-          "optional": true,
-          "label": {
-            "en": "Gift Icon Url",
-            "es": "Gift Icon Url"
-          },
-          "hint": {
-            "en": "GiftAutomationData.giftIconUrl",
-            "es": "GiftAutomationData.giftIconUrl"
-          },
-          "sample": "sample",
-          "sourceField": "giftIconUrl"
-        },
-        {
-          "path": "event.data.giftId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Gift Id",
-            "es": "Gift Id"
-          },
-          "hint": {
-            "en": "GiftAutomationData.giftId",
-            "es": "GiftAutomationData.giftId"
-          },
-          "sample": "5655",
-          "sourceField": "giftId",
-          "sourceMethod": "WebcastGiftMessage",
-          "sourcePath": "gift_id",
-          "sourceTransform": "u64-to-string",
-          "sourceJsonPath": "giftId",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.giftName",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Gift Name",
-            "es": "Gift Name"
-          },
-          "hint": {
-            "en": "GiftAutomationData.giftName",
-            "es": "GiftAutomationData.giftName"
-          },
-          "sample": "Rose",
-          "sourceField": "giftName",
-          "sourceMethod": "WebcastGiftMessage",
-          "sourcePath": "gift.name",
-          "sourceTransform": "native",
-          "sourceJsonPath": "gift.name",
-          "sourceProtoType": "string",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.groupId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Group Id",
-            "es": "Group Id"
-          },
-          "hint": {
-            "en": "GiftAutomationData.groupId",
-            "es": "GiftAutomationData.groupId"
-          },
-          "sample": "sample",
-          "sourceField": "groupId",
-          "sourceMethod": "WebcastGiftMessage",
-          "sourcePath": "group_id",
-          "sourceTransform": "integer-to-string",
-          "sourceJsonPath": "groupId",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.isHistory",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Is History",
-            "es": "Is History"
-          },
-          "hint": {
-            "en": "GiftAutomationData.isHistory",
-            "es": "GiftAutomationData.isHistory"
-          },
-          "sample": false,
-          "sourceField": "isHistory"
-        },
-        {
-          "path": "event.data.method",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Method",
-            "es": "Method"
-          },
-          "hint": {
-            "en": "GiftAutomationData.method",
-            "es": "GiftAutomationData.method"
-          },
-          "sample": "WebcastSampleMessage",
-          "sourceField": "method"
-        },
-        {
-          "path": "event.data.msgId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Msg Id",
-            "es": "Msg Id"
-          },
-          "hint": {
-            "en": "GiftAutomationData.msgId",
-            "es": "GiftAutomationData.msgId"
-          },
-          "sample": "1",
-          "sourceField": "msgId"
-        },
-        {
-          "path": "event.data.repeatCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Repeat Count",
-            "es": "Repeat Count"
-          },
-          "hint": {
-            "en": "GiftAutomationData.repeatCount",
-            "es": "GiftAutomationData.repeatCount"
-          },
-          "sample": 1,
-          "sourceField": "repeatCount",
-          "sourceMethod": "WebcastGiftMessage",
-          "sourcePath": "repeat_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "repeatCount",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.repeatEnd",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Repeat End",
-            "es": "Repeat End"
-          },
-          "hint": {
-            "en": "GiftAutomationData.repeatEnd",
-            "es": "GiftAutomationData.repeatEnd"
-          },
-          "sample": false,
-          "sourceField": "repeatEnd",
-          "sourceMethod": "WebcastGiftMessage",
-          "sourcePath": "repeat_end",
-          "sourceTransform": "nonzero-to-boolean",
-          "sourceJsonPath": "repeatEnd",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.streakable",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Streakable",
-            "es": "Streakable"
-          },
-          "hint": {
-            "en": "GiftAutomationData.streakable",
-            "es": "GiftAutomationData.streakable"
-          },
-          "sample": false,
-          "sourceField": "streakable"
-        },
-        SHARED_REGISTRY_10,
-        SHARED_REGISTRY_11,
-        SHARED_REGISTRY_12,
-        SHARED_REGISTRY_13,
-        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_38,
+        SHARED_REGISTRY_39,
+        SHARED_REGISTRY_40,
+        SHARED_REGISTRY_41,
+        SHARED_REGISTRY_42,
+        SHARED_REGISTRY_43,
+        SHARED_REGISTRY_44,
+        SHARED_REGISTRY_45,
+        SHARED_REGISTRY_46,
+        SHARED_REGISTRY_47,
+        SHARED_REGISTRY_48,
+        SHARED_REGISTRY_49,
+        SHARED_REGISTRY_50,
         SHARED_REGISTRY_15,
+        SHARED_REGISTRY_16,
         SHARED_REGISTRY_17,
         SHARED_REGISTRY_18,
         SHARED_REGISTRY_19,
         SHARED_REGISTRY_20,
-        SHARED_REGISTRY_21,
         SHARED_REGISTRY_22,
         SHARED_REGISTRY_23,
         SHARED_REGISTRY_24,
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_26,
+        SHARED_REGISTRY_27,
+        SHARED_REGISTRY_28,
+        SHARED_REGISTRY_29,
+        SHARED_REGISTRY_14
       ],
-      "sourceFields": [
-        {
-          "name": "aggregation",
-          "tsType": "{ \"cumulative\": number; \"diamonds\": number; \"increment\": number } | null",
-          "optional": true
-        },
-        {
-          "name": "comboCount",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "diamondCount",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "giftIconUrl",
-          "tsType": "string | null",
-          "optional": true
-        },
-        {
-          "name": "giftId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "giftName",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "groupId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "isHistory",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "method",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "msgId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "repeatCount",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "repeatEnd",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "streakable",
-          "tsType": "boolean",
-          "optional": false
-        }
-      ],
+      "sourceFields": SHARED_REGISTRY_52,
       "note": "Generated from GiftAutomationData JSON Schema."
     },
     "tiktok.like": {
@@ -2646,24 +3193,8 @@ export const GENERATED_EVENT_REGISTRY = {
           "uniqueId": "usuario_demo",
           "userId": "1"
         },
-        "data": {
-          "aggregation": {
-            "global": {
-              "previous": 1,
-              "total": 1
-            },
-            "user": {
-              "previous": 1,
-              "total": 1
-            }
-          },
-          "count": 1,
-          "isHistory": false,
-          "method": "WebcastSampleMessage",
-          "msgId": "1",
-          "total": 1
-        },
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_53,
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         SHARED_REGISTRY_4,
@@ -2671,171 +3202,29 @@ export const GENERATED_EVENT_REGISTRY = {
         SHARED_REGISTRY_6,
         SHARED_REGISTRY_7,
         SHARED_REGISTRY_8,
-        {
-          "path": "event.data.aggregation",
-          "tsType": "{ \"global\": { \"previous\": number; \"total\": number } | null; \"user\": { \"previous\": number; \"total\": number } | null } | null",
-          "kind": "object",
-          "optional": true,
-          "label": {
-            "en": "Aggregation",
-            "es": "Aggregation"
-          },
-          "hint": {
-            "en": "LikeAutomationData.aggregation",
-            "es": "LikeAutomationData.aggregation"
-          },
-          "sample": {
-            "global": {
-              "previous": 1,
-              "total": 1
-            },
-            "user": {
-              "previous": 1,
-              "total": 1
-            }
-          },
-          "sourceField": "aggregation"
-        },
-        {
-          "path": "event.data.count",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Count",
-            "es": "Count"
-          },
-          "hint": {
-            "en": "LikeAutomationData.count",
-            "es": "LikeAutomationData.count"
-          },
-          "sample": 1,
-          "sourceField": "count",
-          "sourceMethod": "WebcastLikeMessage",
-          "sourcePath": "count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "count",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.isHistory",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Is History",
-            "es": "Is History"
-          },
-          "hint": {
-            "en": "LikeAutomationData.isHistory",
-            "es": "LikeAutomationData.isHistory"
-          },
-          "sample": false,
-          "sourceField": "isHistory"
-        },
-        {
-          "path": "event.data.method",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Method",
-            "es": "Method"
-          },
-          "hint": {
-            "en": "LikeAutomationData.method",
-            "es": "LikeAutomationData.method"
-          },
-          "sample": "WebcastSampleMessage",
-          "sourceField": "method"
-        },
-        {
-          "path": "event.data.msgId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Msg Id",
-            "es": "Msg Id"
-          },
-          "hint": {
-            "en": "LikeAutomationData.msgId",
-            "es": "LikeAutomationData.msgId"
-          },
-          "sample": "1",
-          "sourceField": "msgId"
-        },
-        {
-          "path": "event.data.total",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Total",
-            "es": "Total"
-          },
-          "hint": {
-            "en": "LikeAutomationData.total",
-            "es": "LikeAutomationData.total"
-          },
-          "sample": 1,
-          "sourceField": "total",
-          "sourceMethod": "WebcastLikeMessage",
-          "sourcePath": "total",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "total",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        SHARED_REGISTRY_10,
-        SHARED_REGISTRY_11,
-        SHARED_REGISTRY_12,
-        SHARED_REGISTRY_13,
-        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_54,
+        SHARED_REGISTRY_55,
+        SHARED_REGISTRY_56,
+        SHARED_REGISTRY_57,
+        SHARED_REGISTRY_58,
+        SHARED_REGISTRY_59,
         SHARED_REGISTRY_15,
+        SHARED_REGISTRY_16,
         SHARED_REGISTRY_17,
         SHARED_REGISTRY_18,
         SHARED_REGISTRY_19,
         SHARED_REGISTRY_20,
-        SHARED_REGISTRY_21,
         SHARED_REGISTRY_22,
         SHARED_REGISTRY_23,
         SHARED_REGISTRY_24,
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_26,
+        SHARED_REGISTRY_27,
+        SHARED_REGISTRY_28,
+        SHARED_REGISTRY_29,
+        SHARED_REGISTRY_14
       ],
-      "sourceFields": [
-        {
-          "name": "aggregation",
-          "tsType": "{ \"global\": { \"previous\": number; \"total\": number } | null; \"user\": { \"previous\": number; \"total\": number } | null } | null",
-          "optional": true
-        },
-        {
-          "name": "count",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "isHistory",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "method",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "msgId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "total",
-          "tsType": "number",
-          "optional": false
-        }
-      ],
+      "sourceFields": SHARED_REGISTRY_61,
       "note": "Generated from LikeAutomationData JSON Schema."
     },
     "tiktok.follow": {
@@ -2860,7 +3249,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "msgId": "1",
           "shareCount": 1
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         SHARED_REGISTRY_4,
@@ -2868,50 +3257,29 @@ export const GENERATED_EVENT_REGISTRY = {
         SHARED_REGISTRY_6,
         SHARED_REGISTRY_7,
         SHARED_REGISTRY_8,
-        {
-          "path": "event.data.action",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Action",
-            "es": "Action"
-          },
-          "hint": {
-            "en": "SocialAutomationData.action",
-            "es": "SocialAutomationData.action"
-          },
-          "sample": 1,
-          "sourceField": "action",
-          "sourceMethod": "WebcastSocialMessage",
-          "sourcePath": "action",
-          "sourceTransform": "native",
-          "sourceJsonPath": "action",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        SHARED_REGISTRY_31,
-        SHARED_REGISTRY_32,
-        SHARED_REGISTRY_33,
-        SHARED_REGISTRY_34,
-        SHARED_REGISTRY_35,
-        SHARED_REGISTRY_10,
-        SHARED_REGISTRY_11,
-        SHARED_REGISTRY_12,
-        SHARED_REGISTRY_13,
-        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_62,
+        SHARED_REGISTRY_63,
+        SHARED_REGISTRY_64,
+        SHARED_REGISTRY_65,
+        SHARED_REGISTRY_66,
+        SHARED_REGISTRY_67,
         SHARED_REGISTRY_15,
+        SHARED_REGISTRY_16,
         SHARED_REGISTRY_17,
         SHARED_REGISTRY_18,
         SHARED_REGISTRY_19,
         SHARED_REGISTRY_20,
-        SHARED_REGISTRY_21,
         SHARED_REGISTRY_22,
         SHARED_REGISTRY_23,
         SHARED_REGISTRY_24,
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_26,
+        SHARED_REGISTRY_27,
+        SHARED_REGISTRY_28,
+        SHARED_REGISTRY_29,
+        SHARED_REGISTRY_14
       ],
-      "sourceFields": SHARED_REGISTRY_36,
+      "sourceFields": SHARED_REGISTRY_68,
       "note": "Generated from SocialAutomationData JSON Schema."
     },
     "tiktok.share": {
@@ -2936,7 +3304,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "msgId": "1",
           "shareCount": 1
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         SHARED_REGISTRY_4,
@@ -2966,28 +3334,28 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceProtoType": "int64",
           "sourceCardinality": "optional"
         },
-        SHARED_REGISTRY_31,
-        SHARED_REGISTRY_32,
-        SHARED_REGISTRY_33,
-        SHARED_REGISTRY_34,
-        SHARED_REGISTRY_35,
-        SHARED_REGISTRY_10,
-        SHARED_REGISTRY_11,
-        SHARED_REGISTRY_12,
-        SHARED_REGISTRY_13,
-        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_63,
+        SHARED_REGISTRY_64,
+        SHARED_REGISTRY_65,
+        SHARED_REGISTRY_66,
+        SHARED_REGISTRY_67,
         SHARED_REGISTRY_15,
+        SHARED_REGISTRY_16,
         SHARED_REGISTRY_17,
         SHARED_REGISTRY_18,
         SHARED_REGISTRY_19,
         SHARED_REGISTRY_20,
-        SHARED_REGISTRY_21,
         SHARED_REGISTRY_22,
         SHARED_REGISTRY_23,
         SHARED_REGISTRY_24,
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_26,
+        SHARED_REGISTRY_27,
+        SHARED_REGISTRY_28,
+        SHARED_REGISTRY_29,
+        SHARED_REGISTRY_14
       ],
-      "sourceFields": SHARED_REGISTRY_36,
+      "sourceFields": SHARED_REGISTRY_68,
       "note": "Generated from SocialAutomationData JSON Schema."
     },
     "tiktok.join": {
@@ -3011,7 +3379,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "method": "WebcastSampleMessage",
           "msgId": "1"
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         SHARED_REGISTRY_4,
@@ -3041,119 +3409,27 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceProtoType": "enum",
           "sourceCardinality": "optional"
         },
-        {
-          "path": "event.data.isHistory",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Is History",
-            "es": "Is History"
-          },
-          "hint": {
-            "en": "MemberAutomationData.isHistory",
-            "es": "MemberAutomationData.isHistory"
-          },
-          "sample": false,
-          "sourceField": "isHistory"
-        },
-        {
-          "path": "event.data.memberCount",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Member Count",
-            "es": "Member Count"
-          },
-          "hint": {
-            "en": "MemberAutomationData.memberCount",
-            "es": "MemberAutomationData.memberCount"
-          },
-          "sample": 1,
-          "sourceField": "memberCount",
-          "sourceMethod": "WebcastMemberMessage",
-          "sourcePath": "member_count",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "memberCount",
-          "sourceProtoType": "int32",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.method",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Method",
-            "es": "Method"
-          },
-          "hint": {
-            "en": "MemberAutomationData.method",
-            "es": "MemberAutomationData.method"
-          },
-          "sample": "WebcastSampleMessage",
-          "sourceField": "method"
-        },
-        {
-          "path": "event.data.msgId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Msg Id",
-            "es": "Msg Id"
-          },
-          "hint": {
-            "en": "MemberAutomationData.msgId",
-            "es": "MemberAutomationData.msgId"
-          },
-          "sample": "1",
-          "sourceField": "msgId"
-        },
-        SHARED_REGISTRY_10,
-        SHARED_REGISTRY_11,
-        SHARED_REGISTRY_12,
-        SHARED_REGISTRY_13,
-        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_69,
+        SHARED_REGISTRY_70,
+        SHARED_REGISTRY_71,
+        SHARED_REGISTRY_72,
         SHARED_REGISTRY_15,
+        SHARED_REGISTRY_16,
         SHARED_REGISTRY_17,
         SHARED_REGISTRY_18,
         SHARED_REGISTRY_19,
         SHARED_REGISTRY_20,
-        SHARED_REGISTRY_21,
         SHARED_REGISTRY_22,
         SHARED_REGISTRY_23,
         SHARED_REGISTRY_24,
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_26,
+        SHARED_REGISTRY_27,
+        SHARED_REGISTRY_28,
+        SHARED_REGISTRY_29,
+        SHARED_REGISTRY_14
       ],
-      "sourceFields": [
-        {
-          "name": "action",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "isHistory",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "memberCount",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "method",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "msgId",
-          "tsType": "string",
-          "optional": false
-        }
-      ],
+      "sourceFields": SHARED_REGISTRY_73,
       "note": "Generated from MemberAutomationData JSON Schema."
     },
     "tiktok.social": {
@@ -3178,7 +3454,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "msgId": "1",
           "shareCount": 1
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         SHARED_REGISTRY_4,
@@ -3208,28 +3484,28 @@ export const GENERATED_EVENT_REGISTRY = {
           "sourceProtoType": "int64",
           "sourceCardinality": "optional"
         },
-        SHARED_REGISTRY_31,
-        SHARED_REGISTRY_32,
-        SHARED_REGISTRY_33,
-        SHARED_REGISTRY_34,
-        SHARED_REGISTRY_35,
-        SHARED_REGISTRY_10,
-        SHARED_REGISTRY_11,
-        SHARED_REGISTRY_12,
-        SHARED_REGISTRY_13,
-        SHARED_REGISTRY_14,
+        SHARED_REGISTRY_63,
+        SHARED_REGISTRY_64,
+        SHARED_REGISTRY_65,
+        SHARED_REGISTRY_66,
+        SHARED_REGISTRY_67,
         SHARED_REGISTRY_15,
+        SHARED_REGISTRY_16,
         SHARED_REGISTRY_17,
         SHARED_REGISTRY_18,
         SHARED_REGISTRY_19,
         SHARED_REGISTRY_20,
-        SHARED_REGISTRY_21,
         SHARED_REGISTRY_22,
         SHARED_REGISTRY_23,
         SHARED_REGISTRY_24,
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_25,
+        SHARED_REGISTRY_26,
+        SHARED_REGISTRY_27,
+        SHARED_REGISTRY_28,
+        SHARED_REGISTRY_29,
+        SHARED_REGISTRY_14
       ],
-      "sourceFields": SHARED_REGISTRY_36,
+      "sourceFields": SHARED_REGISTRY_68,
       "note": "Generated from SocialAutomationData JSON Schema."
     },
     "tiktok.room_stats": {
@@ -3248,184 +3524,10 @@ export const GENERATED_EVENT_REGISTRY = {
           "totalUsers": 1,
           "viewers": 1
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": [
-        {
-          "path": "event.data.anonymous",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Anonymous",
-            "es": "Anonymous"
-          },
-          "hint": {
-            "en": "RoomStatsAutomationData.anonymous",
-            "es": "RoomStatsAutomationData.anonymous"
-          },
-          "sample": 1,
-          "sourceField": "anonymous",
-          "sourceMethod": "WebcastRoomUserSeqMessage",
-          "sourcePath": "anonymous",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "anonymous",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.isHistory",
-          "tsType": "boolean",
-          "kind": "boolean",
-          "optional": false,
-          "label": {
-            "en": "Is History",
-            "es": "Is History"
-          },
-          "hint": {
-            "en": "RoomStatsAutomationData.isHistory",
-            "es": "RoomStatsAutomationData.isHistory"
-          },
-          "sample": false,
-          "sourceField": "isHistory"
-        },
-        {
-          "path": "event.data.method",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Method",
-            "es": "Method"
-          },
-          "hint": {
-            "en": "RoomStatsAutomationData.method",
-            "es": "RoomStatsAutomationData.method"
-          },
-          "sample": "WebcastSampleMessage",
-          "sourceField": "method"
-        },
-        {
-          "path": "event.data.msgId",
-          "tsType": "string",
-          "kind": "string",
-          "optional": false,
-          "label": {
-            "en": "Msg Id",
-            "es": "Msg Id"
-          },
-          "hint": {
-            "en": "RoomStatsAutomationData.msgId",
-            "es": "RoomStatsAutomationData.msgId"
-          },
-          "sample": "1",
-          "sourceField": "msgId"
-        },
-        {
-          "path": "event.data.popularity",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Popularity",
-            "es": "Popularity"
-          },
-          "hint": {
-            "en": "RoomStatsAutomationData.popularity",
-            "es": "RoomStatsAutomationData.popularity"
-          },
-          "sample": 1,
-          "sourceField": "popularity",
-          "sourceMethod": "WebcastRoomUserSeqMessage",
-          "sourcePath": "popularity",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "popularity",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.totalUsers",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Total Users",
-            "es": "Total Users"
-          },
-          "hint": {
-            "en": "RoomStatsAutomationData.totalUsers",
-            "es": "RoomStatsAutomationData.totalUsers"
-          },
-          "sample": 1,
-          "sourceField": "totalUsers",
-          "sourceMethod": "WebcastRoomUserSeqMessage",
-          "sourcePath": "total_user",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "totalUser",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        {
-          "path": "event.data.viewers",
-          "tsType": "number",
-          "kind": "number",
-          "optional": false,
-          "label": {
-            "en": "Viewers",
-            "es": "Viewers"
-          },
-          "hint": {
-            "en": "RoomStatsAutomationData.viewers",
-            "es": "RoomStatsAutomationData.viewers"
-          },
-          "sample": 1,
-          "sourceField": "viewers",
-          "sourceMethod": "WebcastRoomUserSeqMessage",
-          "sourcePath": "total",
-          "sourceTransform": "normalized-unsigned",
-          "sourceJsonPath": "total",
-          "sourceProtoType": "int64",
-          "sourceCardinality": "optional"
-        },
-        SHARED_REGISTRY_9
-      ],
-      "sourceFields": [
-        {
-          "name": "anonymous",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "isHistory",
-          "tsType": "boolean",
-          "optional": false
-        },
-        {
-          "name": "method",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "msgId",
-          "tsType": "string",
-          "optional": false
-        },
-        {
-          "name": "popularity",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "totalUsers",
-          "tsType": "number",
-          "optional": false
-        },
-        {
-          "name": "viewers",
-          "tsType": "number",
-          "optional": false
-        }
-      ],
+      "fields": SHARED_REGISTRY_81,
+      "sourceFields": SHARED_REGISTRY_82,
       "note": "Generated from RoomStatsAutomationData JSON Schema."
     },
     "tiktok.connected": {
@@ -3439,9 +3541,9 @@ export const GENERATED_EVENT_REGISTRY = {
           "roomId": "sample",
           "uniqueId": "sample"
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_39,
+      "fields": SHARED_REGISTRY_85,
       "sourceFields": [
         {
           "name": "roomId",
@@ -3467,9 +3569,276 @@ export const GENERATED_EVENT_REGISTRY = {
           "roomId": "sample",
           "uniqueId": "sample"
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_39,
+      "fields": SHARED_REGISTRY_85,
+      "sourceFields": [
+        {
+          "name": "roomId",
+          "tsType": "string",
+          "optional": false
+        },
+        {
+          "name": "uniqueId",
+          "tsType": "string",
+          "optional": false
+        }
+      ],
+      "note": "Generated from ConnectionAutomationData JSON Schema."
+    },
+    "live.chat": {
+      "dataInterface": "ChatAutomationData",
+      "sourceInterface": "WebcastChatMessage",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.chat",
+        "timestamp": 0,
+        "data": {
+          "comment": "Hello there",
+          "emotes": [],
+          "isHistory": false,
+          "method": "WebcastSampleMessage",
+          "msgId": "1"
+        },
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": [
+        SHARED_REGISTRY_9,
+        SHARED_REGISTRY_10,
+        SHARED_REGISTRY_11,
+        SHARED_REGISTRY_12,
+        SHARED_REGISTRY_13,
+        SHARED_REGISTRY_14
+      ],
+      "sourceFields": SHARED_REGISTRY_31,
+      "note": "Generated from ChatAutomationData JSON Schema."
+    },
+    "live.follow": {
+      "dataInterface": "SocialAutomationData",
+      "sourceInterface": "WebcastSocialMessage",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.follow",
+        "timestamp": 0,
+        "data": {
+          "action": 1,
+          "followCount": 1,
+          "isHistory": false,
+          "method": "WebcastSampleMessage",
+          "msgId": "1",
+          "shareCount": 1
+        },
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": SHARED_REGISTRY_86,
+      "sourceFields": SHARED_REGISTRY_68,
+      "note": "Generated from SocialAutomationData JSON Schema."
+    },
+    "live.subscription": {
+      "dataInterface": "SocialAutomationData",
+      "sourceInterface": "WebcastSocialMessage",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.subscription",
+        "timestamp": 0,
+        "data": {
+          "action": 1,
+          "followCount": 1,
+          "isHistory": false,
+          "method": "WebcastSampleMessage",
+          "msgId": "1",
+          "shareCount": 1
+        },
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": SHARED_REGISTRY_86,
+      "sourceFields": SHARED_REGISTRY_68,
+      "note": "Generated from SocialAutomationData JSON Schema."
+    },
+    "live.gift": {
+      "dataInterface": "GiftAutomationData",
+      "sourceInterface": "WebcastGiftMessage",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.gift",
+        "timestamp": 0,
+        "data": SHARED_REGISTRY_37,
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": [
+        SHARED_REGISTRY_38,
+        SHARED_REGISTRY_39,
+        SHARED_REGISTRY_40,
+        SHARED_REGISTRY_41,
+        SHARED_REGISTRY_42,
+        SHARED_REGISTRY_43,
+        SHARED_REGISTRY_44,
+        SHARED_REGISTRY_45,
+        SHARED_REGISTRY_46,
+        SHARED_REGISTRY_47,
+        SHARED_REGISTRY_48,
+        SHARED_REGISTRY_49,
+        SHARED_REGISTRY_50,
+        SHARED_REGISTRY_14
+      ],
+      "sourceFields": SHARED_REGISTRY_52,
+      "note": "Generated from GiftAutomationData JSON Schema."
+    },
+    "live.like": {
+      "dataInterface": "LikeAutomationData",
+      "sourceInterface": "WebcastLikeMessage",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.like",
+        "timestamp": 0,
+        "data": SHARED_REGISTRY_53,
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": [
+        SHARED_REGISTRY_54,
+        SHARED_REGISTRY_55,
+        SHARED_REGISTRY_56,
+        SHARED_REGISTRY_57,
+        SHARED_REGISTRY_58,
+        SHARED_REGISTRY_59,
+        SHARED_REGISTRY_14
+      ],
+      "sourceFields": SHARED_REGISTRY_61,
+      "note": "Generated from LikeAutomationData JSON Schema."
+    },
+    "live.share": {
+      "dataInterface": "SocialAutomationData",
+      "sourceInterface": "WebcastSocialMessage",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.share",
+        "timestamp": 0,
+        "data": {
+          "action": 1,
+          "followCount": 1,
+          "isHistory": false,
+          "method": "WebcastSampleMessage",
+          "msgId": "1",
+          "shareCount": 1
+        },
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": SHARED_REGISTRY_86,
+      "sourceFields": SHARED_REGISTRY_68,
+      "note": "Generated from SocialAutomationData JSON Schema."
+    },
+    "live.join": {
+      "dataInterface": "MemberAutomationData",
+      "sourceInterface": "WebcastMemberMessage",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.join",
+        "timestamp": 0,
+        "data": {
+          "action": 1,
+          "isHistory": false,
+          "memberCount": 1,
+          "method": "WebcastSampleMessage",
+          "msgId": "1"
+        },
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": [
+        {
+          "path": "event.data.action",
+          "tsType": "number",
+          "kind": "number",
+          "optional": false,
+          "label": {
+            "en": "Action",
+            "es": "Action"
+          },
+          "hint": {
+            "en": "MemberAutomationData.action",
+            "es": "MemberAutomationData.action"
+          },
+          "sample": 1,
+          "sourceField": "action",
+          "sourceMethod": "WebcastMemberMessage",
+          "sourcePath": "action",
+          "sourceTransform": "native",
+          "sourceJsonPath": "action",
+          "sourceProtoType": "enum",
+          "sourceCardinality": "optional"
+        },
+        SHARED_REGISTRY_69,
+        SHARED_REGISTRY_70,
+        SHARED_REGISTRY_71,
+        SHARED_REGISTRY_72,
+        SHARED_REGISTRY_14
+      ],
+      "sourceFields": SHARED_REGISTRY_73,
+      "note": "Generated from MemberAutomationData JSON Schema."
+    },
+    "live.room_stats": {
+      "dataInterface": "RoomStatsAutomationData",
+      "sourceInterface": "WebcastRoomUserSeqMessage",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.room_stats",
+        "timestamp": 0,
+        "data": {
+          "anonymous": 1,
+          "isHistory": false,
+          "method": "WebcastSampleMessage",
+          "msgId": "1",
+          "popularity": 1,
+          "totalUsers": 1,
+          "viewers": 1
+        },
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": SHARED_REGISTRY_81,
+      "sourceFields": SHARED_REGISTRY_82,
+      "note": "Generated from RoomStatsAutomationData JSON Schema."
+    },
+    "live.connected": {
+      "dataInterface": "ConnectionAutomationData",
+      "sourceInterface": "ConnectionAutomationData",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.connected",
+        "timestamp": 0,
+        "data": {
+          "roomId": "sample",
+          "uniqueId": "sample"
+        },
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": SHARED_REGISTRY_85,
+      "sourceFields": [
+        {
+          "name": "roomId",
+          "tsType": "string",
+          "optional": false
+        },
+        {
+          "name": "uniqueId",
+          "tsType": "string",
+          "optional": false
+        }
+      ],
+      "note": "Generated from ConnectionAutomationData JSON Schema."
+    },
+    "live.disconnected": {
+      "dataInterface": "ConnectionAutomationData",
+      "sourceInterface": "ConnectionAutomationData",
+      "sampleEvent": {
+        "id": "sample-event",
+        "type": "live.disconnected",
+        "timestamp": 0,
+        "data": {
+          "roomId": "sample",
+          "uniqueId": "sample"
+        },
+        "intel": SHARED_REGISTRY_36
+      },
+      "fields": SHARED_REGISTRY_85,
       "sourceFields": [
         {
           "name": "roomId",
@@ -3499,7 +3868,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "totalPoints": 1,
           "uniqueId": "sample"
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         {
@@ -3598,7 +3967,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": "sample",
           "sourceField": "uniqueId"
         },
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_14
       ],
       "sourceFields": [
         {
@@ -3646,7 +4015,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "emitType": "plugin.sample",
           "payload": {}
         },
-        "intel": SHARED_REGISTRY_30
+        "intel": SHARED_REGISTRY_36
       },
       "fields": [
         {
@@ -3697,7 +4066,7 @@ export const GENERATED_EVENT_REGISTRY = {
           "sample": {},
           "sourceField": "payload"
         },
-        SHARED_REGISTRY_9
+        SHARED_REGISTRY_14
       ],
       "sourceFields": [
         {
@@ -3725,11 +4094,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.started",
         "timestamp": 0,
-        "data": SHARED_REGISTRY_40,
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_87,
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_53,
-      "sourceFields": SHARED_REGISTRY_55,
+      "fields": SHARED_REGISTRY_100,
+      "sourceFields": SHARED_REGISTRY_102,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.paused": {
@@ -3739,11 +4108,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.paused",
         "timestamp": 0,
-        "data": SHARED_REGISTRY_40,
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_87,
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_53,
-      "sourceFields": SHARED_REGISTRY_55,
+      "fields": SHARED_REGISTRY_100,
+      "sourceFields": SHARED_REGISTRY_102,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.resumed": {
@@ -3753,11 +4122,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.resumed",
         "timestamp": 0,
-        "data": SHARED_REGISTRY_40,
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_87,
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_53,
-      "sourceFields": SHARED_REGISTRY_55,
+      "fields": SHARED_REGISTRY_100,
+      "sourceFields": SHARED_REGISTRY_102,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.cancelled": {
@@ -3767,11 +4136,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.cancelled",
         "timestamp": 0,
-        "data": SHARED_REGISTRY_40,
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_87,
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_53,
-      "sourceFields": SHARED_REGISTRY_55,
+      "fields": SHARED_REGISTRY_100,
+      "sourceFields": SHARED_REGISTRY_102,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.finished": {
@@ -3781,11 +4150,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.finished",
         "timestamp": 0,
-        "data": SHARED_REGISTRY_40,
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_87,
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_53,
-      "sourceFields": SHARED_REGISTRY_55,
+      "fields": SHARED_REGISTRY_100,
+      "sourceFields": SHARED_REGISTRY_102,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.winner.selected": {
@@ -3795,11 +4164,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.winner.selected",
         "timestamp": 0,
-        "data": SHARED_REGISTRY_40,
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_87,
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_53,
-      "sourceFields": SHARED_REGISTRY_55,
+      "fields": SHARED_REGISTRY_100,
+      "sourceFields": SHARED_REGISTRY_102,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.action.completed": {
@@ -3809,11 +4178,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.action.completed",
         "timestamp": 0,
-        "data": SHARED_REGISTRY_40,
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_87,
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_53,
-      "sourceFields": SHARED_REGISTRY_55,
+      "fields": SHARED_REGISTRY_100,
+      "sourceFields": SHARED_REGISTRY_102,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     },
     "competition.action.failed": {
@@ -3823,11 +4192,11 @@ export const GENERATED_EVENT_REGISTRY = {
         "id": "sample-event",
         "type": "competition.action.failed",
         "timestamp": 0,
-        "data": SHARED_REGISTRY_40,
-        "intel": SHARED_REGISTRY_30
+        "data": SHARED_REGISTRY_87,
+        "intel": SHARED_REGISTRY_36
       },
-      "fields": SHARED_REGISTRY_53,
-      "sourceFields": SHARED_REGISTRY_55,
+      "fields": SHARED_REGISTRY_100,
+      "sourceFields": SHARED_REGISTRY_102,
       "note": "Generated from CompetitionAutomationData JSON Schema."
     }
   }

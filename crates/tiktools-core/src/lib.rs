@@ -46,6 +46,7 @@ mod hotkey_bindings;
 pub mod input_access;
 mod ipc_handlers;
 mod live_events;
+mod live_platforms;
 pub(crate) use live_events::AutomationEvent;
 #[cfg(feature = "app-update")]
 mod app_updates;
@@ -173,6 +174,7 @@ pub struct AppCore {
     app_updater: RwLock<Option<Arc<tiktools_app_update::AppUpdater>>>,
     pub live: Arc<LiveService>,
     live_monitor: live_monitor::LiveMonitor,
+    pub(crate) live_platforms: live_platforms::LivePlatformService,
     pub points: Arc<PointsService>,
     pub automation: Arc<AutomationService>,
     #[cfg(feature = "persistence")]

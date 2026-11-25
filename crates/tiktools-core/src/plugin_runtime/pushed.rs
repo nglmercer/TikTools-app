@@ -53,6 +53,19 @@ impl AppCore {
             self.record_plugin_drops(&plugin_id, 1);
             return;
         }
+        if crate::live_platforms::is_live_ingest_event(&emitted.event_type) {
+            match self
+                .ingest_live_platform_batch(&plugin_id, emitted.data)
+                .await
+            {
+                Ok(outcome) if outcome.rejected > 0 => {
+                    self.record_plugin_drops(&plugin_id, outcome.rejected as u64);
+                }
+                Ok(_) => self.record_plugin_success(&plugin_id),
+                Err(_) => self.record_plugin_drops(&plugin_id, 1),
+            }
+            return;
+        }
         // Owner plugin producers may replay only remembered Owner payloads.
         // A retained scoped envelope must never become ambient Owner context.
         let source = fresh_poll_context(&self.automation_context().0.unwrap_or_else(|| json!({})));

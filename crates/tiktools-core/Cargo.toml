@@ -54,6 +54,7 @@ app-update = ["dep:tiktools-app-update"]
 
 [dependencies]
 tiktools-plugin-store = { path = "../tiktools-plugin-store" }
+tiktools-live = { path = "../tiktools-live" }
 tiktools-app-update = { path = "../tiktools-app-update", optional = true }
 tiktools-aggregation = { path = "../tiktools-aggregation" }
 tiktools-competitions = { path = "../tiktools-competitions" }
