@@ -162,6 +162,7 @@ impl AppCore {
             })?;
         } else {
             self.plugins.stop(&id)?;
+            self.end_live_platform_plugin_sessions(&id);
             self.set_plugin_activation(&id, true, false);
         }
         drop(lease);

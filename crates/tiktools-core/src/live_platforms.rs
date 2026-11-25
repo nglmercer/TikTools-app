@@ -49,6 +49,7 @@ struct PlatformSession {
 pub(crate) struct LivePlatformService {
     sessions: Mutex<BTreeMap<(String, String), PlatformSession>>,
     dedup: Mutex<(HashMap<DedupKey, Instant>, VecDeque<DedupKey>)>,
+    owner: Mutex<Option<std::sync::Weak<AppCore>>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -59,6 +60,16 @@ pub(crate) struct LiveIngestOutcome {
 }
 
 impl LivePlatformService {
+    fn set_owner(&self, owner: &Arc<AppCore>) {
+        *recover_mutex(&self.owner, "live platform owner") = Some(Arc::downgrade(owner));
+    }
+
+    fn owner(&self) -> Option<Arc<AppCore>> {
+        recover_mutex(&self.owner, "live platform owner")
+            .as_ref()
+            .and_then(std::sync::Weak::upgrade)
+    }
+
     fn end_plugin_sessions(&self, plugin_id: &str) -> Vec<PlatformSessionSnapshot> {
         let mut sessions = recover_mutex(&self.sessions, "live platform sessions");
         let keys = sessions
@@ -427,12 +438,87 @@ fn ui_event(event: &LiveEnvelope, correlation: &str) -> Option<Value> {
     Some(ui)
 }
 
+fn automation_envelope(event: &LiveEnvelope, event_id: &str) -> Value {
+    let topic = event.payload.event_type();
+    let data = automation_data(event);
+    let user = event.user.as_ref().map(|user| {
+        json!({
+            "userId":user.id,
+            "uniqueId":user.key(),
+            "nickname":user.display_name,
+            "avatarUrl":user.avatar_url,
+            "secUid":"",
+        })
+    });
+    let mut automation = json!({
+        "id":event_id,
+        "type":topic,
+        "timestamp":event.occurred_at,
+        "connectionId":event.connection_id,
+        "creator":{
+            "uniqueId":identity_key(&event.platform,&event.channel.id),
+            "roomId":event.channel.room_id,
+        },
+        "user":user,
+        "data":data,
+        "platform":event.platform,
+        "sourceEventId":event.source_event_id,
+        "extensions":event.extensions,
+    });
+    if let Some(fields) = automation.as_object_mut() {
+        // Host-owned provenance is explicit; plugin-controlled extension
+        // data can never overwrite these top-level fields because they are
+        // written after deserialization into a fresh envelope.
+        fields.insert("platform".into(), json!(event.platform));
+    }
+    automation
+}
+
+fn system_envelope(session: &PlatformSessionSnapshot, payload: LivePayload) -> Option<LiveEnvelope> {
+    let now = tiktools_live::now_millis();
+    Some(LiveEnvelope {
+        schema_version: SCHEMA_VERSION,
+        platform: session.platform.clone(),
+        connection_id: session.connection_id.clone(),
+        session_id: session.session_id.clone(),
+        channel: session.channel.clone()?,
+        source_event_id: None,
+        occurred_at: now,
+        received_at: now,
+        is_history: false,
+        user: None,
+        payload,
+        extensions: Map::new(),
+    })
+}
+
+fn dispatch_provider_disconnect(owner: &Arc<AppCore>, event: AutomationEvent) {
+    if tokio::runtime::Handle::try_current().is_ok() {
+        owner.queue_automation_event(event);
+        return;
+    }
+    // Control-plane mutations are synchronous APIs and some embedders invoke
+    // them outside a Tokio context. Keep disconnect semantics intact there
+    // without panicking in `tokio::spawn`; this fallback is cold-path only.
+    let owner = Arc::clone(owner);
+    std::thread::spawn(move || {
+        let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        else {
+            return;
+        };
+        runtime.block_on(owner.publish_automation_event(event));
+    });
+}
+
 impl AppCore {
     pub(crate) async fn ingest_live_platform_batch(
         self: &Arc<Self>,
         plugin_id: &str,
         data: Value,
     ) -> Result<LiveIngestOutcome, String> {
+        self.live_platforms.set_owner(self);
         let Some(plugin) = self.plugins.get(plugin_id) else {
             return Err("plugin is not in the host catalog".into());
         };
@@ -710,37 +796,7 @@ impl AppCore {
             });
         let topic = event.payload.event_type();
         let event_id = format!("platform-{}-{}", event.connection_id, self.next_sequence());
-        let data = automation_data(&event);
-        let user = event.user.as_ref().map(|user| {
-            json!({
-                "userId":user.id,
-                "uniqueId":user.key(),
-                "nickname":user.display_name,
-                "avatarUrl":user.avatar_url,
-                "secUid":"",
-            })
-        });
-        let mut automation = json!({
-            "id":event_id,
-            "type":topic,
-            "timestamp":event.occurred_at,
-            "connectionId":event.connection_id,
-            "creator":{
-                "uniqueId":identity_key(&event.platform,&event.channel.id),
-                "roomId":event.channel.room_id,
-            },
-            "user":user,
-            "data":data,
-            "platform":event.platform,
-            "sourceEventId":event.source_event_id,
-            "extensions":event.extensions,
-        });
-        if let Some(fields) = automation.as_object_mut() {
-            // Host-owned provenance is explicit; plugin-controlled extension
-            // data can never overwrite these top-level fields because they are
-            // written after deserialization into a fresh envelope.
-            fields.insert("platform".into(), json!(event.platform));
-        }
+        let automation = automation_envelope(&event, &event_id);
         if event.is_history {
             self.events.publish_domain(events::DomainEvent::LiveEvent {
                 event_type: topic.into(),
@@ -854,8 +910,31 @@ impl AppCore {
 
     pub(crate) fn end_live_platform_plugin_sessions(&self, plugin_id: &str) {
         for session in self.live_platforms.end_plugin_sessions(plugin_id) {
+            let disconnected = system_envelope(&session, LivePayload::Disconnected);
             self.events
                 .publish_domain(events::DomainEvent::LivePlatformSession { session });
+            let Some(event) = disconnected else {
+                continue;
+            };
+            self.events
+                .publish_domain(events::DomainEvent::LivePlatformEvent {
+                    event: event.clone(),
+                });
+            let event_id = format!("platform-{}-{}", event.connection_id, self.next_sequence());
+            if let Some(owner) = self.live_platforms.owner() {
+                dispatch_provider_disconnect(
+                    &owner,
+                    AutomationEvent::owner_without_delegation(automation_envelope(&event, &event_id)),
+                );
+            }
+            #[cfg(feature = "persistence")]
+            if self.db.record_platform_activity(&event).is_err() {
+                self.events
+                    .publish_domain(events::DomainEvent::LivePlatformGap {
+                        connection_id: event.connection_id,
+                        lost: 1,
+                    });
+            }
         }
     }
 }
