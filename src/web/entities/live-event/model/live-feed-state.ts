@@ -233,6 +233,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
         if (historyTimer !== null) { clearTimeout(historyTimer); historyTimer = null; }
         history?.clear();
         events.value = [];
+        categoryCounts.clear();
         nextEventId = 0;
         unreadCount.value = 0;
       }
