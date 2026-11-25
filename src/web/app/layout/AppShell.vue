@@ -54,6 +54,20 @@ if (!document.documentElement.dataset.theme) applyAppTheme('dark');
 const { route, router, routeTab, sections, menuPages, navigate } = useShellNavigation(pluginPages, {
   activeTab, open: navigation.open,
 }, drawerOpen);
+// vite-plugin-vue infers each page component's name from its filename, so
+// keep-alive can match them without a manual `name` option.
+const cachedTabPages = [
+  'FeedPage',
+  'PointsPage',
+  'AnalyticsPage',
+  'ConnectionsPage',
+  'AutomationsPage',
+  'PluginsPage',
+  'OverlaysPage',
+  'RankingsPage',
+  'SettingsPage',
+];
+
 function connect(): void {
   const target = uniqueId.value.trim().replace(/^@/, '');
   if (target) {
@@ -115,7 +129,16 @@ function connect(): void {
           />
           <span>{{ t(pullArmed ? 'navigation.pull.release' : 'navigation.pull.hint') }}</span>
         </div>
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <!-- Builtin tab pages stay mounted once visited: pinia stores are
+               global, so remounting only rebuilt the DOM tree from scratch on
+               every tab switch. Plugin/debug pages are excluded — a single
+               component type serves many parameterised routes, and detached
+               live views should not keep consuming a plugin's render loop. -->
+          <KeepAlive :include="cachedTabPages">
+            <component :is="Component" />
+          </KeepAlive>
+        </RouterView>
       </main>
     </div>
 
