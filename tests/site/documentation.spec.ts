@@ -156,7 +156,7 @@ for (const locale of docLocales) {
     await backupLink.click();
     await expect(page).toHaveURL(new RegExp(`/${locale}/user/preferences/backups\\.html$`));
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
-    await page.getByRole('button', { name: 'mobile navigation', exact: true }).click();
+    await page.getByRole('button', { name: docCopy[locale].mobileMenu, exact: true }).click();
     await page.locator('.VPNavScreenMenuGroup').getByRole('button', { name: docCopy[locale].audience, exact: true }).click();
     await page.locator('.VPNavScreen').getByRole('link', { name: docCopy[locale].developer, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/${locale}/developer/$`));

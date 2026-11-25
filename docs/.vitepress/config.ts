@@ -28,7 +28,7 @@ function theme(locale: DocLocale) {
     sidebar: { [`/${locale}/user/`]: audienceSidebar(content, locale, 'user'), [`/${locale}/developer/`]: audienceSidebar(content, locale, 'developer') },
     editLink: { pattern: 'https://github.com/nglmercer/TikTools-app/edit/remake/docs/content/:path', text: t.edit },
     docFooter: { prev: t.previous, next: t.next }, outline: { label: t.outline, level: [2, 3] as [number, number] },
-    sidebarMenuLabel: t.navigation, returnToTopLabel: t.top, langMenuLabel: t.language,
+    sidebarMenuLabel: t.navigation, mobileMenuLabel: t.mobileMenu, returnToTopLabel: t.top, langMenuLabel: t.language,
     darkModeSwitchLabel: t.theme, darkModeSwitchTitle: t.darkTitle, lightModeSwitchTitle: t.lightTitle, skipToContentLabel: t.skip,
     lastUpdated: { text: t.lastUpdated, formatOptions: { dateStyle: 'medium' as const, timeStyle: 'short' as const, forceLocale: true } },
   };
