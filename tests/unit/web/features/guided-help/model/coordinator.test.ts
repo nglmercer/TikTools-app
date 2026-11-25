@@ -490,3 +490,53 @@ describe('account and backup tour', () => {
     session.stop();
   });
 });
+
+it('presses the prepare trigger when an interaction-gated target is missing, instead of skipping the step', async () => {
+  vi.useFakeTimers();
+  const test = setup();
+  const root = mountTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
+  const table = root.querySelector('[data-guide="automation-events"]')!;
+  const row = document.createElement('div');
+  row.dataset.rowId = 'event-1';
+  const openEditor = vi.fn(() => {
+    const editor = document.createElement('div');
+    editor.dataset.guide = 'automation-editor';
+    root.append(editor);
+  });
+  row.addEventListener('click', openEditor);
+  table.append(row);
+  const session = test.coordinator.startTour('automationEvents');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await session.ready).toBe(true);
+  // profiles → eventsTab → events → editor: the editor only exists after opening a record.
+  for (let index = 0; index < 3; index++) {
+    test.next();
+    await vi.advanceTimersByTimeAsync(700);
+  }
+  expect(openEditor).toHaveBeenCalledTimes(1);
+  const driveCalls = (test.engine.drive as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+  expect(driveCalls.at(-1)).toBe(3);
+  expect(test.steps()[3]?.element).toBe(root.querySelector('[data-guide="automation-editor"]'));
+  session.stop();
+});
+
+it('does not press the prepare trigger when the target already exists', async () => {
+  vi.useFakeTimers();
+  const test = setup();
+  const root = mountTargets('automations', tourRegistry.automationEvents.steps.map((step) => step.target));
+  const table = root.querySelector('[data-guide="automation-events"]')!;
+  const row = document.createElement('div');
+  row.dataset.rowId = 'event-1';
+  const openEditor = vi.fn();
+  row.addEventListener('click', openEditor);
+  table.append(row);
+  const session = test.coordinator.startTour('automationEvents');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await session.ready).toBe(true);
+  for (let index = 0; index < 3; index++) {
+    test.next();
+    await vi.advanceTimersByTimeAsync(100);
+  }
+  expect(openEditor).not.toHaveBeenCalled();
+  session.stop();
+});

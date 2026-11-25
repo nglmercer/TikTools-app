@@ -5,11 +5,6 @@ export default {
     explorer: { title: 'Explore LIVE rooms', description: 'Refresh or choose a room yourself. A successful demo connection is simulated; native access depends on the host and TikTok.' },
     plugins: { title: 'Check integrations', description: 'Review each installed connection and its health before enabling effects. Opening this guide does not contact a plugin service.' },
   },
-  automation: {
-    profiles: { title: 'Choose the working profile', description: 'Keep a profile for the rules you want to review. Switching or importing a profile is an explicit application action.' },
-    library: { title: 'Review events and actions', description: 'An event links its trigger, filters and cooldown to reusable actions. Keep new effects disabled until their definition is reviewed.' },
-    templates: { title: 'Start from a template', description: 'Open Rule templates to preview a reusable configuration. Importing and enabling require their own review; this guide performs neither.' },
-  },
   plugin: {
     catalog: { title: 'Installed and Explore', description: 'Review installed packages or browse compatible catalog entries. Native and process plugins retain the operating-system permissions of their user.' },
     search: { title: 'Find a package', description: 'Search and inspect publisher, version and requirements. An empty catalog and an unavailable backend are different states.' },
@@ -23,6 +18,24 @@ export default {
   points: {
     rules: { title: 'Review earning rules', description: 'Inspect the configured values before changing them. Some controls are locked during a connected or busy LIVE session.' },
     leaderboard: { title: 'Inspect committed points', description: 'Search or sort viewers. A display refresh is not a points adjustment, reset or replay of LIVE events.' },
+  },
+  automationEvents: {
+    profiles: { title: 'Choose the working profile', description: 'Events and actions belong to a profile. Review the profile you actually run before changing any rule.' },
+    eventsTab: { title: 'Open the Events tab', description: 'Events are the rules: each one links a LIVE trigger to the actions it fires. The Events tab is the default view.' },
+    events: { title: 'Read the events table', description: 'Each row shows the trigger, its conditions and the linked actions. Keep new events disabled until their definition is reviewed.' },
+    editor: { title: 'Edit one event at a time', description: 'The editor sets the trigger, filters, cooldown and linked actions. Saving is explicit; nothing fires during the guide.' },
+    runs: { title: 'Verify with the run history', description: 'Recent runs show what fired, what was skipped and why. Confirm cooldowns and filters here before enabling an event.' },
+  },
+  automationActions: {
+    actionsTab: { title: 'Open the Actions tab', description: 'Actions are reusable effects shared by events. Open the Actions tab to review them independently of any trigger.' },
+    actions: { title: 'Read the actions table', description: 'Each row is one reusable action with its type and target. Editing an action updates every event that links it.' },
+    editor: { title: 'Configure the action', description: 'The editor sets what the effect does: text, sound, overlay or points. Test actions never fire during the guide.' },
+    templates: { title: 'Start from a template', description: 'Rule templates preview a reusable configuration. Importing and enabling require their own review; the guide does neither.' },
+  },
+  automationVariables: {
+    variablesTab: { title: 'Open the Variables tab', description: 'Variables live with automations. Open the Variables tab to review values shared by events and actions.' },
+    values: { title: 'Review shared values', description: 'Secrets stay write-only and never render. Changing a value affects every event and action that references it.' },
+    review: { title: 'Review Changes before syncing', description: 'Local and Cloud values are compared in Changes. Review the differences before applying either direction.' },
   },
   changes: {
     library: { title: 'Choose the records', description: 'Events, actions and variables have separate review boundaries. Unsaved editor candidates must be preserved before reviewing another state.' },
@@ -52,11 +65,6 @@ export default {
       facts: { title: "Check the facts", description: "Totals and session counts give a compact overview before comparing individual viewers." },
       contributors: { title: "Search contributors", description: "Sort or search the table to find the most active viewers. This is a read-only ranking." },
     },
-    variables: {
-      library: { title: "Open Variables", description: "Variables live with automations. Open the Variables tab to review values shared by events and actions." },
-      values: { title: "Review values and secrets", description: "Local values can be marked secret. The editor never reveals a stored secret and saving it is always explicit." },
-      review: { title: "Compare before synchronizing", description: "Use Changes to compare local and Cloud revisions. Review the difference first; raw secret values are not uploaded by the guide." },
-    },
     settings: {
       sections: { title: "Choose a settings section", description: "General contains application preferences. Account contains the cloud profile, plan and backup tools." },
       language: { title: "Change the language", description: "The language applies immediately to the interface. It does not change LIVE data or automation behavior." },
@@ -75,12 +83,6 @@ export default {
       widgets: { title: "Select a local target", description: "Choose which local widget should receive the selected Cloud design before applying anything." },
       preview: { title: "Preview before publishing", description: "Use the local preview to compare the selected design. Publishing or overwriting a Cloud copy remains an explicit action." },
       url: { title: "Copy the correct source", description: "Local gateway URLs and Cloud overlay URLs solve different recovery cases. Verify which one your OBS scene should use." },
-    },
-    automationAdvanced: {
-      library: { title: "Open an event deliberately", description: "Advanced behavior lives inside an event. Select or create a disabled event before experimenting." },
-      editor: { title: "Review filters, cooldown and order", description: "Inside the editor, conditions, alternatives, cooldown scope, random mode and delays decide exactly when actions run." },
-      templates: { title: "Use templates as a starting point", description: "Templates can encode safer defaults. Importing still requires review and does not enable the rule by itself." },
-      runs: { title: "Verify with tests and history", description: "Use test runs and the history panel to confirm timing, skipped actions and cooldown behavior before enabling the event." },
     },
     rankings: {
       tabs: { title: "Rankings or competitions", description: "Rankings collect scores. Competitions compare selected rankings during a bounded event." },

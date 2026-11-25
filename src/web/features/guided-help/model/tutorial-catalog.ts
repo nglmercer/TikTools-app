@@ -5,6 +5,7 @@ import IconCloud from '@/shared/ui/icon/icons/IconCloud.vue';
 import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
+import IconHash from '@/shared/ui/icon/icons/IconHash.vue';
 import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
 import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
@@ -56,10 +57,10 @@ export const tagIcons: Record<TutorialTag, Component> = {
 
 /** All driver.js tours, in the order they appear in the catalog. */
 export const tutorialEntries: readonly TutorialEntry[] = [
-  { id: 'automation', tags: ['events', 'actions'], icon: IconZap },
-  { id: 'automationAdvanced', tags: ['events', 'actions'], icon: IconZap },
+  { id: 'automationEvents', tags: ['events'], icon: IconZap },
+  { id: 'automationActions', tags: ['actions'], icon: IconRows },
+  { id: 'automationVariables', tags: ['events', 'actions', 'changes'], icon: IconHash },
   { id: 'changes', tags: ['events', 'actions', 'changes'], icon: IconGitMerge },
-  { id: 'variables', tags: ['events', 'actions', 'changes'], icon: IconGitMerge },
   { id: 'connection', tags: ['connection'], icon: IconLink },
   { id: 'connectionRecovery', tags: ['connection'], icon: IconLink },
   { id: 'plugin', tags: ['plugins'], icon: IconPuzzle },

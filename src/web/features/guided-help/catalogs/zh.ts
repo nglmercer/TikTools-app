@@ -5,11 +5,6 @@ export default {
     explorer: { title: "探索直播间", description: "请自行刷新或选择直播间。演示中的成功连接是模拟的；原生访问取决于主机和 TikTok。" },
     plugins: { title: "检查集成", description: "启用效果前，请审查每个已安装连接及其健康状态。打开本指南不会联系插件服务。" },
   },
-  automation: {
-    profiles: { title: "选择工作配置方案", description: "为要审查的规则保留一个配置方案。切换或导入配置方案需要在应用中明确操作。" },
-    library: { title: "审查事件和操作", description: "事件将触发器、筛选器和冷却时间与可复用操作关联起来。新效果应保持禁用，直到其定义经过审查。" },
-    templates: { title: "从模板开始", description: "打开“规则模板”以预览可复用配置。导入和启用分别需要审查；本指南不会执行这两项操作。" },
-  },
   plugin: {
     catalog: { title: "已安装与探索", description: "审查已安装的包，或浏览兼容的目录条目。原生插件和进程插件保留其用户的操作系统权限。" },
     search: { title: "查找包", description: "搜索并检查发布者、版本和要求。目录为空和后端不可用是两种不同状态。" },
@@ -23,6 +18,24 @@ export default {
   points: {
     rules: { title: "审查积分获取规则", description: "更改前请检查已配置的值。直播会话已连接或繁忙时，部分控件会锁定。" },
     leaderboard: { title: "检查已提交的积分", description: "搜索或排序观众。刷新显示不会调整或重置积分，也不会重放直播事件。" },
+  },
+  automationEvents: {
+    profiles: { title: '选择工作配置文件', description: '事件和操作属于配置文件。在更改任何规则之前,先检查你实际运行的配置文件。' },
+    eventsTab: { title: '打开事件选项卡', description: '事件就是规则:每个事件将 LIVE 触发器与它执行的操作关联起来。事件选项卡是默认视图。' },
+    events: { title: '查看事件表', description: '每行显示触发器、其条件和关联的操作。在审查定义之前,保持新事件处于禁用状态。' },
+    editor: { title: '一次编辑一个事件', description: '编辑器设置触发器、过滤器、冷却时间和关联的操作。保存是显式的;指南期间不会触发任何内容。' },
+    runs: { title: '用运行历史验证', description: '最近的运行显示了什么被触发、什么被跳过以及原因。在启用事件之前,请在此处确认冷却时间和过滤器。' },
+  },
+  automationActions: {
+    actionsTab: { title: '打开操作选项卡', description: '操作是事件之间共享的可重用效果。打开操作选项卡,可以独立于任何触发器来审查它们。' },
+    actions: { title: '查看操作表', description: '每行是一个具有类型和目标的可重用操作。编辑一个操作会更新所有关联它的事件。' },
+    editor: { title: '配置操作', description: '编辑器设置效果的内容:文本、声音、叠加层或积分。测试操作在指南期间绝不会触发。' },
+    templates: { title: '从模板开始', description: '规则模板可预览可重用的配置。导入和启用需要各自的审查;指南两者都不执行。' },
+  },
+  automationVariables: {
+    variablesTab: { title: '打开变量选项卡', description: '变量与自动化共存。打开变量选项卡,查看事件和操作共享的值。' },
+    values: { title: '检查共享值', description: '机密保持只写状态,永不显示。更改一个值会影响引用它的每个事件和操作。' },
+    review: { title: '同步前检查变更', description: '本地和 Cloud 的值在“变更”中进行比较。在应用任一方向之前,先检查差异。' },
   },
   changes: {
     library: { title: "选择记录", description: "事件、操作和变量有各自独立的审查边界。审查其他状态前，必须保留编辑器中未保存的候选内容。" },
@@ -52,11 +65,6 @@ export default {
     facts: { title: "查看关键数据", description: "总数和会话次数提供紧凑概览，便于之后比较单个观众。" },
     contributors: { title: "搜索贡献者", description: "排序或搜索表格，找出最活跃的观众。这是只读排行榜。" },
   },
-  variables: {
-    library: { title: "打开 Variables", description: "变量与自动化一起管理。打开 Variables 标签页，检查事件和操作共享的值。" },
-    values: { title: "检查值和密钥", description: "本地值可以标记为密钥。编辑器永远不会显示已保存的密钥，保存始终是明确操作。" },
-    review: { title: "同步前先比较", description: "使用 Changes 比较本地和 Cloud 修订。先检查差异；向导不会上传原始密钥值。" },
-  },
   settings: {
     sections: { title: "选择设置分区", description: "General 包含应用偏好设置。Account 包含 Cloud 个人资料、套餐和备份工具。" },
     language: { title: "更改语言", description: "语言会立即应用到界面。它不会更改 LIVE 数据或自动化行为。" },
@@ -75,12 +83,6 @@ export default {
     widgets: { title: "选择本地目标", description: "应用任何内容前，先选择哪个本地小部件应接收所选 Cloud 设计。" },
     preview: { title: "发布前预览", description: "使用本地预览比较所选设计。发布或覆盖 Cloud 副本仍然是明确操作。" },
     url: { title: "复制正确的源", description: "本地网关 URL 和 Cloud 悬浮层 URL 用于不同的恢复场景。确认你的 OBS 场景应使用哪一种。" },
-  },
-  automationAdvanced: {
-    library: { title: "有意识地打开事件", description: "高级行为位于事件内部。实验前先选择或创建一个已停用的事件。" },
-    editor: { title: "检查筛选、冷却和顺序", description: "在编辑器中，条件、备用项、冷却范围、随机模式和延迟会精确决定操作何时运行。" },
-    templates: { title: "以模板作为起点", description: "模板可以包含更安全的默认值。导入仍需审核，并且不会单独启用规则。" },
-    runs: { title: "用测试和历史验证", description: "启用事件前，使用测试运行和历史面板确认时机、跳过的操作和冷却行为。" },
   },
   rankings: {
     tabs: { title: "排行榜或竞赛", description: "排行榜累计分数。竞赛在限定活动期间比较所选排行榜。" },

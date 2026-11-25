@@ -62,7 +62,7 @@ test('the in-app demo catalog keeps unsupported tours out and delegates scenario
 
 test('shared tours load Driver inside the demo and dismissal stays dismissed', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', (error) => errors.push(error.message));
-  for (const [tour, scenario] of [['connection', 'connection'], ['automation', 'automation'], ['plugin', 'plugins'], ['overlay', 'overlays'], ['points', 'points'], ['changes', 'cloud'], ['diagnostics', 'diagnostics']]) {
+  for (const [tour, scenario] of Object.entries(demoTourScenarios)) {
     await page.goto(`demo/?scenario=${scenario}&locale=en&tour=${tour}&instance=tour-${tour}`);
     await expect(page.locator('.driver-popover')).toBeVisible({ timeout: 10000 });
     await page.locator('.driver-popover-close-btn').click();

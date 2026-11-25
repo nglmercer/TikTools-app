@@ -6,3 +6,10 @@
 .tiktools-guide .driver-popover-arrow-side-bottom { border-bottom-color: var(--color-bg-panel); }
 .tiktools-guide .driver-popover-arrow-side-left { border-left-color: var(--color-bg-panel); }
 .tiktools-guide .driver-popover-arrow-side-right { border-right-color: var(--color-bg-panel); }
+
+@keyframes tiktools-guide-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--color-accent, #4f7cff), 0 0 0 0 color-mix(in srgb, var(--color-accent, #4f7cff) 45%, transparent); }
+  50% { box-shadow: 0 0 0 2px var(--color-accent, #4f7cff), 0 0 0 7px transparent; }
+}
+.driver-active-element { animation: tiktools-guide-pulse 1.6s ease-in-out infinite; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .driver-active-element { animation: none; } }

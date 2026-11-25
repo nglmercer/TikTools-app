@@ -1,8 +1,8 @@
 import type { Router } from 'vue-router';
 import type { Locale } from '@/shared/i18n/supported-locales.ts';
 
-export type TourId = 'connection' | 'automation' | 'plugin' | 'overlay' | 'points' | 'changes' | 'diagnostics' | 'feed' | 'backup'
-  | 'analytics' | 'variables' | 'settings' | 'overlayObs' | 'cloudOverlays' | 'automationAdvanced' | 'rankings' | 'pluginSetup'
+export type TourId = 'connection' | 'automationEvents' | 'automationActions' | 'automationVariables' | 'plugin' | 'overlay' | 'points' | 'changes' | 'diagnostics' | 'feed' | 'backup'
+  | 'analytics' | 'settings' | 'overlayObs' | 'cloudOverlays' | 'rankings' | 'pluginSetup'
   | 'connectionRecovery' | 'feedInspector' | 'backupRestore';
 export type TourLocale = Locale;
 export interface GuideStep { id: string; selector: string; title: string; description: string }
@@ -15,6 +15,8 @@ export interface TourStepDefinition {
   /** Discovery methods, never permission grants or an instruction to execute. */
   requiredCapabilities: readonly string[];
   missingTargetPolicy: 'skip' | 'cancel';
+  /** Selectors tried in order when the target is missing: the first visible one gets clicked so the target appears (open a record, switch a tab). */
+  prepareClick?: readonly string[];
 }
 export interface TourDefinition {
   id: TourId;

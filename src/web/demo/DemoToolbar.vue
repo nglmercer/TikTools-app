@@ -59,6 +59,7 @@ const t = computed(() => toolbarCopy[props.locale]);
 const copy = computed(() => experienceCopy[props.locale]);
 const recommended = computed(() => props.recommendedTour ?? 'connection');
 const guidesLabel = computed(() => translate('guides.catalog.button'));
+const recommendedTitle = computed(() => translate(`guides.catalog.tours.${recommended.value}.title`));
 const connectionOptions = computed(() => (['normal', 'offline', 'auth'] as const).map((value) => ({ value, label: copy.value.connectionStates[value] })));
 const playbackLabel = computed(() => {
   const labels = { ready: t.value.ready, connecting: t.value.connecting, playing: t.value.playing, paused: t.value.paused, disconnected: t.value.disconnected, limit: t.value.limitReached, error: t.value.playbackError };
@@ -211,7 +212,7 @@ function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId
         >
           <p class="demo-toolbar__recommendation">
             <span>{{ t.recommended }}</span>
-            <strong>{{ t.tourTitles[recommended] }}</strong>
+            <strong>{{ recommendedTitle }}</strong>
           </p>
           <BaseButton
             data-testid="demo-guide"

@@ -6,7 +6,7 @@ import type { Config, Driver } from 'driver.js';
 import { tourCatalogs, type TourCatalog } from '../catalogs/index.ts';
 import { isTourId, tourRegistry } from './registry.ts';
 import { readTourProgress, writeTourProgress } from './progress.ts';
-import type { GuideOutcome, GuideSession, GuideStep, StartTourOptions, TourLocale, TourTaskState } from './types.ts';
+import type { GuideOutcome, GuideSession, GuideStep, StartTourOptions, TourLocale, TourStepDefinition, TourTaskState } from './types.ts';
 
 type DriverFactory = (config: Config) => Driver;
 export interface CoordinatorDependencies {
@@ -23,7 +23,7 @@ export interface InlineGuideOptions {
   labels?: TourCatalog['controls'];
   onActiveChange?: (active: boolean) => void;
 }
-interface RunStep extends GuideStep { version?: number; missingTargetPolicy?: 'skip' | 'cancel'; available?: () => boolean }
+interface RunStep extends GuideStep { version?: number; missingTargetPolicy?: 'skip' | 'cancel'; prepareClick?: readonly string[]; available?: () => boolean }
 interface RunOptions extends StartTourOptions {
   id: string;
   version?: number;
@@ -272,7 +272,15 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
           if (finished || ticket !== moveGeneration) return;
           const step = steps[index]!;
           if (step.available?.() === false) continue;
-          const element = await waitFor(() => target(step), pending.signal, waitMs);
+          let element = await waitFor(() => target(step), pending.signal, Math.min(waitMs, 600));
+          if (!element && step.prepareClick?.length && scope) {
+            // The target needs interaction first (open a record, switch a tab): press it for the user, in preference order.
+            for (const selector of step.prepareClick) {
+              const trigger = query(scope, selector);
+              if (visible(trigger)) { trigger.click(); break; }
+            }
+            element = await waitFor(() => target(step), pending.signal, waitMs);
+          }
           if (finished || pending.signal.aborted || ticket !== moveGeneration) return;
           if (!element) {
             if (step.missingTargetPolicy === 'cancel') { finish('unavailable'); return; }
@@ -366,9 +374,9 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     return run({
       ...options, id, version: definition.version, route: existingScope?.isConnected ? undefined : definition.route, scopeName: definition.scope, task: definition.task,
       labels: catalog.controls,
-      steps: () => definition.steps.map((step) => ({
+      steps: () => (definition.steps as readonly TourStepDefinition[]).map((step) => ({
         id: step.id, version: step.version, selector: `[data-guide="${step.target}"]`,
-        title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy,
+        title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick,
         available: () => step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
       })),
     });

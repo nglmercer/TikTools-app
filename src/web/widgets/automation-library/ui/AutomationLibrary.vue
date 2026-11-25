@@ -83,12 +83,13 @@ const actionSort = defineModel<RecordSort>('actionSort', { default: 'name' });
 const { t } = useAutomationText();
 
 const tabs = computed(() => [
-  { value: 'events' as const, label: `${t('automations.library.events')} (${props.events.length})`, icon: IconZap },
-  { value: 'actions' as const, label: `${t('automations.library.actions')} (${props.actions.length})`, icon: IconPlay },
+  { value: 'events' as const, label: `${t('automations.library.events')} (${props.events.length})`, icon: IconZap, guide: 'automation-tab-events' },
+  { value: 'actions' as const, label: `${t('automations.library.actions')} (${props.actions.length})`, icon: IconPlay, guide: 'automation-tab-actions' },
   ...(props.areas ?? []).map((area) => ({
     value: area,
     label: t(`automations.library.${area}`),
     icon: IconHash,
+    guide: `automation-tab-${area}`,
   })),
 ]);
 // An extra area is built the first time it opens and then kept, so an unsaved draft survives switching tabs.
@@ -185,6 +186,7 @@ const sort = computed({
             />
             <BaseButton
               variant="primary"
+              data-guide="automation-new-record"
               @click="tab === 'events' ? emit('newEvent') : emit('newAction')"
             >
               <template #icon>
@@ -196,6 +198,7 @@ const sort = computed({
           <AutomationEventTable
             v-if="tab === 'events'"
             v-model:selected="selected"
+            data-guide="automation-events"
             :columns="eventColumns"
             :rows="eventRows"
             :query="eventQuery"
@@ -206,6 +209,7 @@ const sort = computed({
           <AutomationActionTable
             v-else
             v-model:selected="selected"
+            data-guide="automation-actions"
             :columns="actionColumns"
             :rows="actionRows"
             :query="actionQuery"

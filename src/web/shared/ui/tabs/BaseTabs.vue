@@ -63,6 +63,7 @@ function onKeydown(event: KeyboardEvent): void {
           :aria-controls="panelId"
           :tabindex="index === selectedIndex ? 0 : -1"
           :disabled="tab.disabled"
+          :data-guide="tab.guide"
           @click="select(index)"
         >
           <component

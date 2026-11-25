@@ -6,11 +6,6 @@ export default {
     explorer: { title: 'Explorer les salles LIVE', description: 'Actualisez ou choisissez une salle vous-même. La connexion de démonstration est simulée ; le mode natif dépend du serveur local et de TikTok.' },
     plugins: { title: 'Vérifier les intégrations', description: 'Examinez chaque connexion installée avant les effets. Ouvrir le guide ne contacte aucun service de plugin.' },
   },
-  automation: {
-    profiles: { title: 'Choisir le profil de travail', description: 'Gardez un profil pour les règles à examiner. Changer ou importer un profil exige une action explicite.' },
-    library: { title: 'Examiner événements et actions', description: 'Un événement relie déclencheur, filtres et délai aux actions réutilisables. Gardez les nouveaux effets désactivés avant leur examen.' },
-    templates: { title: 'Partir d’un modèle', description: 'Ouvrez Rule templates pour prévisualiser une configuration. Importation et activation ont leur propre examen ; le guide ne les exécute pas.' },
-  },
   plugin: {
     catalog: { title: 'Installés et Explore', description: 'Examinez les paquets ou parcourez les entrées compatibles. Les plugins natifs et processus conservent les permissions système de leur utilisateur.' },
     search: { title: 'Trouver un paquet', description: 'Recherchez et vérifiez éditeur, version et prérequis. Un catalogue vide diffère d’un service indisponible.' },
@@ -24,6 +19,24 @@ export default {
   points: {
     rules: { title: 'Examiner les règles de points', description: 'Vérifiez les valeurs avant modification. Certains contrôles sont verrouillés pendant une session LIVE connectée ou occupée.' },
     leaderboard: { title: 'Examiner les points confirmés', description: 'Recherchez ou triez les spectateurs. Actualiser l’affichage ne modifie pas les points et ne rejoue aucun événement LIVE.' },
+  },
+  automationEvents: {
+    profiles: { title: 'Choisissez le profil de travail', description: 'Les événements et actions appartiennent à un profil. Vérifiez le profil que vous utilisez réellement avant de modifier une règle.' },
+    eventsTab: { title: 'Ouvrez l\'onglet Événements', description: 'Les événements sont les règles : chacun lie un déclencheur LIVE aux actions qu\'il exécute. L\'onglet Événements est la vue par défaut.' },
+    events: { title: 'Lisez le tableau des événements', description: 'Chaque ligne montre le déclencheur, ses conditions et les actions liées. Gardez les nouveaux événements désactivés jusqu\'à la révision de leur définition.' },
+    editor: { title: 'Modifiez un événement à la fois', description: 'L\'éditeur définit le déclencheur, les filtres, le cooldown et les actions liées. L\'enregistrement est explicite ; rien ne se déclenche pendant le guide.' },
+    runs: { title: 'Vérifiez avec l\'historique', description: 'Les exécutions récentes montrent ce qui s\'est déclenché, ce qui a été ignoré et pourquoi. Confirmez cooldowns et filtres ici avant d\'activer un événement.' },
+  },
+  automationActions: {
+    actionsTab: { title: 'Ouvrez l\'onglet Actions', description: 'Les actions sont des effets réutilisables partagés par les événements. Ouvrez l\'onglet Actions pour les examiner indépendamment de tout déclencheur.' },
+    actions: { title: 'Lisez le tableau des actions', description: 'Chaque ligne est une action réutilisable avec son type et sa cible. Modifier une action met à jour tous les événements qui la lient.' },
+    editor: { title: 'Configurez l\'action', description: 'L\'éditeur définit ce que fait l\'effet : texte, son, overlay ou points. Les actions de test ne se déclenchent jamais pendant le guide.' },
+    templates: { title: 'Partez d\'un modèle', description: 'Les modèles de règles prévisualisent une configuration réutilisable. L\'importation et l\'activation exigent leur propre révision ; le guide ne fait ni l\'une ni l\'autre.' },
+  },
+  automationVariables: {
+    variablesTab: { title: 'Ouvrez l\'onglet Variables', description: 'Les variables vivent avec les automatisations. Ouvrez l\'onglet Variables pour examiner les valeurs partagées par les événements et les actions.' },
+    values: { title: 'Vérifiez les valeurs partagées', description: 'Les secrets restent en écriture seule et ne s\'affichent jamais. Modifier une valeur affecte chaque événement et action qui la référence.' },
+    review: { title: 'Vérifiez Modifications avant de synchroniser', description: 'Les valeurs locales et Cloud sont comparées dans Modifications. Examinez les différences avant d\'appliquer l\'une ou l\'autre direction.' },
   },
   changes: {
     library: { title: 'Choisir les enregistrements', description: 'Événements, actions et variables ont des examens distincts. Conservez les brouillons avant d’examiner un autre état.' },
@@ -53,11 +66,6 @@ export default {
     facts: { title: "Vérifiez les faits clés", description: "Les totaux et le nombre de sessions donnent une vue compacte avant de comparer des spectateurs individuels." },
     contributors: { title: "Recherchez les contributeurs", description: "Triez ou recherchez dans le tableau pour trouver les spectateurs les plus actifs. Il s’agit d’un classement en lecture seule." },
   },
-  variables: {
-    library: { title: "Ouvrez Variables", description: "Les variables vivent avec les automatisations. Ouvrez l’onglet Variables pour examiner les valeurs partagées par les événements et les actions." },
-    values: { title: "Vérifiez valeurs et secrets", description: "Les valeurs locales peuvent être marquées comme secrètes. L’éditeur ne révèle jamais un secret enregistré et son enregistrement reste toujours explicite." },
-    review: { title: "Comparez avant de synchroniser", description: "Utilisez Changes pour comparer les révisions locales et Cloud. Examinez d’abord la différence ; le guide ne téléverse pas les valeurs secrètes brutes." },
-  },
   settings: {
     sections: { title: "Choisissez une section de paramètres", description: "General contient les préférences de l’application. Account contient le profil Cloud, le plan et les outils de sauvegarde." },
     language: { title: "Changez la langue", description: "La langue s’applique immédiatement à l’interface. Elle ne change ni les données du LIVE ni le comportement des automatisations." },
@@ -76,12 +84,6 @@ export default {
     widgets: { title: "Sélectionnez une cible locale", description: "Choisissez quel widget local doit recevoir le design Cloud sélectionné avant d’appliquer quoi que ce soit." },
     preview: { title: "Prévisualisez avant de publier", description: "Utilisez l’aperçu local pour comparer le design sélectionné. Publier ou écraser une copie Cloud reste une action explicite." },
     url: { title: "Copiez la bonne source", description: "Les URL de passerelle locale et les URL d’overlay Cloud répondent à des cas de récupération différents. Vérifiez laquelle votre scène OBS doit utiliser." },
-  },
-  automationAdvanced: {
-    library: { title: "Ouvrez un événement délibérément", description: "Le comportement avancé vit dans un événement. Sélectionnez ou créez un événement désactivé avant d’expérimenter." },
-    editor: { title: "Vérifiez filtres, cooldown et ordre", description: "Dans l’éditeur, conditions, alternatives, portée du cooldown, mode aléatoire et délais décident exactement quand les actions s’exécutent." },
-    templates: { title: "Utilisez les modèles comme point de départ", description: "Les modèles peuvent encoder des valeurs par défaut plus sûres. L’importation exige toujours une révision et n’active pas la règle à elle seule." },
-    runs: { title: "Vérifiez avec tests et historique", description: "Utilisez les exécutions de test et le panneau d’historique pour confirmer timing, actions ignorées et comportement du cooldown avant d’activer l’événement." },
   },
   rankings: {
     tabs: { title: "Classements ou compétitions", description: "Les classements accumulent des scores. Les compétitions comparent des classements sélectionnés pendant un événement limité." },

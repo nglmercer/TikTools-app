@@ -6,11 +6,6 @@ export default {
     explorer: { title: 'Explore salas LIVE', description: 'Atualize ou escolha uma sala manualmente. A conexão da demonstração é simulada; o acesso nativo depende do host e do TikTok.' },
     plugins: { title: 'Confira as integrações', description: 'Revise cada conexão instalada e sua saúde antes de ativar efeitos. Abrir o guia não contata serviços de plugins.' },
   },
-  automation: {
-    profiles: { title: 'Escolha o perfil de trabalho', description: 'Mantenha um perfil para as regras em revisão. Trocar ou importar perfis exige uma ação explícita no aplicativo.' },
-    library: { title: 'Revise eventos e ações', description: 'Um evento vincula gatilho, filtros e intervalo a ações reutilizáveis. Mantenha efeitos novos desativados até revisar a definição.' },
-    templates: { title: 'Comece com um modelo', description: 'Abra Rule templates para visualizar uma configuração. Importar e ativar exigem revisões próprias; o guia não executa essas ações.' },
-  },
   plugin: {
     catalog: { title: 'Instalados e Explore', description: 'Revise pacotes instalados ou explore itens compatíveis. Plugins nativos e de processo mantêm as permissões do usuário no sistema.' },
     search: { title: 'Encontre um pacote', description: 'Pesquise e confira editor, versão e requisitos. Catálogo vazio e backend indisponível são estados diferentes.' },
@@ -24,6 +19,24 @@ export default {
   points: {
     rules: { title: 'Revise as regras de pontos', description: 'Confira os valores antes de alterá-los. Alguns controles ficam bloqueados durante uma LIVE conectada ou ocupada.' },
     leaderboard: { title: 'Confira pontos confirmados', description: 'Pesquise ou ordene espectadores. Atualizar a exibição não ajusta nem redefine pontos e não repete eventos LIVE.' },
+  },
+  automationEvents: {
+    profiles: { title: 'Escolha o perfil de trabalho', description: 'Eventos e ações pertencem a um perfil. Revise o perfil que você realmente usa antes de alterar qualquer regra.' },
+    eventsTab: { title: 'Abra a aba Eventos', description: 'Eventos são as regras: cada um vincula um gatilho LIVE às ações que dispara. A aba Eventos é a visão padrão.' },
+    events: { title: 'Leia a tabela de eventos', description: 'Cada linha mostra o gatilho, suas condições e as ações vinculadas. Mantenha novos eventos desativados até revisar sua definição.' },
+    editor: { title: 'Edite um evento por vez', description: 'O editor define o gatilho, os filtros, o cooldown e as ações vinculadas. Salvar é explícito; nada dispara durante o guia.' },
+    runs: { title: 'Verifique com o histórico', description: 'As execuções recentes mostram o que disparou, o que foi ignorado e por quê. Confirme cooldowns e filtros aqui antes de ativar um evento.' },
+  },
+  automationActions: {
+    actionsTab: { title: 'Abra a aba Ações', description: 'Ações são efeitos reutilizáveis compartilhados por eventos. Abra a aba Ações para revisá-las independentemente de qualquer gatilho.' },
+    actions: { title: 'Leia a tabela de ações', description: 'Cada linha é uma ação reutilizável com seu tipo e destino. Editar uma ação atualiza todos os eventos que a vinculam.' },
+    editor: { title: 'Configure a ação', description: 'O editor define o que o efeito faz: texto, som, overlay ou pontos. Ações de teste nunca disparam durante o guia.' },
+    templates: { title: 'Comece com um modelo', description: 'Os modelos de regras permitem visualizar uma configuração reutilizável. Importar e ativar exigem revisão própria; o guia não faz nenhuma das duas coisas.' },
+  },
+  automationVariables: {
+    variablesTab: { title: 'Abra a aba Variáveis', description: 'As variáveis vivem com as automações. Abra a aba Variáveis para revisar valores compartilhados por eventos e ações.' },
+    values: { title: 'Revise valores compartilhados', description: 'Os segredos permanecem somente de escrita e nunca são exibidos. Alterar um valor afeta cada evento e ação que o referencia.' },
+    review: { title: 'Revise Alterações antes de sincronizar', description: 'Os valores locais e da Cloud são comparados em Alterações. Revise as diferenças antes de aplicar qualquer direção.' },
   },
   changes: {
     library: { title: 'Escolha os registros', description: 'Eventos, ações e variáveis têm revisões separadas. Preserve rascunhos não salvos antes de revisar outro estado.' },
@@ -53,11 +66,6 @@ export default {
     facts: { title: "Verifique os dados principais", description: "Totais e contagem de sessões oferecem uma visão compacta antes de comparar espectadores individuais." },
     contributors: { title: "Busque colaboradores", description: "Ordene ou pesquise a tabela para encontrar os espectadores mais ativos. Esta é uma classificação somente de leitura." },
   },
-  variables: {
-    library: { title: "Abra Variáveis", description: "As variáveis ficam junto das automações. Abra a aba Variáveis para revisar valores compartilhados por eventos e ações." },
-    values: { title: "Revise valores e segredos", description: "Valores locais podem ser marcados como secretos. O editor nunca revela um segredo guardado e salvá-lo é sempre uma ação explícita." },
-    review: { title: "Compare antes de sincronizar", description: "Use Alterações para comparar revisões locais e da Cloud. Revise primeiro a diferença; valores secretos brutos não são enviados pelo guia." },
-  },
   settings: {
     sections: { title: "Escolha uma seção de configurações", description: "Geral contém preferências do aplicativo. Conta contém perfil Cloud, plano e ferramentas de backup." },
     language: { title: "Mude o idioma", description: "O idioma é aplicado imediatamente à interface. Ele não altera dados da LIVE nem o comportamento das automações." },
@@ -76,12 +84,6 @@ export default {
     widgets: { title: "Selecione um destino local", description: "Escolha qual widget local deve receber o design Cloud selecionado antes de aplicar qualquer coisa." },
     preview: { title: "Pré-visualize antes de publicar", description: "Use a pré-visualização local para comparar o design selecionado. Publicar ou substituir uma cópia Cloud continua sendo uma ação explícita." },
     url: { title: "Copie a fonte correta", description: "URLs do gateway local e URLs de overlays Cloud resolvem casos de recuperação diferentes. Verifique qual delas sua cena do OBS deve usar." },
-  },
-  automationAdvanced: {
-    library: { title: "Abra um evento deliberadamente", description: "O comportamento avançado fica dentro de um evento. Selecione ou crie um evento desativado antes de experimentar." },
-    editor: { title: "Revise filtros, cooldown e ordem", description: "Dentro do editor, condições, alternativas, escopo de cooldown, modo aleatório e atrasos decidem exatamente quando as ações são executadas." },
-    templates: { title: "Use modelos como ponto de partida", description: "Modelos podem trazer padrões mais seguros. Importar ainda exige revisão e não ativa a regra por si só." },
-    runs: { title: "Verifique com testes e histórico", description: "Use execuções de teste e o painel de histórico para confirmar tempo, ações ignoradas e comportamento de cooldown antes de ativar o evento." },
   },
   rankings: {
     tabs: { title: "Rankings ou competições", description: "Rankings acumulam pontuações. Competições comparam rankings selecionados durante um evento limitado." },

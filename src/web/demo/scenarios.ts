@@ -1,4 +1,5 @@
 import { supportedLocales, normalizeLocale, type Locale } from '../shared/i18n/supported-locales.ts';
+import { tourRegistry } from '@/features/guided-help/model/registry.ts';
 
 export const scenarios = {
   connection: { route: '/connections', en: 'First connection', es: 'Primera conexión', pt: 'Primeira conexão', fr: 'Première connexion', zh: '首次连接', ja: '初めての接続' },
@@ -46,7 +47,7 @@ export function parseDemoOptions(search: string) {
   const route = params.get('route') ?? (panel ? embeddedPanels[panel] : isScenario(scenario) ? scenarios[scenario].route : '');
   const instance = params.get('instance') ?? 'standalone';
   const tour = params.get('tour');
-  if (!isScenario(scenario) || !locale || !validDemoRoute(route) || !/^[a-zA-Z0-9_-]{1,64}$/.test(instance) || (tour !== null && !['connection', 'automation', 'plugin', 'overlay', 'points', 'changes', 'diagnostics', 'feed', 'analytics', 'variables', 'settings', 'overlayObs', 'automationAdvanced', 'pluginSetup', 'connectionRecovery', 'feedInspector'].includes(tour))) throw new Error('Invalid demo parameters.');
+  if (!isScenario(scenario) || !locale || !validDemoRoute(route) || !/^[a-zA-Z0-9_-]{1,64}$/.test(instance) || (tour !== null && !Object.hasOwn(tourRegistry, tour))) throw new Error('Invalid demo parameters.');
   if (panel && (route !== embeddedPanels[panel] || tour)) throw new Error('Embedded panels require their focused route without a tour.');
   return { scenario, locale, route, instance, tour, embed: panel, initialEvents, framed };
 }
