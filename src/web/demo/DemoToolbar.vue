@@ -21,6 +21,7 @@ import type { TourId } from '@/features/guided-help/model/types.ts';
 import { type PlaybackStatus } from './playback.ts';
 import { demoTutorialIds, type DemoTourId } from './tours.ts';
 import type { DemoLocale, EmbeddedPanel } from './scenarios.ts';
+import { demoPreviewUrl as buildDemoPreviewUrl } from './preview-url.ts';
 import { toolbarCopy } from './toolbar-copy.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
 
@@ -77,6 +78,10 @@ const menuItems = computed<MenuEntry[]>(() => [{ id: 'components', label: t.valu
 function openMenu(event: MouseEvent) { menuAnchor.value = event.currentTarget as HTMLElement; moreOpen.value = !moreOpen.value; }
 function selectAction(action: MenuAction) { if (action.id === 'failure') emit('failure'); else if (action.id === 'components') emit('catalog'); }
 function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId)) emit('guide', id as DemoTourId); }
+
+function demoPreviewUrl(id: TourId): string {
+  return buildDemoPreviewUrl(id, props.locale);
+}
 </script>
 <template>
   <div
@@ -273,6 +278,7 @@ function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId
       :tours="demoTutorialIds"
       :initial-tour="recommended"
       :on-launch="launchGuide"
+      :preview-url="demoPreviewUrl"
     />
   </div>
 </template>

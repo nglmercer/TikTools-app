@@ -5,6 +5,7 @@ import type { TourId } from './types.ts';
 export interface GuideCatalogContext {
   tours?: readonly TourId[];
   onLaunch?: (id: TourId, trigger?: HTMLElement) => void;
+  previewUrl?: (id: TourId) => string;
 }
 
 export const guideCatalogContextKey: InjectionKey<GuideCatalogContext> = Symbol('guide-catalog-context');

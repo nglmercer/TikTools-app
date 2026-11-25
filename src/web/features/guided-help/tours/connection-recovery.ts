@@ -6,7 +6,7 @@ export default defineTour({
   route: '/connections',
   scope: 'connections',
   tags: ['connection'],
-  icon: 'link',
+  icon: 'refresh',
   shape: 'custom',
   layout: [
     { id: 'form', target: 'connection-form', policy: 'cancel' },

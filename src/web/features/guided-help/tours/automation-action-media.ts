@@ -6,7 +6,7 @@ export default defineTour({
   route: '/automations',
   scope: 'automations',
   tags: ['actions'],
-  icon: 'rows',
+  icon: 'video',
   shape: 'action',
   steps: {
     actionsTab: {

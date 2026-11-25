@@ -6,7 +6,7 @@ export default defineTour({
   route: '/settings?section=account',
   scope: 'account',
   tags: ['account'],
-  icon: 'cloud',
+  icon: 'history',
   shape: 'custom',
   layout: [
     { id: 'tools', target: 'backup-tools', policy: 'cancel' },

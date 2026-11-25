@@ -124,7 +124,9 @@ describe('public demo host', () => {
     expect(parseDemoOptions('?embed=feed').route).toBe('/feed');
     expect(parseDemoOptions('?framed=1').framed).toBe(true);
     expect(parseDemoOptions('').framed).toBe(false);
-    for (const params of ['?framed=0', '?framed=true', '?framed=other']) expect(() => parseDemoOptions(params)).toThrow();
+    expect(parseDemoOptions('?preview=1').preview).toBe(true);
+    expect(parseDemoOptions('').preview).toBe(false);
+    for (const params of ['?framed=0', '?framed=true', '?framed=other', '?preview=0', '?preview=true']) expect(() => parseDemoOptions(params)).toThrow();
     expect(parseDemoOptions('?embed=feed').initialEvents).toBe(1);
     expect(parseDemoOptions('?embed=feed&events=9').initialEvents).toBe(9);
     for (const params of ['?embed=feed&events=13', '?embed=feed&events=-1', '?embed=feed&events=1.5', '?events=9', '?embed=connection&events=9']) expect(() => parseDemoOptions(params)).toThrow();

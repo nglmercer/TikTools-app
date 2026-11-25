@@ -7,7 +7,7 @@ export default defineTour({
   scope: 'diagnostics',
   task: 'diagnostics.inspected',
   tags: ['diagnostics'],
-  icon: 'chart',
+  icon: 'shield',
   shape: 'custom',
   layout: [
     { id: 'log', target: 'diagnostics-log', policy: 'cancel' },

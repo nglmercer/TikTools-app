@@ -6,7 +6,7 @@ export default defineTour({
   route: '/automations',
   scope: 'automations',
   tags: ['actions'],
-  icon: 'rows',
+  icon: 'play',
   shape: 'custom',
   layout: [
     { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'], version: 2 },

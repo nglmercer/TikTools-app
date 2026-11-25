@@ -6,7 +6,7 @@ export default defineTour({
   route: '/overlays',
   scope: 'overlays',
   tags: ['overlays'],
-  icon: 'layers',
+  icon: 'video',
   shape: 'custom',
   layout: [
     { id: 'gateway', target: 'overlay-gateway', policy: 'cancel' },

@@ -1,11 +1,17 @@
-import { tutorialCard } from '../../src/web/features/guided-help/model/tutorial-catalog.ts';
+import { tourModules } from '../../src/web/features/guided-help/tours/index.ts';
+import type { TourId } from '../../src/web/features/guided-help/model/types.ts';
 import { expect, test, type Page } from '@playwright/test';
 import { demoTourScenarios, demoTutorialIds } from '../../src/web/demo/tours.ts';
 import { tourCatalogs } from '../../src/web/features/guided-help/catalogs/index.ts';
+import { tourCategory } from '../../src/web/features/guided-help/model/tutorial-taxonomy.ts';
+
+const tutorialCard = (locale: keyof typeof tourCatalogs, id: TourId) => tourCatalogs[locale].card[id];
 
 async function selectCatalogTour(page: Page, title: string): Promise<void> {
-  await page.locator('.tutorial-catalog__card').filter({ has: page.locator('strong').getByText(title, { exact: true }) }).click();
-  await page.locator('.tutorial-catalog__detail button').click();
+  const dialog = page.locator('dialog[open].tutorial-catalog');
+  await dialog.locator('input[type="search"]').fill(title);
+  await dialog.locator('.tutorial-catalog__card').filter({ has: page.locator('strong').getByText(title, { exact: true }) }).click();
+  await dialog.locator('.tutorial-catalog__start').click();
 }
 
 async function launchFromCatalog(page: Page, title: string): Promise<void> {
@@ -52,9 +58,17 @@ test('the in-app demo catalog keeps unsupported tours out and delegates scenario
   await page.goto('demo/?scenario=connection&locale=en&instance=menu-catalog');
   await page.locator('.app-menu-bar').getByRole('menuitem', { name: 'Help', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Guides and tutorials', exact: true }).click();
-  await expect(page.locator('.tutorial-catalog__card')).toHaveCount(demoTutorialIds.length);
-  await expect(page.locator('.tutorial-catalog__card').filter({ hasText: 'Account and backups' })).toHaveCount(0);
-  await selectCatalogTour(page, tutorialCard('en', 'overlayObs').title);
+  const demoIds = new Set<string>(demoTutorialIds);
+  const visibleEntries = tourModules.filter((entry) => demoIds.has(entry.id));
+  const visibleCategories = new Set(visibleEntries.map((entry) => tourCategory(entry)));
+  await expect(page.locator('.tutorial-catalog__category-card')).toHaveCount(visibleCategories.size);
+  await expect(page.locator('.tutorial-catalog__category-card').filter({ hasText: 'Account' })).toHaveCount(0);
+  const dialog = page.locator('dialog[open].tutorial-catalog');
+  const overlayTitle = tutorialCard('en', 'overlayObs').title;
+  await dialog.locator('input[type="search"]').fill(overlayTitle);
+  await dialog.locator('.tutorial-catalog__card').filter({ has: page.locator('strong').getByText(overlayTitle, { exact: true }) }).click();
+  await expect(page.locator('[data-testid="tutorial-demo-frame"]')).toBeVisible();
+  await dialog.locator('.tutorial-catalog__start').click();
   await expect(page.locator('.driver-popover')).toBeVisible();
   expect(new URL(page.url()).searchParams.get('scenario')).toBe('overlays');
   await page.locator('.driver-popover-close-btn').click();
@@ -93,7 +107,7 @@ test('the recommended tour follows in-app navigation without starting automatica
   await expect(recommendation).toContainText(pointsTitle);
   await expect(page.locator('.driver-popover')).toHaveCount(0);
   await page.getByTestId('demo-guide').click();
-  await expect(page.locator('.tutorial-catalog__card--active')).toContainText(pointsTitle);
+  await expect(page.locator('.tutorial-catalog__detail h3')).toHaveText(pointsTitle);
 });
 
 test('automation events tour reaches the editor step through the prepare action', async ({ page }) => {

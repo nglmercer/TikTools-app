@@ -6,7 +6,7 @@ export default defineTour({
   route: '/automations?view=variables',
   scope: 'automations',
   task: 'changes.reviewed',
-  tags: ['events', 'actions', 'changes'],
+  tags: ['changes'],
   icon: 'git-merge',
   shape: 'custom',
   layout: [

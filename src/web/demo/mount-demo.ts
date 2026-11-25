@@ -22,6 +22,7 @@ import { experienceCopy } from '../../../docs/experience/copy.ts';
 import { useNavigationStore } from '@/shared/model/navigation-store.ts';
 import type { BuiltinAppTab } from '@/types.ts';
 import { parseFrameCommand, type ConnectionCase, type DemoFrameState } from './frame-messages.ts';
+import { demoPreviewUrl } from './preview-url.ts';
 export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, storage: { clear(): void }) {
   const host = createDemoHost(options.scenario, options.locale);
   configureAppClock(() => DEMO_AT + host.diagnostics().ticks * 1000);
@@ -66,7 +67,11 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
   toolbarApp.mount(toolbar);
   let workspaceRouter: Router | undefined;
   const app = await mountWorkspace({ client, locale: options.locale, configure(app) {
-    app.provide(guideCatalogContextKey, { tours: demoTutorialIds, onLaunch: (id, trigger) => tourActions.start?.(id, trigger) });
+    app.provide(guideCatalogContextKey, {
+      tours: demoTutorialIds,
+      onLaunch: (id, trigger) => tourActions.start?.(id, trigger),
+      ...(options.preview ? {} : { previewUrl: (id) => demoPreviewUrl(id, options.locale) }),
+    });
     const router = app.config.globalProperties.$router as Router;
     workspaceRouter = router;
     router.beforeEach((to) => options.embed && to.path !== options.route && to.path !== '/debug' ? false : validDemoRoute(to.fullPath) ? true : '/feed');

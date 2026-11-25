@@ -5,8 +5,8 @@ export default defineTour({
   version: 1,
   route: '/automations',
   scope: 'automations',
-  tags: ['actions', 'changes'],
-  icon: 'hash',
+  tags: ['actions', 'variables'],
+  icon: 'code',
   shape: 'action',
   steps: {
     actionsTab: {

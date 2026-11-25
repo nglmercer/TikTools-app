@@ -6,7 +6,7 @@ export default defineTour({
   route: '/plugins',
   scope: 'plugins',
   tags: ['plugins'],
-  icon: 'puzzle',
+  icon: 'download',
   shape: 'custom',
   layout: [
     { id: 'catalog', target: 'plugin-catalog', policy: 'cancel' },

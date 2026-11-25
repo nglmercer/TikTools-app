@@ -6,7 +6,7 @@ export default defineTour({
   route: '/automations',
   scope: 'automations',
   tags: ['events'],
-  icon: 'zap',
+  icon: 'users',
   shape: 'event',
   steps: {
     eventsTab: {

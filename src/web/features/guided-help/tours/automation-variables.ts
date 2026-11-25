@@ -5,7 +5,7 @@ export default defineTour({
   version: 2,
   route: '/automations?view=variables',
   scope: 'automations',
-  tags: ['events', 'actions', 'changes'],
+  tags: ['variables'],
   icon: 'hash',
   shape: 'custom',
   layout: [

@@ -6,7 +6,7 @@ export default defineTour({
   route: '/automations',
   scope: 'automations',
   tags: ['events', 'actions'],
-  icon: 'rows',
+  icon: 'copy',
   shape: 'custom',
   layout: [
     { id: 'gallery', target: 'automation-templates', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'] },

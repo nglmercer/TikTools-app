@@ -6,7 +6,7 @@ export default defineTour({
   route: '/feed',
   scope: 'feed',
   tags: ['feed'],
-  icon: 'chat',
+  icon: 'eye',
   shape: 'custom',
   layout: [
     { id: 'controls', target: 'feed-controls', policy: 'cancel' },

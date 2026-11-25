@@ -3,7 +3,6 @@ import { computed, inject, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { routerKey } from 'vue-router';
 import { isLocale } from '@/shared/i18n/supported-locales.ts';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import IconRows from '@/shared/ui/icon/icons/IconRows.vue';
@@ -11,50 +10,71 @@ import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import { startTour } from '../model/coordinator.ts';
 import {
+  categoryIcons,
   tagIcons,
   tutorialCard,
+  tutorialCategories,
   tutorialEntries,
   tutorialSteps,
   tutorialTags,
+  type LocalizedTutorialEntry,
+  type TutorialCategory,
   type TutorialTag,
 } from '../model/tutorial-catalog.ts';
 import type { TourCapabilities, TourId, TourLocale, TourTaskState } from '../model/types.ts';
+import TutorialCatalogHome from './tutorial-catalog/TutorialCatalogHome.vue';
+import TutorialCategoryScreen from './tutorial-catalog/TutorialCategoryScreen.vue';
+import TutorialDetailScreen from './tutorial-catalog/TutorialDetailScreen.vue';
+import TutorialWizardNav from './tutorial-catalog/TutorialWizardNav.vue';
+import type { TutorialCatalogScreen, TutorialCategorySummary } from './tutorial-catalog/types.ts';
 
 const props = withDefaults(defineProps<{
   capabilities?: TourCapabilities;
   taskState?: TourTaskState | (() => TourTaskState);
   /** False when another modal must stay open (e.g. the library review): read steps only. */
   startable?: boolean;
-  initialCategory?: TutorialTag;
+  initialCategory?: TutorialCategory;
+  /** Optional topic preselection inside the initial category (for automation tabs: events/actions/variables). */
+  initialTag?: TutorialTag;
   /** Restrict the catalog to a caller's offerings (the demo has no account/backup tour). */
   tours?: readonly TourId[];
   /** Preselect the entry recommended for the reader's current section. */
   initialTour?: TourId;
   /** Delegate launching, e.g. so the demo can prepare the matching scenario first. */
   onLaunch?: (id: TourId) => void;
-}>(), { capabilities: undefined, taskState: undefined, startable: true, initialCategory: undefined, tours: undefined, initialTour: undefined, onLaunch: undefined });
+  /** Same-origin interactive preview URL supplied by hosts that bundle the demo. */
+  previewUrl?: (id: TourId) => string;
+}>(), {
+  capabilities: undefined,
+  taskState: undefined,
+  startable: true,
+  initialCategory: undefined,
+  initialTag: undefined,
+  tours: undefined,
+  initialTour: undefined,
+  onLaunch: undefined,
+  previewUrl: undefined,
+});
 
-type TabValue = 'all' | TutorialTag;
+type CatalogFilter = 'all' | TutorialCategory | TutorialTag;
 
 const open = defineModel<boolean>('open', { default: false });
 const { t, locale } = useI18n();
 const router = inject(routerKey, null);
 const query = ref('');
-const activeTab = ref<TabValue>(props.initialCategory ?? 'all');
+const initialEntry = props.initialTour ? tutorialEntries.find((entry) => entry.id === props.initialTour) : undefined;
+const initialCategory = props.initialCategory ?? initialEntry?.category ?? tutorialCategories[0];
+const currentCategory = ref<TutorialCategory>(initialCategory);
+const activeFilter = ref<CatalogFilter>(props.initialTag ?? 'all');
 const selectedId = ref<TourId | null>(props.initialTour ?? null);
+const screen = ref<TutorialCatalogScreen>(props.initialTour ? 'detail' : props.initialCategory ? 'category' : 'catalog');
 const tourLocale = computed<TourLocale>(() => isLocale(locale.value) ? locale.value : 'en');
 
 const text = (key: string): string => String(t(key));
-const categoryOptions = computed(() => [
-  { value: 'all' as TabValue, label: text('guides.catalog.allTags'), icon: IconRows },
-  ...tutorialTags.map((tag) => ({
-    value: tag as TabValue,
-    label: text(`guides.catalog.tags.${tag}`),
-    icon: tagIcons[tag],
-  })),
-]);
+const isCategory = (value: CatalogFilter): value is TutorialCategory => (tutorialCategories as readonly string[]).includes(value);
+const isTag = (value: CatalogFilter): value is TutorialTag => (tutorialTags as readonly string[]).includes(value);
 const allowedTours = computed(() => props.tours ? new Set<string>(props.tours) : null);
-const tutorials = computed(() => tutorialEntries
+const tutorials = computed<LocalizedTutorialEntry[]>(() => tutorialEntries
   .filter((entry) => !allowedTours.value || allowedTours.value.has(entry.id))
   .map((entry) => ({
     ...entry,
@@ -62,51 +82,130 @@ const tutorials = computed(() => tutorialEntries
     description: tutorialCard(tourLocale.value, entry.id).description,
     steps: tutorialSteps(tourLocale.value, entry.id),
   })));
-const filtered = computed(() => {
-  const needle = query.value.trim().toLocaleLowerCase();
-  return tutorials.value.filter((entry) => {
-    if (activeTab.value !== 'all' && !entry.tags.includes(activeTab.value)) return false;
-    if (!needle) return true;
-    return [entry.title, entry.description, ...entry.tags.map((tag) => text(`guides.catalog.tags.${tag}`))]
-      .join(' ').toLocaleLowerCase().includes(needle);
-  });
+
+const visibleCategories = computed(() => tutorialCategories
+  .filter((category) => tutorials.value.some((entry) => entry.category === category)));
+const categories = computed<readonly TutorialCategorySummary[]>(() => visibleCategories.value.map((id) => {
+  const entries = tutorials.value.filter((entry) => entry.category === id);
+  return {
+    id,
+    label: text(`guides.catalog.tags.${id}`),
+    icon: categoryIcons[id],
+    count: entries.length,
+    entries,
+  };
+}));
+const category = computed(() => categories.value.find((item) => item.id === currentCategory.value) ?? categories.value[0] ?? null);
+const categoryTags = computed<readonly TutorialTag[]>(() => {
+  if (!category.value) return [];
+  const present = new Set(category.value.entries.flatMap((entry) => [...entry.tags]));
+  return tutorialTags.filter((tag) => present.has(tag));
 });
-const PAGE_SIZE = 6;
-const page = ref(0);
-/** Entries ordered by their primary tag following tutorialTags order, so groups stay contiguous across pages. */
-const orderedEntries = computed(() => {
-  const order = new Map(tutorialTags.map((tag, index) => [tag, index]));
-  return [...filtered.value].sort((a, b) => (order.get(a.tags[0]!) ?? 99) - (order.get(b.tags[0]!) ?? 99));
-});
-const pageCount = computed(() => Math.max(1, Math.ceil(orderedEntries.value.length / PAGE_SIZE)));
-const pagedEntries = computed(() => orderedEntries.value.slice(page.value * PAGE_SIZE, (page.value + 1) * PAGE_SIZE));
-type ListItem =
-  | { kind: 'header'; tag: TutorialTag }
-  | { kind: 'entry'; entry: (typeof filtered.value)[number] };
-const listItems = computed<readonly ListItem[]>(() => {
-  const items: ListItem[] = [];
-  let lastTag: TutorialTag | null = null;
-  for (const entry of pagedEntries.value) {
-    const tag = entry.tags[0]!;
-    if (tag !== lastTag) { items.push({ kind: 'header', tag }); lastTag = tag; }
-    items.push({ kind: 'entry', entry });
+const selectOptions = computed(() => {
+  const all = { value: 'all' as CatalogFilter, label: text('guides.catalog.allTags'), icon: IconRows };
+  if (screen.value === 'catalog') {
+    return [all, ...visibleCategories.value.map((id) => ({
+      value: id as CatalogFilter,
+      label: text(`guides.catalog.tags.${id}`),
+      icon: categoryIcons[id],
+    }))];
   }
-  return items;
+  return [all, ...categoryTags.value.map((tag) => ({
+    value: tag as CatalogFilter,
+    label: text(`guides.catalog.tags.${tag}`),
+    icon: tagIcons[tag],
+  }))];
 });
-function prevPage(): void { if (page.value > 0) page.value -= 1; }
-function nextPage(): void { if (page.value < pageCount.value - 1) page.value += 1; }
-watch(filtered, () => { page.value = 0; });
+const showFilterSelect = computed(() => screen.value === 'catalog' || categoryTags.value.length > 1);
+const activeTag = computed<'all' | TutorialTag>(() => activeFilter.value !== 'all' && isTag(activeFilter.value) ? activeFilter.value : 'all');
+const visibleCategoryCount = computed(() => {
+  const entries = category.value?.entries ?? [];
+  return activeTag.value === 'all' ? entries.length : entries.filter((entry) => entry.tags.includes(activeTag.value as TutorialTag)).length;
+});
 
-const selected = computed(() => filtered.value.find((entry) => entry.id === selectedId.value) ?? filtered.value[0] ?? null);
+const searching = computed(() => query.value.trim().length > 0);
+const searchResults = computed(() => {
+  const needle = query.value.trim().toLocaleLowerCase();
+  if (!needle) return [];
+  return tutorials.value.filter((entry) => [
+    entry.title,
+    entry.description,
+    text(`guides.catalog.tags.${entry.category}`),
+    ...entry.tags.map((tag) => text(`guides.catalog.tags.${tag}`)),
+  ].join(' ').toLocaleLowerCase().includes(needle));
+});
 
-watch(filtered, (list) => {
-  if (!list.some((entry) => entry.id === selectedId.value)) selectedId.value = list[0]?.id ?? null;
+const selected = computed(() => tutorials.value.find((entry) => entry.id === selectedId.value) ?? null);
+
+function tagForCategory(id: TutorialCategory, preferred: 'all' | TutorialTag = 'all'): 'all' | TutorialTag {
+  if (preferred === 'all') return 'all';
+  const entries = tutorials.value.filter((entry) => entry.category === id);
+  return entries.some((entry) => entry.tags.includes(preferred)) ? preferred : 'all';
+}
+function openCategory(id: TutorialCategory, preferredTag: 'all' | TutorialTag = 'all'): void {
+  query.value = '';
+  selectedId.value = null;
+  currentCategory.value = id;
+  activeFilter.value = tagForCategory(id, preferredTag);
+  screen.value = 'category';
+}
+function chooseFilter(value: CatalogFilter | undefined): void {
+  if (!value) return;
+  query.value = '';
+  if (screen.value === 'catalog') {
+    if (value !== 'all' && isCategory(value)) openCategory(value);
+    return;
+  }
+  if (value !== 'all' && !isTag(value)) return;
+  activeFilter.value = value;
+  if (screen.value === 'detail') {
+    selectedId.value = null;
+    screen.value = 'category';
+  }
+}
+function openTutorial(id: TourId): void {
+  const entry = tutorials.value.find((item) => item.id === id);
+  if (!entry) return;
+  currentCategory.value = entry.category;
+  if (activeFilter.value !== 'all' && (!isTag(activeFilter.value) || !entry.tags.includes(activeFilter.value))) activeFilter.value = 'all';
+  query.value = '';
+  selectedId.value = id;
+  screen.value = 'detail';
+}
+function navigateWizard(target: 'catalog' | 'category'): void {
+  selectedId.value = target === 'catalog' ? null : selectedId.value;
+  screen.value = target === 'category' && category.value ? 'category' : 'catalog';
+  if (screen.value === 'catalog') activeFilter.value = 'all';
+}
+function backToCategory(): void {
+  selectedId.value = null;
+  screen.value = category.value ? 'category' : 'catalog';
+}
+
+watch(visibleCategories, (visible) => {
+  if (!visible.includes(currentCategory.value)) currentCategory.value = visible[0] ?? tutorialCategories[0];
 }, { immediate: true });
+watch(query, (value) => {
+  if (value.trim()) {
+    activeFilter.value = 'all';
+    screen.value = 'catalog';
+  }
+});
 watch(open, (isOpen) => {
   if (isOpen) {
-    activeTab.value = props.initialCategory ?? 'all';
+    query.value = '';
     selectedId.value = props.initialTour ?? null;
-  } else { query.value = ''; activeTab.value = 'all'; selectedId.value = null; }
+    const entry = props.initialTour ? tutorialEntries.find((item) => item.id === props.initialTour) : undefined;
+    const selectedCategory = props.initialCategory ?? entry?.category;
+    currentCategory.value = selectedCategory ?? visibleCategories.value[0] ?? tutorialCategories[0];
+    activeFilter.value = selectedCategory ? tagForCategory(selectedCategory, props.initialTag ?? 'all') : 'all';
+    screen.value = props.initialTour ? 'detail' : props.initialCategory ? 'category' : 'catalog';
+  } else {
+    query.value = '';
+    activeFilter.value = 'all';
+    selectedId.value = null;
+    screen.value = 'catalog';
+  }
 });
 
 async function launch(id: TourId): Promise<void> {
@@ -128,245 +227,65 @@ async function launch(id: TourId): Promise<void> {
   <BaseDialog
     v-model:open="open"
     :title="t('guides.catalog.title')"
-    :width="760"
+    :width="980"
     class="tutorial-catalog"
   >
-    <p class="tutorial-catalog__intro">
-      {{ t(startable ? 'guides.catalog.description' : 'guides.catalog.readonlyHint') }}
-    </p>
-    <div class="tutorial-catalog__filters">
-      <BaseTextField
-        v-model="query"
-        class="tutorial-catalog__search"
-        type="search"
-        :placeholder="t('guides.catalog.search')"
-        :aria-label="t('guides.catalog.search')"
-      >
-        <template #prefix>
-          <IconSearch />
-        </template>
-      </BaseTextField>
-      <BaseComboBox
-        v-model="activeTab"
-        class="tutorial-catalog__category"
-        :options="categoryOptions"
-        :aria-label="t('guides.catalog.tagsLabel')"
+    <div class="tutorial-catalog__masthead">
+      <TutorialWizardNav
+        :screen="screen"
+        :category-label="screen === 'catalog' ? undefined : category?.label"
+        :category-icon="screen === 'catalog' ? undefined : category?.icon"
+        :category-count="screen === 'catalog' ? undefined : visibleCategoryCount"
+        @navigate="navigateWizard"
       />
-    </div>
-    <div class="tutorial-catalog__layout">
-      <TransitionGroup
-        v-if="filtered.length"
-        name="tutorial-catalog"
-        tag="ul"
-        class="tutorial-catalog__list"
-      >
-        <template
-          v-for="item in listItems"
-          :key="item.kind === 'header' ? `h-${item.tag}` : item.entry.id"
+      <div class="tutorial-catalog__filters">
+        <BaseTextField
+          v-model="query"
+          class="tutorial-catalog__search"
+          type="search"
+          :placeholder="t('guides.catalog.search')"
+          :aria-label="t('guides.catalog.search')"
         >
-          <li
-            v-if="item.kind === 'header'"
-            class="tutorial-catalog__group"
-            aria-hidden="true"
-          >
-            <component
-              :is="tagIcons[item.tag]"
-              :size="13"
-            />
-            {{ t(`guides.catalog.tags.${item.tag}`) }}
-          </li>
-          <li v-else>
-            <button
-              type="button"
-              class="tutorial-catalog__card"
-              :class="{ 'tutorial-catalog__card--active': selected?.id === item.entry.id }"
-              :aria-pressed="selected?.id === item.entry.id"
-              @click="selectedId = item.entry.id"
-            >
-              <span class="tutorial-catalog__card-icon">
-                <component
-                  :is="item.entry.icon"
-                  :size="18"
-                />
-              </span>
-              <span class="tutorial-catalog__card-body">
-                <strong>{{ item.entry.title }}</strong>
-                <span class="tutorial-catalog__card-description">{{ item.entry.description }}</span>
-                <span class="tutorial-catalog__card-meta">
-                  <span class="tutorial-catalog__chip">
-                    <component
-                      :is="tagIcons[item.entry.tags[0]!]"
-                      :size="12"
-                    />
-                    {{ t(`guides.catalog.tags.${item.entry.tags[0]}`) }}
-                  </span>
-                  <span>{{ t('guides.catalog.steps', { count: item.entry.steps.length }) }}</span>
-                </span>
-              </span>
-            </button>
-          </li>
-        </template>
-      </TransitionGroup>
-      <div
-        v-if="pageCount > 1"
-        class="tutorial-catalog__pager"
-      >
-        <BaseButton
-          variant="ghost"
-          size="sm"
-          :disabled="page === 0"
-          :aria-label="t('guides.catalog.prevPage')"
-          @click="prevPage"
-        >
-          ‹
-        </BaseButton>
-        <span class="tutorial-catalog__page-label">{{ t('guides.catalog.pageOf', { current: page + 1, total: pageCount }) }}</span>
-        <BaseButton
-          variant="ghost"
-          size="sm"
-          :disabled="page >= pageCount - 1"
-          :aria-label="t('guides.catalog.nextPage')"
-          @click="nextPage"
-        >
-          ›
-        </BaseButton>
+          <template #prefix>
+            <IconSearch />
+          </template>
+        </BaseTextField>
+        <BaseComboBox
+          v-if="showFilterSelect"
+          v-model="activeFilter"
+          class="tutorial-catalog__category-select"
+          :options="selectOptions"
+          :aria-label="t('guides.catalog.tagsLabel')"
+          @update:model-value="chooseFilter"
+        />
       </div>
-      <p
-        v-if="!filtered.length"
-        class="tutorial-catalog__empty"
-      >
-        {{ t('guides.catalog.empty') }}
-      </p>
-      <aside
-        v-if="selected"
-        :key="selected.id"
-        class="tutorial-catalog__detail"
-      >
-        <div class="tutorial-catalog__detail-head">
-          <span class="tutorial-catalog__detail-icon">
-            <component
-              :is="selected.icon"
-              :size="20"
-            />
-          </span>
-          <div>
-            <h3>{{ selected.title }}</h3>
-            <p>{{ selected.description }}</p>
-          </div>
-        </div>
-        <ol class="tutorial-catalog__step-list">
-          <li
-            v-for="(step, index) in selected.steps"
-            :key="step.id"
-          >
-            <strong>{{ index + 1 }}. {{ step.title }}</strong>
-            <span>{{ step.description }}</span>
-          </li>
-        </ol>
-        <BaseButton
-          v-if="startable"
-          variant="primary"
-          @click="launch(selected.id)"
-        >
-          {{ t('guides.catalog.start') }}
-        </BaseButton>
-      </aside>
     </div>
+
+    <TutorialCatalogHome
+      v-if="screen === 'catalog'"
+      :categories="categories"
+      :searching="searching"
+      :results="searchResults"
+      @open-category="openCategory"
+      @open-tutorial="openTutorial"
+    />
+    <TutorialCategoryScreen
+      v-else-if="screen === 'category' && category"
+      :category="category"
+      :active-tag="activeTag"
+      @open-tutorial="openTutorial"
+    />
+    <TutorialDetailScreen
+      v-else-if="screen === 'detail' && selected"
+      :key="selected.id"
+      :entry="selected"
+      :startable="startable"
+      :preview-url="props.previewUrl"
+      :category-label="category?.label"
+      @back="backToCategory"
+      @start="launch"
+    />
   </BaseDialog>
 </template>
 
-<style scoped>
-.tutorial-catalog__intro { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.tutorial-catalog__filters { display: flex; gap: var(--space-2); margin-block: var(--space-3); }
-.tutorial-catalog__search { display: flex; flex: 1; min-width: 0; }
-.tutorial-catalog__category { flex: 0 0 210px; }
-.tutorial-catalog__category :deep(.base-combo-box),
-.tutorial-catalog__category :deep(.base-combo-box__trigger) { width: 100%; }
-.tutorial-catalog__layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: var(--space-4); padding-top: var(--space-2); }
-.tutorial-catalog__list { display: grid; align-content: start; gap: var(--space-2); max-height: min(52vh, 480px); margin: 0; padding: 0 2px; overflow: auto; list-style: none; }
-.tutorial-catalog__card {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3);
-  border: var(--border-width) solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-field);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.tutorial-catalog__card:hover { border-color: var(--color-border-strong); }
-.tutorial-catalog__card--active { border-color: var(--color-border-selected); background: var(--color-bg-control-active); }
-.tutorial-catalog__card:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
-.tutorial-catalog__card-icon,
-.tutorial-catalog__detail-icon {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-control);
-  color: var(--color-accent);
-}
-.tutorial-catalog__detail-icon { width: 40px; height: 40px; }
-.tutorial-catalog__card-body { display: grid; min-width: 0; gap: 2px; }
-.tutorial-catalog__card-description { color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.tutorial-catalog__card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); color: var(--color-text-subtle); font-size: var(--font-size-xs); }
-.tutorial-catalog__chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); border-radius: var(--radius-sm); background: var(--color-bg-control); color: var(--color-text-muted); }
-.tutorial-catalog__detail { display: grid; align-content: start; gap: var(--space-4); min-width: 0; padding: var(--space-4); border: var(--border-width) solid var(--color-border-subtle); border-radius: var(--radius-md); background: var(--color-bg-panel-header); }
-.tutorial-catalog__detail-head { display: flex; align-items: flex-start; gap: var(--space-3); }
-.tutorial-catalog__detail-head h3 { margin: 0; font-size: var(--font-size-md); }
-.tutorial-catalog__detail-head p { margin: 2px 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.tutorial-catalog__step-list { display: grid; gap: var(--space-3); margin: 0; padding-inline-start: var(--space-5); font-size: var(--font-size-sm); }
-.tutorial-catalog__step-list li { display: grid; gap: 2px; }
-.tutorial-catalog__step-list span { color: var(--color-text-muted); }
-
-.tutorial-catalog-enter-active,
-.tutorial-catalog-leave-active,
-.tutorial-catalog-move {
-  transition:
-    opacity var(--duration-normal) ease-out,
-    transform var(--duration-normal) ease-out;
-}
-
-.tutorial-catalog-enter-from,
-.tutorial-catalog-leave-to {
-  opacity: 0;
-  transform: translateY(6px);
-}
-
-.tutorial-catalog__detail {
-  animation: tutorial-detail-in var(--duration-normal) ease-out;
-}
-
-@keyframes tutorial-detail-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tutorial-catalog-enter-active,
-  .tutorial-catalog-leave-active,
-  .tutorial-catalog-move,
-  .tutorial-catalog__detail {
-    transition-duration: 0.01ms;
-    animation-duration: 0.01ms;
-  }
-}
-
-.tutorial-catalog__group { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-1); color: var(--color-text-subtle); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-.tutorial-catalog__pager { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding-top: var(--space-2); grid-column: 1; }
-.tutorial-catalog__page-label { color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.tutorial-catalog__empty { margin: var(--space-4) 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
-@media (width < 760px) {
-  .tutorial-catalog__filters { flex-wrap: wrap; }
-  .tutorial-catalog__category { flex: 1 1 100%; }
-  .tutorial-catalog__layout { grid-template-columns: minmax(0, 1fr); }
-  .tutorial-catalog__list { max-height: 30vh; }
-}
-</style>
+<style src="./tutorial-catalog/tutorial-catalog.css"></style>

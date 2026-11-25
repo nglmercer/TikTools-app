@@ -36,6 +36,8 @@ export function parseDemoOptions(search: string) {
   const params = new URLSearchParams(search);
   if (params.has('framed') && params.get('framed') !== '1') throw new Error('Invalid frame presentation.');
   const framed = params.get('framed') === '1';
+  if (params.has('preview') && params.get('preview') !== '1') throw new Error('Invalid preview presentation.');
+  const preview = params.get('preview') === '1';
   const scenario = params.get('scenario') ?? 'connection';
   const locale = normalizeLocale(params.get('locale') ?? 'es');
   const embed = params.get('embed');
@@ -49,5 +51,5 @@ export function parseDemoOptions(search: string) {
   const tour = params.get('tour');
   if (!isScenario(scenario) || !locale || !validDemoRoute(route) || !/^[a-zA-Z0-9_-]{1,64}$/.test(instance) || (tour !== null && !Object.hasOwn(tourRegistry, tour))) throw new Error('Invalid demo parameters.');
   if (panel && (route !== embeddedPanels[panel] || tour)) throw new Error('Embedded panels require their focused route without a tour.');
-  return { scenario, locale, route, instance, tour, embed: panel, initialEvents, framed };
+  return { scenario, locale, route, instance, tour, embed: panel, initialEvents, framed, preview };
 }

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import type { TutorialTag } from '../model/tutorial-catalog.ts';
+import type { TutorialCategory, TutorialTag } from '../model/tutorial-catalog.ts';
 import { guideCatalogContextKey } from '../model/catalog-context.ts';
 import type { TourCapabilities, TourId, TourTaskState } from '../model/types.ts';
 import TutorialCatalogDialog from './TutorialCatalogDialog.vue';
@@ -13,14 +13,16 @@ const props = withDefaults(defineProps<{
   capabilities?: TourCapabilities;
   taskState?: TourTaskState | (() => TourTaskState);
   /** Preselect a category, e.g. `feed` when opened from the live feed. */
-  category?: TutorialTag;
+  category?: TutorialCategory;
+  /** Preselect a topic inside that category, e.g. the active automation tab. */
+  initialTag?: TutorialTag;
   /** Render a labeled call-to-action instead of the compact `?` button. */
   label?: string;
   /** Hide the trigger but keep the dialog mounted (e.g. when moved into an overflow menu). */
   hideButton?: boolean;
   tours?: readonly TourId[];
   onLaunch?: (id: TourId, trigger?: HTMLElement) => void;
-}>(), { capabilities: undefined, taskState: undefined, category: undefined, label: undefined, hideButton: false, tours: undefined, onLaunch: undefined });
+}>(), { capabilities: undefined, taskState: undefined, category: undefined, label: undefined, hideButton: false, tours: undefined, onLaunch: undefined, initialTag: undefined });
 
 const { t } = useI18n();
 const hostCapabilities = useCapabilityStore();
@@ -55,8 +57,10 @@ defineExpose({ open: () => { catalogOpen.value = true; } });
       :capabilities="props.capabilities ?? hostCapabilities"
       :task-state="taskState"
       :initial-category="category"
+      :initial-tag="initialTag"
       :tours="props.tours ?? catalogContext.tours"
       :on-launch="props.onLaunch ?? catalogContext.onLaunch"
+      :preview-url="catalogContext.previewUrl"
     />
   </Teleport>
 </template>
