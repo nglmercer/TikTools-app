@@ -156,6 +156,28 @@ export async function isControlHostRunning(timeoutMs = 500): Promise<boolean> {
   return probeEndpoint(ipcEndpoint(), timeoutMs);
 }
 
+
+/** Bounded wait for a previous host/desktop shutdown during development restart. */
+export const DEV_HOST_STOP_TIMEOUT_MS = 15_000;
+
+/**
+ * Polls until the control endpoint (or a caller-supplied liveness probe) is
+ * inactive. The first probe is immediate; `false` means the timeout expired,
+ * never that the host is known to be healthy.
+ */
+export async function waitForControlHostToStop(
+  timeoutMs = DEV_HOST_STOP_TIMEOUT_MS,
+  probe: () => Promise<boolean> = isControlHostRunning,
+  pollMs = 100,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (!await probe()) return true;
+    if (Date.now() >= deadline) return false;
+    await Bun.sleep(pollMs);
+  }
+}
+
 /**
  * Parse `tasklist /FO CSV /NH` output for desktop owners. A no-match run
  * prints an INFO line instead of rows.

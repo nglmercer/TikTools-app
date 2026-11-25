@@ -23,6 +23,7 @@ import OwnerLibraryReview from '@/features/recover-owner-library/ui/OwnerLibrary
 import AppMenuBar from '@/widgets/app-menu-bar/ui/AppMenuBar.vue';
 import AppNavigation from '@/widgets/app-navigation/ui/AppNavigation.vue';
 import AppStatusBar from '@/widgets/app-status-bar/ui/AppStatusBar.vue';
+import { mergePluginNavigationPages } from '../../../automation/plugins/declarative.ts';
 import { useAppRuntime } from '../model/use-app-runtime.ts';
 import { tabLocation } from '../router/tab-routes.ts';
 
@@ -44,7 +45,7 @@ const { drawerOpen, sidebarExpanded, sidebarRail, pullDistance, pullArmed, toggl
 const connection = useConnectionStore();
 const { status, activeCreator, uniqueId, reconnectAttempt, reconnectDelayMs } = storeToRefs(connection);
 const { liveViewers } = storeToRefs(useLiveFeedStore());
-const { pluginPages } = storeToRefs(useAutomationStore());
+const { pluginPages, pluginUis } = storeToRefs(useAutomationStore());
 const localeStore = useLocaleStore();
 const { locale } = storeToRefs(localeStore);
 
@@ -52,7 +53,8 @@ const { locale } = storeToRefs(localeStore);
 // desktop and local-web apps keep their historical dark default.
 if (!document.documentElement.dataset.theme) applyAppTheme('dark');
 
-const { route, router, routeTab, sections, menuPages, navigate } = useShellNavigation(pluginPages, {
+const pluginNavigationPages = computed(() => mergePluginNavigationPages(pluginPages.value, pluginUis.value));
+const { route, router, routeTab, sections, menuPages, navigate } = useShellNavigation(pluginNavigationPages, {
   activeTab, open: navigation.open,
 }, drawerOpen);
 // vite-plugin-vue infers each page component's name from its filename, so

@@ -15,6 +15,7 @@ import {
   listPageState,
   optionFailureState,
   textPageState,
+  typedDeclarativePageState,
 } from './fixtures/states.ts';
 
 async function openPluginTab(page: Parameters<typeof installFakeHost>[0], name: string) {
@@ -71,6 +72,19 @@ test('dynamic list page renders rows and refreshes', async ({ page }) => {
       ).length;
     })
     .toBeGreaterThanOrEqual(2);
+
+  await assertNoUnhandledCalls(page);
+  consoleCapture.assertClean();
+});
+
+test('typed declarative ui page creates its own tab and renders its body', async ({ page }) => {
+  const consoleCapture = await installFakeHost(page, typedDeclarativePageState());
+  await page.goto('/');
+  await waitForFrontend(page);
+  await openPluginTab(page, 'Twitch chat');
+
+  await expect(page.getByRole('heading', { name: 'Twitch chat' }).first()).toBeVisible();
+  await expect(page.getByText('Public Twitch chat is ready.')).toBeVisible();
 
   await assertNoUnhandledCalls(page);
   consoleCapture.assertClean();

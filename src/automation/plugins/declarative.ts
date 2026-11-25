@@ -268,6 +268,81 @@ export function mergePluginPages(stamped: readonly unknown[] | undefined): Plugi
   return merged;
 }
 
+/** Navigation-shaped projection shared by the shell and route guard. */
+export interface PluginNavigationPage {
+  id: string;
+  pluginId: string;
+  title: Localized;
+  icon?: string;
+  connectionOnly: boolean;
+}
+
+function connectionOnlyUiBody(body: PluginUiDescriptor['pages'][number]['body']): boolean {
+  if (!body) return false;
+  let connections = 0;
+  let richContent = false;
+  const walk = (node: NonNullable<PluginUiDescriptor['pages'][number]['body']>): void => {
+    switch (node.type) {
+      case 'stack':
+      case 'card':
+        for (const child of node.children) walk(child);
+        break;
+      case 'connection':
+        connections += 1;
+        break;
+      case 'text':
+      case 'separator':
+        break;
+      default:
+        richContent = true;
+        break;
+    }
+  };
+  walk(body);
+  return connections > 0 && !richContent;
+}
+
+/**
+ * Merges legacy schema-v3 pages and typed `ui` pages into the canonical
+ * navigation set. Legacy entries win duplicate plugin/page pairs because
+ * they are the compatibility projection; typed-only pages (the current
+ * declarative contract) still become first-class tabs and routes.
+ */
+export function mergePluginNavigationPages(
+  pages: readonly PluginPageDescriptor[] | undefined,
+  uis: readonly PluginUiDescriptor[] | undefined,
+): PluginNavigationPage[] {
+  const merged: PluginNavigationPage[] = [];
+  const seen = new Set<string>();
+  for (const page of pages ?? []) {
+    const key = pluginNavId(page.pluginId, page.id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({
+      id: page.id,
+      pluginId: page.pluginId,
+      title: page.title,
+      icon: page.icon,
+      connectionOnly: isConnectionOnlyPage(page),
+    });
+  }
+  for (const ui of uis ?? []) {
+    for (const page of ui.pages) {
+      const key = pluginNavId(ui.pluginId, page.id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push({
+        id: page.id,
+        pluginId: ui.pluginId,
+        title: page.title,
+        icon: page.icon,
+        connectionOnly: connectionOnlyUiBody(page.body),
+      });
+    }
+  }
+  return merged;
+}
+
 /**
  * Merges host-stamped typed `ui` descriptors. Entries were validated at
  * discovery; the frontend re-validates at merge so corrupt snapshots fail

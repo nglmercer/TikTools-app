@@ -1,9 +1,11 @@
 import { prepareDevelopmentPlugins, repositoryRoot } from './dev-plugins.ts';
 import {
+  DEV_HOST_STOP_TIMEOUT_MS,
   allocateFreePort,
   devUrl,
   findDesktopOwners,
   isControlHostRunning,
+  waitForControlHostToStop,
   waitForHttp,
 } from './lib/dev-launch.ts';
 
@@ -22,13 +24,17 @@ function refuseStaleOwners(context: string): void {
   }
 }
 
-const existing = await isControlHostRunning();
-if (existing) {
-  fail(
-    'a TikTools desktop/control host is already running on the production IPC endpoint. ' +
-      'Close the existing desktop (or stop the standalone host) before starting dev, ' +
-      'so the new Vite server is never mixed with an old desktop or stale control IPC host.',
-  );
+const devOwnerActive = async (): Promise<boolean> =>
+  (await isControlHostRunning()) || findDesktopOwners().length > 0;
+if (await devOwnerActive()) {
+  console.log(`A TikTools desktop/control host is still stopping; waiting up to ${DEV_HOST_STOP_TIMEOUT_MS / 1000}s...`);
+  if (!await waitForControlHostToStop(DEV_HOST_STOP_TIMEOUT_MS, devOwnerActive)) {
+    fail(
+      'a TikTools desktop/control host is still running after the shutdown wait. ' +
+        'Close the existing desktop (or stop the standalone host) before starting dev, ' +
+        'so the new Vite server is never mixed with an old desktop or stale control IPC host.',
+    );
+  }
 }
 refuseStaleOwners('on this machine');
 

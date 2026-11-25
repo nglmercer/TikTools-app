@@ -1,6 +1,6 @@
 import { storeToRefs } from 'pinia';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
-import { parsePluginNavId } from '../../../automation/plugins/declarative.ts';
+import { mergePluginNavigationPages, parsePluginNavId } from '../../../automation/plugins/declarative.ts';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { definitionJournal } from '@/entities/automation/model/definition-journal.ts';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
@@ -85,10 +85,15 @@ export function useAppRuntime() {
   });
 
   watch(
-    () => [automation.pluginPages, activeTab.value] as const,
-    ([pages, tab]) => {
+    () => [automation.pluginPages, automation.pluginUis, activeTab.value] as const,
+    ([pages, uis, tab]) => {
       const parsed = parsePluginNavId(tab);
-      if (parsed && !pages.some((page) => page.pluginId === parsed.pluginId && page.id === parsed.pageId)) {
+      if (
+        parsed &&
+        !mergePluginNavigationPages(pages, uis).some(
+          (page) => page.pluginId === parsed.pluginId && page.id === parsed.pageId,
+        )
+      ) {
         navigation.open('plugins');
       }
     },

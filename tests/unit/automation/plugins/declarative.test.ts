@@ -1,11 +1,14 @@
 import { expect, test } from 'vitest';
 
+import type { PluginPageDescriptor } from '../../../../src/automation/behavior/types.ts';
 import type { JsonValue } from '../../../../src/automation/types.ts';
+import type { PluginUiDescriptor } from '../../../../src/plugin-ui/index.ts';
 import {
   HOST_GIFTS_SOURCE,
   isConnectionOnlyPage,
   isHostOptionSource,
   mergePluginAutocomplete,
+  mergePluginNavigationPages,
   mergePluginPages,
   mergePluginUis,
   normalizeOptionsFrom,
@@ -139,6 +142,52 @@ test('mergePluginUis drops invalid descriptors and dedupes by plugin', () => {
   const merged = mergePluginUis([valid, valid, { mode: 'nope' }, null]);
   expect(merged).toHaveLength(1);
   expect(merged[0]?.pluginId).toBe('sonicboom.server');
+});
+
+test('typed ui-only pages join navigation without duplicating legacy entries', () => {
+  const title = { default: 'Text to Speech', i18key: '' };
+  const legacy: PluginPageDescriptor = {
+    id: 'tts',
+    pluginId: 'sonicboom.server',
+    title,
+    icon: 'voice',
+    sections: [{ kind: 'list', optionsFrom: 'plugin-action-options:a.b:c' }],
+    source: { kind: 'plugin', pluginId: 'sonicboom.server' },
+  };
+  const ui: PluginUiDescriptor = {
+    pluginId: 'sonicboom.server',
+    apiVersion: 1,
+    mode: 'declarative',
+    pages: [
+      { id: 'tts', title },
+      {
+        id: 'main',
+        title: { default: 'Main', i18key: '' },
+        body: { type: 'stack', children: [{ type: 'text', text: { default: 'Hello', i18key: '' } }] },
+      },
+    ],
+  };
+  const merged = mergePluginNavigationPages([legacy], [ui]);
+  expect(merged.map((page) => page.id)).toEqual(['tts', 'main']);
+  expect(merged[0]).toMatchObject({ pluginId: 'sonicboom.server', connectionOnly: false });
+  expect(merged[1]).toMatchObject({ pluginId: 'sonicboom.server', connectionOnly: false });
+});
+
+test('typed ui connection-only pages stay out of the sidebar projection', () => {
+  const ui: PluginUiDescriptor = {
+    pluginId: 'sonicboom.server',
+    apiVersion: 1,
+    mode: 'declarative',
+    pages: [{
+      id: 'connection',
+      title: { default: 'Connection', i18key: '' },
+      body: { type: 'stack', children: [
+        { type: 'text', text: { default: 'Intro', i18key: '' } },
+        { type: 'connection' },
+      ] },
+    }],
+  };
+  expect(mergePluginNavigationPages([], [ui])[0]?.connectionOnly).toBe(true);
 });
 
 test('connection-only pages are owned by the Connections tab', () => {

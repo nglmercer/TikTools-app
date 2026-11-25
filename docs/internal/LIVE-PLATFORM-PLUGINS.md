@@ -71,10 +71,18 @@ Build it independently because installable examples are intentionally outside th
 ```sh
 cd examples/plugin-twitch
 cargo test
-cargo build --release
 ```
 
-Then package/copy `plugin.json` and the produced `tiktools-twitch-plugin` executable using the normal local plugin installation flow. Configure `channel` in the plugin settings or the connect action. No OAuth token is needed because the reference intentionally uses Twitch's historical anonymous read-only IRC login. That behavior is legacy/undocumented and can change without notice; production providers should migrate to authenticated IRC with a user token scoped `chat:read` or to Twitch's recommended EventSub/API path.
+From the TikTools repository root, build and pack the current platform through the devkit, then install the printed archive through the normal CLI path:
+
+```sh
+cargo run -p tiktools-plugin-devkit --bin tiktools-plugin --locked -- \
+  build examples/plugin-twitch --release --out-dir dist/plugins
+target/debug/tiktools --json system info  # exit 0: host is running; exit 3: no IPC host
+target/debug/tiktools plugin install dist/plugins/tiktools.twitch-0.1.0-linux-x64-gnu.plugin --replace
+```
+
+Do not copy `plugin.json` and the executable manually; the installer owns validation, staging, replacement and the running-host refresh. Configure `channel` in the plugin settings or the connect action. No OAuth token is needed because the reference intentionally uses Twitch's historical anonymous read-only IRC login. That behavior is legacy/undocumented and can change without notice; production providers should migrate to authenticated IRC with a user token scoped `chat:read` or to Twitch's recommended EventSub/API path.
 
 ## Provider implementation checklist
 

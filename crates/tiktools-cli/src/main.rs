@@ -90,8 +90,10 @@ commands:
 
 commands run against the running host over local IPC by default; when no
 host is running they fail with host_unavailable instead of starting a
-second runtime. --standalone runs the command against an isolated
-in-process runtime instead. json values may use @path to read from a file.
+second runtime. Use `tiktools --json system info` as the lightweight probe:
+exit 0 means a host answered, while exit 3 means the IPC host is unavailable.
+--standalone runs the command against an isolated in-process runtime instead.
+json values may use @path to read from a file.
 back to a local runtime. It cannot be combined with --standalone, serving,
 privately; no invitation or credential secret is accepted as a process argument.
 --json prints the raw result object to stdout; without it, lists print one

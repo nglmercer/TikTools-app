@@ -15,6 +15,7 @@ import {
   listPage,
   outputOptions,
   sonicboomConnectionPage,
+  sonicboomDeclarativeUi,
   sonicboomSettings,
   sonicboomStatus,
   sonicboomTtsPage,
@@ -75,6 +76,11 @@ export function ttsPageState(): E2EHostState {
 /** Webview-mode TTS page: legacy nav entry plus the typed UI descriptor. */
 export function webviewPageState(): E2EHostState {
   return withSonicboom([sonicboomTtsPage()], [sonicboomWebviewUi()]);
+}
+
+/** Typed-only declarative UI page, matching the Twitch reference plugin. */
+export function typedDeclarativePageState(): E2EHostState {
+  return withSonicboom([], [sonicboomDeclarativeUi()]);
 }
 
 export function listPageState(): E2EHostState {

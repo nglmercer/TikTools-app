@@ -12,6 +12,7 @@ import {
   parsePsOwners,
   parseTasklistOwners,
   parseWhoamiSid,
+  waitForControlHostToStop,
   waitForHttp,
   windowsUserSid,
 } from '../../../../scripts/lib/dev-launch.ts';
@@ -100,6 +101,33 @@ describe('dev-launch', () => {
     await expect(waitForHttp('http://127.0.0.1:9', () => false, 2, 1)).rejects.toThrow(
       /exited before becoming ready/,
     );
+  });
+
+  test('waitForControlHostToStop succeeds immediately when no host is active', async () => {
+    let probes = 0;
+    const stopped = await waitForControlHostToStop(50, async () => {
+      probes += 1;
+      return false;
+    }, 1);
+    expect(stopped).toBe(true);
+    expect(probes).toBe(1);
+  });
+
+  test('waitForControlHostToStop polls until shutdown completes', async () => {
+    let probes = 0;
+    const stopped = await waitForControlHostToStop(500, async () => {
+      probes += 1;
+      return probes < 3;
+    }, 1);
+    expect(stopped).toBe(true);
+    expect(probes).toBe(3);
+  });
+
+  test('waitForControlHostToStop expires instead of waiting forever', async () => {
+    const started = Date.now();
+    const stopped = await waitForControlHostToStop(20, async () => true, 2);
+    expect(stopped).toBe(false);
+    expect(Date.now() - started).toBeLessThan(500);
   });
 
   test('parseTasklistOwners finds desktop rows and ignores INFO noise', () => {

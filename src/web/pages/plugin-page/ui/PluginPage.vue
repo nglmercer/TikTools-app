@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import type { PluginPageDescriptor, PluginStatus } from '../../../../automation/behavior/types.ts';
 import type { JsonObject } from '../../../../automation/types.ts';
-import { adaptLegacyPage, collectOptionSources, type PluginUiDescriptor } from '../../../../plugin-ui/index.ts';
+import { adaptLegacyPage, collectOptionSources, type PluginUiDescriptor, type PluginUiPage } from '../../../../plugin-ui/index.ts';
 import { optionFields } from '../../../../automation/plugins/declarative.ts';
 import { storeToRefs } from 'pinia';
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
@@ -48,19 +48,47 @@ const windowOpen = ref(false);
 const pages = pluginPages as unknown as Readonly<Ref<PluginPageDescriptor[]>>;
 const uis = pluginUis as unknown as Readonly<Ref<PluginUiDescriptor[]>>;
 
-const page = computed(() =>
-  pages.value.find((entry) => entry.pluginId === route.params.pluginId && entry.id === route.params.pageId),
+const routePluginId = computed(() =>
+  typeof route.params.pluginId === 'string' ? route.params.pluginId : '',
 );
-const pluginId = computed(() => page.value?.pluginId ?? '');
+const routePageId = computed(() =>
+  typeof route.params.pageId === 'string' ? route.params.pageId : '',
+);
+const legacyPage = computed(() =>
+  pages.value.find((entry) => entry.pluginId === routePluginId.value && entry.id === routePageId.value),
+);
+const pluginId = routePluginId;
+const ui = computed(() => uis.value.find((entry) => entry.pluginId === pluginId.value));
+const typedPage = computed(() => ui.value?.pages.find((entry) => entry.id === routePageId.value));
+const page = computed(() => {
+  if (legacyPage.value) return legacyPage.value;
+  if (!typedPage.value) return undefined;
+  return {
+    id: typedPage.value.id,
+    pluginId: pluginId.value,
+    title: typedPage.value.title,
+    icon: typedPage.value.icon,
+  };
+});
 const plugin = computed<PluginStatus | undefined>(() =>
   plugins.behavior.value.plugins.find((entry) => entry.descriptor.id === pluginId.value),
 );
 const pluginName = computed(() => (plugin.value ? localizedText(plugin.value.descriptor.name) : pluginId.value));
-const declarative = computed(() => (page.value ? adaptLegacyPage(page.value) : null));
-const ui = computed(() => uis.value.find((entry) => entry.pluginId === pluginId.value));
+const declarative = computed<PluginUiPage | null>(() => {
+  if (ui.value?.mode === 'declarative' && typedPage.value?.body) {
+    return {
+      id: typedPage.value.id,
+      pluginId: pluginId.value,
+      title: typedPage.value.title,
+      icon: typedPage.value.icon,
+      body: typedPage.value.body,
+    };
+  }
+  return legacyPage.value ? adaptLegacyPage(legacyPage.value) : null;
+});
 const webviewPage = computed(() => {
-  if (!ui.value || ui.value.mode !== 'webview' || !page.value) return undefined;
-  return ui.value.pages.find((entry) => entry.id === page.value?.id);
+  if (!ui.value || ui.value.mode !== 'webview') return undefined;
+  return typedPage.value;
 });
 const frameSrc = computed(() =>
   ui.value?.entry && webviewPage.value ? pluginUiUrl(pluginId.value, ui.value.entry, webviewPage.value.id) : null,

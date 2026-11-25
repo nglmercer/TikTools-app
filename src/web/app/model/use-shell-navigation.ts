@@ -1,8 +1,7 @@
 import { computed, markRaw, watch, type Component, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
-import { isConnectionOnlyPage, pluginNavId } from '../../../automation/plugins/declarative.ts';
-import type { PluginPageDescriptor } from '../../../automation/behavior/types.ts';
+import { pluginNavId, type PluginNavigationPage } from '../../../automation/plugins/declarative.ts';
 import { localizedText } from '@/shared/i18n/i18n.ts';
 import type { AppTab, BuiltinAppTab } from '@/types.ts';
 import type { NavigationItem, NavigationSection } from '@/widgets/app-navigation/model/navigation-types.ts';
@@ -18,7 +17,7 @@ import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import IconRows from '@/shared/ui/icon/icons/IconRows.vue';
 
 export function useShellNavigation(
-  pluginPages: Readonly<Ref<PluginPageDescriptor[]>>,
+  pluginPages: Readonly<Ref<PluginNavigationPage[]>>,
   navigation: { activeTab: Readonly<Ref<AppTab>>; open: (tab: AppTab) => void },
   drawerOpen: Ref<boolean>,
 ) {
@@ -52,7 +51,7 @@ export function useShellNavigation(
 
   const pluginItems = computed<NavigationItem[]>(() =>
     pluginPages.value
-      .filter((page) => !isConnectionOnlyPage(page))
+      .filter((page) => !page.connectionOnly)
       .map((page) => {
         const tab = pluginNavId(page.pluginId, page.id);
         return { id: tab, label: localizedText(page.title), icon: markRaw(IconPuzzle), to: tabLocation(tab) };

@@ -8,10 +8,23 @@ The plugin owns Twitch transport and mapping only. TikTools validates the ingest
 
 ```sh
 cargo test
-cargo build --release
 ```
 
-The produced executable is `target/release/tiktools-twitch-plugin` (or the platform-specific executable name). Install/package it together with `plugin.json` using TikTools' local plugin installation flow.
+From the TikTools repository root, use the plugin devkit to compile and pack the current platform in one step:
+
+```sh
+cargo run -p tiktools-plugin-devkit --bin tiktools-plugin --locked -- \
+  build examples/plugin-twitch --release --out-dir dist/plugins
+```
+
+The command prints the generated archive, normally `dist/plugins/tiktools.twitch-<version>-<target>.plugin`. Install it into the running host with the ordinary CLI:
+
+```sh
+target/debug/tiktools --json system info  # exit 0: host is running; exit 3: no IPC host
+target/debug/tiktools plugin install dist/plugins/tiktools.twitch-0.1.0-linux-x64-gnu.plugin --replace
+```
+
+Adjust the archive name for the version/target printed by `build`. Do not copy `plugin.json` and the executable by hand; the installer validates and stages the package and refreshes the running host.
 
 ## Configure
 

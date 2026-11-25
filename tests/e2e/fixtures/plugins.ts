@@ -74,8 +74,8 @@ export function sonicboomTtsPage() {
 
 /**
  * Typed `ui` descriptor for a webview-mode page, as stamped by the host
- * snapshot (`pluginUis`). The nav tab still comes from the legacy page
- * entry; the descriptor switches the view to the isolated launcher.
+ * snapshot (`pluginUis`). The legacy entry remains the compatibility
+ * projection; typed pages are first-class navigation entries too.
  */
 export function sonicboomWebviewUi() {
   return {
@@ -84,6 +84,24 @@ export function sonicboomWebviewUi() {
     mode: 'webview',
     entry: 'ui/dist/index.html',
     pages: [{ id: 'tts', title: text('Text to Speech'), icon: 'voice' }],
+  };
+}
+
+/** Typed-only declarative page: no legacy schema-v3 compatibility entry. */
+export function sonicboomDeclarativeUi() {
+  return {
+    pluginId: SONICBOOM_ID,
+    apiVersion: 1,
+    mode: 'declarative',
+    pages: [{
+      id: 'main',
+      title: text('Twitch chat'),
+      icon: 'chat',
+      body: {
+        type: 'stack',
+        children: [{ type: 'text', text: text('Public Twitch chat is ready.') }],
+      },
+    }],
   };
 }
 

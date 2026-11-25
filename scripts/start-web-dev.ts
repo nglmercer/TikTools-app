@@ -1,8 +1,20 @@
 import { join } from 'node:path';
 import { prepareDevelopmentPlugins, repositoryRoot } from './dev-plugins.ts';
-import { allocateFreePort, devUrl, isControlHostRunning, waitForHttp } from './lib/dev-launch.ts';
+import {
+  DEV_HOST_STOP_TIMEOUT_MS,
+  allocateFreePort,
+  devUrl,
+  isControlHostRunning,
+  waitForControlHostToStop,
+  waitForHttp,
+} from './lib/dev-launch.ts';
 
-if (await isControlHostRunning()) throw new Error('A TikTools desktop or control host is already running. Stop it before starting headless development.');
+if (await isControlHostRunning()) {
+  console.log(`A TikTools control host is still stopping; waiting up to ${DEV_HOST_STOP_TIMEOUT_MS / 1000}s...`);
+  if (!await waitForControlHostToStop()) {
+    throw new Error('A TikTools desktop or control host is still running after the shutdown wait. Stop it before starting headless development.');
+  }
+}
 
 async function run(command: string[]): Promise<void> {
   const process = Bun.spawn({ cmd: command, cwd: repositoryRoot, stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });

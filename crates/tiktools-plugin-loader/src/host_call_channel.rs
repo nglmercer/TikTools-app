@@ -34,6 +34,12 @@ const MAX_INFLIGHT: usize = 8;
 /// Per-call budget. The plugin protocol's own frame cap still applies.
 const CALL_TIMEOUT: Duration = Duration::from_secs(30);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Healthy pumps observe the stop flag within one nonblocking accept sleep or
+/// one 200ms connection read. A partial handshake can still hold the pump in
+/// its longer read timeout; teardown reports and detaches that pathological
+/// thread instead of blocking the owning plugin worker.
+const DROP_JOIN_DEADLINE: Duration = Duration::from_millis(500);
+const DROP_JOIN_POLL: Duration = Duration::from_millis(5);
 
 fn random_token() -> String {
     let mut bytes = [0u8; 32];
@@ -45,6 +51,7 @@ fn random_token() -> String {
 pub struct HostCallChannel {
     stop: Arc<AtomicBool>,
     thread: Option<JoinHandle<()>>,
+    plugin_id: String,
 }
 
 impl HostCallChannel {
@@ -71,16 +78,15 @@ impl HostCallChannel {
     ) -> Self {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_thread = Arc::clone(&stop);
+        let owner_id = plugin_id.clone();
         let thread = std::thread::Builder::new()
             .name(format!("tiktools-plugin-hostcall-{plugin_id}"))
             .spawn(move || {
-                listener
-                    .set_nonblocking(false)
-                    .expect("reverse channel listener");
+                // Keep the listener nonblocking: `Drop` only has the stop
+                // flag, so a blocking `accept()` would otherwise keep the
+                // pump — and therefore the plugin worker teardown — alive
+                // forever when no new connection arrives.
                 loop {
-                    if stop_thread.load(Ordering::Relaxed) {
-                        break;
-                    }
                     if stop_thread.load(Ordering::Relaxed) {
                         break;
                     }
@@ -110,6 +116,7 @@ impl HostCallChannel {
         Self {
             stop,
             thread: thread.ok(),
+            plugin_id: owner_id,
         }
     }
 }
@@ -117,9 +124,22 @@ impl HostCallChannel {
 impl Drop for HostCallChannel {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
+        let Some(thread) = self.thread.take() else {
+            return;
+        };
+        let started = std::time::Instant::now();
+        while !thread.is_finished() {
+            if started.elapsed() >= DROP_JOIN_DEADLINE {
+                tracing::error!(
+                    plugin = %self.plugin_id,
+                    elapsed_ms = started.elapsed().as_millis() as u64,
+                    "plugin reverse-channel pump did not exit; abandoning it (outcome unknown)"
+                );
+                return;
+            }
+            std::thread::sleep(DROP_JOIN_POLL);
         }
+        let _ = thread.join();
     }
 }
 
@@ -266,6 +286,41 @@ mod tests {
         assert!(response.ok);
         assert_eq!(response.result.unwrap()["plugin"], "demo.plugin");
         drop(channel);
+    }
+
+    #[test]
+    fn drop_without_a_connection_does_not_wait_for_accept() {
+        let (_addr, token, gate, listener) = HostCallChannel::bind().unwrap();
+        gate.set_handler(Arc::new(Echo));
+        let channel = HostCallChannel::spawn(listener, token, gate, "demo.plugin".to_owned());
+        let (done_tx, done) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            drop(channel);
+            let _ = done_tx.send(());
+        });
+        assert!(
+            done.recv_timeout(Duration::from_millis(500)).is_ok(),
+            "dropping an idle reverse channel must not wait in accept()"
+        );
+    }
+
+    #[test]
+    fn drop_with_an_incomplete_handshake_is_bounded() {
+        let (addr, token, gate, listener) = HostCallChannel::bind().unwrap();
+        gate.set_handler(Arc::new(Echo));
+        let channel = HostCallChannel::spawn(listener, token, gate, "demo.plugin".to_owned());
+        let _stream = TcpStream::connect(&addr).unwrap();
+        let (done_tx, done) = std::sync::mpsc::channel();
+        let started = std::time::Instant::now();
+        std::thread::spawn(move || {
+            drop(channel);
+            let _ = done_tx.send(());
+        });
+        assert!(
+            done.recv_timeout(Duration::from_secs(1)).is_ok(),
+            "dropping a partial-handshake channel must be bounded"
+        );
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 
     #[test]
