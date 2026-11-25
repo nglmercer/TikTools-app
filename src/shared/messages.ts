@@ -76,6 +76,8 @@ export type UiEvent = {
   roomId?: string;
   creatorId?: string;
   sourceType?: string;
+  /** Host-stamped provider plugin ID for plugin-owned live platforms. */
+  platform?: string;
   /** Host correlation ID, also the original automation event ID when mapped. */
   correlationId?: string;
   /** Authoritative journal delivery cursor, preserved through browser/CLI IPC. */

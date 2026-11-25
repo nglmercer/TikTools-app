@@ -155,7 +155,12 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   const pushFeedEvent = (event: UiEvent, cursor?: number): boolean => {
     if (disposed) return false;
     received += 1;
-    if ((event.roomId && sessionRoom && event.roomId !== sessionRoom) || (event.creatorId && sessionCreator && event.creatorId !== sessionCreator)) return false;
+    // Native TikTok rows belong to the single active native room. Platform
+    // plugin rows are already host-stamped with collision-resistant creator
+    // and room identities; filtering them against the TikTok session would
+    // hide every provider event while TikTok is connected.
+    const platformEvent = typeof event.platform === 'string' && event.platform.length > 0;
+    if (!platformEvent && ((event.roomId && sessionRoom && event.roomId !== sessionRoom) || (event.creatorId && sessionCreator && event.creatorId !== sessionCreator))) return false;
     if (cursor !== undefined) {
       if (seenCursors.has(cursor)) { duplicates += 1; return false; }
       seenCursors.add(cursor);
