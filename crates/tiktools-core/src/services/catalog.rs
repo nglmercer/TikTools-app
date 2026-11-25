@@ -148,44 +148,17 @@ pub fn builtin_action_types() -> Vec<Value> {
 }
 
 pub fn builtin_translations() -> Value {
-    json!({
-        "en": {
-            "automation.action.core.fetch.title": "Call a URL",
-            "automation.action.core.fetch.description": "POST or GET event data to a server or webhook.",
-            "automation.action.core.emit.title": "Emit an internal event",
-            "automation.action.core.emit.description": "Publish an event that other automations can consume.",
-            "automation.action.core.points.title": "Give points",
-            "automation.action.core.points.description": "Add or subtract points for the viewer who triggered the event.",
-            "automation.action.core.points.subtract.title": "Subtract points",
-            "automation.action.core.points.subtract.description": "Deduct points from the viewer who triggered the event. Balances never drop below zero.",
-            "automation.action.audio.play.title": "Play a sound",
-            "automation.action.audio.play.description": "Play a local audio file without copying it into TikTools.",
-            "automation.action.core.delay.title": "Wait",
-            "automation.action.core.delay.description": "Delay the remaining actions for this event.",
-            "automation.action.core.log.title": "Write to the log",
-            "automation.action.core.log.description": "Leave a line in the automation log.",
-            "automation.action.core.code.title": "Code",
-            "automation.action.core.code.description": "Run bounded JavaScript in napi-vm and return a JSON intent."
-        },
-        "es": {
-            "automation.action.core.fetch.title": "Llamar a una URL",
-            "automation.action.core.fetch.description": "Envía los datos del evento a un servidor o webhook.",
-            "automation.action.core.emit.title": "Emitir evento interno",
-            "automation.action.core.emit.description": "Publica un evento para otras automatizaciones.",
-            "automation.action.core.points.title": "Sumar puntos",
-            "automation.action.core.points.description": "Suma o resta puntos al espectador que disparó el evento.",
-            "automation.action.core.points.subtract.title": "Restar puntos",
-            "automation.action.core.points.subtract.description": "Resta puntos al espectador que disparó el evento. El saldo nunca baja de cero.",
-            "automation.action.audio.play.title": "Reproducir un sonido",
-            "automation.action.audio.play.description": "Reproduce un archivo de audio local sin copiarlo a TikTools.",
-            "automation.action.core.delay.title": "Esperar",
-            "automation.action.core.delay.description": "Retrasa las acciones restantes del evento.",
-            "automation.action.core.log.title": "Escribir en el registro",
-            "automation.action.core.log.description": "Deja una línea en el registro de automatización.",
-            "automation.action.core.code.title": "Código",
-            "automation.action.core.code.description": "Ejecuta JavaScript acotado en napi-vm y devuelve una intención JSON."
-        }
-    })
+    // Host-owned translations ship as data, not code: one JSON document per
+    // supported locale set, embedded at compile time so every control-API
+    // consumer (WebView, CLI) reads the same catalog. The WebView still
+    // overlays its richer host-messages for zh/ja; identical keys agree.
+    static CATALOG: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    CATALOG
+        .get_or_init(|| {
+            serde_json::from_str(include_str!("builtin-translations.json"))
+                .expect("builtin translations JSON is valid")
+        })
+        .clone()
 }
 
 pub fn builtin_node_catalog() -> Vec<Value> {

@@ -12,7 +12,7 @@ use super::{
         current_platform, current_target, is_safe_relative_path, is_supported_schema,
         is_valid_event_subscription, is_valid_native_lib_binary, is_valid_native_lib_repo,
         is_valid_native_lib_tag, is_valid_native_lib_version, is_valid_native_package_name,
-        is_valid_plugin_id, validate_action_type, validate_capability_provider,
+        is_valid_plugin_id, parse_translations, validate_action_type, validate_capability_provider,
         validate_cli_command, validate_declarative_action, validate_http_config, ManifestError,
         MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES, MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES,
         MAX_NATIVE_ADDON_PACKAGES, MAX_NATIVE_LIB_PACKAGES, MAX_NATIVE_PATH_LEN,
@@ -216,6 +216,10 @@ impl PluginManifest {
         if !native_libs.is_empty() && runtime != PluginRuntimeKind::NapiVm {
             return Err(ManifestError::InvalidField("nativeLibs"));
         }
+        // Translation catalog: additive on every schema version like
+        // `autocomplete` — old hosts ignore the unknown key. Keys are
+        // namespaced under the plugin id at parse time, failing closed.
+        let translations = parse_translations(object.get("translations"), &id)?;
         let metadata = PackageMetadata::parse(object, &id)?;
 
         Ok(Self {
@@ -248,6 +252,7 @@ impl PluginManifest {
             templates,
             pages,
             ui,
+            translations,
             native_addons,
             native_libs,
             metadata,

@@ -243,6 +243,13 @@ pub struct PluginManifest {
     /// or a webview entry. Parsed and validated at discovery, unlike the
     /// raw `pages` compatibility input converted by the host frontend.
     pub ui: Option<crate::ui::PluginUiManifest>,
+    /// Translation catalog this plugin contributes, `{ locale: { key: text } }`.
+    /// Every key is namespaced under the plugin id (`<id>.…`) at parse time,
+    /// so a plugin can never overwrite host or other-plugin messages. The
+    /// host merges these into the behavior snapshot's `translations` while
+    /// the plugin is installed, enabled and available; the frontend resolves
+    /// them through the same `i18key` references the descriptors already carry.
+    pub translations: std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>,
     /// Bundled native (`.node`) packages a `napi-vm` plugin may load. Empty
     /// for every other runtime and for pure-JavaScript plugins: with no
     /// declaration the guest stays inside the pure-Rust VM.

@@ -326,7 +326,7 @@ const BUILTIN_DOCUMENTS: unknown[] = [
     params: {
       type: 'object',
       properties: {
-        url: { type: 'string', title: 'Webhook URL', default: 'https://' },
+        url: { type: 'string', title: { default: 'Webhook URL', i18key: 'automations.builtinTemplates.paramWebhookUrl' }, default: 'https://' },
       },
       required: ['url'],
     },
@@ -354,7 +354,7 @@ const BUILTIN_DOCUMENTS: unknown[] = [
     params: {
       type: 'object',
       properties: {
-        url: { type: 'string', title: 'Webhook URL', default: 'https://' },
+        url: { type: 'string', title: { default: 'Webhook URL', i18key: 'automations.builtinTemplates.paramWebhookUrl' }, default: 'https://' },
       },
       required: ['url'],
     },
@@ -382,8 +382,8 @@ const BUILTIN_DOCUMENTS: unknown[] = [
     params: {
       type: 'object',
       properties: {
-        giftName: { type: 'string', title: 'Gift name', default: 'Rose' },
-        file: { type: 'string', title: 'Audio file path', default: '' },
+        giftName: { type: 'string', title: { default: 'Gift name', i18key: 'automations.builtinTemplates.paramGiftName' }, default: 'Rose' },
+        file: { type: 'string', title: { default: 'Audio file path', i18key: 'automations.builtinTemplates.paramAudioFile' }, default: '' },
       },
       required: ['giftName', 'file'],
     },
@@ -407,7 +407,7 @@ const BUILTIN_DOCUMENTS: unknown[] = [
     params: {
       type: 'object',
       properties: {
-        delta: { type: 'number', title: 'Points', default: 10 },
+        delta: { type: 'number', title: { default: 'Points', i18key: 'automations.builtinTemplates.paramPoints' }, default: 10 },
       },
       required: ['delta'],
     },
@@ -427,8 +427,8 @@ const BUILTIN_DOCUMENTS: unknown[] = [
     params: {
       type: 'object',
       properties: {
-        threshold: { type: 'number', title: 'Repetition threshold', default: 0.7 },
-        amount: { type: 'number', title: 'Points to subtract', default: 10 },
+        threshold: { type: 'number', title: { default: 'Repetition threshold', i18key: 'automations.builtinTemplates.paramThreshold' }, default: 0.7 },
+        amount: { type: 'number', title: { default: 'Points to subtract', i18key: 'automations.builtinTemplates.paramAmount' }, default: 10 },
       },
       required: ['threshold', 'amount'],
     },
@@ -452,9 +452,9 @@ const BUILTIN_DOCUMENTS: unknown[] = [
     params: {
       type: 'object',
       properties: {
-        command: { type: 'string', title: 'Command prefix', default: '!voice' },
-        voice: { type: 'string', title: 'Voice', default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
-        provider: { type: 'string', title: 'TTS provider', default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:provider' },
+        command: { type: 'string', title: { default: 'Command prefix', i18key: 'automations.builtinTemplates.paramCommand' }, default: '!voice' },
+        voice: { type: 'string', title: { default: 'Voice', i18key: 'automations.builtinTemplates.paramVoice' }, default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
+        provider: { type: 'string', title: { default: 'TTS provider', i18key: 'automations.builtinTemplates.paramProvider' }, default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:provider' },
       },
       required: ['command'],
     },
@@ -485,9 +485,9 @@ const BUILTIN_DOCUMENTS: unknown[] = [
     params: {
       type: 'object',
       properties: {
-        giftName: { type: 'string', title: 'Gift name', default: 'Rose' },
-        voice: { type: 'string', title: 'Voice', default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
-        provider: { type: 'string', title: 'TTS provider', default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:provider' },
+        giftName: { type: 'string', title: { default: 'Gift name', i18key: 'automations.builtinTemplates.paramGiftName' }, default: 'Rose' },
+        voice: { type: 'string', title: { default: 'Voice', i18key: 'automations.builtinTemplates.paramVoice' }, default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:voice' },
+        provider: { type: 'string', title: { default: 'TTS provider', i18key: 'automations.builtinTemplates.paramProvider' }, default: '', optionsFrom: 'plugin-action-options:sonicboom.server.speak:provider' },
       },
       required: ['giftName'],
     },

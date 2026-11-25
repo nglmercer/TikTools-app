@@ -831,6 +831,18 @@ fn parses_the_migrated_sonicboom_package_manifest() {
     assert_eq!(ui.pages[0].id, "tts");
     assert!(!manifest.pages.is_empty(), "legacy pages kept");
     assert!(!manifest.action_types.is_empty(), "http actions kept");
+    // The package ships a namespaced translation catalog: every key carries
+    // the plugin id prefix and parses into the typed map.
+    let spanish = manifest
+        .translations
+        .get("es")
+        .expect("spanish catalog present");
+    assert!(!spanish.is_empty());
+    assert!(
+        spanish
+            .keys()
+            .all(|key| key.starts_with("sonicboom.server."))
+    );
 }
 
 #[test]
@@ -1594,4 +1606,64 @@ fn capability_provider_must_reference_declared_capability_and_action() {
         r#""audio.play""#
     ))
     .is_err());
+}
+
+#[test]
+fn translations_stay_namespaced_and_bounded() {
+    let manifest = |translations: serde_json::Value| {
+        PluginManifest::from_json_str(
+            &serde_json::json!({
+                "schemaVersion": 3,
+                "id": "demo.http",
+                "name": "Demo",
+                "version": "1.0.0",
+                "runtime": "declarative",
+                "translations": translations
+            })
+            .to_string(),
+        )
+    };
+    // Namespaced keys across several locales parse into the typed catalog.
+    let parsed = manifest(serde_json::json!({
+        "es": {"demo.http.speak.title": "Hablar", "demo.http.speak.text": "Texto"},
+        "pt-br": {"demo.http.speak.title": "Falar"}
+    }))
+    .expect("namespaced translations parse");
+    assert_eq!(parsed.translations.len(), 2);
+    assert_eq!(
+        parsed.translations["es"]["demo.http.speak.title"],
+        "Hablar"
+    );
+    // Missing the plugin-id prefix, wrong prefixes, malformed locales,
+    // non-string or empty values and key/host charset violations all fail
+    // closed at discovery time.
+    for translations in [
+        serde_json::json!({"es": {"speak.title": "no prefix"}}),
+        serde_json::json!({"es": {"other.speak.title": "wrong plugin"}}),
+        serde_json::json!({"es": {"demo.http.": "empty suffix"}}),
+        serde_json::json!({"ES": {"demo.http.a": "uppercase locale"}}),
+        serde_json::json!({"e": {"demo.http.a": "short locale"}}),
+        serde_json::json!({"es": {"demo.http.a": ""}}),
+        serde_json::json!({"es": {"demo.http.a": 3}}),
+        serde_json::json!({"es": {"demo.http.bad key": "space"}}),
+        serde_json::json!({"es": {"demo.http.a": "x".repeat(1025)}}),
+        serde_json::json!(["es"]),
+        serde_json::json!({"es": {}}),
+    ] {
+        assert!(
+            manifest(translations.clone()).is_err(),
+            "translations {translations} must be rejected"
+        );
+    }
+    // More than 256 messages per locale or 1024 in total is refused.
+    let oversized: serde_json::Map<String, serde_json::Value> = (0..257)
+        .map(|index| (format!("demo.http.k{index}"), serde_json::json!("v")))
+        .collect();
+    assert!(manifest(serde_json::json!({"en": oversized})).is_err());
+    // No translations at all is the common case: empty catalog, never an error.
+    let bare = PluginManifest::from_json_str(
+        r#"{"schemaVersion":3,"id":"demo","name":"Demo","version":"1.0.0","runtime":"declarative"}"#,
+    )
+    .expect("bare manifest parses");
+    assert!(bare.translations.is_empty());
 }

@@ -50,3 +50,19 @@ Add the schema to `plugin.json` for editor completion and validation:
 
 `tiktools-plugin validate --publish` runs the host's own validation plus the
 registry publishing rules; the schema is a convenience, not the authority.
+
+## Translations
+
+Descriptors reference messages with `{ "default": "English text", "i18key": "<plugin-id>.some.key" }`.
+Ship the translations themselves in the manifest's `translations` block, keyed
+by locale; every key must start with the plugin id so catalogs never collide:
+
+```json
+"translations": {
+  "es": { "acme.greeter.action.title": "Saludar" }
+}
+```
+
+The host merges the catalog into the behavior snapshot while the plugin is
+installed, enabled and available; the UI resolves `i18key` references against
+it and falls back to `default` when a key or locale is missing.

@@ -359,3 +359,44 @@ fn confined_ui_entry_blocks_escape() {
     assert!(!is_confined_ui_entry("ui\\dist\\index.html"));
     assert!(!is_confined_ui_entry("assets/index.html"));
 }
+
+#[test]
+fn snapshot_merges_plugin_translations_under_the_availability_gate() {
+    // A declarative plugin shipping a namespaced `es` catalog surfaces those
+    // messages in the merged behavior snapshot while host keys stay intact.
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let root = std::env::temp_dir().join(format!(
+        "tiktools-translations-test-{}-{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::SeqCst)
+    ));
+    let dir = root.join("demotts");
+    std::fs::create_dir_all(&dir).expect("test plugin dir");
+    let mut value: serde_json::Value =
+        serde_json::from_str(&manifest("demotts", &[])).expect("base manifest");
+    value["translations"] = serde_json::json!({
+        "es": {"demotts.speak.title": "Hablar"}
+    });
+    std::fs::write(dir.join("plugin.json"), serde_json::to_vec(&value).unwrap()).unwrap();
+    let manager = PluginManager::new(vec![PluginRoot {
+        path: root.clone(),
+        source: PluginSource::Development,
+    }]);
+    manager.scan().expect("test scan");
+    let mut core = AppCore::new(Arc::new(NullEmitter));
+    core.plugins = Arc::new(manager);
+    let core = Arc::new(core);
+
+    let snapshot = core.load_merged_behavior_snapshot();
+    assert_eq!(
+        snapshot.pointer("/translations/es/demotts.speak.title"),
+        Some(&serde_json::json!("Hablar")),
+        "plugin translations must reach the snapshot"
+    );
+    assert_eq!(
+        snapshot.pointer("/translations/es/automation.action.core.delay.title"),
+        Some(&serde_json::json!("Esperar")),
+        "host translations stay intact"
+    );
+    cleanup(&root);
+}

@@ -21,6 +21,7 @@ pub use events::{
 pub use fields::{
     is_safe_relative_path, is_valid_plugin_id, validate_capability_provider, validate_cli_command,
 };
+pub(crate) use fields::parse_translations;
 pub use http_config::validate_http_config;
 pub use native::{
     current_arch, current_napi_target, current_platform, current_target, is_known_napi_target,

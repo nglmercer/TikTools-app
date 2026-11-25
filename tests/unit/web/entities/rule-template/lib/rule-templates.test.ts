@@ -122,3 +122,36 @@ test('missing requirements name unavailable types and unknown triggers', () => {
     unknownTrigger: true,
   });
 });
+
+test('builtin param titles carry i18keys that resolve in every shipped locale', async () => {
+  // Param labels render through `localizedText` in the schema form, so a
+  // key missing from a locale would silently fall back to English. Pin
+  // full coverage for the host-supported locales instead.
+  const seen = new Map<string, string>();
+  for (const template of BUILTIN_RULE_TEMPLATES) {
+    const properties = template.params?.['properties'];
+    if (!properties || typeof properties !== 'object' || Array.isArray(properties)) continue;
+    for (const property of Object.values(properties as Record<string, unknown>)) {
+      if (!property || typeof property !== 'object') continue;
+      const title = (property as Record<string, unknown>)['title'];
+      if (!title || typeof title !== 'object') continue;
+      const key = (title as Record<string, unknown>)['i18key'];
+      if (typeof key === 'string' && key) seen.set(key, (title as Record<string, unknown>)['default'] as string);
+    }
+  }
+  expect(seen.size).toBeGreaterThanOrEqual(9);
+  for (const locale of ['en', 'es', 'pt', 'fr', 'zh', 'ja']) {
+    const messages = (await import(`../../../../../../src/web/shared/i18n/locales/${locale}.ts`)).default;
+    const flat: Record<string, string> = {};
+    const walk = (node: Record<string, unknown>, path: string[]) => {
+      for (const [k, v] of Object.entries(node)) {
+        if (typeof v === 'string') flat[[...path, k].join('.')] = v;
+        else if (v && typeof v === 'object') walk(v as Record<string, unknown>, [...path, k]);
+      }
+    };
+    walk(messages as Record<string, unknown>, []);
+    for (const key of seen.keys()) {
+      expect(flat[key], `${locale} missing ${key}`).toBeTruthy();
+    }
+  }
+});

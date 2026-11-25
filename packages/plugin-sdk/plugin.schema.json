@@ -32,6 +32,15 @@
     "eventSubscriptions": { "type": "array", "maxItems": 128, "items": { "type": "string" } },
     "processorTypes": { "type": "array", "maxItems": 128, "items": { "type": "object" } },
     "autocomplete": { "type": "array", "maxItems": 128, "items": { "type": "object" } },
+    "translations": {
+      "type": "object",
+      "maxProperties": 16,
+      "additionalProperties": {
+        "type": "object",
+        "maxProperties": 256,
+        "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
     "settings": {
       "type": "object",
       "properties": {

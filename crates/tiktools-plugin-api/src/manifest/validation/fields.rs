@@ -157,3 +157,83 @@ pub fn validate_capability_provider(
     }
     Ok(())
 }
+
+/// Locale tags are BCP-47-ish lowercase tokens (`en`, `pt-br`): bounded and
+/// ASCII-only because they double as object keys in the snapshot catalog.
+fn is_valid_locale_tag(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    (2..=16).contains(&bytes.len())
+        && bytes[0].is_ascii_lowercase()
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-'))
+}
+
+/// Translation message keys follow the same lexical rule as i18key references,
+/// plus the hard namespacing requirement: every key starts with `<pluginId>.`
+/// so one plugin can never overwrite host or other-plugin messages.
+fn is_valid_translation_key(key: &str, plugin_id: &str) -> bool {
+    let Some(suffix) = key.strip_prefix(plugin_id).and_then(|rest| rest.strip_prefix('.')) else {
+        return false;
+    };
+    !suffix.is_empty()
+        && key.len() <= 256
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+/// Parse and validate the additive `translations` block: `{ locale: { key: text } }`.
+/// Fail-closed on any malformed entry — a plugin that cannot spell its own
+/// catalog is discovery-broken, not partially translated.
+pub(crate) fn parse_translations(
+    value: Option<&Value>,
+    plugin_id: &str,
+) -> Result<
+    std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>,
+    super::ManifestError,
+> {
+    const MAX_LOCALES: usize = 16;
+    const MAX_MESSAGES_PER_LOCALE: usize = 256;
+    const MAX_TOTAL_MESSAGES: usize = 1_024;
+    const MAX_MESSAGE_LEN: usize = 1_024;
+    let mut catalog = std::collections::BTreeMap::new();
+    let Some(value) = value else {
+        return Ok(catalog);
+    };
+    let object = value
+        .as_object()
+        .ok_or(super::ManifestError::InvalidField("translations"))?;
+    if object.len() > MAX_LOCALES {
+        return Err(super::ManifestError::InvalidField("translations"));
+    }
+    let mut total = 0usize;
+    for (locale, messages) in object {
+        if !is_valid_locale_tag(locale) {
+            return Err(super::ManifestError::InvalidField("translations"));
+        }
+        let messages = messages
+            .as_object()
+            .ok_or(super::ManifestError::InvalidField("translations"))?;
+        if messages.is_empty() || messages.len() > MAX_MESSAGES_PER_LOCALE {
+            return Err(super::ManifestError::InvalidField("translations"));
+        }
+        total += messages.len();
+        if total > MAX_TOTAL_MESSAGES {
+            return Err(super::ManifestError::InvalidField("translations"));
+        }
+        let mut entries = std::collections::BTreeMap::new();
+        for (key, text) in messages {
+            let valid = is_valid_translation_key(key, plugin_id)
+                && text
+                    .as_str()
+                    .is_some_and(|text| !text.is_empty() && text.len() <= MAX_MESSAGE_LEN);
+            if !valid {
+                return Err(super::ManifestError::InvalidField("translations"));
+            }
+            entries.insert(key.clone(), text.as_str().expect("checked above").to_owned());
+        }
+        catalog.insert(locale.clone(), entries);
+    }
+    Ok(catalog)
+}

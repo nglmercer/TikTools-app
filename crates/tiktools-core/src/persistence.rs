@@ -59,6 +59,7 @@ impl AppCore {
         let mut action_types = builtin_action_types();
         let mut event_types: std::collections::BTreeMap<String, Value> =
             std::collections::BTreeMap::new();
+        let mut translations = builtin_translations();
         let mut plugin_templates = Vec::new();
         let mut plugin_cli_commands = Vec::new();
         let mut plugin_pages = Vec::new();
@@ -150,6 +151,12 @@ impl AppCore {
             // a plugin removes its modal entries and nav tabs on the next
             // snapshot.
             if installed && enabled && plugin.available {
+                // Translation catalogs ride the same availability gate as
+                // templates and pages: disabling or uninstalling a plugin
+                // drops its messages from the next snapshot. Keys are already
+                // namespaced under the plugin id at manifest parse time, and
+                // host-owned keys always win a collision.
+                merge_plugin_translations(&mut translations, &plugin.manifest);
                 // CLI commands are declarative projections of the plugin's own
                 // actions. The host stamps ownership; the CLI resolves
                 // `<pluginId> <commandId>` against this list and invokes the
@@ -297,7 +304,7 @@ impl AppCore {
             "autocompleteContributions".to_owned(),
             Value::Array(autocomplete),
         );
-        object.insert("translations".to_owned(), builtin_translations());
+        object.insert("translations".to_owned(), translations);
     }
 
     pub(super) fn emit_plugin_settings(&self, id: &str) {
@@ -461,6 +468,37 @@ pub(super) fn stamp_plugin_autocomplete(plugin_id: &str, descriptor: Value) -> O
     Some(Value::Object(stamped))
 }
 
+/// Merges one plugin's translation catalog into the snapshot-wide catalog.
+/// Keys were namespaced under the plugin id at manifest parse time, so two
+/// plugins can never collide; a key already present (host-owned builtins or
+/// an earlier plugin) always wins, which keeps host messages unoverridable.
+fn merge_plugin_translations(
+    catalog: &mut Value,
+    manifest: &tiktools_plugin_api::manifest::PluginManifest,
+) {
+    if manifest.translations.is_empty() {
+        return;
+    }
+    let Some(root) = catalog.as_object_mut() else {
+        return;
+    };
+    for (locale, messages) in &manifest.translations {
+        let entry = root
+            .entry(locale.clone())
+            .or_insert_with(|| json!({}));
+        let Some(target) = entry.as_object_mut() else {
+            continue;
+        };
+        for (key, text) in messages {
+            if target.contains_key(key) {
+                tracing::warn!(plugin = %manifest.id, key = %key, "plugin translation collides with an existing key; skipped");
+                continue;
+            }
+            target.insert(key.clone(), Value::String(text.clone()));
+        }
+    }
+}
+
 #[cfg(test)]
 mod persistence_tests {
     use super::*;
@@ -559,5 +597,79 @@ mod persistence_tests {
                 "inactive plugin should contribute nothing"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod translation_merge_tests {
+    use super::*;
+    use serde_json::json;
+    use tiktools_plugin_api::manifest::PluginManifest;
+
+    fn manifest_with_translations(translations: serde_json::Value) -> PluginManifest {
+        PluginManifest::from_json_str(
+            &json!({
+                "schemaVersion": 3,
+                "id": "demo.tts",
+                "name": "Demo",
+                "version": "1.0.0",
+                "runtime": "declarative",
+                "translations": translations
+            })
+            .to_string(),
+        )
+        .expect("test manifest parses")
+    }
+
+    #[test]
+    fn plugin_translations_merge_into_the_snapshot_catalog() {
+        let manifest = manifest_with_translations(json!({
+            "es": {"demo.tts.speak.title": "Hablar"},
+            // Locales the host does not ship still merge: clients decide
+            // which catalogs they activate.
+            "de": {"demo.tts.speak.title": "Sprechen"}
+        }));
+        let mut catalog = crate::services::builtin_translations();
+        merge_plugin_translations(&mut catalog, &manifest);
+        assert_eq!(
+            catalog.pointer("/es/demo.tts.speak.title"),
+            Some(&json!("Hablar"))
+        );
+        assert_eq!(
+            catalog.pointer("/de/demo.tts.speak.title"),
+            Some(&json!("Sprechen"))
+        );
+        // Builtin keys stay untouched.
+        assert_eq!(
+            catalog.pointer("/es/automation.action.core.delay.title"),
+            Some(&json!("Esperar"))
+        );
+    }
+
+    #[test]
+    fn host_owned_keys_win_against_plugin_entries() {
+        // A plugin whose id is a host-key prefix (`automation`) passes
+        // manifest validation, yet the merge never lets it override the
+        // host's own messages.
+        let manifest = PluginManifest::from_json_str(
+            &json!({
+                "schemaVersion": 3,
+                "id": "automation",
+                "name": "Squatter",
+                "version": "1.0.0",
+                "runtime": "declarative",
+                "translations": {
+                    "en": {"automation.action.core.delay.title": "Squatted"}
+                }
+            })
+            .to_string(),
+        )
+        .expect("test manifest parses");
+        let mut catalog = crate::services::builtin_translations();
+        merge_plugin_translations(&mut catalog, &manifest);
+        assert_eq!(
+            catalog.pointer("/en/automation.action.core.delay.title"),
+            Some(&json!("Wait"))
+        );
     }
 }
