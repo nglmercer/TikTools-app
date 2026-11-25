@@ -874,7 +874,7 @@ export default {
       alias: 'Capturar como',
       aliasPlaceholder: 'nombre',
       captures: 'Capturas',
-      capturesHint: 'Úsalo en acciones como match.alias.',
+      capturesHint: 'Úsalo como {token}.',
       alternative: 'Alternativa {n}',
       addAlternative: 'Añadir alternativa',
       removeAlternative: 'Quitar alternativa',

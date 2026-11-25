@@ -872,7 +872,7 @@ export default {
       alias: 'Capture as',
       aliasPlaceholder: 'name',
       captures: 'Captures',
-      capturesHint: 'Use it in actions as match.alias.',
+      capturesHint: 'Use it as {token}.',
       alternative: 'Alternative {n}',
       addAlternative: 'Add alternative',
       removeAlternative: 'Remove alternative',

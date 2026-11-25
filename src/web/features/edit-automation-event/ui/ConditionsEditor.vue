@@ -19,6 +19,7 @@ import {
 import { useAutomationText } from '@/entities/automation/model/use-automation-text.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
+import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconCopy from '@/shared/ui/icon/icons/IconCopy.vue';
 import IconFlow from '@/shared/ui/icon/icons/IconFlow.vue';
 import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
@@ -50,6 +51,29 @@ const id = useId();
 const recording = ref<number | null>(null);
 /** The footer icon toggles the optional capture view; values stay the default. */
 const capturesVisible = ref(false);
+const copiedRow = ref<number | null>(null);
+let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+function captureToken(index: number): string {
+  const alias = captureAlias(conditions.value[index]?.as) ?? String(index);
+  return `{{ match.${alias} }}`;
+}
+
+function conditionLabel(index: number): string {
+  const filter = conditions.value[index]!;
+  return `${index + 1}. ${filter.path} ${OPERATOR_CODE[filter.operator]} ${filterValues(filter).join(', ')}`;
+}
+
+async function copyCapture(index: number): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(captureToken(index));
+  } catch {
+    return;
+  }
+  copiedRow.value = index;
+  clearTimeout(copiedTimer);
+  copiedTimer = setTimeout(() => { copiedRow.value = null; }, 1600);
+}
 
 const fields = computed(() => conditionFields(props.trigger, locale.value));
 const modeOptions = computed(() => [
@@ -219,7 +243,10 @@ function stopRecording(): void {
   window.removeEventListener('keydown', onRecordKey, true);
 }
 
-onBeforeUnmount(stopRecording);
+onBeforeUnmount(() => {
+  stopRecording();
+  clearTimeout(copiedTimer);
+});
 </script>
 
 <template>
@@ -358,9 +385,6 @@ onBeforeUnmount(stopRecording);
     v-else
     class="conditions__captures"
   >
-    <p class="conditions__capturehint">
-      {{ t('automations.conditions.capturesHint') }}
-    </p>
     <div
       v-for="row in rows.filter((entry) => needsValue(entry.filter.operator))"
       :key="row.index"
@@ -368,8 +392,8 @@ onBeforeUnmount(stopRecording);
     >
       <span
         class="conditions__capturekey"
-        :title="`${row.index + 1}. ${row.filter.path} ${OPERATOR_CODE[row.filter.operator]} ${filterValues(row.filter).join(', ')}`"
-      >{{ row.filter.as ? `match.${row.filter.as}` : `match.${row.index}` }}</span>
+        :title="t('automations.conditions.capturesHint', { token: captureToken(row.index) })"
+      >{{ conditionLabel(row.index) }}</span>
       <BaseTextField
         :model-value="row.filter.as ?? ''"
         size="sm"
@@ -378,6 +402,14 @@ onBeforeUnmount(stopRecording);
         spellcheck="false"
         @update:model-value="setAlias(row.index, $event)"
       />
+      <BaseIconButton
+        :label="copiedRow === row.index ? t('jsonView.copied') : t('jsonView.copy')"
+        size="sm"
+        @click="copyCapture(row.index)"
+      >
+        <IconCheck v-if="copiedRow === row.index" />
+        <IconCopy v-else />
+      </BaseIconButton>
     </div>
   </div>
   <div class="conditions__foot">
@@ -473,22 +505,20 @@ onBeforeUnmount(stopRecording);
   gap: var(--space-2);
 }
 
-.conditions__capturehint {
-  margin: 0;
-  color: var(--color-text-subtle);
-  font-size: var(--font-size-sm);
-}
-
 .conditions__capture {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.conditions__capturekey {
+.conditions__capture > .base-text-field {
   flex: none;
-  min-width: 5rem;
-  max-width: 10rem;
+  width: 7rem;
+}
+
+.conditions__capturekey {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   color: var(--color-text-muted);
   font-family: var(--font-family-mono);

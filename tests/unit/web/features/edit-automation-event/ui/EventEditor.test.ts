@@ -1,5 +1,5 @@
 import { DOMWrapper, enableAutoUnmount, type VueWrapper } from '@vue/test-utils';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import type { EventFilter, LiveAction, LiveEvent } from '../../../../../../src/automation/behavior/types.ts';
 import { cloneRecord, createEvent } from '@/entities/automation/lib/automation-records.ts';
@@ -221,9 +221,14 @@ it('edits capture aliases in their own tab', async () => {
   await capturesToggle.trigger('click');
   await nextTick();
   expect(aliasInputs()).toHaveLength(2);
-  expect(wrapper.text()).toContain('match.0');
+  expect(wrapper.text()).toContain('1. event.data.text');
+  const writeText = vi.fn();
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
   await aliasInputs()[0]!.setValue('commandPrefix');
   const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
   expect(changed.filters[0]?.as).toBe('commandPrefix');
-  expect(wrapper.text()).toContain('match.commandPrefix');
+  await wrapper.findAll('button')
+    .find((item) => item.attributes('aria-label') === t('jsonView.copy'))!
+    .trigger('click');
+  expect(writeText).toHaveBeenCalledWith('{{ match.commandPrefix }}');
 });

@@ -872,7 +872,7 @@ export default {
       alias: "キャプチャ名",
       aliasPlaceholder: "名前",
       captures: "キャプチャ",
-      capturesHint: "アクションでは match.alias を使います。",
+      capturesHint: "{token} として使います。",
       alternative: "代替 {n}",
       addAlternative: "代替を追加",
       removeAlternative: "代替を削除",
