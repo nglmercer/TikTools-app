@@ -9,7 +9,7 @@ impl PluginUiWindows {
     /// deferred `ClosePluginUi` command outside window-event dispatch.
     // Winit-era window event dispatch: dead on linux where pop-outs cannot
     // open until the GTK migration replaces this machinery wholesale.
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(any(not(target_os = "linux"), test))]
     pub fn on_window_event(
         &mut self,
         proxy: &EventLoopProxy<DesktopEvent>,

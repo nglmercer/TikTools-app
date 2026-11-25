@@ -153,7 +153,7 @@ fn next_startup_wake(now: Instant, deadline: Instant, interval: std::time::Durat
 /// not always track window focus on X11: without an explicit re-focus, a
 /// field can keep its `:focus` visuals while keyboard focus (caret, typing)
 /// never returns to the page.
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), test))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowFocusAction {
     /// Move keyboard focus into the page.
@@ -165,7 +165,7 @@ pub enum WindowFocusAction {
 /// Pure policy behind the `WindowEvent::Focused` arms: focus gains move
 /// keyboard focus into the WebView, focus losses preserve DOM focus so the
 /// user's place (caret, selection, focused field) survives window switches.
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), test))]
 pub fn window_focus_action(gained: bool) -> WindowFocusAction {
     if gained {
         WindowFocusAction::FocusWebview
