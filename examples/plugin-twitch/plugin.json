@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 3,
+  "id": "tiktools.twitch",
+  "name": "Twitch Live",
+  "version": "0.1.0",
+  "publisher": "tiktools",
+  "license": "MIT",
+  "description": "Reference Twitch live-platform source using anonymous read-only IRC. Maps Twitch public chat, subscriptions and Bits into canonical live events; the host owns validation, feed, automation, points and analytics.",
+  "icon": "video",
+  "tags": ["live", "twitch", "platform"],
+  "runtime": "process",
+  "trust": "trusted",
+  "entry": "tiktools-twitch-plugin",
+  "protocolVersion": 1,
+  "permissions": ["network.connect"],
+  "capabilities": ["events.publish", "live.ingest"],
+  "eventTypes": [
+    {
+      "type": "platform.live.ingest",
+      "title": { "default": "Live platform ingestion" },
+      "description": { "default": "Host-validated canonical live ingestion batches." }
+    }
+  ],
+  "settings": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "title": { "default": "Twitch channel" },
+          "description": { "default": "Login name of the channel to join, without #." }
+        }
+      }
+    }
+  },
+  "actionTypes": [
+    {
+      "id": "tiktools.twitch.connect",
+      "version": 1,
+      "title": { "default": "Connect Twitch" },
+      "description": { "default": "Connect anonymously to public Twitch chat in read-only mode using the configured channel." },
+      "fields": [
+        { "key": "channel", "type": "string", "title": { "default": "Channel" } }
+      ],
+      "requiredCapabilities": ["live.ingest"]
+    },
+    {
+      "id": "tiktools.twitch.disconnect",
+      "version": 1,
+      "title": { "default": "Disconnect Twitch" },
+      "description": { "default": "Stop the Twitch connection." }
+    },
+    {
+      "id": "tiktools.twitch.status",
+      "version": 1,
+      "title": { "default": "Twitch status" },
+      "description": { "default": "Show the current plugin connection state." }
+    }
+  ],
+  "cliCommands": [
+    {
+      "id": "connect",
+      "actionType": "tiktools.twitch.connect",
+      "description": "Connect anonymously to Twitch chat in read-only mode"
+    },
+    {
+      "id": "disconnect",
+      "actionType": "tiktools.twitch.disconnect",
+      "description": "Disconnect from Twitch chat"
+    },
+    {
+      "id": "status",
+      "actionType": "tiktools.twitch.status",
+      "description": "Show Twitch plugin status"
+    }
+  ],
+  "ui": {
+    "apiVersion": 1,
+    "mode": "declarative",
+    "pages": [
+      {
+        "id": "main",
+        "title": { "default": "Twitch Live" },
+        "body": {
+          "type": "stack",
+          "children": [
+            {
+              "type": "text",
+              "key": "help",
+              "text": {
+                "default": "Configure channel in this plugin's settings, then connect. This reference example uses Twitch's historical anonymous read-only IRC login and no OAuth token. It demonstrates public chat, subscriptions and Bits only; production providers should migrate to Twitch's officially supported authenticated IRC or EventSub path. Feed, automation, points and analytics stay host-owned."
+              }
+            },
+            { "type": "separator" },
+            {
+              "type": "button",
+              "label": { "default": "Connect" },
+              "action": { "type": "plugin-action", "actionType": "tiktools.twitch.connect" }
+            },
+            {
+              "type": "button",
+              "label": { "default": "Disconnect" },
+              "action": { "type": "plugin-action", "actionType": "tiktools.twitch.disconnect" }
+            },
+            {
+              "type": "button",
+              "label": { "default": "Refresh status" },
+              "action": { "type": "plugin-action", "actionType": "tiktools.twitch.status" }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

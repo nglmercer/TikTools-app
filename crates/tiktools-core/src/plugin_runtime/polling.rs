@@ -161,6 +161,14 @@ impl AppCore {
                 .capabilities
                 .require_capability(&current.manifest, PLUGIN_PROGRESS_CAPABILITY)
                 .is_ok();
+        let live_ingest_allowed = self
+            .capabilities
+            .require_capability(manifest, tiktools_plugin_api::capabilities::LIVE_INGEST)
+            .is_ok()
+            && self
+                .capabilities
+                .require_capability(&current.manifest, tiktools_plugin_api::capabilities::LIVE_INGEST)
+                .is_ok();
         if !events_allowed && !progress_allowed {
             return;
         }
@@ -222,6 +230,20 @@ impl AppCore {
         for (event_type, data) in parsed.events {
             if self.plugin_apply_quarantined(&plugin_id) {
                 return;
+            }
+            if crate::live_platforms::is_live_ingest_event(&event_type) {
+                if !live_ingest_allowed {
+                    self.record_plugin_drops(&plugin_id, 1);
+                    continue;
+                }
+                match self.ingest_live_platform_batch(&plugin_id, data).await {
+                    Ok(outcome) if outcome.rejected > 0 => {
+                        self.record_plugin_drops(&plugin_id, outcome.rejected as u64);
+                    }
+                    Ok(_) => {}
+                    Err(_) => self.record_plugin_drops(&plugin_id, 1),
+                }
+                continue;
             }
             tracing::debug!(
                 plugin = %plugin_id,

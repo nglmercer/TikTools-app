@@ -24,6 +24,9 @@ impl DomainEvent {
             Self::LiveConnected { .. } => "live.connected",
             Self::LiveDisconnected => "live.disconnected",
             Self::LiveMonitorChanged { .. } => "live.monitor",
+            Self::LivePlatformSession { .. } => "live.platform.session",
+            Self::LivePlatformEvent { .. } => "live.platform.event",
+            Self::LivePlatformGap { .. } => "live.platform.gap",
             Self::LiveEvent { .. } => "live.event",
             Self::LiveUiEvent { .. } => "live.ui-event",
             Self::LiveLikesRanking { .. } => "live.likes-ranking",
@@ -103,6 +106,7 @@ impl DomainEvent {
         matches!(
             self,
             Self::LiveEvent { .. }
+                | Self::LivePlatformEvent { .. }
                 | Self::LiveUiEvent { .. }
                 | Self::LiveLikesRanking { .. }
                 | Self::LiveLikesRankingFull { .. }

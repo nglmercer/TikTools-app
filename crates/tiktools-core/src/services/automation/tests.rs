@@ -129,6 +129,46 @@ fn trigger_dispatch_index_tracks_upserts_and_removals() {
 }
 
 #[test]
+fn canonical_live_trigger_aliases_are_indexed_and_one_way() {
+    let service = AutomationService::default();
+    service.upsert_event(json!({
+        "id":"generic-chat","enabled":true,"trigger":"live.chat","filters":[],"actionIds":[]
+    }));
+    service.upsert_event(json!({
+        "id":"native-chat","enabled":true,"trigger":"tiktok.chat","filters":[],"actionIds":[]
+    }));
+
+    let tiktok =
+        json!({"type":"tiktok.chat","user":{"uniqueId":"alice"},"data":{"comment":"hello"}});
+    let generic = json!({"type":"live.chat","platform":"acme.twitch","user":{"uniqueId":"alice"},"data":{"comment":"hello"}});
+    let tiktok_matches: Vec<_> = service
+        .matching_events(&tiktok)
+        .into_iter()
+        .map(|record| {
+            record
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(tiktok_matches, ["native-chat", "generic-chat"]);
+
+    let generic_matches: Vec<_> = service
+        .matching_events(&generic)
+        .into_iter()
+        .map(|record| {
+            record
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(generic_matches, ["generic-chat"]);
+}
+
+#[test]
 fn plugin_triggers_match_only_while_their_plugin_is_active() {
     let service = AutomationService::default();
     service.replace_snapshot(&json!({

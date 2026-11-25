@@ -29,12 +29,19 @@ impl AutomationService {
         let Some(trigger) = event.get("type").and_then(Value::as_str) else {
             return Vec::new();
         };
-        let Some(candidates) = index.events_by_trigger.get(trigger) else {
+        let direct = index.events_by_trigger.get(trigger);
+        let aliased = tiktools_live::canonical_trigger(trigger)
+            .filter(|canonical| *canonical != trigger)
+            .and_then(|canonical| index.events_by_trigger.get(canonical));
+        if direct.is_none() && aliased.is_none() {
             return Vec::new();
-        };
+        }
+        let candidates = direct
+            .into_iter()
+            .flatten()
+            .chain(aliased.into_iter().flatten());
         let mut projected_input = None;
         candidates
-            .iter()
             .filter_map(|id| {
                 let r = index.events.get(id)?;
                 if r.generation.is_none()
@@ -101,11 +108,17 @@ impl AutomationService {
         let Some(trigger) = projected.get("type").and_then(Value::as_str) else {
             return Vec::new();
         };
-        let Some(candidates) = index.events_by_trigger.get(trigger) else {
+        let direct = index.events_by_trigger.get(trigger);
+        let aliased = tiktools_live::canonical_trigger(trigger)
+            .filter(|canonical| *canonical != trigger)
+            .and_then(|canonical| index.events_by_trigger.get(canonical));
+        if direct.is_none() && aliased.is_none() {
             return Vec::new();
-        };
-        candidates
-            .iter()
+        }
+        direct
+            .into_iter()
+            .flatten()
+            .chain(aliased.into_iter().flatten())
             .filter_map(|id| {
                 let r = index.events.get(id)?;
                 if r.generation.is_none()

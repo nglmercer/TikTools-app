@@ -524,6 +524,7 @@ export default {
     },
     events: {
       giftSent: "{giftName}を{count}個贈りました",
+      platformGiftSent: "{giftName}を{count}個贈りました（{amount} {unit}）",
       likeSentOne: "{count}回いいねしました",
       likeSentMany: "{count}回いいねしました",
       likeSentTotal: "{count}回いいねしました",

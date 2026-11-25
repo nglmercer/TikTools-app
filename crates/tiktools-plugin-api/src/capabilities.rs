@@ -120,6 +120,10 @@ pub const STORAGE: &str = "storage";
 pub const EVENTS_PUBLISH: &str = "events.publish";
 /// Lets a plugin receive serialized host `DomainEvent` envelopes.
 pub const EVENTS_SUBSCRIBE: &str = "events.subscribe";
+/// Lets a plugin act as a live-platform source. The plugin still cannot
+/// publish `live.*` directly; the host validates its bounded ingestion
+/// batches and stamps platform, session, identity, timing and authority.
+pub const LIVE_INGEST: &str = "live.ingest";
 /// Lets a plugin enrich existing host events before automation filters run.
 /// The host checks this before sending any `enrich` call; it grants no
 /// unrelated capability (audio, points, storage, HTTP).

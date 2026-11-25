@@ -4788,6 +4788,7 @@ dependencies = [
  "tiktools-cloud-sync",
  "tiktools-collaboration",
  "tiktools-competitions",
+ "tiktools-live",
  "tiktools-plugin-api",
  "tiktools-plugin-installer",
  "tiktools-plugin-loader",
@@ -4836,6 +4837,16 @@ dependencies = [
  "winresource",
  "wry",
  "x11-dl",
+]
+
+[[package]]
+name = "tiktools-live"
+version = "4.5.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
 ]
 
 [[package]]

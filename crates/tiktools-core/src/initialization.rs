@@ -196,6 +196,7 @@ impl AppCore {
             app_updater: RwLock::new(None),
             live: Arc::new(live),
             live_monitor: live_monitor::LiveMonitor::default(),
+            live_platforms: crate::live_platforms::LivePlatformService::default(),
             points,
             #[cfg(feature = "native-tiktok")]
             live_points_work,

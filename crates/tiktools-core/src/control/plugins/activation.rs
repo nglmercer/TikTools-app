@@ -54,8 +54,10 @@ impl AppCore {
             .map_err(|error| OperationError::internal(error.to_string()))?;
         if !installed {
             // Stopping a non-running plugin is a no-op success; surface real
-            // shutdown failures.
+            // shutdown failures. Live sessions owned by the removed provider
+            // must not remain connected under host authority.
             self.plugins.stop(&id)?;
+            self.end_live_platform_plugin_sessions(&id);
         }
         self.set_plugin_activation(&id, installed, true);
         drop(_invocation);
@@ -160,6 +162,7 @@ impl AppCore {
             })?;
         } else {
             self.plugins.stop(&id)?;
+            self.end_live_platform_plugin_sessions(&id);
             self.set_plugin_activation(&id, true, false);
         }
         drop(lease);
@@ -235,6 +238,7 @@ impl AppCore {
         } else {
             self.plugins.stop(id).map(|()| {
                 self.set_plugin_activation(id, true, false);
+                self.end_live_platform_plugin_sessions(id);
             })
         };
         result?;

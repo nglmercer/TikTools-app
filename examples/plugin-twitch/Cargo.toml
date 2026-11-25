@@ -1,0 +1,20 @@
+[package]
+name = "example-plugin-twitch"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Reference Twitch live-platform plugin for TikTools"
+
+[[bin]]
+name = "tiktools-twitch-plugin"
+path = "src/main.rs"
+
+[dependencies]
+tiktools-live = { path = "../../crates/tiktools-live" }
+tiktools-plugin-sdk = { path = "../../crates/tiktools-plugin-sdk" }
+tiktools-tls = { path = "../../crates/tiktools-tls", features = ["ring"] }
+serde_json = "1"
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
+tokio-util = { version = "0.7.20", features = ["rt"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
+futures-util = "0.3"

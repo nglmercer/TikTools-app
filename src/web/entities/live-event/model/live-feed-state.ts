@@ -155,7 +155,12 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
   const pushFeedEvent = (event: UiEvent, cursor?: number): boolean => {
     if (disposed) return false;
     received += 1;
-    if ((event.roomId && sessionRoom && event.roomId !== sessionRoom) || (event.creatorId && sessionCreator && event.creatorId !== sessionCreator)) return false;
+    // Native TikTok rows belong to the single active native room. Platform
+    // plugin rows are already host-stamped with collision-resistant creator
+    // and room identities; filtering them against the TikTok session would
+    // hide every provider event while TikTok is connected.
+    const platformEvent = typeof event.platform === 'string' && event.platform.length > 0;
+    if (!platformEvent && ((event.roomId && sessionRoom && event.roomId !== sessionRoom) || (event.creatorId && sessionCreator && event.creatorId !== sessionCreator))) return false;
     if (cursor !== undefined) {
       if (seenCursors.has(cursor)) { duplicates += 1; return false; }
       seenCursors.add(cursor);
@@ -225,19 +230,36 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
 
   unsubscribers.push(control.onTopic<{ uniqueId?: string; roomId?: string }>('live.connected', (data) => {
     const scope = JSON.stringify([data.uniqueId ?? '', data.roomId ?? '']);
+    const restartedWithHistory = sessionScope === '' && historyScope === scope && restoredEvents.length > 0;
     if (scope !== sessionScope) {
       if (historyScope && historyScope !== scope) {
-        // A restart must not show another creator's saved activity.
+        // A native room switch invalidates native rows, but plugin-owned
+        // platform rows belong to independent provider sessions and remain
+        // live. Rehome them into the new history scope instead of erasing
+        // the still-connected platforms with the old TikTok room.
+        const platformRows = events.value.filter((row) => row.platform);
         if (historyTimer !== null) { clearTimeout(historyTimer); historyTimer = null; }
-        history?.clear();
-        events.value = [];
-        categoryCounts.clear();
-        nextEventId = 0;
+        if (platformRows.length > 0) {
+          events.value = platformRows;
+          categoryCounts = countCategories(platformRows);
+          nextEventId = platformRows.reduce((max, row) => Math.max(max, row.id + 1), 0);
+          historyScope = scope;
+          sessionScope = scope;
+          persistHistory();
+        } else {
+          history?.clear();
+          events.value = [];
+          categoryCounts.clear();
+          nextEventId = 0;
+        }
         unreadCount.value = 0;
       }
       historyScope = scope;
       seenMsgIds.clear();
-      seenCursors.clear();
+      if (restartedWithHistory || events.value.length === 0) {
+        seenCursors.clear();
+        lastFeedCursor = null;
+      }
       // Lossy ranking snapshots can be delivered before reliable
       // live.connected. Preserve a snapshot from the SAME room in that case.
       if (rankingCreator !== (data.uniqueId ?? '') ||

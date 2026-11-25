@@ -1,9 +1,77 @@
 use rusqlite::params;
 
 use super::super::sqlite::DatabaseError;
-#[cfg(test)]
 use super::super::DatabaseManager;
 use super::{utc_day, utc_hour, AnalyticsEventRecord};
+
+impl DatabaseManager {
+    /// Persist aggregate-only platform activity under a platform-qualified
+    /// creator key. Monetary amounts are not coerced into TikTok diamonds:
+    /// cross-platform units stay in the live envelope, while these legacy
+    /// counters record participation quantities that are safe to aggregate.
+    pub(crate) fn record_platform_activity(
+        &self,
+        event: &tiktools_live::LiveEnvelope,
+    ) -> Result<(), DatabaseError> {
+        let creator = tiktools_live::identity_key(&event.platform, &event.channel.id);
+        let now_unix = (event.received_at / 1000) as i64;
+        let mut connection = self.open(&self.analytics_path())?;
+        let transaction = connection.transaction()?;
+        match &event.payload {
+            tiktools_live::LivePayload::Connected => {
+                open_live_session(
+                    &transaction,
+                    &creator,
+                    Some(event.channel.room_id.as_str()),
+                    now_unix,
+                )?;
+            }
+            tiktools_live::LivePayload::Disconnected => {
+                close_live_sessions(&transaction, &creator, now_unix)?;
+            }
+            tiktools_live::LivePayload::RoomStats { viewers, .. } => {
+                record_analytics_viewers(&transaction, &creator, *viewers as i64, now_unix)?;
+            }
+            payload => {
+                let viewer = event
+                    .user
+                    .as_ref()
+                    .map(tiktools_live::ViewerIdentity::key)
+                    .unwrap_or_default();
+                let mut record = AnalyticsEventRecord {
+                    unique_id: viewer,
+                    ..AnalyticsEventRecord::default()
+                };
+                match payload {
+                    tiktools_live::LivePayload::Chat { .. } => record.chats = 1,
+                    tiktools_live::LivePayload::Gift { count, .. } => {
+                        record.gift_events = 1;
+                        record.gifts = (*count).min(i64::MAX as u64) as i64;
+                    }
+                    tiktools_live::LivePayload::Like { count, .. } => {
+                        record.like_events = 1;
+                        record.likes = (*count).min(i64::MAX as u64) as i64;
+                    }
+                    tiktools_live::LivePayload::Join => record.joins = 1,
+                    tiktools_live::LivePayload::Follow => record.follows = 1,
+                    tiktools_live::LivePayload::Share { count } => {
+                        record.shares = (*count).min(i64::MAX as u64) as i64;
+                    }
+                    tiktools_live::LivePayload::Subscription { .. }
+                    | tiktools_live::LivePayload::Connected
+                    | tiktools_live::LivePayload::Disconnected
+                    | tiktools_live::LivePayload::RoomStats { .. } => {
+                        transaction.commit()?;
+                        return Ok(());
+                    }
+                }
+                record_analytics_event(&transaction, &creator, &record, now_unix)?;
+            }
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 impl DatabaseManager {

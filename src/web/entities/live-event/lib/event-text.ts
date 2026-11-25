@@ -12,6 +12,13 @@ export function eventText(event: DisplayEvent, t: Translate): string {
         giftName: params.giftName ?? event.giftDetails?.name ?? 'Gift',
         diamonds: params.diamonds ?? event.giftDetails?.diamonds ?? 1,
       });
+    case 'platformGiftSent':
+      return t('feed.events.platformGiftSent', {
+        count: params.count ?? event.giftDetails?.count ?? 1,
+        giftName: params.giftName ?? event.giftDetails?.name ?? 'Gift',
+        amount: params.amount ?? 0,
+        unit: params.unit ?? '',
+      });
     case 'likeSent': {
       // The backend counter describes likes observed from this viewer during
       // this LIVE, not the incoming packet's (unchanged) likeCount.
