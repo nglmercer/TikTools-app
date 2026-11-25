@@ -230,6 +230,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
 
   unsubscribers.push(control.onTopic<{ uniqueId?: string; roomId?: string }>('live.connected', (data) => {
     const scope = JSON.stringify([data.uniqueId ?? '', data.roomId ?? '']);
+    const restartedWithHistory = sessionScope === '' && historyScope === scope && restoredEvents.length > 0;
     if (scope !== sessionScope) {
       if (historyScope && historyScope !== scope) {
         // A native room switch invalidates native rows, but plugin-owned
@@ -255,7 +256,7 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
       }
       historyScope = scope;
       seenMsgIds.clear();
-      if (events.value.length === 0) {
+      if (restartedWithHistory || events.value.length === 0) {
         seenCursors.clear();
         lastFeedCursor = null;
       }
