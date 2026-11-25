@@ -228,6 +228,7 @@ impl AutomationService {
         approval::clear(&mut index);
         index.actions.clear();
         index.events.clear();
+        index.events_by_trigger.clear();
         index.catalog_epoch = None;
         index.authorities = None;
         index.authority_available = false;

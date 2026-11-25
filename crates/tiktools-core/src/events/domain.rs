@@ -57,6 +57,25 @@ impl DomainEvent {
     pub fn to_envelope(
         &self,
     ) -> Result<tiktools_plugin_api::DomainEventEnvelope, EventEnvelopeError> {
+        // High-rate live variants have a tiny, stable envelope shape. The
+        // generic serde path first materializes `{topic, data}` and then
+        // clones `data` back out, so every live packet paid for two deep
+        // JSON copies; build the exact public shape with one copy instead.
+        match self {
+            Self::LiveEvent { event_type, event } => {
+                return Ok(tiktools_plugin_api::DomainEventEnvelope::new(
+                    self.topic(),
+                    serde_json::json!({"eventType": event_type, "event": event}),
+                ));
+            }
+            Self::LiveUiEvent { event } => {
+                return Ok(tiktools_plugin_api::DomainEventEnvelope::new(
+                    self.topic(),
+                    serde_json::json!({"event": event}),
+                ));
+            }
+            _ => {}
+        }
         let value = serde_json::to_value(self)
             .map_err(|error| EventEnvelopeError::Serialization(error.to_string()))?;
         let data = match (value.get("data").cloned(), self) {

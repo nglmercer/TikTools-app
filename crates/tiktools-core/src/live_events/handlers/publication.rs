@@ -112,23 +112,24 @@ impl AppCore {
                 (&event.base, context)
             {
                 if like.count > 0 {
-                    let leaders = self.live_totals.like_leaderboard(context);
                     let user_key = if like.user.id != 0 {
                         like.user.id.to_string()
                     } else {
                         like.user.unique_id.clone()
                     };
                     // When a viewer is outside the top ten, their packet
-                    // changes no visible ranking: avoid another broadcast.
-                    if leaders
-                        .iter()
-                        .any(|leader| leader["userId"].as_str() == Some(user_key.as_str()))
+                    // changes no visible ranking: avoid another broadcast. Use
+                    // the ranking index first so those packets do not build ten
+                    // JSON leaderboard rows just to discard them.
+                    if self
+                        .live_totals
+                        .like_user_in_leaderboard(context, user_key.as_str())
                     {
                         self.events
                             .publish_domain(crate::events::DomainEvent::LiveLikesRanking {
                                 creator_id: context.unique_id.clone(),
                                 room_id: context.room_id.clone(),
-                                leaders,
+                                leaders: self.live_totals.like_leaderboard(context),
                             });
                     }
                 }

@@ -1,6 +1,6 @@
 //! One atomic index binds matching to the exact event and action definitions.
 use super::authority::owner_record_allowed;
-use super::filters::{event_record_matches, event_record_outcome, number_u64};
+use super::filters::{event_record_matches, event_record_outcome, number_u64, FilterOutcome};
 use super::snapshot::trigger_allowed;
 use super::*;
 
@@ -26,32 +26,62 @@ impl AutomationService {
         let Some(catalog_epoch) = index.catalog_epoch else {
             return Vec::new();
         };
-        index
-            .events
-            .values()
-            .filter(|r| {
-                r.generation.is_some()
-                    && r.definition.get("enabled").and_then(Value::as_bool) == Some(true)
-                    && r.definition.get("trigger").and_then(Value::as_str)
-                        == event.get("type").and_then(Value::as_str)
-                    && trigger_allowed(
+        let Some(trigger) = event.get("type").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+        let Some(candidates) = index.events_by_trigger.get(trigger) else {
+            return Vec::new();
+        };
+        let mut projected_input = None;
+        candidates
+            .iter()
+            .filter_map(|id| {
+                let r = index.events.get(id)?;
+                if r.generation.is_none()
+                    || r.definition.get("enabled").and_then(Value::as_bool) != Some(true)
+                    || !trigger_allowed(
                         r.definition.get("trigger").and_then(Value::as_str),
                         &index.trigger_owners,
                         &index.enabled_plugins,
                     )
-                    && record_authorized(&index, &r.definition)
-                    && input_source_allowed(&index, &r.definition, scoped)
-                    && (!scoped || public_filter_paths(&r.definition))
-                    && record_event_matches(&index, &r.definition, event)
-            })
-            .map(|r| MatchedRecord {
-                definition: r.definition.clone(),
-                generation: r.generation,
-                catalog_epoch,
-                actions: select_actions(&index, &r.definition),
-                captures: record_event_captures(&index, &r.definition, event),
+                    || !input_source_allowed(&index, &r.definition, scoped)
+                    || (scoped && !public_filter_paths(&r.definition))
+                {
+                    return None;
+                }
+                let owner = owner_record_allowed(&index, &r.definition);
                 #[cfg(feature = "persistence")]
-                approval: record_approval(&index, &r.definition),
+                let approval = if owner {
+                    None
+                } else {
+                    super::approval::candidate_for_primary(
+                        &index,
+                        crate::collaboration::AutomationFamily::Event,
+                        &r.definition,
+                    )
+                };
+                #[cfg(feature = "persistence")]
+                if !owner && approval.is_none() {
+                    return None;
+                }
+                #[cfg(not(feature = "persistence"))]
+                if !owner {
+                    return None;
+                }
+                let outcome =
+                    record_event_outcome_cached(&index, &r.definition, event, &mut projected_input);
+                if !outcome.matched {
+                    return None;
+                }
+                Some(MatchedRecord {
+                    definition: r.definition.clone(),
+                    generation: r.generation,
+                    catalog_epoch,
+                    actions: select_actions(&index, &r.definition),
+                    captures: outcome.captures,
+                    #[cfg(feature = "persistence")]
+                    approval,
+                })
             })
             .collect()
     }
@@ -68,14 +98,18 @@ impl AutomationService {
             return Vec::new();
         };
         let projected = crate::services::automation_approval_policy::project_event(event);
-        index
-            .events
+        let Some(trigger) = projected.get("type").and_then(Value::as_str) else {
+            return Vec::new();
+        };
+        let Some(candidates) = index.events_by_trigger.get(trigger) else {
+            return Vec::new();
+        };
+        candidates
             .iter()
-            .filter_map(|(id, r)| {
+            .filter_map(|id| {
+                let r = index.events.get(id)?;
                 if r.generation.is_none()
                     || r.definition.get("enabled").and_then(Value::as_bool) != Some(true)
-                    || r.definition.get("trigger").and_then(Value::as_str)
-                        != projected.get("type").and_then(Value::as_str)
                     || !trigger_allowed(
                         r.definition.get("trigger").and_then(Value::as_str),
                         &index.trigger_owners,
@@ -83,8 +117,11 @@ impl AutomationService {
                     )
                     || record_authorized(&index, &r.definition)
                     || !public_filter_paths(&r.definition)
-                    || !event_record_matches(&r.definition, &projected)
                 {
+                    return None;
+                }
+                let outcome = event_record_outcome(&r.definition, &projected);
+                if !outcome.matched {
                     return None;
                 }
                 let candidate = super::approval::reusable_candidate_for_primary(
@@ -100,7 +137,7 @@ impl AutomationService {
                     generation: r.generation,
                     catalog_epoch,
                     actions: select_actions(&index, &r.definition),
-                    captures: event_record_outcome(&r.definition, &projected).captures,
+                    captures: outcome.captures,
                     approval: Some(candidate),
                 })
             })
@@ -413,41 +450,30 @@ fn record_approval(
         record,
     )
 }
-/// Captures of a matched record, evaluated against exactly the projection
-/// `record_event_matches` used (Owner sees the full envelope, delegated
-/// records only the public scalar projection).
-fn record_event_captures(
+/// Evaluates a candidate once. Owner records see the input envelope;
+/// delegated records share one public projection computed lazily for the
+/// whole matching pass instead of once per record (and twice per match).
+fn record_event_outcome_cached(
     index: &BehaviorIndex,
     record: &Value,
     event: &Value,
-) -> BTreeMap<String, String> {
+    projected_input: &mut Option<Value>,
+) -> FilterOutcome {
     if owner_record_allowed(index, record) {
-        return event_record_outcome(record, event).captures;
+        return event_record_outcome(record, event);
     }
     #[cfg(feature = "persistence")]
     return event_record_outcome(
         record,
-        &crate::services::automation_approval_policy::project_event(event),
-    )
-    .captures;
-    #[cfg(not(feature = "persistence"))]
-    {
-        let _ = (index, record, event);
-        BTreeMap::new()
-    }
-}
-
-fn record_event_matches(index: &BehaviorIndex, record: &Value, event: &Value) -> bool {
-    if owner_record_allowed(index, record) {
-        return event_record_matches(record, event);
-    }
-    #[cfg(feature = "persistence")]
-    return event_record_matches(
-        record,
-        &crate::services::automation_approval_policy::project_event(event),
+        projected_input.get_or_insert_with(|| {
+            crate::services::automation_approval_policy::project_event(event)
+        }),
     );
     #[cfg(not(feature = "persistence"))]
-    false
+    {
+        let _ = (index, record, event, projected_input);
+        FilterOutcome::default()
+    }
 }
 fn select_actions(index: &BehaviorIndex, record: &Value) -> Vec<MatchedAction> {
     let mut selected: Vec<_> = record

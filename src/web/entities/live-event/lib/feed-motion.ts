@@ -16,15 +16,32 @@ export function useFeedMotion(events: Ref<readonly DisplayEvent[]> | (() => read
   const animate = ref(true);
   let burstTimer: ReturnType<typeof setTimeout> | null = null;
 
-  watch(events, (list) => {
-    const recent = list.filter((event) => Date.now() - event.receivedAt < BURST_WINDOW_MS).length;
-    if (recent <= BURST_LIMIT) return;
-    animate.value = false;
+  const restartBurstTimer = (): void => {
     if (burstTimer !== null) clearTimeout(burstTimer);
     burstTimer = setTimeout(() => {
       animate.value = true;
       burstTimer = null;
     }, BURST_WINDOW_MS);
+  };
+
+  watch(events, (list) => {
+    // Feed entries are appended in receive order, so the newest rows are at
+    // the end. Counting backwards and stopping at the burst threshold avoids
+    // a full-buffer scan for every packet during high-rate like storms.
+    if (!animate.value) {
+      restartBurstTimer();
+      return;
+    }
+    const now = Date.now();
+    let recent = 0;
+    for (let index = list.length - 1; index >= 0; index -= 1) {
+      if (now - list[index]!.receivedAt >= BURST_WINDOW_MS) break;
+      recent += 1;
+      if (recent > BURST_LIMIT) break;
+    }
+    if (recent <= BURST_LIMIT) return;
+    animate.value = false;
+    restartBurstTimer();
   });
 
   onBeforeUnmount(() => {

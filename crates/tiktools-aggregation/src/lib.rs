@@ -265,6 +265,12 @@ impl Aggregation {
         self.scores.get(key).copied()
     }
 
+    /// Whether one key is inside the ordered top `limit`, without copying
+    /// labels, metadata, or snapshot entries.
+    pub fn is_in_top(&self, key: &str, limit: usize) -> bool {
+        self.index.is_in_top(key, limit)
+    }
+
     pub fn revision(&self) -> u64 {
         self.revision
     }
@@ -367,6 +373,8 @@ mod tests {
         assert_eq!(candidates.total_participants, 1000);
         let top = candidates.rank(10);
         assert_eq!(top.entries[0].key, "user-0001");
+        assert!(aggregation.is_in_top("user-0001", 10));
+        assert!(!aggregation.is_in_top("user-0999", 1));
         let full = aggregation.snapshot(2000);
         assert_eq!(top.entries, full.entries[..10]);
         aggregation.expire("user-0001", 100).unwrap();

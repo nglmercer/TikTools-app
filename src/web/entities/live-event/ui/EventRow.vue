@@ -117,6 +117,8 @@ function openViewer(): void {
   color: var(--color-text);
   font-family: var(--font-family);
   font-size: var(--font-size-md);
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 28px;
 }
 
 .event-row:hover {

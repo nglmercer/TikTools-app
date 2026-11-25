@@ -111,6 +111,8 @@ function openViewer(): void {
   border-left: 3px solid var(--event-accent);
   border-radius: var(--radius-md);
   background: var(--color-bg-field);
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 64px;
 }
 
 .event-card--gift { --event-accent: var(--color-chart-2); }

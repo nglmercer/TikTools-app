@@ -242,6 +242,17 @@ impl LiveTotals {
             .1
     }
 
+    /// Top-ten membership check for the per-packet publication decision.
+    /// Most like packets come from viewers outside the visible leaders, so
+    /// they must not pay for ten JSON rows that are immediately discarded.
+    pub(crate) fn like_user_in_leaderboard(&self, context: &LiveContext, user_key: &str) -> bool {
+        let state = recover_mutex(&self.0, "LIVE like leaderboard");
+        state
+            .like_rankings
+            .get(&(context.unique_id.clone(), context.room_id.clone()))
+            .is_some_and(|ranking| ranking.is_in_top(user_key, LIKE_LEADERBOARD_LIMIT))
+    }
+
     /// Bounded wider projection for widgets. Revision is a process-local
     /// presentation token, not durable accounting identity.
     pub(crate) fn like_leaderboard_with_limit(
