@@ -526,6 +526,7 @@ export default {
     },
     events: {
       giftSent: 'enviou {count}× {giftName}',
+      platformGiftSent: 'enviou {count}× {giftName} ({amount} {unit})',
       likeSentOne: 'enviou {count} curtida',
       likeSentMany: 'enviou {count} curtidas',
       likeSentTotal: 'enviou {count} curtidas',
