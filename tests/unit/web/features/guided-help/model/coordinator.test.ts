@@ -495,16 +495,15 @@ it('presses the prepare trigger when an interaction-gated target is missing, ins
   vi.useFakeTimers();
   const test = setup();
   const root = mountTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
-  const table = root.querySelector('[data-guide="automation-events"]')!;
-  const row = document.createElement('div');
-  row.dataset.rowId = 'event-1';
+  const create = document.createElement('button');
+  create.dataset.guide = 'automation-new-record';
   const openEditor = vi.fn(() => {
     const editor = document.createElement('div');
     editor.dataset.guide = 'automation-editor';
     root.append(editor);
   });
-  row.addEventListener('click', openEditor);
-  table.append(row);
+  create.addEventListener('click', openEditor);
+  root.append(create);
   const session = test.coordinator.startTour('automationEvents');
   await vi.advanceTimersByTimeAsync(0);
   expect(await session.ready).toBe(true);
@@ -524,12 +523,11 @@ it('does not press the prepare trigger when the target already exists', async ()
   vi.useFakeTimers();
   const test = setup();
   const root = mountTargets('automations', tourRegistry.automationEvents.steps.map((step) => step.target));
-  const table = root.querySelector('[data-guide="automation-events"]')!;
-  const row = document.createElement('div');
-  row.dataset.rowId = 'event-1';
+  const create = document.createElement('button');
+  create.dataset.guide = 'automation-new-record';
   const openEditor = vi.fn();
-  row.addEventListener('click', openEditor);
-  table.append(row);
+  create.addEventListener('click', openEditor);
+  root.append(create);
   const session = test.coordinator.startTour('automationEvents');
   await vi.advanceTimersByTimeAsync(0);
   expect(await session.ready).toBe(true);

@@ -146,7 +146,9 @@ fn validate_disabled_when(value: &Option<Value>) -> Result<(), UiValidationError
         return Err(UiValidationError::InvalidBinding(bind.to_string()));
     }
     if !values.iter().all(|entry| {
-        entry.as_str().is_some_and(|text| !text.is_empty() && text.len() <= 64)
+        entry
+            .as_str()
+            .is_some_and(|text| !text.is_empty() && text.len() <= 64)
     }) {
         return Err(UiValidationError::InvalidBinding(bind.to_string()));
     }

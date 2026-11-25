@@ -116,6 +116,10 @@ pub struct PluginUiNode {
     pub poll_ms: Option<u64>,
     #[serde(rename = "stateKey", default, skip_serializing_if = "Option::is_none")]
     pub state_key: Option<String>,
-    #[serde(rename = "disabledWhen", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "disabledWhen",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub disabled_when: Option<Value>,
 }
