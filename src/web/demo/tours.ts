@@ -12,6 +12,10 @@ export const demoTourScenarios = {
   points: 'points', changes: 'cloud', diagnostics: 'diagnostics', feed: 'feed',
   analytics: 'analytics', settings: 'settings', overlayObs: 'overlays',
   pluginSetup: 'plugins', connectionRecovery: 'connection', feedInspector: 'feed',
+  automationEventChat: 'automation', automationEventGift: 'automation', automationEventSocial: 'automation',
+  automationEventRoom: 'automation', automationActionMedia: 'automation', automationActionTts: 'automation',
+  automationActionHttp: 'automation', automationActionVars: 'automation', automationFilters: 'automation',
+  automationCooldowns: 'automation', automationTemplates: 'automation',
 } as const satisfies Record<DemoTourId, ScenarioId>;
 
 /** Tours offered by the demo catalog, in catalog order. */

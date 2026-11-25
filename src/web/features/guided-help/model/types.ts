@@ -3,7 +3,10 @@ import type { Locale } from '@/shared/i18n/supported-locales.ts';
 
 export type TourId = 'connection' | 'automationEvents' | 'automationActions' | 'automationVariables' | 'plugin' | 'overlay' | 'points' | 'changes' | 'diagnostics' | 'feed' | 'backup'
   | 'analytics' | 'settings' | 'overlayObs' | 'cloudOverlays' | 'rankings' | 'pluginSetup'
-  | 'connectionRecovery' | 'feedInspector' | 'backupRestore';
+  | 'connectionRecovery' | 'feedInspector' | 'backupRestore'
+  | 'automationEventChat' | 'automationEventGift' | 'automationEventSocial' | 'automationEventRoom'
+  | 'automationActionMedia' | 'automationActionTts' | 'automationActionHttp' | 'automationActionVars'
+  | 'automationFilters' | 'automationCooldowns' | 'automationTemplates';
 export type TourLocale = Locale;
 export interface GuideStep { id: string; selector: string; title: string; description: string }
 export interface TourStepDefinition {

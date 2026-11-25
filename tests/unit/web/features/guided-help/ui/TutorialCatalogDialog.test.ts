@@ -24,9 +24,32 @@ function mountDialog() {
 const titleOf = (id: TourId): string => testMessage('en', `guides.catalog.tours.${id}.title`);
 const entriesByTag = (tag: string) => tutorialEntries.filter((entry) => entry.tags.includes(tag as never));
 
+/** The catalog paginates six cards per page: walk every page collecting card titles. */
+async function collectCardTitles(wrapper: ReturnType<typeof mountDialog>): Promise<string[]> {
+  const titles: string[] = [];
+  for (;;) {
+    for (const node of wrapper.findAll('.tutorial-catalog__card strong')) titles.push(node.text());
+    const next = wrapper.findAll('.tutorial-catalog__pager button').at(-1);
+    if (!next || next.attributes('disabled') !== undefined) return titles;
+    await next.trigger('click');
+    await flushPromises();
+  }
+}
+
+async function clickCardByTitle(wrapper: ReturnType<typeof mountDialog>, title: string): Promise<void> {
+  for (;;) {
+    const card = wrapper.findAll('.tutorial-catalog__card').find((node) => node.text().includes(title));
+    if (card) { await card.trigger('click'); return; }
+    const next = wrapper.findAll('.tutorial-catalog__pager button').at(-1);
+    if (!next || next.attributes('disabled') !== undefined) throw new Error(`card not found: ${title}`);
+    await next.trigger('click');
+    await flushPromises();
+  }
+}
+
 it('lists every tutorial and filters by search and the category select', async () => {
   const wrapper = mountDialog();
-  expect(wrapper.findAll('.tutorial-catalog__card')).toHaveLength(tutorialEntries.length);
+  expect(await collectCardTitles(wrapper)).toHaveLength(tutorialEntries.length);
   expect(wrapper.find('[role="combobox"]').exists()).toBe(true);
 
   await wrapper.get('input[type="search"]').setValue('plugins');
@@ -35,8 +58,8 @@ it('lists every tutorial and filters by search and the category select', async (
 
   await wrapper.get('[role="combobox"]').trigger('click');
   await wrapper.findAll('[role="option"]').find((option) => option.text() === testMessage('en', 'guides.catalog.tags.events'))!.trigger('click');
-  const titles = wrapper.findAll('.tutorial-catalog__card strong').map((node) => node.text());
-  expect(titles).toEqual(entriesByTag('events').map((entry) => titleOf(entry.id)));
+  const titles = await collectCardTitles(wrapper);
+  expect(titles.sort()).toEqual(entriesByTag('events').map((entry) => titleOf(entry.id)).sort());
   wrapper.unmount();
 });
 
@@ -83,8 +106,7 @@ it('shows the registry steps in the detail panel and starts the selected driver.
   const first = tutorialEntries[0]!.id;
   expect(wrapper.findAll('.tutorial-catalog__step-list li')).toHaveLength(tourRegistry[first].steps.length);
 
-  const changesIndex = tutorialEntries.findIndex((entry) => entry.id === 'changes');
-  await wrapper.findAll('.tutorial-catalog__card')[changesIndex]!.trigger('click');
+  await clickCardByTitle(wrapper, titleOf('changes'));
   expect(wrapper.get('.tutorial-catalog__detail h3').text()).toBe(titleOf('changes'));
   expect(wrapper.findAll('.tutorial-catalog__step-list li')).toHaveLength(tourRegistry.changes.steps.length);
 

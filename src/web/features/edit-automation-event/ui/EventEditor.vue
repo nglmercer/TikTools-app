@@ -247,6 +247,7 @@ function runCustom(kind: 'test' | 'fire'): void {
             />
             <BaseComboBox
               :id="`${id}-trigger`"
+              data-guide="event-editor-trigger"
               :model-value="draft.trigger"
               :options="triggerOptions"
               :aria-label="t('automations.event.trigger')"
@@ -255,6 +256,7 @@ function runCustom(kind: 'test' | 'fire'): void {
           </BaseSection>
 
           <EventConditionsSection
+            data-guide="event-editor-conditions"
             :event="draft"
             :gifts="gifts"
             :viewers="viewers"
@@ -265,12 +267,14 @@ function runCustom(kind: 'test' | 'fire'): void {
 
         <div class="event-editor__column">
           <EventRunSection
+            data-guide="event-editor-run"
             :event="draft"
             :actions="actions"
             @change="update"
           />
 
           <EventCooldownSection
+            data-guide="event-editor-cooldown"
             :event="draft"
             :field-id="id"
             @change="update"

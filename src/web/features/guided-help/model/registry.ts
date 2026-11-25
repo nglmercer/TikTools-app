@@ -176,6 +176,105 @@ export const tourRegistry = {
       { id: 'plan', version: 1, target: 'account-plan', titleKey: 'backupRestore.plan.title', descriptionKey: 'backupRestore.plan.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
     ],
   },
+  automationEventChat: {
+    id: 'automationEventChat', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'eventsTab', version: 1, target: 'automation-tab-events', titleKey: 'automationEventChat.eventsTab.title', descriptionKey: 'automationEventChat.eventsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'events', version: 1, target: 'automation-events', titleKey: 'automationEventChat.events.title', descriptionKey: 'automationEventChat.events.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'] },
+      { id: 'trigger', version: 1, target: 'event-editor-trigger', titleKey: 'automationEventChat.trigger.title', descriptionKey: 'automationEventChat.trigger.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'conditions', version: 1, target: 'event-editor-conditions', titleKey: 'automationEventChat.conditions.title', descriptionKey: 'automationEventChat.conditions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
+  automationEventGift: {
+    id: 'automationEventGift', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'eventsTab', version: 1, target: 'automation-tab-events', titleKey: 'automationEventGift.eventsTab.title', descriptionKey: 'automationEventGift.eventsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'events', version: 1, target: 'automation-events', titleKey: 'automationEventGift.events.title', descriptionKey: 'automationEventGift.events.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'] },
+      { id: 'trigger', version: 1, target: 'event-editor-trigger', titleKey: 'automationEventGift.trigger.title', descriptionKey: 'automationEventGift.trigger.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'conditions', version: 1, target: 'event-editor-conditions', titleKey: 'automationEventGift.conditions.title', descriptionKey: 'automationEventGift.conditions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'cooldown', version: 1, target: 'event-editor-cooldown', titleKey: 'automationEventGift.cooldown.title', descriptionKey: 'automationEventGift.cooldown.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
+  automationEventSocial: {
+    id: 'automationEventSocial', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'eventsTab', version: 1, target: 'automation-tab-events', titleKey: 'automationEventSocial.eventsTab.title', descriptionKey: 'automationEventSocial.eventsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'events', version: 1, target: 'automation-events', titleKey: 'automationEventSocial.events.title', descriptionKey: 'automationEventSocial.events.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'] },
+      { id: 'trigger', version: 1, target: 'event-editor-trigger', titleKey: 'automationEventSocial.trigger.title', descriptionKey: 'automationEventSocial.trigger.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'conditions', version: 1, target: 'event-editor-conditions', titleKey: 'automationEventSocial.conditions.title', descriptionKey: 'automationEventSocial.conditions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
+  automationEventRoom: {
+    id: 'automationEventRoom', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'eventsTab', version: 1, target: 'automation-tab-events', titleKey: 'automationEventRoom.eventsTab.title', descriptionKey: 'automationEventRoom.eventsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'events', version: 1, target: 'automation-events', titleKey: 'automationEventRoom.events.title', descriptionKey: 'automationEventRoom.events.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'] },
+      { id: 'trigger', version: 1, target: 'event-editor-trigger', titleKey: 'automationEventRoom.trigger.title', descriptionKey: 'automationEventRoom.trigger.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'conditions', version: 1, target: 'event-editor-conditions', titleKey: 'automationEventRoom.conditions.title', descriptionKey: 'automationEventRoom.conditions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
+  automationActionMedia: {
+    id: 'automationActionMedia', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'actionsTab', version: 1, target: 'automation-tab-actions', titleKey: 'automationActionMedia.actionsTab.title', descriptionKey: 'automationActionMedia.actionsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'actions', version: 1, target: 'automation-actions', titleKey: 'automationActionMedia.actions.title', descriptionKey: 'automationActionMedia.actions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]'] },
+      { id: 'settings', version: 1, target: 'action-editor-settings', titleKey: 'automationActionMedia.settings.title', descriptionKey: 'automationActionMedia.settings.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]', '[data-guide="automation-new-record"]'] },
+      { id: 'permissions', version: 1, target: 'action-editor-permissions', titleKey: 'automationActionMedia.permissions.title', descriptionKey: 'automationActionMedia.permissions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
+  automationActionTts: {
+    id: 'automationActionTts', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'actionsTab', version: 1, target: 'automation-tab-actions', titleKey: 'automationActionTts.actionsTab.title', descriptionKey: 'automationActionTts.actionsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'actions', version: 1, target: 'automation-actions', titleKey: 'automationActionTts.actions.title', descriptionKey: 'automationActionTts.actions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]'] },
+      { id: 'settings', version: 1, target: 'action-editor-settings', titleKey: 'automationActionTts.settings.title', descriptionKey: 'automationActionTts.settings.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]', '[data-guide="automation-new-record"]'] },
+      { id: 'permissions', version: 1, target: 'action-editor-permissions', titleKey: 'automationActionTts.permissions.title', descriptionKey: 'automationActionTts.permissions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
+  automationActionHttp: {
+    id: 'automationActionHttp', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'actionsTab', version: 1, target: 'automation-tab-actions', titleKey: 'automationActionHttp.actionsTab.title', descriptionKey: 'automationActionHttp.actionsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'actions', version: 1, target: 'automation-actions', titleKey: 'automationActionHttp.actions.title', descriptionKey: 'automationActionHttp.actions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]'] },
+      { id: 'settings', version: 1, target: 'action-editor-settings', titleKey: 'automationActionHttp.settings.title', descriptionKey: 'automationActionHttp.settings.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]', '[data-guide="automation-new-record"]'] },
+      { id: 'permissions', version: 1, target: 'action-editor-permissions', titleKey: 'automationActionHttp.permissions.title', descriptionKey: 'automationActionHttp.permissions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
+  automationActionVars: {
+    id: 'automationActionVars', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'actionsTab', version: 1, target: 'automation-tab-actions', titleKey: 'automationActionVars.actionsTab.title', descriptionKey: 'automationActionVars.actionsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'actions', version: 1, target: 'automation-actions', titleKey: 'automationActionVars.actions.title', descriptionKey: 'automationActionVars.actions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]'] },
+      { id: 'settings', version: 1, target: 'action-editor-settings', titleKey: 'automationActionVars.settings.title', descriptionKey: 'automationActionVars.settings.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]', '[data-guide="automation-new-record"]'] },
+      { id: 'permissions', version: 1, target: 'action-editor-permissions', titleKey: 'automationActionVars.permissions.title', descriptionKey: 'automationActionVars.permissions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
+  automationFilters: {
+    id: 'automationFilters', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'eventsTab', version: 1, target: 'automation-tab-events', titleKey: 'automationFilters.eventsTab.title', descriptionKey: 'automationFilters.eventsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'operators', version: 1, target: 'event-editor-conditions', titleKey: 'automationFilters.operators.title', descriptionKey: 'automationFilters.operators.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'quantifiers', version: 1, target: 'event-editor-run', titleKey: 'automationFilters.quantifiers.title', descriptionKey: 'automationFilters.quantifiers.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'verify', version: 1, target: 'automation-runs', titleKey: 'automationFilters.verify.title', descriptionKey: 'automationFilters.verify.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]'] },
+    ],
+  },
+  automationCooldowns: {
+    id: 'automationCooldowns', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'eventsTab', version: 1, target: 'automation-tab-events', titleKey: 'automationCooldowns.eventsTab.title', descriptionKey: 'automationCooldowns.eventsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'scope', version: 1, target: 'event-editor-cooldown', titleKey: 'automationCooldowns.scope.title', descriptionKey: 'automationCooldowns.scope.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'runMode', version: 1, target: 'event-editor-run', titleKey: 'automationCooldowns.runMode.title', descriptionKey: 'automationCooldowns.runMode.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+      { id: 'verify', version: 1, target: 'automation-runs', titleKey: 'automationCooldowns.verify.title', descriptionKey: 'automationCooldowns.verify.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]'] },
+    ],
+  },
+  automationTemplates: {
+    id: 'automationTemplates', version: 1, route: '/automations', scope: 'automations', task: undefined,
+    steps: [
+      { id: 'gallery', version: 1, target: 'automation-templates', titleKey: 'automationTemplates.gallery.title', descriptionKey: 'automationTemplates.gallery.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'events', version: 1, target: 'automation-events', titleKey: 'automationTemplates.events.title', descriptionKey: 'automationTemplates.events.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'] },
+      { id: 'review', version: 1, target: 'event-editor-trigger', titleKey: 'automationTemplates.review.title', descriptionKey: 'automationTemplates.review.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+    ],
+  },
 } as const satisfies Record<TourId, TourDefinition>;
 
 export function isTourId(value: string): value is TourId {

@@ -276,7 +276,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
           // Targets can be several interactions away in either direction (close the editor,
           // then switch the tab, then the table exists): press one visible trigger per round,
           // in preference order, until the target appears or nothing can be pressed anymore.
-          for (let round = 0; !element && step.prepareClick?.length && scope && round < 3; round++) {
+          for (let round = 0; !element && step.prepareClick?.length && scope && round < 5; round++) {
             let pressed = false;
             for (const selector of step.prepareClick) {
               const trigger = query(scope, selector);

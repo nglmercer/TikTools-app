@@ -70,6 +70,32 @@ const filtered = computed(() => {
       .join(' ').toLocaleLowerCase().includes(needle);
   });
 });
+const PAGE_SIZE = 6;
+const page = ref(0);
+/** Entries ordered by their primary tag following tutorialTags order, so groups stay contiguous across pages. */
+const orderedEntries = computed(() => {
+  const order = new Map(tutorialTags.map((tag, index) => [tag, index]));
+  return [...filtered.value].sort((a, b) => (order.get(a.tags[0]!) ?? 99) - (order.get(b.tags[0]!) ?? 99));
+});
+const pageCount = computed(() => Math.max(1, Math.ceil(orderedEntries.value.length / PAGE_SIZE)));
+const pagedEntries = computed(() => orderedEntries.value.slice(page.value * PAGE_SIZE, (page.value + 1) * PAGE_SIZE));
+type ListItem =
+  | { kind: 'header'; tag: TutorialTag }
+  | { kind: 'entry'; entry: (typeof filtered.value)[number] };
+const listItems = computed<readonly ListItem[]>(() => {
+  const items: ListItem[] = [];
+  let lastTag: TutorialTag | null = null;
+  for (const entry of pagedEntries.value) {
+    const tag = entry.tags[0]!;
+    if (tag !== lastTag) { items.push({ kind: 'header', tag }); lastTag = tag; }
+    items.push({ kind: 'entry', entry });
+  }
+  return items;
+});
+function prevPage(): void { if (page.value > 0) page.value -= 1; }
+function nextPage(): void { if (page.value < pageCount.value - 1) page.value += 1; }
+watch(filtered, () => { page.value = 0; });
+
 const selected = computed(() => filtered.value.find((entry) => entry.id === selectedId.value) ?? filtered.value[0] ?? null);
 
 watch(filtered, (list) => {
@@ -133,42 +159,79 @@ async function launch(id: TourId): Promise<void> {
         tag="ul"
         class="tutorial-catalog__list"
       >
-        <li
-          v-for="entry in filtered"
-          :key="entry.id"
+        <template
+          v-for="item in listItems"
+          :key="item.kind === 'header' ? `h-${item.tag}` : item.entry.id"
         >
-          <button
-            type="button"
-            class="tutorial-catalog__card"
-            :class="{ 'tutorial-catalog__card--active': selected?.id === entry.id }"
-            :aria-pressed="selected?.id === entry.id"
-            @click="selectedId = entry.id"
+          <li
+            v-if="item.kind === 'header'"
+            class="tutorial-catalog__group"
+            aria-hidden="true"
           >
-            <span class="tutorial-catalog__card-icon">
-              <component
-                :is="entry.icon"
-                :size="18"
-              />
-            </span>
-            <span class="tutorial-catalog__card-body">
-              <strong>{{ entry.title }}</strong>
-              <span class="tutorial-catalog__card-description">{{ entry.description }}</span>
-              <span class="tutorial-catalog__card-meta">
-                <span class="tutorial-catalog__chip">
-                  <component
-                    :is="tagIcons[entry.tags[0]!]"
-                    :size="12"
-                  />
-                  {{ t(`guides.catalog.tags.${entry.tags[0]}`) }}
-                </span>
-                <span>{{ t('guides.catalog.steps', { count: entry.steps.length }) }}</span>
+            <component
+              :is="tagIcons[item.tag]"
+              :size="13"
+            />
+            {{ t(`guides.catalog.tags.${item.tag}`) }}
+          </li>
+          <li v-else>
+            <button
+              type="button"
+              class="tutorial-catalog__card"
+              :class="{ 'tutorial-catalog__card--active': selected?.id === item.entry.id }"
+              :aria-pressed="selected?.id === item.entry.id"
+              @click="selectedId = item.entry.id"
+            >
+              <span class="tutorial-catalog__card-icon">
+                <component
+                  :is="item.entry.icon"
+                  :size="18"
+                />
               </span>
-            </span>
-          </button>
-        </li>
+              <span class="tutorial-catalog__card-body">
+                <strong>{{ item.entry.title }}</strong>
+                <span class="tutorial-catalog__card-description">{{ item.entry.description }}</span>
+                <span class="tutorial-catalog__card-meta">
+                  <span class="tutorial-catalog__chip">
+                    <component
+                      :is="tagIcons[item.entry.tags[0]!]"
+                      :size="12"
+                    />
+                    {{ t(`guides.catalog.tags.${item.entry.tags[0]}`) }}
+                  </span>
+                  <span>{{ t('guides.catalog.steps', { count: item.entry.steps.length }) }}</span>
+                </span>
+              </span>
+            </button>
+          </li>
+        </template>
       </TransitionGroup>
+      <div
+        v-if="pageCount > 1"
+        class="tutorial-catalog__pager"
+      >
+        <BaseButton
+          variant="ghost"
+          size="sm"
+          :disabled="page === 0"
+          :aria-label="t('guides.catalog.prevPage')"
+          @click="prevPage"
+        >
+          ‹
+        </BaseButton>
+        <span class="tutorial-catalog__page-label">{{ t('guides.catalog.pageOf', { current: page + 1, total: pageCount }) }}</span>
+        <BaseButton
+          variant="ghost"
+          size="sm"
+          :disabled="page >= pageCount - 1"
+          :aria-label="t('guides.catalog.nextPage')"
+          @click="nextPage"
+        >
+          ›
+        </BaseButton>
+      </div>
       <p
-        v-else
+        v-if="!filtered.length"
         class="tutorial-catalog__empty"
       >
         {{ t('guides.catalog.empty') }}
@@ -295,6 +358,9 @@ async function launch(id: TourId): Promise<void> {
   }
 }
 
+.tutorial-catalog__group { display: flex; align-items: center; gap: var(--space-1); margin-top: var(--space-1); color: var(--color-text-subtle); font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.tutorial-catalog__pager { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding-top: var(--space-2); grid-column: 1; }
+.tutorial-catalog__page-label { color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .tutorial-catalog__empty { margin: var(--space-4) 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 @media (width < 760px) {
   .tutorial-catalog__filters { flex-wrap: wrap; }

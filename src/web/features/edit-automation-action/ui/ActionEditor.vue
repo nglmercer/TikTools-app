@@ -207,6 +207,7 @@ function confirmDelete(): void {
       >
         <div class="action-editor__column">
           <BaseSection
+            data-guide="action-editor-general"
             :title="t('automations.event.general')"
             :description="type ? localizedText(type.description) : undefined"
           >
@@ -229,7 +230,7 @@ function confirmDelete(): void {
             />
           </BaseSection>
 
-          <BaseSection :title="t('automations.action.permissions')">
+          <BaseSection :title="t('automations.action.permissions')" data-guide="action-editor-permissions">
             <dl class="action-editor__permissions">
               <dt :title="t('automations.action.networkHint')">
                 {{ t('automations.action.network') }}
@@ -264,7 +265,7 @@ function confirmDelete(): void {
         </div>
 
         <div class="action-editor__column">
-          <BaseSection :title="t('automations.action.settings')">
+          <BaseSection :title="t('automations.action.settings')" data-guide="action-editor-settings">
             <template
               v-if="form && sources.length"
               #actions
