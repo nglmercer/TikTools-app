@@ -79,13 +79,13 @@ impl LivePlatformService {
             .collect::<Vec<_>>();
         let mut ended = Vec::new();
         for key in keys {
+            if sessions.get(&key).is_some_and(|session| session.ended) {
+                // SessionEnd marks the session before awaiting analytics. Leave
+                // it in place so that in-flight path remains responsible for
+                // dispatching exactly one disconnect and removing the session.
+                continue;
+            }
             if let Some(mut session) = sessions.remove(&key) {
-                // SessionEnd marks the session before awaiting analytics. A
-                // control-plane stop during that await must not dispatch a
-                // second disconnect automation for the same provider session.
-                if session.ended {
-                    continue;
-                }
                 session.snapshot.state = SessionState::Disconnected;
                 session.snapshot.updated_at = tiktools_live::now_millis();
                 ended.push(session.snapshot);
