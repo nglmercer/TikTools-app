@@ -1,219 +1,86 @@
-<span id="tiktools-"></span>
-
 # TikTools
 
-TikTools connects to TikTok LIVE, displays chat and engagement events, keeps
-viewer points and runs local automation rules. Use it on Windows or Linux;
-the optional native CLI also supports a Termux workflow on Android.
+TikTools connects your Windows or Linux desktop to a TikTok LIVE: it shows
+chat and engagement events, keeps viewer points, and runs automation rules
+locally on your computer. An optional native CLI adds a headless workflow,
+including Termux on Android.
 
-[Download published binaries and checksums](https://github.com/nglmercer/TikTools-app/releases)
-· [Latest stable release](https://github.com/nglmercer/TikTools-app/releases/latest)
-· [English user documentation](docs/content/en/user/index.md)
-· [Documentación de usuario en español](docs/content/es/user/index.md)
-· [Guias em português](docs/content/pt/user/index.md)
-· [Guides en français](docs/content/fr/user/index.md)
-· [简体中文用户指南](docs/content/zh/user/index.md)
-· [日本語ユーザーガイド](docs/content/ja/user/index.md)
+[Download a release](https://github.com/nglmercer/TikTools-app/releases) ·
+[Latest stable](https://github.com/nglmercer/TikTools-app/releases/latest) ·
+[Interactive demo](https://nglmercer.github.io/TikTools-app/demo/)
 
-<span id="quick-start-"></span>
+Documentation in your language:
+[English](docs/content/en/user/index.md) ·
+[Español](docs/content/es/user/index.md) ·
+[Português](docs/content/pt/user/index.md) ·
+[Français](docs/content/fr/user/index.md) ·
+[简体中文](docs/content/zh/user/index.md) ·
+[日本語](docs/content/ja/user/index.md)
 
-## Quick start
+## For users
 
-1. Open the releases page and choose a published asset for your system:
-   Windows x86_64 installer or portable ZIP, or Linux x86_64 AppImage, DEB or
-   portable TAR.GZ. Compare its hash with that release's `SHA256SUMS.txt`.
-2. Follow the [installation guide](docs/content/en/user/installation.md)
-   ([español](docs/content/es/user/installation.md)). Portable packages need
-   their `web/` directory beside the executable. Windows needs WebView2;
-   Linux requirements depend on the package and distribution.
-3. Open **Connect**, enter a creator who is currently LIVE, and start with
-   guest access when the room allows it. Follow
-   [your first LIVE](docs/content/en/user/first-live.md)
-   ([primer LIVE](docs/content/es/user/first-live.md)) for connection recovery.
+Released binaries do not need Rust, Cargo or Bun. The path:
 
-Released desktop binaries do not require Rust, Cargo or Bun. Optional plugins
-are installed separately. Use the [updates guide](docs/content/en/user/updates.md)
-for manual updates and the limits of experimental installer handoffs. Version
-numbers in source and candidate release notes do not establish publication;
-use the assets actually attached to a published release.
+1. **Install** — pick a release asset for your system and follow the
+   [installation guide](docs/content/en/user/installation.md).
+2. **Connect** — enter a creator who is LIVE in
+   [your first LIVE](docs/content/en/user/first-live.md).
+3. **Explore** — feed, points, automations, overlays and plugins:
 
-<span id="what-it-includes-"></span>
+| Guide | What it covers |
+| --- | --- |
+| [Live feed](docs/content/en/user/live/feed.md) | Inspect events, filters and the viewer inspector |
+| [Points](docs/content/en/user/points/rules.md) | Viewer point rules, rankings and statistics |
+| [Automations](docs/content/en/user/automations/index.md) | Events, actions, variables and templates |
+| [Overlays](docs/content/en/user/overlays/index.md) | Widgets and Browser Sources for OBS |
+| [Plugins](docs/content/en/user/plugins/index.md) | Install optional integrations |
+| [Cloud](docs/content/en/user/cloud/account.md) | Account, backups and shared library |
+| [Settings](docs/content/en/user/preferences/index.md) | Preferences, backups and restores |
+| [Termux](docs/content/en/user/termux.md) | Native CLI workflow on Android |
+| [Updates](docs/content/en/user/updates.md) | Manual updates and their limits |
 
-## What it includes
+Something broken? Open **Diagnostics** in the app and start with the recovery
+section of the matching guide.
 
-- LIVE connection and creator monitoring, a bounded event feed, viewer points
-  and statistics.
-- Saved automation events, reusable actions, workflows, templates and profiles.
-- Runtime plugin packages, including native, process, declarative HTTP and
-  QuickJS integrations. The compatible manifest name `napi-vm` uses QuickJS.
-  WASM execution is currently unavailable.
-- Local overlay previews and widgets for OBS; live gateway delivery requires
-  the separately installed integration.
-- English, Spanish, Portuguese, French, Simplified Chinese and Japanese UI translations (`en`, `es`, `pt`, `fr`, `zh`, `ja`), with complete documentation in the same six languages.
-- Optional Cloud account and section-specific Changes controls. Remote
-  collaboration and transports remain experimental; grants, host capabilities
-  and the current guide determine the operations available to a client.
+## Documentation site and demo
 
-Rankings and competitions have a native engine and a direct route; their
-management page is currently hidden from normal navigation. The
-[user guide](docs/content/en/user/index.md) explains other feature limits.
-
-<span id="documentation"></span>
-<span id="documentation-"></span>
-
-## Documentation and demo
-
-Start with [English guides](docs/content/en/user/index.md) or
-[guías en español](docs/content/es/user/index.md). Source contributors use the
-separate [developer documentation](docs/content/en/developer/index.md)
-([desarrollo en español](docs/content/es/developer/index.md)).
-
-The repository includes a VitePress site and an interactive demo with fictional
-data. After the development dependency setup below, build a local preview:
+The full documentation and an interactive demo with fictional data live in
+this repository. To browse them locally:
 
 ```sh
 TIKTOOLS_SITE_ALLOW_DIRTY=1 bun scripts/task.ts site build
 bun scripts/task.ts site preview
 ```
 
-The default preview serves [English docs](http://127.0.0.1:4173/TikTools-app/en/user/),
-[Spanish docs](http://127.0.0.1:4173/TikTools-app/es/user/) and the
-[interactive demo](http://127.0.0.1:4173/TikTools-app/demo/). See
-[docs and demo development](docs/content/en/developer/demo.md) for separate
-development loops, build paths and configuration. Site publication is tracked
-separately from this local preview.
+Then open [the docs](http://127.0.0.1:4173/TikTools-app/en/user/) or
+[the demo](http://127.0.0.1:4173/TikTools-app/demo/). Details:
+[docs and demo development](docs/content/en/developer/demo.md).
 
-Retained historical references remain in the versioned archive. Obsolete
-implementation plans and agent reports are retained only in Git history. The
-[migration map](docs/migration-map.json) records every original document,
-heading and image; [archive provenance](docs/internal/archive/PROVENANCE.json)
-identifies the historical sources, their hashes and explicit Git-only retirements. The
-[original README](docs/internal/archive/README.md) remains available verbatim.
+## For developers
 
-<span id="development--quality-"></span>
-<span id="development-quality"></span>
-
-## Development / Quality
-
-Use Bun 1.4.4, Rust 1.95 or newer, and Node.js compatible with the locked Vite
-toolchain. Windows source builds need MSVC Build Tools and native Strawberry
-Perl; Linux desktop builds need GTK/WebKitGTK and audio development packages.
-Follow [development setup](docs/content/en/developer/setup.md) for your platform.
+Requirements: Bun 1.4.4, Rust 1.95+, platform toolchain per
+[development setup](docs/content/en/developer/setup.md).
 
 ```sh
-bun ci
-bun run start
+bun ci          # install from the committed lockfile
+bun run start   # desktop host + Vite dev server
 ```
 
-`start` allocates and owns a loopback Vite development server, waits until it
-is ready, then runs the Winit/Wry desktop host against that URL. Stop an existing
-desktop or control host cleanly before starting another development owner.
+| Guide | What it covers |
+| --- | --- |
+| [Developer overview](docs/content/en/developer/index.md) | Architecture and how to choose your dev loop |
+| [Setup](docs/content/en/developer/setup.md) | Platform toolchains and first build |
+| [Testing](docs/content/en/developer/testing.md) | Unit, contract, E2E and site verification |
+| [Control API](docs/content/en/developer/control-api.md) | Typed JSON-RPC surface every client uses |
+| [Agents & SDK](docs/content/en/developer/agents.md) | Build scripts/agents against the host |
+| [Plugins](docs/content/en/developer/plugins/quickstart.md) | Author runtime plugin packages |
+| [Frontend](docs/content/en/developer/frontend.md) | Vue structure, stores and conventions |
+| [Contributing](docs/content/en/developer/contributing.md) | Checks, CI requirements and release policy |
 
 Example plugins live in the separate
 [`plugins-example-tiktools`](https://github.com/nglmercer/plugins-example-tiktools)
-repository. When that checkout is a sibling, or `TIKTOOLS_PLUGINS_REPO` points
-to it, `start` can prepare its packages in the ignored `.dev-plugins` directory.
-Sibling paths are optional examples for local development. The application and
-its normal CI checks work without this checkout; set `TIKTOOLS_PLUGINS_REPO`
-to an absolute path if your repositories are in different locations.
-Use `TIKTOOLS_SKIP_DEV_PLUGINS=1 bun run start` to skip preparation.
-Install the plugin checkout's own dependencies before using its UI builds:
+repository; the app and its CI work without it.
 
-```sh
-bun install --frozen-lockfile --cwd ../plugins-example-tiktools
-bun scripts/task.ts prepare-plugins   # build/stage without launching the desktop
-bun scripts/task.ts plugins --all     # distributable archives in dist/plugins
-```
+## License
 
-Preparation rebuilds plugin UIs and replaces the generated `.dev-plugins`
-contents. `TIKTOOLS_PLUGINS_REPO=off bun run start` clears that staging root
-and launches without external development packages. Installed user plugins
-are managed separately in Plugins.
-`bun run dev` starts the headless host, local browser adapter and Vite without
-automatic development-plugin preparation.
-
-Use an isolated `TIKTOOLS_HOME` for native experiments. Follow
-[CONTRIBUTING.md](CONTRIBUTING.md) for focused checks, full CI requirements,
-documentation maintenance and release policy.
-
-<span id="commands-"></span>
-
-## Commands
-
-| Command | Result |
-| --- | --- |
-| `bun run start` | Owned Vite server and Wry desktop development host |
-| `bun run dev` | Headless host, loopback browser adapter and Vite |
-| `bun run build` | Widgets, frontend assets, release binary, and a fresh `web/` beside it; external plugins install separately |
-| `bun run lint` | Frontend/SDK lint and type checks plus Rust formatting and Clippy |
-| `bun run test` | Fast Bun and Vitest unit suites |
-| `bun run ci` | Contract checks, lint, tests, native verification and application build |
-| `bun scripts/task.ts docs check` | Public article metadata, translations and links |
-| `bun scripts/task.ts docs dev` | VitePress and demo dev servers (embedded demos work) |
-| `bun scripts/task.ts demo dev` | Fictional-data browser demo development server |
-| `bun scripts/task.ts site dev` | Alias of `docs dev` |
-| `bun scripts/task.ts site build` | Build and assemble docs plus demo into `dist/site` |
-| `bun scripts/task.ts sync-web [dir]` | Replace a packaged `web/` directory with a fresh copy of `dist/web` (default: `target/release/web`) |
-
-`bun ci` installs from the committed lockfile. Run targeted tests through the
-task runner, for example `bun run test web live-batch` or
-`bun run test rust tiktools-core batched_likes --features native-tiktok`.
-Native Termux instructions are in [English](docs/content/en/user/termux.md)
-and [español](docs/content/es/user/termux.md).
-
-<span id="project-layout-"></span>
-
-## Project layout
-
-```text
-crates/tiktools-desktop/       Winit/Wry shell, tray and UI-thread lifecycle
-crates/tiktools-core/          AppCore, services, SQLite, events and automations
-crates/tiktools-control-api/   Typed JSON-RPC registry and local transports
-crates/tiktools-client/        Typed SDK and optional remote transports
-crates/tiktools-cli/           IPC-first native CLI and optional browser adapter
-crates/tiktools-collaboration/ Grants, sessions, execution authority and receipts
-crates/tiktools-remote/        Optional HTTPS/WSS host gateway
-crates/tiktools-rtc/           Native WebRTC transport and signaling contracts
-crates/tiktools-plugin-*/      Plugin contracts, runtimes, installer and tooling
-src/web/shared/api/           Frontend control client and transport contracts
-src/web/shared/ui/            Shared Vue components
-src/web/shared/i18n/          Six UI locale catalogs
-src/web/entities/             Domain state and reusable business models
-src/web/features/             User operations
-src/shared/messages.ts       Host-push message contract
-src/automation/              Automation contracts and frontend helpers
-src/widgets/                 TikTools widget renderers and shared SDK
-docs/content/{en,es,pt,fr,zh,ja}/  Localized public user and developer guides
-docs/internal/archive/       Retained historical references and provenance
-```
-
-<span id="runtime-plugin-model-"></span>
-
-## Runtime plugin model
-
-Plugins are discovered from runtime directories. Adding an integration does
-not require rebuilding the application, and the application build does not
-bundle the external example plugins. Use the
-[plugin installation guide](docs/content/en/user/plugins/index.md) or
-[authoring guide](docs/content/en/developer/plugins/quickstart.md).
-
-Native libraries and trusted `.node` addons run inside the host process.
-Process isolation is not an OS sandbox. Manifest permissions and capabilities
-govern the host APIs exposed to a package; they do not make arbitrary native
-code safe. See [runtime boundaries](docs/content/en/developer/plugins/runtimes.md).
-
-<span id="data-and-privacy-"></span>
-
-## Data and privacy
-
-Rust resolves writable state under platform app-data directories. Development
-overrides include `TIKTOOLS_HOME`, `TIKTOOLS_DATA_DIR`, `TIKTOOLS_PLUGINS_DIR`,
-`TIKTOOLS_PLUGIN_DATA_DIR`, `TIKTOOLS_LOG_DIR` and `TIKTOOLS_TEMP_DIR`.
-See [storage](docs/content/en/developer/storage.md) and
-[backup guidance](docs/content/en/user/preferences/backups.md) before moving
-or restoring a profile.
-
-Keep TikTok cookies, Cloud credentials, invitation tokens and secret Variables
-out of logs, issues and screenshots. TikTok session cookies stay in memory.
-Cloud login is separate from the TikTok LIVE connection. Review diagnostic
-exports before sharing them.
+[MIT](LICENSE)
