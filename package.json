@@ -35,8 +35,10 @@
     "happy-dom": "^21.0.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
+    "typescript-vize": "npm:typescript@7.1.0-beta",
     "vite": "^8.3.6",
     "vitest": "^5.1.0",
+    "vize": "0.775.0",
     "vue-eslint-parser": "^10.4.2",
     "vue-tsc": "^3.3.14"
   },

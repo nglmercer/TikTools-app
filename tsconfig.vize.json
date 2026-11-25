@@ -1,0 +1,8 @@
+{
+  // Experimental parallel typecheck through Vize's content mapper on
+  // TypeScript 7.1 beta. `vue-tsc` remains the authoritative gate; this
+  // config exists to dogfood the native pipeline and report divergences
+  // upstream. See AGENTS.md.
+  "extends": "./tsconfig.json",
+  "contentMappers": [{ "package": "vize", "extensions": [".vue"] }]
+}

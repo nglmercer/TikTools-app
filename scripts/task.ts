@@ -19,7 +19,7 @@ const USAGE =
   'Targeted tests: `test` (fast units), `test rust <crate> [filter] [--features <list>]`,\n' +
   '`test web [filter] [--watch|--changed]`, `test bun <area> [filter]`,\n' +
   '`test plugin <name> [filter]`, `test e2e [filter]`, `test --changed`.\n' +
-  'Internal steps used by CI and guides: frontend-lint, frontend-test, frontend-build,\n' +
+  'Internal steps used by CI and guides: frontend-lint, frontend-typecheck:vize, frontend-test, frontend-build,\n' +
   'rust-lint, rust <cargo args>, rust-test-sharded, widgets, plugins <args>, tasks, plugin:<id>:<command>, e2e [args], package,\n' +
   'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins, sync-web [target-web-directory].\n' +
   'Site tasks: docs dev|check|build|test|preview, demo dev|build, site dev|build|preview.';
@@ -80,6 +80,17 @@ async function frontendLint(): Promise<void> {
   await tool('eslint', 'packages', '--max-warnings=0');
   await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-sdk/tsconfig.json');
   await tool('vue-tsc', '--noEmit', '-p', 'packages/plugin-ui/tsconfig.json');
+}
+
+
+// Experimental native typecheck through Vize's content mapper on TypeScript
+// 7.1 beta. Parallel to the authoritative `vue-tsc` gate on purpose: divergences
+// are upstream reports, not local failures. See AGENTS.md for the reporting policy.
+async function frontendTypecheckVize(): Promise<void> {
+  const binary = join(root, 'node_modules', 'typescript-vize', 'bin', 'tsc');
+  if (!(await Bun.file(binary).exists()))
+    throw new Error('typescript-vize is not installed; run `bun install` first');
+  await run(process.execPath, binary, '--runExternalCode', '--noEmit', '-p', 'tsconfig.vize.json');
 }
 
 async function rustLint(): Promise<void> {
@@ -221,6 +232,10 @@ try {
       break;
     case 'frontend-build':
       await tool('vite', 'build', ...args);
+      break;
+    case 'frontend-typecheck:vize':
+      needNoArgs('frontend-typecheck:vize', args);
+      await frontendTypecheckVize();
       break;
     case 'rust-lint':
       needNoArgs('rust-lint', args);
