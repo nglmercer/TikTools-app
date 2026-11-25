@@ -11,7 +11,10 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     time::Duration,
 };
 use tiktools_live::{
@@ -68,6 +71,7 @@ struct TwitchPlugin {
     stop: Mutex<Option<CancellationToken>>,
     queue: Queue,
     status: Mutex<String>,
+    worker_alive: Arc<AtomicBool>,
 }
 
 impl TwitchPlugin {
@@ -83,9 +87,17 @@ impl TwitchPlugin {
                 .runtime
                 .lock()
                 .map_err(|error| PluginError::other(error.to_string()))?;
-            if runtime.is_some() {
+            if runtime.is_some() && self.worker_alive.load(Ordering::SeqCst) {
                 return Err(PluginError::other("Twitch connection is already running"));
             }
+        }
+        if self
+            .runtime
+            .lock()
+            .map_err(|error| PluginError::other(error.to_string()))?
+            .is_some()
+        {
+            self.stop_connection()?;
         }
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
@@ -95,8 +107,11 @@ impl TwitchPlugin {
         let stop = CancellationToken::new();
         let queue = self.queue.clone();
         let worker_stop = stop.clone();
+        let worker_alive = self.worker_alive.clone();
+        worker_alive.store(true, Ordering::SeqCst);
         runtime.spawn(async move {
             run_connection_loop(channel, token, queue, worker_stop).await;
+            worker_alive.store(false, Ordering::SeqCst);
         });
         *self
             .runtime
@@ -111,6 +126,7 @@ impl TwitchPlugin {
     }
 
     fn stop_connection(&self) -> PluginResult<()> {
+        self.worker_alive.store(false, Ordering::SeqCst);
         if let Some(stop) = self
             .stop
             .lock()
