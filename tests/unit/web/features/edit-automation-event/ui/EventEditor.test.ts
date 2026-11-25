@@ -204,7 +204,7 @@ it('removes a condition through the row action menu', async () => {
   expect(changed.filters).toEqual([filters[1]]);
 });
 
-it('keeps the optional capture alias hidden until the advanced toggle is used', async () => {
+it('edits capture aliases in their own tab', async () => {
   const filters: EventFilter[] = [
     { path: 'event.data.text', operator: 'starts-with', value: '!play' },
     { path: 'event.data.text', operator: 'starts-with', value: '/play' },
@@ -215,16 +215,13 @@ it('keeps the optional capture alias hidden until the advanced toggle is used', 
   } });
   const aliasLabel = t('automations.conditions.alias');
   const aliasInputs = () => wrapper.findAll('input').filter((item) => item.attributes('aria-label') === aliasLabel);
-  const toggle = wrapper.findAll('button').find((item) => item.attributes('aria-label') === aliasLabel)!;
   expect(aliasInputs()).toHaveLength(0);
-  await toggle.trigger('click');
+  const capturesTab = wrapper.findAll('[role="tab"]')
+    .find((item) => item.text() === t('automations.conditions.captures'))!;
+  await capturesTab.trigger('click');
   await nextTick();
   expect(aliasInputs()).toHaveLength(2);
   await aliasInputs()[0]!.setValue('commandPrefix');
   const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
   expect(changed.filters[0]?.as).toBe('commandPrefix');
-  await toggle.trigger('click');
-  await nextTick();
-  expect(aliasInputs()).toHaveLength(0);
-  expect(wrapper.text()).toContain('commandPrefix');
 });

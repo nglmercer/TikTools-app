@@ -871,6 +871,8 @@ export default {
       quantifierAll: "全部",
       alias: "捕获为",
       aliasPlaceholder: "名称",
+      captures: "捕获",
+      capturesHint: "每个条件匹配的值可在操作中通过 match.alias 使用。",
       alternative: "备选 {n}",
       addAlternative: "添加备选",
       removeAlternative: "移除备选",

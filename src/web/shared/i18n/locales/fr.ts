@@ -873,6 +873,8 @@ export default {
       quantifierAll: 'tous',
       alias: 'Capturer comme',
       aliasPlaceholder: 'nom',
+      captures: 'Captures',
+      capturesHint: 'La valeur qui correspond à chaque condition est disponible dans les actions sous match.alias.',
       alternative: 'Alternative {n}',
       addAlternative: 'Ajouter une alternative',
       removeAlternative: 'Supprimer l’alternative',
