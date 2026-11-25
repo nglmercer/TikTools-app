@@ -363,7 +363,7 @@ fn ui_event(event: &LiveEnvelope, correlation: &str) -> Option<Value> {
             "gift",
             format!("sent {count}× {name} ({amount} {unit})"),
             "giftSent",
-            json!({"count":count,"giftName":name}),
+            json!({"count":count,"giftName":name,"amount":amount,"unit":unit}),
         ),
         LivePayload::Subscription { .. } => (
             "member",

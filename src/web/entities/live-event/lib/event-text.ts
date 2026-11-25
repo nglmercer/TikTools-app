@@ -7,6 +7,11 @@ export function eventText(event: DisplayEvent, t: Translate): string {
   const params = event.i18nParams ?? {};
   switch (event.i18nKey) {
     case 'giftSent':
+      // Generic platforms carry non-denominational amounts (for example 100
+      // twitch_bits). The diamond-oriented shared translation cannot express
+      // that faithfully, so use the host's complete canonical text instead of
+      // discarding the amount.
+      if (typeof params.unit === 'string' && params.unit.length > 0) return event.text;
       return t('feed.events.giftSent', {
         count: params.count ?? event.giftDetails?.count ?? 1,
         giftName: params.giftName ?? event.giftDetails?.name ?? 'Gift',
