@@ -232,17 +232,29 @@ export function createLiveFeedState(control: ControlClient, callbacks: LiveFeedC
     const scope = JSON.stringify([data.uniqueId ?? '', data.roomId ?? '']);
     if (scope !== sessionScope) {
       if (historyScope && historyScope !== scope) {
-        // A restart must not show another creator's saved activity.
+        // A native room switch invalidates native rows, but plugin-owned
+        // platform rows belong to independent provider sessions and remain
+        // live. Rehome them into the new history scope instead of erasing
+        // the still-connected platforms with the old TikTok room.
+        const platformRows = events.value.filter((row) => row.platform);
         if (historyTimer !== null) { clearTimeout(historyTimer); historyTimer = null; }
-        history?.clear();
-        events.value = [];
-        categoryCounts.clear();
-        nextEventId = 0;
+        if (platformRows.length > 0) {
+          events.value = platformRows;
+          categoryCounts = countCategories(platformRows);
+          nextEventId = platformRows.reduce((max, row) => Math.max(max, row.id + 1), 0);
+          historyScope = scope;
+          persistHistory();
+        } else {
+          history?.clear();
+          events.value = [];
+          categoryCounts.clear();
+          nextEventId = 0;
+        }
         unreadCount.value = 0;
       }
       historyScope = scope;
       seenMsgIds.clear();
-      seenCursors.clear();
+      if (events.value.length === 0) seenCursors.clear();
       // Lossy ranking snapshots can be delivered before reliable
       // live.connected. Preserve a snapshot from the SAME room in that case.
       if (rankingCreator !== (data.uniqueId ?? '') ||
