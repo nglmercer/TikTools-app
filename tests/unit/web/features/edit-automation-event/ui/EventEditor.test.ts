@@ -221,7 +221,9 @@ it('edits capture aliases in their own tab', async () => {
   await capturesToggle.trigger('click');
   await nextTick();
   expect(aliasInputs()).toHaveLength(2);
+  expect(wrapper.text()).toContain('match.0');
   await aliasInputs()[0]!.setValue('commandPrefix');
   const changed = wrapper.emitted('change')!.at(-1)![0] as LiveEvent;
   expect(changed.filters[0]?.as).toBe('commandPrefix');
+  expect(wrapper.text()).toContain('match.commandPrefix');
 });

@@ -366,7 +366,10 @@ onBeforeUnmount(stopRecording);
       :key="row.index"
       class="conditions__capture"
     >
-      <span class="conditions__capturekey">match.{{ row.index }}</span>
+      <span
+        class="conditions__capturekey"
+        :title="`${row.index + 1}. ${row.filter.path} ${OPERATOR_CODE[row.filter.operator]} ${filterValues(row.filter).join(', ')}`"
+      >{{ row.filter.as ? `match.${row.filter.as}` : `match.${row.index}` }}</span>
       <BaseTextField
         :model-value="row.filter.as ?? ''"
         size="sm"
@@ -485,9 +488,13 @@ onBeforeUnmount(stopRecording);
 .conditions__capturekey {
   flex: none;
   min-width: 5rem;
+  max-width: 10rem;
+  overflow: hidden;
   color: var(--color-text-muted);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .conditions__option {
