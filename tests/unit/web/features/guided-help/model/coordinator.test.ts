@@ -538,3 +538,38 @@ it('does not press the prepare trigger when the target already exists', async ()
   expect(openEditor).not.toHaveBeenCalled();
   session.stop();
 });
+
+it('backward navigation presses chained prepare triggers until the target returns', async () => {
+  vi.useFakeTimers();
+  const test = setup();
+  const root = mountTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-editor', 'automation-runs']);
+  // Editor-open state: the library table is gone and the close button exists.
+  const close = document.createElement('button');
+  close.dataset.guide = 'automation-editor-close';
+  root.append(close);
+  const eventsTab = root.querySelector('[data-guide="automation-tab-events"]')!;
+  const closeClick = vi.fn(() => {
+    close.remove(); // closing the editor brings the library back, still missing the events table in this drill
+  });
+  close.addEventListener('click', closeClick);
+  const tabClick = vi.fn(() => {
+    const table = document.createElement('div');
+    table.dataset.guide = 'automation-events';
+    root.append(table);
+  });
+  eventsTab.addEventListener('click', tabClick);
+  const session = test.coordinator.startTour('automationEvents');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await session.ready).toBe(true);
+  // profiles → eventsTab: two chained presses needed (close editor, then the tab logic) before the events table exists.
+  test.next();
+  await vi.advanceTimersByTimeAsync(700);
+  // eventsTab target exists already, drive to the events table step directly:
+  test.next();
+  await vi.advanceTimersByTimeAsync(700);
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(closeClick).toHaveBeenCalled();
+  expect(tabClick).toHaveBeenCalled();
+  expect(test.steps()[2]?.element).toBe(root.querySelector('[data-guide="automation-events"]'));
+  session.stop();
+});

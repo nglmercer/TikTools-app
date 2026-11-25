@@ -273,12 +273,16 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
           const step = steps[index]!;
           if (step.available?.() === false) continue;
           let element = await waitFor(() => target(step), pending.signal, Math.min(waitMs, 600));
-          if (!element && step.prepareClick?.length && scope) {
-            // The target needs interaction first (open a record, switch a tab): press it for the user, in preference order.
+          // Targets can be several interactions away in either direction (close the editor,
+          // then switch the tab, then the table exists): press one visible trigger per round,
+          // in preference order, until the target appears or nothing can be pressed anymore.
+          for (let round = 0; !element && step.prepareClick?.length && scope && round < 3; round++) {
+            let pressed = false;
             for (const selector of step.prepareClick) {
               const trigger = query(scope, selector);
-              if (visible(trigger)) { trigger.click(); break; }
+              if (visible(trigger)) { trigger.click(); pressed = true; break; }
             }
+            if (!pressed) break;
             element = await waitFor(() => target(step), pending.signal, waitMs);
           }
           if (finished || pending.signal.aborted || ticket !== moveGeneration) return;

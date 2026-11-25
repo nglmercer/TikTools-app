@@ -14,8 +14,8 @@ export const tourRegistry = {
     id: 'automationEvents', version: 2, route: '/automations', scope: 'automations', task: 'automation.saved',
     steps: [
       { id: 'profiles', version: 1, target: 'automation-profiles', titleKey: 'automationEvents.profiles.title', descriptionKey: 'automationEvents.profiles.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
-      { id: 'eventsTab', version: 1, target: 'automation-tab-events', titleKey: 'automationEvents.eventsTab.title', descriptionKey: 'automationEvents.eventsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
-      { id: 'events', version: 2, target: 'automation-events', titleKey: 'automationEvents.events.title', descriptionKey: 'automationEvents.events.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-tab-events"]'] },
+      { id: 'eventsTab', version: 2, target: 'automation-tab-events', titleKey: 'automationEvents.eventsTab.title', descriptionKey: 'automationEvents.eventsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'events', version: 2, target: 'automation-events', titleKey: 'automationEvents.events.title', descriptionKey: 'automationEvents.events.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'] },
       { id: 'editor', version: 2, target: 'automation-editor', titleKey: 'automationEvents.editor.title', descriptionKey: 'automationEvents.editor.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-new-record"]'] },
       { id: 'runs', version: 1, target: 'automation-runs', titleKey: 'automationEvents.runs.title', descriptionKey: 'automationEvents.runs.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
     ],
@@ -91,7 +91,7 @@ export const tourRegistry = {
     id: 'automationVariables', version: 2, route: '/automations?view=variables', scope: 'automations', task: undefined,
     steps: [
       { id: 'variablesTab', version: 1, target: 'automation-tab-variables', titleKey: 'automationVariables.variablesTab.title', descriptionKey: 'automationVariables.variablesTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
-      { id: 'values', version: 2, target: 'automation-variables', titleKey: 'automationVariables.values.title', descriptionKey: 'automationVariables.values.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-tab-variables"]'] },
+      { id: 'values', version: 2, target: 'automation-variables', titleKey: 'automationVariables.values.title', descriptionKey: 'automationVariables.values.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-variables"]'] },
       { id: 'review', version: 1, target: 'changes', titleKey: 'automationVariables.review.title', descriptionKey: 'automationVariables.review.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
     ],
   },
@@ -126,8 +126,8 @@ export const tourRegistry = {
   automationActions: {
     id: 'automationActions', version: 2, route: '/automations', scope: 'automations', task: undefined,
     steps: [
-      { id: 'actionsTab', version: 1, target: 'automation-tab-actions', titleKey: 'automationActions.actionsTab.title', descriptionKey: 'automationActions.actionsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel' },
-      { id: 'actions', version: 2, target: 'automation-actions', titleKey: 'automationActions.actions.title', descriptionKey: 'automationActions.actions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-tab-actions"]'] },
+      { id: 'actionsTab', version: 2, target: 'automation-tab-actions', titleKey: 'automationActions.actionsTab.title', descriptionKey: 'automationActions.actionsTab.description', requiredCapabilities: [], missingTargetPolicy: 'cancel', prepareClick: ['[data-guide="automation-editor-close"]'] },
+      { id: 'actions', version: 2, target: 'automation-actions', titleKey: 'automationActions.actions.title', descriptionKey: 'automationActions.actions.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]'] },
       { id: 'editor', version: 2, target: 'automation-editor', titleKey: 'automationActions.editor.title', descriptionKey: 'automationActions.editor.description', requiredCapabilities: [], missingTargetPolicy: 'skip', prepareClick: ['[data-guide="automation-new-record"]'] },
       { id: 'templates', version: 1, target: 'automation-templates', titleKey: 'automationActions.templates.title', descriptionKey: 'automationActions.templates.description', requiredCapabilities: [], missingTargetPolicy: 'skip' },
     ],

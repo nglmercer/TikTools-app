@@ -69,6 +69,7 @@ const actionCaptures = computed(() => {
         :label="t('common.back')"
         variant="default"
         size="sm"
+        data-guide="automation-editor-close"
         @click="emit('close')"
       >
         <IconChevronLeft />
@@ -103,6 +104,7 @@ const actionCaptures = computed(() => {
         :label="t('common.back')"
         variant="default"
         size="sm"
+        data-guide="automation-editor-close"
         @click="emit('close')"
       >
         <IconChevronLeft />

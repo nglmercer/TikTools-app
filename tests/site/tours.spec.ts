@@ -95,3 +95,22 @@ test('the recommended tour follows in-app navigation without starting automatica
   await page.getByTestId('demo-guide').click();
   await expect(page.locator('.tutorial-catalog__card--active')).toContainText(pointsTitle);
 });
+
+test('automation events tour reaches the editor step through the prepare action', async ({ page }) => {
+  await page.goto('demo/?scenario=automation&locale=en&instance=prepare-editor');
+  await launchFromCatalog(page, testMessage('en', 'guides.catalog.tours.automationEvents.title'));
+  await expect(page.locator('.driver-popover-title')).toHaveText(tourCatalogs.en.automationEvents.profiles.title);
+  for (const title of [tourCatalogs.en.automationEvents.eventsTab.title, tourCatalogs.en.automationEvents.events.title]) {
+    await page.locator('.driver-popover-next-btn').click();
+    await expect(page.locator('.driver-popover-title')).toHaveText(title);
+  }
+  await page.locator('.driver-popover-next-btn').click();
+  // The editor only exists after interaction: the tour opens a record draft itself.
+  await expect(page.locator('.driver-popover-title')).toHaveText(tourCatalogs.en.automationEvents.editor.title, { timeout: 10000 });
+  await expect(page.locator('[data-guide="automation-editor"]')).toBeVisible();
+  // Backward: the events table only returns after the editor closes — the tour presses back itself.
+  await page.locator('.driver-popover-prev-btn').click();
+  await expect(page.locator('.driver-popover-title')).toHaveText(tourCatalogs.en.automationEvents.events.title, { timeout: 10000 });
+  await expect(page.locator('[data-guide="automation-events"]')).toBeVisible();
+  await page.locator('.driver-popover-close-btn').click();
+});
