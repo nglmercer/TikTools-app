@@ -104,7 +104,7 @@ if (desktopShell) {
 <template>
   <div
     class="app-layout"
-    :class="{ 'app-layout--automation': route.path === '/automations' }"
+    :class="{ 'app-layout--automation': route.path === '/automations', 'app-layout--native-chrome': desktopShell }"
   >
     <AppNotifications @open-settings="router.push(tabLocation('settings'))" />
     <AppMenuBar

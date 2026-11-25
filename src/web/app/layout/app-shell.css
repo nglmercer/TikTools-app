@@ -126,6 +126,13 @@
   .app-layout__content {
     overflow: auto;
   }
+
+  /* The desktop shell renders its menu bar natively, so the in-page bar is
+     hidden and reserves no space: the drawer must not leave the chrome
+     offset empty. Specificity beats the base rule regardless of load order. */
+  .app-layout--native-chrome .app-layout__navigation {
+    inset: 0 auto 0 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
