@@ -33,6 +33,15 @@ const MAX_PENDING_MESSAGES: usize = 1024;
 // payload. Batching fewer messages keeps one poll response comfortably below
 // that transport limit even with long chat text and metadata.
 const PLUGIN_BATCH_MESSAGES: usize = 32;
+// Stay comfortably below the host's 64 KiB plugin-event transport bound even
+// when IRC metadata is large. Oversized single messages can never be accepted
+// downstream, so they are accounted as an explicit provider gap instead.
+const MAX_INGEST_BATCH_BYTES: usize = 48 * 1024;
+const MAX_INGEST_MESSAGE_BYTES: usize = 32 * 1024;
+
+fn encoded_len(message: &PlatformIngestMessage) -> usize {
+    serde_json::to_vec(message).map_or(usize::MAX, |bytes| bytes.len())
+}
 
 #[derive(Default)]
 struct SharedQueue {
@@ -42,6 +51,10 @@ struct SharedQueue {
 
 impl SharedQueue {
     fn push(&mut self, message: PlatformIngestMessage) {
+        if encoded_len(&message) > MAX_INGEST_MESSAGE_BYTES {
+            self.lost = self.lost.saturating_add(1);
+            return;
+        }
         if self.messages.len() >= MAX_PENDING_MESSAGES {
             self.lost = self.lost.saturating_add(1);
             return;
@@ -230,10 +243,20 @@ impl Plugin for TwitchPlugin {
                 if shared.messages.is_empty() {
                     Vec::new()
                 } else {
-                    let count = shared
-                        .messages
-                        .len()
-                        .min(MAX_BATCH_MESSAGES.min(PLUGIN_BATCH_MESSAGES));
+                    let max_count = MAX_BATCH_MESSAGES.min(PLUGIN_BATCH_MESSAGES);
+                    // JSON array/comma/envelope overhead is small but nonzero.
+                    // Measure before draining so a boundary batch remains
+                    // queued instead of being rejected wholesale by the host.
+                    let mut encoded_bytes = 64usize;
+                    let mut count = 0usize;
+                    for message in shared.messages.iter().take(max_count) {
+                        let message_bytes = encoded_len(message).saturating_add(1);
+                        if encoded_bytes.saturating_add(message_bytes) > MAX_INGEST_BATCH_BYTES {
+                            break;
+                        }
+                        encoded_bytes += message_bytes;
+                        count += 1;
+                    }
                     shared.messages.drain(..count).collect()
                 }
             };
