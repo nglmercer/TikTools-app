@@ -11,8 +11,9 @@ import IconLink from '@/shared/ui/icon/icons/IconLink.vue';
 import IconPuzzle from '@/shared/ui/icon/icons/IconPuzzle.vue';
 import IconRows from '@/shared/ui/icon/icons/IconRows.vue';
 import IconZap from '@/shared/ui/icon/icons/IconZap.vue';
-import { tourCatalogs } from '../catalogs/index.ts';
+import { tourCatalogs } from './registry.ts';
 import { tourRegistry } from './registry.ts';
+import { tourModules } from '../tours/index.ts';
 import type { TourId, TourLocale } from './types.ts';
 
 /** Filter chips shared by every guided-help entry point. */
@@ -55,40 +56,27 @@ export const tagIcons: Record<TutorialTag, Component> = {
   rankings: IconCoins,
 };
 
-/** All driver.js tours, in the order they appear in the catalog. */
-export const tutorialEntries: readonly TutorialEntry[] = [
-  { id: 'automationEvents', tags: ['events'], icon: IconZap },
-  { id: 'automationActions', tags: ['actions'], icon: IconRows },
-  { id: 'automationVariables', tags: ['events', 'actions', 'changes'], icon: IconHash },
-  { id: 'changes', tags: ['events', 'actions', 'changes'], icon: IconGitMerge },
-  { id: 'automationEventChat', tags: ['events'], icon: IconChat },
-  { id: 'automationEventGift', tags: ['events'], icon: IconZap },
-  { id: 'automationEventSocial', tags: ['events'], icon: IconZap },
-  { id: 'automationEventRoom', tags: ['events'], icon: IconZap },
-  { id: 'automationActionMedia', tags: ['actions'], icon: IconRows },
-  { id: 'automationActionTts', tags: ['actions'], icon: IconRows },
-  { id: 'automationActionHttp', tags: ['actions'], icon: IconRows },
-  { id: 'automationActionVars', tags: ['actions', 'changes'], icon: IconHash },
-  { id: 'automationFilters', tags: ['events'], icon: IconZap },
-  { id: 'automationCooldowns', tags: ['events'], icon: IconZap },
-  { id: 'automationTemplates', tags: ['events', 'actions'], icon: IconRows },
-  { id: 'connection', tags: ['connection'], icon: IconLink },
-  { id: 'connectionRecovery', tags: ['connection'], icon: IconLink },
-  { id: 'plugin', tags: ['plugins'], icon: IconPuzzle },
-  { id: 'pluginSetup', tags: ['plugins'], icon: IconPuzzle },
-  { id: 'overlay', tags: ['overlays'], icon: IconLayers },
-  { id: 'overlayObs', tags: ['overlays'], icon: IconLayers },
-  { id: 'cloudOverlays', tags: ['overlays', 'account'], icon: IconCloud },
-  { id: 'points', tags: ['points'], icon: IconCoins },
-  { id: 'rankings', tags: ['points', 'rankings'], icon: IconCoins },
-  { id: 'analytics', tags: ['analytics'], icon: IconChart },
-  { id: 'diagnostics', tags: ['diagnostics'], icon: IconChart },
-  { id: 'feed', tags: ['feed'], icon: IconChat },
-  { id: 'feedInspector', tags: ['feed'], icon: IconChat },
-  { id: 'settings', tags: ['settings'], icon: IconGear },
-  { id: 'backup', tags: ['account'], icon: IconCloud },
-  { id: 'backupRestore', tags: ['account'], icon: IconCloud },
-];
+const iconByName: Record<string, Component> = {
+  chart: IconChart,
+  chat: IconChat,
+  cloud: IconCloud,
+  coins: IconCoins,
+  gear: IconGear,
+  'git-merge': IconGitMerge,
+  hash: IconHash,
+  layers: IconLayers,
+  link: IconLink,
+  puzzle: IconPuzzle,
+  rows: IconRows,
+  zap: IconZap,
+};
+
+/** All driver.js tours, in the order they appear in the catalog — derived from the tour modules. */
+export const tutorialEntries: readonly TutorialEntry[] = tourModules.map((module) => ({
+  id: module.id as TourId,
+  tags: module.tags as readonly TutorialTag[],
+  icon: iconByName[module.icon] ?? IconZap,
+}));
 
 export interface TutorialStepText {
   id: string;
@@ -112,4 +100,10 @@ export function tutorialSteps(locale: TourLocale, id: TourId): readonly Tutorial
     title: catalogText(catalog, step.titleKey),
     description: catalogText(catalog, step.descriptionKey),
   }));
+}
+
+/** Card title/description colocated in the tour module, exposed through the merged catalog. */
+export function tutorialCard(locale: TourLocale, id: TourId): { title: string; description: string } {
+  const catalog = tourCatalogs[locale] as unknown as { card?: Record<string, { title: string; description: string }> };
+  return catalog.card?.[id] ?? { title: '', description: '' };
 }

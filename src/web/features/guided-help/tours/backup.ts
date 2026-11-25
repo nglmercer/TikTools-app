@@ -1,0 +1,60 @@
+import { defineTour } from '../model/define-tour.ts';
+
+export default defineTour({
+  id: 'backup',
+  version: 2,
+  route: '/settings?section=account',
+  scope: 'account',
+  task: 'backup.saved',
+  tags: ['account'],
+  icon: 'cloud',
+  shape: 'custom',
+  layout: [
+    { id: 'plan', target: 'account-plan', policy: 'skip', capabilities: ['cloud.plan.get'] },
+    { id: 'tools', target: 'backup-tools', policy: 'cancel', version: 2 },
+    { id: 'create', target: 'backup-create', policy: 'skip', capabilities: ['cloud.backup.createNamed'], version: 2 },
+    { id: 'list', target: 'backup-list', policy: 'skip', capabilities: ['cloud.backup.list'] },
+  ],
+  steps: {
+    plan: {
+      es: ['Conoce tus límites', 'Cada plan tiene su propio límite de almacenamiento y de copias. Estos medidores muestran cuánto usas.'],
+      en: ['Know your limits', 'Each plan has its own storage and backup limits. These meters show how much of them you are using.'],
+      pt: ['Conheça seus limites', 'Cada plano tem seus próprios limites de armazenamento e de backups. Estes medidores mostram quanto você usa.'],
+      fr: ['Connaissez vos limites', 'Chaque offre a ses propres limites de stockage et de sauvegardes. Ces jauges montrent ce que vous utilisez.'],
+      ja: ['上限を確認', 'プランごとにストレージとバックアップの上限があります。これらのメーターで現在の使用量を確認できます。'],
+      zh: ['了解额度', '每个套餐都有各自的存储和备份额度。这些进度条显示你已使用的量。'],
+    },
+    tools: {
+      es: ['Nube o este PC', 'Cambia entre guardar en tu cuenta en la nube o trabajar con archivos en este PC: exporta tus datos o sube un archivo que ya tengas.'],
+      en: ['Cloud or this PC', 'Switch between saving to your cloud account or working with files on this PC: export your data, or upload a file you already have.'],
+      pt: ['Nuvem ou este PC', 'Alterne entre salvar na sua conta na nuvem ou trabalhar com arquivos neste PC: exporte seus dados ou envie um arquivo que você já tem.'],
+      fr: ['Cloud ou ce PC', 'Basculez entre l’enregistrement dans votre compte cloud et le travail avec des fichiers sur ce PC : exportez vos données ou importez un fichier existant.'],
+      ja: ['クラウドかこのPCか', 'アカウントのクラウドに保存するか、このPC上のファイルを扱うかを切り替えます。データのエクスポートや、手元のファイルのアップロードができます。'],
+      zh: ['云端或此电脑', '在保存到云端账户与处理此电脑上的文件之间切换：导出你的数据，或上传已有的文件。'],
+    },
+    create: {
+      es: ['Guarda una copia', 'Ponle nombre a una copia y guárdala en tu cuenta. Incluye reglas, perfiles, ajustes y archivos en la nube, nunca secretos ni cookies.'],
+      en: ['Save a backup', 'Name a backup and save it to your account. It captures your rules, profiles, settings and cloud files, never secrets or cookies.'],
+      pt: ['Salve um backup', 'Dê um nome ao backup e salve na sua conta. Inclui regras, perfis, ajustes e arquivos na nuvem, nunca segredos nem cookies.'],
+      fr: ['Enregistrez une sauvegarde', 'Nommez une sauvegarde et enregistrez-la dans votre compte. Elle contient règles, profils, réglages et fichiers cloud, jamais de secrets ni de cookies.'],
+      ja: ['バックアップを保存', 'バックアップに名前を付けてアカウントに保存します。ルール、プロファイル、設定、クラウドファイルが対象で、シークレットやCookieは含まれません。'],
+      zh: ['保存备份', '为备份命名并保存到账户。它包含规则、配置、设置和云端文件，不含密钥或 Cookie。'],
+    },
+    list: {
+      es: ['Descarga, restaura o elimina', 'Cada copia guardada se puede descargar, restaurar en cualquier dispositivo con esta cuenta o eliminar. Restaurar siempre muestra antes qué cambiará.'],
+      en: ['Download, restore or delete', 'Every saved backup can be downloaded, restored on any device signed in with this account, or deleted. Restoring always shows what will change first.'],
+      pt: ['Baixe, restaure ou exclua', 'Cada backup salvo pode ser baixado, restaurado em qualquer dispositivo com esta conta ou excluído. Restaurar sempre mostra antes o que vai mudar.'],
+      fr: ['Téléchargez, restaurez ou supprimez', 'Chaque sauvegarde peut être téléchargée, restaurée sur tout appareil connecté à ce compte ou supprimée. La restauration montre d\'abord ce qui changera.'],
+      ja: ['ダウンロード・復元・削除', '保存済みバックアップは、ダウンロード、同じアカウントの任意のデバイスでの復元、削除ができます。復元の前に変更内容が必ず表示されます。'],
+      zh: ['下载、恢复或删除', '每个已保存的备份都可以下载、在登录此账户的任何设备上恢复，或删除。恢复前会先显示将发生的变更。'],
+    },
+  },
+  card: {
+      es: ['Cuenta y copias', 'Revisa los límites de tu plan y guarda, sube o restaura copias.'],
+      en: ['Account and backups', 'Check your plan limits and save, upload or restore backups.'],
+      pt: ['Conta e backups', 'Veja os limites do seu plano e salve, envie ou restaure backups.'],
+      fr: ['Compte et sauvegardes', 'Vérifiez les limites de votre offre et enregistrez, importez ou restaurez des sauvegardes.'],
+      ja: ['アカウントとバックアップ', 'プランの上限を確認し、バックアップの保存・アップロード・復元を行います。'],
+      zh: ['账户与备份', '查看套餐额度，并保存、上传或恢复备份。'],
+    },
+});

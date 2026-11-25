@@ -12,6 +12,7 @@ import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import { startTour } from '../model/coordinator.ts';
 import {
   tagIcons,
+  tutorialCard,
   tutorialEntries,
   tutorialSteps,
   tutorialTags,
@@ -57,8 +58,8 @@ const tutorials = computed(() => tutorialEntries
   .filter((entry) => !allowedTours.value || allowedTours.value.has(entry.id))
   .map((entry) => ({
     ...entry,
-    title: text(`guides.catalog.tours.${entry.id}.title`),
-    description: text(`guides.catalog.tours.${entry.id}.description`),
+    title: tutorialCard(tourLocale.value, entry.id).title,
+    description: tutorialCard(tourLocale.value, entry.id).description,
     steps: tutorialSteps(tourLocale.value, entry.id),
   })));
 const filtered = computed(() => {

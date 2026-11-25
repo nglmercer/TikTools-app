@@ -6,17 +6,31 @@ import { scenarios, type ScenarioId } from './scenarios.ts';
 export type DemoTourId = Exclude<TourId, 'backup' | 'cloudOverlays' | 'rankings' | 'backupRestore'>;
 export const isDemoTour = (id: string): id is DemoTourId => Object.hasOwn(demoTourScenarios, id);
 
-export const demoTourScenarios = {
-  connection: 'connection', automationEvents: 'automation', automationActions: 'automation', automationVariables: 'cloud',
-  plugin: 'plugins', overlay: 'overlays',
-  points: 'points', changes: 'cloud', diagnostics: 'diagnostics', feed: 'feed',
-  analytics: 'analytics', settings: 'settings', overlayObs: 'overlays',
-  pluginSetup: 'plugins', connectionRecovery: 'connection', feedInspector: 'feed',
-  automationEventChat: 'automation', automationEventGift: 'automation', automationEventSocial: 'automation',
-  automationEventRoom: 'automation', automationActionMedia: 'automation', automationActionTts: 'automation',
-  automationActionHttp: 'automation', automationActionVars: 'automation', automationFilters: 'automation',
-  automationCooldowns: 'automation', automationTemplates: 'automation',
-} as const satisfies Record<DemoTourId, ScenarioId>;
+const scenarioOverrides: Partial<Record<DemoTourId, ScenarioId>> = {
+  automationVariables: 'cloud',
+  changes: 'cloud',
+};
+
+/** Tour scopes and demo scenarios name the same sections differently (automations/automation). */
+const scopeScenarios: Record<string, ScenarioId> = {
+  connections: 'connection',
+  automations: 'automation',
+  account: 'cloud',
+  feed: 'feed',
+  points: 'points',
+  analytics: 'analytics',
+  overlays: 'overlays',
+  plugins: 'plugins',
+  settings: 'settings',
+  diagnostics: 'diagnostics',
+};
+
+/** Scenarios derive from the tour scope; only exceptions need an override. */
+export const demoTourScenarios = Object.fromEntries(
+  Object.values(tourRegistry)
+    .filter((tour) => !['backup', 'cloudOverlays', 'rankings', 'backupRestore'].includes(tour.id))
+    .map((tour) => [tour.id, scenarioOverrides[tour.id as DemoTourId] ?? scopeScenarios[tour.scope] ?? tour.scope]),
+) as Record<DemoTourId, ScenarioId>;
 
 /** Tours offered by the demo catalog, in catalog order. */
 export const demoTutorialIds = Object.keys(demoTourScenarios) as DemoTourId[];

@@ -1,0 +1,68 @@
+import { defineTour } from '../model/define-tour.ts';
+
+export default defineTour({
+  id: 'feedInspector',
+  version: 1,
+  route: '/feed',
+  scope: 'feed',
+  tags: ['feed'],
+  icon: 'chat',
+  shape: 'custom',
+  layout: [
+    { id: 'controls', target: 'feed-controls', policy: 'cancel' },
+    { id: 'panel', target: 'feed-inspector', policy: 'skip' },
+    { id: 'viewers', target: 'feed-inspector-viewers', policy: 'skip' },
+    { id: 'details', target: 'feed-inspector-details', policy: 'skip' },
+    { id: 'profile', target: 'feed-inspector-profile', policy: 'skip' },
+  ],
+  steps: {
+    controls: {
+      es: ['Abre el inspector', 'Usa el control del inspector en la barra del feed. No pausa el LIVE ni cambia eventos guardados.'],
+      en: ['Open the inspector', 'Use the inspector control in the feed toolbar. It does not pause the LIVE or change stored events.'],
+      pt: ['Abra o inspetor', 'Use o controle do inspetor na barra do feed. Ele não pausa a LIVE nem altera eventos guardados.'],
+      fr: ['Ouvrez l’inspecteur', 'Utilisez le contrôle d’inspecteur dans la barre du feed. Il ne met pas le LIVE en pause et ne change pas les événements enregistrés.'],
+      ja: ['インスペクターを開く', 'フィードツールバーのインスペクターコントロールを使います。LIVEを一時停止したり保存済みイベントを変更したりしません。'],
+      zh: ['打开检查器', '使用动态工具栏中的检查器控件。它不会暂停 LIVE，也不会更改已保存事件。'],
+    },
+    panel: {
+      es: ['Entiende el panel', 'El inspector tiene pestañas de espectadores, detalles del evento y perfil. Su contenido sigue lo que selecciones.'],
+      en: ['Understand the panel', 'The inspector has viewers, event details and profile tabs. Its content follows the event or viewer you select.'],
+      pt: ['Entenda o painel', 'O inspetor tem abas de espectadores, detalhes do evento e perfil. Seu conteúdo acompanha o evento ou espectador selecionado.'],
+      fr: ['Comprenez le panneau', 'L’inspecteur contient des onglets spectateurs, détails d’événement et profil. Son contenu suit l’événement ou le spectateur sélectionné.'],
+      ja: ['パネルを理解する', 'インスペクターには視聴者、イベント詳細、プロフィールのタブがあります。内容は選択したイベントや視聴者に追従します。'],
+      zh: ['理解面板', '检查器包含观众、事件详情和资料标签页。内容会跟随你选择的事件或观众。'],
+    },
+    viewers: {
+      es: ['Compara espectadores activos', 'Cambia entre top y likes para ver quién impulsa la actividad de la sesión actual.'],
+      en: ['Compare active viewers', 'Switch between top viewers and likes to see who is driving activity in the current session.'],
+      pt: ['Compare espectadores ativos', 'Alterne entre principais espectadores e likes para ver quem está impulsionando a atividade da sessão atual.'],
+      fr: ['Comparez les spectateurs actifs', 'Basculez entre meilleurs spectateurs et likes pour voir qui stimule l’activité de la session actuelle.'],
+      ja: ['アクティブな視聴者を比較', '上位視聴者といいねを切り替え、現在のセッションで誰が活動を牽引しているか確認します。'],
+      zh: ['比较活跃观众', '在顶级观众和点赞之间切换，查看谁在推动当前会话的活动。'],
+    },
+    details: {
+      es: ['Inspecciona un evento', 'Los detalles incluyen conteos, puntos, hora y evidencia del mensaje útiles para diagnosticar automatizaciones.'],
+      en: ['Inspect one event', 'Event details include counts, points, time and message evidence useful when diagnosing automation behavior.'],
+      pt: ['Inspecione um evento', 'Os detalhes do evento incluem contagens, pontos, horário e evidências da mensagem úteis para diagnosticar automações.'],
+      fr: ['Inspectez un événement', 'Les détails d’événement incluent comptes, points, heure et preuves du message, utiles pour diagnostiquer le comportement des automatisations.'],
+      ja: ['1つのイベントを検査', 'イベント詳細には回数、ポイント、時刻、メッセージ証拠が含まれ、自動化動作の診断に役立ちます。'],
+      zh: ['检查单个事件', '事件详情包括次数、积分、时间和消息证据，可用于诊断自动化行为。'],
+    },
+    profile: {
+      es: ['Abre el perfil', 'La pestaña de perfil resume al espectador y sus mensajes recientes sin exponer datos privados de la cuenta.'],
+      en: ['Open a viewer profile', 'The profile tab summarizes the viewer and their recent messages without exposing private account data.'],
+      pt: ['Abra um perfil de espectador', 'A aba de perfil resume o espectador e suas mensagens recentes sem expor dados privados da conta.'],
+      fr: ['Ouvrez un profil de spectateur', 'L’onglet profil résume le spectateur et ses messages récents sans exposer de données privées du compte.'],
+      ja: ['視聴者プロフィールを開く', 'プロフィールタブは視聴者と最近のメッセージを、アカウントの非公開データを見せずに要約します。'],
+      zh: ['打开观众资料', '资料标签页汇总观众及其最近消息，而不暴露账户私人数据。'],
+    },
+  },
+  card: {
+      es: ['Inspector del feed', 'Inspecciona espectadores, evidencia de eventos y perfiles.'],
+      en: ['Feed inspector', 'Inspect viewers, event evidence and viewer profiles.'],
+      pt: ['Inspetor do feed', 'Inspecione espectadores, evidências de eventos e perfis.'],
+      fr: ['Inspecteur du flux', 'Inspectez les spectateurs, les preuves d’événements et les profils.'],
+      ja: ['フィードインスペクター', '視聴者、イベント証拠、プロフィールを検査します。'],
+      zh: ['直播动态检查器', '检查观众、事件证据和观众资料。'],
+    },
+});

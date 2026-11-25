@@ -5,7 +5,7 @@ import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { testMessage } from '@/shared/i18n/test-message.ts';
 import { startTour } from '../../../../../../src/web/features/guided-help/model/coordinator.ts';
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
-import { tutorialEntries } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
+import { tutorialCard, tutorialEntries } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
 import type { TourId } from '../../../../../../src/web/features/guided-help/model/types.ts';
 import TutorialCatalogDialog from '../../../../../../src/web/features/guided-help/ui/TutorialCatalogDialog.vue';
 
@@ -21,7 +21,7 @@ function mountDialog() {
   return mountWithPlugins(TutorialCatalogDialog, { attachTo: document.body, props: { open: true } });
 }
 
-const titleOf = (id: TourId): string => testMessage('en', `guides.catalog.tours.${id}.title`);
+const titleOf = (id: TourId): string => tutorialCard('en', id).title;
 const entriesByTag = (tag: string) => tutorialEntries.filter((entry) => entry.tags.includes(tag as never));
 
 /** The catalog paginates six cards per page: walk every page collecting card titles. */

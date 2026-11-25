@@ -24,7 +24,7 @@ const label = computed(() => {
   if (!props.tour) return t('guides.help');
   const tour = tourRegistry[props.tour];
   const copy = tourCatalogs[guideLocale.value][props.tour] as Record<string, { title: string }>;
-  return `${t('guides.help')}: ${copy[tour.steps[0].id]!.title}`;
+  return `${t('guides.help')}: ${copy[tour.steps[0]!.id]!.title}`;
 });
 const active = ref(false);
 let session: GuideSession | undefined;

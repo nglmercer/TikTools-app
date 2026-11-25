@@ -1,12 +1,8 @@
 import type { Router } from 'vue-router';
 import type { Locale } from '@/shared/i18n/supported-locales.ts';
 
-export type TourId = 'connection' | 'automationEvents' | 'automationActions' | 'automationVariables' | 'plugin' | 'overlay' | 'points' | 'changes' | 'diagnostics' | 'feed' | 'backup'
-  | 'analytics' | 'settings' | 'overlayObs' | 'cloudOverlays' | 'rankings' | 'pluginSetup'
-  | 'connectionRecovery' | 'feedInspector' | 'backupRestore'
-  | 'automationEventChat' | 'automationEventGift' | 'automationEventSocial' | 'automationEventRoom'
-  | 'automationActionMedia' | 'automationActionTts' | 'automationActionHttp' | 'automationActionVars'
-  | 'automationFilters' | 'automationCooldowns' | 'automationTemplates';
+import type { TourId } from '../tours/index.ts';
+export type { TourId } from '../tours/index.ts';
 export type TourLocale = Locale;
 export interface GuideStep { id: string; selector: string; title: string; description: string }
 export interface TourStepDefinition {

@@ -1,0 +1,62 @@
+import { defineTour } from '../model/define-tour.ts';
+
+export default defineTour({
+  id: 'automationEventGift',
+  version: 1,
+  route: '/automations',
+  scope: 'automations',
+  tags: ['events'],
+  icon: 'zap',
+  shape: 'event',
+  extras: ['cooldown'],
+  steps: {
+    eventsTab: {
+      es: ['Regalos como disparador', 'Un evento de regalo reacciona cuando un espectador envía un regalo: agradecimientos, alertas o efectos proporcionales a su valor.'],
+      en: ['Gifts as a trigger', 'A gift event reacts when a viewer sends a gift: thank-yous, alerts, or effects scaled to its value.'],
+      pt: ['Presentes como gatilho', 'Um evento de presente reage quando um espectador envia um presente: agradecimentos, alertas ou efeitos proporcionais ao valor.'],
+      fr: ['Les cadeaux comme déclencheur', 'Un événement cadeau réagit quand un spectateur envoie un cadeau : remerciements, alertes ou effets proportionnels.'],
+      ja: ['ギフトをトリガーに', 'ギフトイベントは視聴者がギフトを送ったときに反応します: お礼、警告、価値に比例したエフェクト。'],
+      zh: ['礼物作为触发器', '观众送礼时触发: 感谢、提醒或与价值成正比的效果。'],
+    },
+    events: {
+      es: ['Encuentra tus reglas de regalo', 'Las filas con disparador de regalo muestran qué acciones ejecutan. Revisa sus condiciones antes de activarlas en un directo.'],
+      en: ['Find your gift rules', 'Rows with a gift trigger show which actions they run. Review their conditions before enabling them on stream.'],
+      pt: ['Encontre suas regras de presente', 'Linhas com gatilho de presente mostram quais ações executam. Revise as condições antes de ativar.'],
+      fr: ['Trouvez vos règles de cadeau', 'Les lignes cadeau montrent les actions exécutées. Vérifiez leurs conditions avant de les activer.'],
+      ja: ['ギフトのルールを確認', 'ギフトトリガーの行は実行するアクションを示します。有効化前に条件を確認してください。'],
+      zh: ['找到礼物规则', '礼物触发器的行显示执行的操作。启用前请检查条件。'],
+    },
+    trigger: {
+      es: ['Elige tiktok.gift o live.gift', 'El disparador de regalo incluye datos del regalo: nombre, cantidad y valor. Esos datos alimentan los filtros y las variables de la acción.'],
+      en: ['Pick tiktok.gift or live.gift', 'The gift trigger carries gift data: name, count and value. That data feeds the filters and the action variables.'],
+      pt: ['Escolha tiktok.gift ou live.gift', 'O gatilho de presente inclui dados: nome, quantidade e valor. Esses dados alimentam filtros e variáveis.'],
+      fr: ['Choisissez tiktok.gift ou live.gift', 'Le déclencheur cadeau inclut nom, quantité et valeur. Ces données alimentent filtres et variables.'],
+      ja: ['tiktok.gift または live.gift', 'ギフトトリガーは名前・個数・価値のデータを持ち、フィルタと変数に使われます。'],
+      zh: ['选择 tiktok.gift 或 live.gift', '礼物触发器携带名称、数量和价值数据,用于过滤器和变量。'],
+    },
+    conditions: {
+      es: ['Filtra por tipo y valor', 'Filtra por nombre del regalo, cantidad mínima o valor en monedas: una Rosa no debería provocar el mismo efecto que un León.'],
+      en: ['Filter by type and value', 'Filter by gift name, minimum count or coin value: a Rose should not cause the same effect as a Lion.'],
+      pt: ['Filtre por tipo e valor', 'Filtre por nome do presente, quantidade mínima ou valor em moedas: uma Rosa não deve causar o mesmo efeito que um Leão.'],
+      fr: ['Filtrez par type et valeur', 'Filtrez par nom, quantité minimale ou valeur : une Rose ne doit pas causer le même effet qu’un Lion.'],
+      ja: ['種類と価値で絞り込み', 'ギフト名・最小個数・コイン価値で絞り込めます: ローズとライオンで同じ効果にする必要はありません。'],
+      zh: ['按类型和价值过滤', '按礼物名、最小数量或硬币价值过滤: 玫瑰不应产生与狮子相同的效果。'],
+    },
+    cooldown: {
+      es: ['Cooldown por espectador', 'Con cooldown por usuario cada regalo cuenta, pero el mismo espectador no dispara el efecto muchas veces seguidas.'],
+      en: ['Per-viewer cooldown', 'With a per-user cooldown every gift counts, but the same viewer cannot fire the effect many times in a row.'],
+      pt: ['Cooldown por espectador', 'Com cooldown por usuário cada presente conta, mas o mesmo espectador não dispara o efeito muitas vezes seguidas.'],
+      fr: ['Cooldown par spectateur', 'Avec un cooldown par utilisateur chaque cadeau compte, mais le même spectateur ne déclenche pas l’effet en boucle.'],
+      ja: ['視聴者ごとのクールダウン', 'ユーザーごとのクールダウンで各ギフトはカウントされつつ、同じ視聴者の連続発動を防げます。'],
+      zh: ['按观众冷却', '按用户冷却让每个礼物都有效,但同一观众不会连续触发效果。'],
+    },
+  },
+  card: {
+      es: ['Eventos de regalo', 'Agradecimientos y efectos por tipo, cantidad y valor del regalo.'],
+      en: ['Gift events', 'Thank-yous and effects by gift type, count and value.'],
+      pt: ['Eventos de presente', 'Agradecimentos e efeitos por tipo, quantidade e valor.'],
+      fr: ['Événements de cadeau', 'Remerciements et effets par type, quantité et valeur.'],
+      ja: ['ギフトイベント', '種類・個数・価値に応じたお礼とエフェクト。'],
+      zh: ['礼物事件', '按类型、数量和价值触发感谢和效果。'],
+    },
+});

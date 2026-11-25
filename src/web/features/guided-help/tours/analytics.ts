@@ -1,0 +1,68 @@
+import { defineTour } from '../model/define-tour.ts';
+
+export default defineTour({
+  id: 'analytics',
+  version: 1,
+  route: '/analytics',
+  scope: 'analytics',
+  tags: ['analytics'],
+  icon: 'chart',
+  shape: 'custom',
+  layout: [
+    { id: 'range', target: 'analytics-range', policy: 'cancel' },
+    { id: 'metrics', target: 'analytics-metrics', policy: 'skip' },
+    { id: 'activity', target: 'analytics-activity', policy: 'skip' },
+    { id: 'facts', target: 'analytics-facts', policy: 'skip' },
+    { id: 'contributors', target: 'analytics-contributors', policy: 'skip' },
+  ],
+  steps: {
+    range: {
+      es: ['Elige el rango de fechas', 'Elige un preset o fechas personalizadas. El resumen se recarga para el creador activo; cambiar el rango nunca modifica los eventos guardados.'],
+      en: ['Choose the date range', 'Pick a preset or custom dates. The summary reloads for the active creator; changing the range never changes the stored events.'],
+      pt: ['Escolha o período', 'Escolha uma predefinição ou datas personalizadas. O resumo é recarregado para o criador ativo; mudar o período nunca altera os eventos guardados.'],
+      fr: ['Choisissez la plage de dates', 'Choisissez un préréglage ou des dates personnalisées. Le résumé se recharge pour le créateur actif ; changer la plage ne modifie jamais les événements enregistrés.'],
+      ja: ['期間を選択', 'プリセットまたはカスタム日付を選びます。概要はアクティブなクリエイター向けに再読込され、期間を変えても保存済みイベントは変わりません。'],
+      zh: ['选择日期范围', '选择预设或自定义日期。摘要会针对当前创作者重新加载；更改范围永远不会修改已保存的事件。'],
+    },
+    metrics: {
+      es: ['Elige la métrica', 'Las tarjetas comparan chats, regalos, likes y entradas. La métrica seleccionada controla la gráfica sin modificar los datos.'],
+      en: ['Pick the metric', 'Cards compare chats, gifts, likes and joins. The selected metric drives the activity chart without mutating analytics data.'],
+      pt: ['Escolha a métrica', 'Os cartões comparam chats, presentes, gostos e entradas. A métrica selecionada controla o gráfico de atividade sem modificar os dados de análise.'],
+      fr: ['Choisissez la métrique', 'Les cartes comparent chats, cadeaux, likes et arrivées. La métrique sélectionnée pilote le graphique d’activité sans modifier les données d’analyse.'],
+      ja: ['指標を選択', 'カードはチャット、ギフト、いいね、参加を比較します。選択した指標は分析データを変更せずにアクティビティグラフだけを切り替えます。'],
+      zh: ['选择指标', '卡片比较聊天、礼物、点赞和进入。所选指标只驱动活动图表，不会修改分析数据。'],
+    },
+    activity: {
+      es: ['Lee la actividad', 'Usa la gráfica para detectar días y horas activos. Un periodo vacío puede significar que no hubo LIVE o no hubo eventos coincidentes.'],
+      en: ['Read the activity chart', 'Use the chart to spot active days and hours. Empty periods can mean no LIVE session or no matching events.'],
+      pt: ['Leia o gráfico de atividade', 'Use o gráfico para identificar dias e horários ativos. Períodos vazios podem significar que não houve LIVE ou que não houve eventos correspondentes.'],
+      fr: ['Lisez le graphique d’activité', 'Utilisez le graphique pour repérer les jours et heures actifs. Les périodes vides peuvent signifier aucune session LIVE ou aucun événement correspondant.'],
+      ja: ['アクティビティグラフを読む', 'グラフで活発な日時を確認します。空の期間はLIVEがなかったか、一致するイベントがなかったことを意味します。'],
+      zh: ['阅读活动图表', '使用图表找出活跃的日期和时段。空白时段可能表示没有 LIVE 或没有匹配事件。'],
+    },
+    facts: {
+      es: ['Revisa los datos clave', 'Los totales y sesiones ofrecen una vista compacta antes de comparar espectadores concretos.'],
+      en: ['Check the facts', 'Totals and session counts give a compact overview before comparing individual viewers.'],
+      pt: ['Verifique os dados principais', 'Totais e contagem de sessões oferecem uma visão compacta antes de comparar espectadores individuais.'],
+      fr: ['Vérifiez les faits clés', 'Les totaux et le nombre de sessions donnent une vue compacte avant de comparer des spectateurs individuels.'],
+      ja: ['主要指標を確認', '合計とセッション数で、個別の視聴者を比較する前にコンパクトな概要を確認できます。'],
+      zh: ['查看关键数据', '总数和会话次数提供紧凑概览，便于之后比较单个观众。'],
+    },
+    contributors: {
+      es: ['Busca contribuyentes', 'Ordena o busca en la tabla para encontrar los espectadores más activos. Es una clasificación de solo lectura.'],
+      en: ['Search contributors', 'Sort or search the table to find the most active viewers. This is a read-only ranking.'],
+      pt: ['Busque colaboradores', 'Ordene ou pesquise a tabela para encontrar os espectadores mais ativos. Esta é uma classificação somente de leitura.'],
+      fr: ['Recherchez les contributeurs', 'Triez ou recherchez dans le tableau pour trouver les spectateurs les plus actifs. Il s’agit d’un classement en lecture seule.'],
+      ja: ['貢献者を検索', '表を並べ替えたり検索したりして、最も活発な視聴者を見つけます。これは読み取り専用のランキングです。'],
+      zh: ['搜索贡献者', '排序或搜索表格，找出最活跃的观众。这是只读排行榜。'],
+    },
+  },
+  card: {
+      es: ['Estadísticas', 'Rangos de fechas, métricas, actividad y contribuyentes.'],
+      en: ['Analytics', 'Date ranges, metrics, activity and top contributors.'],
+      pt: ['Análises', 'Períodos, métricas, atividade e principais colaboradores.'],
+      fr: ['Analytique', 'Périodes, métriques, activité et principaux contributeurs.'],
+      ja: ['分析', '期間、指標、アクティビティ、上位貢献者を確認します。'],
+      zh: ['数据分析', '日期范围、指标、活动和主要贡献者。'],
+    },
+});

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { isLocale } from '@/shared/i18n/supported-locales.ts';
+import { tutorialCard } from '@/features/guided-help/model/tutorial-catalog.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
@@ -59,7 +61,7 @@ const t = computed(() => toolbarCopy[props.locale]);
 const copy = computed(() => experienceCopy[props.locale]);
 const recommended = computed(() => props.recommendedTour ?? 'connection');
 const guidesLabel = computed(() => translate('guides.catalog.button'));
-const recommendedTitle = computed(() => translate(`guides.catalog.tours.${recommended.value}.title`));
+const recommendedTitle = computed(() => tutorialCard(isLocale(props.locale) ? props.locale : 'en', recommended.value).title);
 const connectionOptions = computed(() => (['normal', 'offline', 'auth'] as const).map((value) => ({ value, label: copy.value.connectionStates[value] })));
 const playbackLabel = computed(() => {
   const labels = { ready: t.value.ready, connecting: t.value.connecting, playing: t.value.playing, paused: t.value.paused, disconnected: t.value.disconnected, limit: t.value.limitReached, error: t.value.playbackError };

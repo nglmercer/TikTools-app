@@ -1,5 +1,5 @@
+import { tutorialCard } from '../../src/web/features/guided-help/model/tutorial-catalog.ts';
 import { expect, test, type Page } from '@playwright/test';
-import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 import { demoTourScenarios, demoTutorialIds } from '../../src/web/demo/tours.ts';
 import { tourCatalogs } from '../../src/web/features/guided-help/catalogs/index.ts';
 
@@ -20,7 +20,7 @@ for (const locale of ['zh', 'ja'] as const) test(`${locale}: playback and a sele
   await expect(page.getByTestId('demo-playback-status')).toHaveAttribute('data-status', 'playing');
   await expect(page.getByTestId('demo-event-count')).toContainText('1 / 300');
   await page.getByTestId('demo-play').click();
-  await launchFromCatalog(page, testMessage(locale, 'guides.catalog.tours.overlay.title'));
+  await launchFromCatalog(page, tutorialCard(locale, 'overlay').title);
   await expect(page.locator('.driver-popover-title')).toHaveText(tourCatalogs[locale].overlay.gateway.title);
   await expect(page.locator('.driver-popover-next-btn')).toHaveText(tourCatalogs[locale].controls.next);
   await page.locator('.driver-popover-close-btn').click();
@@ -32,7 +32,7 @@ test('tutorial selection prepares each matching scenario and reports dismissal w
   for (const id of Object.keys(demoTourScenarios) as Array<keyof typeof demoTourScenarios>) {
     await page.goto(`demo/?scenario=connection&locale=en&instance=select-${id}`);
     await expect(page.getByTestId('demo-guide')).toBeEnabled();
-    await launchFromCatalog(page, testMessage('en', `guides.catalog.tours.${id}.title`));
+    await launchFromCatalog(page, tutorialCard('en', id).title);
     await expect(page.locator('.driver-popover')).toBeVisible();
     expect(new URL(page.url()).searchParams.get('scenario')).toBe(demoTourScenarios[id]);
     await expect(page.getByTestId('demo-guide-status')).toHaveAttribute('data-status', 'active');
@@ -54,7 +54,7 @@ test('the in-app demo catalog keeps unsupported tours out and delegates scenario
   await page.getByRole('menuitem', { name: 'Guides and tutorials', exact: true }).click();
   await expect(page.locator('.tutorial-catalog__card')).toHaveCount(demoTutorialIds.length);
   await expect(page.locator('.tutorial-catalog__card').filter({ hasText: 'Account and backups' })).toHaveCount(0);
-  await selectCatalogTour(page, testMessage('en', 'guides.catalog.tours.overlayObs.title'));
+  await selectCatalogTour(page, tutorialCard('en', 'overlayObs').title);
   await expect(page.locator('.driver-popover')).toBeVisible();
   expect(new URL(page.url()).searchParams.get('scenario')).toBe('overlays');
   await page.locator('.driver-popover-close-btn').click();
@@ -85,8 +85,8 @@ test('navigating away cancels the guide and reset clears only this instance prog
 test('the recommended tour follows in-app navigation without starting automatically', async ({ page }) => {
   await page.goto('demo/?scenario=connection&locale=en&instance=recommendation');
   const recommendation = page.locator('.demo-toolbar__recommendation');
-  const connectionTitle = testMessage('en', 'guides.catalog.tours.connection.title');
-  const pointsTitle = testMessage('en', 'guides.catalog.tours.points.title');
+  const connectionTitle = tutorialCard('en', 'connection').title;
+  const pointsTitle = tutorialCard('en', 'points').title;
   await expect(recommendation).toContainText(connectionTitle);
   await expect(page.locator('.driver-popover')).toHaveCount(0);
   await page.getByRole('link', { name: 'Points', exact: true }).click();
@@ -98,7 +98,7 @@ test('the recommended tour follows in-app navigation without starting automatica
 
 test('automation events tour reaches the editor step through the prepare action', async ({ page }) => {
   await page.goto('demo/?scenario=automation&locale=en&instance=prepare-editor');
-  await launchFromCatalog(page, testMessage('en', 'guides.catalog.tours.automationEvents.title'));
+  await launchFromCatalog(page, tutorialCard('en', 'automationEvents').title);
   await expect(page.locator('.driver-popover-title')).toHaveText(tourCatalogs.en.automationEvents.profiles.title);
   for (const title of [tourCatalogs.en.automationEvents.eventsTab.title, tourCatalogs.en.automationEvents.events.title]) {
     await page.locator('.driver-popover-next-btn').click();
