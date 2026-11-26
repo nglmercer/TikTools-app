@@ -73,8 +73,9 @@ const titleId = useId();
 .base-panel__header {
   display: flex;
   flex: none;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-1) var(--space-4);
   min-height: var(--control-height-lg);
   padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4);
   background: var(--color-bg-panel-header);

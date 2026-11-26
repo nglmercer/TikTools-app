@@ -13,6 +13,7 @@ import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
 import IconHeart from '@/shared/ui/icon/icons/IconHeart.vue';
 import IconDiamond from '@/shared/ui/icon/icons/IconDiamond.vue';
 import IconEye from '@/shared/ui/icon/icons/IconEye.vue';
+import IconLayers from '@/shared/ui/icon/icons/IconLayers.vue';
 import BaseIconSelect from '@/shared/ui/menu/BaseIconSelect.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
@@ -48,7 +49,7 @@ const metricIcons: Record<AnalyticsMetric, typeof IconChat> = {
   peakViewers: IconEye,
 };
 const metricOptions = computed(() => [
-  { value: 'all' as const, label: t('analytics.metrics.all') },
+  { value: 'all' as const, label: t('analytics.metrics.all'), icon: IconLayers },
   ...analyticsMetrics.map((value) => ({
     value,
     label: t(`analytics.metrics.${value}`),

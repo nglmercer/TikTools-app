@@ -171,10 +171,11 @@ describe('AnalyticsPage', () => {
     expect(chart.findAll('.daily-chart__line')).toHaveLength(5);
     expect(chart.find('.daily-chart__previous').exists()).toBe(false);
     expect(panel.find('.activity-panel__legend').exists()).toBe(false);
-    // The metric options carry tinted icons — 'all' first without one, then a
-    // colored icon per metric.
+    // Every metric option carries a tinted icon; 'all' has a neutral layers
+    // glyph without a chart color.
     const options = panel.findAll('.base-segmented__option');
     expect(options[1]!.find('[style*="color"]').exists()).toBe(true);
+    expect(options[0]!.find('.base-segmented__icon').exists()).toBe(true);
     expect(options[0]!.find('[style*="color"]').exists()).toBe(false);
   });
 

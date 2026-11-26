@@ -43,10 +43,11 @@ const { focusIndex, select, onKeydown, setElement } = useRovingSelection(toRef(p
         :is="option.icon"
         v-if="option.icon"
         :size="14"
+        class="base-segmented__icon"
         :style="option.color ? { color: option.color } : undefined"
         aria-hidden="true"
       />
-      {{ option.label }}
+      <span class="base-segmented__label">{{ option.label }}</span>
     </button>
   </div>
 </template>
@@ -54,10 +55,13 @@ const { focusIndex, select, onKeydown, setElement } = useRovingSelection(toRef(p
 <style scoped>
 .base-segmented {
   display: inline-flex;
+  max-width: 100%;
   height: var(--control-height-md);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-control-active);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .base-segmented--sm {
@@ -65,6 +69,12 @@ const { focusIndex, select, onKeydown, setElement } = useRovingSelection(toRef(p
 }
 
 .base-segmented__option {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-width: 0;
   padding: 0 var(--space-5);
   border: 0;
   border-radius: 0;
@@ -80,8 +90,18 @@ const { focusIndex, select, onKeydown, setElement } = useRovingSelection(toRef(p
 }
 
 .base-segmented--sm .base-segmented__option {
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-3);
   font-size: var(--font-size-sm);
+}
+
+.base-segmented__icon {
+  flex: none;
+}
+
+.base-segmented__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .base-segmented__option + .base-segmented__option {
