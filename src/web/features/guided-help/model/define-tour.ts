@@ -5,7 +5,7 @@
  * coordinator, catalog dialog and tests already consume.
  */
 import { guideTargetMetadata } from './guide-targets.ts';
-import type { AutomationActionExampleRequirement, TourAvailability, TourDefinition, TourRequirements, TourStepDefinition } from './types.ts';
+import type { TourAvailability, TourDefinition, TourRequirements, TourStepDefinition } from './types.ts';
 import { automationActionExampleGuideAction } from './tour-requirements.ts';
 
 /** Driver.js chrome copy per locale, recovered from the pre-module catalogs. */
@@ -53,12 +53,21 @@ function eventShape(extra: readonly string[] = []): readonly LayoutStep[] {
 }
 
 /** The shared skeleton for effect-focused automation tours. */
-function actionShape(requirement?: AutomationActionExampleRequirement): readonly LayoutStep[] {
-  const openAction = requirement ? automationActionExampleGuideAction(requirement) : 'automation.openAction';
+function actionShape(requirements?: TourRequirements): readonly LayoutStep[] {
+  const example = requirements?.automationActionExample;
+  const type = requirements?.automationActionType;
+  // Edit/example tours open an existing compatible record. Type-owned builtin
+  // tours may open an unsaved draft of the exact declared type; draft creation
+  // is still user-visible and never submitted by the guide.
+  const openAction = example ? automationActionExampleGuideAction(example)
+    : type?.typeId ? `automation.openOrCreateActionType:${type.typeId}`
+    : type?.tag ? `automation.openActionTag:${type.tag}`
+    : 'automation.openAction';
+  const specialized = !!(example || type);
   // A specialized tour must never select whichever first action happens to
   // exist. Only the generic actions overview keeps the first-row DOM fallback.
-  const openFallback = requirement ? [CLOSE, TAB_ACTIONS] : [CLOSE, TAB_ACTIONS, FIRST_ACTION_ROW];
-  const editorPolicy = requirement ? 'cancel' as const : 'skip' as const;
+  const openFallback = specialized ? [CLOSE, TAB_ACTIONS] : [CLOSE, TAB_ACTIONS, FIRST_ACTION_ROW];
+  const editorPolicy = specialized ? 'cancel' as const : 'skip' as const;
   return [
     { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: [CLOSE], prepareActions: ['automation.selectActions'] },
     { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS], prepareActions: ['automation.selectActions'] },
@@ -98,7 +107,7 @@ export function defineTour<const T extends TourModule>(module: T): T {
 /** Expand a module into its effective layout. */
 export function tourLayout(module: TourModule): readonly LayoutStep[] {
   if (module.shape === 'event') return eventShape(module.extras);
-  if (module.shape === 'action') return actionShape(module.requirements?.automationActionExample);
+  if (module.shape === 'action') return actionShape(module.requirements);
   return module.layout ?? [];
 }
 

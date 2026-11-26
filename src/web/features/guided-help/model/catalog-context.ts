@@ -1,11 +1,10 @@
 import type { InjectionKey } from 'vue';
-import type { TourId } from './types.ts';
 
 /** Host-provided catalog constraints/launcher, used by embedded demo workspaces. */
 export interface GuideCatalogContext {
-  tours?: readonly TourId[];
-  onLaunch?: (id: TourId, trigger?: HTMLElement) => void;
-  previewUrl?: (id: TourId) => string;
+  tours?: readonly string[];
+  onLaunch?: (id: string, trigger?: HTMLElement) => void;
+  previewUrl?: (id: string) => string;
 }
 
 export const guideCatalogContextKey: InjectionKey<GuideCatalogContext> = Symbol('guide-catalog-context');

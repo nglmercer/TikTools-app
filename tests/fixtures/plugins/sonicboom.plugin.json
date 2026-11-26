@@ -609,6 +609,128 @@
       }
     ]
   },
+  "guides": [
+    {
+      "id": "speak-action",
+      "kind": "automation-action",
+      "actionType": "sonicboom.server.speak",
+      "mode": "both",
+      "title": {
+        "default": "Create a SonicBoom voice action",
+        "i18key": "sonicboom.server.guide.speak.title"
+      },
+      "description": {
+        "default": "Configure the text, provider and voice used to speak chat messages aloud.",
+        "i18key": "sonicboom.server.guide.speak.description"
+      },
+      "icon": "volume",
+      "steps": [
+        {
+          "id": "editor",
+          "target": {
+            "kind": "editor"
+          },
+          "title": {
+            "default": "A reusable speech action",
+            "i18key": "sonicboom.server.guide.speak.editor.title"
+          },
+          "description": {
+            "default": "This action sends text to SonicBoom. It can be shared by several events, and the guide does not save it for you.",
+            "i18key": "sonicboom.server.guide.speak.editor.description"
+          }
+        },
+        {
+          "id": "text",
+          "target": {
+            "kind": "field",
+            "key": "text"
+          },
+          "title": {
+            "default": "Choose what is spoken",
+            "i18key": "sonicboom.server.guide.speak.text.title"
+          },
+          "description": {
+            "default": "Write the message template. Placeholders such as {{ event.data.comment }} are replaced with live event data before speech synthesis.",
+            "i18key": "sonicboom.server.guide.speak.text.description"
+          }
+        },
+        {
+          "id": "provider",
+          "target": {
+            "kind": "field",
+            "key": "provider"
+          },
+          "title": {
+            "default": "Choose the speech provider",
+            "i18key": "sonicboom.server.guide.speak.provider.title"
+          },
+          "description": {
+            "default": "SonicBoom loads the providers configured on its server. Pick the engine that should synthesize this message.",
+            "i18key": "sonicboom.server.guide.speak.provider.description"
+          }
+        },
+        {
+          "id": "voice",
+          "target": {
+            "kind": "field",
+            "key": "voice"
+          },
+          "title": {
+            "default": "Choose a voice",
+            "i18key": "sonicboom.server.guide.speak.voice.title"
+          },
+          "description": {
+            "default": "Voices are loaded live from SonicBoom. Leave the field empty to use the server default.",
+            "i18key": "sonicboom.server.guide.speak.voice.description"
+          }
+        },
+        {
+          "id": "language",
+          "target": {
+            "kind": "field",
+            "key": "language"
+          },
+          "title": {
+            "default": "Set the language",
+            "i18key": "sonicboom.server.guide.speak.language.title"
+          },
+          "description": {
+            "default": "Use a language code such as en or es when the selected provider needs it.",
+            "i18key": "sonicboom.server.guide.speak.language.description"
+          }
+        },
+        {
+          "id": "play-now",
+          "target": {
+            "kind": "field",
+            "key": "playNow"
+          },
+          "title": {
+            "default": "Queue or interrupt",
+            "i18key": "sonicboom.server.guide.speak.playNow.title"
+          },
+          "description": {
+            "default": "Enable this to interrupt current playback and speak immediately. Leave it off to add the message to the normal queue.",
+            "i18key": "sonicboom.server.guide.speak.playNow.description"
+          }
+        },
+        {
+          "id": "permissions",
+          "target": {
+            "kind": "permissions"
+          },
+          "title": {
+            "default": "Review network access",
+            "i18key": "sonicboom.server.guide.speak.permissions.title"
+          },
+          "description": {
+            "default": "This action needs HTTP access to the SonicBoom server. Review the permission before enabling the action in a live automation.",
+            "i18key": "sonicboom.server.guide.speak.permissions.description"
+          }
+        }
+      ]
+    }
+  ],
   "translations": {
     "es": {
       "sonicboom.server.page.connection.intro": "Apunta TikTools a un servidor SonicBoom y prueba la conexión antes de crear automatizaciones.",
@@ -633,7 +755,23 @@
       "sonicboom.server.template.chat-tts.description": "Lee por TTS los mensajes que empiezan con un prefijo de comando en SonicBoom. Aplícalo una vez por preset de voz (!voice1, !voice2…).",
       "sonicboom.server.template.chat-tts.title": "Comando de chat a voz",
       "sonicboom.server.template.gift-tts.title": "Alerta de voz por regalo",
-      "sonicboom.server.template.gift-tts.description": "Anuncia un regalo por TTS de SonicBoom cuando llega."
+      "sonicboom.server.template.gift-tts.description": "Anuncia un regalo por TTS de SonicBoom cuando llega.",
+      "sonicboom.server.guide.speak.title": "Crear una acción de voz con SonicBoom",
+      "sonicboom.server.guide.speak.description": "Configura el texto, el proveedor y la voz que leerán mensajes del chat en voz alta.",
+      "sonicboom.server.guide.speak.editor.title": "Una acción de voz reutilizable",
+      "sonicboom.server.guide.speak.editor.description": "Esta acción envía texto a SonicBoom. Puede compartirse entre varios eventos y la guía no la guarda por ti.",
+      "sonicboom.server.guide.speak.text.title": "Elige qué se dice",
+      "sonicboom.server.guide.speak.text.description": "Escribe la plantilla del mensaje. Los placeholders como {{ event.data.comment }} se reemplazan con datos del evento antes de sintetizar la voz.",
+      "sonicboom.server.guide.speak.provider.title": "Elige el proveedor de voz",
+      "sonicboom.server.guide.speak.provider.description": "SonicBoom carga los proveedores configurados en su servidor. Elige el motor que debe sintetizar este mensaje.",
+      "sonicboom.server.guide.speak.voice.title": "Elige una voz",
+      "sonicboom.server.guide.speak.voice.description": "Las voces se cargan en vivo desde SonicBoom. Deja el campo vacío para usar la voz predeterminada del servidor.",
+      "sonicboom.server.guide.speak.language.title": "Define el idioma",
+      "sonicboom.server.guide.speak.language.description": "Usa un código de idioma como en o es cuando el proveedor seleccionado lo necesite.",
+      "sonicboom.server.guide.speak.playNow.title": "Encolar o interrumpir",
+      "sonicboom.server.guide.speak.playNow.description": "Actívalo para interrumpir la reproducción actual y hablar de inmediato. Déjalo desactivado para añadir el mensaje a la cola normal.",
+      "sonicboom.server.guide.speak.permissions.title": "Revisa el acceso de red",
+      "sonicboom.server.guide.speak.permissions.description": "Esta acción necesita acceso HTTP al servidor SonicBoom. Revisa el permiso antes de activarla en una automatización en vivo."
     },
     "fr": {
       "sonicboom.server.page.connection.intro": "Pointez TikTools vers un serveur SonicBoom, puis testez la connexion avant de créer des automatisations.",
@@ -658,7 +796,23 @@
       "sonicboom.server.template.chat-tts.description": "Prononce en TTS les messages commençant par un préfixe de commande via SonicBoom. À appliquer une fois par preset de voix (!voice1, !voice2…).",
       "sonicboom.server.template.chat-tts.title": "Commande de chat en voix",
       "sonicboom.server.template.gift-tts.title": "Annonce vocale de cadeau",
-      "sonicboom.server.template.gift-tts.description": "Annonce un cadeau en TTS SonicBoom à son arrivée."
+      "sonicboom.server.template.gift-tts.description": "Annonce un cadeau en TTS SonicBoom à son arrivée.",
+      "sonicboom.server.guide.speak.title": "Créer une action vocale SonicBoom",
+      "sonicboom.server.guide.speak.description": "Configurez le texte, le fournisseur et la voix utilisés pour lire les messages du chat à voix haute.",
+      "sonicboom.server.guide.speak.editor.title": "Une action vocale réutilisable",
+      "sonicboom.server.guide.speak.editor.description": "Cette action envoie du texte à SonicBoom. Elle peut être partagée par plusieurs événements et le guide ne l’enregistre pas pour vous.",
+      "sonicboom.server.guide.speak.text.title": "Choisissez ce qui est dit",
+      "sonicboom.server.guide.speak.text.description": "Écrivez le modèle du message. Les placeholders comme {{ event.data.comment }} sont remplacés par les données de l’événement avant la synthèse.",
+      "sonicboom.server.guide.speak.provider.title": "Choisissez le fournisseur vocal",
+      "sonicboom.server.guide.speak.provider.description": "SonicBoom charge les fournisseurs configurés sur son serveur. Choisissez le moteur qui doit synthétiser ce message.",
+      "sonicboom.server.guide.speak.voice.title": "Choisissez une voix",
+      "sonicboom.server.guide.speak.voice.description": "Les voix sont chargées en direct depuis SonicBoom. Laissez le champ vide pour utiliser la voix du serveur par défaut.",
+      "sonicboom.server.guide.speak.language.title": "Définissez la langue",
+      "sonicboom.server.guide.speak.language.description": "Utilisez un code de langue comme en ou es lorsque le fournisseur sélectionné en a besoin.",
+      "sonicboom.server.guide.speak.playNow.title": "File ou interruption",
+      "sonicboom.server.guide.speak.playNow.description": "Activez cette option pour interrompre la lecture en cours et parler immédiatement. Laissez-la désactivée pour ajouter le message à la file normale.",
+      "sonicboom.server.guide.speak.permissions.title": "Vérifiez l’accès réseau",
+      "sonicboom.server.guide.speak.permissions.description": "Cette action nécessite un accès HTTP au serveur SonicBoom. Vérifiez la permission avant de l’activer dans une automatisation en direct."
     },
     "ja": {
       "sonicboom.server.page.connection.intro": "TikToolsをSonicBoomサーバーに接続し、自動化を作成する前に接続をテストしてください。",
@@ -683,7 +837,23 @@
       "sonicboom.server.template.chat-tts.description": "コマンドプレフィックスで始まるチャットメッセージをSonicBoom TTSで読み上げます。音声プリセットごとに1回適用してください（!voice1、!voice2…）。",
       "sonicboom.server.template.chat-tts.title": "チャットコマンドを音声読み上げ",
       "sonicboom.server.template.gift-tts.title": "ギフト音声アナウンス",
-      "sonicboom.server.template.gift-tts.description": "ギフトが届いたときにSonicBoom TTSでアナウンスします。"
+      "sonicboom.server.template.gift-tts.description": "ギフトが届いたときにSonicBoom TTSでアナウンスします。",
+      "sonicboom.server.guide.speak.title": "SonicBoom音声アクションを作成",
+      "sonicboom.server.guide.speak.description": "チャットメッセージを読み上げるテキスト・プロバイダ・音声を設定します。",
+      "sonicboom.server.guide.speak.editor.title": "再利用できる音声アクション",
+      "sonicboom.server.guide.speak.editor.description": "このアクションはテキストをSonicBoomへ送信します。複数のイベントで共有でき、ガイドが自動保存することはありません。",
+      "sonicboom.server.guide.speak.text.title": "読み上げる内容を選択",
+      "sonicboom.server.guide.speak.text.description": "メッセージテンプレートを書きます。{{ event.data.comment }} のようなプレースホルダは音声合成前にイベントデータへ置き換わります。",
+      "sonicboom.server.guide.speak.provider.title": "音声プロバイダを選択",
+      "sonicboom.server.guide.speak.provider.description": "SonicBoomはサーバーに設定されたプロバイダを読み込みます。このメッセージを合成するエンジンを選んでください。",
+      "sonicboom.server.guide.speak.voice.title": "音声を選択",
+      "sonicboom.server.guide.speak.voice.description": "音声はSonicBoomからライブで読み込まれます。空のままにするとサーバーのデフォルトを使います。",
+      "sonicboom.server.guide.speak.language.title": "言語を設定",
+      "sonicboom.server.guide.speak.language.description": "選択したプロバイダに必要な場合は、enやesなどの言語コードを使います。",
+      "sonicboom.server.guide.speak.playNow.title": "キューまたは割り込み",
+      "sonicboom.server.guide.speak.playNow.description": "有効にすると現在の再生を中断してすぐ読み上げます。無効なら通常のキューに追加します。",
+      "sonicboom.server.guide.speak.permissions.title": "ネットワークアクセスを確認",
+      "sonicboom.server.guide.speak.permissions.description": "このアクションはSonicBoomサーバーへのHTTPアクセスを必要とします。ライブ自動化で有効にする前に権限を確認してください。"
     },
     "pt": {
       "sonicboom.server.page.connection.intro": "Aponte o TikTools para um servidor SonicBoom e teste a conexão antes de criar automações.",
@@ -708,7 +878,23 @@
       "sonicboom.server.template.chat-tts.description": "Fala por TTS as mensagens que começam com um prefixo de comando via SonicBoom. Aplique uma vez por preset de voz (!voice1, !voice2…).",
       "sonicboom.server.template.chat-tts.title": "Comando de chat em voz",
       "sonicboom.server.template.gift-tts.title": "Alerta de voz por presente",
-      "sonicboom.server.template.gift-tts.description": "Anuncia um presente por TTS do SonicBoom quando ele chega."
+      "sonicboom.server.template.gift-tts.description": "Anuncia um presente por TTS do SonicBoom quando ele chega.",
+      "sonicboom.server.guide.speak.title": "Criar uma ação de voz com SonicBoom",
+      "sonicboom.server.guide.speak.description": "Configure o texto, o provedor e a voz usados para ler mensagens do chat em voz alta.",
+      "sonicboom.server.guide.speak.editor.title": "Uma ação de voz reutilizável",
+      "sonicboom.server.guide.speak.editor.description": "Esta ação envia texto ao SonicBoom. Ela pode ser compartilhada por vários eventos, e o guia não a salva por você.",
+      "sonicboom.server.guide.speak.text.title": "Escolha o que será falado",
+      "sonicboom.server.guide.speak.text.description": "Escreva o modelo da mensagem. Placeholders como {{ event.data.comment }} são substituídos pelos dados do evento antes da síntese.",
+      "sonicboom.server.guide.speak.provider.title": "Escolha o provedor de voz",
+      "sonicboom.server.guide.speak.provider.description": "O SonicBoom carrega os provedores configurados no servidor. Escolha o motor que deve sintetizar esta mensagem.",
+      "sonicboom.server.guide.speak.voice.title": "Escolha uma voz",
+      "sonicboom.server.guide.speak.voice.description": "As vozes são carregadas ao vivo do SonicBoom. Deixe vazio para usar a voz padrão do servidor.",
+      "sonicboom.server.guide.speak.language.title": "Defina o idioma",
+      "sonicboom.server.guide.speak.language.description": "Use um código como en ou es quando o provedor selecionado precisar dele.",
+      "sonicboom.server.guide.speak.playNow.title": "Fila ou interrupção",
+      "sonicboom.server.guide.speak.playNow.description": "Ative para interromper a reprodução atual e falar imediatamente. Deixe desativado para entrar na fila normal.",
+      "sonicboom.server.guide.speak.permissions.title": "Revise o acesso de rede",
+      "sonicboom.server.guide.speak.permissions.description": "Esta ação precisa de acesso HTTP ao servidor SonicBoom. Revise a permissão antes de ativá-la em uma automação ao vivo."
     },
     "zh": {
       "sonicboom.server.page.connection.intro": "将 TikTools 指向 SonicBoom 服务器，然后在构建自动化之前测试连接。",
@@ -733,7 +919,23 @@
       "sonicboom.server.template.chat-tts.description": "通过 SonicBoom TTS 朗读以命令前缀开头的聊天消息。每个语音预设应用一次（!voice1、!voice2…）。",
       "sonicboom.server.template.chat-tts.title": "聊天命令语音播报",
       "sonicboom.server.template.gift-tts.title": "礼物语音提醒",
-      "sonicboom.server.template.gift-tts.description": "礼物到达时通过 SonicBoom TTS 播报。"
+      "sonicboom.server.template.gift-tts.description": "礼物到达时通过 SonicBoom TTS 播报。",
+      "sonicboom.server.guide.speak.title": "创建 SonicBoom 语音操作",
+      "sonicboom.server.guide.speak.description": "配置用于朗读聊天消息的文本、提供程序和声音。",
+      "sonicboom.server.guide.speak.editor.title": "可复用的语音操作",
+      "sonicboom.server.guide.speak.editor.description": "此操作将文本发送给 SonicBoom。它可以被多个事件共享，指南不会替你保存。",
+      "sonicboom.server.guide.speak.text.title": "选择朗读内容",
+      "sonicboom.server.guide.speak.text.description": "编写消息模板。{{ event.data.comment }} 等占位符会在语音合成前替换为事件数据。",
+      "sonicboom.server.guide.speak.provider.title": "选择语音提供程序",
+      "sonicboom.server.guide.speak.provider.description": "SonicBoom 会加载服务器上配置的提供程序。选择要合成此消息的引擎。",
+      "sonicboom.server.guide.speak.voice.title": "选择声音",
+      "sonicboom.server.guide.speak.voice.description": "声音会从 SonicBoom 实时加载。留空则使用服务器默认声音。",
+      "sonicboom.server.guide.speak.language.title": "设置语言",
+      "sonicboom.server.guide.speak.language.description": "当所选提供程序需要时，使用 en 或 es 等语言代码。",
+      "sonicboom.server.guide.speak.playNow.title": "排队或打断",
+      "sonicboom.server.guide.speak.playNow.description": "启用后会打断当前播放并立即朗读。关闭则加入正常队列。",
+      "sonicboom.server.guide.speak.permissions.title": "检查网络访问",
+      "sonicboom.server.guide.speak.permissions.description": "此操作需要 HTTP 访问 SonicBoom 服务器。在直播自动化中启用前请检查权限。"
     }
   }
 }

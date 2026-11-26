@@ -111,6 +111,9 @@ export type GuideTargetId = keyof typeof guideTargets;
 
 export function guideTargetMetadata(target: string): GuideTargetMetadata {
   const metadata = (guideTargets as Record<string, GuideTargetMetadata>)[target];
-  if (!metadata) throw new Error(`Unknown guide target metadata: ${target}`);
-  return metadata;
+  if (metadata) return metadata;
+  // Plugin-contributed field steps are dynamic by nature, but their visual
+  // meaning is still fixed host layout: a control inside the action editor.
+  if (/^action-field:[A-Za-z0-9_.-]{1,128}$/.test(target)) return { zone: 'editor', ...leftStart };
+  throw new Error(`Unknown guide target metadata: ${target}`);
 }

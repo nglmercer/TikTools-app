@@ -313,6 +313,8 @@ export interface BehaviorSnapshot {
   pluginTemplates?: unknown[];
   /** Plugin-contributed configuration pages, stamped by the host; absent on old hosts. */
   pluginPages?: PluginPageDescriptor[];
+  /** Plugin-contributed guided-help documents, stamped by the host; absent on old hosts. */
+  pluginGuides?: unknown[];
   /** Typed `ui` descriptors, stamped by the host; absent on old hosts. */
   pluginUis?: PluginUiDescriptor[];
   /** Host and loaded plugin translations, keyed by locale and i18key. */
@@ -339,6 +341,38 @@ export interface PluginPageSection {
   voicesFrom?: string;
   /** `tts` only. Optional option source id feeding the audio output selector. */
   outputsFrom?: string;
+}
+
+export type PluginGuideTarget =
+  | { kind: 'editor' }
+  | { kind: 'settings' }
+  | { kind: 'permissions' }
+  | { kind: 'field'; key: string };
+
+/** One declarative step contributed by a plugin guide. Text stays localized
+ * metadata; targets are closed semantic regions, never CSS selectors. */
+export interface PluginGuideStepContribution {
+  id: string;
+  target: PluginGuideTarget;
+  title: Localized;
+  description: Localized;
+  optional?: boolean;
+}
+
+/** One host-stamped automation-action guide contributed by a plugin manifest. */
+export interface PluginGuideContribution {
+  /** Namespaced by the host as `<pluginId>/<guideId>`. */
+  id: string;
+  kind: 'automation-action';
+  pluginId: string;
+  actionType: string;
+  /** `both` edits an existing example when present and otherwise opens a draft. */
+  mode: 'create' | 'edit' | 'both';
+  title: Localized;
+  description: Localized;
+  icon?: string;
+  steps: PluginGuideStepContribution[];
+  source: ActionSource;
 }
 
 /** One configuration page contributed by a plugin manifest (schema v3). */

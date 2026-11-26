@@ -9,9 +9,10 @@ import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import IconRows from '@/shared/ui/icon/icons/IconRows.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
-import { startTour } from '../model/coordinator.ts';
+import { startDynamicTour, startTour } from '../model/coordinator.ts';
 import { tourRegistry } from '../model/registry.ts';
-import { automationActionExampleAvailable, automationActionExampleType, type TourRequirementSnapshot } from '../model/tour-requirements.ts';
+import { automationActionExampleAvailable, automationActionExampleType, automationActionTypeAvailable, type TourRequirementSnapshot } from '../model/tour-requirements.ts';
+import { pluginGuideCatalogItems, type PluginGuideCatalogItem } from '../model/plugin-guides.ts';
 import {
   categoryIcons,
   tagIcons,
@@ -20,11 +21,12 @@ import {
   tutorialEntries,
   tutorialSteps,
   tutorialTags,
+  tutorialIcon,
   type LocalizedTutorialEntry,
   type TutorialCategory,
   type TutorialTag,
 } from '../model/tutorial-catalog.ts';
-import type { TourCapabilities, TourId, TourLocale, TourTaskState } from '../model/types.ts';
+import type { TourCapabilities, TourLocale, TourTaskState } from '../model/types.ts';
 import TutorialCatalogHome from './tutorial-catalog/TutorialCatalogHome.vue';
 import TutorialCategoryScreen from './tutorial-catalog/TutorialCategoryScreen.vue';
 import TutorialDetailScreen from './tutorial-catalog/TutorialDetailScreen.vue';
@@ -40,13 +42,13 @@ const props = withDefaults(defineProps<{
   /** Optional topic preselection inside the initial category (for automation tabs: events/actions/variables). */
   initialTag?: TutorialTag;
   /** Restrict the catalog to a caller's offerings (the demo has no account/backup tour). */
-  tours?: readonly TourId[];
+  tours?: readonly string[];
   /** Preselect the entry recommended for the reader's current section. */
-  initialTour?: TourId;
+  initialTour?: string;
   /** Delegate launching, e.g. so the demo can prepare the matching scenario first. */
-  onLaunch?: (id: TourId) => void;
+  onLaunch?: (id: string) => void;
   /** Same-origin interactive preview URL supplied by hosts that bundle the demo. */
-  previewUrl?: (id: TourId) => string;
+  previewUrl?: (id: string) => string;
   /** Explicit host account state. Undefined leaves availability filtering to the host's tour allow-list. */
   signedIn?: boolean;
   /** Automation body used to evaluate example-record requirements. Undefined is read-only/delegated catalog use, not proof that examples exist. */
@@ -75,7 +77,7 @@ const initialEntry = props.initialTour ? tutorialEntries.find((entry) => entry.i
 const initialCategory = props.initialCategory ?? initialEntry?.category ?? tutorialCategories[0];
 const currentCategory = ref<TutorialCategory>(initialCategory);
 const activeFilter = ref<CatalogFilter>(props.initialTag ?? 'all');
-const selectedId = ref<TourId | null>(props.initialTour ?? null);
+const selectedId = ref<string | null>(props.initialTour ?? null);
 const screen = ref<TutorialCatalogScreen>(props.initialTour ? 'detail' : props.initialCategory ? 'category' : 'catalog');
 const tourLocale = computed<TourLocale>(() => isLocale(locale.value) ? locale.value : 'en');
 
@@ -83,22 +85,56 @@ const text = (key: string): string => String(t(key));
 const isCategory = (value: CatalogFilter): value is TutorialCategory => (tutorialCategories as readonly string[]).includes(value);
 const isTag = (value: CatalogFilter): value is TutorialTag => (tutorialTags as readonly string[]).includes(value);
 const allowedTours = computed(() => props.tours ? new Set<string>(props.tours) : null);
-const accountAvailable = (id: TourId): boolean => props.signedIn === undefined || tourRegistry[id].availability?.account !== 'signed-in' || props.signedIn;
-const requirementsMet = (id: TourId): boolean | undefined => {
-  const requirement = tourRegistry[id].requirements?.automationActionExample;
-  if (!requirement) return true;
-  if (!props.automationSnapshot) return undefined;
-  return automationActionExampleAvailable(requirement, props.automationSnapshot);
+const accountAvailable = (id: string): boolean => {
+  const definition = Object.hasOwn(tourRegistry, id) ? tourRegistry[id as keyof typeof tourRegistry] : undefined;
+  return props.signedIn === undefined || definition?.availability?.account !== 'signed-in' || props.signedIn;
 };
-const tutorials = computed<LocalizedTutorialEntry[]>(() => tutorialEntries
-  .filter((entry) => (!allowedTours.value || allowedTours.value.has(entry.id)) && accountAvailable(entry.id))
-  .map((entry) => ({
-    ...entry,
-    title: tutorialCard(tourLocale.value, entry.id).title,
-    description: tutorialCard(tourLocale.value, entry.id).description,
-    steps: tutorialSteps(tourLocale.value, entry.id),
-    requirementsMet: requirementsMet(entry.id),
-  })));
+const requirementsMet = (id: string): boolean | undefined => {
+  const definition = Object.hasOwn(tourRegistry, id) ? tourRegistry[id as keyof typeof tourRegistry] : undefined;
+  const example = definition?.requirements?.automationActionExample;
+  const type = definition?.requirements?.automationActionType;
+  if (!example && !type) return true;
+  if (!props.automationSnapshot) return undefined;
+  return (!type || automationActionTypeAvailable(type, props.automationSnapshot)) &&
+    (!example || automationActionExampleAvailable(example, props.automationSnapshot));
+};
+const dynamicGuides = computed<PluginGuideCatalogItem[]>(() => {
+  // localizedText reads the global locale; depend on tourLocale explicitly so
+  // plugin cards and steps refresh with the rest of the catalog.
+  void tourLocale.value;
+  return pluginGuideCatalogItems(props.automationSnapshot);
+});
+const dynamicGuide = (id: string): PluginGuideCatalogItem | undefined => dynamicGuides.value.find((guide) => guide.id === id);
+const tutorials = computed<LocalizedTutorialEntry[]>(() => [
+  ...tutorialEntries
+    .filter((entry) => (!allowedTours.value || allowedTours.value.has(entry.id)) && accountAvailable(entry.id))
+    .filter((entry) => entry.id !== 'automationActionTts' || !dynamicGuides.value.some((guide) => {
+      const type = props.automationSnapshot?.actionTypes.find((candidate) => candidate.id === guide.actionType);
+      return type?.tag === 'tts';
+    }))
+    .map((entry) => ({
+      ...entry,
+      title: tutorialCard(tourLocale.value, entry.id).title,
+      description: tutorialCard(tourLocale.value, entry.id).description,
+      steps: tutorialSteps(tourLocale.value, entry.id),
+      requirementsMet: requirementsMet(entry.id),
+    })),
+  ...dynamicGuides.value
+    .filter((guide) => !allowedTours.value || allowedTours.value.has(guide.id))
+    .map((guide) => ({
+      id: guide.id,
+      category: 'automations' as const,
+      tags: ['actions' as const],
+      icon: tutorialIcon(guide.icon),
+      overview: false,
+      title: guide.title,
+      description: guide.description,
+      steps: guide.steps,
+      requirementsMet: guide.requirementsMet,
+      definition: guide.dynamic.definition,
+      dynamicTour: guide.dynamic,
+    })),
+]);
 
 const visibleCategories = computed(() => tutorialCategories
   .filter((category) => tutorials.value.some((entry) => entry.category === category)));
@@ -159,7 +195,7 @@ function focusDetail(): void {
     document.querySelector<HTMLElement>('dialog[open] .tutorial-catalog__detail')?.focus({ preventScroll: true });
   });
 }
-function focusTutorialCard(id: TourId): void {
+function focusTutorialCard(id: string): void {
   void nextTick().then(() => {
     document.querySelector<HTMLElement>(`dialog[open] [data-tutorial-id="${id}"]`)?.focus({ preventScroll: true });
   });
@@ -191,7 +227,7 @@ function chooseFilter(value: CatalogFilter | undefined): void {
     screen.value = 'category';
   }
 }
-function openTutorial(id: TourId): void {
+function openTutorial(id: string): void {
   const entry = tutorials.value.find((item) => item.id === id);
   if (!entry) return;
   currentCategory.value = entry.category;
@@ -241,8 +277,15 @@ watch(open, (isOpen) => {
   }
 });
 
-function prepareRequirement(id: TourId): void {
-  const requirement = tourRegistry[id].requirements?.automationActionExample;
+function prepareRequirement(id: string): void {
+  if (dynamicGuide(id)) {
+    if (!router) return;
+    open.value = false;
+    void router.push('/plugins');
+    return;
+  }
+  const definition = Object.hasOwn(tourRegistry, id) ? tourRegistry[id as keyof typeof tourRegistry] : undefined;
+  const requirement = definition?.requirements?.automationActionExample ?? definition?.requirements?.automationActionType;
   const type = requirement && props.automationSnapshot ? automationActionExampleType(requirement, props.automationSnapshot) : undefined;
   const createAction = type ? localizedText(type.title) : requirement?.typeId ?? requirement?.tag;
   if (!createAction || !router) return;
@@ -250,12 +293,24 @@ function prepareRequirement(id: TourId): void {
   void router.push({ path: '/automations', query: { createAction } });
 }
 
-async function launch(id: TourId): Promise<void> {
+async function launch(id: string): Promise<void> {
   open.value = false;
   // The coordinator refuses to run while a modal dialog is open, so let
   // BaseDialog close (post-flush watch) before starting the driver.js session.
   await nextTick();
   if (props.onLaunch) { props.onLaunch(id); return; }
+  const pluginGuide = dynamicGuide(id);
+  if (pluginGuide) {
+    startDynamicTour(pluginGuide.dynamic, {
+      router: router ?? undefined,
+      locale: tourLocale.value,
+      capabilities: props.capabilities,
+      signedIn: props.signedIn,
+      automationSnapshot: () => props.automationSnapshot,
+      taskState: () => (typeof props.taskState === 'function' ? props.taskState() : props.taskState) ?? {},
+    });
+    return;
+  }
   startTour(id, {
     router: router ?? undefined,
     locale: tourLocale.value,

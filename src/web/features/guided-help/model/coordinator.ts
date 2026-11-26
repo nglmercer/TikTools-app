@@ -7,8 +7,8 @@ import { tourCatalogs, type TourCatalog } from '../catalogs/index.ts';
 import { isTourId, tourRegistry } from './registry.ts';
 import { readTourProgress, writeTourProgress } from './progress.ts';
 import { hasGuideAction, runGuideAction } from './guide-actions.ts';
-import { automationActionExampleAvailable } from './tour-requirements.ts';
-import type { GuideOutcome, GuideSession, GuideStep, StartTourOptions, TourLocale, TourStepDefinition, TourTaskState } from './types.ts';
+import { automationActionExampleAvailable, automationActionTypeAvailable } from './tour-requirements.ts';
+import type { GuideOutcome, GuideSession, GuideStep, StartTourOptions, TourDefinition, TourLocale, TourStepDefinition, TourTaskState } from './types.ts';
 
 type DriverFactory = (config: Config) => Driver;
 export interface CoordinatorDependencies {
@@ -112,6 +112,11 @@ function within<T>(work: Promise<T>, signal: AbortSignal, timeout: number): Prom
 async function loadDriver() {
   const [engine] = await Promise.all([import('driver.js'), import('driver.js/dist/driver.css'), import('../ui/guide.css')]);
   return engine;
+}
+
+export interface DynamicTour {
+  definition: TourDefinition;
+  texts: Readonly<Record<string, string>>;
 }
 
 export function createTourCoordinator(dependencies: CoordinatorDependencies = {}) {
@@ -378,6 +383,37 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     return session;
   }
 
+  function startDefinition(
+    definition: TourDefinition,
+    controls: TourCatalog['controls'],
+    textAt: (key: string) => string,
+    options: StartTourOptions,
+  ): GuideSession {
+    const existingScope = options.scope && query(options.scope, `[data-guide-scope="${definition.scope}"]`);
+    const accountAvailable = () => definition.availability?.account !== 'signed-in'
+      || (typeof options.signedIn === 'function' ? options.signedIn() : options.signedIn) === true;
+    const snapshot = () => typeof options.automationSnapshot === 'function' ? options.automationSnapshot() : options.automationSnapshot;
+    const requirementsAvailable = () => {
+      const example = definition.requirements?.automationActionExample;
+      const type = definition.requirements?.automationActionType;
+      if (!example && !type) return true;
+      const current = snapshot();
+      if (!current) return false;
+      return (!type || automationActionTypeAvailable(type, current)) &&
+        (!example || automationActionExampleAvailable(example, current));
+    };
+    return run({
+      ...options, id: definition.id, version: definition.version, route: existingScope?.isConnected ? undefined : definition.route, scopeName: definition.scope, task: definition.task,
+      labels: controls,
+      steps: () => (definition.steps as readonly TourStepDefinition[]).map((step) => ({
+        id: step.id, version: step.version, selector: `[data-guide="${step.target}"]`,
+        title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick, prepareActions: step.prepareActions,
+        popoverSide: step.popoverSide, popoverAlign: step.popoverAlign,
+        available: () => accountAvailable() && requirementsAvailable() && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
+      })),
+    });
+  }
+
   function startTour(id: string, options: StartTourOptions = {}): GuideSession {
     if (!isTourId(id)) throw new Error(`Unknown guided tour: ${id}`);
     const definition = tourRegistry[id];
@@ -387,28 +423,16 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
       for (const part of key.split('.')) value = value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined;
       return typeof value === 'string' ? value : '';
     };
-    const existingScope = options.scope && query(options.scope, `[data-guide-scope="${definition.scope}"]`);
-    const accountAvailable = () => definition.availability?.account !== 'signed-in'
-      || (typeof options.signedIn === 'function' ? options.signedIn() : options.signedIn) === true;
-    const requirementsAvailable = () => {
-      const requirement = definition.requirements?.automationActionExample;
-      if (!requirement) return true;
-      const snapshot = typeof options.automationSnapshot === 'function' ? options.automationSnapshot() : options.automationSnapshot;
-      return !!snapshot && automationActionExampleAvailable(requirement, snapshot);
-    };
-    return run({
-      ...options, id, version: definition.version, route: existingScope?.isConnected ? undefined : definition.route, scopeName: definition.scope, task: definition.task,
-      labels: catalog.controls,
-      steps: () => (definition.steps as readonly TourStepDefinition[]).map((step) => ({
-        id: step.id, version: step.version, selector: `[data-guide="${step.target}"]`,
-        title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick, prepareActions: step.prepareActions,
-        popoverSide: step.popoverSide, popoverAlign: step.popoverAlign,
-        available: () => accountAvailable() && requirementsAvailable() && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
-      })),
-    });
+    return startDefinition(definition, catalog.controls, textAt, options);
+  }
+
+  function startDynamicTour(dynamic: DynamicTour, options: StartTourOptions = {}): GuideSession {
+    const controls = tourCatalogs[options.locale ?? locale()].controls;
+    return startDefinition(dynamic.definition, controls, (key) => dynamic.texts[key] ?? '', options);
   }
   return {
     startTour,
+    startDynamicTour,
     startInlineGuide: (options: InlineGuideOptions) => run({ ...options, labels: options.labels ?? tourCatalogs[locale()].controls }),
     dismiss: () => current?.stop(),
     dispose: () => current?.stop('disposed'),
@@ -418,5 +442,6 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
 let shared: ReturnType<typeof createTourCoordinator> | undefined;
 const coordinator = () => shared ??= createTourCoordinator();
 export const startTour = (id: string, options?: StartTourOptions) => coordinator().startTour(id, options);
+export const startDynamicTour = (tour: DynamicTour, options?: StartTourOptions) => coordinator().startDynamicTour(tour, options);
 export const startInlineGuide = (options: InlineGuideOptions) => coordinator().startInlineGuide(options);
 export const stopTour = () => shared?.dismiss();

@@ -2,7 +2,6 @@ import type { Router } from 'vue-router';
 import type { Locale } from '@/shared/i18n/supported-locales.ts';
 import type { ActionTypeDefinition, LiveAction } from '../../../../automation/behavior/types.ts';
 
-import type { TourId } from '../tours/index.ts';
 export type { TourId } from '../tours/index.ts';
 export type TourLocale = Locale;
 export interface GuideStep { id: string; selector: string; title: string; description: string }
@@ -35,15 +34,19 @@ export interface AutomationActionExampleRequirement {
 }
 export interface TourRequirementSnapshot {
   actions: readonly Pick<LiveAction, 'typeId'>[];
-  actionTypes: readonly Pick<ActionTypeDefinition, 'id' | 'tag' | 'source' | 'title'>[];
+  actionTypes: readonly Pick<ActionTypeDefinition, 'id' | 'tag' | 'source' | 'title' | 'fields' | 'configSchema'>[];
   plugins: readonly { installed: boolean; enabled: boolean; descriptor: { id: string } }[];
+  /** Raw host-stamped plugin guide contributions when the caller passes the full behavior snapshot. */
+  pluginGuides?: unknown[];
 }
 export interface TourRequirements {
   /** An existing configured action of this type/tag must be available; guides never create user records to satisfy it. */
   automationActionExample?: AutomationActionExampleRequirement;
+  /** The action type/tag itself must exist and be active. Creation-oriented plugin guides use this without requiring a saved record. */
+  automationActionType?: AutomationActionExampleRequirement;
 }
 export interface TourDefinition {
-  id: TourId;
+  id: string;
   version: number;
   route: string;
   scope: string;

@@ -225,6 +225,40 @@ function guideActionMatchesTag(action: LiveAction, tag: string): boolean {
   return type.tag === tag && guideActionTypeAvailable(type.id);
 }
 
+function guideActionTypeId(action: string, prefix: string): string {
+  return action.startsWith(prefix) ? action.slice(prefix.length) : '';
+}
+
+function createGuideActionType(typeId: string): boolean {
+  if (editor.dirty.value || !typeId || !guideActionTypeAvailable(typeId)) return false;
+  const type = snapshot.value.actionTypes.find((candidate) => candidate.id === typeId);
+  if (!type) return false;
+  if (editing.value?.kind === 'action' && editing.value.record.typeId === typeId) return false;
+  if (editing.value) { closeEditor(); return true; }
+  if (area.value !== 'actions') { libraryTab.value = 'actions'; return true; }
+  newAction(type);
+  return true;
+}
+
+function openOrCreateGuideActionType(typeId: string): boolean {
+  if (!typeId || !guideActionTypeAvailable(typeId)) return false;
+  if (actions.value.some((action) => guideActionMatchesType(action, typeId))) {
+    return openMatchingGuideAction((action) => guideActionMatchesType(action, typeId));
+  }
+  return createGuideActionType(typeId);
+}
+
+function revealGuideActionField(target: string, scope: Element | Document): boolean {
+  const key = /^\[data-guide="action-field:([^"]+)"\]$/.exec(target)?.[1];
+  if (!key) return false;
+  const element = [...scope.querySelectorAll('[data-guide^="action-field:"]')]
+    .find((candidate) => candidate.getAttribute('data-guide') === `action-field:${key}`);
+  const toggle = element?.closest('.base-disclosure')?.querySelector('.base-disclosure__toggle');
+  if (!(toggle instanceof HTMLElement) || toggle.getAttribute('aria-expanded') === 'true') return false;
+  toggle.click();
+  return true;
+}
+
 onMounted(() => {
   unregisterGuideActions = registerGuideActions('automations', {
     'automation.selectEvents': () => {
@@ -267,6 +301,13 @@ onMounted(() => {
     'automation.openActionType:core.fetch': () => openMatchingGuideAction((action) => guideActionMatchesType(action, 'core.fetch')),
     'automation.openActionType:audio.play': () => openMatchingGuideAction((action) => guideActionMatchesType(action, 'audio.play')),
     'automation.openActionTag:tts': () => openMatchingGuideAction((action) => guideActionMatchesTag(action, 'tts')),
+    'automation.openActionType:*': ({ action }) => {
+      const typeId = guideActionTypeId(action, 'automation.openActionType:');
+      return typeId ? openMatchingGuideAction((record) => guideActionMatchesType(record, typeId)) : false;
+    },
+    'automation.createActionType:*': ({ action }) => createGuideActionType(guideActionTypeId(action, 'automation.createActionType:')),
+    'automation.openOrCreateActionType:*': ({ action }) => openOrCreateGuideActionType(guideActionTypeId(action, 'automation.openOrCreateActionType:')),
+    'automation.revealActionField': ({ target, scope }) => revealGuideActionField(target, scope),
   }, guideScope.value ?? undefined);
   openRequestedTrigger();
   void automation.loadCustomTemplates();
@@ -369,7 +410,6 @@ onBeforeUnmount(() => {
           :events="events"
           :actions="actions"
           :action-types="snapshot.actionTypes"
-      :initial-query="pickerQuery"
           :available-types="availableTypes"
           :event-types="eventTypes"
           :runs="automation.runs.value"

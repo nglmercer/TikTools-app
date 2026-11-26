@@ -239,6 +239,9 @@ pub struct PluginManifest {
     /// Declarative configuration pages (schema v3 only), validated at merge
     /// like `templates`.
     pub pages: Vec<Value>,
+    /// Declarative guided-help contributions (schema v3 only), validated at
+    /// merge against the action types declared by this same manifest.
+    pub guides: Vec<Value>,
     /// Typed plugin UI manifest (schema v3 only): declarative page bodies
     /// or a webview entry. Parsed and validated at discovery, unlike the
     /// raw `pages` compatibility input converted by the host frontend.

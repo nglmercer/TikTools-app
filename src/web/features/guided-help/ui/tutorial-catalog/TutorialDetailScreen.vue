@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import IconChevronLeft from '@/shared/ui/icon/icons/IconChevronLeft.vue';
 import type { LocalizedTutorialEntry } from '../../model/tutorial-catalog.ts';
-import type { TourId } from '../../model/types.ts';
 import TutorialDemoPreview from './TutorialDemoPreview.vue';
 import { contextualTutorialTitle } from './tutorial-title.ts';
 import { tutorialToneClass } from './tutorial-tone.ts';
@@ -13,7 +12,7 @@ import TutorialStepPreview from './TutorialStepPreview.vue';
 const props = withDefaults(defineProps<{
   entry: LocalizedTutorialEntry;
   startable: boolean;
-  previewUrl?: (id: TourId) => string;
+  previewUrl?: (id: string) => string;
   categoryLabel?: string;
 }>(), { previewUrl: undefined, categoryLabel: undefined });
 const emit = defineEmits<{
@@ -95,6 +94,7 @@ const toneClass = computed(() => tutorialToneClass(props.entry.id));
       </section>
       <TutorialDemoPreview
         :tour-id="entry.id"
+        :definition="entry.definition"
         :active-step="activeStep"
         :src="props.previewUrl?.(entry.id)"
       />

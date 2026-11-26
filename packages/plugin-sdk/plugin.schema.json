@@ -29,6 +29,7 @@
       }
     },
     "actionTypes": { "type": "array", "maxItems": 128, "items": { "type": "object" } },
+    "guides": { "type": "array", "maxItems": 16, "items": { "type": "object", "required": ["id", "kind", "actionType", "title", "description", "steps"], "properties": { "id": { "type": "string", "pattern": "^[a-z0-9_-]{1,64}$" }, "kind": { "const": "automation-action" }, "actionType": { "type": "string", "minLength": 1, "maxLength": 128 }, "mode": { "enum": ["create", "edit", "both"] }, "title": { "type": "object" }, "description": { "type": "object" }, "icon": { "type": "string", "pattern": "^[A-Za-z0-9_.-]{1,128}$" }, "steps": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "type": "object" } } }, "additionalProperties": false } },
     "eventTypes": { "type": "array", "maxItems": 128, "items": { "type": "object" } },
     "eventSubscriptions": { "type": "array", "maxItems": 128, "items": { "type": "string" } },
     "processorTypes": { "type": "array", "maxItems": 128, "items": { "type": "object" } },

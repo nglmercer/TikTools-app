@@ -1,4 +1,5 @@
 import { t, mountPage, buttonByLabel, goBack, documentButton, selectRow, it, expect, nextTick, libraryJournal, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
+import { runGuideAction } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
 afterEach(() => resetResolutionPreference('automatic'));
@@ -88,6 +89,31 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(router.currentRoute.value.query.createAction).toBeUndefined();
     expect(document.querySelector('.type-picker__groups')).toBeTruthy();
     expect(Array.from(document.querySelectorAll('input')).some((input) => input.value === 'core.fetch')).toBe(true);
+  });
+
+  it('semantic guide creation opens an unsaved draft of the requested type without submitting it', async () => {
+    const { wrapper, calls } = await mountPage();
+    const target = '[data-guide="action-field:url"]';
+    expect(await runGuideAction(document, 'automations', 'automation.openOrCreateActionType:core.fetch', target)).toBe(true);
+    await flushPromises();
+    expect(await runGuideAction(document, 'automations', 'automation.openOrCreateActionType:core.fetch', target)).toBe(true);
+    await flushPromises();
+
+    expect(wrapper.find('.action-editor').exists()).toBe(true);
+    expect(wrapper.text()).toContain('core.fetch');
+    expect(calls.some((call) => call.method === 'automation.create' || call.method === 'automation.update')).toBe(false);
+  });
+
+  it('semantic guide opening reuses an existing matching action instead of creating a duplicate', async () => {
+    const { wrapper, calls } = await mountPage();
+    const target = '[data-guide="action-editor-settings"]';
+    expect(await runGuideAction(document, 'automations', 'automation.openOrCreateActionType:core.log', target)).toBe(true);
+    await flushPromises();
+    expect(await runGuideAction(document, 'automations', 'automation.openOrCreateActionType:core.log', target)).toBe(true);
+    await flushPromises();
+
+    expect(wrapper.get('.action-editor .base-panel__title').text()).toContain('Log gift');
+    expect(calls.some((call) => call.method === 'automation.create' || call.method === 'automation.update')).toBe(false);
   });
 
   it('has no Cloud tab in the library: the Cloud library is a tab of the templates dialog', async () => {

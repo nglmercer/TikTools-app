@@ -14,6 +14,7 @@ use super::{
         is_valid_native_lib_tag, is_valid_native_lib_version, is_valid_native_package_name,
         is_valid_plugin_id, parse_translations, validate_action_type, validate_capability_provider,
         validate_cli_command, validate_declarative_action, validate_http_config, ManifestError,
+        PLUGIN_GUIDE_LIMIT,
         MAX_DESCRIPTOR_BYTES, MAX_LIST_ENTRIES, MAX_LONG_DESCRIPTION_LEN, MAX_MANIFEST_BYTES,
         MAX_NATIVE_ADDON_PACKAGES, MAX_NATIVE_LIB_PACKAGES, MAX_NATIVE_PATH_LEN,
     },
@@ -50,7 +51,7 @@ impl PluginManifest {
         // without an error, so a plugin with a page missing from the sidebar would
         // look broken with no clue why. Say so once, at discovery.
         if !is_v3 {
-            let ignored: Vec<&str> = ["pages", "templates", "http", "ui"]
+            let ignored: Vec<&str> = ["pages", "templates", "http", "ui", "guides"]
                 .into_iter()
                 .filter(|key| object.contains_key(*key))
                 .collect();
@@ -191,6 +192,15 @@ impl PluginManifest {
         } else {
             Vec::new()
         };
+        let guides = if is_v3 {
+            let guides = json_list(object, "guides")?;
+            if guides.len() > PLUGIN_GUIDE_LIMIT {
+                return Err(ManifestError::InvalidField("guides"));
+            }
+            guides
+        } else {
+            Vec::new()
+        };
         // The typed `ui` fragment follows the same v3-only rule as the
         // other integration blocks: validated at discovery on v3,
         // ignored otherwise.
@@ -251,6 +261,7 @@ impl PluginManifest {
             http,
             templates,
             pages,
+            guides,
             ui,
             translations,
             native_addons,

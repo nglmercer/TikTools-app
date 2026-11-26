@@ -49,9 +49,11 @@ describe('guide contract', () => {
   });
 
 
-  it('declares action example requirements for type-specific tours', () => {
-    expect(tourRegistry.automationActionHttp.requirements?.automationActionExample).toEqual({ typeId: 'core.fetch' });
-    expect(tourRegistry.automationActionMedia.requirements?.automationActionExample).toEqual({ typeId: 'audio.play' });
+  it('declares action requirements for type-specific tours', () => {
+    expect(tourRegistry.automationActionHttp.requirements?.automationActionType).toEqual({ typeId: 'core.fetch' });
+    expect(tourRegistry.automationActionMedia.requirements?.automationActionType).toEqual({ typeId: 'audio.play' });
+    expect(tourRegistry.automationActionHttp.steps.find((step) => step.id === 'settings')?.prepareActions).toEqual(['automation.openOrCreateActionType:core.fetch']);
+    expect(tourRegistry.automationActionMedia.steps.find((step) => step.id === 'settings')?.prepareActions).toEqual(['automation.openOrCreateActionType:audio.play']);
     expect(tourRegistry.automationActionTts.requirements?.automationActionExample).toEqual({ tag: 'tts' });
     for (const id of ['automationActionHttp', 'automationActionMedia', 'automationActionTts'] as const) {
       for (const step of tourRegistry[id].steps.filter((step) => step.id === 'settings' || step.id === 'permissions')) {
@@ -62,10 +64,11 @@ describe('guide contract', () => {
   });
 
 
-  it('requires declared examples for every specialized action-editor tour', () => {
+  it('requires a declared type or example for every specialized action-editor tour', () => {
     const generic = new Set(['automationActions', 'automationActionVars']);
     for (const module of tourModules.filter((module) => module.shape === 'action' && !generic.has(module.id))) {
-      expect(tourRegistry[module.id].requirements?.automationActionExample, module.id).toBeTruthy();
+      const requirements = tourRegistry[module.id].requirements;
+      expect(requirements?.automationActionExample ?? requirements?.automationActionType, module.id).toBeTruthy();
     }
   });
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
@@ -8,7 +9,7 @@ import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts
 import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import type { TutorialCategory, TutorialTag } from '../model/tutorial-catalog.ts';
 import { guideCatalogContextKey } from '../model/catalog-context.ts';
-import type { TourCapabilities, TourId, TourTaskState } from '../model/types.ts';
+import type { TourCapabilities, TourTaskState } from '../model/types.ts';
 import TutorialCatalogDialog from './TutorialCatalogDialog.vue';
 
 const props = withDefaults(defineProps<{
@@ -22,14 +23,15 @@ const props = withDefaults(defineProps<{
   label?: string;
   /** Hide the trigger but keep the dialog mounted (e.g. when moved into an overflow menu). */
   hideButton?: boolean;
-  tours?: readonly TourId[];
-  onLaunch?: (id: TourId, trigger?: HTMLElement) => void;
+  tours?: readonly string[];
+  onLaunch?: (id: string, trigger?: HTMLElement) => void;
 }>(), { capabilities: undefined, taskState: undefined, category: undefined, label: undefined, hideButton: false, tours: undefined, onLaunch: undefined, initialTag: undefined });
 
 const { t } = useI18n();
 const hostCapabilities = useCapabilityStore();
 const account = useAccountStore();
 const automation = useAutomationStore();
+const { behavior: automationSnapshot } = storeToRefs(automation);
 const signedIn = computed(() => account.status?.state === 'signed-in');
 const catalogContext = inject(guideCatalogContextKey, {});
 const catalogOpen = ref(false);
@@ -68,7 +70,7 @@ watch(catalogOpen, (isOpen) => { if (isOpen) void account.ensureRestored(); });
       :on-launch="props.onLaunch ?? catalogContext.onLaunch"
       :preview-url="catalogContext.previewUrl"
       :signed-in="signedIn"
-      :automation-snapshot="automation.behavior"
+      :automation-snapshot="automationSnapshot"
     />
   </Teleport>
 </template>

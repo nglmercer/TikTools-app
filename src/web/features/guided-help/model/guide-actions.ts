@@ -7,6 +7,8 @@
 export interface GuidePrepareContext {
   scope: Element | Document;
   target: string;
+  /** Full semantic operation being executed, including any dynamic suffix. */
+  action: string;
 }
 
 /** Return true only when the handler changed state toward the target. */
@@ -46,7 +48,15 @@ export function registerGuideActions(scope: string, handlers: GuidePrepareHandle
 
 function candidates(scopeName: string | undefined, action: string, scope?: Element | Document): GuidePrepareRegistration[] {
   if (!scopeName) return [];
-  const entries = registrations.get(scopeName)?.get(action) ?? [];
+  const scoped = registrations.get(scopeName);
+  const exact = scoped?.get(action) ?? [];
+  // Dynamic plugin action types cannot be enumerated when the page mounts. A
+  // scope owner may explicitly register a prefix handler such as
+  // `automation.createActionType:*`; exact registrations always win.
+  const wildcard = exact.length ? [] : [...(scoped?.entries() ?? [])]
+    .filter(([name]) => name.endsWith(':*') && action.startsWith(name.slice(0, -1)))
+    .flatMap(([, entries]) => entries);
+  const entries = [...exact, ...wildcard];
   if (!(scope instanceof Element)) return [...entries].reverse();
   const owned = entries.filter((entry) => entry.owner && (entry.owner === scope || scope.contains(entry.owner)));
   return [...(owned.length ? owned : entries)].reverse();
@@ -61,6 +71,6 @@ export function hasGuideAction(scopeName: string | undefined, action: string, sc
 export async function runGuideAction(scope: Element | Document, scopeName: string | undefined, action: string, target: string): Promise<boolean> {
   const handler = candidates(scopeName, action, scope)[0]?.handler;
   if (!handler) return false;
-  try { return await handler({ scope, target }) === true; }
+  try { return await handler({ scope, target, action }) === true; }
   catch { return false; }
 }

@@ -63,6 +63,7 @@ impl AppCore {
         let mut plugin_templates = Vec::new();
         let mut plugin_cli_commands = Vec::new();
         let mut plugin_pages = Vec::new();
+        let mut plugin_guides = Vec::new();
         let mut plugin_uis = Vec::new();
         let mut autocomplete = Vec::new();
         let mut plugins = Vec::new();
@@ -220,6 +221,35 @@ impl AppCore {
                     );
                     plugin_pages.push(Value::Object(stamped));
                 }
+                for guide in &plugin.manifest.guides {
+                    if tiktools_plugin_api::manifest::validate_plugin_guide(
+                        guide,
+                        &plugin.manifest.action_types,
+                    )
+                    .is_err()
+                    {
+                        tracing::warn!(plugin = %plugin.manifest.id, "plugin guide is invalid; skipped");
+                        continue;
+                    }
+                    let Some(mut stamped) = guide.as_object().cloned() else {
+                        continue;
+                    };
+                    if let Some(id) = stamped.get("id").and_then(Value::as_str) {
+                        stamped.insert(
+                            "id".to_owned(),
+                            Value::String(format!("{}/{id}", plugin.manifest.id)),
+                        );
+                    }
+                    stamped.insert(
+                        "pluginId".to_owned(),
+                        Value::String(plugin.manifest.id.clone()),
+                    );
+                    stamped.insert(
+                        "source".to_owned(),
+                        json!({"kind": "plugin", "pluginId": plugin.manifest.id}),
+                    );
+                    plugin_guides.push(Value::Object(stamped));
+                }
                 // Typed `ui` descriptors were validated at discovery; the
                 // stamp only adds host-owned identity. Serialization of the
                 // validated struct cannot fail, but a failure must never
@@ -301,6 +331,7 @@ impl AppCore {
             Value::Array(plugin_cli_commands),
         );
         object.insert("pluginPages".to_owned(), Value::Array(plugin_pages));
+        object.insert("pluginGuides".to_owned(), Value::Array(plugin_guides));
         object.insert("pluginUis".to_owned(), Value::Array(plugin_uis));
         object.insert(
             "autocompleteContributions".to_owned(),

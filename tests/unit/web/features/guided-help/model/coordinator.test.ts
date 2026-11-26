@@ -433,7 +433,7 @@ describe('versioned registry and localized copy', () => {
       expect(tour.version).toBeGreaterThan(0);
       expect(tour.route.startsWith('/')).toBe(true);
       for (const [locale, catalog] of Object.entries(tourCatalogs)) {
-        const copy = catalog[tour.id] as Record<string, { title: string; description: string }>;
+        const copy = (catalog as unknown as Record<string, Record<string, { title: string; description: string }>>)[tour.id]!;
         expect(Object.keys(copy)).toEqual(tour.steps.map((step) => step.id));
         for (const step of tour.steps) {
           expect(step.version).toBeGreaterThan(0);

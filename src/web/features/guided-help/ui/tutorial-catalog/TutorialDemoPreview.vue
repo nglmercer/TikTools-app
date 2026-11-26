@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { tourRegistry } from '../../model/registry.ts';
+import { isTourId, tourRegistry } from '../../model/registry.ts';
 import { guideTargetMetadata, type GuideLayoutZone } from '../../model/guide-targets.ts';
-import type { TourId } from '../../model/types.ts';
+import type { TourDefinition } from '../../model/types.ts';
 
 type DemoZone = GuideLayoutZone;
 
 const props = withDefaults(defineProps<{
-  tourId: TourId;
+  tourId: string;
+  definition?: TourDefinition;
   activeStep: number;
   src?: string;
-}>(), { src: undefined });
+}>(), { src: undefined, definition: undefined });
 const { t } = useI18n();
 
 const defaultZones: readonly DemoZone[] = ['toolbar', 'list', 'editor', 'detail', 'footer'];
@@ -41,9 +42,9 @@ const frameReady = ref(false);
 let resizeObserver: ResizeObserver | undefined;
 let syncGeneration = 0;
 
-const tour = computed(() => tourRegistry[props.tourId]);
-const zones = computed(() => zonesByScope[tour.value.scope] ?? defaultZones);
-const target = computed(() => tour.value.steps[Math.min(props.activeStep, tour.value.steps.length - 1)]?.target ?? '');
+const tour = computed(() => props.definition ?? (isTourId(props.tourId) ? tourRegistry[props.tourId] : undefined));
+const zones = computed(() => tour.value ? zonesByScope[tour.value.scope] ?? defaultZones : defaultZones);
+const target = computed(() => tour.value?.steps[Math.min(props.activeStep, (tour.value?.steps.length ?? 1) - 1)]?.target ?? '');
 const frameSrc = computed(() => {
   if (!props.src) return '';
   try {
@@ -60,6 +61,7 @@ const frameStyle = computed(() => ({
 }));
 
 const activeZone = computed(() => {
+  if (!target.value) return zones.value[0] ?? 'list';
   const zone = guideTargetMetadata(target.value).zone;
   return zones.value.includes(zone) ? zone : (zones.value.includes('list') ? 'list' : zones.value[0]);
 });
@@ -112,7 +114,8 @@ async function synchronizeFrame(): Promise<void> {
   const generation = ++syncGeneration;
   if (!frameReady.value || !frameSrc.value) return;
   const doc = frameDocument();
-  const step = tour.value.steps[Math.min(props.activeStep, tour.value.steps.length - 1)];
+  const currentTour = tour.value;
+  const step = currentTour?.steps[Math.min(props.activeStep, (currentTour?.steps.length ?? 1) - 1)];
   if (!doc || !step) return;
   clearHighlights(doc);
   const app = await waitForVisible(doc, '.app-layout', generation, 2500);
@@ -172,7 +175,7 @@ watch([frameSrc, frameReady, () => props.activeStep], () => { void synchronizeFr
           aria-hidden="true"
         ><i /><i /><i /></span>
         <strong>{{ frameSrc ? t('guides.catalog.demoPreview') : t('guides.catalog.demoSchematic') }}</strong>
-        <span class="tutorial-demo-preview__route">{{ tour.route }}</span>
+        <span class="tutorial-demo-preview__route">{{ tour?.route }}</span>
       </header>
       <div
         v-if="frameSrc"
@@ -184,7 +187,7 @@ watch([frameSrc, frameReady, () => props.activeStep], () => { void synchronizeFr
           data-testid="tutorial-demo-frame"
           :src="frameSrc"
           :style="frameStyle"
-          :title="`${t('guides.catalog.demoPreview')} - ${tour.route}`"
+          :title="`${t('guides.catalog.demoPreview')} - ${tour?.route ?? ''}`"
           loading="lazy"
           @load="onFrameLoad"
         />
@@ -203,7 +206,7 @@ watch([frameSrc, frameReady, () => props.activeStep], () => { void synchronizeFr
           </aside>
           <main
             class="tutorial-demo-preview__canvas"
-            :data-scope="tour.scope"
+            :data-scope="tour?.scope"
           >
             <div
               v-for="zone in zones"

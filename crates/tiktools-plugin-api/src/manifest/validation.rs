@@ -8,6 +8,7 @@ mod autocomplete;
 mod contributions;
 mod events;
 mod fields;
+mod guides;
 mod http_config;
 mod http_fields;
 mod native;
@@ -18,6 +19,7 @@ pub use contributions::{validate_plugin_page, validate_plugin_template};
 pub use events::{
     declared_event_types, is_valid_event_subscription, is_valid_event_type, validate_event_type,
 };
+pub use guides::{validate_plugin_guide, PLUGIN_GUIDE_LIMIT};
 pub(crate) use fields::parse_translations;
 pub use fields::{
     is_safe_relative_path, is_valid_plugin_id, validate_capability_provider, validate_cli_command,

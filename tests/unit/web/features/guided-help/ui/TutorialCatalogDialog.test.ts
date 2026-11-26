@@ -3,13 +3,12 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { mountWithPlugins } from '@/shared/lib/testing/mount.ts';
 import { activateLocale } from '@/shared/i18n/i18n.ts';
 import { testMessage } from '@/shared/i18n/test-message.ts';
-import { startTour } from '../../../../../../src/web/features/guided-help/model/coordinator.ts';
+import { startDynamicTour, startTour } from '../../../../../../src/web/features/guided-help/model/coordinator.ts';
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tutorialCard, tutorialCategories, tutorialEntries, tutorialSteps } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
-import type { TourId } from '../../../../../../src/web/features/guided-help/model/types.ts';
 import TutorialCatalogDialog from '../../../../../../src/web/features/guided-help/ui/TutorialCatalogDialog.vue';
 
-vi.mock('../../../../../../src/web/features/guided-help/model/coordinator.ts', () => ({ startTour: vi.fn() }));
+vi.mock('../../../../../../src/web/features/guided-help/model/coordinator.ts', () => ({ startTour: vi.fn(), startDynamicTour: vi.fn() }));
 
 beforeEach(async () => {
   await activateLocale('en');
@@ -21,7 +20,7 @@ function mountDialog() {
   return mountWithPlugins(TutorialCatalogDialog, { attachTo: document.body, props: { open: true } });
 }
 
-const titleOf = (id: TourId): string => tutorialCard('en', id).title;
+const titleOf = (id: string): string => tutorialCard('en', id).title;
 const entriesByTag = (tag: string) => tutorialEntries.filter((entry) => entry.tags.includes(tag as never));
 const entriesByCategory = (category: string) => tutorialEntries.filter((entry) => entry.category === category);
 const automationEntriesByTag = (tag: string) => entriesByCategory('automations').filter((entry) => entry.tags.includes(tag as never));
@@ -202,11 +201,11 @@ it('shows action example requirements and blocks starting when the workspace lac
     attachTo: document.body,
     props: {
       open: true,
-      initialTour: 'automationActionHttp',
+      initialTour: 'automationActionTts',
       automationSnapshot: {
         actions: [{ typeId: 'core.log' }],
-        actionTypes: [{ id: 'core.fetch', tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' } }],
-        plugins: [],
+        actionTypes: [{ id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin', pluginId: 'demo.audio' } }],
+        plugins: [{ installed: true, enabled: true, descriptor: { id: 'demo.audio' } }],
       },
     },
   });
@@ -220,11 +219,11 @@ it('shows action example requirements and blocks starting when the workspace lac
     attachTo: document.body,
     props: {
       open: true,
-      initialTour: 'automationActionHttp',
+      initialTour: 'automationActionTts',
       automationSnapshot: {
-        actions: [{ typeId: 'core.fetch' }],
-        actionTypes: [{ id: 'core.fetch', tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' } }],
-        plugins: [],
+        actions: [{ typeId: 'demo.tts' }],
+        actionTypes: [{ id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin', pluginId: 'demo.audio' } }],
+        plugins: [{ installed: true, enabled: true, descriptor: { id: 'demo.audio' } }],
       },
     },
   });
@@ -287,5 +286,70 @@ it('shows the registry steps in the detail screen and starts the selected driver
   await flushPromises();
   expect(startTour).toHaveBeenCalledWith('changes', expect.objectContaining({ locale: 'en' }));
   expect(wrapper.emitted('update:open')?.at(-1)?.[0]).toBe(false);
+  wrapper.unmount();
+});
+
+it('lists a plugin-contributed action guide and starts it as a dynamic tour', async () => {
+  const textField = {
+    key: 'text',
+    label: { default: 'Text', i18key: '' },
+    kind: 'text' as const,
+    value: '{{ event.data.comment }}',
+  };
+  const wrapper = mountWithPlugins(TutorialCatalogDialog, {
+    attachTo: document.body,
+    props: {
+      open: true,
+      automationSnapshot: {
+        actions: [],
+        actionTypes: [{
+          id: 'sonicboom.server.speak',
+          tag: 'tts',
+          title: { default: 'Speak with SonicBoom', i18key: '' },
+          source: { kind: 'plugin', pluginId: 'sonicboom.server' },
+          fields: [textField],
+        }],
+        plugins: [{ installed: true, enabled: true, descriptor: { id: 'sonicboom.server' } }],
+        pluginGuides: [{
+          id: 'sonicboom.server/speak-action',
+          kind: 'automation-action',
+          pluginId: 'sonicboom.server',
+          actionType: 'sonicboom.server.speak',
+          mode: 'both',
+          title: { default: 'Create a SonicBoom voice action', i18key: '' },
+          description: { default: 'Configure the spoken message.', i18key: '' },
+          icon: 'volume',
+          steps: [{
+            id: 'text',
+            target: { kind: 'field', key: 'text' },
+            title: { default: 'Choose what is spoken', i18key: '' },
+            description: { default: 'Write the message template.', i18key: '' },
+          }],
+        }],
+      },
+    },
+  });
+  await wrapper.get('input[type="search"]').setValue('SonicBoom');
+  await flushPromises();
+
+  const card = wrapper.findAll('.tutorial-catalog__card').find((node) => node.text().includes('Create a SonicBoom voice action'));
+  expect(card).toBeDefined();
+  await card!.trigger('click');
+  await flushPromises();
+  expect(wrapper.get('.tutorial-catalog__detail h3').text()).toBe('Create a SonicBoom voice action');
+  expect(wrapper.get('.tutorial-step-preview__body').text()).toContain('Choose what is spoken');
+
+  await wrapper.get('.tutorial-catalog__start').trigger('click');
+  await flushPromises();
+  expect(startDynamicTour).toHaveBeenCalledWith(
+    expect.objectContaining({
+      definition: expect.objectContaining({
+        id: 'sonicboom.server/speak-action',
+        requirements: expect.objectContaining({ automationActionType: { typeId: 'sonicboom.server.speak' } }),
+      }),
+    }),
+    expect.objectContaining({ locale: 'en' }),
+  );
+  expect(startTour).not.toHaveBeenCalled();
   wrapper.unmount();
 });

@@ -44,6 +44,7 @@ function controlId(formId: string, field: SchemaFieldDescriptor): string {
       <div
         class="schema-field-rows__control"
         :class="{ 'schema-field-rows__control--compact': compact }"
+        :data-guide="`action-field:${field.key}`"
       >
         <label
           v-if="compact && field.kind !== 'boolean'"

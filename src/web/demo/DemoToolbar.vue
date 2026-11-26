@@ -17,7 +17,6 @@ import IconClose from '@/shared/ui/icon/icons/IconClose.vue';
 import IconGear from '@/shared/ui/icon/icons/IconGear.vue';
 import LanguageSwitcher from '@/shared/ui/language-switcher/LanguageSwitcher.vue';
 import TutorialCatalogDialog from '@/features/guided-help/ui/TutorialCatalogDialog.vue';
-import type { TourId } from '@/features/guided-help/model/types.ts';
 import { type PlaybackStatus } from './playback.ts';
 import { demoTutorialIds, type DemoTourId } from './tours.ts';
 import type { DemoLocale, EmbeddedPanel } from './scenarios.ts';
@@ -77,10 +76,10 @@ const menuAnchor = shallowRef<HTMLElement | null>(null);
 const menuItems = computed<MenuEntry[]>(() => [{ id: 'components', label: t.value.catalog }, { id: 'failure', label: t.value.error, checked: props.failure }]);
 function openMenu(event: MouseEvent) { menuAnchor.value = event.currentTarget as HTMLElement; moreOpen.value = !moreOpen.value; }
 function selectAction(action: MenuAction) { if (action.id === 'failure') emit('failure'); else if (action.id === 'components') emit('catalog'); }
-function launchGuide(id: TourId) { if (demoTutorialIds.includes(id as DemoTourId)) emit('guide', id as DemoTourId); }
+function launchGuide(id: string) { if (demoTutorialIds.includes(id as DemoTourId)) emit('guide', id as DemoTourId); }
 
-function demoPreviewUrl(id: TourId): string {
-  return buildDemoPreviewUrl(id, props.locale);
+function demoPreviewUrl(id: string): string {
+  return demoTutorialIds.includes(id as DemoTourId) ? buildDemoPreviewUrl(id as DemoTourId, props.locale) : '';
 }
 </script>
 <template>

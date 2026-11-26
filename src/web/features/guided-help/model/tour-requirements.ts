@@ -13,6 +13,16 @@ function requirementMatchesType(requirement: AutomationActionExampleRequirement,
   return true;
 }
 
+/** Whether the action type/tag itself exists and is active. */
+export function automationActionTypeAvailable(
+  requirement: AutomationActionExampleRequirement,
+  snapshot: TourRequirementSnapshot,
+): boolean {
+  if (!requirement.typeId && !requirement.tag) return false;
+  return snapshot.actionTypes.some((type) =>
+    requirementMatchesType(requirement, type) && actionTypeActive(type, snapshot.plugins));
+}
+
 /** Both halves are required: an available type and an existing user/demo record of that type. */
 export function automationActionExampleAvailable(
   requirement: AutomationActionExampleRequirement,

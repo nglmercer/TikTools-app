@@ -1,10 +1,9 @@
 import { tourRegistry } from '@/features/guided-help/model/registry.ts';
-import type { TourId } from '@/features/guided-help/model/types.ts';
 import type { DemoLocale } from './scenarios.ts';
-import { demoTourScenarios, demoTutorialIds, type DemoTourId } from './tours.ts';
+import { demoTourScenarios, isDemoTour } from './tours.ts';
 
-const previewInstances = new Map<TourId, string>();
-function previewInstance(id: TourId): string {
+const previewInstances = new Map<string, string>();
+function previewInstance(id: string): string {
   const existing = previewInstances.get(id);
   if (existing) return existing;
   const nonce = crypto.randomUUID().replaceAll('-', '').slice(0, 12);
@@ -13,9 +12,9 @@ function previewInstance(id: TourId): string {
   return instance;
 }
 
-export function demoPreviewUrl(id: TourId, locale: DemoLocale): string {
-  if (!demoTutorialIds.includes(id as DemoTourId)) return '';
-  const scenario = demoTourScenarios[id as DemoTourId];
+export function demoPreviewUrl(id: string, locale: DemoLocale): string {
+  if (!isDemoTour(id)) return '';
+  const scenario = demoTourScenarios[id];
   const route = tourRegistry[id].route;
   const params = new URLSearchParams({
     scenario,

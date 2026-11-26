@@ -1689,3 +1689,45 @@ fn translations_stay_namespaced_and_bounded() {
     .expect("bare manifest parses");
     assert!(bare.translations.is_empty());
 }
+
+#[test]
+fn sonicboom_fixture_declares_a_valid_automation_action_guide() {
+    let manifest = PluginManifest::from_json_str(include_str!(
+        "../../../../tests/fixtures/plugins/sonicboom.plugin.json"
+    ))
+    .expect("sonicboom fixture parses");
+    assert_eq!(manifest.guides.len(), 1);
+    let guide = &manifest.guides[0];
+    assert_eq!(guide["actionType"], "sonicboom.server.speak");
+    assert_eq!(guide["steps"].as_array().unwrap().len(), 7);
+    assert!(validate_plugin_guide(guide, &manifest.action_types).is_ok());
+}
+
+#[test]
+fn plugin_guides_reject_foreign_actions_selectors_and_unknown_fields() {
+    let manifest = PluginManifest::from_json_str(include_str!(
+        "../../../../tests/fixtures/plugins/sonicboom.plugin.json"
+    ))
+    .expect("sonicboom fixture parses");
+    let guide = &manifest.guides[0];
+
+    let mut foreign = guide.clone();
+    foreign["actionType"] = serde_json::json!("other.plugin.speak");
+    assert!(validate_plugin_guide(&foreign, &manifest.action_types).is_err());
+
+    let mut selector = guide.clone();
+    selector["steps"][0]["target"] = serde_json::json!({"kind": "selector", "selector": ".hack"});
+    assert!(validate_plugin_guide(&selector, &manifest.action_types).is_err());
+
+    let mut missing_field = guide.clone();
+    missing_field["steps"][1]["target"]["key"] = serde_json::json!("missing");
+    assert!(validate_plugin_guide(&missing_field, &manifest.action_types).is_err());
+
+    let mut hidden_selector = guide.clone();
+    hidden_selector["steps"][1]["target"]["selector"] = serde_json::json!(".hack");
+    assert!(validate_plugin_guide(&hidden_selector, &manifest.action_types).is_err());
+
+    let mut duplicate = guide.clone();
+    duplicate["steps"][1]["id"] = duplicate["steps"][0]["id"].clone();
+    assert!(validate_plugin_guide(&duplicate, &manifest.action_types).is_err());
+}
