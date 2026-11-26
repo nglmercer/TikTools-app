@@ -4,8 +4,8 @@ use super::super::sqlite::DatabaseError;
 use super::super::DatabaseManager;
 use super::aggregate::add_hour_totals;
 use super::{
-    AnalyticsAudience, AnalyticsDayRow, AnalyticsHourRow, AnalyticsSessionRow, AnalyticsSummaryData,
-    AnalyticsTopViewer, AnalyticsTotals,
+    AnalyticsAudience, AnalyticsDayRow, AnalyticsHourRow, AnalyticsSessionRow,
+    AnalyticsSummaryData, AnalyticsTopViewer, AnalyticsTotals,
 };
 
 impl DatabaseManager {
@@ -269,13 +269,16 @@ impl DatabaseManager {
              LIMIT 200",
         )?;
         let session_list = sessions_statement
-            .query_map(params![creator_unique_id, offset, start_day, end_day], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<i64>>(1)?,
-                    row.get::<_, i64>(2)?,
-                ))
-            })?
+            .query_map(
+                params![creator_unique_id, offset, start_day, end_day],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, Option<i64>>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                },
+            )?
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .map(|(started_at, ended_at, peak_viewers)| {
