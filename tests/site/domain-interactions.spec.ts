@@ -61,11 +61,14 @@ async function variableChanges(page: Page): Promise<Locator> {
   const dialog = page.getByRole('dialog', { name: 'Changes · Variables', exact: true });
   await expect(dialog).toBeVisible();
   // The Cloud scenario is already signed in, opted in and has a comparison.
-  // A missing sync.v2.selected contract must not strand it in setup.
-  await expect(dialog.getByRole('button', { name: 'View greeting', exact: true })).toBeVisible();
-  await dialog.getByRole('button', { name: 'View greeting', exact: true }).click();
+  // A missing sync.v2.selected contract must not strand it in setup. The
+  // review workspace expands cards inline (no master/detail navigation).
+  const card = dialog.locator('.change-review__card').filter({ hasText: 'greeting' });
+  await expect(card).toBeVisible();
+  await card.getByRole('button', { name: t('changeReview.expand'), exact: true }).click();
   return dialog;
 }
+
 
 for (const copy of [
   { locale: 'zh', actions: '操作', create: '新建操作…', picker: '新建操作', title: '写入日志', message: '消息' },
@@ -201,7 +204,7 @@ test('Variables fence unsaved edits, then resolve to the reviewed Cloud value', 
   const dialog = await variableChanges(page);
   await expect(dialog.locator('.sync-panel__conflict')).toContainText(t('syncChanges.conflictBoth'));
   await dialog.getByRole('button', { name: t('syncChanges.applyCloud'), exact: true }).click();
-  await expect(dialog).toContainText(t('syncChanges.empty'));
+  await expect(dialog).toContainText(t('changeReview.empty'));
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(greeting.getByRole('textbox', { name: 'Value', exact: true })).toHaveValue('Welcome');
   await expect(page.getByRole('button', { name: t('globals.save'), exact: true })).toBeDisabled();
@@ -215,11 +218,11 @@ test('Variables local resolution clears only the comparison and preserves the sa
   await expect(dialog.getByRole('button', { name: /Force send|Force fetch|Reset everything/ })).toHaveCount(0);
   await expect(dialog.getByRole('switch', { name: 'Auto', exact: true })).toHaveCount(0);
   await dialog.getByRole('button', { name: t('syncChanges.sendSavedValue'), exact: true }).click();
-  await expect(dialog).toContainText(t('syncChanges.empty'));
+  await expect(dialog).toContainText(t('changeReview.empty'));
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(greetingRow(page).getByRole('textbox', { name: 'Value', exact: true })).toHaveValue('Hello');
   await page.getByRole('button', { name: t('syncChanges.button'), exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Changes · Variables', exact: true })).toContainText(t('syncChanges.empty'));
+  await expect(page.getByRole('dialog', { name: 'Changes · Variables', exact: true })).toContainText(t('changeReview.empty'));
   await settled(page);
 });
 
