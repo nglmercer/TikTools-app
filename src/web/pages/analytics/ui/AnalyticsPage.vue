@@ -20,7 +20,7 @@ import AnalyticsSessionsTable from '@/entities/analytics/ui/AnalyticsSessionsTab
 import AnalyticsInsights from '@/entities/analytics/ui/AnalyticsInsights.vue';
 import AnalyticsMetricStrip from '@/entities/analytics/ui/AnalyticsMetricStrip.vue';
 import { formatCount } from '@/shared/lib/intl.ts';
-import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
+import { loadViewState, usePersistentViewState } from '@/shared/lib/view-state.ts';
 import AnalyticsRangeBar from '@/features/select-analytics-range/ui/AnalyticsRangeBar.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
@@ -115,17 +115,14 @@ onBeforeUnmount(() => {
   if (poll) clearInterval(poll);
 });
 
-const persist = debounce(() => {
-  saveViewState('analytics', {
-    range: range.value,
-    metric: metric.value,
-    contributorQuery: query.value,
-    customStart: customStart.value,
-    customEnd: customEnd.value,
-    tab: tab.value,
-  });
-});
-watch([range, metric, query, customStart, customEnd, tab], persist);
+usePersistentViewState('analytics', () => ({
+  range: range.value,
+  metric: metric.value,
+  contributorQuery: query.value,
+  customStart: customStart.value,
+  customEnd: customEnd.value,
+  tab: tab.value,
+}), [range, metric, query, customStart, customEnd, tab]);
 </script>
 
 <template>

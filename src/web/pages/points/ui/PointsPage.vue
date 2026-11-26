@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { isConnectionBusy } from '@/entities/connection/lib/connection-status.ts';
-import { debounce, loadViewState, saveViewState, type PointsViewState } from '@/shared/lib/view-state.ts';
+import { loadViewState, usePersistentViewState, type PointsViewState } from '@/shared/lib/view-state.ts';
 import PointsRulesPanel from '@/features/configure-points/ui/PointsRulesPanel.vue';
 import type { TableSort } from '@/shared/ui/table/table-types.ts';
 import PointsLeaderboardPanel from '@/widgets/points-leaderboard/ui/PointsLeaderboardPanel.vue';
@@ -33,10 +33,7 @@ const locked = computed(() => {
   return status === 'connected' || isConnectionBusy(status);
 });
 
-const persist = debounce(() => {
-  saveViewState('points', { searchQuery: query.value, ...storedSort(sort.value) });
-});
-watch([query, sort], persist);
+usePersistentViewState('points', () => ({ searchQuery: query.value, ...storedSort(sort.value) }), [query, sort]);
 </script>
 
 <template>

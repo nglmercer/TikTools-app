@@ -5,7 +5,7 @@ import { useConnectionStore } from '@/entities/connection/model/connection-store
 import { useDiscoveryStore } from '@/entities/live-room/model/discovery-store.ts';
 import LiveConnectPanel from '@/features/connect-live/ui/LiveConnectPanel.vue';
 import LiveExplorerPanel from '@/features/explore-live-rooms/ui/LiveExplorerPanel.vue';
-import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
+import { loadViewState, usePersistentViewState } from '@/shared/lib/view-state.ts';
 import PluginServersPanel from '@/widgets/plugin-servers/ui/PluginServersPanel.vue';
 
 const connection = useConnectionStore();
@@ -70,13 +70,10 @@ function selectRecent(username: string): void {
   connect();
 }
 
-const persist = debounce(() => {
-  saveViewState('connections', {
-    showCookie: useCookie.value,
-    openServers: selectedServer.value ? { [selectedServer.value]: true } : {},
-  });
-});
-watch([useCookie, selectedServer], persist);
+usePersistentViewState('connections', () => ({
+  showCookie: useCookie.value,
+  openServers: selectedServer.value ? { [selectedServer.value]: true } : {},
+}), [useCookie, selectedServer]);
 </script>
 
 <template>

@@ -126,18 +126,19 @@ it('blocks profile and template changes until the initial coherent library is re
   });
 
   it('does not persist the selection once the page is unmounted', async () => {
-    // Regression: the debounced view-state write must be cancelled on unmount.
+    // Regression: the debounced view-state write must never outlive the page.
     // A dead page's late write restores a stale selection into the next mount,
     // which auto-opens the editor and hides the library (worker-shared storage).
+    // Unmounting may flush the final state synchronously, but nothing may be
+    // written afterwards: storage is frozen the moment the page dies.
     const f = await mountPage();
     vi.useFakeTimers();
     await selectRow(f.wrapper, 'Big gifts');
     f.wrapper.unmount();
+    const atUnmount = localStorage.getItem('tiktok-live-view-state');
     vi.advanceTimersByTime(500);
     vi.useRealTimers();
-    const stored = localStorage.getItem('tiktok-live-view-state');
-    const behavior = stored ? (JSON.parse(stored) as { behavior?: { selected?: string } }).behavior : undefined;
-    expect(behavior?.selected).toBeUndefined();
+    expect(localStorage.getItem('tiktok-live-view-state')).toBe(atUnmount);
   });
 
   it('opens the templates dialog on its Cloud tab from a saved ?view=cloud link and clears the link when it closes', async () => {

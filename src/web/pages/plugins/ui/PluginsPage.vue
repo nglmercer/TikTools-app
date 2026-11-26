@@ -10,7 +10,7 @@ import { parseRemoteSelection } from '@/entities/plugin-package/lib/package-form
 import { usePackagesStore } from '@/entities/plugin-package/model/packages-store.ts';
 import { useProcessorsStore } from '@/entities/processor/model/processors-store.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
-import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
+import { loadViewState, usePersistentViewState } from '@/shared/lib/view-state.ts';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
@@ -212,21 +212,15 @@ watch(
   },
 );
 
-function persistView(): void {
-  saveViewState('plugins', {
-    view: view.value ?? undefined,
-    catalog: catalog.value,
-    query: query.value,
-    selected: selected.value ?? undefined,
-    details: detailsTab.value,
-  });
-}
-const persist = debounce(persistView);
-watch([view, catalog, query, selected, detailsTab], persist);
+usePersistentViewState('plugins', () => ({
+  view: view.value ?? undefined,
+  catalog: catalog.value,
+  query: query.value,
+  selected: selected.value ?? undefined,
+  details: detailsTab.value,
+}), [view, catalog, query, selected, detailsTab]);
 onBeforeUnmount(() => {
   unregisterGuideActions?.();
-  persist.cancel();
-  persistView();
 });
 // The list the processor was opened from may no longer hold it.
 watch(activeView, () => { processorSelected.value = null; });

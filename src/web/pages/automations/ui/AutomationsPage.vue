@@ -35,7 +35,7 @@ import ProfileToolbar from '@/features/manage-rule-profiles/ui/ProfileToolbar.vu
 import ActionTypeDialog from '@/features/pick-action-type/ui/ActionTypeDialog.vue';
 import { type RuleProfile } from '@/entities/rule-template/lib/rule-profiles.ts';
 import { useMediaQuery } from '@/shared/lib/media-query.ts';
-import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
+import { loadViewState, usePersistentViewState } from '@/shared/lib/view-state.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseConfirmDialog from '@/shared/ui/dialog/BaseConfirmDialog.vue';
@@ -178,22 +178,17 @@ function applyProfile(profile: RuleProfile, applied: AppliedRuleTemplate[]): voi
   }).catch(() => {});
 }
 
-const persist = debounce(() => {
-  saveViewState('behavior', {
-    tab: tab.value,
-    selected: selected.value ?? undefined,
-    eventQuery: eventQuery.value,
-    eventSort: eventSort.value,
-    actionQuery: actionQuery.value,
-    actionSort: actionSort.value,
-  });
-});
-watch([tab, selected, eventQuery, eventSort, actionQuery, actionSort], persist);
-// A pending debounced write must not outlive the page: after unmount the refs
-// freeze with the editor still open, and the late write would restore a stale
-// selection into whatever mounts next (in the real app, a remounted page; in
-// tests, the next mount sharing the storage).
-onBeforeUnmount(() => persist.cancel());
+// The shared composable owns the unmount semantics: cancel the pending timer
+// (a dead page's late write would restore a stale selection into the next
+// mount) and flush the final state synchronously instead.
+usePersistentViewState('behavior', () => ({
+  tab: tab.value,
+  selected: selected.value ?? undefined,
+  eventQuery: eventQuery.value,
+  eventSort: eventSort.value,
+  actionQuery: actionQuery.value,
+  actionSort: actionSort.value,
+}), [tab, selected, eventQuery, eventSort, actionQuery, actionSort]);
 
 const guideScope = useTemplateRef<HTMLElement>('guideScope');
 let unregisterGuideActions: (() => void) | undefined;

@@ -1,4 +1,5 @@
 
+import { onBeforeUnmount, watch, type WatchSource } from 'vue';
 import { parsePluginNavId } from '../../../automation/plugins/declarative.ts';
 import { appStorage } from './app-storage.ts';
 import type { BuiltinAppTab, EventFilter } from '@/types.ts';
@@ -323,4 +324,25 @@ export function debounce(fn: () => void, ms = 150): DebouncedCallback {
     }, ms);
   };
   return Object.assign(callback, { cancel });
+}
+
+/**
+ * Persist one view-state section with debounced writes and correct unmount
+ * semantics. A pending debounced write must never outlive the component —
+ * after unmount the refs freeze and the late write would restore stale state
+ * into whatever mounts next — so the timer is cancelled at unmount and the
+ * user's final state is flushed synchronously instead of being lost.
+ */
+export function usePersistentViewState<K extends keyof ViewState>(
+  section: K,
+  snapshot: () => NonNullable<ViewState[K]>,
+  sources: WatchSource | WatchSource[],
+): void {
+  const persistView = (): void => saveViewState(section, snapshot());
+  const persist = debounce(persistView);
+  watch(sources, persist);
+  onBeforeUnmount(() => {
+    persist.cancel();
+    persistView();
+  });
 }
