@@ -137,8 +137,8 @@
 }
 
 .sync-panel__chip--warn {
-  border-color: var(--color-warning);
-  color: var(--color-warning);
+  border-color: var(--color-text-warning);
+  color: var(--color-text-warning);
 }
 
 .sync-panel__chip--end {
@@ -166,9 +166,7 @@
   min-width: 0;
 }
 
-.sync-panel__switch,
-.sync-panel__all,
-.sync-panel__send {
+.sync-panel__switch {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -176,33 +174,10 @@
   border-bottom: var(--border-width) solid var(--color-border-subtle);
 }
 
-.sync-panel__send {
-  border-top: var(--border-width) solid var(--color-border-subtle);
-  border-bottom: 0;
-}
-
 .sync-panel__list {
   flex: 1;
   min-height: 0;
   overflow: auto;
-}
-
-.sync-panel__group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-height: 30px;
-  padding: 0 var(--space-5);
-  border-top: var(--border-width) solid var(--color-border-subtle);
-  border-bottom: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-panel-header);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-}
-
-.sync-panel__group--warn {
-  color: var(--color-warning);
 }
 
 .sync-panel__item {
@@ -280,10 +255,10 @@
   font-size: var(--font-size-sm);
 }
 
-.sync-panel__state--modified { color: var(--color-warning); }
-.sync-panel__state--added { color: var(--color-success); }
+.sync-panel__state--modified { color: var(--color-text-warning); }
+.sync-panel__state--added { color: var(--color-text-success); }
 .sync-panel__state--deleted { color: var(--color-text-danger); }
-.sync-panel__state--conflict { color: var(--color-warning); font-weight: var(--font-weight-semibold); }
+.sync-panel__state--conflict { color: var(--color-text-warning); font-weight: var(--font-weight-semibold); }
 
 .sync-panel__head {
   display: flex;
@@ -302,7 +277,7 @@
   white-space: nowrap;
 }
 
-.sync-panel__add { color: var(--color-success); font-family: var(--font-family-mono, monospace); }
+.sync-panel__add { color: var(--color-text-success); font-family: var(--font-family-mono, monospace); }
 .sync-panel__del { color: var(--color-text-danger); font-family: var(--font-family-mono, monospace); }
 
 .sync-panel__files {

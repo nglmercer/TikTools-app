@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import type { SyncAdapter } from '@/entities/cloud-sync/api/sync-adapter.ts';
-import { ROOT_FIELD } from '@/entities/cloud-sync/lib/sync-merge.ts';
 import type { SyncPanelState } from '../model/use-sync-panel.ts';
 import type { SyncDiffState } from '../model/use-sync-diff.ts';
 import { useSyncLabels } from '../lib/use-sync-labels.ts';
-import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconGitMerge from '@/shared/ui/icon/icons/IconGitMerge.vue';
@@ -18,7 +16,7 @@ const emit = defineEmits<{ selectHistoryChange: [id: string] }>();
 const { t } = useI18n();
 const caps = props.adapter.capabilities;
 const { statusLabel } = useSyncLabels(props.adapter);
-const { layout, shown, shownSides, operationStats, picks, conflict, preview, setAll, applyMerge, canReset } = props.diff;
+const { layout, shown, shownSides, operationStats } = props.diff;
 </script>
 
 <template>
@@ -74,102 +72,6 @@ const { layout, shown, shownSides, operationStats, picks, conflict, preview, set
           >
             <IconUndo />
           </BaseIconButton>
-        </div>
-      </div>
-    </template>
-
-    <template v-else-if="panel.view.value === 'changes' && panel.current.value">
-      <div class="sync-panel__head">
-        <strong class="sync-panel__title">{{ panel.current.value.name }}</strong>
-        <span class="sync-panel__chip">{{ adapter.kindLabel(panel.current.value.kind) }}</span>
-        <span
-          class="sync-panel__state"
-          :class="`sync-panel__state--${panel.current.value.status}`"
-        >{{ statusLabel(panel.current.value) }}</span>
-        <span class="sync-panel__spacer" />
-        <BaseButton
-          v-if="caps.apply && panel.current.value.canApply !== false && panel.current.value.side !== 'conflict'"
-          :disabled="panel.busy.value"
-          @click="panel.ask({ kind: 'apply', id: panel.current.value!.id, name: panel.current.value!.name })"
-        >
-          {{ t('syncChanges.applyCloud') }}
-        </BaseButton>
-        <BaseButton
-          v-if="caps.withdraw && panel.current.value.canWithdraw !== false"
-          :disabled="panel.busy.value"
-          @click="panel.ask({ kind: 'withdraw', id: panel.current.value!.id, name: panel.current.value!.name })"
-        >
-          {{ t('syncChanges.withdraw') }}
-        </BaseButton>
-        <BaseIconButton
-          v-if="canReset"
-          :label="t('syncChanges.reset')"
-          variant="default"
-          :disabled="panel.busy.value"
-          @click="panel.ask({ kind: 'reset', id: panel.current.value!.id, name: panel.current.value!.name })"
-        >
-          <IconUndo />
-        </BaseIconButton>
-      </div>
-      <div
-        v-if="conflict && (conflict.change.canResolveLocal !== false || conflict.change.canResolveCloud !== false)"
-        class="sync-panel__conflict"
-      >
-        <span class="sync-panel__muted">{{ conflict.merge ? t('syncChanges.conflictHelp') : t('syncChanges.conflictBoth') }}</span>
-        <div
-          v-for="field in conflict.fields"
-          :key="field.key"
-          class="sync-panel__field"
-        >
-          <span class="sync-panel__mono sync-panel__key">{{ field.key === ROOT_FIELD ? t('syncChanges.rootField') : field.key }}</span>
-          <div
-            class="sync-panel__choices"
-            role="radiogroup"
-            :aria-label="field.key"
-          >
-            <button
-              v-for="side in (['base', 'local', 'cloud'] as const)"
-              :key="side"
-              class="sync-panel__choice"
-              type="button"
-              role="radio"
-              :aria-checked="picks[field.key] === side"
-              :title="t(`syncChanges.${side === 'cloud' ? 'cloudHint' : `${side}Hint`}`)"
-              @click="picks = { ...picks, [field.key]: side }"
-            >
-              <span class="sync-panel__muted">{{ t(`syncChanges.${side === 'cloud' ? 'cloudSide' : side}`) }}</span>
-              <span class="sync-panel__mono sync-panel__preview">{{ preview(field[side]) }}</span>
-            </button>
-          </div>
-        </div>
-        <div class="sync-panel__actions">
-          <BaseButton
-            v-if="conflict.merge"
-            variant="primary"
-            :disabled="panel.busy.value"
-            @click="applyMerge"
-          >
-            <template #icon>
-              <IconGitMerge />
-            </template>
-            {{ t('syncChanges.applyMerge') }}
-          </BaseButton>
-          <BaseButton
-            v-if="conflict.change.canResolveLocal !== false"
-            :title="adapter.resolveLabels?.local ?? t('syncChanges.allLocalHint')"
-            :disabled="panel.busy.value"
-            @click="caps.merge ? setAll('local') : panel.resolve(conflict.change.id, { choice: 'local' })"
-          >
-            {{ adapter.resolveLabels?.local ?? t('syncChanges.allLocal') }}
-          </BaseButton>
-          <BaseButton
-            v-if="conflict.change.canResolveCloud !== false"
-            :title="adapter.resolveLabels?.cloud ?? t('syncChanges.allCloudHint')"
-            :disabled="panel.busy.value"
-            @click="caps.merge ? setAll('cloud') : panel.resolve(conflict.change.id, { choice: 'cloud' })"
-          >
-            {{ adapter.resolveLabels?.cloud ?? t('syncChanges.allCloud') }}
-          </BaseButton>
         </div>
       </div>
     </template>

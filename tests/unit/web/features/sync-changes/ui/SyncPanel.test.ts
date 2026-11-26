@@ -25,6 +25,15 @@ async function openAdapter(adapter: SyncAdapter) {
 const byLabel = (wrapper: VueWrapper, label: string) => wrapper.find(`[aria-label="${label}"]`);
 const byText = (wrapper: VueWrapper, text: string) => wrapper.findAll('button').find((button) => button.text().includes(text));
 
+/** Expands the review card of one element and waits for the lazy details to render. */
+async function expandCard(wrapper: VueWrapper, name: string) {
+  const card = wrapper.findAll('.change-review__card').find((entry) => entry.text().includes(name));
+  expect(card, `card for ${name}`).toBeDefined();
+  await card!.get('.change-review__chevron').trigger('click');
+  await flushPromises();
+  return card!;
+}
+
 describe('SyncPanel capabilities', () => {
   it('hides every control the adapter does not declare', async () => {
     const { wrapper } = await open({});
@@ -36,8 +45,8 @@ describe('SyncPanel capabilities', () => {
     expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false);
     expect(byLabel(wrapper, t('syncChanges.reset')).exists()).toBe(false);
     expect(wrapper.find('[role="radiogroup"][aria-label="Changes or history"]').exists()).toBe(false);
-    // The list and the diff still work.
-    expect(wrapper.findAll('[role="listitem"]')).toHaveLength(4);
+    // The cards still render.
+    expect(wrapper.findAll('.change-review__card')).toHaveLength(4);
   });
 
   it('shows the controls of the declared capabilities, and the fork entry only with the fork capability', async () => {
@@ -67,10 +76,11 @@ describe('SyncPanel capabilities', () => {
 });
 
 describe('SyncPanel changes view', () => {
-  it('groups elements as To send, To fetch and Conflicts and counts them in the status strip', async () => {
+  it('marks the side of every element and counts them in the status strip', async () => {
     const { wrapper } = await open(allCapabilities);
-    const groups = wrapper.findAll('.sync-panel__group').map((group) => group.text());
-    expect(groups).toEqual(['To send 2', 'To fetch 1', 'Conflicts 1']);
+    expect(wrapper.findAll(`[aria-label="${t('syncChanges.toSend')}"]`)).toHaveLength(2);
+    expect(wrapper.findAll(`[aria-label="${t('syncChanges.toFetch')}"]`)).toHaveLength(1);
+    expect(wrapper.findAll(`[aria-label="${t('syncChanges.conflicts')}"]`)).toHaveLength(1);
     expect(wrapper.findAll('.sync-panel__status .sync-panel__chip').map((chip) => [chip.attributes('data-side'), chip.text()])).toEqual([['local', '2'], ['remote', '1'], ['conflict', '1']]);
   });
 
@@ -93,12 +103,11 @@ describe('SyncPanel changes view', () => {
     expect(spies.push).toHaveBeenCalledWith(['e1', 'e2']);
   });
 
-  it('shows the diff of the picked element', async () => {
+  it('shows the diff of the expanded element inline', async () => {
     const { wrapper } = await open(allCapabilities);
-    await byLabel(wrapper, 'View Gift').trigger('click');
-    expect(wrapper.get('.sync-panel__head').text()).toContain('Gift');
-    expect(wrapper.get('.sync-panel__head').text()).toContain('Added');
-    expect(wrapper.find('.base-json-diff__line--added').exists()).toBe(true);
+    const card = await expandCard(wrapper, 'Gift');
+    expect(card.find('.change-review__fields').exists() || card.find('.base-json-diff').exists()).toBe(true);
+    expect(card.text()).toContain('Gift');
   });
 
   it('syncs and fetches through the adapter without confirmation', async () => {
@@ -136,6 +145,7 @@ describe('SyncPanel destructive confirmation', () => {
 
   it('asks before resetting one element', async () => {
     const { wrapper, spies } = await open(allCapabilities);
+    await expandCard(wrapper, 'Greeting');
     await byLabel(wrapper, t('syncChanges.reset')).trigger('click');
     expect(spies.reset).not.toHaveBeenCalled();
     expect(wrapper.get('[role="alertdialog"]').text()).toContain('Greeting');
@@ -148,7 +158,7 @@ describe('SyncPanel destructive confirmation', () => {
 describe('SyncPanel conflicts', () => {
   async function conflict(capabilities: Partial<SyncCapabilities> = allCapabilities) {
     const context = await open(capabilities);
-    await byLabel(context.wrapper, 'View Clash').trigger('click');
+    await expandCard(context.wrapper, 'Clash');
     return context;
   }
 
@@ -193,11 +203,12 @@ describe('SyncPanel conflicts', () => {
 describe('SyncPanel view lifecycle', () => {
   it('retains unapplied conflict choices when its dialog closes and reopens', async () => {
     const { wrapper, spies } = await open(allCapabilities);
-    await byLabel(wrapper, 'View Clash').trigger('click');
+    await expandCard(wrapper, 'Clash');
     await byText(wrapper, t('syncChanges.allCloud'))!.trigger('click');
     await wrapper.setProps({ open: false });
     await wrapper.setProps({ open: true });
     await flushPromises();
+    await expandCard(wrapper, 'Clash');
     expect(spies.resolve).not.toHaveBeenCalled();
     expect(wrapper.findAll('.sync-panel__choice[aria-checked="true"]').every(choice => choice.text().includes(t('syncChanges.cloud')))).toBe(true);
     await byText(wrapper, t('syncChanges.applyMerge'))!.trigger('click');
@@ -294,7 +305,7 @@ describe('SyncPanel mark as reviewed', () => {
     await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(visibleChips()).toEqual([]);
-    expect(wrapper.findAll('[role="listitem"]')).toHaveLength(0);
+    expect(wrapper.findAll('.change-review__card')).toHaveLength(0);
     expect(byLabel(wrapper, REVIEW).attributes('disabled')).toBeDefined();
   });
 
@@ -305,7 +316,7 @@ describe('SyncPanel mark as reviewed', () => {
     await byText(wrapper, t('syncChanges.confirm'))!.trigger('click');
     await flushPromises();
     expect(wrapper.text()).toContain('storage blocked');
-    expect(wrapper.findAll('[role="listitem"]')).toHaveLength(4);
+    expect(wrapper.findAll('.change-review__card')).toHaveLength(4);
   });
 });
 
@@ -335,9 +346,11 @@ describe('SyncPanel values that never reach the page', () => {
     ];
     const { adapter } = fakeAdapter({ resolve: true, merge: true }, changes);
     const { wrapper } = await openAdapter(adapter);
+    await expandCard(wrapper, 'Alpha');
     expect(wrapper.find('.base-json-diff').exists()).toBe(false);
     expect(wrapper.get('.sync-panel__keys').text()).toContain('Changed settings: apiKey, volume');
-    expect(wrapper.find('[role="radiogroup"]').exists()).toBe(false);
+    // No per-field choices: the only radiogroups are the workspace view/layout toggles.
+    expect(wrapper.find('.sync-panel__choices').exists()).toBe(false);
     expect(byText(wrapper, t('syncChanges.applyMerge'))).toBeUndefined();
     expect(byText(wrapper, t('syncChanges.allLocal'))).toBeDefined();
     expect(byText(wrapper, t('syncChanges.allCloud'))).toBeDefined();
@@ -364,7 +377,7 @@ describe('SyncPanel load failures', () => {
     await byText(wrapper, t('syncChanges.retryRead'))!.trigger('click');
     await flushPromises();
     expect(spies.list).toHaveBeenCalledTimes(before + 1);
-    expect(wrapper.text()).toContain(t('syncChanges.empty'));
+    expect(wrapper.text()).toContain(t('changeReview.empty'));
     expect(wrapper.find('[role="alert"]').exists()).toBe(false);
     expect(byText(wrapper, t('syncChanges.retryRead'))).toBeUndefined();
     for (const [name, operation] of Object.entries(spies)) {

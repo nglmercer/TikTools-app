@@ -8,6 +8,11 @@ import { testMessage } from '../../src/web/shared/i18n/test-message.ts';
 
 const t = (key: string, params?: Record<string, string | number>): string => testMessage('en', key, params);
 
+/** Expands the review card of one element so its inline diff and actions render. */
+const expandCard = async (panel: import('@playwright/test').Locator, name: string) => {
+  await panel.locator('.change-review__card', { hasText: name }).first().getByRole('button', { name: t('changeReview.expand') }).click();
+};
+
 /**
  * The Changes panel opens from a button in each section's toolbar and only shows that section's
  * elements. Automations compare against this device's reference copy (never Cloud, nothing is sent); Plugins read
@@ -29,13 +34,13 @@ test('the Events tab lists what changed since the last snapshot and asks before 
   await expect(button).toBeVisible();
   await button.click();
   const panel = page.getByRole('dialog', { name: `${t('syncChanges.title')} · Events` });
-  await expect(panel.getByRole('listitem')).toHaveCount(3);
+  await expect(panel.locator('.change-review__card')).toHaveCount(3);
   // Automations have no Cloud transport yet, so only reset and mark as reviewed are offered.
   await expect(panel.locator('.sync-panel__status')).toContainText(t('syncChanges.automationsNotice'));
   await expect(panel.getByRole('button', { name: t('syncChanges.fetch') })).toHaveCount(0);
   await expect(panel.getByRole('button', { name: t('syncChanges.sync'), exact: true })).toHaveCount(0);
-  await panel.getByRole('button', { name: t('syncChanges.pickElement', { name: 'Greeting renamed' }) }).click();
-  await expect(panel.locator('.base-json-diff__line--added').first()).toContainText('Greeting renamed');
+  await expandCard(panel, 'Greeting renamed');
+  await expect(panel.locator('.change-review__fields').first()).toContainText('Greeting renamed');
   await panel.getByRole('button', { name: t('syncChanges.reset') }).click();
   await expect(panel.getByRole('alertdialog')).toContainText('Greeting renamed');
   await panel.getByRole('button', { name: t('common.cancel') }).click();
@@ -46,7 +51,7 @@ test('the Events tab lists what changed since the last snapshot and asks before 
   await panel.getByRole('button', { name: t('syncChanges.markReviewed') }).click();
   await expect(panel.getByRole('alertdialog')).toContainText(t('syncChanges.confirmMarkReviewed'));
   await panel.getByRole('button', { name: t('syncChanges.confirm') }).click();
-  await expect(panel.getByRole('listitem')).toHaveCount(0);
+  await expect(panel.locator('.change-review__card')).toHaveCount(0);
   await expect(panel.getByRole('button', { name: t('syncChanges.markReviewed') })).toBeDisabled();
   const reference = await page.evaluate(() => JSON.parse(localStorage.getItem('tiktools.sync.snapshot.automation-events') ?? '{}'));
   expect(Object.keys(reference).sort()).toEqual(['greet', 'new']);
@@ -73,12 +78,12 @@ test('Plugins send the whole pass and resolve a conflict through the v2 contract
 
   await page.getByRole('button', { name: t('syncChanges.buttonCount', { count: 2 }) }).click();
   const panel = page.getByRole('dialog', { name: new RegExp(`${t('syncChanges.title')} · Plugins`) });
-  await expect(panel.locator('.sync-panel__group').first()).toContainText(t('syncChanges.toSend'));
-  await panel.getByRole('button', { name: t('syncChanges.pickElement', { name: 'other.plugin' }) }).click();
+  await expect(panel.locator('.sync-review__side--local')).toHaveCount(1);
+  await expandCard(panel, 'other.plugin');
   await expect(panel.locator('.sync-panel__keys')).toContainText('Changed settings: apiKey, volume');
   await expect(panel.locator('.base-json-diff')).toHaveCount(0);
-  await panel.getByRole('button', { name: t('syncChanges.pickElement', { name: 'SonicBoom Server' }) }).click();
-  await expect(panel.locator('.sync-panel__group').nth(1)).toContainText(t('syncChanges.conflicts'));
+  await expandCard(panel, 'SonicBoom Server');
+  await expect(panel.locator('.sync-review__side--conflict')).toHaveCount(1);
   await expect(panel.getByRole('button', { name: t('syncChanges.sync'), exact: true })).toBeVisible();
   // No selective send, no force and no history on this section.
   await expect(panel.getByRole('button', { name: t('syncChanges.push') })).toHaveCount(0);

@@ -33,7 +33,7 @@ const props = withDefaults(defineProps<{
   initiallyOpen?: readonly string[];
 }>(), { profileFilter: false, initiallyOpen: () => [] });
 
-const emit = defineEmits<{ rename: [id: string, name: string] }>();
+const emit = defineEmits<{ rename: [id: string, name: string]; toggle: [id: string, open: boolean] }>();
 const { t } = useI18n();
 const uid = useId();
 
@@ -90,17 +90,22 @@ function setOpen(id: string, open: boolean): void {
 async function toggle(id: string): Promise<void> {
   if (openIds.value.has(id)) {
     setOpen(id, false);
+    emit('toggle', id, false);
     return;
   }
   if (renderedIds.value.has(id)) {
     setOpen(id, true);
+    emit('toggle', id, true);
     return;
   }
   const rendered = new Set(renderedIds.value);
   rendered.add(id);
   renderedIds.value = rendered;
   await nextTick();
-  requestAnimationFrame(() => setOpen(id, true));
+  requestAnimationFrame(() => {
+    setOpen(id, true);
+    emit('toggle', id, true);
+  });
 }
 function fieldsOf(item: ChangeReviewItem) {
   return diffFields(item.before, item.after).filter((field) => showUnchanged.value || item.alwaysShowFields || field.status !== 'unchanged');
@@ -215,6 +220,10 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
           >
             <IconChevronDown />
           </BaseIconButton>
+          <slot
+            name="leading"
+            :item="item"
+          />
           <div class="change-review__name">
             <strong v-if="!item.editable">
               {{ item.title }}<span
@@ -241,17 +250,21 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
         <div
           class="change-review__collapse"
           :class="{ 'change-review__collapse--open': openIds.has(item.id) }"
-          :inert="!openIds.has(item.id)"
+          :inert="openIds.has(item.id) ? undefined : true"
         >
           <div class="change-review__collapse-inner">
             <div
               v-if="renderedIds.has(item.id)"
               :id="regionId(item.id)"
-              class="change-review__details"
+class="change-review__details"
               role="region"
             >
-          <div
-            v-if="mode === 'elements' && layout === 'unified'"
+            <slot
+              name="detail"
+              :item="item"
+            />
+            <div
+              v-if="mode === 'elements' && layout === 'unified'"
             class="change-review__fields"
           >
             <div

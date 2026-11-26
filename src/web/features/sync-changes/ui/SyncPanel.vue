@@ -15,11 +15,13 @@ import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconUpload from '@/shared/ui/icon/icons/IconUpload.vue';
 import IconWarning from '@/shared/ui/icon/icons/IconWarning.vue';
+import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import { useSyncChanges } from '../model/use-sync-changes.ts';
 import { useSyncPanel, type SyncConfirmation, type SyncView } from '../model/use-sync-panel.ts';
 import SyncSidebar from './SyncSidebar.vue';
 import SyncDiffPane from './SyncDiffPane.vue';
+import SyncReview from './SyncReview.vue';
 import { useSyncLabels } from '../lib/use-sync-labels.ts';
 import { useSyncDiff } from '../model/use-sync-diff.ts';
 
@@ -84,6 +86,10 @@ const confirmText = computed(() => {
   return t(`syncChanges.confirm${pending.kind[0]!.toUpperCase()}${pending.kind.slice(1)}`, { name });
 });
 
+const viewOptions = computed(() => [
+  { value: 'changes' as const, label: `${t('syncChanges.changes')} ${panel.changes.value.length}` },
+  { value: 'history' as const, label: t('syncChanges.history') },
+]);
 const { sideIcon, sideKey } = useSyncLabels(props.adapter);
 const diff = useSyncDiff(props.adapter, panel);
 const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== null;
@@ -258,7 +264,27 @@ const showConfirm = (pending: SyncConfirmation | null): boolean => pending !== n
         </div>
       </BaseAlert>
 
-      <div class="sync-panel__main">
+      <div
+        v-if="caps.history"
+        class="sync-panel__switch"
+      >
+        <BaseSegmented
+          v-model="view"
+          :options="viewOptions"
+          size="sm"
+          :aria-label="t('syncChanges.view')"
+        />
+      </div>
+      <SyncReview
+        v-if="panel.view.value === 'changes'"
+        :adapter="adapter"
+        :panel="panel"
+        :diff="diff"
+      />
+      <div
+        v-else
+        class="sync-panel__main"
+      >
         <SyncSidebar
           v-model:view="view"
           :adapter="adapter"
