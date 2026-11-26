@@ -30,7 +30,7 @@ const bars = computed(() =>
   values.value.map((value, hour) => ({
     hour,
     x: box.pad + slot * hour + (slot - width) / 2,
-    height: max.value > 0 ? Math.max(2, (innerHeight * value) / max.value) : 0,
+    height: value > 0 && max.value > 0 ? Math.max(2, (innerHeight * value) / max.value) : 0,
     value,
   })),
 );

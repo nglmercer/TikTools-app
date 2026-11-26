@@ -21,6 +21,7 @@ import AnalyticsFacts from '@/entities/analytics/ui/AnalyticsFacts.vue';
 import AnalyticsMetricStrip from '@/entities/analytics/ui/AnalyticsMetricStrip.vue';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import AnalyticsRangeBar from '@/features/select-analytics-range/ui/AnalyticsRangeBar.vue';
+import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChart from '@/shared/ui/icon/icons/IconChart.vue';
@@ -62,7 +63,7 @@ const hasData = computed(() => {
     data.topViewers.length > 0 ||
     data.sessions > 0 ||
     Object.values(data.totals).some((value) => value > 0) ||
-    data.hours.some((row) => Object.values(row).some((value) => typeof value === 'number' && value > 0))
+    data.hours.some((row) => Object.entries(row).some(([key, value]) => key !== 'hour' && typeof value === 'number' && value > 0))
   );
 });
 
@@ -131,13 +132,12 @@ watch([range, metric, query, customStart, customEnd], persist);
       </div>
     </header>
 
-    <p
+    <BaseAlert
       v-if="error"
-      class="analytics-page__error"
-      role="alert"
-    >
-      {{ error }}
-    </p>
+      tone="error"
+      compact
+      :title="error"
+    />
 
     <BaseEmptyState
       v-if="!summary || !hasData"
@@ -257,14 +257,6 @@ watch([range, metric, query, customStart, customEnd], persist);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   white-space: nowrap;
-}
-
-.analytics-page__error {
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--color-danger);
-  border-radius: var(--radius-sm);
-  color: var(--color-danger-hover);
 }
 
 .analytics-page__empty {
