@@ -240,6 +240,14 @@ watch(open, (isOpen) => {
   }
 });
 
+function prepareRequirement(id: TourId): void {
+  const requirement = tourRegistry[id].requirements?.automationActionExample;
+  const createAction = requirement?.typeId ?? requirement?.tag;
+  if (!createAction || !router) return;
+  open.value = false;
+  void router.push({ path: '/automations', query: { createAction } });
+}
+
 async function launch(id: TourId): Promise<void> {
   open.value = false;
   // The coordinator refuses to run while a modal dialog is open, so let
@@ -317,6 +325,7 @@ async function launch(id: TourId): Promise<void> {
       :category-label="category?.label"
       @back="backToCategory"
       @start="launch"
+      @prepare-requirement="prepareRequirement"
     />
   </BaseDialog>
 </template>

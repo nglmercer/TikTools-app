@@ -12,13 +12,14 @@ import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 const props = defineProps<{
   plugins: readonly PluginStatus[];
   actionTypes: readonly ActionTypeDefinition[];
+  initialQuery?: string;
 }>();
 
 const emit = defineEmits<{ pick: [type: ActionTypeDefinition]; openPlugins: [] }>();
 const open = defineModel<boolean>('open', { default: false });
 
 const { t } = useI18n();
-const query = ref('');
+const query = ref(props.initialQuery ?? '');
 
 function matches(type: ActionTypeDefinition): boolean {
   const pluginId = type.source.kind === 'plugin' ? type.source.pluginId : '';
@@ -52,8 +53,8 @@ const groups = computed(() => {
   ];
 });
 
-watch(open, (value) => {
-  if (value) query.value = '';
+watch([open, () => props.initialQuery], ([value]) => {
+  if (value) query.value = props.initialQuery ?? '';
 });
 
 function pick(type: ActionTypeDefinition): void {

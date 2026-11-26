@@ -2014,7 +2014,7 @@ export default {
     wizardLabel: "チュートリアルカタログの進行", stepPreview: "ステッププレビュー", demoPreview: "ミニデモ", demoSchematic: "簡易レイアウトマップ",
     screens: { catalog: "カタログ", category: "カテゴリ", guide: "ガイド" },
     empty: "検索に一致するチュートリアルはありません。",
-    requirements: { existingAction: 'このガイドで扱うタイプの既存アクションが必要です。先に作成してください。ガイドがレコードを作成・変更することはありません。' },
+    requirements: { existingAction: 'このガイドで扱うタイプの既存アクションが必要です。先に作成してください。ガイドがレコードを作成・変更することはありません。', showCreation: '追加方法を表示' },
     tags: { automations: "オートメーション", events: "イベント", actions: "アクション", variables: "変数", connection: "接続", plugins: "プラグイン", overlays: "オーバーレイ", points: "ポイント", changes: "変更", diagnostics: "診断", feed: "ライブフィード", account: "アカウント", analytics: "分析", settings: "設定", rankings: "ランキング" },
   } },
   cloudTeams: {

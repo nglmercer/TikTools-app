@@ -19,6 +19,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   back: [];
   start: [id: LocalizedTutorialEntry['id']];
+  prepareRequirement: [id: LocalizedTutorialEntry['id']];
 }>();
 const { t } = useI18n();
 const activeStep = ref(0);
@@ -63,6 +64,13 @@ const toneClass = computed(() => tutorialToneClass(props.entry.id));
           {{ t('guides.catalog.requirements.existingAction') }}
         </p>
       </div>
+      <BaseButton
+        v-if="entry.requirementsMet === false && props.startable"
+        class="tutorial-catalog__requirement-action"
+        @click="emit('prepareRequirement', entry.id)"
+      >
+        {{ t('guides.catalog.requirements.showCreation') }}
+      </BaseButton>
       <BaseButton
         v-if="props.startable"
         variant="primary"

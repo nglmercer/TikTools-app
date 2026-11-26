@@ -2014,7 +2014,7 @@ export default {
     wizardLabel: "教程目录进度", stepPreview: "步骤预览", demoPreview: "迷你演示", demoSchematic: "简化布局图",
     screens: { catalog: "目录", category: "分类", guide: "指南" },
     empty: "没有符合搜索条件的教程。",
-    requirements: { existingAction: '需要已存在本指南所覆盖类型的操作。请先创建；指南绝不会创建或修改你的记录。' },
+    requirements: { existingAction: '需要已存在本指南所覆盖类型的操作。请先创建；指南绝不会创建或修改你的记录。', showCreation: '显示如何添加' },
     tags: { automations: "自动化", events: "事件", actions: "操作", variables: "变量", connection: "连接", plugins: "插件", overlays: "叠加层", points: "积分", changes: "更改", diagnostics: "诊断", feed: "实时 Feed", account: "账户", analytics: "数据分析", settings: "设置", rankings: "排行榜" },
   } },
   cloudTeams: {

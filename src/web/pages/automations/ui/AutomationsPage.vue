@@ -69,6 +69,7 @@ const actionQuery = ref(saved?.actionQuery ?? '');
 const eventSort = ref<RecordSort>(isRecordSort(saved?.eventSort) ? saved.eventSort : 'name');
 const actionSort = ref<RecordSort>(isRecordSort(saved?.actionSort) ? saved.actionSort : 'name');
 const pickerOpen = ref(false);
+const pickerQuery = ref('');
 const templatesOpen = ref(false);
 const templatesTab = ref<RuleTemplateTab>('templates');
 // Saved links to `?view=cloud` (the old Cloud tab) open the templates dialog on its Cloud tab.
@@ -107,6 +108,17 @@ watch(() => route?.query.view, (view, previous) => {
   if (view === 'variables' && area.value !== 'variables') libraryTab.value = 'variables';
   else if (previous === 'variables' && view !== 'variables' && area.value === 'variables') libraryTab.value = tab.value;
 });
+
+watch(() => route?.query.createAction, (requested) => {
+  if (typeof requested !== 'string' || !requested) return;
+  pickerQuery.value = requested;
+  pickerOpen.value = true;
+  if (!router || !route) return;
+  const query = { ...route.query };
+  delete query.createAction;
+  void router.replace({ query });
+}, { immediate: true });
+watch(pickerOpen, (open) => { if (!open) pickerQuery.value = ''; });
 const snapshot = computed(() => automation.snapshot.value);
 const deleteTarget = ref<{ kind: LibraryTab; id: string; name: string } | null>(null);
 const deleteDialogOpen = computed({
@@ -357,6 +369,7 @@ onBeforeUnmount(() => {
           :events="events"
           :actions="actions"
           :action-types="snapshot.actionTypes"
+      :initial-query="pickerQuery"
           :available-types="availableTypes"
           :event-types="eventTypes"
           :runs="automation.runs.value"
@@ -430,6 +443,7 @@ onBeforeUnmount(() => {
       v-model:open="pickerOpen"
       :plugins="snapshot.plugins"
       :action-types="snapshot.actionTypes"
+      :initial-query="pickerQuery"
       @pick="newAction"
       @open-plugins="automation.openPlugins()"
     />

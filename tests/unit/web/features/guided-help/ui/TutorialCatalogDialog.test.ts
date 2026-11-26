@@ -212,6 +212,7 @@ it('shows action example requirements and blocks starting when the workspace lac
   });
   await flushPromises();
   expect(missing.get('.tutorial-catalog__requirement').text()).toContain('Requires an existing action');
+  expect(missing.get('.tutorial-catalog__requirement-action').text()).toBe('Show me how');
   expect(missing.get('.tutorial-catalog__start').attributes('disabled')).toBeDefined();
   missing.unmount();
 

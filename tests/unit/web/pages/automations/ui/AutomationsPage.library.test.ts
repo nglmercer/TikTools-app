@@ -82,6 +82,14 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(wrapper.find('.globals-editor').isVisible()).toBe(false);
   });
 
+  it('opens the type picker prefilled from a guided-create link', async () => {
+    const { router } = await mountPage(undefined, true, { query: '?createAction=core.fetch' });
+    await flushPromises();
+    expect(router.currentRoute.value.query.createAction).toBeUndefined();
+    expect(document.querySelector('.type-picker__groups')).toBeTruthy();
+    expect(Array.from(document.querySelectorAll('input')).some((input) => input.value === 'core.fetch')).toBe(true);
+  });
+
   it('has no Cloud tab in the library: the Cloud library is a tab of the templates dialog', async () => {
     const { wrapper } = await mountPage();
     const library = () => wrapper.findAll('[role="tab"]').map((tab) => tab.text());
