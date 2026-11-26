@@ -278,7 +278,16 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         for (let index = first; index >= 0 && index < steps.length; index += direction) {
           if (finished || ticket !== moveGeneration) return;
           const step = steps[index]!;
-          if (step.available?.() === false) continue;
+          // Availability depends on asynchronously loaded host state (the
+          // automation behavior snapshot backing tour requirements). Treat a
+          // negative answer as pending within the same deadline targets get,
+          // instead of skipping every step in the milliseconds before the
+          // first snapshot arrives — which killed requirement-bearing tours
+          // before their first popover.
+          if (step.available) {
+            const available = await waitFor(() => step.available!() ? true : undefined, pending.signal, Math.min(waitMs, 600));
+            if (!available) continue;
+          }
           let element = await waitFor(() => target(step), pending.signal, Math.min(waitMs, 600));
           // Targets can be several interactions away. Prefer semantic operations
           // registered by the page: they know whether closing an editor is safe,
