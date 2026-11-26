@@ -150,7 +150,8 @@ it('offers the sync panel for the events and for the actions, but not on the var
     documentButton(t('automations.templates.create')).click();
     await flushPromises();
     expect(calls.some((call) => call.method === 'automation.library.submit')).toBe(false);
-    documentButton(t('libraryRecovery.confirm')).click(); await flushPromises();
+    // The confirm action is an icon button: it is found by its aria-label.
+    Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.getAttribute('aria-label') === t('libraryRecovery.confirm'))!.click(); await flushPromises();
     const created = calls.filter((call) => call.method === 'automation.library.submit');
     expect(created).toHaveLength(1);
     expect(created[0]?.params?.mutation).toMatchObject({ operation: 'apply-template', profileId: 'default', entry: { event: { name: expect.any(String) }, actions: [{ name: expect.any(String) }] } });

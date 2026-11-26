@@ -6,9 +6,14 @@ import { libraryCurrentPreview, libraryPreview } from '@/entities/rule-template/
 import { libraryTarget } from '@/entities/rule-template/model/library-contracts.ts';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
+import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
-import type { ReviewRow } from '../../review-shared/model/review-rows.ts';
-import ReviewComparisonTable from '../../review-shared/ui/ReviewComparisonTable.vue';
+import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
+import IconCompass from '@/shared/ui/icon/icons/IconCompass.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
+import IconUndo from '@/shared/ui/icon/icons/IconUndo.vue';
+import type { ChangeReviewItem } from '../../review-shared/model/change-review.ts';
+import ChangeReviewWorkspace from '../../review-shared/ui/ChangeReviewWorkspace.vue';
 import TutorialCatalogDialog from '@/features/guided-help/ui/TutorialCatalogDialog.vue';
 
 /**
@@ -40,16 +45,15 @@ const descriptor = computed(() => {
   return draft.value!.context.catalog.packs.find((pack) => pack.id === id)?.name ?? id;
 });
 
-/** One row per planned record, with a stable id so hover/tap rename works. */
-const plannedRows = computed<ReviewRow[]>(() => planned.value.map((row, index) => ({
-  id: `planned-${index}`,
-  name: row.name,
-  kind: row.kind,
-  change: row.after === null ? 'remove' : row.before === null ? 'add' : 'change',
-  before: row.before,
-  after: row.after,
-  editable: row.before === null && row.after !== null,
-})));
+const isSwitchProfile = computed(() => draft.value?.mutation.operation === 'switch-profile');
+
+/** Records that leave the active profile: enabled before, disabled after. */
+function isLeaving(before: unknown, after: unknown): boolean {
+  if (!isSwitchProfile.value) return false;
+  const was = (before as { enabled?: boolean } | null)?.enabled === true;
+  const will = (after as { enabled?: boolean } | null)?.enabled === true;
+  return was && !will;
+}
 
 function titleOf(value: { title?: unknown; id?: string } | null | undefined): string {
   const title = value?.title;
@@ -60,29 +64,43 @@ function titleOf(value: { title?: unknown; id?: string } | null | undefined): st
   return value?.id ?? '';
 }
 
-const templateRows = computed<ReviewRow[]>(() => changedTemplates.value.map((entry, index) => ({
-  id: `template-${index}`,
-  name: titleOf(entry.after ?? entry.before),
-  change: entry.after === null ? 'remove' : entry.before === null ? 'add' : 'change',
-  before: entry.before,
-  after: entry.after,
-})));
-
-const currentRows = computed<ReviewRow[]>(() => {
-  const comparison = journal.comparison.value;
-  if (!comparison) return [];
-  const rows: ReviewRow[] = [];
-  for (const pack of comparison.catalog.packs) {
-    rows.push({ id: `pack-${pack.id}`, name: pack.name, kind: 'event', change: 'same', after: pack });
-  }
-  for (const template of comparison.catalog.templates) {
-    const title = typeof template.title === 'string' ? template.title : template.title.default;
-    rows.push({ id: `template-current-${template.id}`, name: title, change: 'same', after: template });
-  }
-  for (const row of current.value) {
-    rows.push({ id: `current-${row.name}-${rows.length}`, name: row.name, kind: row.kind, change: 'same', before: row.before });
-  }
-  return rows;
+/**
+ * The rows the owner reviews. When the host moved since the review started and
+ * the owner re-reads it, the plan re-bases on the current host state so the
+ * cards always answer "what changes if I confirm now". For a profile switch
+ * the diff is mostly the enabled flag, which is exactly what the element view
+ * surfaces; records outside the new profile are filterable, not deleted.
+ */
+const items = computed<ChangeReviewItem[]>(() => {
+  const rows = current.value.length ? current.value : planned.value;
+  const records = rows.map((row, index) => {
+    let after = row.after;
+    // Extra host records unknown to a frozen profile-switch plan are simply
+    // disabled when the switch applies; they are not deleted.
+    if (!after && row.before && isSwitchProfile.value) after = { ...row.before, enabled: false };
+    // Assigning a record to a profile leaves the record itself untouched:
+    // the change is the membership, so the card is pinned as modified and
+    // the full record stays visible as context instead of collapsing away.
+    const membership = draft.value?.mutation.operation === 'assign-record';
+    return {
+      id: `planned-${index}`,
+      title: row.name,
+      subtitle: row.kind ? t(`jsonView.reviewTable.${row.kind}`) : '',
+      status: membership ? 'modified' as const : undefined,
+      before: row.before ?? undefined,
+      after: after ?? undefined,
+      leaving: isLeaving(row.before, after),
+      editable: row.before === null && row.after !== null,
+      alwaysShowFields: membership,
+    };
+  });
+  const templates = changedTemplates.value.map((entry, index) => ({
+    id: `template-${index}`,
+    title: titleOf(entry.after ?? entry.before),
+    before: entry.before ?? undefined,
+    after: entry.after ?? undefined,
+  }));
+  return [...records, ...templates];
 });
 
 function onRename(id: string, name: string): void {
@@ -102,40 +120,20 @@ function onRename(id: string, name: string): void {
     :closable="!busy"
     class="library-changes"
   >
+    <template #header-actions>
+      <BaseIconButton
+        :label="t('jsonView.reviewTable.docs')"
+        variant="default"
+        data-test="library-review-guide"
+        @click="guideOpen = true"
+      >
+        <IconCompass />
+      </BaseIconButton>
+    </template>
     <template v-if="draft">
-      <p><strong>{{ t(`libraryRecovery.${draft.mutation.operation}`) }} · {{ descriptor }}</strong></p>
-      <p v-if="draft.mutation.operation === 'create-profile'">
-        {{ draft.mutation.description }}
+      <p class="library-changes__operation">
+        <strong>{{ t(`libraryRecovery.${draft.mutation.operation}`) }} · {{ descriptor }}</strong>
       </p>
-      <p v-if="draft.mutation.operation === 'import-profile'">
-        {{ draft.mutation.profile.description }}
-      </p>
-      <div class="library-changes__lead">
-        <p>{{ t('libraryRecovery.reviewLead', { events: planned.filter((row) => row.kind === 'event').length, actions: planned.filter((row) => row.kind === 'action').length }) }}</p>
-        <p v-if="draft.mutation.operation === 'switch-profile'">
-          {{ t('libraryRecovery.globalSwitch') }}
-        </p>
-      </div>
-      <p v-if="draft.mutation.operation === 'import-profile'">
-        {{ t('libraryRecovery.reimport') }}
-      </p>
-      <p v-if="draft.mutation.operation === 'assign-record'">
-        {{ t('libraryRecovery.membership') }}
-      </p>
-      <ReviewComparisonTable
-        v-if="plannedRows.length"
-        :rows="plannedRows"
-        data-test="library-review-records"
-        docs-path="user/cloud/changes.html"
-        docs-anchor="review-changes-by-area"
-        tutorial
-        @rename="onRename"
-        @open-tutorial="guideOpen = true"
-      />
-      <ReviewComparisonTable
-        v-if="templateRows.length"
-        :rows="templateRows"
-      />
       <p
         v-if="draft.error"
         role="alert"
@@ -148,43 +146,43 @@ function onRename(id: string, name: string): void {
       >
         {{ t(draft.submitted ? 'libraryRecovery.noResend' : 'libraryRecovery.changed') }}
       </p>
-      <BaseButton
-        v-if="draft.reviewRequired || draft.submitted"
+      <ChangeReviewWorkspace
+        :items="items"
+        :profile-filter="isSwitchProfile"
+        data-test="library-review-records"
+        @rename="onRename"
+      />
+    </template>
+    <template #footer>
+      <BaseIconButton
+        v-if="draft && (draft.reviewRequired || draft.submitted)"
+        :label="t('libraryRecovery.readCurrent')"
+        variant="default"
         :disabled="busy || journal.reading.value"
         data-test="library-read-current"
         @click="journal.readForReview"
       >
-        {{ t('libraryRecovery.readCurrent') }}
-      </BaseButton>
-      <section
-        v-if="journal.comparison.value"
-        data-test="library-current-review"
+        <IconRefresh />
+      </BaseIconButton>
+      <BaseIconButton
+        v-if="journal.comparison.value && !draft?.submitted"
+        :label="t('libraryRecovery.useCurrent')"
+        variant="default"
+        :disabled="busy"
+        data-test="library-use-current"
+        @click="journal.useReviewed"
       >
-        <h3>{{ t('libraryRecovery.currentTitle') }}</h3>
-        <p>{{ t('libraryRecovery.currentCounts', { events: journal.comparison.value.definitions.events.length, actions: journal.comparison.value.definitions.actions.length }) }}</p>
-        <ReviewComparisonTable
-          v-if="currentRows.length"
-          :rows="currentRows"
-        />
-        <BaseButton
-          v-if="!draft.submitted"
-          :disabled="busy"
-          data-test="library-use-current"
-          @click="journal.useReviewed"
-        >
-          {{ t('libraryRecovery.useCurrent') }}
-        </BaseButton>
-      </section>
-    </template>
-    <template #footer>
-      <BaseButton
+        <IconUndo />
+      </BaseIconButton>
+      <BaseIconButton
+        :label="t('libraryRecovery.confirm')"
         variant="primary"
         :disabled="!draft || busy || draft.reviewRequired || draft.submitted"
         data-test="library-confirm"
         @click="journal.confirm"
       >
-        {{ t('libraryRecovery.confirm') }}
-      </BaseButton>
+        <IconCheck />
+      </BaseIconButton>
       <BaseButton
         :disabled="busy"
         data-test="library-dismiss"
@@ -201,7 +199,6 @@ function onRename(id: string, name: string): void {
 </template>
 
 <style scoped>
-.library-changes :deep(.base-dialog__body) { display: grid; gap: 12px; min-width: 0; }
-.library-changes__lead { display: grid; gap: 0; }
-.library-changes__lead p { margin: 0; }
+.library-changes :deep(.base-dialog__body) { display: grid; gap: 12px; min-width: 0; align-content: start; }
+.library-changes__operation { margin: 0; }
 </style>

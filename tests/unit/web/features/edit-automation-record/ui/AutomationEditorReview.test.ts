@@ -22,49 +22,53 @@ function mountReview(props: Record<string, unknown> = {}) {
   });
 }
 
-async function openSource(wrapper: ReturnType<typeof mountReview>, index: number): Promise<string> {
-  const buttons = wrapper.findAll('.review-table__action');
-  await buttons[index]!.trigger('click');
+async function expandCard(wrapper: ReturnType<typeof mountReview>, index: number) {
+  const card = wrapper.findAll('.change-review__card')[index]!;
+  await card.get('.change-review__chevron').trigger('click');
   await nextTick();
-  return wrapper.get('.review-source-dialog').text();
+  return card;
+}
+
+async function codeMode(wrapper: ReturnType<typeof mountReview>) {
+  const tab = wrapper.findAll('[role="radio"]').find((radio) => radio.text() === t('changeReview.code'))!;
+  await tab.trigger('click');
+  await nextTick();
 }
 
 describe('AutomationEditorReview', () => {
-  it('shows the three versions and the two diffs as five numbered rows', async () => {
+  it('shows the draft and host diffs as two change cards', async () => {
     const wrapper = mountReview();
     await nextTick();
-    expect(wrapper.findAll('tbody tr')).toHaveLength(5);
-    expect(wrapper.findAll('.review-table__action')).toHaveLength(5);
-    expect(wrapper.text()).toContain(t('automations.conflict.base'));
-    expect(wrapper.text()).toContain(t('automations.conflict.candidate'));
-    expect(wrapper.text()).toContain(t('automations.conflict.current'));
-    expect(wrapper.find('a.review-docs-link').attributes('href')).toContain('developer/automations.html#expected-result-and-status');
+    const cards = wrapper.findAll('.change-review__card');
+    expect(cards).toHaveLength(2);
+    expect(wrapper.text()).toContain(t('jsonView.draftChanges'));
+    expect(wrapper.text()).toContain(t('jsonView.hostChanges'));
   });
 
-  it('keeps text for an absent base and a deleted host record in the numbered table', async () => {
-    const wrapper = mountReview({ edit: { ...edit, base: null }, review: { current: { record: null, revision: '2' } } });
-    await nextTick();
-    expect(wrapper.findAll('tbody tr')).toHaveLength(5);
-    expect(wrapper.text()).toContain(t('automations.conflict.absent'));
-    expect(wrapper.text()).toContain(t('automations.conflict.deleted'));
-  });
-
-  it('shows the exact pretty JSON of each version inside the source dialog', async () => {
+  it('shows the semantic field diff inside the expanded card', async () => {
     const wrapper = mountReview();
     await nextTick();
-    for (const [index, record] of [base, candidate, current].entries()) {
-      const text = await openSource(wrapper, index);
-      expect(text).toContain(JSON.stringify(record, null, 2));
-    }
+    const card = await expandCard(wrapper, 0);
+    expect(card.text()).toContain('name');
+    expect(card.text()).toContain('Starting event');
+    expect(card.text()).toContain('My retained draft');
   });
 
-  it('compares the starting version with the draft and with the host in diff rows', async () => {
+  it('shows the pretty JSON of both sides in code mode without opening another dialog', async () => {
     const wrapper = mountReview();
     await nextTick();
-    const draftDiff = await openSource(wrapper, 3);
-    const hostDiff = await openSource(wrapper, 4);
-    expect(draftDiff).toContain('My retained draft');
-    expect(hostDiff).toContain('Host changed name');
-    expect(wrapper.findAll('.base-json-diff')).toHaveLength(1);
+    const card = await expandCard(wrapper, 0);
+    await codeMode(wrapper);
+    expect(card.find('.base-json-diff').exists()).toBe(true);
+    expect(card.text()).toContain('My retained draft');
+    expect(wrapper.find('.review-source-dialog').exists()).toBe(false);
+  });
+
+  it('marks the host diff as deleted when the host record is gone', async () => {
+    const wrapper = mountReview({ review: { current: { record: null, revision: '2' } } });
+    await nextTick();
+    const cards = wrapper.findAll('.change-review__card');
+    expect(cards[1]!.classes()).toContain('change-review__card--deleted');
+    expect(wrapper.text()).toContain(t('automations.conflict.recreateLead'));
   });
 });

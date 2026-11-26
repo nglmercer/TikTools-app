@@ -7,12 +7,14 @@ import automationProposal from './automation-proposal.ja.ts';
 import automationApproval from './automation-approval.ja.ts';
 import definitionRecovery from './definition-recovery.ja.ts';
 import jsonView from './json-view.ja.ts';
+import changeReview from './change-review.ja.ts';
 import syncChanges from './sync-changes.ja.ts';
 import exploreCatalog from './explore-catalog.ja.ts';
 import importDialog from './import-dialog.ja.ts';
 export default {
   
   jsonView,
+  changeReview,
   syncChanges,
   exploreCatalog,
   importDialog,

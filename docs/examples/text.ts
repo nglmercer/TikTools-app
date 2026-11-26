@@ -8,12 +8,12 @@ const catalogs = {
 };
 export function exampleText(locale: string) { return catalogs[locale as keyof typeof catalogs] ?? catalogs.en; }
 const titles = {
-  en: ['Buttons', 'Menus', 'Fields', 'Selection', 'Switches', 'Forms', 'Tabs', 'Collections', 'Filters', 'Feedback', 'Panels', 'Floating panel', 'Layouts', 'JSON', 'Import and review', 'Cloud review', 'Overlay preview'],
-  es: ['Botones', 'Menús', 'Campos', 'Selección', 'Interruptores', 'Formularios', 'Pestañas', 'Colecciones', 'Filtros', 'Estados', 'Paneles', 'Panel flotante', 'Distribución', 'JSON', 'Importación y revisión', 'Revisión Cloud', 'Vista de overlay'],
-  pt: ['Botões', 'Menus', 'Campos', 'Seleção', 'Interruptores', 'Formulários', 'Abas', 'Coleções', 'Filtros', 'Estados', 'Painéis', 'Painel flutuante', 'Layouts', 'JSON', 'Importação e revisão', 'Revisão Cloud', 'Prévia de overlay'],
-  fr: ['Boutons', 'Menus', 'Champs', 'Sélection', 'Interrupteurs', 'Formulaires', 'Onglets', 'Collections', 'Filtres', 'États', 'Panneaux', 'Panneau flottant', 'Disposition', 'JSON', 'Importation et révision', 'Révision Cloud', 'Aperçu overlay'],
-  zh: ['按钮', '菜单', '输入控件', '选择控件', '开关', '表单', '标签页', '列表与表格', '筛选器', '状态提示', '面板', '浮动面板', '布局', 'JSON', '导入与审阅', 'Cloud 审阅', '叠加层预览'],
-  ja: ['ボタン', 'メニュー', '入力欄', '選択', 'スイッチ', 'フォーム', 'タブ', '一覧とテーブル', 'フィルター', '状態表示', 'パネル', 'フローティングパネル', 'レイアウト', 'JSON', 'インポートと確認', 'Cloud の確認', 'オーバーレイのプレビュー'],
+  en: ['Buttons', 'Menus', 'Fields', 'Selection', 'Switches', 'Forms', 'Tabs', 'Collections', 'Filters', 'Feedback', 'Panels', 'Floating panel', 'Layouts', 'JSON', 'Import and review', 'Cloud review', 'Overlay preview', 'Change review'],
+  es: ['Botones', 'Menús', 'Campos', 'Selección', 'Interruptores', 'Formularios', 'Pestañas', 'Colecciones', 'Filtros', 'Estados', 'Paneles', 'Panel flotante', 'Distribución', 'JSON', 'Importación y revisión', 'Revisión Cloud', 'Vista de overlay', 'Revisión de cambios'],
+  pt: ['Botões', 'Menus', 'Campos', 'Seleção', 'Interruptores', 'Formulários', 'Abas', 'Coleções', 'Filtros', 'Estados', 'Painéis', 'Painel flutuante', 'Layouts', 'JSON', 'Importação e revisão', 'Revisão Cloud', 'Prévia de overlay', 'Revisão de alterações'],
+  fr: ['Boutons', 'Menus', 'Champs', 'Sélection', 'Interrupteurs', 'Formulaires', 'Onglets', 'Collections', 'Filtres', 'États', 'Panneaux', 'Panneau flottant', 'Disposition', 'JSON', 'Importation et révision', 'Révision Cloud', 'Aperçu overlay', 'Révision des changements'],
+  zh: ['按钮', '菜单', '输入控件', '选择控件', '开关', '表单', '标签页', '列表与表格', '筛选器', '状态提示', '面板', '浮动面板', '布局', 'JSON', '导入与审阅', 'Cloud 审阅', '叠加层预览', '更改审阅'],
+  ja: ['ボタン', 'メニュー', '入力欄', '選択', 'スイッチ', 'フォーム', 'タブ', '一覧とテーブル', 'フィルター', '状態表示', 'パネル', 'フローティングパネル', 'レイアウト', 'JSON', 'インポートと確認', 'Cloud の確認', 'オーバーレイのプレビュー', '変更レビュー'],
 };
-const families = ['buttons', 'menus', 'fields', 'selects', 'switches', 'forms', 'tabs', 'collections', 'filters', 'feedback', 'panels', 'floating', 'layouts', 'json', 'import-review', 'cloud-patterns', 'overlay-patterns'];
+const families = ['buttons', 'menus', 'fields', 'selects', 'switches', 'forms', 'tabs', 'collections', 'filters', 'feedback', 'panels', 'floating', 'layouts', 'json', 'import-review', 'cloud-patterns', 'overlay-patterns', 'change-review'];
 export function familyTitle(family: string, locale: string): string { return (titles[locale as keyof typeof titles] ?? titles.en)[families.indexOf(family)] ?? family; }

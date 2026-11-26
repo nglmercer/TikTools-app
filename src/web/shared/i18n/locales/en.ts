@@ -7,12 +7,14 @@ import automationProposal from './automation-proposal.en.ts';
 import automationApproval from './automation-approval.en.ts';
 import definitionRecovery from './definition-recovery.en.ts';
 import jsonView from './json-view.en.ts';
+import changeReview from './change-review.en.ts';
 import syncChanges from './sync-changes.en.ts';
 import exploreCatalog from './explore-catalog.en.ts';
 import importDialog from './import-dialog.en.ts';
 export default {
   
   jsonView,
+  changeReview,
   syncChanges,
   exploreCatalog,
   importDialog,

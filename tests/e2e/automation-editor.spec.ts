@@ -32,22 +32,19 @@ for (const locale of ['en', 'es'] as const) {
     const failed = await readHostState(page);
     expect(failed.calls.find((r) => r.method === 'automation.update')?.meta?.['expectedRevision']).toBe('1');
     await page.getByRole('button', { name: t('automations.conflict.compare'), exact: true }).click();
-    const dialog = page.getByRole('dialog').filter({ has: page.locator('.review-table') });
-    await expect(dialog.locator('tbody tr')).toHaveCount(5);
-    for (const key of ['automations.conflict.base', 'automations.conflict.candidate', 'automations.conflict.current']) {
+    const dialog = page.getByRole('dialog').filter({ has: page.locator('.change-review') });
+    await expect(dialog.locator('.change-review__card')).toHaveCount(2);
+    for (const key of ['jsonView.draftChanges', 'jsonView.hostChanges']) {
       await expect(dialog).toContainText(t(key));
     }
-    const closeLabel = t('common.close');
-    const sourceButtons = dialog.locator('.review-table__action');
-    for (const index of [0, 1, 2]) {
-      await sourceButtons.nth(index).click();
-      const source = page.locator('.review-source-dialog');
-      await expect(source).toBeVisible();
-      await source.getByRole('button', { name: closeLabel }).click();
-    }
-    await sourceButtons.nth(2).click();
-    await expect(page.locator('.review-source-dialog')).toContainText('Host changed name');
-    await page.locator('.review-source-dialog').getByRole('button', { name: closeLabel }).click();
+    // Both diffs expand inline inside the same dialog; no nested source dialog.
+    const chevrons = dialog.locator('.change-review__chevron');
+    await chevrons.nth(0).click();
+    await chevrons.nth(1).click();
+    await dialog.getByRole('radio', { name: t('changeReview.code'), exact: true }).click();
+    await expect(dialog.locator('.base-json-diff').first()).toBeVisible();
+    await expect(dialog).toContainText('Host changed name');
+    await expect(page.locator('.review-source-dialog')).toHaveCount(0);
     expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
     for (const button of await dialog.locator('.base-dialog__footer .base-button__label').all()) {
       expect(await button.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
@@ -66,7 +63,8 @@ for (const locale of ['en', 'es'] as const) {
     await name.fill('Draft after deletion'); await save.click();
     await expect(save).toBeDisabled();
     await page.getByRole('button', { name: t('automations.conflict.compare'), exact: true }).click();
-    await expect(dialog).toContainText(t('automations.conflict.deleted'));
+    await expect(dialog).toContainText(t('automations.conflict.recreateLead'));
+    await expect(dialog.locator('.change-review__card--deleted')).toHaveCount(1);
     await dialog.getByRole('button', { name: t('automations.conflict.prepareRecreate'), exact: true }).click();
     expect((await readHostState(page)).calls.some((r) => r.method === 'automation.create')).toBe(false);
     await save.click();

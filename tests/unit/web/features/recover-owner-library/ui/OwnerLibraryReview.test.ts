@@ -41,12 +41,13 @@ test('a lost graph reply retains its reviewed source and current comparison with
     const outcome = f.journal.request(mutation).catch((failure: unknown) => failure); await flushPromises();
     mutation.entry.event.name = 'Newer local configuration';
     const records = f.review.get('[data-test="library-review-records"]');
-    expect(records.findAll('tbody tr')).toHaveLength(2);
-    let sources = '';
-    for (const button of records.findAll('.review-table__action')) {
+    expect(records.findAll('.change-review__card')).toHaveLength(2);
+    for (const button of records.findAll('.change-review__chevron')) {
       await button.trigger('click'); await flushPromises();
-      sources += f.review.get('.review-source-dialog').text();
     }
+    const codeTab = records.findAll('[role="radio"]').find((radio) => radio.text() === 'Code')!;
+    await codeTab.trigger('click'); await flushPromises();
+    const sources = records.text();
     expect(sources).toContain('Frozen event');
     expect(sources).toContain('private-source');
     expect(sources).not.toContain('Newer local configuration');
@@ -54,14 +55,15 @@ test('a lost graph reply retains its reviewed source and current comparison with
     expect(f.review.get('[data-test="library-confirm"]').attributes('disabled')).toBeDefined();
     expect(f.review.text()).toContain('It will not be sent again');
     await f.review.get('[data-test="library-read-current"]').trigger('click'); await flushPromises();
-    const currentReview = f.review.get('[data-test="library-current-review"]');
-    expect(currentReview.findAll('tbody tr').length).toBeGreaterThan(0);
-    let foundSource = '';
-    for (const button of currentReview.findAll('.review-table__action')) {
+    const currentReview = f.review.get('[data-test="library-review-records"]');
+    // The host already applied the frozen plan before the reply was lost, so
+    // the re-read rows are unchanged and stay hidden until the eye toggle.
+    await currentReview.get('[aria-label="Show unchanged"]').trigger('click'); await flushPromises();
+    expect(currentReview.findAll('.change-review__card').length).toBeGreaterThan(0);
+    for (const button of currentReview.findAll('.change-review__chevron')) {
       await button.trigger('click'); await flushPromises();
-      foundSource = f.review.get('.review-source-dialog').text();
-      if (foundSource.includes('private-source')) break;
     }
+    const foundSource = currentReview.text();
     expect(foundSource).toContain('Frozen event');
     expect(f.calls.filter((call) => call.method === 'automation.library.submit')).toHaveLength(1);
     expect(storing).not.toHaveBeenCalled();
@@ -78,7 +80,7 @@ test('membership review names the exact saved action and requested profile', asy
   const outcome = f.journal.request({ operation: 'assign-record', kind: 'action', id: action.id, profileId: 'requested-profile' }).catch((failure: unknown) => failure);
   await flushPromises();
   const records = f.review.get('[data-test="library-review-records"]');
-  expect(records.findAll('tbody tr')).toHaveLength(1);
+  expect(records.findAll('.change-review__card')).toHaveLength(1);
   expect(records.get('strong').text()).toBe('Original saved action');
   expect(f.review.text()).toContain('Original selected profile');
   expect(f.journal.draft.value?.mutation).toMatchObject({ kind: 'action', id: 'saved-target', profileId: 'requested-profile' });

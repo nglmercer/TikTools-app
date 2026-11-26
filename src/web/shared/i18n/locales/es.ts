@@ -7,6 +7,7 @@ import automationProposal from './automation-proposal.es.ts';
 import automationApproval from './automation-approval.es.ts';
 import definitionRecovery from './definition-recovery.es.ts';
 import jsonView from './json-view.es.ts';
+import changeReview from './change-review.es.ts';
 import syncChanges from './sync-changes.es.ts';
 import exploreCatalog from './explore-catalog.es.ts';
 import importDialog from './import-dialog.es.ts';
@@ -15,6 +16,7 @@ import type { MessageSchema } from '../i18n.ts';
 export default {
   
   jsonView,
+  changeReview,
   syncChanges,
   exploreCatalog,
   importDialog,

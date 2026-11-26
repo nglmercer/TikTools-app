@@ -3,6 +3,12 @@ import { chatEvent, giftEvent, t, mountPage, buttonByText, goBack, documentButto
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
 afterEach(() => resetResolutionPreference('automatic'));
 
+// The review actions are icon buttons: they are found by their aria-label
+// tooltip text rather than by visible text.
+function documentIconButton(label: string): HTMLButtonElement {
+  return Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find((button) => button.getAttribute('aria-label') === label)!;
+}
+
 
 it('pins the base across background refreshes, preserves a conflicting draft and rebases without resubmitting', async () => {
     const { wrapper, snapshot, versions, automation, requests, calls } = await mountPage();
@@ -18,15 +24,15 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     expect(wrapper.text()).toContain('Your draft is retained');
     expect((buttonByText(wrapper, t('automations.editor.save')).element as HTMLButtonElement).disabled).toBe(true);
     await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click'); await flushPromises();
-    expect(document.body.textContent).toContain(t('automations.conflict.base'));
-    const sources = Array.from(document.querySelectorAll('.base-dialog .review-table .review-table__action')) as HTMLElement[];
-    expect(sources).toHaveLength(5);
-    sources[2]!.click(); await flushPromises();
+    expect(document.body.textContent).toContain(t('jsonView.hostChanges'));
+    const chevrons = Array.from(document.querySelectorAll('.base-dialog .change-review__chevron')) as HTMLElement[];
+    expect(chevrons).toHaveLength(2);
+    chevrons[1]!.click(); await flushPromises();
     expect(document.body.textContent).toContain('Edited on host');
-    sources[1]!.click(); await flushPromises();
+    chevrons[0]!.click(); await flushPromises();
     expect(document.body.textContent).toContain('My draft');
     const writes = calls.filter((call) => call.method === 'automation.update').length;
-    documentButton(t('automations.conflict.useBase')).click(); await flushPromises();
+    documentIconButton(t('automations.conflict.useBase')).click(); await flushPromises();
     expect(calls.filter((call) => call.method === 'automation.update')).toHaveLength(writes);
     expect((wrapper.get('.event-editor input[type="text"]').element as HTMLInputElement).value).toBe('My draft');
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
@@ -57,7 +63,7 @@ it('pins the base across background refreshes, preserves a conflicting draft and
     expect(calls.some((r) => r.method === 'automation.create')).toBe(false);
     await buttonByText(wrapper, t('automations.conflict.compare')).trigger('click'); await flushPromises();
     expect(document.body.textContent).toContain('This ID is absent');
-    documentButton(t('automations.conflict.prepareRecreate')).click(); await flushPromises();
+    documentIconButton(t('automations.conflict.prepareRecreate')).click(); await flushPromises();
     expect(calls.some((r) => r.method === 'automation.create')).toBe(false);
     await buttonByText(wrapper, t('automations.editor.save')).trigger('click'); await flushPromises();
     expect(requests.find((r) => r.method === 'automation.create')?.meta?.expectedRevision).toBe('2');
