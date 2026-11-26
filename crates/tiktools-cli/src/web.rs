@@ -12,8 +12,8 @@ use assets::asset;
 #[cfg(all(test, unix))]
 use assets::resolve_plugin_asset;
 use auth::{secret, session_touch, token_matches};
-use options::{join_link, multi_session_enabled};
 pub use options::run;
+use options::{join_link, multi_session_enabled};
 #[cfg(test)]
 use options::{parse_action_options, parse_options, parse_print_code_options};
 #[cfg(test)]
@@ -28,6 +28,34 @@ use readout::{
     current_pairing_code_at, load_pairing_snapshot, now_unix, snapshot_remaining,
     write_pairing_file,
 };
+
+use crate::commands::spec::{DomainSpec, VerbSpec};
+
+/// Offline actions and the server form, rendered into the CLI help. The
+/// action flags are the same registry [`options`] dispatches on.
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "web",
+    summary: "local browser adapter (requires the local-web feature)",
+    verbs: &[
+        VerbSpec::new(
+            "web",
+            "web --assets <directory> [--port N] [--join-origin URL] [--multi-session]",
+            "serve the local browser adapter; host --ipc must be running",
+        ),
+        VerbSpec::new(
+            "print-code",
+            options::U_PRINT_CODE,
+            "print the active pairing code without restarting",
+        ),
+        VerbSpec::new(
+            "reset-session",
+            options::U_RESET_SESSION,
+            "revoke every paired browser and print a fresh code",
+        )
+        .destructive(),
+    ],
+};
+
 use server::start;
 #[cfg(test)]
 use socket::bounded_owner_message;

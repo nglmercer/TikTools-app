@@ -12,6 +12,7 @@ use tiktools_control_api::modules::registry::{
 };
 
 use super::args::{flag_value, one_arg, positional, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 const JOB_POLL_INTERVAL: Duration = Duration::from_millis(250);
@@ -84,6 +85,50 @@ pub enum Command {
     RegistryDefaults,
 }
 
+pub(crate) const U_SEARCH: &str = "plugin search <query> [--category c] [--page N]";
+pub(crate) const U_INSPECT: &str = "plugin inspect <spec>";
+pub(crate) const U_INSTALL: &str =
+    "plugin install <file.plugin> [--replace] | plugin install <id[@version]|url> [--yes] [--no-wait] [--allow-unsigned]";
+pub(crate) const U_UPDATE: &str = "plugin update <id> [--version v] [--yes] [--no-wait]";
+pub(crate) const U_UPDATE_ALL: &str = "plugin update --all [--yes] [--no-wait]";
+pub(crate) const U_ROLLBACK: &str = "plugin rollback <id> [version] [--no-wait]";
+pub(crate) const U_VERSIONS: &str = "plugin versions <id>";
+pub(crate) const U_PIN: &str = "plugin pin <id>";
+pub(crate) const U_UNPIN: &str = "plugin unpin <id>";
+pub(crate) const U_POLICY: &str =
+    "plugin policy <id> [--channel stable|beta] [--auto off|notify|patch|minor]";
+pub(crate) const U_JOB: &str = "plugin job <job-id>";
+pub(crate) const U_CANCEL: &str = "plugin cancel <job-id>";
+
+const U_REGISTRY_DOMAIN: &str =
+    "registry <list|refresh|package|cloud-catalog|cloud-summaries|cloud-versions|cloud-pagination|defaults> ...";
+const U_REGISTRY_PACKAGE: &str = "registry package <id>";
+const U_REGISTRY_VERSIONS: &str =
+    "registry cloud-versions <id> [--target name] [--generation value] [--cursor value]";
+
+pub(crate) const REGISTRY_SPEC: DomainSpec = DomainSpec {
+    domain: "registry",
+    summary: "package registries and the cloud catalog",
+    verbs: &[
+        VerbSpec::new("list", "registry list", "list configured registries"),
+        VerbSpec::new("refresh", "registry refresh", "refresh registry metadata"),
+        VerbSpec::new("package", U_REGISTRY_PACKAGE, "show one registry package"),
+        VerbSpec::new(
+            "cloud-catalog",
+            "registry cloud-catalog [--query q] [--after cursor] [--generation value] [--target name]",
+            "search the cloud catalog",
+        ),
+        VerbSpec::new(
+            "cloud-summaries",
+            "registry cloud-summaries [--query q] [--cursor value] [--generation value] [--target name]",
+            "cloud catalog summaries page",
+        ),
+        VerbSpec::new("cloud-versions", U_REGISTRY_VERSIONS, "versions of one cloud catalog package"),
+        VerbSpec::new("cloud-pagination", "registry cloud-pagination", "pagination capabilities of the cloud catalog"),
+        VerbSpec::new("defaults", "registry defaults", "default registry configuration"),
+    ],
+};
+
 pub fn is_local_archive(spec: &str) -> bool {
     let lower = spec.to_ascii_lowercase();
     !lower.starts_with("https://")
@@ -119,13 +164,13 @@ pub fn parse_plugin(verb: &str, rest: &[String]) -> Option<Result<Command, Comma
                 .and_then(|page| page.parse().ok())
                 .unwrap_or(1),
         }),
-        "inspect" => one_arg(rest, "plugin inspect <spec>")
+        "inspect" => one_arg(rest, U_INSPECT)
             .map(|spec| Command::Inspect { spec })
             .map_err(Into::into),
         "outdated" => Ok(Command::Outdated),
         "update" => {
             let all = rest.iter().any(|arg| arg == "--all");
-            let id = positional(rest, 0, "plugin update <id> | plugin update --all").ok();
+            let id = positional(rest, 0, U_UPDATE).ok();
             match (all, id) {
                 (true, _) | (false, Some(_)) => Ok(Command::Update {
                     id: if all {
@@ -137,21 +182,17 @@ pub fn parse_plugin(verb: &str, rest: &[String]) -> Option<Result<Command, Comma
                     yes,
                     wait,
                 }),
-                (false, None) => Err(
-                    "plugin update <id> [--version v] [--yes] | plugin update --all"
-                        .to_owned()
-                        .into(),
-                ),
+                (false, None) => Err(format!("{U_UPDATE} | {U_UPDATE_ALL}").into()),
             }
         }
-        "rollback" => positional(rest, 0, "plugin rollback <id> [version]")
+        "rollback" => positional(rest, 0, U_ROLLBACK)
             .map(|id| Command::Rollback {
                 id,
                 version: positional(rest, 1, "").ok(),
                 wait,
             })
             .map_err(Into::into),
-        "versions" => one_arg(rest, "plugin versions <id>")
+        "versions" => one_arg(rest, U_VERSIONS)
             .map(|id| Command::Versions { id })
             .map_err(Into::into),
         "pin" | "unpin" => one_arg(rest, "plugin pin|unpin <id>")
@@ -166,10 +207,10 @@ pub fn parse_plugin(verb: &str, rest: &[String]) -> Option<Result<Command, Comma
             .map_err(Into::into),
         "policy" => policy(rest),
         "jobs" => Ok(Command::Jobs),
-        "job" => one_arg(rest, "plugin job <job-id>")
+        "job" => one_arg(rest, U_JOB)
             .map(|id| Command::Job { id })
             .map_err(Into::into),
-        "cancel" => one_arg(rest, "plugin cancel <job-id>")
+        "cancel" => one_arg(rest, U_CANCEL)
             .map(|id| Command::Cancel { id })
             .map_err(Into::into),
         _ => return None,
@@ -187,7 +228,7 @@ pub fn parse_install(spec: &str, rest: &[String]) -> Command {
 }
 
 fn policy(rest: &[String]) -> Result<Command, CommandError> {
-    let usage = "plugin policy <id> [--channel stable|beta] [--auto off|notify|patch|minor]";
+    let usage = U_POLICY;
     let id = positional(rest, 0, usage)?;
     let auto_update = flag_value(rest, "--auto")
         .map(|value| {
@@ -206,15 +247,13 @@ fn policy(rest: &[String]) -> Result<Command, CommandError> {
 }
 
 pub fn parse_registry(args: &[String]) -> Result<Command, CommandError> {
-    let usage =
-        "registry <list|refresh|package|cloud-catalog|cloud-summaries|cloud-versions|cloud-pagination|defaults> ...";
-    let (verb, rest) = split_first(args, usage)?;
+    let (verb, rest) = split_first(args, U_REGISTRY_DOMAIN)?;
     match verb {
         "list" => Ok(Command::RegistryList),
         "refresh" if rest.is_empty() => Ok(Command::RegistryRefresh),
         "refresh" => Err("registry refresh".to_owned().into()),
         "package" => Ok(Command::RegistryPackage {
-            id: one_arg(rest, "registry package <id>")?,
+            id: one_arg(rest, U_REGISTRY_PACKAGE)?,
         }),
         "cloud-catalog" => Ok(Command::RegistryCloudCatalog {
             query: flag_value(rest, "--query").unwrap_or_default(),
@@ -222,11 +261,21 @@ pub fn parse_registry(args: &[String]) -> Result<Command, CommandError> {
             generation: flag_value(rest, "--generation"),
             target: flag_value(rest, "--target"),
         }),
-        "cloud-summaries" => Ok(Command::RegistryCloudSummaries { query: flag_value(rest,"--query"), cursor: flag_value(rest,"--cursor"), generation: flag_value(rest,"--generation"), target: flag_value(rest,"--target") }),
-        "cloud-versions" => Ok(Command::RegistryCloudVersions { id: positional(rest,0,"registry cloud-versions <id> [--target name] [--generation value] [--cursor value]")?, cursor: flag_value(rest,"--cursor"), generation: flag_value(rest,"--generation"), target: flag_value(rest,"--target") }),
+        "cloud-summaries" => Ok(Command::RegistryCloudSummaries {
+            query: flag_value(rest, "--query"),
+            cursor: flag_value(rest, "--cursor"),
+            generation: flag_value(rest, "--generation"),
+            target: flag_value(rest, "--target"),
+        }),
+        "cloud-versions" => Ok(Command::RegistryCloudVersions {
+            id: positional(rest, 0, U_REGISTRY_VERSIONS)?,
+            cursor: flag_value(rest, "--cursor"),
+            generation: flag_value(rest, "--generation"),
+            target: flag_value(rest, "--target"),
+        }),
         "cloud-pagination" => Ok(Command::RegistryCloudPaginationCapabilities),
         "defaults" => Ok(Command::RegistryDefaults),
-        other => Err(format!("unknown registry verb `{other}`\n{usage}").into()),
+        other => Err(format!("unknown registry verb `{other}`\n{U_REGISTRY_DOMAIN}").into()),
     }
 }
 

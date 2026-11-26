@@ -8,6 +8,7 @@ use tiktools_control_api::modules::points::{
 };
 
 use super::args::{flag_value, kv_object, one_arg, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, typed_params, CommandError};
 
 pub enum Command {
@@ -18,6 +19,35 @@ pub enum Command {
     Leaderboard { limit: Option<i64> },
     Reset { unique_id: Option<String> },
 }
+
+const U_VIEWER_GET: &str = "points viewer get <id>";
+const U_ADJUST: &str = "points adjust <id> <delta>";
+const U_RESET: &str = "points reset [id]";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "points",
+    summary: "viewer loyalty points",
+    verbs: &[
+        VerbSpec::new(
+            "config get",
+            "points config get",
+            "read the points configuration",
+        ),
+        VerbSpec::new(
+            "config set",
+            "points config set k=v...",
+            "update the points configuration",
+        ),
+        VerbSpec::new("viewer get", U_VIEWER_GET, "read one viewer's balance"),
+        VerbSpec::new("adjust", U_ADJUST, "add or subtract points for a viewer"),
+        VerbSpec::new(
+            "leaderboard",
+            "points leaderboard [--limit N]",
+            "top viewers by balance",
+        ),
+        VerbSpec::new("reset", U_RESET, "reset one viewer or every balance").destructive(),
+    ],
+};
 
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(args, "points <verb> ...")?;
@@ -33,17 +63,17 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             }
         }
         "viewer" => {
-            let (verb, rest) = split_first(rest, "points viewer get <id>")?;
+            let (verb, rest) = split_first(rest, U_VIEWER_GET)?;
             if verb != "get" {
                 return Err(format!("unknown points viewer verb `{verb}`").into());
             }
             Ok(Command::ViewerGet {
-                id: one_arg(rest, "points viewer get <id>")?,
+                id: one_arg(rest, U_VIEWER_GET)?,
             })
         }
         "adjust" => {
             if rest.len() != 2 {
-                return Err("points adjust <id> <delta>".to_owned().into());
+                return Err(U_ADJUST.to_owned().into());
             }
             let delta: f64 = rest[1]
                 .parse()
@@ -64,7 +94,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         }
         "reset" => {
             if rest.len() > 1 {
-                return Err("points reset [id]".to_owned().into());
+                return Err(U_RESET.to_owned().into());
             }
             Ok(Command::Reset {
                 unique_id: rest.first().cloned(),

@@ -10,6 +10,7 @@ use tiktools_control_api::modules::globals::{
 };
 
 use super::args::{positional, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 pub enum Command {
@@ -19,19 +20,34 @@ pub enum Command {
     Delete { key: String },
 }
 
+const U_GET: &str = "globals get <key>";
+const U_SET: &str = "globals set <key> <value>";
+const U_DELETE: &str = "globals delete <key>";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "globals",
+    summary: "shared key/value globals across plugins",
+    verbs: &[
+        VerbSpec::new("list", "globals list", "list every global key"),
+        VerbSpec::new("get", U_GET, "read one global"),
+        VerbSpec::new("set", U_SET, "write one global"),
+        VerbSpec::new("delete", U_DELETE, "delete one global").destructive(),
+    ],
+};
+
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(args, "globals <verb> ...")?;
     match verb {
         "list" => Ok(Command::List),
         "get" => Ok(Command::Get {
-            key: positional(rest, 0, "globals get <key>")?,
+            key: positional(rest, 0, U_GET)?,
         }),
         "set" => Ok(Command::Set {
-            key: positional(rest, 0, "globals set <key> <value>")?,
-            value: positional(rest, 1, "globals set <key> <value>")?,
+            key: positional(rest, 0, U_SET)?,
+            value: positional(rest, 1, U_SET)?,
         }),
         "delete" => Ok(Command::Delete {
-            key: positional(rest, 0, "globals delete <key>")?,
+            key: positional(rest, 0, U_DELETE)?,
         }),
         other => Err(format!("unknown globals verb `{other}`").into()),
     }

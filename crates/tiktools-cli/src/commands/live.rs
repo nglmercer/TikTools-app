@@ -5,6 +5,7 @@ use tiktools_client::{ClientError, TikToolsClient};
 use tiktools_control_api::modules::live::{LiveChannelsParams, LiveConnectParams, LivePickParams};
 
 use super::args::{flag_value, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 pub enum Command {
@@ -25,6 +26,35 @@ pub enum Command {
     Disconnect,
     Status,
 }
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "live",
+    summary: "TikTok LIVE connection",
+    verbs: &[
+        VerbSpec::new(
+            "connect",
+            "live connect --unique-id <id> --session-cookie <cookie> [--room-id <id>]",
+            "connect to a live room",
+        ),
+        VerbSpec::new(
+            "pick",
+            "live pick --session-cookie <cookie>",
+            "pick a live room interactively",
+        ),
+        VerbSpec::new(
+            "channels",
+            "live channels [--keyword text] [--offset N] [--limit N] [--session-cookie <cookie>]",
+            "discover live channels; works without a session",
+        ),
+        VerbSpec::new(
+            "disconnect",
+            "live disconnect",
+            "disconnect from the current room",
+        )
+        .destructive(),
+        VerbSpec::new("status", "live status", "current connection status"),
+    ],
+};
 
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(args, "live <verb> ...")?;

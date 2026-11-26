@@ -8,6 +8,7 @@ use tiktools_control_api::modules::automation::{
 };
 
 use super::args::{flag_value, parse_json_value, positional, required_record, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 pub enum Command {
@@ -59,6 +60,43 @@ pub enum Command {
     },
 }
 
+const U_GET: &str = "automation get <id> [--kind event|action]";
+const U_CREATE: &str = "automation create --record json [--kind event|action]";
+const U_UPDATE: &str = "automation update <id> --record json [--kind event|action]";
+const U_DELETE: &str = "automation delete <id> [--kind event|action]";
+const U_ENABLE: &str = "automation enable <id> [--kind event|action]";
+const U_DISABLE: &str = "automation disable <id> [--kind event|action]";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "automation",
+    summary: "event and action automation rules",
+    verbs: &[
+        VerbSpec::new("list", "automation list [--kind event|action|all]", "list automation rules"),
+        VerbSpec::new("context", "automation context [--event-type t]", "template context available to rules"),
+        VerbSpec::new("get", U_GET, "read one rule"),
+        VerbSpec::new("create", U_CREATE, "create a rule"),
+        VerbSpec::new("update", U_UPDATE, "update a rule"),
+        VerbSpec::new("delete", U_DELETE, "delete a rule").destructive(),
+        VerbSpec::new("enable", U_ENABLE, "enable a rule"),
+        VerbSpec::new("disable", U_DISABLE, "disable a rule"),
+        VerbSpec::new(
+            "test",
+            "automation test (--id <id> | --record json) [--kind event|action] [--trigger t] [--event json]",
+            "dry-run a rule against a sample event",
+        ),
+        VerbSpec::new(
+            "fire",
+            "automation fire --trigger <type> [--event json] [--record json]",
+            "fire a trigger manually",
+        ),
+        VerbSpec::new(
+            "moderation-penalty",
+            "automation moderation-penalty --points <delta>",
+            "apply a moderation penalty in points",
+        ),
+    ],
+};
+
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(args, "automation <verb> ...")?;
     let kind = || flag_value(rest, "--kind").unwrap_or_else(|| "event".to_owned());
@@ -70,28 +108,28 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             event_type: flag_value(rest, "--event-type"),
         }),
         "get" => Ok(Command::Get {
-            id: positional(rest, 0, "automation get <id> [--kind k]")?,
+            id: positional(rest, 0, U_GET)?,
             kind: kind(),
         }),
         "create" => Ok(Command::Create {
             kind: kind(),
-            record: required_record(rest, "automation create --record json [--kind k]")?,
+            record: required_record(rest, U_CREATE)?,
         }),
         "update" => Ok(Command::Update {
-            id: positional(rest, 0, "automation update <id> --record json [--kind k]")?,
+            id: positional(rest, 0, U_UPDATE)?,
             kind: kind(),
-            record: required_record(rest, "automation update <id> --record json [--kind k]")?,
+            record: required_record(rest, U_UPDATE)?,
         }),
         "delete" => Ok(Command::Delete {
-            id: positional(rest, 0, "automation delete <id> [--kind k]")?,
+            id: positional(rest, 0, U_DELETE)?,
             kind: kind(),
         }),
         "enable" => Ok(Command::Enable {
-            id: positional(rest, 0, "automation enable <id> [--kind k]")?,
+            id: positional(rest, 0, U_ENABLE)?,
             kind: kind(),
         }),
         "disable" => Ok(Command::Disable {
-            id: positional(rest, 0, "automation disable <id> [--kind k]")?,
+            id: positional(rest, 0, U_DISABLE)?,
             kind: kind(),
         }),
         "test" => {

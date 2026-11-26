@@ -23,6 +23,7 @@ pub mod processors;
 pub mod publishers;
 pub mod rankings;
 pub mod raw;
+pub mod spec;
 pub mod system;
 pub mod template;
 pub mod workflows;
@@ -176,7 +177,7 @@ pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
         "rpc" => raw::parse_rpc(rest)?,
         // `serve_plan` handles every `host` form before parsing commands;
         // reaching here means host was misrouted, so report its usage.
-        "host" => return Err("host --stdio [--events] | host --ipc".to_owned().into()),
+        "host" => return Err(raw::U_HOST.to_owned().into()),
         other => return Err(format!("unknown command `{other}`").into()),
     };
     Ok(plan)

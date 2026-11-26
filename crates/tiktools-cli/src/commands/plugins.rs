@@ -11,6 +11,7 @@ use tiktools_control_api::modules::plugins::{
 use tiktools_control_api::modules::settings::{PluginSettingsGet, PluginSettingsSet};
 
 use super::args::{flag_value, kv_map, one_arg, parse_json_value, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 pub enum Command {
@@ -76,18 +77,117 @@ pub enum Command {
     },
 }
 
+const U_GET: &str = "plugin get <id>";
+const U_UNINSTALL: &str = "plugin uninstall <id> [--purge]";
+const U_ENABLE: &str = "plugin enable <id>";
+const U_DISABLE: &str = "plugin disable <id>";
+const U_START: &str = "plugin start <id>";
+const U_STOP: &str = "plugin stop <id>";
+const U_SETTINGS_DOMAIN: &str = "plugin settings <get|set|reset> ...";
+const U_SETTINGS_GET: &str = "plugin settings get <id>";
+const U_SETTINGS_SET: &str = "plugin settings set <id> k=v...";
+const U_SETTINGS_RESET: &str = "plugin settings reset <id>";
+const U_HEALTH: &str = "plugin health <id>";
+const U_OPTIONS: &str = "plugin options <action-type/field>";
+const U_ACTION: &str = "plugin action <type> [--config json] [--live]";
+const U_RUN: &str = "plugin <id> <command> [--params json] [--live]";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "plugin",
+    summary: "install and manage plugins",
+    verbs: &[
+        VerbSpec::new("list", "plugin list", "list installed plugins"),
+        VerbSpec::new("get", U_GET, "read one plugin"),
+        VerbSpec::new(
+            "install",
+            super::packages::U_INSTALL,
+            "install from a file, id@version or url",
+        ),
+        VerbSpec::new("uninstall", U_UNINSTALL, "uninstall a plugin").destructive(),
+        VerbSpec::new(
+            "search",
+            super::packages::U_SEARCH,
+            "search packages in the registry",
+        ),
+        VerbSpec::new(
+            "inspect",
+            super::packages::U_INSPECT,
+            "inspect a package spec before installing",
+        ),
+        VerbSpec::new(
+            "outdated",
+            "plugin outdated",
+            "list installed plugins with available updates",
+        ),
+        VerbSpec::new("update", super::packages::U_UPDATE, "update one plugin"),
+        VerbSpec::new(
+            "update --all",
+            super::packages::U_UPDATE_ALL,
+            "update every outdated plugin",
+        ),
+        VerbSpec::new(
+            "rollback",
+            super::packages::U_ROLLBACK,
+            "roll back to a previous version",
+        )
+        .destructive(),
+        VerbSpec::new(
+            "versions",
+            super::packages::U_VERSIONS,
+            "list available versions of a plugin",
+        ),
+        VerbSpec::new(
+            "pin",
+            super::packages::U_PIN,
+            "pin a plugin to its current version",
+        ),
+        VerbSpec::new("unpin", super::packages::U_UNPIN, "remove the version pin"),
+        VerbSpec::new(
+            "policy",
+            super::packages::U_POLICY,
+            "set channel and auto-update policy",
+        ),
+        VerbSpec::new("jobs", "plugin jobs", "list package jobs"),
+        VerbSpec::new("job", super::packages::U_JOB, "inspect one package job"),
+        VerbSpec::new(
+            "cancel",
+            super::packages::U_CANCEL,
+            "cancel a running package job",
+        )
+        .destructive(),
+        VerbSpec::new("enable", U_ENABLE, "enable a plugin"),
+        VerbSpec::new("disable", U_DISABLE, "disable a plugin"),
+        VerbSpec::new("start", U_START, "start a plugin"),
+        VerbSpec::new("stop", U_STOP, "stop a plugin").destructive(),
+        VerbSpec::new("settings get", U_SETTINGS_GET, "read plugin settings"),
+        VerbSpec::new("settings set", U_SETTINGS_SET, "write plugin settings"),
+        VerbSpec::new("settings reset", U_SETTINGS_RESET, "reset plugin settings").destructive(),
+        VerbSpec::new("health", U_HEALTH, "plugin health check"),
+        VerbSpec::new("options", U_OPTIONS, "options of an action type or field"),
+        VerbSpec::new("action", U_ACTION, "run a plugin action"),
+        VerbSpec::new(
+            "commands",
+            "plugin commands",
+            "list commands contributed by installed plugins",
+        ),
+        VerbSpec::new(
+            "help",
+            "plugin help [id]",
+            "describe one contributed command",
+        ),
+        VerbSpec::new("run", U_RUN, "invoke a plugin-contributed command"),
+    ],
+};
+
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(args, "plugin <verb> ...")?;
     match verb {
         "list" => Ok(Command::List),
         "get" => Ok(Command::Get {
-            id: one_arg(rest, "plugin get <id>")?,
+            id: one_arg(rest, U_GET)?,
         }),
         "install" => {
-            let (spec, rest) = split_first(
-                rest,
-                "plugin install <file.plugin> [--replace] | plugin install <id[@version]|url> [--yes] [--allow-unsigned]",
-            )?;
+            let (spec, rest) = split_first(rest, super::packages::U_INSTALL)?;
             if super::packages::is_local_archive(spec) && !rest.iter().any(|arg| arg == "--review")
             {
                 Ok(Command::Install {
@@ -99,49 +199,48 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             }
         }
         "uninstall" => Ok(Command::Uninstall {
-            id: super::args::positional(rest, 0, "plugin uninstall <id> [--purge]")?,
+            id: super::args::positional(rest, 0, U_UNINSTALL)?,
             purge: rest.iter().any(|arg| arg == "--purge"),
         }),
         "enable" => Ok(Command::Enable {
-            id: one_arg(rest, "plugin enable <id>")?,
+            id: one_arg(rest, U_ENABLE)?,
         }),
         "disable" => Ok(Command::Disable {
-            id: one_arg(rest, "plugin disable <id>")?,
+            id: one_arg(rest, U_DISABLE)?,
         }),
         "start" => Ok(Command::Start {
-            id: one_arg(rest, "plugin start <id>")?,
+            id: one_arg(rest, U_START)?,
         }),
         "stop" => Ok(Command::Stop {
-            id: one_arg(rest, "plugin stop <id>")?,
+            id: one_arg(rest, U_STOP)?,
         }),
         "settings" => {
-            let (verb, rest) = split_first(rest, "plugin settings <get|set|reset> ...")?;
+            let (verb, rest) = split_first(rest, U_SETTINGS_DOMAIN)?;
             match verb {
                 "get" => Ok(Command::SettingsGet {
-                    id: one_arg(rest, "plugin settings get <id>")?,
+                    id: one_arg(rest, U_SETTINGS_GET)?,
                 }),
                 "set" => {
-                    let (id, pairs) = split_first(rest, "plugin settings set <id> k=v...")?;
+                    let (id, pairs) = split_first(rest, U_SETTINGS_SET)?;
                     Ok(Command::SettingsSet {
                         id: id.to_owned(),
                         values: kv_map(pairs)?,
                     })
                 }
                 "reset" => Ok(Command::SettingsReset {
-                    id: one_arg(rest, "plugin settings reset <id>")?,
+                    id: one_arg(rest, U_SETTINGS_RESET)?,
                 }),
                 other => Err(format!("unknown plugin settings verb `{other}`").into()),
             }
         }
         "health" => Ok(Command::Health {
-            id: one_arg(rest, "plugin health <id>")?,
+            id: one_arg(rest, U_HEALTH)?,
         }),
         "options" => Ok(Command::Options {
-            source: one_arg(rest, "plugin options <action-type/field>")?,
+            source: one_arg(rest, U_OPTIONS)?,
         }),
         "action" => {
-            let (action_type, rest) =
-                split_first(rest, "plugin action <type> [--config json] [--live]")?;
+            let (action_type, rest) = split_first(rest, U_ACTION)?;
             let config = flag_value(rest, "--config")
                 .map(|raw| parse_json_value(&raw))
                 .transpose()?
@@ -163,8 +262,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         // registered plugin id, not a built-in verb. Packages use `plugin
         // install/update/...`, so only two-token forms reach this branch.
         plugin_id if !rest.is_empty() => {
-            let (command_id, rest) =
-                split_first(rest, "plugin <id> <command> [--params json] [--live]")?;
+            let (command_id, rest) = split_first(rest, U_RUN)?;
             let config = flag_value(rest, "--params")
                 .map(|raw| parse_json_value(&raw))
                 .transpose()?

@@ -16,6 +16,7 @@ use tiktools_control_api::modules::publisher::{
 };
 
 use super::args::{flag_value, one_arg, positional, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 pub enum Command {
@@ -52,52 +53,73 @@ pub enum Command {
     },
 }
 
+const U_DOMAIN: &str =
+    "publisher <list|create|delete|keys|enroll|upload|submit|release|publish> ...";
+const U_CREATE: &str = "publisher create <namespace>";
+const U_DELETE: &str = "publisher delete <namespace-or-publisher-id>";
+const U_KEYS: &str = "publisher keys <publisher-id>";
+const U_ENROLL: &str = "publisher enroll <publisher-id> [--key-id <id>]";
+const U_UPLOAD: &str = "publisher upload <publisher-id> <path>";
+const U_SUBMIT: &str =
+    "publisher submit <upload-id> <publisher-key-id> <plugin-id> <version> [--target any]";
+const U_RELEASE: &str = "publisher release <release-id>";
+const U_PUBLISH: &str = "publisher publish <release-id>";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "publisher",
+    summary: "cloud publisher flow (requires sign-in)",
+    verbs: &[
+        VerbSpec::new("list", "publisher list", "list publisher namespaces"),
+        VerbSpec::new("create", U_CREATE, "create a publisher namespace"),
+        VerbSpec::new("delete", U_DELETE, "delete a namespace or publisher").destructive(),
+        VerbSpec::new("keys", U_KEYS, "list signing keys of a publisher"),
+        VerbSpec::new(
+            "enroll",
+            U_ENROLL,
+            "enroll a publisher key; reads the backend password from stdin",
+        ),
+        VerbSpec::new("upload", U_UPLOAD, "upload a plugin package"),
+        VerbSpec::new("submit", U_SUBMIT, "submit an upload for review"),
+        VerbSpec::new("release", U_RELEASE, "create a release"),
+        VerbSpec::new("publish", U_PUBLISH, "publish a release"),
+    ],
+};
+
 pub fn parse(rest: &[String]) -> Result<Command, CommandError> {
-    let usage = "publisher <list|create|delete|keys|enroll|upload|submit|release|publish> ...";
-    let (verb, rest) = split_first(rest, usage).map_err(CommandError::from)?;
+    let (verb, rest) = split_first(rest, U_DOMAIN).map_err(CommandError::from)?;
     match verb {
         "list" => Ok(Command::List),
         "create" => Ok(Command::Create {
-            namespace: one_arg(rest, "publisher create <namespace>")?,
+            namespace: one_arg(rest, U_CREATE)?,
         }),
         "delete" => Ok(Command::Delete {
-            publisher: one_arg(rest, "publisher delete <namespace-or-publisher-id>")?,
+            publisher: one_arg(rest, U_DELETE)?,
         }),
         "keys" => Ok(Command::Keys {
-            publisher_id: one_arg(rest, "publisher keys <publisher-id>")?,
+            publisher_id: one_arg(rest, U_KEYS)?,
         }),
-        "enroll" => {
-            let usage = "publisher enroll <publisher-id> [--key-id <id>]";
-            Ok(Command::Enroll {
-                publisher_id: positional(rest, 0, usage)?,
-                key_id: flag_value(rest, "--key-id"),
-            })
-        }
-        "upload" => {
-            let usage = "publisher upload <publisher-id> <path>";
-            Ok(Command::Upload {
-                publisher_id: positional(rest, 0, usage)?,
-                path: positional(rest, 1, usage)?,
-            })
-        }
-        "submit" => {
-            let usage =
-                "publisher submit <upload-id> <publisher-key-id> <plugin-id> <version> [--target any]";
-            Ok(Command::Submit {
-                upload_id: positional(rest, 0, usage)?,
-                key_id: positional(rest, 1, usage)?,
-                plugin_id: positional(rest, 2, usage)?,
-                version: positional(rest, 3, usage)?,
-                target: flag_value(rest, "--target"),
-            })
-        }
+        "enroll" => Ok(Command::Enroll {
+            publisher_id: positional(rest, 0, U_ENROLL)?,
+            key_id: flag_value(rest, "--key-id"),
+        }),
+        "upload" => Ok(Command::Upload {
+            publisher_id: positional(rest, 0, U_UPLOAD)?,
+            path: positional(rest, 1, U_UPLOAD)?,
+        }),
+        "submit" => Ok(Command::Submit {
+            upload_id: positional(rest, 0, U_SUBMIT)?,
+            key_id: positional(rest, 1, U_SUBMIT)?,
+            plugin_id: positional(rest, 2, U_SUBMIT)?,
+            version: positional(rest, 3, U_SUBMIT)?,
+            target: flag_value(rest, "--target"),
+        }),
         "release" => Ok(Command::Release {
-            id: one_arg(rest, "publisher release <release-id>")?,
+            id: one_arg(rest, U_RELEASE)?,
         }),
         "publish" => Ok(Command::Publish {
-            id: one_arg(rest, "publisher publish <release-id>")?,
+            id: one_arg(rest, U_PUBLISH)?,
         }),
-        other => Err(format!("unknown publisher verb `{other}`\n{usage}").into()),
+        other => Err(format!("unknown publisher verb `{other}`\n{U_DOMAIN}").into()),
     }
 }
 

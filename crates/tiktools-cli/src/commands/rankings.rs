@@ -1,7 +1,9 @@
 //! Ranking commands using the shared control API.
 use super::{
     args::{one_arg, required_record, split_first},
-    result_value, typed_params, CommandError,
+    result_value,
+    spec::{DomainSpec, VerbSpec},
+    typed_params, CommandError,
 };
 use serde_json::Value;
 use tiktools_client::{ClientError, TikToolsClient};
@@ -22,32 +24,54 @@ pub enum Command {
     Resume(String),
     Contribute(ExternalContribution),
 }
+const U_DOMAIN: &str =
+    "ranking <list|metrics|create|update|get|snapshot|delete|reset|pause|resume|contribute>";
+const U_CREATE: &str = "ranking create --record <json|@file>";
+const U_UPDATE: &str = "ranking update --record <json|@file>";
+const U_CONTRIBUTE: &str = "ranking contribute --record <json|@file>";
+const U_GET: &str = "ranking get <id>";
+const U_SNAPSHOT: &str = "ranking snapshot <id>";
+const U_DELETE: &str = "ranking delete <id>";
+const U_RESET: &str = "ranking reset <id>";
+const U_PAUSE: &str = "ranking pause <id>";
+const U_RESUME: &str = "ranking resume <id>";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "ranking",
+    summary: "viewer ranking definitions and state",
+    verbs: &[
+        VerbSpec::new("list", "ranking list", "list ranking definitions"),
+        VerbSpec::new(
+            "metrics",
+            "ranking metrics",
+            "metrics available to ranking definitions",
+        ),
+        VerbSpec::new("create", U_CREATE, "create a ranking definition"),
+        VerbSpec::new("update", U_UPDATE, "update a ranking definition"),
+        VerbSpec::new("get", U_GET, "read one ranking"),
+        VerbSpec::new("snapshot", U_SNAPSHOT, "current standings of one ranking"),
+        VerbSpec::new("delete", U_DELETE, "delete a ranking").destructive(),
+        VerbSpec::new("reset", U_RESET, "reset accumulated state").destructive(),
+        VerbSpec::new("pause", U_PAUSE, "pause accumulation"),
+        VerbSpec::new("resume", U_RESUME, "resume accumulation"),
+        VerbSpec::new("contribute", U_CONTRIBUTE, "add an external contribution"),
+    ],
+};
+
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
-    let (verb, rest) = split_first(
-        args,
-        "ranking <list|metrics|create|update|get|snapshot|delete|reset|pause|resume|contribute>",
-    )?;
+    let (verb, rest) = split_first(args, U_DOMAIN)?;
     Ok(match verb {
         "list" if rest.is_empty() => Command::List,
         "metrics" if rest.is_empty() => Command::Metrics,
-        "create" => Command::Create(typed_params(required_record(
-            rest,
-            "ranking create --record <json|@file>",
-        )?)?),
-        "update" => Command::Update(typed_params(required_record(
-            rest,
-            "ranking update --record <json|@file>",
-        )?)?),
-        "get" => Command::Get(one_arg(rest, "ranking get <id>")?),
-        "snapshot" => Command::Snapshot(one_arg(rest, "ranking snapshot <id>")?),
-        "delete" => Command::Delete(one_arg(rest, "ranking delete <id>")?),
-        "reset" => Command::Reset(one_arg(rest, "ranking reset <id>")?),
-        "pause" => Command::Pause(one_arg(rest, "ranking pause <id>")?),
-        "resume" => Command::Resume(one_arg(rest, "ranking resume <id>")?),
-        "contribute" => Command::Contribute(typed_params(required_record(
-            rest,
-            "ranking contribute --record <json|@file>",
-        )?)?),
+        "create" => Command::Create(typed_params(required_record(rest, U_CREATE)?)?),
+        "update" => Command::Update(typed_params(required_record(rest, U_UPDATE)?)?),
+        "get" => Command::Get(one_arg(rest, U_GET)?),
+        "snapshot" => Command::Snapshot(one_arg(rest, U_SNAPSHOT)?),
+        "delete" => Command::Delete(one_arg(rest, U_DELETE)?),
+        "reset" => Command::Reset(one_arg(rest, U_RESET)?),
+        "pause" => Command::Pause(one_arg(rest, U_PAUSE)?),
+        "resume" => Command::Resume(one_arg(rest, U_RESUME)?),
+        "contribute" => Command::Contribute(typed_params(required_record(rest, U_CONTRIBUTE)?)?),
         _ => return Err(format!("invalid ranking command `{verb}`").into()),
     })
 }

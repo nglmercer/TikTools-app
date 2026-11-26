@@ -143,8 +143,7 @@ fn join_origin_stays_on_loopback_http() {
     );
 }
 
-const TEST_RESET_TOKEN: &str =
-    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const TEST_RESET_TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn state(root: PathBuf) -> Arc<App> {
     state_with_pairing_file(root, test_pairing_file(), false)
@@ -177,11 +176,7 @@ fn test_reset_file() -> PathBuf {
     ))
 }
 
-fn state_with_pairing_file(
-    root: PathBuf,
-    pairing_file: PathBuf,
-    multi_session: bool,
-) -> Arc<App> {
+fn state_with_pairing_file(root: PathBuf, pairing_file: PathBuf, multi_session: bool) -> Arc<App> {
     Arc::new(App {
         root,
         asset_token: secret(),
@@ -260,9 +255,7 @@ async fn activity_slides_the_idle_window_but_not_the_absolute_ceiling() {
         .unwrap();
     let body: Value = serde_json::from_slice(&body).unwrap();
     assert!(body["remainingSeconds"].as_u64().unwrap() > 3000);
-    assert!(
-        app.auth.lock().unwrap().sessions[0].last.elapsed() < Duration::from_secs(1)
-    );
+    assert!(app.auth.lock().unwrap().sessions[0].last.elapsed() < Duration::from_secs(1));
     // Idle again: the touch endpoint refuses and never revives the session.
     app.auth.lock().unwrap().sessions[0].last = Instant::now() - SESSION_LIFETIME;
     assert!(!app.authorized(&session_headers(&app, &token)));
@@ -274,8 +267,7 @@ async fn activity_slides_the_idle_window_but_not_the_absolute_ceiling() {
     );
     // Activity cannot outlive the absolute pairing ceiling.
     app.auth.lock().unwrap().sessions[0].last = Instant::now();
-    app.auth.lock().unwrap().sessions[0].paired_at =
-        Instant::now() - SESSION_ABSOLUTE_LIFETIME;
+    app.auth.lock().unwrap().sessions[0].paired_at = Instant::now() - SESSION_ABSOLUTE_LIFETIME;
     assert!(!app.touch_session_token(&token));
     assert_eq!(
         session_touch(State(app.clone()), session_headers(&app, &token))
@@ -676,11 +668,14 @@ async fn renew_publishes_code_and_pair_consumes_it() {
 
 #[test]
 fn multi_session_and_reset_actions_are_parsed_as_separate_commands() {
-    let (_, _, _, multi) =
-        parse_options(&["--assets".into(), "dist/web".into()], false).unwrap();
+    let (_, _, _, multi) = parse_options(&["--assets".into(), "dist/web".into()], false).unwrap();
     assert!(!multi);
     let (_, _, _, multi) = parse_options(
-        &["--assets".into(), "dist/web".into(), "--multi-session".into()],
+        &[
+            "--assets".into(),
+            "dist/web".into(),
+            "--multi-session".into(),
+        ],
         false,
     )
     .unwrap();
@@ -743,7 +738,9 @@ async fn reset_revokes_all_sessions_clears_lockout_and_rotates_the_token() {
     )
     .await;
     assert_eq!(response.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .unwrap();
     assert_eq!(
         serde_json::from_slice::<Value>(&body).unwrap()["expiresInSeconds"],
         PAIRING_TTL_SECS
@@ -848,7 +845,10 @@ async fn socket_keepalive_slides_only_its_own_session() {
     );
     let (first, second) = {
         let auth = app.auth.lock().unwrap();
-        (auth.sessions[0].token.clone(), auth.sessions[1].token.clone())
+        (
+            auth.sessions[0].token.clone(),
+            auth.sessions[1].token.clone(),
+        )
     };
     // Both browsers nearly idle: activity on the first socket revives only
     // the first session; the second browser still times out on its own clock.

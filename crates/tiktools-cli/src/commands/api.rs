@@ -36,7 +36,47 @@ use tiktools_client::{
 use tiktools_control_api::modules::rpc::SchemaParams;
 
 use super::args::{flag_value, flag_values, parse_json_value, positional, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{redact_output, result_value, CommandError, Output};
+
+pub(crate) const U_DOMAIN: &str = "api <discover|schema|call|events|event|verify> ...";
+pub(crate) const U_SCHEMA: &str = "api schema <method> [--format json|human]";
+pub(crate) const U_CALL: &str = "api call <method> [params-json] [--timeout SEC] [--dry-run] [--confirm] [--redact|--secrets-visible] [--explain] [--format json|human] [--expected-revision N] [--command-id ID --host-instance-id ID] [--include-meta]";
+pub(crate) const U_EVENT_GET: &str =
+    "api event get <name> [--type kind]... [--author text] [--limit N]";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "api",
+    summary: "generic agent-oriented control surface over host methods",
+    verbs: &[
+        VerbSpec::new(
+            "discover",
+            "api discover [--format json|human]",
+            "list every method live from the host registry",
+        ),
+        VerbSpec::new(
+            "schema",
+            U_SCHEMA,
+            "one method's description, flags and schemas",
+        ),
+        VerbSpec::new(
+            "call",
+            U_CALL,
+            "validate and execute one method; destructive methods need --confirm",
+        ),
+        VerbSpec::new(
+            "events",
+            "api events [--topics t,...] [--timeout SEC] [--max-events N]",
+            "stream NDJSON domain events",
+        ),
+        VerbSpec::new("event get", U_EVENT_GET, "search the bounded feed journal"),
+        VerbSpec::new(
+            "verify",
+            "api verify [--coverage|--smoke] [--sandbox] [--timeout SEC]",
+            "verify the control surface against the host",
+        ),
+    ],
+};
 
 pub enum Command {
     Discover {

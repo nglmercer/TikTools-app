@@ -24,6 +24,7 @@ use tiktools_core::services::templates::{
 };
 
 use super::args::{flag_value, flag_values, positional, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 /// Built-in triggers mirrored from the web `BUILTIN_EVENT_TYPES` contract.
@@ -106,6 +107,35 @@ fn collect_params(rest: &[String]) -> Result<Map<String, Value>, CommandError> {
     Ok(params)
 }
 
+const U_IMPORT: &str =
+    "template import <file> [--param k=v]... [--event-name n] [--action-name n] [--dry-run] [--no-save] [--disabled]";
+const U_EXPORT: &str = "template export --event <id> --out <file> [--title t] [--id template-id]";
+const U_DELETE: &str = "template delete <template-id>";
+const U_PROFILE_IMPORT: &str =
+    "template profile-import <file> [--param k=v]... [--dry-run] [--no-save] [--disabled]";
+const U_PROFILE_EXPORT: &str = "template profile-export --out <file> [--name n]";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "template",
+    summary: "reusable automation templates and profiles",
+    verbs: &[
+        VerbSpec::new("import", U_IMPORT, "import a template as automation rules"),
+        VerbSpec::new("export", U_EXPORT, "export an event rule as a template"),
+        VerbSpec::new("list", "template list", "list templates in the gallery"),
+        VerbSpec::new("delete", U_DELETE, "delete a template").destructive(),
+        VerbSpec::new(
+            "profile-import",
+            U_PROFILE_IMPORT,
+            "import a whole automation profile",
+        ),
+        VerbSpec::new(
+            "profile-export",
+            U_PROFILE_EXPORT,
+            "export the automation profile",
+        ),
+    ],
+};
+
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(args, "template <verb> ...")?;
     let dry_run = rest.iter().any(|arg| arg == "--dry-run");
@@ -113,11 +143,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let disabled = rest.iter().any(|arg| arg == "--disabled");
     match verb {
         "import" => Ok(Command::Import {
-            path: positional(
-                rest,
-                0,
-                "template import <file> [--param k=v]... [--dry-run] [--no-save]",
-            )?,
+            path: positional(rest, 0, U_IMPORT)?,
             params: collect_params(rest)?,
             event_name: flag_value(rest, "--event-name"),
             action_name: flag_value(rest, "--action-name"),
@@ -135,14 +161,10 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         }),
         "list" => Ok(Command::List),
         "delete" => Ok(Command::Delete {
-            template_id: positional(rest, 0, "template delete <template-id>")?,
+            template_id: positional(rest, 0, U_DELETE)?,
         }),
         "profile-import" => Ok(Command::ProfileImport {
-            path: positional(
-                rest,
-                0,
-                "template profile-import <file> [--param k=v]... [--dry-run] [--no-save]",
-            )?,
+            path: positional(rest, 0, U_PROFILE_IMPORT)?,
             params: collect_params(rest)?,
             dry_run,
             save,

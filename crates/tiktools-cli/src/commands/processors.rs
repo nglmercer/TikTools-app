@@ -5,6 +5,7 @@ use tiktools_client::{ClientError, TikToolsClient};
 use tiktools_control_api::modules::processors::ProcessorTestParams;
 
 use super::args::{parse_json_value, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 pub enum Command {
@@ -17,6 +18,18 @@ pub enum Command {
     },
 }
 
+const U_TEST: &str = "processor test <plugin-id> <processor-id> [event-json]";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "processor",
+    summary: "event processors",
+    verbs: &[
+        VerbSpec::new("list", "processor list", "list processors"),
+        VerbSpec::new("status", "processor status", "processor pipeline status"),
+        VerbSpec::new("test", U_TEST, "run one processor against a sample event"),
+    ],
+};
+
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(args, "processor <verb> ...")?;
     match verb {
@@ -24,9 +37,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         "status" => Ok(Command::Status),
         "test" => {
             if rest.len() < 2 {
-                return Err("processor test <plugin-id> <processor-id> [event-json]"
-                    .to_owned()
-                    .into());
+                return Err(U_TEST.to_owned().into());
             }
             let event = rest
                 .get(2)

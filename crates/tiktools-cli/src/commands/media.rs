@@ -5,6 +5,7 @@ use tiktools_client::{ClientError, TikToolsClient};
 use tiktools_control_api::modules::media::{MediaKind, MediaValidateParams};
 
 use super::args::{flag_value, split_first};
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 pub enum Command {
@@ -14,11 +15,23 @@ pub enum Command {
     },
 }
 
+const U_VALIDATE: &str = "media validate <path> [--kind audio|video|image|other]";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "media",
+    summary: "media file validation and playback",
+    verbs: &[VerbSpec::new(
+        "validate",
+        U_VALIDATE,
+        "validate a media file before use in actions",
+    )],
+};
+
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
     let (verb, rest) = split_first(args, "media <verb> ...")?;
     match verb {
         "validate" => {
-            let (path, rest) = split_first(rest, "media validate <path> [--kind k]")?;
+            let (path, rest) = split_first(rest, U_VALIDATE)?;
             Ok(Command::Validate {
                 path: path.to_owned(),
                 kind: parse_kind(flag_value(rest, "--kind"))?,

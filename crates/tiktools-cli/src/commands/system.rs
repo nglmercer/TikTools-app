@@ -4,7 +4,34 @@ use serde_json::Value;
 use tiktools_client::{ClientError, TikToolsClient};
 
 use super::args::split_first;
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
+
+const U_DOMAIN: &str = "system <info|health|snapshot|doctor|request-input-access>";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "system",
+    summary: "host information and diagnostics",
+    verbs: &[
+        VerbSpec::new(
+            "info",
+            "system info",
+            "host version and runtime information",
+        ),
+        VerbSpec::new("health", "system health", "component health report"),
+        VerbSpec::new(
+            "snapshot",
+            "system snapshot",
+            "full state snapshot for debugging",
+        ),
+        VerbSpec::new("doctor", "system doctor", "diagnose common setup problems"),
+        VerbSpec::new(
+            "request-input-access",
+            "system request-input-access",
+            "ask the desktop user for input access",
+        ),
+    ],
+};
 
 pub enum Command {
     Info,
@@ -15,7 +42,7 @@ pub enum Command {
 }
 
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
-    let (verb, _) = split_first(args, "system <verb> ...")?;
+    let (verb, _) = split_first(args, U_DOMAIN)?;
     match verb {
         "info" => Ok(Command::Info),
         "health" => Ok(Command::Health),

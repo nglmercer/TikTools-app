@@ -18,94 +18,18 @@ mod output;
 #[cfg(feature = "local-web")]
 mod web;
 
-const USAGE: &str = "\
-usage: tiktools [--json] [--standalone] <command> [args]
-
-commands:
-         | connect --profile NAME --host ID [--kind desktop|agent]
-         | pair --profile NAME [--kind desktop|agent] [--label NAME] [--invite-stdin]
-  plugin list | get <id> | install <file.plugin> [--replace] | uninstall <id> [--purge]
-         | install <id[@version]> [--yes] [--no-wait]
-         | search <query> [--category c] [--page N] | inspect <spec>
-         | outdated | update <id> [--version v] [--yes] | update --all [--yes]
-         | rollback <id> [version] | versions <id> | pin <id> | unpin <id>
-         | policy <id> [--channel stable|beta] [--auto off|notify|patch|minor]
-         | jobs | job <job-id> | cancel <job-id>
-         | enable <id> | disable <id> | start <id> | stop <id>
-         | settings get <id> | settings set <id> k=v... | settings reset <id>
-         | health <id> | options <action-type/field> | action <type> [--config json] [--live]
-  registry list | refresh | package <id> | defaults
-  processor list | status | test <plugin-id> <processor-id> [event-json]
-  live connect --unique-id <id> --session-cookie <cookie> [--room-id <id>]
-       | pick --session-cookie <cookie> | disconnect | status
-       | channels [--keyword <text>] [--offset N] [--limit N] [--session-cookie <cookie>]
-  points config get | config set k=v... | viewer get <id> | adjust <id> <delta>
-       | leaderboard [--limit N] | reset [id]
-  globals list | get <key> | set <key> <value> | delete <key>
-  automation list [--kind event|action|all] | get <id> [--kind k]
-           | create --record json [--kind k] | update <id> --record json [--kind k]
-           | delete <id> [--kind k] | enable <id> [--kind k] | disable <id> [--kind k]
-           | test (--id <id> | --record json) [--kind k] [--trigger t] [--event json]
-           | fire --trigger <type> [--event json] [--record json]
-           | moderation-penalty --points <delta>
-           | context
-  workflow list | get <id> | save --record json | delete <id>
-           | enable <id> | disable <id>
-  media validate <path> [--kind audio|video|image|other]
-      | play <path> [--kind k] [--volume 0..1]
-  system info | health | snapshot | doctor
-  template import <file> [--param k=v]... [--event-name n] [--action-name n]
-           [--dry-run] [--no-save] [--disabled]
-         | export --event <id> --out <file> [--title t] [--id template-id]
-         | list | delete <template-id>
-         | profile-import <file> [--param k=v]... [--dry-run] [--no-save] [--disabled]
-         | profile-export --out <file> [--name n]
-  api discover [--format json|human]
-    | schema <method> [--format json|human]
-    | call <method> [params-json] [--timeout SEC] [--dry-run] [--confirm]
-    |      [--redact|--secrets-visible] [--explain] [--format json|human]
-    |      [--expected-revision N] [--command-id ID --host-instance-id ID] [--include-meta]
-    | events [--topics t,...] [--timeout SEC] [--max-events N]
-    | event get <name> [--type kind]... [--author text] [--limit N]
-    | verify [--coverage|--smoke] [--sandbox] [--timeout SEC]
-  rpc <method> [params-json]
-  rpc --stdio [--events]        NDJSON request/response loop on stdio
-         cloud enroll [--label NAME] | join [--invite-stdin]
-         cloud connect --host ID --profile NAME [--kind desktop|agent]
-         cloud pair --profile NAME [--label NAME] [--kind desktop|agent] [--invite-stdin]
-                                Native Cloud P2P onboarding; no local host runtime
-  cloud status | login | logout | restore
-  cloud backup create [--out FILE] | preview <FILE> | restore <FILE> [--yes]
-                                Cloud account and portable backup/restore
-                                (official Cloud; override with TIKTOOLS_CLOUD_ORIGIN)
-  publisher list | create <namespace> | delete <namespace-or-publisher-id> | keys <publisher-id>
-            | enroll <publisher-id> [--key-id <id>] | upload <publisher-id> <path>
-            | submit <upload-id> <key-id> <plugin-id> <version> [--target any]
-            | release <release-id> | publish <release-id>
-                                Cloud publisher flow (requires sign-in)
-  host --stdio [--events]       headless host on stdio (streams events with --events)
-  host --ipc                    headless host on local IPC (refuses when a host is running)
-  web --assets <directory> [--port N] [--join-origin URL] [--multi-session]
-                                    local browser adapter (requires local-web feature)
-  web --print-code [--port N]       print the active pairing code without restarting
-  web --reset-session [--port N]    revoke every paired browser and print a fresh code
-
-commands run against the running host over local IPC by default; when no
-host is running they fail with host_unavailable instead of starting a
-second runtime. Use `tiktools --json system info` as the lightweight probe:
-exit 0 means a host answered, while exit 3 means the IPC host is unavailable.
---standalone runs the command against an isolated in-process runtime instead.
-json values may use @path to read from a file.
-back to a local runtime. It cannot be combined with --standalone, serving,
-privately; no invitation or credential secret is accepted as a process argument.
---json prints the raw result object to stdout; without it, lists print one
-line per item.
-live connect/pick read the session cookie from --session-cookie or the
-TIKTOOLS_SESSION_COOKIE environment variable (the flag wins); the value
-never appears in diagnostics. api call redacts secrets from its output
-unless --secrets-visible is passed, and refuses destructive methods
-without --confirm.
-";
+/// Renders help from the command specs: human text by default, the full
+/// machine-readable registry with `--json`.
+fn help_render(filter: Option<&str>, json: bool) -> Result<String, String> {
+    let domains = commands::spec::registry();
+    if json {
+        let selected = commands::spec::select(&domains, filter)?;
+        return Ok(
+            serde_json::to_string(&commands::spec::render_json(&selected)).unwrap_or_default(),
+        );
+    }
+    commands::spec::render(&domains, filter)
+}
 
 fn main() {
     tiktools_tls::ensure_default_crypto_provider();
@@ -126,7 +50,24 @@ fn run() -> i32 {
         return 2;
     }
     if args.is_empty() || args[0] == "--help" || args[0] == "-h" || args[0] == "help" {
-        print!("{USAGE}");
+        // Help is offline and generated from the command specs, so agents can
+        // rely on `--json` here before any host exists.
+        let filter = if args.first().is_some_and(|arg| arg == "help") {
+            args.get(1)
+        } else {
+            None
+        };
+        if args.len() > 2 {
+            eprintln!("tiktools: help takes at most one command name");
+            return 2;
+        }
+        match help_render(filter.map(String::as_str), json_mode) {
+            Ok(text) => println!("{text}"),
+            Err(error) => {
+                eprintln!("tiktools: {error}");
+                return 2;
+            }
+        }
         return 0;
     }
     if args[0] == "--version" || args[0] == "-V" || args[0] == "version" {
@@ -170,7 +111,9 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
         }
         Ok(None) => {}
         Err(message) => {
-            eprintln!("tiktools: {message}\n\n{USAGE}");
+            eprintln!(
+                "tiktools: {message}\nhint: try `tiktools help` or `tiktools help <command>`"
+            );
             return 2;
         }
     }
@@ -178,7 +121,9 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
     let plan = match commands::parse_command(&args) {
         Ok(parsed) => parsed,
         Err(commands::CommandError::Usage(message)) => {
-            eprintln!("tiktools: {message}\n\n{USAGE}");
+            eprintln!(
+                "tiktools: {message}\nhint: try `tiktools help` or `tiktools help <command>`"
+            );
             return 2;
         }
         Err(commands::CommandError::Call(error)) => {

@@ -31,7 +31,11 @@ fn write_private_json<T: serde::Serialize>(path: &Path, value: &T) -> std::io::R
     let result = (|| -> std::io::Result<()> {
         use std::io::Write;
         let mut file = options.open(&tmp)?;
-        file.write_all(serde_json::to_vec(value).map_err(std::io::Error::other)?.as_slice())?;
+        file.write_all(
+            serde_json::to_vec(value)
+                .map_err(std::io::Error::other)?
+                .as_slice(),
+        )?;
         file.sync_all()?;
         drop(file);
         std::fs::rename(&tmp, path)?;
@@ -74,9 +78,7 @@ pub(super) fn current_reset_token(port: u16) -> Result<String, String> {
         .map_err(|_| "no active local browser adapter".to_string())?;
     let snapshot: ResetSnapshot =
         serde_json::from_slice(&bytes).map_err(|_| "invalid reset token".to_string())?;
-    if snapshot.token.len() != 64
-        || !snapshot.token.bytes().all(|byte| byte.is_ascii_hexdigit())
-    {
+    if snapshot.token.len() != 64 || !snapshot.token.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err("invalid reset token".to_string());
     }
     if !server_listening(port) {

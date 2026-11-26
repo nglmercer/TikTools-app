@@ -1,7 +1,9 @@
 //! Competition definition commands.
 use super::{
     args::{one_arg, required_record, split_first},
-    result_value, typed_params, CommandError,
+    result_value,
+    spec::{DomainSpec, VerbSpec},
+    typed_params, CommandError,
 };
 use serde_json::Value;
 use tiktools_client::{ClientError, TikToolsClient};
@@ -28,47 +30,76 @@ pub enum Command {
     Resume(String),
     Cancel(String),
 }
+const U_DOMAIN: &str = "competition <list|get|create|update|delete|state|results|action|mark-action-uncertain|resolve-action|start|finish|candidates|select-winner|pause|resume|cancel>";
+const U_CREATE: &str = "competition create --record <json|@file>";
+const U_UPDATE: &str = "competition update --record <json|@file>";
+const U_ACTION: &str = "competition action --record <json|@file>";
+const U_RESOLVE: &str = "competition resolve-action --record <json|@file>";
+const U_UNCERTAIN: &str = "competition mark-action-uncertain --record <json|@file>";
+const U_WINNER: &str = "competition select-winner --record <json|@file>";
+const U_GET: &str = "competition get <id>";
+const U_RESULTS: &str = "competition results <id>";
+const U_STATE: &str = "competition state <id>";
+const U_CANDIDATES: &str = "competition candidates <id>";
+const U_FINISH: &str = "competition finish <id>";
+const U_START: &str = "competition start <id>";
+const U_PAUSE: &str = "competition pause <id>";
+const U_RESUME: &str = "competition resume <id>";
+const U_CANCEL: &str = "competition cancel <id>";
+const U_DELETE: &str = "competition delete <id>";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "competition",
+    summary: "timed viewer competitions",
+    verbs: &[
+        VerbSpec::new("list", "competition list", "list competitions"),
+        VerbSpec::new("get", U_GET, "read one competition"),
+        VerbSpec::new("create", U_CREATE, "create a competition"),
+        VerbSpec::new("update", U_UPDATE, "update a competition"),
+        VerbSpec::new("delete", U_DELETE, "delete a competition").destructive(),
+        VerbSpec::new("state", U_STATE, "current competition state"),
+        VerbSpec::new("results", U_RESULTS, "final or intermediate results"),
+        VerbSpec::new("action", U_ACTION, "record a competition action"),
+        VerbSpec::new(
+            "mark-action-uncertain",
+            U_UNCERTAIN,
+            "flag an action as uncertain",
+        ),
+        VerbSpec::new("resolve-action", U_RESOLVE, "resolve an uncertain action"),
+        VerbSpec::new("start", U_START, "start a competition"),
+        VerbSpec::new("finish", U_FINISH, "finish a competition").destructive(),
+        VerbSpec::new("candidates", U_CANDIDATES, "winner candidates"),
+        VerbSpec::new("select-winner", U_WINNER, "select the winner"),
+        VerbSpec::new("pause", U_PAUSE, "pause a competition"),
+        VerbSpec::new("resume", U_RESUME, "resume a competition"),
+        VerbSpec::new("cancel", U_CANCEL, "cancel a competition").destructive(),
+    ],
+};
+
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
-    let (verb, rest) = split_first(
-        args,
-        "competition <list|get|create|update|delete|state|results|action|mark-action-uncertain|resolve-action|start|finish|candidates|select-winner|pause|resume|cancel>",
-    )?;
+    let (verb, rest) = split_first(args, U_DOMAIN)?;
     Ok(match verb {
         "list" if rest.is_empty() => Command::List,
-        "get" => Command::Get(one_arg(rest, "competition get <id>")?),
-        "mark-action-uncertain" => Command::MarkActionUncertain(typed_params(required_record(
-            rest,
-            "competition mark-action-uncertain --record <json|@file>",
-        )?)?),
-        "action" => Command::Action(typed_params(required_record(
-            rest,
-            "competition action --record <json|@file>",
-        )?)?),
-        "resolve-action" => Command::ResolveAction(typed_params(required_record(
-            rest,
-            "competition resolve-action --record <json|@file>",
-        )?)?),
-        "results" => Command::Results(one_arg(rest, "competition results <id>")?),
-        "state" => Command::State(one_arg(rest, "competition state <id>")?),
-        "candidates" => Command::Candidates(one_arg(rest, "competition candidates <id>")?),
-        "select-winner" => Command::SelectWinner(typed_params(required_record(
-            rest,
-            "competition select-winner --record <json|@file>",
-        )?)?),
-        "finish" => Command::Finish(one_arg(rest, "competition finish <id>")?),
-        "start" => Command::Start(one_arg(rest, "competition start <id>")?),
-        "pause" => Command::Pause(one_arg(rest, "competition pause <id>")?),
-        "resume" => Command::Resume(one_arg(rest, "competition resume <id>")?),
-        "cancel" => Command::Cancel(one_arg(rest, "competition cancel <id>")?),
-        "delete" => Command::Delete(one_arg(rest, "competition delete <id>")?),
-        "update" => Command::Update(typed_params(required_record(
-            rest,
-            "competition update --record <json|@file>",
-        )?)?),
-        "create" => Command::Create(typed_params(required_record(
-            rest,
-            "competition create --record <json|@file>",
-        )?)?),
+        "get" => Command::Get(one_arg(rest, U_GET)?),
+        "mark-action-uncertain" => {
+            Command::MarkActionUncertain(typed_params(required_record(rest, U_UNCERTAIN)?)?)
+        }
+        "action" => Command::Action(typed_params(required_record(rest, U_ACTION)?)?),
+        "resolve-action" => {
+            Command::ResolveAction(typed_params(required_record(rest, U_RESOLVE)?)?)
+        }
+        "results" => Command::Results(one_arg(rest, U_RESULTS)?),
+        "state" => Command::State(one_arg(rest, U_STATE)?),
+        "candidates" => Command::Candidates(one_arg(rest, U_CANDIDATES)?),
+        "select-winner" => Command::SelectWinner(typed_params(required_record(rest, U_WINNER)?)?),
+        "finish" => Command::Finish(one_arg(rest, U_FINISH)?),
+        "start" => Command::Start(one_arg(rest, U_START)?),
+        "pause" => Command::Pause(one_arg(rest, U_PAUSE)?),
+        "resume" => Command::Resume(one_arg(rest, U_RESUME)?),
+        "cancel" => Command::Cancel(one_arg(rest, U_CANCEL)?),
+        "delete" => Command::Delete(one_arg(rest, U_DELETE)?),
+        "update" => Command::Update(typed_params(required_record(rest, U_UPDATE)?)?),
+        "create" => Command::Create(typed_params(required_record(rest, U_CREATE)?)?),
         _ => return Err(format!("invalid competition command `{verb}`").into()),
     })
 }

@@ -6,6 +6,7 @@ use serde_json::Value;
 use tiktools_client::{ClientError, TikToolsClient};
 
 use super::args::split_first;
+use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
 pub enum Command {
@@ -29,34 +30,55 @@ fn flag_value(args: &[String], flag: &str) -> Option<String> {
         .cloned()
 }
 
+const U_DOMAIN: &str =
+    "cloud <status|login|logout|restore|backup create|backup preview|backup restore>";
+const U_BACKUP: &str = "cloud backup <create|preview|restore>";
+const U_PREVIEW: &str = "cloud backup preview <file>";
+const U_RESTORE: &str = "cloud backup restore <file> [--yes]";
+
+pub(crate) const SPEC: DomainSpec = DomainSpec {
+    domain: "cloud",
+    summary: "cloud account and portable backup/restore (override with TIKTOOLS_CLOUD_ORIGIN)",
+    verbs: &[
+        VerbSpec::new("status", "cloud status", "cloud account status"),
+        VerbSpec::new("login", "cloud login", "sign in through the system browser"),
+        VerbSpec::new("logout", "cloud logout", "sign out").destructive(),
+        VerbSpec::new("restore", "cloud restore", "restore the cloud session"),
+        VerbSpec::new(
+            "backup create",
+            "cloud backup create [--out FILE]",
+            "write a portable backup archive",
+        ),
+        VerbSpec::new("backup preview", U_PREVIEW, "inspect a backup archive"),
+        VerbSpec::new("backup restore", U_RESTORE, "restore a backup archive").destructive(),
+    ],
+};
+
 pub fn parse(rest: &[String]) -> Result<Command, CommandError> {
-    let (verb, tail) = split_first(
-        rest,
-        "cloud <status|login|logout|restore|backup create|backup preview|backup restore>",
-    )
-    .map_err(CommandError::Usage)?;
+    let (verb, tail) = split_first(rest, U_DOMAIN).map_err(CommandError::Usage)?;
     match verb {
         "status" => Ok(Command::Status),
         "login" => Ok(Command::Login),
         "logout" => Ok(Command::Logout),
         "restore" => Ok(Command::Restore),
         "backup" => {
-            let (action, args) = split_first(tail, "cloud backup <create|preview|restore>")
-                .map_err(CommandError::Usage)?;
+            let (action, args) = split_first(tail, U_BACKUP).map_err(CommandError::Usage)?;
             match action {
                 "create" => Ok(Command::Backup(BackupCommand::Create {
                     out: flag_value(args, "--out"),
                 })),
                 "preview" => {
-                    let file = args.first().cloned().ok_or_else(|| {
-                        CommandError::from("cloud backup preview <file>".to_owned())
-                    })?;
+                    let file = args
+                        .first()
+                        .cloned()
+                        .ok_or_else(|| CommandError::from(U_PREVIEW.to_owned()))?;
                     Ok(Command::Backup(BackupCommand::Preview { file }))
                 }
                 "restore" => {
-                    let file = args.first().cloned().ok_or_else(|| {
-                        CommandError::from("cloud backup restore <file> [--yes]".to_owned())
-                    })?;
+                    let file = args
+                        .first()
+                        .cloned()
+                        .ok_or_else(|| CommandError::from(U_RESTORE.to_owned()))?;
                     Ok(Command::Backup(BackupCommand::Restore {
                         file,
                         yes: args.iter().any(|arg| arg == "--yes"),

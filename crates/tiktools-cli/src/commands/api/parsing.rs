@@ -2,13 +2,13 @@
 use super::*;
 
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
-    let (verb, rest) = split_first(args, "api <discover|schema|call|events|event|verify> ...")?;
+    let (verb, rest) = split_first(args, U_DOMAIN)?;
     match verb {
         "discover" => Ok(Command::Discover {
             json: parse_format(rest)?,
         }),
         "schema" => Ok(Command::Schema {
-            method: positional(rest, 0, "api schema <method> [--format json|human]")?,
+            method: positional(rest, 0, U_SCHEMA)?,
             json: parse_format(rest)?,
         }),
         "call" => {
@@ -19,7 +19,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
             }
             let method = positionals
                 .first()
-                .ok_or_else(|| "api call <method> [params-json] [flags]".to_owned())?
+                .ok_or_else(|| U_CALL.to_owned())?
                 .to_string();
             let params = positionals
                 .get(1)
@@ -258,19 +258,14 @@ fn event_topics(args: &[String]) -> Vec<String> {
 /// The name is matched case-insensitively against every string field of the
 /// event (text, author, nickname, gift name, ...).
 fn parse_event_get(args: &[String]) -> Result<Command, CommandError> {
-    let (verb, rest) = split_first(
-        args,
-        "api event get <name> [--type kind]... [--author text] [--limit N]",
-    )?;
+    let (verb, rest) = split_first(args, U_EVENT_GET)?;
     if verb != "get" {
         return Err(format!("unknown api event verb `{verb}`").into());
     }
     let name = rest
         .first()
         .filter(|arg| !arg.starts_with("--"))
-        .ok_or_else(|| {
-            "api event get <name> [--type kind]... [--author text] [--limit N]".to_owned()
-        })?
+        .ok_or_else(|| U_EVENT_GET.to_owned())?
         .clone();
     let flags = &rest[1..];
     let values = ["--type", "--author", "--limit"];

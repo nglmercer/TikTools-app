@@ -9,18 +9,24 @@ use std::time::Duration;
 /// and the usage text, so a new action never touches the plumbing.
 struct CliAction {
     flag: &'static str,
+    usage: &'static str,
     summary: &'static str,
     handler: fn(u16) -> i32,
 }
 
+pub(super) const U_PRINT_CODE: &str = "web --print-code [--port N]";
+pub(super) const U_RESET_SESSION: &str = "web --reset-session [--port N]";
+
 const CLI_ACTIONS: &[CliAction] = &[
     CliAction {
         flag: "--print-code",
+        usage: U_PRINT_CODE,
         summary: "print the active pairing code without restarting the adapter",
         handler: print_pairing_code,
     },
     CliAction {
         flag: "--reset-session",
+        usage: U_RESET_SESSION,
         summary: "revoke every paired browser and print a fresh code",
         handler: reset_pairing_from_cli,
     },
@@ -32,7 +38,7 @@ const SERVER_USAGE: &str =
 fn usage() -> String {
     let mut text = format!("usage: tiktools {SERVER_USAGE}\n");
     for action in CLI_ACTIONS {
-        let _ = writeln!(text, "       tiktools web {} [--port N]", action.flag);
+        let _ = writeln!(text, "       tiktools {}", action.usage);
     }
     text.push_str("Local browser adapter; start tiktools host --ipc first.\n");
     for action in CLI_ACTIONS {
@@ -79,11 +85,10 @@ pub async fn run(args: &[String], standalone: bool) -> i32 {
 }
 
 pub(super) fn multi_session_enabled(flag: bool) -> bool {
-    flag
-        || matches!(
-            std::env::var(MULTI_SESSION_ENV),
-            Ok(value) if value == "1" || value.eq_ignore_ascii_case("true")
-        )
+    flag || matches!(
+        std::env::var(MULTI_SESSION_ENV),
+        Ok(value) if value == "1" || value.eq_ignore_ascii_case("true")
+    )
 }
 
 /// A registered action (`web <flag> [--port N]`) reads or resets adapter
@@ -102,7 +107,9 @@ pub(super) fn parse_action_options(args: &[String], flag: &str) -> Result<u16, S
                     .map_err(|_| "invalid port")?;
             }
             _ => {
-                return Err(format!("unknown option: {option}; use web {flag} [--port N]"));
+                return Err(format!(
+                    "unknown option: {option}; use web {flag} [--port N]"
+                ));
             }
         }
     }
@@ -210,14 +217,15 @@ pub(super) fn parse_options(
                     options.next().ok_or("--join-origin requires a URL")?,
                 )?);
             }
-            _ => {
-                return Err(format!(
-                    "unknown option: {option}; use {SERVER_USAGE}"
-                ))
-            }
+            _ => return Err(format!("unknown option: {option}; use {SERVER_USAGE}")),
         }
     }
-    Ok((assets.ok_or("--assets is required")?, port, join_origin, multi_session))
+    Ok((
+        assets.ok_or("--assets is required")?,
+        port,
+        join_origin,
+        multi_session,
+    ))
 }
 
 /// Join links are terminal convenience only: keep them on loopback HTTP so a
