@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
-translationRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
+sourceRevision: "1f6c56c60e69e8804bf94b4b0b86311da33a0a65506c5d93501804a24abe4a1b"
+translationRevision: "1f6c56c60e69e8804bf94b4b0b86311da33a0a65506c5d93501804a24abe4a1b"
 order: 90
 ---
 
@@ -80,3 +80,11 @@ loop {
     }
 }
 ```
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../.generated/cli-domain-web.en.md-->
+
+See the [full command reference](cli.md) for conventions, JSON output and destructive-operation markers.

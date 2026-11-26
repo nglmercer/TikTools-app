@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
-translationRevision: "91a52bc5ab8506b54fcd3171f53e0ab43645b664a54b8b44a9f54bebe151536d"
+sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
+translationRevision: "f44907654d53f5e696aa6044ac481d64d84947c293809c9dbda53b9d127a4b8d"
 order: 10
 ---
 
@@ -44,5 +44,9 @@ Ante un fallo, lee el error del trabajo para identificar incompatibilidad, firma
 Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
 
 <!--@include: ../../../../.generated/cli-domain-plugin.es.md-->
+
+<!--@include: ../../../../.generated/cli-domain-registry.es.md-->
+
+<!--@include: ../../../../.generated/cli-domain-processor.es.md-->
 
 Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

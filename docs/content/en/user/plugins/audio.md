@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b6be887705d13dfe120f3e07dc4006ec0efa1472b6dbe0ccfc1ebfc1e83f3672"
-translationRevision: "b6be887705d13dfe120f3e07dc4006ec0efa1472b6dbe0ccfc1ebfc1e83f3672"
+sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
+translationRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
 order: 20
 ---
 
@@ -37,3 +37,11 @@ For SonicBoom, synthesis, playback admission and audible completion are differen
 ## Expected result, status and recovery {#expected-result-status-and-recovery}
 
 Local audio playback is available when the host advertises audio support. Speech remains dependent on the installed plugin and reachable service; provider/device/platform acceptance is not guaranteed here. If silent, check file existence, volume, output device, pause state and the run error. If speech fails, check the service and voice catalog before retrying. Avoid repeated effect tests during a broadcast, and use [diagnostics](../preferences/troubleshooting.md) without sharing tokens or spoken private text.
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-media.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

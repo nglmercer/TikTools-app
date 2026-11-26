@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "22058df141c0497661bcd776f7b3114085de4532bb45a61cf5c33ad721de1f5e"
-translationRevision: "22058df141c0497661bcd776f7b3114085de4532bb45a61cf5c33ad721de1f5e"
+sourceRevision: "24f97a3a21a51760d441a4706863b92883be0bfb450e8410f21c1959cc3c2602"
+translationRevision: "24f97a3a21a51760d441a4706863b92883be0bfb450e8410f21c1959cc3c2602"
 order: 70
 ---
 
@@ -82,3 +82,11 @@ tiktools api event get rose --type gift --author mango --limit 10 --json
 ```json
 {"jsonrpc":"2.0","id":1,"error":{"code":"revision_conflict","message":"Resource revision changed","data":{"resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}]}}}
 ```
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../.generated/cli-domain-host.en.md-->
+
+See the [full command reference](cli.md) for conventions, JSON output and destructive-operation markers.

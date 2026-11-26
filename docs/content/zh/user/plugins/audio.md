@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b6be887705d13dfe120f3e07dc4006ec0efa1472b6dbe0ccfc1ebfc1e83f3672"
-translationRevision: "b49970a3fcfb4936d7f011f21f3622452df87f0f84361fc6d38aa0e2e086d0f6"
+sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
+translationRevision: "56613ba24ddf31fc0a99f140b6a4451097169261713afd71976c0d293c416c19"
 order: 20
 ---
 
@@ -37,3 +37,11 @@ order: 20
 ## 预期结果、状态与恢复 {#expected-result-status-and-recovery}
 
 宿主声明支持音频时，可使用本地播放。语音仍依赖已安装插件和可访问服务；这里不保证提供商、设备或平台已通过验收。无声时，检查文件是否存在、音量、输出设备、暂停状态及运行错误。语音失败时，先检查服务和声音目录再重试。直播期间避免反复测试效果；使用[诊断](../preferences/troubleshooting.md)时不要分享令牌或朗读的私密文本。
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-media.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

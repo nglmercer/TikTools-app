@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
-translationRevision: "91610226f73b8a2c806aca378c3ce8d66c9c93865098821f855da399091cfa4d"
+sourceRevision: "4621be5493f2518bff00b4330fcf781ac016761ed8549c118515d6c212fc56cf"
+translationRevision: "3a7ec101cbe9b79d167f725f212872255f37f5ca6b5a68844878c4599abbbfc0"
 order: 280
 ---
 
@@ -57,3 +57,13 @@ tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path
 tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path/keys/acme-1.pub.json > verification.json
 bun -e 'const r = await Bun.file("verification.json").json(); if (r.signature?.status !== "verified" || r.id !== "acme.hello" || r.signature.publisher !== "acme" || r.signature.keyId !== "acme-1") throw new Error("Package trust did not match policy");'
 ```
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-publisher.ja.md-->
+
+<!--@include: ../../../../.generated/cli-domain-registry.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../cli.md)を参照してください。

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
-translationRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
+sourceRevision: "4621be5493f2518bff00b4330fcf781ac016761ed8549c118515d6c212fc56cf"
+translationRevision: "4621be5493f2518bff00b4330fcf781ac016761ed8549c118515d6c212fc56cf"
 order: 280
 ---
 
@@ -57,3 +57,13 @@ Treat verification JSON as the result, not just the process exit code. `verify` 
 tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path/keys/acme-1.pub.json > verification.json
 bun -e 'const r = await Bun.file("verification.json").json(); if (r.signature?.status !== "verified" || r.id !== "acme.hello" || r.signature.publisher !== "acme" || r.signature.keyId !== "acme-1") throw new Error("Package trust did not match policy");'
 ```
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-publisher.en.md-->
+
+<!--@include: ../../../../.generated/cli-domain-registry.en.md-->
+
+See the [full command reference](../cli.md) for conventions, JSON output and destructive-operation markers.

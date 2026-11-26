@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
-translationRevision: "9c771c283242b44215dbd5e05186e296d349648bab283c7d88c39a96d36c2859"
+sourceRevision: "afcdc4049fccbd2bc17c1040a9f84efb749a8d6291212cfe8809c22728e5c0fb"
+translationRevision: "2f32598f5eae10c6457f9d34e95c2cce0576c746d8a8fdfd0c1232101c037b08"
 order: 40
 ---
 
@@ -51,3 +51,10 @@ Pruébalo interactivamente antes de tocar tu configuración real:
 
 <DemoFrame scenario="automation" locale="es" panel="automation" title="Prueba el espacio de automatizaciones" />
 
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-globals.es.md-->
+
+Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

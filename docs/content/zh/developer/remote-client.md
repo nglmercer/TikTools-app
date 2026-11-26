@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
-translationRevision: "7399ab332e988f65ef680fc660db25d0fa98267b0f4a469073f7b327bdfc84a4"
+sourceRevision: "1f6c56c60e69e8804bf94b4b0b86311da33a0a65506c5d93501804a24abe4a1b"
+translationRevision: "87f06f26badcf6c2aca8e76afa1165166278b7b6128ece16085a97c673b23777"
 order: 90
 ---
 
@@ -80,3 +80,11 @@ loop {
     }
 }
 ```
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../.generated/cli-domain-web.zh.md-->
+
+查看[完整命令参考](cli.md)了解约定、JSON 输出和破坏性操作标记。

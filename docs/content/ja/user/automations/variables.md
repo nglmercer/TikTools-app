@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
-translationRevision: "e066113bcff74e0aa7eb9289b4fe6335be9210f30ca62f56c411c7d44000de07"
+sourceRevision: "afcdc4049fccbd2bc17c1040a9f84efb749a8d6291212cfe8809c22728e5c0fb"
+translationRevision: "e9e11c3ff88ae1095fb685edd00b0b79275ce5f5565951a3dcea713f707ad518"
 order: 40
 ---
 
@@ -51,3 +51,10 @@ order: 40
 
 <DemoFrame scenario="automation" locale="ja" panel="automation" title="自動化ワークスペースを試す" />
 
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-globals.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

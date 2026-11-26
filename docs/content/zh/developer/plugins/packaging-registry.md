@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
-translationRevision: "0bcbc5822b428800e3dcaaad4113bfb7fad0fedb8a23553bf8a26d18fceed12b"
+sourceRevision: "4621be5493f2518bff00b4330fcf781ac016761ed8549c118515d6c212fc56cf"
+translationRevision: "3ec5150439584102ab16b37a53d9e7832df6fe8059404364ec82461f922390b9"
 order: 280
 ---
 
@@ -57,3 +57,13 @@ tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path
 tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path/keys/acme-1.pub.json > verification.json
 bun -e 'const r = await Bun.file("verification.json").json(); if (r.signature?.status !== "verified" || r.id !== "acme.hello" || r.signature.publisher !== "acme" || r.signature.keyId !== "acme-1") throw new Error("Package trust did not match policy");'
 ```
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-publisher.zh.md-->
+
+<!--@include: ../../../../.generated/cli-domain-registry.zh.md-->
+
+查看[完整命令参考](../cli.md)了解约定、JSON 输出和破坏性操作标记。

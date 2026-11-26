@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b6be887705d13dfe120f3e07dc4006ec0efa1472b6dbe0ccfc1ebfc1e83f3672"
-translationRevision: "4e487531c65e1735032dad5eff7d67a5b867d13d86d29af6f4e49c5177e97d16"
+sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
+translationRevision: "6e4d0299813535c37c19bdd42b223f965e91ebdc7a203cb5fd5091642468400c"
 order: 20
 ---
 
@@ -37,3 +37,11 @@ SonicBoom では合成、再生受付、聞こえるまでの完了は別の結�
 ## 期待される結果・提供状況と対処 {#expected-result-status-and-recovery}
 
 ホストが音声対応を通知していればローカル再生を利用できます。読み上げはインストール済みプラグインと接続可能なサービスに依存し、各プロバイダー・機器・プラットフォームでの動作は保証されません。無音ならファイル、音量、出力機器、一時停止、実行エラーを確認します。読み上げ失敗ではサービスと音声カタログを調べてから再試行します。配信中の繰り返しテストを避け、[診断](../preferences/troubleshooting.md) ではトークンや読み上げた非公開文を共有しないでください。
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-media.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
-translationRevision: "4233076cebaa58e29349cfdaa0818570bc43e6f4db561260fdaf7b3764a5ce00"
+sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
+translationRevision: "e7902639e11eaa32139763ad0821b1493f0ce5a9dd26f8a307b287d642fa47fa"
 order: 10
 ---
 
@@ -44,5 +44,9 @@ En cas d’échec d’installation, lisez l’erreur de tâche pour identifier u
 Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
 
 <!--@include: ../../../../.generated/cli-domain-plugin.fr.md-->
+
+<!--@include: ../../../../.generated/cli-domain-registry.fr.md-->
+
+<!--@include: ../../../../.generated/cli-domain-processor.fr.md-->
 
 Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "22058df141c0497661bcd776f7b3114085de4532bb45a61cf5c33ad721de1f5e"
-translationRevision: "997ac1691b99046e3ec70f2c728a3d1c6ca809313a6b3360f30080388f3994bb"
+sourceRevision: "24f97a3a21a51760d441a4706863b92883be0bfb450e8410f21c1959cc3c2602"
+translationRevision: "fdf4d26171515662edd771968d113c65320e1fae3c4a9d3bfc8a0aa63c0c2fd4"
 order: 70
 ---
 
@@ -82,3 +82,11 @@ tiktools api event get rose --type gift --author mango --limit 10 --json
 ```json
 {"jsonrpc":"2.0","id":1,"error":{"code":"revision_conflict","message":"Resource revision changed","data":{"resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}]}}}
 ```
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../.generated/cli-domain-host.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](cli.md)を参照してください。

@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b5c1b8dc63aafc5216467a00317c6670ac6744235abfc724fe372f3a28427ee8"
-translationRevision: "d6f63b3f63426ff4e129e0a0e9d1663e9559a5e6f2300b2364c81375cf3a1a6f"
+sourceRevision: "4621be5493f2518bff00b4330fcf781ac016761ed8549c118515d6c212fc56cf"
+translationRevision: "a0829be3bb47d23fee3871ad2fc21fef835f94b4baab911dbc796a3a8bf486ca"
 order: 280
 ---
 
@@ -57,3 +57,13 @@ Interpreta el JSON de verificación, no solo el código de salida. `verify` pued
 tiktools-plugin verify dist-plugin/acme.hello-0.1.0.plugin --trust /private/path/keys/acme-1.pub.json > verification.json
 bun -e 'const r = await Bun.file("verification.json").json(); if (r.signature?.status !== "verified" || r.id !== "acme.hello" || r.signature.publisher !== "acme" || r.signature.keyId !== "acme-1") throw new Error("Package trust did not match policy");'
 ```
+
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-publisher.es.md-->
+
+<!--@include: ../../../../.generated/cli-domain-registry.es.md-->
+
+Consulta la [referencia completa de comandos](../cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
-translationRevision: "9d148a06fc67a3f99bb4c01e814f2e3ba0ddc2ea07dc13f11d556f34310f7e44"
+sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
+translationRevision: "1c35b20ff7f1ce9a75f795ec6dfd5e73ed344a4265f0428c5831359e6cab8d66"
 order: 10
 ---
 
@@ -44,5 +44,9 @@ order: 10
 このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
 
 <!--@include: ../../../../.generated/cli-domain-plugin.ja.md-->
+
+<!--@include: ../../../../.generated/cli-domain-registry.ja.md-->
+
+<!--@include: ../../../../.generated/cli-domain-processor.ja.md-->
 
 規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
-translationRevision: "88ecfb447104f0f2fe5209529c08e3bc00afc635d85c8fe9b35acba86638631b"
+sourceRevision: "afcdc4049fccbd2bc17c1040a9f84efb749a8d6291212cfe8809c22728e5c0fb"
+translationRevision: "f69aaeef5f6fa10bf2255eb8acaf8bec74a662aca482790e3a6f8c2bbf09fa59"
 order: 40
 ---
 
@@ -51,3 +51,10 @@ order: 40
 
 <DemoFrame scenario="automation" locale="zh" panel="automation" title="试用自动化工作区" />
 
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-globals.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

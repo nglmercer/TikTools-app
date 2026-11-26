@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
-translationRevision: "855b72a4103674a3d1273f6cc2fc562e0af906736b0adee9f76f510e2feeb109"
+sourceRevision: "1f6c56c60e69e8804bf94b4b0b86311da33a0a65506c5d93501804a24abe4a1b"
+translationRevision: "d9ba88031218b672a92a8591ac9774583689a90e36c5fff63094f2b90860d258"
 order: 90
 ---
 
@@ -80,3 +80,11 @@ loop {
     }
 }
 ```
+
+## Operações de linha de comando {#command-line-operations}
+
+Cada operação deste guia também está disponível na CLI — offline, scriptável e apta para agentes. As linhas de uso são sintaxe do parser e permanecem em inglês em todos os idiomas.
+
+<!--@include: ../../../.generated/cli-domain-web.pt.md-->
+
+Consulte a [referência completa de comandos](cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.

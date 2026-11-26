@@ -61,9 +61,39 @@ function invocationTokens(domain: string, verb: CliVerb): string[] {
 }
 
 function guideHits(domain: string, verb: CliVerb): string[] {
-  const tokens = invocationTokens(domain, verb);
-  const pattern = new RegExp(`\\b${domain}\\s+${tokens.map((token) => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+')}\\b`);
-  return [...guides.entries()].filter(([, source]) => pattern.test(source)).map(([path]) => path);
+  const escape = (token: string) => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // The usage line is the single source of truth for how a verb is invoked:
+  // the domain grouping is organizational (`tiktools rpc` carries no `host`
+  // prefix) and flag-compound forms keep their dashes (`web --print-code`).
+  // Static words and flags must appear in order; positional arguments and
+  // flag values become optional wildcard atoms so interleaved arguments and
+  // prose mentions without arguments both count. Dynamic shapes degenerate
+  // to the literal usage shape, which the generated tables carry verbatim.
+  const staticShape = verb.usage.split(' [')[0]!.split(' | ')[0]!;
+  const isStaticToken = (token: string) => /^[a-z0-9][a-z0-9-]*$/.test(token) || /^--[a-z]/.test(token);
+  // No static verb token after the domain (`plugin <id> <command>`,
+  // `rpc <method>`): the invocation shape is positional, so only the literal
+  // usage shape documents it — anything weaker would match the bare domain.
+  const shapeParts = staticShape.split(' ');
+  if (!isStaticToken(shapeParts[1] ?? '')) {
+    const literal = new RegExp(escape(staticShape));
+    return [...guides.entries()].filter(([, text]) => literal.test(text)).map(([path]) => path);
+  }
+  const atoms: string[] = [];
+  let previousFlag = false;
+  for (const token of staticShape.split(' ')) {
+    const staticToken = isStaticToken(token) && !(previousFlag && !token.startsWith('--'));
+    if (atoms.length === 0) {
+      atoms.push(staticToken ? escape(token) : '(?:\\S+)?');
+    } else if (staticToken) {
+      atoms.push('\\s+' + escape(token));
+    } else {
+      atoms.push('(?:\\s+\\S+)?');
+    }
+    previousFlag = token.startsWith('--');
+  }
+  const pattern = new RegExp(`(?<![a-z0-9-])${atoms.join('')}(?![a-z0-9-])`);
+  return [...guides.entries()].filter(([, text]) => pattern.test(text)).map(([path]) => path);
 }
 
 function testHits(domain: string, verb: CliVerb): string[] {

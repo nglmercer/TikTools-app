@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "22058df141c0497661bcd776f7b3114085de4532bb45a61cf5c33ad721de1f5e"
-translationRevision: "5891af05bf65539e1a5b9fcb5ed6c1069813f06fa4b153da424f6b40e5710a3d"
+sourceRevision: "24f97a3a21a51760d441a4706863b92883be0bfb450e8410f21c1959cc3c2602"
+translationRevision: "a4973a82a8a8de78862f82c60f53a904e5ec4db417c7efbe693d331e71cdbd97"
 order: 70
 ---
 
@@ -82,3 +82,11 @@ tiktools api event get rose --type gift --author mango --limit 10 --json
 ```json
 {"jsonrpc":"2.0","id":1,"error":{"code":"revision_conflict","message":"Resource revision changed","data":{"resourceVersions":[{"kind":"workflow","id":"docs-example","scope":"host","revision":"2"}]}}}
 ```
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../.generated/cli-domain-host.zh.md-->
+
+查看[完整命令参考](cli.md)了解约定、JSON 输出和破坏性操作标记。

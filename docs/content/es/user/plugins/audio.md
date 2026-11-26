@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b6be887705d13dfe120f3e07dc4006ec0efa1472b6dbe0ccfc1ebfc1e83f3672"
-translationRevision: "7fcf8a803f39b330dc6f44c1c88bc560853d923cb3348cc53c36da388e14c7d1"
+sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
+translationRevision: "d85ec297953340cd285fd756720fe1dc90487a872424a23d9e0b59ecadcaa13d"
 order: 20
 ---
 
@@ -37,3 +37,11 @@ En SonicBoom, la síntesis, la admisión a reproducción y la finalización audi
 ## Resultado esperado, estado y recuperación {#expected-result-status-and-recovery}
 
 El audio local está disponible cuando el host anuncia su capacidad. La voz depende del plugin instalado y del servicio accesible; esta guía no garantiza aceptación de cada proveedor, dispositivo o plataforma. Si no suena, comprueba archivo, volumen, salida, pausa y error de ejecución. Para voz, verifica servicio y catálogo antes de repetir. Evita pruebas repetidas durante una emisión y consulta [diagnósticos](../preferences/troubleshooting.md) sin compartir tokens ni texto privado hablado.
+
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-media.es.md-->
+
+Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

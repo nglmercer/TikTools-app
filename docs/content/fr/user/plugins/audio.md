@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "b6be887705d13dfe120f3e07dc4006ec0efa1472b6dbe0ccfc1ebfc1e83f3672"
-translationRevision: "182dd11d2f6abc8d64e79750f1ae4a9a76ab4d073ede596b55c78f995c9d9ea7"
+sourceRevision: "e0e5014682213e36dda2e4c02293b8f960f3c107bdb1679327fb00b92e02604b"
+translationRevision: "05b9dff6907496f0bc93911166a17cbe61809ee2fcd06b705fb1eb7886a55622"
 order: 20
 ---
 
@@ -37,3 +37,11 @@ Pour SonicBoom, la synthèse, l’admission en lecture et la fin audible sont de
 ## Résultat attendu, état et récupération {#expected-result-status-and-recovery}
 
 La lecture audio locale est disponible lorsque l’hôte annonce la prise en charge audio. La synthèse vocale reste dépendante du plugin installé et d’un service accessible ; la validation du fournisseur, du périphérique ou de la plateforme n’est pas garantie ici. En cas de silence, vérifiez l’existence du fichier, le volume, la sortie, l’état de pause et l’erreur d’exécution. Si la synthèse échoue, vérifiez le service et le catalogue de voix avant de réessayer. Évitez les tests d’effets répétés pendant une diffusion et utilisez les [diagnostics](../preferences/troubleshooting.md) sans partager de jetons ou de texte privé prononcé.
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-media.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

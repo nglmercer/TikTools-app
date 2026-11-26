@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
-translationRevision: "528ac578422938ab854000a75b66fdee8519220adc991e7450f245776331b285"
+sourceRevision: "2892162f1f2ec94f8e5072f6689382b3c32c8546f2ad667a4651c721f597e84a"
+translationRevision: "44e8d6aae86ca2c477032e7ab3b41b069b05cb5519a335abc0e5ff54b39d568c"
 order: 10
 ---
 
@@ -44,5 +44,9 @@ order: 10
 本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
 
 <!--@include: ../../../../.generated/cli-domain-plugin.zh.md-->
+
+<!--@include: ../../../../.generated/cli-domain-registry.zh.md-->
+
+<!--@include: ../../../../.generated/cli-domain-processor.zh.md-->
 
 查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

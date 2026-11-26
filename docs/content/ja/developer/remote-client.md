@@ -7,8 +7,8 @@ audience: "developer"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "3fa6b05b6c19548fa64d45b3114bfd8080f3f0ed510f835c4d18297d9ccd6cae"
-translationRevision: "c3a61318016c883c9bcd75e3561ec7e75cc1812bf57e0ffe0033579f7af3ebcf"
+sourceRevision: "1f6c56c60e69e8804bf94b4b0b86311da33a0a65506c5d93501804a24abe4a1b"
+translationRevision: "6b086578fec6b7d6c22f75a79199298c04e7118cbed4a8b6b4b57bddc57e9982"
 order: 90
 ---
 
@@ -80,3 +80,11 @@ loop {
     }
 }
 ```
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../.generated/cli-domain-web.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](cli.md)を参照してください。
