@@ -29,12 +29,12 @@
     "@vue/test-utils": "^2.6.0",
     "happy-dom": "^21.0.4",
     "oxlint": "1.94.0",
-    "oxlint-plugin-vize": "0.789.0",
+    "oxlint-plugin-vize": "0.790.0",
     "typescript": "^6.0.3",
     "typescript-vize": "npm:typescript@7.1.0-beta",
     "vite": "^8.3.8",
     "vitest": "^5.1.2",
-    "vize": "0.789.0",
+    "vize": "0.790.0",
     "vue-tsc": "^3.3.14"
   },
   "dependencies": {
