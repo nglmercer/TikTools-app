@@ -41,7 +41,15 @@ for (const [name, relative] of Object.entries(FIXTURE_SOURCES)) {
   const source = join(pluginsRepository, relative);
   const target = join(root, 'tests', 'fixtures', 'plugins', `${name}.plugin.json`);
   if (!(await stat(source).catch(() => null))) {
-    console.warn(`${relative} missing in the external checkout; skipped`);
+    // A missing upstream source means the committed fixture can no longer be
+    // verified against the real package: in check mode that is drift, not a
+    // skip — otherwise a renamed or deleted plugin would silently unpin the
+    // fixture it is supposed to keep honest.
+    if (checkOnly) {
+      console.error(`${relative} missing in the external checkout; the committed fixture is unverifiable`);
+      process.exit(1);
+    }
+    console.warn(`${relative} missing in the external checkout; skipped (commit the fixture removal explicitly if the plugin is gone)`);
     continue;
   }
   const [incoming, current] = await Promise.all([

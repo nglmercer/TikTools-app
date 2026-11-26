@@ -3,6 +3,7 @@ import { lstat, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { normalizeVersion } from './bump-version.ts';
 import { verifyUpdateCommand } from './lib/verify-update-command.ts';
+import { publicationRepository } from './publish-site.ts';
 
 const root = resolve(import.meta.dir, '..');
 const [mode, directoryArg, ...rest] = process.argv.slice(2);
@@ -50,13 +51,18 @@ if (mode === '--sign') {
     await run(['cargo', 'packager', 'signer', 'sign', artifact.path], process.env);
   }
 }
+// Asset URLs must point at the repository that actually hosts the release:
+// canonical by default, overridable through RELEASE_REPO like the publisher.
+const CANONICAL_RELEASE_REPOSITORY = 'nglmercer/TikTools-app';
+const releaseRepository = publicationRepository(process.env,
+  process.env.RELEASE_REPO ?? process.env.GITHUB_REPOSITORY ?? CANONICAL_RELEASE_REPOSITORY);
 const platforms: Record<string, { url: string; signature: string; format: string }> = {};
 for (const artifact of selected) {
   const signature = (await readFile(`${artifact.path}.sig`, 'utf8')).trim();
   if (!signature || signature.length > 16 * 1024) throw new Error(`invalid ${artifact.target} signature`);
   await run([...verifyUpdateCommand(), 'package', artifact.path, `${artifact.path}.sig`], safeEnv);
   platforms[artifact.target] = {
-    url: `https://github.com/nglmercer/TikTools-app/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(basename(artifact.path))}`,
+    url: `https://github.com/${releaseRepository}/releases/download/${encodeURIComponent(tag)}/${encodeURIComponent(basename(artifact.path))}`,
     signature,
     format: artifact.format,
   };
