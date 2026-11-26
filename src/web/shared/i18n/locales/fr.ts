@@ -2016,6 +2016,7 @@ export default {
     wizardLabel: 'Progression du catalogue de tutoriels', stepPreview: 'Aperçu des étapes', demoPreview: 'Démo miniature', demoSchematic: 'Carte simplifiée de la mise en page',
     screens: { catalog: 'Catalogue', category: 'Catégorie', guide: 'Guide' },
     empty: 'Aucun tutoriel ne correspond à votre recherche.',
+    requirements: { existingAction: 'Nécessite une action existante du type couvert par ce guide. Créez-la d’abord ; le guide ne crée ni ne modifie vos enregistrements.' },
     tags: { automations: 'Automatisations', events: 'Événements', actions: 'Actions', variables: 'Variables', connection: 'Connexion', plugins: 'Plugins', overlays: 'Overlays', points: 'Points', changes: 'Modifications', diagnostics: 'Diagnostic', feed: 'Flux en direct', account: 'Compte', analytics: 'Analytique', settings: 'Paramètres', rankings: 'Classements' },
   } },
   cloudTeams: {

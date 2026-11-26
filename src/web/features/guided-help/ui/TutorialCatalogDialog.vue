@@ -10,6 +10,7 @@ import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import { startTour } from '../model/coordinator.ts';
 import { tourRegistry } from '../model/registry.ts';
+import { automationActionExampleAvailable, type TourRequirementSnapshot } from '../model/tour-requirements.ts';
 import {
   categoryIcons,
   tagIcons,
@@ -47,6 +48,8 @@ const props = withDefaults(defineProps<{
   previewUrl?: (id: TourId) => string;
   /** Explicit host account state. Undefined leaves availability filtering to the host's tour allow-list. */
   signedIn?: boolean;
+  /** Automation body used to evaluate example-record requirements. Undefined is read-only/delegated catalog use, not proof that examples exist. */
+  automationSnapshot?: TourRequirementSnapshot;
 }>(), {
   capabilities: undefined,
   taskState: undefined,
@@ -58,6 +61,7 @@ const props = withDefaults(defineProps<{
   onLaunch: undefined,
   previewUrl: undefined,
   signedIn: undefined,
+  automationSnapshot: undefined,
 });
 
 type CatalogFilter = 'all' | TutorialCategory | TutorialTag;
@@ -79,6 +83,12 @@ const isCategory = (value: CatalogFilter): value is TutorialCategory => (tutoria
 const isTag = (value: CatalogFilter): value is TutorialTag => (tutorialTags as readonly string[]).includes(value);
 const allowedTours = computed(() => props.tours ? new Set<string>(props.tours) : null);
 const accountAvailable = (id: TourId): boolean => props.signedIn === undefined || tourRegistry[id].availability?.account !== 'signed-in' || props.signedIn;
+const requirementsMet = (id: TourId): boolean | undefined => {
+  const requirement = tourRegistry[id].requirements?.automationActionExample;
+  if (!requirement) return true;
+  if (!props.automationSnapshot) return undefined;
+  return automationActionExampleAvailable(requirement, props.automationSnapshot);
+};
 const tutorials = computed<LocalizedTutorialEntry[]>(() => tutorialEntries
   .filter((entry) => (!allowedTours.value || allowedTours.value.has(entry.id)) && accountAvailable(entry.id))
   .map((entry) => ({
@@ -86,6 +96,7 @@ const tutorials = computed<LocalizedTutorialEntry[]>(() => tutorialEntries
     title: tutorialCard(tourLocale.value, entry.id).title,
     description: tutorialCard(tourLocale.value, entry.id).description,
     steps: tutorialSteps(tourLocale.value, entry.id),
+    requirementsMet: requirementsMet(entry.id),
   })));
 
 const visibleCategories = computed(() => tutorialCategories

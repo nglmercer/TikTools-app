@@ -1,0 +1,39 @@
+import type { ActionTypeDefinition, LiveAction } from '../../../../automation/behavior/types.ts';
+import type { AutomationActionExampleRequirement } from './types.ts';
+
+export interface TourRequirementSnapshot {
+  actions: readonly Pick<LiveAction, 'typeId'>[];
+  actionTypes: readonly Pick<ActionTypeDefinition, 'id' | 'tag' | 'source'>[];
+  plugins: readonly { installed: boolean; enabled: boolean; descriptor: { id: string } }[];
+}
+
+function actionTypeActive(type: TourRequirementSnapshot['actionTypes'][number], plugins: TourRequirementSnapshot['plugins']): boolean {
+  const source = type.source;
+  if (source.kind === 'builtin') return true;
+  return plugins.some((plugin) => plugin.installed && plugin.enabled && plugin.descriptor.id === source.pluginId);
+}
+
+function requirementMatchesType(requirement: AutomationActionExampleRequirement, type: TourRequirementSnapshot['actionTypes'][number]): boolean {
+  if (requirement.typeId && type.id !== requirement.typeId) return false;
+  if (requirement.tag && type.tag !== requirement.tag) return false;
+  return true;
+}
+
+/** Both halves are required: an available type and an existing user/demo record of that type. */
+export function automationActionExampleAvailable(
+  requirement: AutomationActionExampleRequirement,
+  snapshot: TourRequirementSnapshot,
+): boolean {
+  if (!requirement.typeId && !requirement.tag) return false;
+  return snapshot.actionTypes.some((type) =>
+    requirementMatchesType(requirement, type) &&
+    actionTypeActive(type, snapshot.plugins) &&
+    snapshot.actions.some((action) => action.typeId === type.id));
+}
+
+/** Semantic operation exposed by Automations for one requirement. */
+export function automationActionExampleGuideAction(requirement: AutomationActionExampleRequirement): string {
+  if (requirement.typeId) return `automation.openActionType:${requirement.typeId}`;
+  if (requirement.tag) return `automation.openActionTag:${requirement.tag}`;
+  throw new Error('automation action example requirements need a typeId or tag');
+}

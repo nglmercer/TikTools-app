@@ -26,6 +26,16 @@ export interface TourAvailability {
   /** Account state required before the tour can truthfully prepare its workspace. */
   account?: 'any' | 'signed-in';
 }
+export interface AutomationActionExampleRequirement {
+  /** Exact host action type, for built-ins such as `core.fetch`. */
+  typeId?: string;
+  /** Type tag for plugin-contributed families such as `tts`. */
+  tag?: string;
+}
+export interface TourRequirements {
+  /** An existing configured action of this type/tag must be available; guides never create user records to satisfy it. */
+  automationActionExample?: AutomationActionExampleRequirement;
+}
 export interface TourDefinition {
   id: TourId;
   version: number;
@@ -34,6 +44,7 @@ export interface TourDefinition {
   /** Public catalog entry or internal future/experimental guide. */
   lifecycle?: 'public' | 'internal';
   availability?: TourAvailability;
+  requirements?: TourRequirements;
   /** External task key for action-oriented tours. Informational walkthroughs leave it undefined and complete when their final step finishes. */
   task?: string;
   steps: readonly TourStepDefinition[];

@@ -8,6 +8,7 @@ export default defineTour({
   tags: ['actions'],
   icon: 'globe',
   shape: 'action',
+  requirements: { automationActionExample: { typeId: 'core.fetch' } },
   steps: {
     actionsTab: {
       es: ['Acciones webhook (HTTP)', 'Las acciones http.request llaman a servicios externos: Discord, hojas de cálculo o tus propias integraciones.'],

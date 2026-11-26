@@ -8,6 +8,7 @@ export default defineTour({
   tags: ['actions'],
   icon: 'volume',
   shape: 'action',
+  requirements: { automationActionExample: { tag: 'tts' } },
   steps: {
     actionsTab: {
       es: ['Acciones de voz (TTS)', 'Las acciones TTS leen texto en voz alta: mensajes de chat, agradecimientos o anuncios con la voz que elijas.'],

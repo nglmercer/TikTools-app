@@ -5,6 +5,7 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
+import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import type { TutorialCategory, TutorialTag } from '../model/tutorial-catalog.ts';
 import { guideCatalogContextKey } from '../model/catalog-context.ts';
 import type { TourCapabilities, TourId, TourTaskState } from '../model/types.ts';
@@ -28,6 +29,7 @@ const props = withDefaults(defineProps<{
 const { t } = useI18n();
 const hostCapabilities = useCapabilityStore();
 const account = useAccountStore();
+const automation = useAutomationStore();
 const signedIn = computed(() => account.status?.state === 'signed-in');
 const catalogContext = inject(guideCatalogContextKey, {});
 const catalogOpen = ref(false);
@@ -66,6 +68,7 @@ watch(catalogOpen, (isOpen) => { if (isOpen) void account.ensureRestored(); });
       :on-launch="props.onLaunch ?? catalogContext.onLaunch"
       :preview-url="catalogContext.previewUrl"
       :signed-in="signedIn"
+      :automation-snapshot="automation.persistent === null ? undefined : automation.behavior"
     />
   </Teleport>
 </template>

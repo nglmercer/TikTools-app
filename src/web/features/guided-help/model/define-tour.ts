@@ -5,7 +5,8 @@
  * coordinator, catalog dialog and tests already consume.
  */
 import { guideTargetMetadata } from './guide-targets.ts';
-import type { TourAvailability, TourDefinition, TourStepDefinition } from './types.ts';
+import type { AutomationActionExampleRequirement, TourAvailability, TourDefinition, TourRequirements, TourStepDefinition } from './types.ts';
+import { automationActionExampleGuideAction } from './tour-requirements.ts';
 
 /** Driver.js chrome copy per locale, recovered from the pre-module catalogs. */
 export const controlCopy = {
@@ -52,12 +53,17 @@ function eventShape(extra: readonly string[] = []): readonly LayoutStep[] {
 }
 
 /** The shared skeleton for effect-focused automation tours. */
-function actionShape(): readonly LayoutStep[] {
+function actionShape(requirement?: AutomationActionExampleRequirement): readonly LayoutStep[] {
+  const openAction = requirement ? automationActionExampleGuideAction(requirement) : 'automation.openAction';
+  // A specialized tour must never select whichever first action happens to
+  // exist. Only the generic actions overview keeps the first-row DOM fallback.
+  const openFallback = requirement ? [CLOSE, TAB_ACTIONS] : [CLOSE, TAB_ACTIONS, FIRST_ACTION_ROW];
+  const editorPolicy = requirement ? 'cancel' as const : 'skip' as const;
   return [
     { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: [CLOSE], prepareActions: ['automation.selectActions'] },
     { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS], prepareActions: ['automation.selectActions'] },
-    { id: 'settings', target: 'action-editor-settings', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS, FIRST_ACTION_ROW], prepareActions: ['automation.openAction'] },
-    { id: 'permissions', target: 'action-editor-permissions', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS, FIRST_ACTION_ROW], prepareActions: ['automation.openAction'] },
+    { id: 'settings', target: 'action-editor-settings', policy: editorPolicy, prepare: openFallback, prepareActions: [openAction] },
+    { id: 'permissions', target: 'action-editor-permissions', policy: editorPolicy, prepare: openFallback, prepareActions: [openAction] },
   ];
 }
 
@@ -76,6 +82,7 @@ export interface TourModule {
   /** False when the signed-out demo cannot honestly represent the required account/workspace state. */
   demo?: boolean;
   availability?: TourAvailability;
+  requirements?: TourRequirements;
   /** Extra steps for the event shape (today only 'cooldown'). */
   extras?: readonly string[];
   layout?: readonly LayoutStep[];
@@ -91,7 +98,7 @@ export function defineTour<const T extends TourModule>(module: T): T {
 /** Expand a module into its effective layout. */
 export function tourLayout(module: TourModule): readonly LayoutStep[] {
   if (module.shape === 'event') return eventShape(module.extras);
-  if (module.shape === 'action') return actionShape();
+  if (module.shape === 'action') return actionShape(module.requirements?.automationActionExample);
   return module.layout ?? [];
 }
 
@@ -122,6 +129,7 @@ export function registryEntry(module: TourModule): TourDefinition {
     scope: module.scope,
     ...(module.lifecycle ? { lifecycle: module.lifecycle } : {}),
     ...(module.availability ? { availability: module.availability } : {}),
+    ...(module.requirements ? { requirements: module.requirements } : {}),
     ...(module.task ? { task: module.task } : {}),
     steps,
   } as TourDefinition;

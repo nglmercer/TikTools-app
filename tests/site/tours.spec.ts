@@ -31,11 +31,18 @@ async function expectStep(page: Page, id: TourId, step: (typeof tourRegistry)[To
 // The coordinator capability-skips optional steps behind these methods, so the
 // walkthrough assertion must apply the same availability contract.
 const methodsNotSimulatedByDemo = new Set(['plugins.packages.install']);
+const expectedActionEditorRecord: Partial<Record<TourId, string>> = {
+  automationActionHttp: 'Notify webhook',
+  automationActionMedia: 'Play applause',
+  automationActionTts: 'Speak chat',
+};
 
 async function walkTour(page: Page, id: TourId): Promise<void> {
   const steps = tourRegistry[id].steps.filter((step) => step.requiredCapabilities.every((method) => !methodsNotSimulatedByDemo.has(method)));
   for (const [index, step] of steps.entries()) {
     await expectStep(page, id, step);
+    const expectedRecord = step.id === 'settings' ? expectedActionEditorRecord[id] : undefined;
+    if (expectedRecord) await expect(page.locator('[data-guide-scope="automations"]')).toContainText(expectedRecord);
     if (index < steps.length - 1) await page.locator('.driver-popover-next-btn').click();
   }
 }

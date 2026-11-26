@@ -56,11 +56,18 @@ const toneClass = computed(() => tutorialToneClass(props.entry.id));
           </span>
         </div>
         <p>{{ entry.description }}</p>
+        <p
+          v-if="entry.requirementsMet === false"
+          class="tutorial-catalog__requirement"
+        >
+          {{ t('guides.catalog.requirements.existingAction') }}
+        </p>
       </div>
       <BaseButton
         v-if="props.startable"
         variant="primary"
         class="tutorial-catalog__start"
+        :disabled="entry.requirementsMet === false"
         @click="emit('start', entry.id)"
       >
         {{ t('guides.catalog.start') }}

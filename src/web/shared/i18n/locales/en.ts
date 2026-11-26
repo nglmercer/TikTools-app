@@ -2014,6 +2014,7 @@ export default {
     wizardLabel: 'Tutorial catalog progress', stepPreview: 'Step preview', demoPreview: 'Miniature demo', demoSchematic: 'Simplified layout map',
     screens: { catalog: 'Catalog', category: 'Category', guide: 'Guide' },
     empty: 'No tutorials match your search.',
+    requirements: { existingAction: 'Requires an existing action of the type covered by this guide. Create it first; the guide never creates or changes your records.' },
     tags: { automations: 'Automations', events: 'Events', actions: 'Actions', variables: 'Variables', connection: 'Connection', plugins: 'Plugins', overlays: 'Overlays', points: 'Points', changes: 'Changes', diagnostics: 'Diagnostics', feed: 'Live feed', account: 'Account', analytics: 'Analytics', settings: 'Settings', rankings: 'Rankings' },
   } },
   cloudTeams: {

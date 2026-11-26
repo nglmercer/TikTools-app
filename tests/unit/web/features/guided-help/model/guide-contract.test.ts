@@ -6,6 +6,7 @@ import { guideTargetMetadata } from '../../../../../../src/web/features/guided-h
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tutorialEntries, tutorialTags } from '../../../../../../src/web/features/guided-help/model/tutorial-catalog.ts';
 import { tourCategory } from '../../../../../../src/web/features/guided-help/model/tutorial-taxonomy.ts';
+import { automationActionExampleAvailable } from '../../../../../../src/web/features/guided-help/model/tour-requirements.ts';
 
 describe('guide contract', () => {
   it('uses lifecycle metadata as the only public catalog boundary', () => {
@@ -45,6 +46,37 @@ describe('guide contract', () => {
     for (const id of ['backup', 'backupRestore', 'cloudOverlays'] as const) {
       expect(tourRegistry[id].availability?.account).toBe('signed-in');
     }
+  });
+
+
+  it('declares action example requirements for type-specific tours', () => {
+    expect(tourRegistry.automationActionHttp.requirements?.automationActionExample).toEqual({ typeId: 'core.fetch' });
+    expect(tourRegistry.automationActionMedia.requirements?.automationActionExample).toEqual({ typeId: 'audio.play' });
+    expect(tourRegistry.automationActionTts.requirements?.automationActionExample).toEqual({ tag: 'tts' });
+    for (const id of ['automationActionHttp', 'automationActionMedia', 'automationActionTts'] as const) {
+      for (const step of tourRegistry[id].steps.filter((step) => step.id === 'settings' || step.id === 'permissions')) {
+        expect(step.missingTargetPolicy, `${id}.${step.id}`).toBe('cancel');
+        expect(step.prepareClick ?? [], `${id}.${step.id}`).not.toContain('[data-guide="automation-actions"] tbody tr');
+      }
+    }
+  });
+
+  it('requires both an active action type and an existing matching record', () => {
+    const fetchType = { id: 'core.fetch', tag: 'fetch', source: { kind: 'builtin' as const } };
+    const ttsType = { id: 'demo.tts', tag: 'tts', source: { kind: 'plugin' as const, pluginId: 'demo.audio' } };
+    const plugin = { installed: true, enabled: true, descriptor: { id: 'demo.audio' } };
+    expect(automationActionExampleAvailable({ typeId: 'core.fetch' }, {
+      actions: [{ typeId: 'core.fetch' }], actionTypes: [fetchType], plugins: [],
+    })).toBe(true);
+    expect(automationActionExampleAvailable({ typeId: 'core.fetch' }, {
+      actions: [{ typeId: 'core.log' }], actionTypes: [fetchType], plugins: [],
+    })).toBe(false);
+    expect(automationActionExampleAvailable({ tag: 'tts' }, {
+      actions: [{ typeId: 'demo.tts' }], actionTypes: [ttsType], plugins: [plugin],
+    })).toBe(true);
+    expect(automationActionExampleAvailable({ tag: 'tts' }, {
+      actions: [{ typeId: 'demo.tts' }], actionTypes: [ttsType], plugins: [{ ...plugin, enabled: false }],
+    })).toBe(false);
   });
 
   it('covers every registry target with explicit layout and popover metadata', () => {

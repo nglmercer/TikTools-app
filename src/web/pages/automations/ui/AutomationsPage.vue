@@ -180,6 +180,39 @@ watch([tab, selected, eventQuery, eventSort, actionQuery, actionSort], persist);
 
 const guideScope = useTemplateRef<HTMLElement>('guideScope');
 let unregisterGuideActions: (() => void) | undefined;
+
+/** Open only an existing action that satisfies the specialized guide's type
+ * contract. Returning false when none exists is deliberate: the tour must end
+ * as unavailable rather than present an unrelated editor as if it were fetch,
+ * media or TTS. */
+function openMatchingGuideAction(matches: (action: LiveAction) => boolean): boolean {
+  if (editor.dirty.value) return false;
+  const current = editing.value;
+  if (current?.kind === 'action' && matches(current.record)) return false;
+  if (editing.value) { closeEditor(); return true; }
+  if (area.value !== 'actions') { libraryTab.value = 'actions'; return true; }
+  const match = actions.value.find(matches);
+  if (!match) return false;
+  if (!editing.value && selected.value === match.id) { closeEditor(); return true; }
+  if (selected.value === match.id) return false;
+  librarySelected.value = match.id;
+  return true;
+}
+
+function guideActionTypeAvailable(typeId: string): boolean {
+  return availableTypes.value.has(typeId);
+}
+
+function guideActionMatchesType(action: LiveAction, typeId: string): boolean {
+  return action.typeId === typeId && guideActionTypeAvailable(typeId);
+}
+
+function guideActionMatchesTag(action: LiveAction, tag: string): boolean {
+  const type = snapshot.value.actionTypes.find((candidate) => candidate.id === action.typeId);
+  if (!type) return false;
+  return type.tag === tag && guideActionTypeAvailable(type.id);
+}
+
 onMounted(() => {
   unregisterGuideActions = registerGuideActions('automations', {
     'automation.selectEvents': () => {
@@ -202,7 +235,9 @@ onMounted(() => {
       if (editing.value) { closeEditor(); return true; }
       if (area.value !== 'events') { libraryTab.value = 'events'; return true; }
       const first = events.value[0];
-      if (!first || selected.value === first.id) return false;
+      if (!first) return false;
+      if (!editing.value && selected.value === first.id) { closeEditor(); return true; }
+      if (selected.value === first.id) return false;
       librarySelected.value = first.id;
       return true;
     },
@@ -211,10 +246,15 @@ onMounted(() => {
       if (editing.value) { closeEditor(); return true; }
       if (area.value !== 'actions') { libraryTab.value = 'actions'; return true; }
       const first = actions.value[0];
-      if (!first || selected.value === first.id) return false;
+      if (!first) return false;
+      if (!editing.value && selected.value === first.id) { closeEditor(); return true; }
+      if (selected.value === first.id) return false;
       librarySelected.value = first.id;
       return true;
     },
+    'automation.openActionType:core.fetch': () => openMatchingGuideAction((action) => guideActionMatchesType(action, 'core.fetch')),
+    'automation.openActionType:audio.play': () => openMatchingGuideAction((action) => guideActionMatchesType(action, 'audio.play')),
+    'automation.openActionTag:tts': () => openMatchingGuideAction((action) => guideActionMatchesTag(action, 'tts')),
   }, guideScope.value ?? undefined);
   openRequestedTrigger();
   void automation.loadCustomTemplates();

@@ -8,6 +8,7 @@ export default defineTour({
   tags: ['actions'],
   icon: 'video',
   shape: 'action',
+  requirements: { automationActionExample: { typeId: 'audio.play' } },
   steps: {
     actionsTab: {
       es: ['Acciones de overlay y sonido', 'Las acciones de media muestran alertas en el overlay o reproducen sonidos: son el efecto visible de tus eventos.'],

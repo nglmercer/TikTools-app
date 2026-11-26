@@ -196,6 +196,43 @@ it('filters signed-in cloud workspace tours only when the host reports an anonym
   signedIn.unmount();
 });
 
+
+it('shows action example requirements and blocks starting when the workspace lacks the record', async () => {
+  const missing = mountWithPlugins(TutorialCatalogDialog, {
+    attachTo: document.body,
+    props: {
+      open: true,
+      initialTour: 'automationActionHttp',
+      automationSnapshot: {
+        actions: [{ typeId: 'core.log' }],
+        actionTypes: [{ id: 'core.fetch', tag: 'fetch', source: { kind: 'builtin' } }],
+        plugins: [],
+      },
+    },
+  });
+  await flushPromises();
+  expect(missing.get('.tutorial-catalog__requirement').text()).toContain('Requires an existing action');
+  expect(missing.get('.tutorial-catalog__start').attributes('disabled')).toBeDefined();
+  missing.unmount();
+
+  const available = mountWithPlugins(TutorialCatalogDialog, {
+    attachTo: document.body,
+    props: {
+      open: true,
+      initialTour: 'automationActionHttp',
+      automationSnapshot: {
+        actions: [{ typeId: 'core.fetch' }],
+        actionTypes: [{ id: 'core.fetch', tag: 'fetch', source: { kind: 'builtin' } }],
+        plugins: [],
+      },
+    },
+  });
+  await flushPromises();
+  expect(available.find('.tutorial-catalog__requirement').exists()).toBe(false);
+  expect(available.get('.tutorial-catalog__start').attributes('disabled')).toBeUndefined();
+  available.unmount();
+});
+
 it('limits the catalog to the caller tours and preselects the recommended one', async () => {
   const wrapper = mountWithPlugins(TutorialCatalogDialog, {
     attachTo: document.body,

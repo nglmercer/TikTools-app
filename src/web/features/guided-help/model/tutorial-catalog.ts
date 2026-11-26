@@ -143,6 +143,8 @@ export interface LocalizedTutorialEntry extends TutorialEntry {
   title: string;
   description: string;
   steps: readonly TutorialStepText[];
+  /** False when the host workspace lacks the example records declared by the tour contract. Undefined means the host did not provide enough state to evaluate them. */
+  requirementsMet?: boolean;
 }
 
 function catalogText(catalog: Record<string, unknown>, key: string): string {

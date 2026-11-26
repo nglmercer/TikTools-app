@@ -130,6 +130,7 @@
 .tutorial-catalog__detail { display: grid; align-content: start; gap: var(--space-4); min-width: 0; padding-top: var(--space-1); }
 .tutorial-catalog__detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; }
 .tutorial-catalog__detail-copy { flex: 1 1 260px; min-width: 0; }
+.tutorial-catalog__requirement { margin-top: var(--space-2) !important; color: var(--color-warning) !important; font-weight: var(--font-weight-medium); }
 .tutorial-catalog__detail-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
 .tutorial-catalog__detail-title h3 { min-width: 0; overflow-wrap: anywhere; }
 .tutorial-catalog__back { flex: none; color: var(--tutorial-link); font-weight: var(--font-weight-semibold); }
