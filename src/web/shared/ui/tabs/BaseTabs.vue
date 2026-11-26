@@ -7,6 +7,12 @@ const props = defineProps<{
   tabs: readonly TabOption<T>[];
   /** Accessible name of the tab list, when the surrounding heading does not already name it. */
   label?: string;
+  /**
+   * Render the tab list after the #bar slot content instead of before it —
+   * for headers that merge navigation and controls into a single row with
+   * the tabs closing the line.
+   */
+  listEnd?: boolean;
 }>();
 
 const model = defineModel<T>({ required: true });
@@ -43,7 +49,7 @@ function onKeydown(event: KeyboardEvent): void {
   <div class="base-tabs">
     <div
       class="base-tabs__bar"
-      :class="{ 'base-tabs__bar--solo': !$slots.bar }"
+      :class="{ 'base-tabs__bar--solo': !$slots.bar, 'base-tabs__bar--list-end': listEnd }"
     >
       <div
         class="base-tabs__list"
@@ -116,6 +122,10 @@ function onKeydown(event: KeyboardEvent): void {
 
 .base-tabs__bar--solo > .base-tabs__list {
   flex: 1;
+}
+
+.base-tabs__bar--list-end > .base-tabs__list {
+  order: 2;
 }
 
 .base-tabs__tab {

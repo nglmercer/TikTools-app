@@ -190,13 +190,13 @@ const preview = computed(() => {
           :size="14"
         />
         <span class="kpi-strip__label">{{ card.label }}</span>
-        <span
-          v-if="card.delta.text"
-          class="kpi-strip__delta"
-          :class="`kpi-strip__delta--${card.delta.tone}`"
-          :title="t('analytics.kpi.vsPrevious')"
-        >{{ card.delta.text }}</span>
       </span>
+      <span
+        v-if="card.delta.text"
+        class="kpi-strip__delta"
+        :class="`kpi-strip__delta--${card.delta.tone}`"
+        :title="t('analytics.kpi.vsPrevious')"
+      >{{ card.delta.text }}</span>
       <span class="kpi-strip__value">{{ card.value }}</span>
     </div>
   </div>
@@ -255,19 +255,19 @@ const preview = computed(() => {
 
 <style scoped>
 .kpi-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-  gap: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .kpi-strip__card {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  align-items: center;
+  gap: var(--space-3);
   min-width: 0;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border: var(--border-width) solid var(--color-border-subtle);
-  border-top: 2px solid var(--metric-color);
+  border-left: 2px solid var(--metric-color);
   border-radius: var(--radius-md);
   background: var(--color-bg-panel);
 }
@@ -284,13 +284,15 @@ const preview = computed(() => {
 
 .kpi-strip__card--previewing {
   border-color: var(--color-border-strong);
-  border-top-color: var(--metric-color);
+  border-left-color: var(--metric-color);
 }
 
 .kpi-strip__head {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
   color: var(--metric-color);
   font-size: var(--font-size-sm);
 }
@@ -323,7 +325,7 @@ const preview = computed(() => {
 }
 
 .kpi-strip__value {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold, 600);
   font-variant-numeric: tabular-nums;
 }

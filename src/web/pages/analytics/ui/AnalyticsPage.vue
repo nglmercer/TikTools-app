@@ -130,30 +130,6 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
 
 <template>
   <div class="analytics-page" data-guide-scope="analytics">
-    <header class="analytics-page__header">
-      <div class="analytics-page__heading">
-        <h1 class="analytics-page__title">
-          {{ t('analytics.title') }}
-        </h1>
-        <BaseIconButton
-          class="analytics-page__refresh"
-          :label="t('analytics.refresh')"
-          :disabled="loading"
-          @click="refresh"
-        >
-          <IconRefresh />
-        </BaseIconButton>
-      </div>
-      <div class="analytics-page__controls">
-        <AnalyticsRangeBar
-          data-guide="analytics-range"
-          v-model:range="range"
-          v-model:start="customStart"
-          v-model:end="customEnd"
-        />
-      </div>
-    </header>
-
     <BaseAlert
       v-if="error"
       tone="error"
@@ -161,27 +137,49 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
       :title="error"
     />
 
-    <BaseEmptyState
-      v-if="!summary || !hasData"
-      class="analytics-page__empty"
-      :title="loading && !summary ? t('analytics.loading') : t('analytics.empty.title')"
-      :description="loading && !summary ? undefined : emptyDescription"
-    >
-      <template #icon>
-        <IconChart :size="32" />
-      </template>
-    </BaseEmptyState>
-
     <BaseTabs
-      v-else
       v-model="tab"
       class="analytics-page__tabs"
       :tabs="tabOptions"
       :label="t('analytics.title')"
+      list-end
     >
+      <template #bar>
+        <div class="analytics-page__heading">
+          <h1 class="analytics-page__title">
+            {{ t('analytics.title') }}
+          </h1>
+          <BaseIconButton
+            class="analytics-page__refresh"
+            :label="t('analytics.refresh')"
+            :disabled="loading"
+            @click="refresh"
+          >
+            <IconRefresh />
+          </BaseIconButton>
+        </div>
+        <div class="analytics-page__controls">
+          <AnalyticsRangeBar
+            data-guide="analytics-range"
+            v-model:range="range"
+            v-model:start="customStart"
+            v-model:end="customEnd"
+          />
+        </div>
+      </template>
       <template #default="{ value }">
+        <BaseEmptyState
+          v-if="!summary || !hasData"
+          class="analytics-page__empty"
+          :title="loading && !summary ? t('analytics.loading') : t('analytics.empty.title')"
+          :description="loading && !summary ? undefined : emptyDescription"
+        >
+          <template #icon>
+            <IconChart :size="32" />
+          </template>
+        </BaseEmptyState>
         <div
-          v-if="value === 'overview'"
+          v-else-if="value === 'overview'"
           class="analytics-page__tab"
         >
           <div class="analytics-page__main">
@@ -293,18 +291,10 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
   font-size: var(--font-size-sm);
 }
 
-.analytics-page__header {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
 .analytics-page__heading {
   display: flex;
   align-items: center;
+  align-self: center;
   gap: var(--space-2);
   min-width: 0;
 }
@@ -320,13 +310,13 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  align-self: center;
   gap: var(--space-4);
+  margin-left: auto;
 }
 
 .analytics-page__empty {
-  flex: 1;
-  border: var(--border-width) solid var(--color-border-subtle);
-  background: var(--color-bg-panel);
+  min-height: 320px;
 }
 
 .analytics-page__main {
@@ -334,6 +324,10 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
   grid-template-columns: minmax(0, 2.1fr) minmax(280px, 1fr);
   gap: var(--space-5);
   align-items: start;
+  /* The tab panel stretches to the viewport height; without this the default
+     align-content distributes the surplus into the auto rows themselves,
+     opening dead gaps between the panels. */
+  align-content: start;
 }
 
 .analytics-page__side {
