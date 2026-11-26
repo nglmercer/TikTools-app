@@ -97,7 +97,7 @@ jobs:
 
       - name: Set up Node for the Cargo wrapper
         if: runner.os == 'Linux'
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
 
@@ -165,7 +165,7 @@ jobs:
 
       - name: Set up MSVC developer environment
         if: runner.os == 'Windows'
-        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
+        uses: TheMrMilchmann/setup-msvc-dev@b01428496a7be6ea8716337c299ffccc9fadc0c8 # v4.1.1
         with:
           arch: x64
 
