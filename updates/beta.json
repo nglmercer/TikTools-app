@@ -1,14 +1,14 @@
 {
-  "version": "4.5.0",
+  "version": "4.5.1",
   "platforms": {
     "windows-x86_64": {
-      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.0/TikTools-4.5.0-windows-x86_64-installer.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMWQva293SzlSbDNOdHNoSm1XQkNibTFRUld2UnNWc3FBeTlRNG1IK2FocVJqNmxHZjNyaWlBNThzQlZlQzZMR0ViZ0NoYjBob1kzOWdaaHEyL2ttS3djPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NDc3MzQzCWZpbGU6VGlrVG9vbHMtNC41LjAtd2luZG93cy14ODZfNjQtaW5zdGFsbGVyLmV4ZQpSdWFIZ3VQUnRuNDk4Y29QWEtpMlV5dCtOU1dOSlR2S3dlNlowV2pZQUNnbHRReVB0U2h1Ymk4YWN2aHVFOGw0ZldMNEZYV1lKQkhidFpXdkxnR1FDdz09Cg==",
+      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.1/TikTools-4.5.1-windows-x86_64-installer.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMVR5cHZMbE01SU90ckYzU1VJU09CK2JMM0xnRDNQbDlyQmRVNThjSnRKRzB0OS82dEg0WWYyaWxUb1ROemNOMUh1enJXTFBKZ3ZhQmpZN3VBMDhNWEFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NzE3NTIxCWZpbGU6VGlrVG9vbHMtNC41LjEtd2luZG93cy14ODZfNjQtaW5zdGFsbGVyLmV4ZQpvdFdwYVl1bnY2WllMcXFBSnMzMHduQ2tDWW5BWWNUcjFWY2l0QmhRQUxkR2tPQlZjWHdXdWZ0SHJpMkdzanluaEtCMHd5ZDN6d29SUlVyOUxmN3BBUT09Cg==",
       "format": "nsis"
     },
     "linux-x86_64": {
-      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.0/TikTools-4.5.0-x86_64-installer.AppImage",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMWR3Y01rZDVDY2xqMWtpdkYwL0dHRFViMGdYMlcyQkxKbkJuc2dRcTlNcU1ER2s3UHJSUlVzSi9yWWdMOUxkekZDWHB0V3FMMDZXUmVpS1k4U2ZzQlEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NDc3MzQzCWZpbGU6VGlrVG9vbHMtNC41LjAteDg2XzY0LWluc3RhbGxlci5BcHBJbWFnZQpkcVY5L3FGSnIvcndlcVd2QjQ1djRqZHQ4SVUvZjJoNXFwak5rc2FDVnc0aDdZL0JvNUY3cUkwYUVFNXIySlBXMnU2aVhLMFJEaEdhWGl4WFZIak9BUT09Cg==",
+      "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.1/TikTools-4.5.1-x86_64-installer.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIGNhcmdvLXBhY2thZ2VyIHNlY3JldCBrZXkKUlVSRTd4VWVEZHRLMVVwS3kvK1g0b2wvejM1bDJpRVFYbWRtelMybG5aQjB4MWRhQ1ExbVc2L0lZaFplYjNIdFB1bWYrSHpPcGFBT1c5UzIxL1pJNGV0WTZJS3N6Z3BaOWdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk1NzE3NTIxCWZpbGU6VGlrVG9vbHMtNC41LjEteDg2XzY0LWluc3RhbGxlci5BcHBJbWFnZQo4YTEwUVhMT3g2enZCLytaaWNuTTk1aUZRU3JUeVFNa2VTVlBYaGk5S2EySlpvL1Y1UlJDVlg0WHg5dEZROHgxRER3ejZRbE9OYk11SGg3dDBEOG5BUT09Cg==",
       "format": "appimage"
     }
   }
