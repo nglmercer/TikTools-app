@@ -48,6 +48,7 @@ function summaryFor(params: RpcParams | undefined, withData = true): AnalyticsSu
     sessions: withData ? 3 : 0,
     hours: [],
     sessionList: [],
+    audience: withData ? { activeViewers: 34, newViewers: 12 } : { activeViewers: 0, newViewers: 0 },
   };
 }
 
@@ -141,6 +142,10 @@ describe('AnalyticsPage', () => {
     // The contributors table lives behind its own tab.
     await openTab(wrapper, 'contributors');
     expect(wrapper.findAll('tbody tr')).toHaveLength(2);
+    // The retention split summarizes the audience above the ranking.
+    expect(wrapper.text()).toContain('34');
+    expect(wrapper.text()).toContain('12');
+    expect(wrapper.text()).toContain('22');
   });
 
   it('switches the charted metric from the activity panel selector', async () => {

@@ -379,6 +379,7 @@ export default {
       interactions: '{count} interactions',
     },
     contributors: {
+      audience: '{active} spectateurs actifs · {new} nouveaux · {returning} fidèles',
       title: 'Principaux contributeurs',
       subtitle: '{count} fans · classés par interactions',
       search: 'Rechercher des contributeurs…',

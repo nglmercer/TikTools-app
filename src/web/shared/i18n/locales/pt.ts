@@ -379,6 +379,7 @@ export default {
       interactions: '{count} interações',
     },
     contributors: {
+      audience: '{active} espectadores ativos · {new} novos · {returning} recorrentes',
       title: 'Principais colaboradores',
       subtitle: '{count} fãs · ordenados por interações',
       search: 'Pesquisar colaboradores…',

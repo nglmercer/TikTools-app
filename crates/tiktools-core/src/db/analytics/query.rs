@@ -4,8 +4,8 @@ use super::super::sqlite::DatabaseError;
 use super::super::DatabaseManager;
 use super::aggregate::add_hour_totals;
 use super::{
-    AnalyticsDayRow, AnalyticsHourRow, AnalyticsSessionRow, AnalyticsSummaryData, AnalyticsTopViewer,
-    AnalyticsTotals,
+    AnalyticsAudience, AnalyticsDayRow, AnalyticsHourRow, AnalyticsSessionRow, AnalyticsSummaryData,
+    AnalyticsTopViewer, AnalyticsTotals,
 };
 
 impl DatabaseManager {
@@ -219,6 +219,30 @@ impl DatabaseManager {
             )?
             .collect::<Result<Vec<_>, _>>()?;
         self.attach_viewer_avatars(&mut top_viewers);
+
+        // Retention split over the same window as the contributors ranking.
+        // "New" means no viewer_daily row before the range start: their
+        // first-ever interaction happened inside the requested span.
+        let active_viewers: i64 = connection.query_row(
+            "SELECT COUNT(DISTINCT unique_id) FROM viewer_daily
+             WHERE creator_unique_id = ?1 AND day BETWEEN ?2 AND ?3",
+            params![creator_unique_id, window_lo, window_hi],
+            |row| row.get(0),
+        )?;
+        let new_viewers: i64 = connection.query_row(
+            "SELECT COUNT(DISTINCT unique_id) FROM viewer_daily
+             WHERE creator_unique_id = ?1 AND day BETWEEN ?2 AND ?3
+               AND unique_id NOT IN (
+                 SELECT unique_id FROM viewer_daily
+                 WHERE creator_unique_id = ?1 AND day < ?4
+               )",
+            params![creator_unique_id, window_lo, window_hi, window_lo],
+            |row| row.get(0),
+        )?;
+        let audience = AnalyticsAudience {
+            active_viewers,
+            new_viewers,
+        };
         // Session instants are exact, so the frame shift applies cleanly here
         // (identical to the legacy expression when offset == 0).
         let sessions: i64 = connection.query_row(
@@ -299,6 +323,7 @@ impl DatabaseManager {
             sessions,
             hours,
             session_list,
+            audience,
         })
     }
 

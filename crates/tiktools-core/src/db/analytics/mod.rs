@@ -182,6 +182,17 @@ pub struct AnalyticsSessionRow {
     pub totals: AnalyticsTotals,
 }
 
+/// Unique-viewer retention split for the span: `active` counts distinct
+/// viewers with any row in range, `new` counts those with no row before
+/// the range start — their first-ever interaction happened inside it.
+/// `active - new` are returning viewers.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyticsAudience {
+    pub active_viewers: i64,
+    pub new_viewers: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyticsSummaryData {
@@ -200,6 +211,8 @@ pub struct AnalyticsSummaryData {
     /// Broadcasts overlapping the span, newest first, capped at 200.
     #[serde(default)]
     pub session_list: Vec<AnalyticsSessionRow>,
+    #[serde(default)]
+    pub audience: AnalyticsAudience,
 }
 
 #[cfg(feature = "native-tiktok")]

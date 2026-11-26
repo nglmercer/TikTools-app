@@ -377,6 +377,7 @@ export default {
       interactions: "{count}回の交流",
     },
     contributors: {
+      audience: '{active}人のアクティブ視聴者 · 新規{new}人 · リピーター{returning}人',
       title: "貢献度の高い視聴者",
       subtitle: "ファン{count}人・交流回数順",
       search: "貢献者を検索…",

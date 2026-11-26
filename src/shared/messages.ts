@@ -427,6 +427,14 @@ export type AnalyticsSessionRow = {
   peakViewers: number;
 } & AnalyticsTotals;
 
+/** Unique-viewer retention split for the span: `activeViewers` counts
+ * distinct viewers with any activity in range, `newViewers` those whose
+ * first-ever interaction happened inside it. The difference is returning. */
+export type AnalyticsAudience = {
+  activeViewers: number;
+  newViewers: number;
+};
+
 export type AnalyticsSummaryData = {
   creatorUniqueId: string;
   startDay: number;
@@ -442,4 +450,5 @@ export type AnalyticsSummaryData = {
   hours: AnalyticsHourRow[];
   /** Broadcasts overlapping the span, newest first, capped at 200. */
   sessionList: AnalyticsSessionRow[];
+  audience: AnalyticsAudience;
 };

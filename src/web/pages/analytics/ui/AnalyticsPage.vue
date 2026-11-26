@@ -19,6 +19,7 @@ import AnalyticsContributorsTable from '@/entities/analytics/ui/AnalyticsContrib
 import AnalyticsSessionsTable from '@/entities/analytics/ui/AnalyticsSessionsTable.vue';
 import AnalyticsInsights from '@/entities/analytics/ui/AnalyticsInsights.vue';
 import AnalyticsMetricStrip from '@/entities/analytics/ui/AnalyticsMetricStrip.vue';
+import { formatCount } from '@/shared/lib/intl.ts';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import AnalyticsRangeBar from '@/features/select-analytics-range/ui/AnalyticsRangeBar.vue';
 import BaseAlert from '@/shared/ui/alert/BaseAlert.vue';
@@ -56,6 +57,16 @@ const tabOptions = computed(() => [
   { value: 'contributors' as const, label: t('analytics.tabs.contributors') },
   { value: 'sessions' as const, label: t('analytics.tabs.sessions') },
 ]);
+
+const audienceLabel = computed(() => {
+  const audience = summary.value?.audience;
+  if (!audience || audience.activeViewers <= 0) return '';
+  return t('analytics.contributors.audience', {
+    active: formatCount(audience.activeViewers, locale.value),
+    new: formatCount(audience.newViewers, locale.value),
+    returning: formatCount(Math.max(0, audience.activeViewers - audience.newViewers), locale.value),
+  });
+});
 
 const creator = computed(() => connection.activeCreator);
 const span = computed(() => {
@@ -202,6 +213,12 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
           :title="t('analytics.contributors.title')"
           flush
         >
+          <template
+            v-if="audienceLabel"
+            #subtitle
+          >
+            {{ audienceLabel }}
+          </template>
           <template #actions>
             <BaseTextField
               v-model="query"

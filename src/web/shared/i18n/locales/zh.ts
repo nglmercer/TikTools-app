@@ -377,6 +377,7 @@ export default {
       interactions: "{count} 次互动",
     },
     contributors: {
+      audience: '{active} 位活跃观众 · {new} 位新观众 · {returning} 位回头观众',
       title: "贡献榜",
       subtitle: "{count} 位粉丝 · 按互动次数排名",
       search: "搜索贡献者…",

@@ -377,6 +377,7 @@ export default {
       interactions: '{count} interactions',
     },
     contributors: {
+      audience: '{active} active viewers · {new} new · {returning} returning',
       title: 'Top contributors',
       subtitle: '{count} fans · ranked by interactions',
       search: 'Search contributors…',

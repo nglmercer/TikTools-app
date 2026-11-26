@@ -153,6 +153,36 @@ fn sessions_open_close_and_count() {
 }
 
 #[test]
+fn audience_splits_new_from_returning_viewers() {
+    let db = test_manager();
+    db.ensure_analytics_schema().expect("schema");
+    let monday = 1_751_616_000;
+    let tuesday = monday + 86_400;
+
+    // alice appears both days: new on monday, returning on tuesday.
+    db.record_analytics_event("creator", &record_chats("alice", 1), monday)
+        .expect("record");
+    db.record_analytics_event("creator", &record_chats("alice", 1), tuesday)
+        .expect("record");
+    // bob appears only on tuesday: new then.
+    db.record_analytics_event("creator", &record_chats("bob", 1), tuesday)
+        .expect("record");
+
+    let monday_summary = db
+        .analytics_summary("creator", utc_day(monday), utc_day(monday), 10, 0)
+        .expect("summary");
+    assert_eq!(monday_summary.audience.active_viewers, 1);
+    assert_eq!(monday_summary.audience.new_viewers, 1);
+
+    let tuesday_summary = db
+        .analytics_summary("creator", utc_day(tuesday), utc_day(tuesday), 10, 0)
+        .expect("summary");
+    assert_eq!(tuesday_summary.audience.active_viewers, 2);
+    // Only bob is new on tuesday; alice already had a row before the range.
+    assert_eq!(tuesday_summary.audience.new_viewers, 1);
+}
+
+#[test]
 fn session_list_exposes_rows_newest_first_with_overlapping_totals() {
     let db = test_manager();
     db.ensure_analytics_schema().expect("schema");
