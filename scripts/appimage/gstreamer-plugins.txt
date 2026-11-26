@@ -4,7 +4,7 @@ playback
 typefindfunctions
 audioconvert
 audioresample
-videoconvertscale
+videoconvertscale videoconvert videoscale
 volume
 autodetect
 wavparse

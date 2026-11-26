@@ -102,19 +102,38 @@ gst_scanners="$(pkg-config --variable=pluginscannerdir gstreamer-1.0)"
 gst_target="$APPDIR/usr/lib/gstreamer-1.0"
 scanner_target="$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
 if [ ! -f "$gst_scanners/gst-plugin-scanner" ]; then
+  # Debian/Ubuntu multiarch move the scanner next to the arch triplet without
+  # updating the pkg-config variable: probe that layout before giving up.
+  for candidate in "$(dirname "$gst_plugins")/gstreamer1.0/gstreamer-1.0"; do
+    if [ -f "$candidate/gst-plugin-scanner" ]; then
+      gst_scanners="$candidate"
+      break
+    fi
+  done
+fi
+if [ ! -f "$gst_scanners/gst-plugin-scanner" ]; then
   echo "linuxdeploy-plugin-tiktoolswebkit: missing GStreamer scanner in $gst_scanners" >&2
   exit 1
 fi
 mkdir -p "$gst_target" "$(dirname "$scanner_target")"
 install -m 0755 "$gst_scanners/gst-plugin-scanner" "$scanner_target"
 manifest="$(dirname "${BASH_SOURCE[0]}")/gstreamer-plugins.txt"
-while IFS= read -r plugin; do
-  [ -n "$plugin" ] || continue
-  if [ ! -f "$gst_plugins/libgst$plugin.so" ]; then
-    echo "linuxdeploy-plugin-tiktoolswebkit: missing libgst$plugin.so; install GStreamer base, good and libav plugins" >&2
+while IFS= read -r line; do
+  [ -n "$line" ] || continue
+  # A line may name alternatives for one feature: GStreamer 1.22 merged
+  # videoconvert+videoscale into videoconvertscale, so a distro carries the
+  # merge or the pair. Copy every variant present, require at least one.
+  found=0
+  for plugin in $line; do
+    if [ -f "$gst_plugins/libgst$plugin.so" ]; then
+      install -m 0755 "$gst_plugins/libgst$plugin.so" "$gst_target/"
+      found=1
+    fi
+  done
+  if [ "$found" -eq 0 ]; then
+    echo "linuxdeploy-plugin-tiktoolswebkit: none of libgst$(echo "$line" | tr ' ' '|').so found; install GStreamer base, good and libav plugins" >&2
     exit 1
   fi
-  install -m 0755 "$gst_plugins/libgst$plugin.so" "$gst_target/"
 done < "$manifest"
 
 # winit's xkbcommon-dl opens this SONAME at runtime; it is absent from the
