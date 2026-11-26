@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
-translationRevision: "732ff8dabf3951e283cafea2ede53a2d1e9354332fb56980ac6c5b3b918c4f2b"
+sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
+translationRevision: "f517d7ab316b64468d86c6044fb1eccd89d74a0ce77c4c83288c625ddff100c7"
 order: 30
 ---
 
@@ -42,7 +42,7 @@ order: 30
 
 修正具体原因后再重试。修订冲突时，重新加载并审查当前保存状态。远程命令未确认时，先检查日志/状态再发送另一个命令：超时也可能发生在效果已成功之后。启动失败时，报告安装包、版本及启动日志，不要直接删除数据目录。
 
-<DemoFrame scenario="diagnostics" locale="zh" tour="diagnostics" title="演示：诊断" />
+<TourFrame id="diagnostics" locale="zh" title="演示：诊断" />
 
 ## 运行细节 {#operational-details}
 

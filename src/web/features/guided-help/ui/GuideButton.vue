@@ -15,8 +15,9 @@ const props = withDefaults(defineProps<{
   completed?: boolean;
   tour?: TourId;
   capabilities?: TourCapabilities;
+  signedIn?: boolean;
   taskState?: TourTaskState | (() => TourTaskState);
-}>(), { steps: () => [], id: undefined, tour: undefined, capabilities: undefined, taskState: undefined });
+}>(), { steps: () => [], id: undefined, tour: undefined, capabilities: undefined, signedIn: undefined, taskState: undefined });
 const { t, locale } = useI18n();
 const router = inject(routerKey, null);
 const guideLocale = computed<TourLocale>(() => isLocale(locale.value) ? locale.value : 'en');
@@ -38,6 +39,7 @@ function start(event: MouseEvent): void {
   const next = props.tour ? startTour(props.tour, {
     ...context, router: router ?? undefined, locale: guideLocale.value,
     capabilities: props.capabilities,
+    signedIn: props.signedIn,
     taskState: () => ({
       ...(typeof props.taskState === 'function' ? props.taskState() : props.taskState),
       ...(props.completed === true && tourRegistry[props.tour!].task ? { [tourRegistry[props.tour!].task!]: true } : {}),

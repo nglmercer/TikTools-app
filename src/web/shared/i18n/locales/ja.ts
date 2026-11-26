@@ -2011,7 +2011,7 @@ export default {
     search: "チュートリアルを検索", tagsLabel: "チュートリアルの絞り込み", allTags: "すべて", start: "ガイドを開始", steps: "{count} ステップ",
     back: "戻る", overview: "概要",
     guides: "{count}件のガイド", specializedGuides: "特化ガイド",
-    wizardLabel: "チュートリアルカタログの進行", stepPreview: "ステッププレビュー", demoPreview: "ミニデモ",
+    wizardLabel: "チュートリアルカタログの進行", stepPreview: "ステッププレビュー", demoPreview: "ミニデモ", demoSchematic: "簡易レイアウトマップ",
     screens: { catalog: "カタログ", category: "カテゴリ", guide: "ガイド" },
     empty: "検索に一致するチュートリアルはありません。",
     tags: { automations: "オートメーション", events: "イベント", actions: "アクション", variables: "変数", connection: "接続", plugins: "プラグイン", overlays: "オーバーレイ", points: "ポイント", changes: "変更", diagnostics: "診断", feed: "ライブフィード", account: "アカウント", analytics: "分析", settings: "設定", rankings: "ランキング" },

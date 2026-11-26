@@ -2011,7 +2011,7 @@ export default {
     search: 'Search tutorials', tagsLabel: 'Tutorial filters', allTags: 'All', start: 'Start guide', steps: '{count} step | {count} steps',
     back: 'Back', overview: 'Overview',
     guides: '{count} guide | {count} guides', specializedGuides: 'Specialized guides',
-    wizardLabel: 'Tutorial catalog progress', stepPreview: 'Step preview', demoPreview: 'Miniature demo',
+    wizardLabel: 'Tutorial catalog progress', stepPreview: 'Step preview', demoPreview: 'Miniature demo', demoSchematic: 'Simplified layout map',
     screens: { catalog: 'Catalog', category: 'Category', guide: 'Guide' },
     empty: 'No tutorials match your search.',
     tags: { automations: 'Automations', events: 'Events', actions: 'Actions', variables: 'Variables', connection: 'Connection', plugins: 'Plugins', overlays: 'Overlays', points: 'Points', changes: 'Changes', diagnostics: 'Diagnostics', feed: 'Live feed', account: 'Account', analytics: 'Analytics', settings: 'Settings', rankings: 'Rankings' },

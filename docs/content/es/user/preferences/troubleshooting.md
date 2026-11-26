@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
-translationRevision: "701dc90d1687589711190ee5d4fc75e69b186a59827e1aa27236c33314a7ba9f"
+sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
+translationRevision: "e8a3b91363b7da4b40d5e5fa8711756a255facd97cf5218cbddf7df18e7d0040"
 order: 30
 ---
 
@@ -42,7 +42,7 @@ Están disponibles filtros, copia y exportación de diagnósticos. Un paquete ta
 
 Repite después de corregir la causa concreta. Ante conflictos de revisión, carga y revisa el estado guardado actual. Si una orden remota queda sin confirmar, inspecciona su historial/estado antes de enviarla otra vez: el efecto puede haberse producido pese al tiempo de espera. Si falla el inicio, informa de paquete, versión y registro; evita borrar el directorio de datos.
 
-<DemoFrame scenario="diagnostics" locale="es" tour="diagnostics" title="Demo de diagnostics" />
+<TourFrame id="diagnostics" locale="es" title="Demo de diagnostics" />
 
 ## Detalles de operación {#operational-details}
 

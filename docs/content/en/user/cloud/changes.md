@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
-translationRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
+sourceRevision: "0bb2a29db86d989dfeb986bb696a9da4b7a47c942ecbdaa0a988f6bab501f12d"
+translationRevision: "0bb2a29db86d989dfeb986bb696a9da4b7a47c942ecbdaa0a988f6bab501f12d"
 order: 20
 ---
 
@@ -40,7 +40,7 @@ Cloud overlays use the [library/editor](../overlays/index.md) create/revise flow
 
 Local automation comparison and capability-gated native sharing are available in their respective areas. Operations with remote side effects depend on the service; production acceptance is not implied. If a review becomes stale, refresh and compare again. If the outcome is unconfirmed, inspect status/journal information before creating another operation. Never treat a timeout as proof that nothing changed.
 
-<DemoFrame scenario="cloud" locale="en" tour="changes" title="Demo: cloud" />
+<TourFrame id="changes" locale="en" title="Demo: cloud" />
 
 ## Operational details {#operational-details}
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { routeLocationKey, routerKey } from 'vue-router';
 import { usePluginControls } from '@/features/manage-plugins/model/use-plugin-controls.ts';
@@ -16,6 +16,7 @@ import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { usePluginSyncAdapter } from '@/features/manage-plugins/model/use-plugin-sync-adapter.ts';
+import { registerGuideActions } from '@/features/guided-help/model/guide-actions.ts';
 import SyncButton from '@/features/sync-changes/ui/SyncButton.vue';
 import PluginCatalog from '@/widgets/plugin-catalog/ui/PluginCatalog.vue';
 import type { PluginDetailsRequest, PluginDetailsTab } from '@/widgets/plugin-details/model/details-tab.ts';
@@ -165,7 +166,32 @@ function loadRegistryExplore(): void {
   openCatalogTab(catalog.value);
 }
 
+const guideScope = useTemplateRef<HTMLElement>('guideScope');
+let unregisterGuideActions: (() => void) | undefined;
 onMounted(() => {
+  unregisterGuideActions = registerGuideActions('plugins', {
+    'plugins.openInstalled': () => {
+      if (selectedPlugin.value?.installed) return false;
+      if (view.value !== 'plugins') { view.value = 'plugins'; return true; }
+      if (catalog.value !== 'installed') { catalog.value = 'installed'; return true; }
+      const first = behavior.value.plugins.find((plugin) => plugin.installed);
+      if (!first || selected.value === first.descriptor.id) return false;
+      openPlugin(first.descriptor.id);
+      return true;
+    },
+    'plugins.showSettings': () => {
+      const plugin = selectedPlugin.value;
+      if (!plugin?.installed || plugin.descriptor.hasSettings !== true || detailsTab.value === 'settings') return false;
+      detailsTab.value = 'settings';
+      return true;
+    },
+    'plugins.showConnection': () => {
+      const plugin = selectedPlugin.value;
+      if (!plugin?.installed || !plugin.enabled || plugin.descriptor.hasConnectionProbe !== true || detailsTab.value === 'connection') return false;
+      detailsTab.value = 'connection';
+      return true;
+    },
+  }, guideScope.value ?? undefined);
   void packages.initialize();
   if (!exploreCatalog.value) loadRegistryExplore();
 });
@@ -198,6 +224,7 @@ function persistView(): void {
 const persist = debounce(persistView);
 watch([view, catalog, query, selected, detailsTab], persist);
 onBeforeUnmount(() => {
+  unregisterGuideActions?.();
   persist.cancel();
   persistView();
 });
@@ -207,6 +234,7 @@ watch(activeView, () => { processorSelected.value = null; });
 
 <template>
   <div
+    ref="guideScope"
     class="plugins-page"
     data-guide-scope="plugins"
   >

@@ -4,7 +4,8 @@
  * tours/index.ts assembles the same registry/catalog structures the
  * coordinator, catalog dialog and tests already consume.
  */
-import type { TourDefinition, TourStepDefinition } from './types.ts';
+import { guideTargetMetadata } from './guide-targets.ts';
+import type { TourAvailability, TourDefinition, TourStepDefinition } from './types.ts';
 
 /** Driver.js chrome copy per locale, recovered from the pre-module catalogs. */
 export const controlCopy = {
@@ -25,13 +26,15 @@ export type StepCopy = Readonly<Record<TourCopyLocale, readonly [string, string]
 const CLOSE = '[data-guide="automation-editor-close"]';
 const TAB_EVENTS = '[data-guide="automation-tab-events"]';
 const TAB_ACTIONS = '[data-guide="automation-tab-actions"]';
-const NEW_RECORD = '[data-guide="automation-new-record"]';
+const FIRST_EVENT_ROW = '[data-guide="automation-events"] tbody tr';
+const FIRST_ACTION_ROW = '[data-guide="automation-actions"] tbody tr';
 
 interface LayoutStep {
   id: string;
   target: string;
   policy: 'skip' | 'cancel';
   prepare?: readonly string[];
+  prepareActions?: readonly string[];
   capabilities?: readonly string[];
   version?: number;
 }
@@ -39,22 +42,22 @@ interface LayoutStep {
 /** The shared skeleton for trigger-focused automation tours. */
 function eventShape(extra: readonly string[] = []): readonly LayoutStep[] {
   const steps: LayoutStep[] = [
-    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: [CLOSE] },
-    { id: 'events', target: 'automation-events', policy: 'skip', prepare: [CLOSE, TAB_EVENTS] },
-    { id: 'trigger', target: 'event-editor-trigger', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, NEW_RECORD] },
-    { id: 'conditions', target: 'event-editor-conditions', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, NEW_RECORD] },
+    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: [CLOSE], prepareActions: ['automation.selectEvents'] },
+    { id: 'events', target: 'automation-events', policy: 'skip', prepare: [CLOSE, TAB_EVENTS], prepareActions: ['automation.selectEvents'] },
+    { id: 'trigger', target: 'event-editor-trigger', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, FIRST_EVENT_ROW], prepareActions: ['automation.openEvent'] },
+    { id: 'conditions', target: 'event-editor-conditions', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, FIRST_EVENT_ROW], prepareActions: ['automation.openEvent'] },
   ];
-  if (extra.includes('cooldown')) steps.push({ id: 'cooldown', target: 'event-editor-cooldown', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, NEW_RECORD] });
+  if (extra.includes('cooldown')) steps.push({ id: 'cooldown', target: 'event-editor-cooldown', policy: 'skip', prepare: [CLOSE, TAB_EVENTS, FIRST_EVENT_ROW], prepareActions: ['automation.openEvent'] });
   return steps;
 }
 
 /** The shared skeleton for effect-focused automation tours. */
 function actionShape(): readonly LayoutStep[] {
   return [
-    { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: [CLOSE] },
-    { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS] },
-    { id: 'settings', target: 'action-editor-settings', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS, NEW_RECORD] },
-    { id: 'permissions', target: 'action-editor-permissions', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS, NEW_RECORD] },
+    { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: [CLOSE], prepareActions: ['automation.selectActions'] },
+    { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS], prepareActions: ['automation.selectActions'] },
+    { id: 'settings', target: 'action-editor-settings', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS, FIRST_ACTION_ROW], prepareActions: ['automation.openAction'] },
+    { id: 'permissions', target: 'action-editor-permissions', policy: 'skip', prepare: [CLOSE, TAB_ACTIONS, FIRST_ACTION_ROW], prepareActions: ['automation.openAction'] },
   ];
 }
 
@@ -68,6 +71,11 @@ export interface TourModule {
   icon: string;
   /** 'event'/'action' expand to shared skeletons; 'custom' uses `layout` verbatim. */
   shape: 'event' | 'action' | 'custom';
+  /** Public tours appear in the catalog; internal tours stay registered for future/direct use only. */
+  lifecycle?: 'public' | 'internal';
+  /** False when the signed-out demo cannot honestly represent the required account/workspace state. */
+  demo?: boolean;
+  availability?: TourAvailability;
   /** Extra steps for the event shape (today only 'cooldown'). */
   extras?: readonly string[];
   layout?: readonly LayoutStep[];
@@ -98,12 +106,22 @@ export function registryEntry(module: TourModule): TourDefinition {
     requiredCapabilities: step.capabilities ?? [],
     missingTargetPolicy: step.policy,
     ...(step.prepare ? { prepareClick: step.prepare } : {}),
+    ...(step.prepareActions ? { prepareActions: step.prepareActions } : {}),
+    ...(() => {
+      const placement = guideTargetMetadata(step.target);
+      return {
+        ...(placement.side ? { popoverSide: placement.side } : {}),
+        ...(placement.align ? { popoverAlign: placement.align } : {}),
+      };
+    })(),
   }));
   return {
     id: module.id as TourDefinition['id'],
     version: module.version,
     route: module.route,
     scope: module.scope,
+    ...(module.lifecycle ? { lifecycle: module.lifecycle } : {}),
+    ...(module.availability ? { availability: module.availability } : {}),
     ...(module.task ? { task: module.task } : {}),
     steps,
   } as TourDefinition;

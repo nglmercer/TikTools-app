@@ -1,3 +1,4 @@
+<span id="tiktools"></span><span id="tiktools-"></span>
 # TikTools
 
 TikTools connects your Windows or Linux desktop to a TikTok LIVE: it shows
@@ -16,6 +17,9 @@ Documentation in your language:
 [Français](docs/content/fr/user/index.md) ·
 [简体中文](docs/content/zh/user/index.md) ·
 [日本語](docs/content/ja/user/index.md)
+
+<span id="what-it-includes"></span><span id="what-it-includes-"></span>
+<span id="quick-start"></span><span id="quick-start-"></span>
 
 ## For users
 
@@ -42,6 +46,8 @@ Released binaries do not need Rust, Cargo or Bun. The path:
 Something broken? Open **Diagnostics** in the app and start with the recovery
 section of the matching guide.
 
+<span id="documentation"></span><span id="documentation-"></span>
+
 ## Documentation site and demo
 
 The full documentation and an interactive demo with fictional data live in
@@ -55,6 +61,12 @@ bun scripts/task.ts site preview
 Then open [the docs](http://127.0.0.1:4173/TikTools-app/en/user/) or
 [the demo](http://127.0.0.1:4173/TikTools-app/demo/). Details:
 [docs and demo development](docs/content/en/developer/demo.md).
+
+<span id="commands"></span><span id="commands-"></span>
+<span id="development-quality"></span><span id="development--quality"></span><span id="development--quality-"></span>
+<span id="project-layout"></span><span id="project-layout-"></span>
+<span id="runtime-plugin-model"></span><span id="runtime-plugin-model-"></span>
+<span id="data-and-privacy"></span><span id="data-and-privacy-"></span>
 
 ## For developers
 

@@ -9,8 +9,8 @@ export default defineTour({
   icon: 'hash',
   shape: 'custom',
   layout: [
-    { id: 'variablesTab', target: 'automation-tab-variables', policy: 'cancel' },
-    { id: 'values', target: 'automation-variables', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-variables"]'], version: 2 },
+    { id: 'variablesTab', target: 'automation-tab-variables', policy: 'cancel', prepareActions: ['automation.selectVariables'] },
+    { id: 'values', target: 'automation-variables', policy: 'skip', prepareActions: ['automation.selectVariables'], prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-variables"]'], version: 2 },
     { id: 'review', target: 'changes', policy: 'skip' },
   ],
   steps: {

@@ -69,9 +69,9 @@ const hasConnection = computed(
 const usage = computed(() => pluginActionUsage(id.value, props.actions, props.actionTypes));
 // A tab the plugin has no use for is left out rather than shown disabled.
 const tabs = computed(() => [
-  { value: 'general' as const, label: t('plugins.details.tabs.general'), icon: IconInfo },
-  ...(hasSettings.value ? [{ value: 'settings' as const, label: t('plugins.details.tabs.settings'), icon: IconGear }] : []),
-  ...(hasConnection.value ? [{ value: 'connection' as const, label: t('plugins.details.tabs.connection'), icon: IconLink }] : []),
+  { value: 'general' as const, label: t('plugins.details.tabs.general'), icon: IconInfo, guide: 'plugin-tab-general' },
+  ...(hasSettings.value ? [{ value: 'settings' as const, label: t('plugins.details.tabs.settings'), icon: IconGear, guide: 'plugin-tab-settings' }] : []),
+  ...(hasConnection.value ? [{ value: 'connection' as const, label: t('plugins.details.tabs.connection'), icon: IconLink, guide: 'plugin-tab-connection' }] : []),
   ...(removable.value ? [{ value: 'versions' as const, label: t('plugins.details.tabs.versions'), icon: IconHistory }] : []),
 ]);
 
@@ -273,7 +273,6 @@ function uninstall(): void {
           </div>
           <PluginConnectionPane
             v-else
-            data-guide="plugin-connection"
             :descriptor="descriptor"
             :name="name"
             :connection="connection"

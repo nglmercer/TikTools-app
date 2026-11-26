@@ -10,8 +10,8 @@ export default defineTour({
   shape: 'custom',
   layout: [
     { id: 'gallery', target: 'automation-templates', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'] },
-    { id: 'events', target: 'automation-events', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'] },
-    { id: 'review', target: 'event-editor-trigger', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+    { id: 'events', target: 'automation-events', policy: 'skip', prepareActions: ['automation.selectEvents'], prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'] },
+    { id: 'review', target: 'event-editor-trigger', policy: 'skip', prepareActions: ['automation.openEvent'], prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-events"] tbody tr'] },
   ],
   steps: {
     gallery: {

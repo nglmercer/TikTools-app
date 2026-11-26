@@ -69,6 +69,19 @@ it('blocks profile and template changes until the initial coherent library is re
     expect(wrapper.find('.globals-editor').exists()).toBe(true);
   });
 
+  it('follows variables deep links after the page is already mounted', async () => {
+    const { wrapper, router } = await mountPage((method) => (method === 'globals.list' ? { globals: { a: '1' } } : undefined));
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Events (2)');
+    await router.push('/automations?view=variables');
+    await flushPromises();
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe(t('automations.library.variables'));
+    expect(wrapper.find('.globals-editor').exists()).toBe(true);
+    await router.push('/automations');
+    await flushPromises();
+    expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Events (2)');
+    expect(wrapper.find('.globals-editor').isVisible()).toBe(false);
+  });
+
   it('has no Cloud tab in the library: the Cloud library is a tab of the templates dialog', async () => {
     const { wrapper } = await mountPage();
     const library = () => wrapper.findAll('[role="tab"]').map((tab) => tab.text());

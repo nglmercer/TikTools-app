@@ -14,14 +14,26 @@ export interface TourStepDefinition {
   /** Discovery methods, never permission grants or an instruction to execute. */
   requiredCapabilities: readonly string[];
   missingTargetPolicy: 'skip' | 'cancel';
-  /** Selectors tried in order when the target is missing: the first visible one gets clicked so the target appears (open a record, switch a tab). */
+  /** Semantic operations exposed by the target scope owner. These are preferred over DOM clicks because they can respect dirty state and existing data. */
+  prepareActions?: readonly string[];
+  /** Selector fallbacks used by preview frames and legacy scopes. They must never create user data in the real app. */
   prepareClick?: readonly string[];
+  /** Preferred Driver.js popover placement declared by the target contract. */
+  popoverSide?: 'top' | 'right' | 'bottom' | 'left';
+  popoverAlign?: 'start' | 'center' | 'end';
+}
+export interface TourAvailability {
+  /** Account state required before the tour can truthfully prepare its workspace. */
+  account?: 'any' | 'signed-in';
 }
 export interface TourDefinition {
   id: TourId;
   version: number;
   route: string;
   scope: string;
+  /** Public catalog entry or internal future/experimental guide. */
+  lifecycle?: 'public' | 'internal';
+  availability?: TourAvailability;
   /** External task key for action-oriented tours. Informational walkthroughs leave it undefined and complete when their final step finishes. */
   task?: string;
   steps: readonly TourStepDefinition[];
@@ -37,6 +49,8 @@ export interface TourProgress {
 export interface StartTourOptions {
   router?: Router;
   capabilities?: TourCapabilities;
+  /** Current account state for tours that declare an account prerequisite. Account-required tours fail closed when this is not true. */
+  signedIn?: boolean | (() => boolean | undefined);
   /** Observed host state only. Advancing/dismissing help never sets these task flags. */
   taskState?: TourTaskState | (() => TourTaskState);
   locale?: TourLocale;

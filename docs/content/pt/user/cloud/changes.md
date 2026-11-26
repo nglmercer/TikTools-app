@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
-translationRevision: "4227e2b6755c6c7032fc887c3b0772bd2d33364d120b710d415f8234e2444fb8"
+sourceRevision: "0bb2a29db86d989dfeb986bb696a9da4b7a47c942ecbdaa0a988f6bab501f12d"
+translationRevision: "156ccce61dd26f5505dafba4dfece46a03107f7bd22cedaadacb884a60263add"
 order: 20
 ---
 
@@ -40,7 +40,7 @@ Overlays do Cloud usam o fluxo de criação/revisão da [biblioteca/editor](../o
 
 A comparação local de automações e o compartilhamento nativo condicionado às capacidades estão disponíveis nas respectivas áreas. Operações com efeitos remotos dependem do serviço; isso não implica aceitação em produção. Se uma revisão ficar desatualizada, atualize e compare novamente. Se o resultado não estiver confirmado, inspecione as informações de status/diário antes de criar outra operação. Nunca trate um tempo limite como prova de que nada mudou.
 
-<DemoFrame scenario="cloud" locale="pt" tour="changes" title="Demonstração: Cloud" />
+<TourFrame id="changes" locale="pt" title="Demonstração: Cloud" />
 
 ## Detalhes de operação {#operational-details}
 

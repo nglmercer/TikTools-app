@@ -9,6 +9,7 @@ import IconRows from '@/shared/ui/icon/icons/IconRows.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import { startTour } from '../model/coordinator.ts';
+import { tourRegistry } from '../model/registry.ts';
 import {
   categoryIcons,
   tagIcons,
@@ -44,6 +45,8 @@ const props = withDefaults(defineProps<{
   onLaunch?: (id: TourId) => void;
   /** Same-origin interactive preview URL supplied by hosts that bundle the demo. */
   previewUrl?: (id: TourId) => string;
+  /** Explicit host account state. Undefined leaves availability filtering to the host's tour allow-list. */
+  signedIn?: boolean;
 }>(), {
   capabilities: undefined,
   taskState: undefined,
@@ -54,6 +57,7 @@ const props = withDefaults(defineProps<{
   initialTour: undefined,
   onLaunch: undefined,
   previewUrl: undefined,
+  signedIn: undefined,
 });
 
 type CatalogFilter = 'all' | TutorialCategory | TutorialTag;
@@ -74,8 +78,9 @@ const text = (key: string): string => String(t(key));
 const isCategory = (value: CatalogFilter): value is TutorialCategory => (tutorialCategories as readonly string[]).includes(value);
 const isTag = (value: CatalogFilter): value is TutorialTag => (tutorialTags as readonly string[]).includes(value);
 const allowedTours = computed(() => props.tours ? new Set<string>(props.tours) : null);
+const accountAvailable = (id: TourId): boolean => props.signedIn === undefined || tourRegistry[id].availability?.account !== 'signed-in' || props.signedIn;
 const tutorials = computed<LocalizedTutorialEntry[]>(() => tutorialEntries
-  .filter((entry) => !allowedTours.value || allowedTours.value.has(entry.id))
+  .filter((entry) => (!allowedTours.value || allowedTours.value.has(entry.id)) && accountAvailable(entry.id))
   .map((entry) => ({
     ...entry,
     title: tutorialCard(tourLocale.value, entry.id).title,
@@ -199,7 +204,7 @@ function backToCategory(): void {
 }
 
 watch(visibleCategories, (visible) => {
-  if (!visible.includes(currentCategory.value)) currentCategory.value = visible[0] ?? tutorialCategories[0];
+  if (!(visible as readonly TutorialCategory[]).includes(currentCategory.value)) currentCategory.value = visible[0] ?? tutorialCategories[0];
 }, { immediate: true });
 watch(query, (value) => {
   if (value.trim()) {
@@ -234,6 +239,7 @@ async function launch(id: TourId): Promise<void> {
     router: router ?? undefined,
     locale: tourLocale.value,
     capabilities: props.capabilities,
+    signedIn: props.signedIn,
     taskState: () => (typeof props.taskState === 'function' ? props.taskState() : props.taskState) ?? {},
   });
 }

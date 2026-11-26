@@ -5,15 +5,15 @@ export const tutorialCategories = [
   'plugins',
   'overlays',
   'points',
-  'changes',
   'diagnostics',
   'feed',
   'account',
   'analytics',
   'settings',
-  'rankings',
 ] as const;
-export type TutorialCategory = (typeof tutorialCategories)[number];
+/** Internal product areas can have a category for future/direct tours without appearing as public catalog sections. */
+export const internalTutorialCategories = ['rankings'] as const;
+export type TutorialCategory = (typeof tutorialCategories)[number] | (typeof internalTutorialCategories)[number];
 
 /** Topic chips carried by individual guides. Events/actions/variables mirror the automation tabs. */
 export const tutorialTags = [
@@ -24,20 +24,31 @@ export const tutorialTags = [
   'plugins',
   'overlays',
   'points',
-  'changes',
   'diagnostics',
   'feed',
   'account',
   'analytics',
   'settings',
-  'rankings',
 ] as const;
 export type TutorialTag = (typeof tutorialTags)[number];
 
-/** Automation guides form one product-area category; their events/actions/variables tags remain tab metadata. */
-export function tourCategory(module: { id: string; tags: readonly string[] }): TutorialCategory {
-  if (module.id.startsWith('automation')) return 'automations';
-  const firstTag = module.tags[0] ?? '';
-  if ((tutorialCategories as readonly string[]).includes(firstTag)) return firstTag as TutorialCategory;
-  throw new Error(`tour ${module.id}: first tag ${firstTag} is not a catalog category`);
+const categoriesByScope = {
+  automations: 'automations',
+  connections: 'connection',
+  plugins: 'plugins',
+  overlays: 'overlays',
+  points: 'points',
+  diagnostics: 'diagnostics',
+  feed: 'feed',
+  account: 'account',
+  analytics: 'analytics',
+  settings: 'settings',
+  rankings: 'rankings',
+} as const satisfies Record<string, TutorialCategory>;
+
+/** The product scope declared by the tour is the only source of its catalog category. */
+export function tourCategory(module: { id: string; scope: string }): TutorialCategory {
+  const category = (categoriesByScope as Record<string, TutorialCategory | undefined>)[module.scope];
+  if (!category) throw new Error(`tour ${module.id}: scope ${module.scope} is not a catalog category`);
+  return category;
 }

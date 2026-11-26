@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { contentRoot, metadataErrors, readArticles } from './content.ts';
 import { migrationErrors } from './migration.ts';
 import { parseDemoOptions } from '../../src/web/demo/scenarios.ts';
+import { demoTourScenarios, type DemoTourId } from '../../src/web/demo/tours.ts';
 import { checkControlContract } from './control-contract.ts';
 
 const args = process.argv.slice(2);
@@ -20,6 +21,15 @@ for (const article of articles) {
     const parameters = new URLSearchParams([...attributes].filter(([key]) => key !== 'title' && key !== 'panel'));
     if (attributes.has('panel')) parameters.set('embed', attributes.get('panel')!);
     try { parseDemoOptions(parameters.toString()); } catch { errors.push(`${article.relativePath}: invalid DemoFrame parameters`); }
+  }
+  for (const frame of article.source.matchAll(/<TourFrame\s+([^>]+)\/?\s*>/g)) {
+    const attributes = new Map([...frame[1]!.matchAll(/([a-z]+)="([^"]*)"/g)].map((match) => [match[1]!, match[2]!]));
+    const id = attributes.get('id') as DemoTourId | undefined;
+    if (!attributes.get('title')) errors.push(`${article.relativePath}: tour iframe needs an accessible title`);
+    if (!id || !Object.hasOwn(demoTourScenarios, id)) { errors.push(`${article.relativePath}: unknown or unsupported TourFrame id`); continue; }
+    const parameters = new URLSearchParams({ scenario: demoTourScenarios[id], tour: id });
+    if (attributes.get('locale')) parameters.set('locale', attributes.get('locale')!);
+    try { parseDemoOptions(parameters.toString()); } catch { errors.push(`${article.relativePath}: invalid TourFrame parameters`); }
   }
   for (const link of article.links) {
     if (/^(https?:|mailto:)/.test(link.target)) { externalLinks += 1; continue; }

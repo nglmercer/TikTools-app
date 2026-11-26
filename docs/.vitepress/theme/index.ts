@@ -6,6 +6,7 @@ import './experience.css';
 import './landing.css';
 import SiteLanguageSwitcher from './components/SiteLanguageSwitcher.vue';
 import DemoFrame from './components/DemoFrame.vue';
+import TourFrame from './components/TourFrame.vue';
 import DocsHome from './components/DocsHome.vue';
 import InlineButtons from '../../examples/buttons.vue';
 import DocSteps from './components/DocSteps.vue';
@@ -22,6 +23,7 @@ export default {
   }),
   enhanceApp({ app }: Parameters<NonNullable<typeof DefaultTheme.enhanceApp>>[0]) {
     app.component('DemoFrame', DemoFrame);
+    app.component('TourFrame', TourFrame);
     app.component('DocsHome', DocsHome);
     app.component('InlineButtons', InlineButtons);
     app.component('DocSteps', DocSteps);

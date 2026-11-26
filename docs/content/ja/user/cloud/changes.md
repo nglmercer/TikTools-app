@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
-translationRevision: "62915cc15f2f66804f1a359f50a70c99b25892af04edf43c015f24d50698e46d"
+sourceRevision: "0bb2a29db86d989dfeb986bb696a9da4b7a47c942ecbdaa0a988f6bab501f12d"
+translationRevision: "1e8dde5dbbdd4a7efafa6a3d0b0fee551bf6988f42cc1b518433f80f3ac4584c"
 order: 20
 ---
 
@@ -40,7 +40,7 @@ Cloud オーバーレイは[ライブラリ・エディター](../overlays/index
 
 ローカルの自動化比較と、ホスト機能に応じたネイティブ共有をそれぞれの領域で利用できます。リモートに影響する操作はサービスに依存し、本番動作の確認を意味しません。確認内容が古くなったら更新して再比較します。結果が未確認なら、新しい操作を作る前に状態・ジャーナルを確認してください。タイムアウトは「何も変わらなかった」証拠ではありません。
 
-<DemoFrame scenario="cloud" locale="ja" tour="changes" title="デモ: Cloud" />
+<TourFrame id="changes" locale="ja" title="デモ: Cloud" />
 
 ## 運用の詳細 {#operational-details}
 

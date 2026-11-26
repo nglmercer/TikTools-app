@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
-translationRevision: "34b930f66c512f6ff0178c2b22dbb707089ea713e4b768f987856f744e81efa9"
+sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
+translationRevision: "31091599623f47a7da5cb44bd46ce34d43072996a61d0d617b66cf95911bc2f1"
 order: 30
 ---
 
@@ -42,7 +42,7 @@ order: 30
 
 原因を修正してから再試行します。リビジョン競合では現在の保存状態を再読み込みして確認します。未確認のリモートコマンドは再送前にジャーナル・状態を確認します。成功した処理の後でタイムアウトする場合があります。起動失敗時はデータを削除せず、パッケージ・バージョンと起動ログを報告します。
 
-<DemoFrame scenario="diagnostics" locale="ja" tour="diagnostics" title="デモ: 診断" />
+<TourFrame id="diagnostics" locale="ja" title="デモ: 診断" />
 
 ## 運用の詳細 {#operational-details}
 

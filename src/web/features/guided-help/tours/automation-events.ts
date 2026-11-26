@@ -11,9 +11,9 @@ export default defineTour({
   shape: 'custom',
   layout: [
     { id: 'profiles', target: 'automation-profiles', policy: 'cancel' },
-    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'], version: 2 },
-    { id: 'events', target: 'automation-events', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'], version: 2 },
-    { id: 'editor', target: 'automation-editor', policy: 'skip', prepare: ['[data-guide="automation-new-record"]'], version: 2 },
+    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'], prepareActions: ['automation.selectEvents'], version: 2 },
+    { id: 'events', target: 'automation-events', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]'], prepareActions: ['automation.selectEvents'], version: 2 },
+    { id: 'editor', target: 'automation-editor', policy: 'skip', prepare: ['[data-guide="automation-events"] tbody tr'], prepareActions: ['automation.openEvent'], version: 2 },
     { id: 'runs', target: 'automation-runs', policy: 'skip' },
   ],
   steps: {

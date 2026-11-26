@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
-translationRevision: "353195b2b412e47763fc0520f40936727eb19f0c56141c8e581b0c811c0e31c7"
+sourceRevision: "0bb2a29db86d989dfeb986bb696a9da4b7a47c942ecbdaa0a988f6bab501f12d"
+translationRevision: "ef5dbc1f67e6a75fc1e2ba54fc63a06fa15d0fcdf0d214573230696709b33e98"
 order: 20
 ---
 
@@ -40,7 +40,7 @@ Cloud 叠加层采用[库/编辑器](../overlays/index.md)的创建与修订流�
 
 本地自动化比较和按能力开放的原生共享，在各自区域中可用。产生远程副作用的操作依赖服务，并不表示已通过生产验收。审查过期时，刷新并重新比较。结果未确认时，先检查状态或日志，再创建另一个操作。不要将超时当作没有发生变更的证据。
 
-<DemoFrame scenario="cloud" locale="zh" tour="changes" title="演示：Cloud 变更" />
+<TourFrame id="changes" locale="zh" title="演示：Cloud 变更" />
 
 ## 运行细节 {#operational-details}
 

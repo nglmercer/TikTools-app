@@ -79,6 +79,7 @@ function applyConfigured(answers: Record<string, string>): void {
 
 <template>
   <BaseSection
+    data-guide="event-editor-conditions"
     :title="t('automations.event.conditions')"
     :description="rawHotkey ? t('automations.event.rawHotkey') : undefined"
   >

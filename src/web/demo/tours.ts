@@ -1,9 +1,16 @@
 import { tourRegistry } from '@/features/guided-help/model/registry.ts';
+import { tourModules, type TourModuleId } from '@/features/guided-help/tours/index.ts';
 import type { TourId } from '@/features/guided-help/model/types.ts';
 import { scenarios, type ScenarioId } from './scenarios.ts';
 
-/** Cloud-account and experimental ranking tours are real-app only; the signed-out demo cannot honestly prepare those states. */
-export type DemoTourId = Exclude<TourId, 'backup' | 'cloudOverlays' | 'rankings' | 'backupRestore'>;
+type TourModule = (typeof tourModules)[number];
+type InternalTourId = TourModuleId<Extract<TourModule, { lifecycle: 'internal' }>>;
+type DisabledDemoTourId = TourModuleId<Extract<TourModule, { demo: false }>>;
+/** Cloud-account and experimental ranking tours are excluded by the same module flags that drive the runtime filter. */
+export type DemoTourId = Exclude<TourId, InternalTourId | DisabledDemoTourId>;
+type AssertNever<T extends never> = T;
+// Compile-time parity check: these ids must be impossible, not merely absent at runtime.
+export type DemoExclusionsStayOut = AssertNever<Extract<'backup' | 'cloudOverlays' | 'rankings' | 'backupRestore', DemoTourId>>;
 export const isDemoTour = (id: string): id is DemoTourId => Object.hasOwn(demoTourScenarios, id);
 
 const scenarioOverrides: Partial<Record<DemoTourId, ScenarioId>> = {
@@ -27,8 +34,8 @@ const scopeScenarios: Record<string, ScenarioId> = {
 
 /** Scenarios derive from the tour scope; only exceptions need an override. */
 export const demoTourScenarios = Object.fromEntries(
-  Object.values(tourRegistry)
-    .filter((tour) => !['backup', 'cloudOverlays', 'rankings', 'backupRestore'].includes(tour.id))
+  tourModules
+    .filter((tour) => (!('lifecycle' in tour) || tour.lifecycle !== 'internal') && (!('demo' in tour) || tour.demo !== false))
     .map((tour) => [tour.id, scenarioOverrides[tour.id as DemoTourId] ?? scopeScenarios[tour.scope] ?? tour.scope]),
 ) as Record<DemoTourId, ScenarioId>;
 

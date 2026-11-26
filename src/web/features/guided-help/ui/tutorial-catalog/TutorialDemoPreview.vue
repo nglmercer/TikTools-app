@@ -2,9 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { tourRegistry } from '../../model/registry.ts';
+import { guideTargetMetadata, type GuideLayoutZone } from '../../model/guide-targets.ts';
 import type { TourId } from '../../model/types.ts';
 
-type DemoZone = 'toolbar' | 'tabs' | 'list' | 'editor' | 'preview' | 'detail' | 'footer';
+type DemoZone = GuideLayoutZone;
 
 const props = withDefaults(defineProps<{
   tourId: TourId;
@@ -17,7 +18,7 @@ const defaultZones: readonly DemoZone[] = ['toolbar', 'list', 'editor', 'detail'
 const zonesByScope: Record<string, readonly DemoZone[]> = {
   automations: ['toolbar', 'tabs', 'list', 'editor', 'footer'],
   connections: ['toolbar', 'editor', 'list', 'detail', 'footer'],
-  feed: ['toolbar', 'preview', 'list', 'footer'],
+  feed: ['toolbar', 'preview', 'list', 'detail', 'footer'],
   plugins: ['toolbar', 'list', 'detail', 'editor', 'footer'],
   overlays: ['toolbar', 'list', 'preview', 'editor', 'footer'],
   points: ['toolbar', 'tabs', 'list', 'detail', 'footer'],
@@ -58,19 +59,8 @@ const frameStyle = computed(() => ({
   transform: `scale(${scale.value})`,
 }));
 
-function classifyTarget(value: string): DemoZone {
-  if (value.includes('tab')) return 'tabs';
-  if (/(catalog|events|actions|variables|widgets|leaderboard|competitions|log|activity|contributors|list)/.test(value)) return 'list';
-  if (/(profile|filter|control|library|range|search|view|sections|gateway|tools|plan)/.test(value)) return 'toolbar';
-  if (/(editor|form|settings|permission|install|design|create|updater|url)/.test(value)) return 'editor';
-  if (/(preview|stage|metrics|facts)/.test(value)) return 'preview';
-  if (/(detail|explorer|plugin|inspector|review)/.test(value)) return 'detail';
-  if (/(run|changes|history)/.test(value)) return 'footer';
-  return 'list';
-}
-
 const activeZone = computed(() => {
-  const zone = classifyTarget(target.value);
+  const zone = guideTargetMetadata(target.value).zone;
   return zones.value.includes(zone) ? zone : (zones.value.includes('list') ? 'list' : zones.value[0]);
 });
 
@@ -91,6 +81,13 @@ function findVisible(doc: Document, selector: string): HTMLElement | undefined {
 }
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+function activate(control: HTMLElement): void {
+  const view = control.ownerDocument.defaultView;
+  // Tables intentionally select rows on pointerdown, like a real pointer. A
+  // bare programmatic click would not reproduce that interaction.
+  if (view) control.dispatchEvent(new view.MouseEvent('pointerdown', { bubbles: true, cancelable: true }));
+  control.click();
 }
 async function waitForVisible(doc: Document, selector: string, generation: number, timeout = 1400): Promise<HTMLElement | undefined> {
   const deadline = Date.now() + timeout;
@@ -127,7 +124,7 @@ async function synchronizeFrame(): Promise<void> {
     const control = await waitForVisible(doc, selector, generation, 700);
     if (generation !== syncGeneration) return;
     if (!control) continue;
-    control.click();
+    activate(control);
     element = await waitForVisible(doc, targetSelector, generation, 500);
   }
   element ??= await waitForVisible(doc, targetSelector, generation, 1200);
@@ -166,7 +163,7 @@ watch([frameSrc, frameReady, () => props.activeStep], () => { void synchronizeFr
 <template>
   <section
     class="tutorial-demo-preview"
-    :aria-label="t('guides.catalog.demoPreview')"
+    :aria-label="frameSrc ? t('guides.catalog.demoPreview') : t('guides.catalog.demoSchematic')"
   >
     <div class="tutorial-demo-preview__shell">
       <header class="tutorial-demo-preview__chrome">
@@ -174,7 +171,7 @@ watch([frameSrc, frameReady, () => props.activeStep], () => { void synchronizeFr
           class="tutorial-demo-preview__dots"
           aria-hidden="true"
         ><i /><i /><i /></span>
-        <strong>{{ t('guides.catalog.demoPreview') }}</strong>
+        <strong>{{ frameSrc ? t('guides.catalog.demoPreview') : t('guides.catalog.demoSchematic') }}</strong>
         <span class="tutorial-demo-preview__route">{{ tour.route }}</span>
       </header>
       <div

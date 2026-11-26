@@ -68,9 +68,9 @@ onMounted(() => {
 onBeforeUnmount(() => disposeSwipe?.());
 
 const tabs = computed(() => [
-  { value: 'viewers' as const, label: t('feed.inspector.viewers') },
-  { value: 'event' as const, label: t('feed.inspector.details'), disabled: !props.event },
-  { value: 'user' as const, label: t('feed.inspector.profile'), disabled: !props.viewer },
+  { value: 'viewers' as const, label: t('feed.inspector.viewers'), guide: 'feed-inspector-tab-viewers' },
+  { value: 'event' as const, label: t('feed.inspector.details'), disabled: !props.event, guide: 'feed-inspector-tab-event' },
+  { value: 'user' as const, label: t('feed.inspector.profile'), disabled: !props.viewer, guide: 'feed-inspector-tab-user' },
 ]);
 </script>
 

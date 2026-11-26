@@ -4,7 +4,7 @@ import { useAutomationRecordSession } from '../model/use-automation-record-sessi
 import AutomationToggleDialog from '@/features/manage-automations/ui/AutomationToggleDialog.vue';
 import AutomationRecordEditor from './AutomationRecordEditor.vue';
 import { storeToRefs } from 'pinia';
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue';
 import { routeLocationKey, routerKey } from 'vue-router';
 import type { LiveAction, LiveEvent } from '../../../../automation/behavior/types.ts';
 import type { JsonObject } from '../../../../automation/types.ts';
@@ -19,6 +19,7 @@ import { libraryJournal } from '@/entities/rule-template/model/library-journal.t
 import { useControlClient } from '@/shared/api/use-control-client.ts';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
 import GuideCatalogButton from '@/features/guided-help/ui/GuideCatalogButton.vue';
+import { registerGuideActions } from '@/features/guided-help/model/guide-actions.ts';
 import {
   isRecordSort,
   type RecordSort,
@@ -79,7 +80,6 @@ function openTemplates(next: RuleTemplateTab = 'templates'): void {
   templatesOpen.value = true;
 }
 if (requestedView === 'cloud') openTemplates('cloud');
-watch(() => route?.query.view, (view) => { if (view === 'cloud') openTemplates('cloud'); });
 watch(templatesOpen, (isOpen) => { if (!isOpen && route?.query.view === 'cloud') void router?.replace({ query: {} }); });
 const profileImportOpen = ref(false);
 const retryingLibrary = ref(false);
@@ -98,6 +98,15 @@ const {
   closeEditor, newEvent, newAction, saveEvent, saveAction, removeRecord, duplicateRecord, deleteFromLibrary, setEnabled,
   compare, useReviewedBase, switchProfile,
 } = session;
+
+// `?view=variables` is a live navigation state, not just setup input. The
+// same component is reused when a guide/deep link only changes the query, so
+// entering and leaving that URL must update the library area explicitly.
+watch(() => route?.query.view, (view, previous) => {
+  if (view === 'cloud') openTemplates('cloud');
+  if (view === 'variables' && area.value !== 'variables') libraryTab.value = 'variables';
+  else if (previous === 'variables' && view !== 'variables' && area.value === 'variables') libraryTab.value = tab.value;
+});
 const snapshot = computed(() => automation.snapshot.value);
 const deleteTarget = ref<{ kind: LibraryTab; id: string; name: string } | null>(null);
 const deleteDialogOpen = computed({
@@ -169,17 +178,58 @@ const persist = debounce(() => {
 });
 watch([tab, selected, eventQuery, eventSort, actionQuery, actionSort], persist);
 
+const guideScope = useTemplateRef<HTMLElement>('guideScope');
+let unregisterGuideActions: (() => void) | undefined;
 onMounted(() => {
+  unregisterGuideActions = registerGuideActions('automations', {
+    'automation.selectEvents': () => {
+      if (editor.dirty.value || (!editing.value && area.value === 'events')) return false;
+      libraryTab.value = 'events';
+      return true;
+    },
+    'automation.selectActions': () => {
+      if (editor.dirty.value || (!editing.value && area.value === 'actions')) return false;
+      libraryTab.value = 'actions';
+      return true;
+    },
+    'automation.selectVariables': () => {
+      if (editor.dirty.value || (!editing.value && area.value === 'variables')) return false;
+      libraryTab.value = 'variables';
+      return true;
+    },
+    'automation.openEvent': () => {
+      if (editor.dirty.value || editing.value?.kind === 'event') return false;
+      if (editing.value) { closeEditor(); return true; }
+      if (area.value !== 'events') { libraryTab.value = 'events'; return true; }
+      const first = events.value[0];
+      if (!first || selected.value === first.id) return false;
+      librarySelected.value = first.id;
+      return true;
+    },
+    'automation.openAction': () => {
+      if (editor.dirty.value || editing.value?.kind === 'action') return false;
+      if (editing.value) { closeEditor(); return true; }
+      if (area.value !== 'actions') { libraryTab.value = 'actions'; return true; }
+      const first = actions.value[0];
+      if (!first || selected.value === first.id) return false;
+      librarySelected.value = first.id;
+      return true;
+    },
+  }, guideScope.value ?? undefined);
   openRequestedTrigger();
   void automation.loadCustomTemplates();
   window.addEventListener('keydown', onSheetKeydown);
 });
 
-onBeforeUnmount(() => { window.removeEventListener('keydown', onSheetKeydown); });
+onBeforeUnmount(() => {
+  unregisterGuideActions?.();
+  window.removeEventListener('keydown', onSheetKeydown);
+});
 </script>
 
 <template>
   <div
+    ref="guideScope"
     class="automations-page"
     data-guide-scope="automations"
   >

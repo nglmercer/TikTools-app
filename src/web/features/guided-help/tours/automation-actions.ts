@@ -9,9 +9,9 @@ export default defineTour({
   icon: 'play',
   shape: 'custom',
   layout: [
-    { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'], version: 2 },
-    { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]'], version: 2 },
-    { id: 'editor', target: 'automation-editor', policy: 'skip', prepare: ['[data-guide="automation-new-record"]'], version: 2 },
+    { id: 'actionsTab', target: 'automation-tab-actions', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'], prepareActions: ['automation.selectActions'], version: 2 },
+    { id: 'actions', target: 'automation-actions', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-actions"]'], prepareActions: ['automation.selectActions'], version: 2 },
+    { id: 'editor', target: 'automation-editor', policy: 'skip', prepare: ['[data-guide="automation-actions"] tbody tr'], prepareActions: ['automation.openAction'], version: 2 },
     { id: 'templates', target: 'automation-templates', policy: 'skip' },
   ],
   steps: {

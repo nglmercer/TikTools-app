@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
-translationRevision: "d10088ad911ff785cebe9428728c8e59cd631360c910325f228057363ac6e9c8"
+sourceRevision: "0bb2a29db86d989dfeb986bb696a9da4b7a47c942ecbdaa0a988f6bab501f12d"
+translationRevision: "7029705a145ce5549d1290b17c772a3830af1896c2c81650c903fb1d1a5aa985"
 order: 20
 ---
 
@@ -40,7 +40,7 @@ Las superposiciones Cloud usan el flujo de creación/revisión de [biblioteca y 
 
 Están disponibles la comparación local y el intercambio nativo según capacidades en sus áreas respectivas. Las operaciones remotas dependen del servicio; no se implica aceptación en producción. Si una revisión caduca, actualiza y compara otra vez. Si el resultado no está confirmado, inspecciona estado e historial antes de crear otra operación. Un tiempo de espera agotado no demuestra que nada haya cambiado.
 
-<DemoFrame scenario="cloud" locale="es" tour="changes" title="Demo de cloud" />
+<TourFrame id="changes" locale="es" title="Demo de cloud" />
 
 ## Detalles de operación {#operational-details}
 

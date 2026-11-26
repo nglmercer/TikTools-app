@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
-translationRevision: "4d30369c30051c054d86732dd0d38ca7ef76fc45fde01ade6b30844a51f6d961"
+sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
+translationRevision: "c7841fea6235a200d8ac5af1cc2d0ccf17495167fc3803e4f8892cf3bb4ba6b6"
 order: 10
 ---
 
@@ -37,4 +37,4 @@ order: 10
 
 失敗時はジョブのエラーから互換性、署名、ランタイム、取得の問題を読みます。エラーを消すために検証を弱めないでください。更新後の問題では保持版を確認し、可能ならロールバックします。無効化・削除前に依存する自動化を確認し、プラグインのデータと設定を[バックアップ](../preferences/backups.md) します。
 
-<DemoFrame scenario="plugins" locale="ja" tour="plugin" title="デモ: プラグイン" />
+<TourFrame id="plugin" locale="ja" title="デモ: プラグイン" />

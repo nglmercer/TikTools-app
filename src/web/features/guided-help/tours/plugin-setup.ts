@@ -10,9 +10,9 @@ export default defineTour({
   shape: 'custom',
   layout: [
     { id: 'catalog', target: 'plugin-catalog', policy: 'cancel' },
-    { id: 'details', target: 'plugin-details', policy: 'skip' },
-    { id: 'settings', target: 'plugin-settings', policy: 'skip' },
-    { id: 'connection', target: 'plugin-connection', policy: 'skip' },
+    { id: 'details', target: 'plugin-details', policy: 'skip', prepare: ['[data-guide="plugin-tab-installed"]', '[data-plugin-key] .plugin-catalog__open'], prepareActions: ['plugins.openInstalled'] },
+    { id: 'settings', target: 'plugin-settings', policy: 'skip', prepare: ['[data-guide="plugin-tab-settings"]'], prepareActions: ['plugins.showSettings'] },
+    { id: 'connection', target: 'plugin-connection', policy: 'skip', prepare: ['[data-guide="plugin-tab-connection"]'], prepareActions: ['plugins.showConnection'] },
   ],
   steps: {
     catalog: {

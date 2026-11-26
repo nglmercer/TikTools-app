@@ -128,9 +128,10 @@
 .tutorial-catalog__step-panel h4 { margin: 0; color: var(--color-text); font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
 
 .tutorial-catalog__detail { display: grid; align-content: start; gap: var(--space-4); min-width: 0; padding-top: var(--space-1); }
-.tutorial-catalog__detail-head { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.tutorial-catalog__detail-copy { flex: 1; min-width: 0; }
+.tutorial-catalog__detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; }
+.tutorial-catalog__detail-copy { flex: 1 1 260px; min-width: 0; }
 .tutorial-catalog__detail-title { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.tutorial-catalog__detail-title h3 { min-width: 0; overflow-wrap: anywhere; }
 .tutorial-catalog__back { flex: none; color: var(--tutorial-link); font-weight: var(--font-weight-semibold); }
 .tutorial-catalog__start { flex: none; min-width: 112px; font-weight: var(--font-weight-semibold); }
 .tutorial-catalog__detail-layout { display: grid; grid-template-columns: minmax(300px, 0.85fr) minmax(420px, 1.15fr); gap: var(--space-4); align-items: stretch; }
@@ -174,7 +175,7 @@
 .tutorial-demo-preview__zone--footer { grid-area: footer; align-items: center; justify-content: space-between; }
 .tutorial-demo-preview__canvas[data-scope='automations'] { grid-template-areas: 'toolbar toolbar' 'tabs tabs' 'list editor' 'list editor' 'footer footer'; grid-template-rows: 28px 28px minmax(0, 1fr) minmax(0, 1fr) 34px; }
 .tutorial-demo-preview__canvas[data-scope='connections'] { grid-template-areas: 'toolbar toolbar' 'editor list' 'editor detail' 'footer footer'; grid-template-rows: 28px minmax(0, 1fr) minmax(0, 1fr) 34px; }
-.tutorial-demo-preview__canvas[data-scope='feed'] { grid-template-areas: 'toolbar toolbar' 'preview preview' 'list list' 'footer footer'; grid-template-rows: 28px minmax(0, 1.2fr) minmax(0, 0.8fr) 34px; }
+.tutorial-demo-preview__canvas[data-scope='feed'] { grid-template-areas: 'toolbar toolbar' 'preview detail' 'list detail' 'footer footer'; grid-template-rows: 28px minmax(0, 1.2fr) minmax(0, 0.8fr) 34px; }
 .tutorial-demo-preview__canvas[data-scope='overlays'] { grid-template-areas: 'toolbar toolbar' 'list preview' 'editor preview' 'footer footer'; grid-template-rows: 28px minmax(0, 1fr) minmax(0, 1fr) 34px; }
 .tutorial-demo-preview__canvas[data-scope='plugins'] { grid-template-areas: 'toolbar toolbar' 'list detail' 'list editor' 'footer footer'; grid-template-rows: 28px minmax(0, 1fr) minmax(0, 1fr) 34px; }
 .tutorial-demo-preview__canvas[data-scope='points'],

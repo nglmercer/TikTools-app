@@ -9,9 +9,9 @@ export default defineTour({
   icon: 'filter',
   shape: 'custom',
   layout: [
-    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepare: ['[data-guide="automation-editor-close"]'] },
-    { id: 'operators', target: 'event-editor-conditions', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
-    { id: 'quantifiers', target: 'event-editor-run', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-new-record"]'] },
+    { id: 'eventsTab', target: 'automation-tab-events', policy: 'cancel', prepareActions: ['automation.selectEvents'], prepare: ['[data-guide="automation-editor-close"]'] },
+    { id: 'operators', target: 'event-editor-conditions', policy: 'skip', prepareActions: ['automation.openEvent'], prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-events"] tbody tr'] },
+    { id: 'quantifiers', target: 'event-editor-run', policy: 'skip', prepareActions: ['automation.openEvent'], prepare: ['[data-guide="automation-editor-close"]', '[data-guide="automation-tab-events"]', '[data-guide="automation-events"] tbody tr'] },
     { id: 'verify', target: 'automation-runs', policy: 'skip', prepare: ['[data-guide="automation-editor-close"]'] },
   ],
   steps: {

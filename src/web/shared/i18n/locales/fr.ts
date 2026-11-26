@@ -2013,7 +2013,7 @@ export default {
     search: 'Rechercher des tutoriels', tagsLabel: 'Filtres de tutoriels', allTags: 'Toutes', start: 'Démarrer le guide', steps: '{count} étape | {count} étapes',
     back: 'Retour', overview: "Vue d'ensemble",
     guides: '{count} guide | {count} guides', specializedGuides: 'Guides spécialisés',
-    wizardLabel: 'Progression du catalogue de tutoriels', stepPreview: 'Aperçu des étapes', demoPreview: 'Démo miniature',
+    wizardLabel: 'Progression du catalogue de tutoriels', stepPreview: 'Aperçu des étapes', demoPreview: 'Démo miniature', demoSchematic: 'Carte simplifiée de la mise en page',
     screens: { catalog: 'Catalogue', category: 'Catégorie', guide: 'Guide' },
     empty: 'Aucun tutoriel ne correspond à votre recherche.',
     tags: { automations: 'Automatisations', events: 'Événements', actions: 'Actions', variables: 'Variables', connection: 'Connexion', plugins: 'Plugins', overlays: 'Overlays', points: 'Points', changes: 'Modifications', diagnostics: 'Diagnostic', feed: 'Flux en direct', account: 'Compte', analytics: 'Analytique', settings: 'Paramètres', rankings: 'Classements' },

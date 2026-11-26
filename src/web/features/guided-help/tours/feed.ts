@@ -5,7 +5,6 @@ export default defineTour({
   version: 2,
   route: '/feed',
   scope: 'feed',
-  task: 'feed.reviewed',
   tags: ['feed'],
   icon: 'chat',
   shape: 'custom',

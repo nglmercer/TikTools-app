@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { Config, DriveStep, Driver } from 'driver.js';
 import { createTourCoordinator, MAX_GUIDE_WAIT_MS } from '../../../../../../src/web/features/guided-help/model/coordinator.ts';
+import { registerGuideActions } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
 import { readTourProgress, writeTourProgress } from '../../../../../../src/web/features/guided-help/model/progress.ts';
 import { tourRegistry } from '../../../../../../src/web/features/guided-help/model/registry.ts';
 import { tourCatalogs } from '../../../../../../src/web/features/guided-help/catalogs';
@@ -464,7 +465,7 @@ describe('account and backup tour', () => {
     }
     const test = setup();
     const root = mountTargets('account', tourRegistry.backup.steps.map((step) => step.target));
-    const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', capabilities: ['cloud.plan.get', 'cloud.backup.createNamed', 'cloud.backup.list'] });
+    const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn: true, capabilities: ['cloud.plan.get', 'cloud.backup.createNamed', 'cloud.backup.list'] });
     await flushPromises();
     expect(await session.ready).toBe(true);
     for (let index = 1; index < 4; index++) {
@@ -473,6 +474,20 @@ describe('account and backup tour', () => {
       expect(session.active, `step ${index + 1}`).toBe(true);
     }
     session.stop();
+  });
+
+
+  it('refuses account-required tours unless the caller reports a signed-in account', async () => {
+    for (const signedIn of [undefined, false, () => false] as const) {
+      const test = setup();
+      const root = mountTargets('account', tourRegistry.backup.steps.map((step) => step.target));
+      const session = test.coordinator.startTour('backup', { scope: root, locale: 'en', signedIn, capabilities: ['cloud.plan.get', 'cloud.backup.createNamed', 'cloud.backup.list'] });
+      await flushPromises();
+      expect(await session.ready).toBe(false);
+      expect(await session.done).toBe('unavailable');
+      expect(test.loadDriver).not.toHaveBeenCalled();
+      root.remove();
+    }
   });
 
   it('keeps going when the feed stage target is missing instead of closing the tour', async () => {
@@ -495,15 +510,17 @@ it('presses the prepare trigger when an interaction-gated target is missing, ins
   vi.useFakeTimers();
   const test = setup();
   const root = mountTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
-  const create = document.createElement('button');
-  create.dataset.guide = 'automation-new-record';
+  const table = root.querySelector('[data-guide="automation-events"]')!;
+  const body = document.createElement('tbody');
+  const row = document.createElement('tr');
+  body.append(row);
+  table.append(body);
   const openEditor = vi.fn(() => {
     const editor = document.createElement('div');
     editor.dataset.guide = 'automation-editor';
     root.append(editor);
   });
-  create.addEventListener('click', openEditor);
-  root.append(create);
+  row.addEventListener('click', openEditor);
   const session = test.coordinator.startTour('automationEvents');
   await vi.advanceTimersByTimeAsync(0);
   expect(await session.ready).toBe(true);
@@ -519,15 +536,54 @@ it('presses the prepare trigger when an interaction-gated target is missing, ins
   session.stop();
 });
 
+
+it('prefers a semantic editor operation and suppresses the selector fallback while that owner exists', async () => {
+  vi.useFakeTimers();
+  const test = setup();
+  const root = mountTargets('automations', ['automation-profiles', 'automation-tab-events', 'automation-events', 'automation-runs']);
+  const table = root.querySelector('[data-guide="automation-events"]')!;
+  const body = document.createElement('tbody');
+  const row = document.createElement('tr');
+  body.append(row);
+  table.append(body);
+  const fallbackOpen = vi.fn(() => {
+    const wrong = document.createElement('div');
+    wrong.dataset.guide = 'automation-editor';
+    root.append(wrong);
+  });
+  row.addEventListener('click', fallbackOpen);
+  const semanticOpen = vi.fn(() => {
+    const editor = document.createElement('div');
+    editor.dataset.guide = 'automation-editor';
+    root.append(editor);
+    return true;
+  });
+  const unregister = registerGuideActions('automations', { 'automation.openEvent': semanticOpen }, root);
+  const session = test.coordinator.startTour('automationEvents');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(await session.ready).toBe(true);
+  for (let index = 0; index < 3; index++) {
+    test.next();
+    await vi.advanceTimersByTimeAsync(700);
+  }
+  expect(semanticOpen).toHaveBeenCalledTimes(1);
+  expect(fallbackOpen).not.toHaveBeenCalled();
+  expect(test.steps()[3]?.element).toBe(root.querySelector('[data-guide="automation-editor"]'));
+  session.stop();
+  unregister();
+});
+
 it('does not press the prepare trigger when the target already exists', async () => {
   vi.useFakeTimers();
   const test = setup();
   const root = mountTargets('automations', tourRegistry.automationEvents.steps.map((step) => step.target));
-  const create = document.createElement('button');
-  create.dataset.guide = 'automation-new-record';
+  const table = root.querySelector('[data-guide="automation-events"]')!;
+  const body = document.createElement('tbody');
+  const row = document.createElement('tr');
+  body.append(row);
+  table.append(body);
   const openEditor = vi.fn();
-  create.addEventListener('click', openEditor);
-  root.append(create);
+  row.addEventListener('click', openEditor);
   const session = test.coordinator.startTour('automationEvents');
   await vi.advanceTimersByTimeAsync(0);
   expect(await session.ready).toBe(true);

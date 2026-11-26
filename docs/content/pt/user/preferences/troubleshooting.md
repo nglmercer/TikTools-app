@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
-translationRevision: "6b2ce018f93c305fc9204edda65de23bf2110b649a88ce164ae7aaed5d0b7d76"
+sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
+translationRevision: "2d6df3086138f8664c78c8f1d89c518c3924874d33f2174277feeddf7dd822f3"
 order: 30
 ---
 
@@ -42,7 +42,7 @@ Filtragem, cópia e exportação de texto de diagnósticos estão disponíveis. 
 
 Tente novamente após corrigir a causa específica. Para conflitos de revisão, recarregue e revise o estado salvo atual. Para um comando remoto não confirmado, inspecione seu diário/status antes de enviar outro: um tempo limite pode ocorrer após um efeito bem-sucedido. Se a inicialização falhar, informe pacote/versão e registro de inicialização em vez de excluir o diretório de dados.
 
-<DemoFrame scenario="diagnostics" locale="pt" tour="diagnostics" title="Demonstração: diagnósticos" />
+<TourFrame id="diagnostics" locale="pt" title="Demonstração: diagnósticos" />
 
 ## Detalhes de operação {#operational-details}
 

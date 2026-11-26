@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { inject, ref } from 'vue';
+import { computed, inject, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseButton from '@/shared/ui/button/BaseButton.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import { useCapabilityStore } from '@/entities/runtime/model/capabilities-store.ts';
+import { useAccountStore } from '@/entities/cloud-account/model/account-store.ts';
 import type { TutorialCategory, TutorialTag } from '../model/tutorial-catalog.ts';
 import { guideCatalogContextKey } from '../model/catalog-context.ts';
 import type { TourCapabilities, TourId, TourTaskState } from '../model/types.ts';
@@ -26,9 +27,12 @@ const props = withDefaults(defineProps<{
 
 const { t } = useI18n();
 const hostCapabilities = useCapabilityStore();
+const account = useAccountStore();
+const signedIn = computed(() => account.status?.state === 'signed-in');
 const catalogContext = inject(guideCatalogContextKey, {});
 const catalogOpen = ref(false);
 defineExpose({ open: () => { catalogOpen.value = true; } });
+watch(catalogOpen, (isOpen) => { if (isOpen) void account.ensureRestored(); });
 </script>
 
 <template>
@@ -61,6 +65,7 @@ defineExpose({ open: () => { catalogOpen.value = true; } });
       :tours="props.tours ?? catalogContext.tours"
       :on-launch="props.onLaunch ?? catalogContext.onLaunch"
       :preview-url="catalogContext.previewUrl"
+      :signed-in="signedIn"
     />
   </Teleport>
 </template>

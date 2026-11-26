@@ -5,6 +5,8 @@ export default defineTour({
   version: 1,
   route: '/overlays',
   scope: 'overlays',
+  demo: false,
+  availability: { account: 'signed-in' },
   tags: ['overlays', 'account'],
   icon: 'cloud',
   shape: 'custom',

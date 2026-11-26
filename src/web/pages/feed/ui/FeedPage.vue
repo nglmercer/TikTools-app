@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { useLiveFeedStore } from '@/entities/live-event/model/live-feed-store.ts';
 import { usePointsStore } from '@/entities/points/model/points-store.ts';
+import { registerGuideActions } from '@/features/guided-help/model/guide-actions.ts';
 import { enrichViewer, sameHandle, type ViewerIdentity } from '@/entities/viewer/lib/viewer-profile.ts';
 import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import type { DisplayEvent } from '@/types.ts';
@@ -75,12 +76,61 @@ function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Escape' && inspectorOpen.value && !event.defaultPrevented) inspectorOpen.value = false;
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown));
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
+const guideScope = useTemplateRef<HTMLElement>('guideScope');
+let unregisterGuideActions: (() => void) | undefined;
+onMounted(() => {
+  unregisterGuideActions = registerGuideActions('feed', {
+    'feed.openInspector': () => {
+      if (inspectorOpen.value) return false;
+      inspectorOpen.value = true;
+      return true;
+    },
+    'feed.showViewers': () => {
+      if (!inspectorOpen.value) { inspectorOpen.value = true; return true; }
+      if (tab.value === 'viewers') return false;
+      tab.value = 'viewers';
+      return true;
+    },
+    'feed.showEvent': () => {
+      if (!inspectorOpen.value) { inspectorOpen.value = true; return true; }
+      if (!selectedEvent.value) {
+        const first = events.value[0];
+        if (!first) return false;
+        selectEvent(first);
+        return true;
+      }
+      if (tab.value === 'event') return false;
+      tab.value = 'event';
+      return true;
+    },
+    'feed.showViewer': () => {
+      if (!inspectorOpen.value) { inspectorOpen.value = true; return true; }
+      if (!viewer.value) {
+        const top = topViewers.value[0] ?? likeLeaders.value[0];
+        const first = events.value[0];
+        const identity = top
+          ? { uniqueId: top.uniqueId, nickname: top.nickname, ...(top.avatarUrl ? { avatarUrl: top.avatarUrl } : {}) }
+          : first ? { uniqueId: first.author, ...(first.nickname ? { nickname: first.nickname } : {}), ...(first.avatarUrl ? { avatarUrl: first.avatarUrl } : {}) } : null;
+        if (!identity) return false;
+        openViewer(identity);
+        return true;
+      }
+      if (tab.value === 'user') return false;
+      tab.value = 'user';
+      return true;
+    },
+  }, guideScope.value ?? undefined);
+  window.addEventListener('keydown', onKeydown);
+});
+onBeforeUnmount(() => {
+  unregisterGuideActions?.();
+  window.removeEventListener('keydown', onKeydown);
+});
 </script>
 
 <template>
   <div
+    ref="guideScope"
     class="feed-page"
     data-guide-scope="feed"
   >

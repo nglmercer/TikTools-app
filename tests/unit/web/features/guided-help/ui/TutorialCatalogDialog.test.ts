@@ -175,6 +175,27 @@ it('moves focus into detail, restores it to the card and supports step arrow key
   wrapper.unmount();
 });
 
+
+it('filters signed-in cloud workspace tours only when the host reports an anonymous account', async () => {
+  const signedOut = mountWithPlugins(TutorialCatalogDialog, {
+    attachTo: document.body,
+    props: { open: true, signedIn: false },
+  });
+  await signedOut.get('input[type="search"]').setValue(titleOf('backup'));
+  await flushPromises();
+  expect(signedOut.find('.tutorial-catalog__card').exists()).toBe(false);
+  signedOut.unmount();
+
+  const signedIn = mountWithPlugins(TutorialCatalogDialog, {
+    attachTo: document.body,
+    props: { open: true, signedIn: true },
+  });
+  await signedIn.get('input[type="search"]').setValue(titleOf('backup'));
+  await flushPromises();
+  expect(signedIn.findAll('.tutorial-catalog__card').some((card) => card.text().includes(titleOf('backup')))).toBe(true);
+  signedIn.unmount();
+});
+
 it('limits the catalog to the caller tours and preselects the recommended one', async () => {
   const wrapper = mountWithPlugins(TutorialCatalogDialog, {
     attachTo: document.body,

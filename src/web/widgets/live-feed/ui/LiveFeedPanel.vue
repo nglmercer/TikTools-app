@@ -171,6 +171,7 @@ function onMenu(action: MenuAction): void {
           :label="inspectorOpen ? t('feed.inspector.hide') : t('feed.inspector.show')"
           size="sm"
           :pressed="inspectorOpen"
+          data-guide="feed-inspector-toggle"
           @click="emit('toggle-inspector')"
         >
           <IconPopout />

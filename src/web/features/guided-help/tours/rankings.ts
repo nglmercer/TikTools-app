@@ -5,7 +5,8 @@ export default defineTour({
   version: 1,
   route: '/rankings',
   scope: 'rankings',
-  tags: ['rankings', 'points'],
+  lifecycle: 'internal',
+  tags: ['points'],
   icon: 'trophy',
   shape: 'custom',
   layout: [

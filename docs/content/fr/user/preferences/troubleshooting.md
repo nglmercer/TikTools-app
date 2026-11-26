@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
-translationRevision: "c9765cbd7e1784cbe7de04640e0de66ab0ed723aaf8933226353489559379fd2"
+sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
+translationRevision: "358c176924fa0efc897dea7824cdd6e54f73abf33aa1668785ac3c977f993c2b"
 order: 30
 ---
 
@@ -42,7 +42,7 @@ Le filtrage, la copie et l’exportation texte des diagnostics sont disponibles.
 
 Réessayez après correction de la cause précise. Pour les conflits de révision, rechargez et examinez l’état actuellement enregistré. Pour une commande distante non confirmée, consultez son journal/état avant d’en envoyer une autre : un délai d’attente dépassé peut suivre un effet réussi. Si le démarrage échoue, signalez le paquet, la version et le journal de démarrage plutôt que de supprimer le répertoire de données.
 
-<DemoFrame scenario="diagnostics" locale="fr" tour="diagnostics" title="Démo : diagnostics" />
+<TourFrame id="diagnostics" locale="fr" title="Démo : diagnostics" />
 
 ## Détails de fonctionnement {#operational-details}
 

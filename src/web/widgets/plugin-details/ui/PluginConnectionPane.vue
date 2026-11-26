@@ -54,7 +54,10 @@ function testConnection(): void {
       {{ connecting ? t('plugins.connection.testing') : t('connections.servers.test') }}
     </BaseButton>
   </div>
-  <div class="plugin-details__pane">
+  <div
+    class="plugin-details__pane"
+    data-guide="plugin-connection"
+  >
     <PluginConnectionEditor
       ref="editor"
       :key="id"

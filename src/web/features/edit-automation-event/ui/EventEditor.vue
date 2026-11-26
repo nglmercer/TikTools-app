@@ -256,7 +256,6 @@ function runCustom(kind: 'test' | 'fire'): void {
           </BaseSection>
 
           <EventConditionsSection
-            data-guide="event-editor-conditions"
             :event="draft"
             :gifts="gifts"
             :viewers="viewers"

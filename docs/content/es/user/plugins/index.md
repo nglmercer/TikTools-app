@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
-translationRevision: "7e9ad6d138cf11ac73bc3755527638092c10edd155712b3e99e6fcbc47cf0626"
+sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
+translationRevision: "ce29bc14e959f6c892ccf842b0732c2c7cda15e87872a7a2d03b7f95b85836d3"
 order: 10
 ---
 
@@ -37,4 +37,4 @@ Están disponibles la revisión de paquetes, los trabajos de instalación, las p
 
 Ante un fallo, lee el error del trabajo para identificar incompatibilidad, firma, entorno o descarga. Evita debilitar la verificación para eliminar un aviso. Si una actualización falla, revisa las versiones conservadas y usa la reversión cuando esté disponible. Comprueba automatizaciones dependientes antes de desactivar o desinstalar. Conserva [copias](../preferences/backups.md) de datos y configuración antes de eliminarlos.
 
-<DemoFrame scenario="plugins" locale="es" tour="plugin" title="Demo de plugins" />
+<TourFrame id="plugin" locale="es" title="Demo de plugins" />

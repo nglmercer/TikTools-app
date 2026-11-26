@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
-translationRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
+sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
+translationRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
 order: 10
 ---
 
@@ -37,4 +37,4 @@ Package review, installation jobs, plugin preferences and version management are
 
 For installation failure, read the job error for compatibility, signature, runtime or download problems. Do not weaken verification just to clear an error. If an update causes trouble, inspect retained versions and use rollback where available. Review dependent automations before disabling or uninstalling a plugin. Keep [backups](../preferences/backups.md) of plugin data and configuration before removing them.
 
-<DemoFrame scenario="plugins" locale="en" tour="plugin" title="Demo: plugins" />
+<TourFrame id="plugin" locale="en" title="Demo: plugins" />

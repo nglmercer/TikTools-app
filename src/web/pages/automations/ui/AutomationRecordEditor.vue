@@ -44,6 +44,7 @@ const actionCaptures = computed(() => {
 <template>
   <EventEditor
     v-if="editing.kind === 'event'"
+    data-guide="automation-editor"
     :key="state?.token"
     :baseline="eventBaseline ?? undefined"
     :busy="state?.busy"
@@ -78,6 +79,7 @@ const actionCaptures = computed(() => {
   </EventEditor>
   <ActionEditor
     v-else
+    data-guide="automation-editor"
     :key="state?.token"
     :baseline="actionBaseline ?? undefined"
     :busy="state?.busy"

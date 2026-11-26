@@ -50,7 +50,6 @@ export const categoryIcons: Record<TutorialCategory, Component> = {
   plugins: IconPuzzle,
   overlays: IconLayers,
   points: IconCoins,
-  changes: IconGitMerge,
   diagnostics: IconShield,
   feed: IconChat,
   account: IconCloud,
@@ -67,13 +66,11 @@ export const tagIcons: Record<TutorialTag, Component> = {
   plugins: IconPuzzle,
   overlays: IconLayers,
   points: IconCoins,
-  changes: IconGitMerge,
   diagnostics: IconShield,
   feed: IconChat,
   account: IconCloud,
   analytics: IconChart,
   settings: IconGear,
-  rankings: IconTrophy,
 };
 
 const iconByName: Record<string, Component> = {
@@ -116,24 +113,24 @@ const overviewTutorialIds = new Set<string>([
   'plugin',
   'overlay',
   'points',
-  'changes',
   'diagnostics',
   'feed',
   'backup',
   'analytics',
   'settings',
-  'rankings',
 ]);
 
 
 /** All driver.js tours, in the order they appear in the catalog — derived from the tour modules. */
-export const tutorialEntries: readonly TutorialEntry[] = tourModules.map((module) => ({
-  id: module.id as TourId,
-  category: tourCategory(module),
-  tags: module.tags as readonly TutorialTag[],
-  icon: iconByName[module.icon] ?? IconZap,
-  overview: overviewTutorialIds.has(module.id),
-}));
+export const tutorialEntries: readonly TutorialEntry[] = tourModules
+  .filter((module) => !('lifecycle' in module) || module.lifecycle !== 'internal')
+  .map((module) => ({
+    id: module.id as TourId,
+    category: tourCategory(module),
+    tags: module.tags as readonly TutorialTag[],
+    icon: iconByName[module.icon] ?? IconZap,
+    overview: overviewTutorialIds.has(module.id),
+  }));
 
 export interface TutorialStepText {
   id: string;

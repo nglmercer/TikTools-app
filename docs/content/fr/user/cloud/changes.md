@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "f875a22e66dd822d7ea1344188d8b7b087a23a777e072240a4a3c7c57969f995"
-translationRevision: "eaf4ca846ad1f45e40a499c945c0d8c1b150f1c027a4d840ecfc1bb831773d9c"
+sourceRevision: "0bb2a29db86d989dfeb986bb696a9da4b7a47c942ecbdaa0a988f6bab501f12d"
+translationRevision: "7cb52150518546557da37dbc33332c74a1c7a5459ede9bbb2aa77ac0e9660019"
 order: 20
 ---
 
@@ -40,7 +40,7 @@ Les incrustations Cloud utilisent le parcours de création/révision de la [bibl
 
 La comparaison locale des automatisations et le partage natif conditionné aux capacités sont disponibles dans leurs domaines respectifs. Les opérations produisant des effets distants dépendent du service ; leur validation en production n’est pas implicite. Si un examen devient obsolète, actualisez et comparez à nouveau. Si le résultat n’est pas confirmé, consultez l’état ou le journal avant de créer une autre opération. Un délai d’attente dépassé ne prouve jamais qu’aucun changement n’a eu lieu.
 
-<DemoFrame scenario="cloud" locale="fr" tour="changes" title="Démo : Cloud" />
+<TourFrame id="changes" locale="fr" title="Démo : Cloud" />
 
 ## Détails de fonctionnement {#operational-details}
 

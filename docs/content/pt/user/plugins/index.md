@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
-translationRevision: "95af5efddcbb1f448b6d8ade8234685b5acf6abac54afca69dbff9648f5ced77"
+sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
+translationRevision: "627d6a6c3bc2aa399fffe5a55cdfe5c643a1080862b76f6f8c273a8243bd2988"
 order: 10
 ---
 
@@ -37,4 +37,4 @@ Revisão de pacotes, tarefas de instalação, preferências de plugins e gerenci
 
 Para uma falha de instalação, leia o erro da tarefa para problemas de compatibilidade, assinatura, ambiente de execução ou download. Não enfraqueça a verificação apenas para eliminar um erro. Se uma atualização causar problemas, inspecione as versões mantidas e use a reversão quando disponível. Revise automações dependentes antes de desativar ou desinstalar um plugin. Mantenha [backups](../preferences/backups.md) dos dados e configurações de plugins antes de removê-los.
 
-<DemoFrame scenario="plugins" locale="pt" tour="plugin" title="Demonstração: plugins" />
+<TourFrame id="plugin" locale="pt" title="Demonstração: plugins" />

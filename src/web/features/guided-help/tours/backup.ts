@@ -5,6 +5,8 @@ export default defineTour({
   version: 2,
   route: '/settings?section=account',
   scope: 'account',
+  demo: false,
+  availability: { account: 'signed-in' },
   task: 'backup.saved',
   tags: ['account'],
   icon: 'cloud',

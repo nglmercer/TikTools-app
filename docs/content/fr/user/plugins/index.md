@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
-translationRevision: "f3e1ebd6f94f323f027455d5b184b8f741229606952e105eec476c136a2d5d87"
+sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
+translationRevision: "bba53a054128e811c8c5a701f58ff993a2fafa918bee549db0174177a52da66d"
 order: 10
 ---
 
@@ -37,4 +37,4 @@ L’examen des paquets, les tâches d’installation, les préférences de plugi
 
 En cas d’échec d’installation, lisez l’erreur de tâche pour identifier un problème de compatibilité, signature, exécution ou téléchargement. N’affaiblissez pas la vérification simplement pour effacer l’erreur. Si une mise à jour pose problème, examinez les versions conservées et utilisez le retour arrière lorsqu’il est disponible. Examinez les automatisations dépendantes avant de désactiver ou désinstaller un plugin. Gardez des [sauvegardes](../preferences/backups.md) des données et configurations des plugins avant de les supprimer.
 
-<DemoFrame scenario="plugins" locale="fr" tour="plugin" title="Démo : plugins" />
+<TourFrame id="plugin" locale="fr" title="Démo : plugins" />

@@ -67,8 +67,8 @@ const { rows, installedCount, pendingUpdates, exploring, installedIds, listedLoc
 const menuKey = ref<string | null>(null);
 
 const tabs = computed(() => [
-  { value: 'browse' as const, label: t('plugins.catalog.browse'), icon: IconCompass },
-  { value: 'installed' as const, label: t('plugins.catalog.installed'), icon: IconPuzzle, badge: installedCount.value },
+  { value: 'browse' as const, label: t('plugins.catalog.browse'), icon: IconCompass, guide: 'plugin-tab-browse' },
+  { value: 'installed' as const, label: t('plugins.catalog.installed'), icon: IconPuzzle, badge: installedCount.value, guide: 'plugin-tab-installed' },
   {
     value: 'updates' as const,
     label: t('plugins.catalog.updates'),

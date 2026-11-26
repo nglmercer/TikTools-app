@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "93c8811682d0baa5bd18b571503fce483cf1f464e94b94bc933241bf277d23d4"
-translationRevision: "f4d3b495b1c6d7a0ae211daf69dfb54cb180cbb39b811bb6c3d89c3049f51965"
+sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
+translationRevision: "52e2f7b0e6813e58d7111183ce40b19a618c74aea41e6c7815fca48b8eba2f98"
 order: 10
 ---
 
@@ -37,4 +37,4 @@ order: 10
 
 安装失败时，阅读作业错误，检查兼容性、签名、运行时或下载问题。不要为了消除错误而降低验证要求。更新导致问题时，检查保留版本，并在可用时回滚。禁用或卸载插件前，审查依赖它的自动化。移除插件数据与配置前，请做好[备份](../preferences/backups.md)。
 
-<DemoFrame scenario="plugins" locale="zh" tour="plugin" title="演示：插件" />
+<TourFrame id="plugin" locale="zh" title="演示：插件" />

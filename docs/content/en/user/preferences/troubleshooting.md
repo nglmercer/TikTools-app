@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
-translationRevision: "40d8c5706363baa28e4114397696c8c2adb320843271a00efb3772be0322d5e2"
+sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
+translationRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
 order: 30
 ---
 
@@ -42,7 +42,7 @@ Diagnostics filtering, copying and text export are available. A packaged app als
 
 Retry after correcting the specific cause. For revision conflicts, reload and review the current saved state. For an unconfirmed remote command, inspect its journal/status before sending another: a timeout can follow a successful effect. If startup fails, report the package/version and startup log rather than deleting the data directory.
 
-<DemoFrame scenario="diagnostics" locale="en" tour="diagnostics" title="Demo: diagnostics" />
+<TourFrame id="diagnostics" locale="en" title="Demo: diagnostics" />
 
 ## Operational details {#operational-details}
 

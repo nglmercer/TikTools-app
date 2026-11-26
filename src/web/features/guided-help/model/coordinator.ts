@@ -6,6 +6,7 @@ import type { Config, Driver } from 'driver.js';
 import { tourCatalogs, type TourCatalog } from '../catalogs/index.ts';
 import { isTourId, tourRegistry } from './registry.ts';
 import { readTourProgress, writeTourProgress } from './progress.ts';
+import { hasGuideAction, runGuideAction } from './guide-actions.ts';
 import type { GuideOutcome, GuideSession, GuideStep, StartTourOptions, TourLocale, TourStepDefinition, TourTaskState } from './types.ts';
 
 type DriverFactory = (config: Config) => Driver;
@@ -23,7 +24,7 @@ export interface InlineGuideOptions {
   labels?: TourCatalog['controls'];
   onActiveChange?: (active: boolean) => void;
 }
-interface RunStep extends GuideStep { version?: number; missingTargetPolicy?: 'skip' | 'cancel'; prepareClick?: readonly string[]; available?: () => boolean }
+interface RunStep extends GuideStep { version?: number; missingTargetPolicy?: 'skip' | 'cancel'; prepareClick?: readonly string[]; prepareActions?: readonly string[]; popoverSide?: 'top' | 'right' | 'bottom' | 'left'; popoverAlign?: 'start' | 'center' | 'end'; available?: () => boolean }
 interface RunOptions extends StartTourOptions {
   id: string;
   version?: number;
@@ -273,16 +274,23 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
           const step = steps[index]!;
           if (step.available?.() === false) continue;
           let element = await waitFor(() => target(step), pending.signal, Math.min(waitMs, 600));
-          // Targets can be several interactions away in either direction (close the editor,
-          // then switch the tab, then the table exists): press one visible trigger per round,
-          // in preference order, until the target appears or nothing can be pressed anymore.
-          for (let round = 0; !element && step.prepareClick?.length && scope && round < 5; round++) {
-            let pressed = false;
-            for (const selector of step.prepareClick) {
-              const trigger = query(scope, selector);
-              if (visible(trigger)) { trigger.click(); pressed = true; break; }
+          // Targets can be several interactions away. Prefer semantic operations
+          // registered by the page: they know whether closing an editor is safe,
+          // whether a row exists, and which tab is active. Selector clicks remain
+          // only as a non-mutating fallback for embeds/legacy fixtures.
+          for (let round = 0; !element && (step.prepareActions?.length || step.prepareClick?.length) && scope && round < 5; round++) {
+            let acted = false;
+            for (const action of step.prepareActions ?? []) {
+              if (await runGuideAction(scope, options.scopeName, action, step.selector)) { acted = true; break; }
             }
-            if (!pressed) break;
+            const semanticOwner = (step.prepareActions ?? []).some((action) => hasGuideAction(options.scopeName, action, scope));
+            if (!acted && !semanticOwner) {
+              for (const selector of step.prepareClick ?? []) {
+                const trigger = query(scope, selector);
+                if (visible(trigger)) { trigger.click(); acted = true; break; }
+              }
+            }
+            if (!acted) break;
             element = await waitFor(() => target(step), pending.signal, waitMs);
           }
           if (finished || pending.signal.aborted || ticket !== moveGeneration) return;
@@ -296,7 +304,11 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
           engine!.setSteps(steps.map((item) => ({
             element: target(item) ?? document.createElement('span'),
             data: { id: item.id, version: item.version },
-            popover: { title: escaped(item.title), description: escaped(item.description) },
+            popover: {
+              title: escaped(item.title), description: escaped(item.description),
+              ...(item.popoverSide ? { side: item.popoverSide } : {}),
+              ...(item.popoverAlign ? { align: item.popoverAlign } : {}),
+            },
           })));
           engine!.setConfig({ ...engine!.getConfig(), showProgress: steps.length > 1, showButtons: ['next', 'previous', 'close'] });
           activeIndex = index;
@@ -375,13 +387,16 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
       return typeof value === 'string' ? value : '';
     };
     const existingScope = options.scope && query(options.scope, `[data-guide-scope="${definition.scope}"]`);
+    const accountAvailable = () => definition.availability?.account !== 'signed-in'
+      || (typeof options.signedIn === 'function' ? options.signedIn() : options.signedIn) === true;
     return run({
       ...options, id, version: definition.version, route: existingScope?.isConnected ? undefined : definition.route, scopeName: definition.scope, task: definition.task,
       labels: catalog.controls,
       steps: () => (definition.steps as readonly TourStepDefinition[]).map((step) => ({
         id: step.id, version: step.version, selector: `[data-guide="${step.target}"]`,
-        title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick,
-        available: () => step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
+        title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick, prepareActions: step.prepareActions,
+        popoverSide: step.popoverSide, popoverAlign: step.popoverAlign,
+        available: () => accountAvailable() && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
       })),
     });
   }

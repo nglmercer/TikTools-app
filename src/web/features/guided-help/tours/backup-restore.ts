@@ -5,6 +5,8 @@ export default defineTour({
   version: 1,
   route: '/settings?section=account',
   scope: 'account',
+  demo: false,
+  availability: { account: 'signed-in' },
   tags: ['account'],
   icon: 'history',
   shape: 'custom',

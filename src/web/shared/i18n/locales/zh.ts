@@ -2011,7 +2011,7 @@ export default {
     search: "搜索教程", tagsLabel: "教程筛选", allTags: "全部", start: "开始指南", steps: "{count} 个步骤",
     back: "返回", overview: "概览",
     guides: "{count} 个指南", specializedGuides: "专项指南",
-    wizardLabel: "教程目录进度", stepPreview: "步骤预览", demoPreview: "迷你演示",
+    wizardLabel: "教程目录进度", stepPreview: "步骤预览", demoPreview: "迷你演示", demoSchematic: "简化布局图",
     screens: { catalog: "目录", category: "分类", guide: "指南" },
     empty: "没有符合搜索条件的教程。",
     tags: { automations: "自动化", events: "事件", actions: "操作", variables: "变量", connection: "连接", plugins: "插件", overlays: "叠加层", points: "积分", changes: "更改", diagnostics: "诊断", feed: "实时 Feed", account: "账户", analytics: "数据分析", settings: "设置", rankings: "排行榜" },
