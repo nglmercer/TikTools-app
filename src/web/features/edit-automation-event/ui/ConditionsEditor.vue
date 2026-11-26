@@ -26,7 +26,7 @@ import IconMoreVertical from '@/shared/ui/icon/icons/IconMoreVertical.vue';
 import IconPlus from '@/shared/ui/icon/icons/IconPlus.vue';
 import IconRecord from '@/shared/ui/icon/icons/IconRecord.vue';
 import IconTrash from '@/shared/ui/icon/icons/IconTrash.vue';
-import { fallbackCopy } from '@/shared/ui/json/use-json-copy.ts';
+import { useCopyFeedback } from '@/shared/ui/json/use-json-copy.ts';
 import BaseContextMenu from '@/shared/ui/menu/BaseContextMenu.vue';
 import type { MenuAction, MenuEntry } from '@/shared/ui/menu/menu-types.ts';
 import BaseSearchSelect from '@/shared/ui/search-select/BaseSearchSelect.vue';
@@ -52,8 +52,7 @@ const id = useId();
 const recording = ref<number | null>(null);
 /** The footer icon toggles the optional capture view; values stay the default. */
 const capturesVisible = ref(false);
-const copiedRow = ref<number | null>(null);
-let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+const { copiedKey: copiedRow, copyKeyed } = useCopyFeedback<number>();
 
 function captureToken(index: number): string {
   const alias = captureAlias(conditions.value[index]?.as) ?? String(index);
@@ -66,15 +65,7 @@ function conditionLabel(index: number): string {
 }
 
 async function copyCapture(index: number): Promise<void> {
-  const text = captureToken(index);
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    try { fallbackCopy(text); } catch { return; }
-  }
-  copiedRow.value = index;
-  clearTimeout(copiedTimer);
-  copiedTimer = setTimeout(() => { copiedRow.value = null; }, 1600);
+  await copyKeyed(index, captureToken(index));
 }
 
 const fields = computed(() => conditionFields(props.trigger, locale.value));
@@ -247,7 +238,6 @@ function stopRecording(): void {
 
 onBeforeUnmount(() => {
   stopRecording();
-  clearTimeout(copiedTimer);
 });
 </script>
 
