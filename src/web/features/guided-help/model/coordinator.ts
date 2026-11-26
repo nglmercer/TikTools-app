@@ -25,7 +25,7 @@ export interface InlineGuideOptions {
   labels?: TourCatalog['controls'];
   onActiveChange?: (active: boolean) => void;
 }
-interface RunStep extends GuideStep { version?: number; missingTargetPolicy?: 'skip' | 'cancel'; prepareClick?: readonly string[]; prepareActions?: readonly string[]; popoverSide?: 'top' | 'right' | 'bottom' | 'left'; popoverAlign?: 'start' | 'center' | 'end'; available?: () => boolean }
+interface RunStep extends GuideStep { version?: number; missingTargetPolicy?: 'skip' | 'cancel'; prepareClick?: readonly string[]; prepareActions?: readonly string[]; popoverSide?: 'top' | 'right' | 'bottom' | 'left'; popoverAlign?: 'start' | 'center' | 'end'; available?: () => boolean; availabilityPending?: () => boolean }
 interface RunOptions extends StartTourOptions {
   id: string;
   version?: number;
@@ -278,13 +278,15 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         for (let index = first; index >= 0 && index < steps.length; index += direction) {
           if (finished || ticket !== moveGeneration) return;
           const step = steps[index]!;
-          // Availability depends on asynchronously loaded host state (the
-          // automation behavior snapshot backing tour requirements). Treat a
-          // negative answer as pending within the same deadline targets get,
-          // instead of skipping every step in the milliseconds before the
-          // first snapshot arrives — which killed requirement-bearing tours
-          // before their first popover.
-          if (step.available) {
+          // Availability has two failure kinds. Static failures (signed-out
+          // account, denied capability) never resolve and the step skips
+          // instantly. Requirement failures can be async-pending: the
+          // automation behavior snapshot backing them loads after page mount,
+          // and skipping in the milliseconds before it arrives killed every
+          // requirement-bearing tour before its first popover. Only the
+          // pending kind gets the wait deadline targets already had.
+          if (step.available?.() === false) {
+            if (!step.availabilityPending?.()) continue;
             const available = await waitFor(() => step.available!() ? true : undefined, pending.signal, Math.min(waitMs, 600));
             if (!available) continue;
           }
@@ -419,6 +421,9 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick, prepareActions: step.prepareActions,
         popoverSide: step.popoverSide, popoverAlign: step.popoverAlign,
         available: () => accountAvailable() && requirementsAvailable() && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
+        availabilityPending: () => accountAvailable()
+          && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method)))
+          && !requirementsAvailable(),
       })),
     });
   }
