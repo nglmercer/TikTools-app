@@ -195,6 +195,17 @@ it('offers the sync panel for the events and for the actions, but not on the var
     expect(wrapper.get('.automation-runs').text()).toContain('Log gift');
   });
 
+  it('restores the folded recent runs from storage', async () => {
+    const { wrapper } = await mountPage();
+    await buttonByLabel(wrapper, t('automations.runs.collapse')).trigger('click');
+    expect(JSON.parse(localStorage.getItem('tiktok-live-view-state')!).automationRuns).toEqual({ open: false });
+    wrapper.unmount();
+    const { wrapper: remounted } = await mountPage();
+    expect(remounted.get('.automation-runs').text()).not.toContain('Log gift');
+    await buttonByLabel(remounted, t('automations.runs.expand')).trigger('click');
+    expect(remounted.get('.automation-runs').text()).toContain('Log gift');
+  });
+
   it('opens the editor as a full-screen sheet with a back button on narrow screens', async () => {
     vi.stubGlobal('matchMedia', () => ({
       matches: true,

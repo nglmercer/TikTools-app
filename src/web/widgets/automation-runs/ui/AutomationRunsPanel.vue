@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BehaviorRun } from '../../../../automation/behavior/types.ts';
 import { formatClockTime } from '@/entities/analytics/lib/analytics-range.ts';
 import { useMediaQuery } from '@/shared/lib/media-query.ts';
+import { loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
 import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
@@ -21,7 +22,8 @@ const props = defineProps<{
 
 const { t, locale } = useI18n();
 // The log is always at hand but can be folded away to give the workspace the full height.
-const open = ref(true);
+const open = ref(loadViewState().automationRuns?.open !== false);
+watch(open, (value) => saveViewState('automationRuns', { open: value }));
 // Selected run for the inline event-data inspector; navigation stays in this panel.
 const selected = ref(-1);
 function toggle(index: number): void {

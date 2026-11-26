@@ -71,6 +71,10 @@ export interface ConnectionsViewState {
   openServers?: Record<string, boolean>;
 }
 
+export interface AutomationRunsViewState {
+  open?: boolean;
+}
+
 export interface AsideViewState {
   open?: boolean;
 }
@@ -88,6 +92,7 @@ export interface ViewState {
   widgets?: WidgetsViewState;
   plugins?: PluginsViewState;
   connections?: ConnectionsViewState;
+  automationRuns?: AutomationRunsViewState;
   aside?: AsideViewState;
   sidebar?: SidebarViewState;
 }
@@ -228,6 +233,12 @@ function cleanConnections(value: unknown): ConnectionsViewState | undefined {
   return Object.keys(cleaned).length > 0 ? (cleaned as ConnectionsViewState) : undefined;
 }
 
+function cleanAutomationRuns(value: unknown): AutomationRunsViewState | undefined {
+  if (!isRecord(value)) return undefined;
+  const cleaned = pickDefined({ open: cleanBoolean(value['open']) });
+  return Object.keys(cleaned).length > 0 ? (cleaned as AutomationRunsViewState) : undefined;
+}
+
 function cleanAside(value: unknown): AsideViewState | undefined {
   if (!isRecord(value)) return undefined;
   const cleaned = pickDefined({ open: cleanBoolean(value['open']) });
@@ -270,6 +281,7 @@ export function loadViewState(): ViewState {
     widgets: cleanWidgets(parsed['widgets']),
     plugins: cleanPlugins(parsed['plugins']),
     connections: cleanConnections(parsed['connections']),
+    automationRuns: cleanAutomationRuns(parsed['automationRuns']),
     aside: cleanAside(parsed['aside']),
     sidebar: cleanSidebar(parsed['sidebar']),
   });
