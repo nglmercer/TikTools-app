@@ -156,6 +156,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "verb.system.health" => Some("コンポーネントヘルスレポート"),
         "verb.system.info" => Some("ホストバージョンとランタイム情報"),
         "verb.system.request-input-access" => Some("デスクトップユーザーに入力アクセスを要求"),
+        "verb.system.shutdown" => Some("実行中のホストをシャットダウン"),
         "verb.system.snapshot" => Some("デバッグ用の完全な状態スナップショット"),
         "verb.template.delete" => Some("テンプレートを削除"),
         "verb.template.export" => Some("イベントルールをテンプレートとしてエクスポート"),

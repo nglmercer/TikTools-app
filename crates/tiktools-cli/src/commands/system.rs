@@ -7,7 +7,7 @@ use super::args::split_first;
 use super::spec::{DomainSpec, VerbSpec};
 use super::{result_value, CommandError};
 
-const U_DOMAIN: &str = "system <info|health|snapshot|doctor|request-input-access>";
+const U_DOMAIN: &str = "system <info|health|snapshot|doctor|request-input-access|shutdown>";
 
 pub(crate) const SPEC: DomainSpec = DomainSpec {
     domain: "system",
@@ -30,6 +30,9 @@ pub(crate) const SPEC: DomainSpec = DomainSpec {
             "system request-input-access",
             "ask the desktop user for input access",
         ),
+        // Typing the verb is the intent confirmation, consistent with every
+        // other destructive first-class form (plugin uninstall, points reset).
+        VerbSpec::new("shutdown", "system shutdown", "shut down the running host").destructive(),
     ],
 };
 
@@ -39,6 +42,7 @@ pub enum Command {
     Snapshot,
     Doctor,
     RequestInputAccess,
+    Shutdown,
 }
 
 pub fn parse(args: &[String]) -> Result<Command, CommandError> {
@@ -49,6 +53,7 @@ pub fn parse(args: &[String]) -> Result<Command, CommandError> {
         "snapshot" => Ok(Command::Snapshot),
         "doctor" => Ok(Command::Doctor),
         "request-input-access" => Ok(Command::RequestInputAccess),
+        "shutdown" => Ok(Command::Shutdown),
         other => Err(format!("unknown system verb `{other}`").into()),
     }
 }
@@ -60,5 +65,6 @@ pub async fn execute(client: &TikToolsClient, command: Command) -> Result<Value,
         Command::Snapshot => result_value(client.system_snapshot().await?),
         Command::Doctor => result_value(client.system_doctor().await?),
         Command::RequestInputAccess => result_value(client.system_request_input_access().await?),
+        Command::Shutdown => result_value(client.system_shutdown().await?),
     }
 }

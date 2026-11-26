@@ -156,6 +156,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "verb.system.health" => Some("rapport de santé des composants"),
         "verb.system.info" => Some("version du host et information du runtime"),
         "verb.system.request-input-access" => Some("demander l'accès aux entrées à l'utilisateur du bureau"),
+        "verb.system.shutdown" => Some("arrêter le host en cours"),
         "verb.system.snapshot" => Some("instantané complet de l'état pour le débogage"),
         "verb.template.delete" => Some("supprimer un modèle"),
         "verb.template.export" => Some("exporter une règle d'événements comme modèle"),

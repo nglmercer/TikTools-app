@@ -156,6 +156,7 @@ pub fn lookup(key: &str) -> Option<&'static str> {
         "verb.system.health" => Some("组件健康报告"),
         "verb.system.info" => Some("主机版本和运行时信息"),
         "verb.system.request-input-access" => Some("向桌面用户请求输入访问权限"),
+        "verb.system.shutdown" => Some("关闭运行中的主机"),
         "verb.system.snapshot" => Some("用于调试的完整状态快照"),
         "verb.template.delete" => Some("删除模板"),
         "verb.template.export" => Some("将事件规则导出为模板"),

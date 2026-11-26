@@ -192,6 +192,7 @@
 | `tiktools system snapshot` | full state snapshot for debugging |
 | `tiktools system doctor` | diagnose common setup problems |
 | `tiktools system request-input-access` | ask the desktop user for input access |
+| `tiktools system shutdown` | shut down the running host **destructive** |
 
 ### `tiktools template` — reusable automation templates and profiles
 

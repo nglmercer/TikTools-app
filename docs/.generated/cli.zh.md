@@ -192,6 +192,7 @@
 | `tiktools system snapshot` | 用于调试的完整状态快照 |
 | `tiktools system doctor` | 诊断常见的设置问题 |
 | `tiktools system request-input-access` | 向桌面用户请求输入访问权限 |
+| `tiktools system shutdown` | 关闭运行中的主机 **破坏性** |
 
 ### `tiktools template` — 可重用的自动化模板和配置文件
 

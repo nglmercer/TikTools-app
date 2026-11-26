@@ -192,6 +192,7 @@
 | `tiktools system snapshot` | instantané complet de l'état pour le débogage |
 | `tiktools system doctor` | diagnostiquer les problèmes courants de configuration |
 | `tiktools system request-input-access` | demander l'accès aux entrées à l'utilisateur du bureau |
+| `tiktools system shutdown` | arrêter le host en cours **destructif** |
 
 ### `tiktools template` — modèles d'automatisation et profils réutilisables
 
