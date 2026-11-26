@@ -1,0 +1,1 @@
+import{N as e,X as t,d as n,u as r,y as i}from"./_plugin-vue_export-helper-DjLbZd7K.js";import{t as a}from"./BaseIcon-OB-sfL-R.js";var o=i({__name:`IconChevronLeft`,setup(i){return(i,o)=>(e(),n(a,null,{default:t(()=>[...o[0]||=[r(`path`,{d:`M9.75 4.5 6.25 8l3.5 3.5`},null,-1)]]),_:1}))}});export{o as t};

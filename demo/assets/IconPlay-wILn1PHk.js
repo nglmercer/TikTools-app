@@ -1,0 +1,1 @@
+import{N as e,X as t,d as n,u as r,y as i}from"./_plugin-vue_export-helper-DjLbZd7K.js";import{t as a}from"./BaseIcon-OB-sfL-R.js";var o=i({__name:`IconPlay`,setup(i){return(i,o)=>(e(),n(a,null,{default:t(()=>[...o[0]||=[r(`path`,{d:`M5 3.25v9.5L12.5 8z`,fill:`currentColor`},null,-1)]]),_:1}))}});export{o as t};

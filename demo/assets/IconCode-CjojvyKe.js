@@ -1,0 +1,1 @@
+import{N as e,X as t,d as n,u as r,y as i}from"./_plugin-vue_export-helper-DjLbZd7K.js";import{t as a}from"./BaseIcon-OB-sfL-R.js";var o=i({__name:`IconCode`,setup(i){return(i,o)=>(e(),n(a,null,{default:t(()=>[...o[0]||=[r(`path`,{d:`M6 4.5 2.5 8 6 11.5`},null,-1),r(`path`,{d:`M10 4.5 13.5 8 10 11.5`},null,-1)]]),_:1}))}});export{o as t};

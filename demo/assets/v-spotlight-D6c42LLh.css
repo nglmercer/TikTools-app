@@ -1,1 +1,0 @@
-.spotlight-overlay{z-index:1100;box-sizing:border-box;border-radius:var(--radius-md);outline:2px solid var(--color-border-focus);outline-offset:2px;pointer-events:none;opacity:0;transition:opacity .12s;position:fixed;box-shadow:0 0 0 9999px #0000008c}.spotlight-overlay--visible{opacity:1}@media (prefers-reduced-motion:reduce){.spotlight-overlay{transition:none}}

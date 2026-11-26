@@ -1,1 +1,0 @@
-import{M as e,Y as t,l as n,u as r,v as i}from"./_plugin-vue_export-helper-DmysMBEe.js";import{t as a}from"./BaseIcon-B1Xew3sa.js";var o=i({__name:`IconUndo`,setup(i){return(i,o)=>(e(),r(a,null,{default:t(()=>[...o[0]||=[n(`path`,{d:`M3 6h7a3.5 3.5 0 0 1 0 7H6`},null,-1),n(`path`,{d:`M5.5 3.5 3 6l2.5 2.5`},null,-1)]]),_:1}))}});export{o as t};

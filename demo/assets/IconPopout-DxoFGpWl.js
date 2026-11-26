@@ -1,0 +1,1 @@
+import{N as e,X as t,d as n,u as r,y as i}from"./_plugin-vue_export-helper-DjLbZd7K.js";import{t as a}from"./BaseIcon-OB-sfL-R.js";var o=i({__name:`IconPopout`,setup(i){return(i,o)=>(e(),n(a,null,{default:t(()=>[...o[0]||=[r(`rect`,{x:`2.5`,y:`5.5`,width:`8`,height:`8`,rx:`.5`},null,-1),r(`path`,{d:`M5.5 5.5v-3h8v8h-3`},null,-1)]]),_:1}))}});export{o as t};
