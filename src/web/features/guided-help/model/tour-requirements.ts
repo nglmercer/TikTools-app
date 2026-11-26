@@ -3,7 +3,7 @@ import type { AutomationActionExampleRequirement } from './types.ts';
 
 export interface TourRequirementSnapshot {
   actions: readonly Pick<LiveAction, 'typeId'>[];
-  actionTypes: readonly Pick<ActionTypeDefinition, 'id' | 'tag' | 'source'>[];
+  actionTypes: readonly Pick<ActionTypeDefinition, 'id' | 'tag' | 'source' | 'title'>[];
   plugins: readonly { installed: boolean; enabled: boolean; descriptor: { id: string } }[];
 }
 
@@ -29,6 +29,16 @@ export function automationActionExampleAvailable(
     requirementMatchesType(requirement, type) &&
     actionTypeActive(type, snapshot.plugins) &&
     snapshot.actions.some((action) => action.typeId === type.id));
+}
+
+
+/** Concrete active type behind a requirement, when the host has exactly the type needed to name it for a user. */
+export function automationActionExampleType(
+  requirement: AutomationActionExampleRequirement,
+  snapshot: TourRequirementSnapshot,
+): TourRequirementSnapshot['actionTypes'][number] | undefined {
+  const matches = snapshot.actionTypes.filter((type) => requirementMatchesType(requirement, type) && actionTypeActive(type, snapshot.plugins));
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /** Semantic operation exposed by Automations for one requirement. */

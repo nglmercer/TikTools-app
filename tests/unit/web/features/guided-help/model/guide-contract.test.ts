@@ -62,8 +62,8 @@ describe('guide contract', () => {
   });
 
   it('requires both an active action type and an existing matching record', () => {
-    const fetchType = { id: 'core.fetch', tag: 'fetch', source: { kind: 'builtin' as const } };
-    const ttsType = { id: 'demo.tts', tag: 'tts', source: { kind: 'plugin' as const, pluginId: 'demo.audio' } };
+    const fetchType = { id: 'core.fetch', tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' as const } };
+    const ttsType = { id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin' as const, pluginId: 'demo.audio' } };
     const plugin = { installed: true, enabled: true, descriptor: { id: 'demo.audio' } };
     expect(automationActionExampleAvailable({ typeId: 'core.fetch' }, {
       actions: [{ typeId: 'core.fetch' }], actionTypes: [fetchType], plugins: [],

@@ -3,6 +3,7 @@ import { computed, inject, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { routerKey } from 'vue-router';
 import { isLocale } from '@/shared/i18n/supported-locales.ts';
+import { localizedText } from '@/shared/i18n/i18n.ts';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import BaseDialog from '@/shared/ui/dialog/BaseDialog.vue';
 import IconRows from '@/shared/ui/icon/icons/IconRows.vue';
@@ -10,7 +11,7 @@ import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import { startTour } from '../model/coordinator.ts';
 import { tourRegistry } from '../model/registry.ts';
-import { automationActionExampleAvailable, type TourRequirementSnapshot } from '../model/tour-requirements.ts';
+import { automationActionExampleAvailable, automationActionExampleType, type TourRequirementSnapshot } from '../model/tour-requirements.ts';
 import {
   categoryIcons,
   tagIcons,
@@ -242,7 +243,8 @@ watch(open, (isOpen) => {
 
 function prepareRequirement(id: TourId): void {
   const requirement = tourRegistry[id].requirements?.automationActionExample;
-  const createAction = requirement?.typeId ?? requirement?.tag;
+  const type = requirement && props.automationSnapshot ? automationActionExampleType(requirement, props.automationSnapshot) : undefined;
+  const createAction = type ? localizedText(type.title) : requirement?.typeId ?? requirement?.tag;
   if (!createAction || !router) return;
   open.value = false;
   void router.push({ path: '/automations', query: { createAction } });

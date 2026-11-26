@@ -205,13 +205,13 @@ it('shows action example requirements and blocks starting when the workspace lac
       initialTour: 'automationActionHttp',
       automationSnapshot: {
         actions: [{ typeId: 'core.log' }],
-        actionTypes: [{ id: 'core.fetch', tag: 'fetch', source: { kind: 'builtin' } }],
+        actionTypes: [{ id: 'core.fetch', tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' } }],
         plugins: [],
       },
     },
   });
   await flushPromises();
-  expect(missing.get('.tutorial-catalog__requirement').text()).toContain('Requires an existing action');
+  expect(missing.get('.tutorial-catalog__requirement').text()).toContain('Requires an existing matching action');
   expect(missing.get('.tutorial-catalog__requirement-action').text()).toBe('Show me how');
   expect(missing.get('.tutorial-catalog__start').attributes('disabled')).toBeDefined();
   missing.unmount();
@@ -223,7 +223,7 @@ it('shows action example requirements and blocks starting when the workspace lac
       initialTour: 'automationActionHttp',
       automationSnapshot: {
         actions: [{ typeId: 'core.fetch' }],
-        actionTypes: [{ id: 'core.fetch', tag: 'fetch', source: { kind: 'builtin' } }],
+        actionTypes: [{ id: 'core.fetch', tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' } }],
         plugins: [],
       },
     },
