@@ -104,8 +104,10 @@ jobs:
           # ubuntu:22.04 has no git/curl, which actions/checkout and rustup
           # need before the regular dependency step can install them.
           apt-get update
+          # unzip is required by setup-bun, which extracts the Bun distribution
+          # before the full dependency step runs.
           DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
-            git ca-certificates curl xz-utils
+            git ca-certificates curl xz-utils unzip
 
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
