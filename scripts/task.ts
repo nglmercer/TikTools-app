@@ -21,7 +21,7 @@ const USAGE =
   '`test plugin <name> [filter]`, `test e2e [filter]`, `test --changed`.\n' +
   'Internal steps used by CI and guides: frontend-lint, frontend-typecheck:vize, frontend-test, frontend-build,\n' +
   'rust-lint, rust <cargo args>, rust-test-sharded, widgets, plugins <args>, tasks, plugin:<id>:<command>, e2e [args], package,\n' +
-  'version [check|bump <v>], contracts [args], serve [args], packaged, prepare-plugins, sync-web [target-web-directory].\n' +
+  'version [check|bump <v>], release [cut <v>|watch [run-id]], contracts [args], serve [args], packaged, prepare-plugins, sync-web [target-web-directory].\n' +
   'Site tasks: docs dev|check|build|test|preview, demo dev|build, site dev|build|preview.';
 
 // Every spawned child is tracked by the shared runner so SIGINT/SIGTERM stop
@@ -295,8 +295,13 @@ try {
       await versionCommand(args);
       break;
     case 'release':
-      if (args[0] !== 'cut') throw new Error(`unknown release subcommand: ${args[0] ?? '(none)'} (expected cut).\n${USAGE}`);
-      await script('release-cut.ts', ...args.slice(1));
+      if (args[0] === 'watch') {
+        await script('release-watch.ts', ...args.slice(1));
+      } else if (args[0] === 'cut') {
+        await script('release-cut.ts', ...args.slice(1));
+      } else {
+        throw new Error(`unknown release subcommand: ${args[0] ?? '(none)'} (expected cut or watch).\n${USAGE}`);
+      }
       break;
     case 'contracts':
       await script('generate-contracts.ts', ...args);

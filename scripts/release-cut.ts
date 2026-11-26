@@ -84,4 +84,5 @@ await run(['git', 'tag', '-a', tag, '-m', `Release ${tag}`]);
 await run(['git', 'push', ACTIONS_REMOTE, tag]);
 
 console.log(`Release ${tag} cutting: the release workflow is running on ${ACTIONS_REMOTE}.`);
-console.log('After it publishes, the update feed, documentation deploy and release snapshot refresh run without further input.');
+console.log('Following the pipeline — Ctrl+C detaches safely at any time, CI continues.\n');
+await run(['bun', 'scripts/release-watch.ts']);
