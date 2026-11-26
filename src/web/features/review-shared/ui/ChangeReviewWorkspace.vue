@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue';
+import { computed, nextTick, ref, useId } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import IconCheck from '@/shared/ui/icon/icons/IconCheck.vue';
 import IconChevronDown from '@/shared/ui/icon/icons/IconChevronDown.vue';
-import IconChevronRight from '@/shared/ui/icon/icons/IconChevronRight.vue';
 import IconColumns from '@/shared/ui/icon/icons/IconColumns.vue';
 import IconEye from '@/shared/ui/icon/icons/IconEye.vue';
 import IconEyeOff from '@/shared/ui/icon/icons/IconEyeOff.vue';
@@ -43,6 +42,9 @@ const layout = ref<'unified' | 'side-by-side'>('unified');
 const onlyNew = ref(true);
 const showUnchanged = ref(false);
 const openIds = ref(new Set(props.initiallyOpen));
+// Cards render their details lazily on first expand; once rendered they stay
+// mounted so the grid-rows collapse animation always has measurable content.
+const renderedIds = ref(new Set(props.initiallyOpen));
 
 const modeOptions = computed(() => [
   { value: 'elements' as const, label: t('changeReview.elements') },
@@ -72,11 +74,33 @@ const hiddenLeavingCount = computed(() => {
     .reduce((total, item) => total + (item.count ?? 1), 0);
 });
 
-function toggle(id: string): void {
+function setOpen(id: string, open: boolean): void {
   const next = new Set(openIds.value);
-  if (next.has(id)) next.delete(id);
-  else next.add(id);
+  if (open) next.add(id);
+  else next.delete(id);
   openIds.value = next;
+}
+
+/**
+ * First expand mounts the details inside the already-collapsed grid track and
+ * flips the open class one frame later, so the browser transitions the track
+ * from 0fr to 1fr instead of jumping. Collapse only flips the class because
+ * the content stays mounted, and the track shrinks progressively.
+ */
+async function toggle(id: string): Promise<void> {
+  if (openIds.value.has(id)) {
+    setOpen(id, false);
+    return;
+  }
+  if (renderedIds.value.has(id)) {
+    setOpen(id, true);
+    return;
+  }
+  const rendered = new Set(renderedIds.value);
+  rendered.add(id);
+  renderedIds.value = rendered;
+  await nextTick();
+  requestAnimationFrame(() => setOpen(id, true));
 }
 function fieldsOf(item: ChangeReviewItem) {
   return diffFields(item.before, item.after).filter((field) => showUnchanged.value || item.alwaysShowFields || field.status !== 'unchanged');
@@ -102,7 +126,6 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
       <span class="change-review__toolbar-group">
         <BaseIconButton
           :label="t('jsonView.unified')"
-          size="sm"
           :pressed="layout === 'unified'"
           @click="layout = 'unified'"
         >
@@ -110,7 +133,6 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
         </BaseIconButton>
         <BaseIconButton
           :label="t('jsonView.sideBySide')"
-          size="sm"
           :pressed="layout === 'side-by-side'"
           @click="layout = 'side-by-side'"
         >
@@ -121,7 +143,6 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
         <BaseIconButton
           v-if="profileFilter"
           :label="t('changeReview.onlyNew')"
-          size="sm"
           :pressed="onlyNew"
           @click="onlyNew = !onlyNew"
         >
@@ -129,7 +150,6 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
         </BaseIconButton>
         <BaseIconButton
           :label="t('changeReview.showUnchanged')"
-          size="sm"
           :pressed="showUnchanged"
           @click="showUnchanged = !showUnchanged"
         >
@@ -187,14 +207,13 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
         <div class="change-review__card-head">
           <BaseIconButton
             class="change-review__chevron"
+            :class="{ 'change-review__chevron--open': openIds.has(item.id) }"
             :label="openIds.has(item.id) ? t('changeReview.collapse') : t('changeReview.expand')"
-            size="sm"
             :aria-expanded="openIds.has(item.id)"
             :aria-controls="regionId(item.id)"
             @click="toggle(item.id)"
           >
-            <IconChevronDown v-if="openIds.has(item.id)" />
-            <IconChevronRight v-else />
+            <IconChevronDown />
           </BaseIconButton>
           <div class="change-review__name">
             <strong v-if="!item.editable">
@@ -220,11 +239,17 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
         </div>
 
         <div
-          v-if="openIds.has(item.id)"
-          :id="regionId(item.id)"
-          class="change-review__details"
-          role="region"
+          class="change-review__collapse"
+          :class="{ 'change-review__collapse--open': openIds.has(item.id) }"
+          :inert="!openIds.has(item.id)"
         >
+          <div class="change-review__collapse-inner">
+            <div
+              v-if="renderedIds.has(item.id)"
+              :id="regionId(item.id)"
+              class="change-review__details"
+              role="region"
+            >
           <div
             v-if="mode === 'elements' && layout === 'unified'"
             class="change-review__fields"
@@ -290,6 +315,8 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
               sort-keys
             />
           </div>
+            </div>
+          </div>
         </div>
       </article>
     </div>
@@ -305,8 +332,8 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
 
 <style scoped>
 .change-review {
-  --review-added: var(--color-success);
-  --review-modified: var(--color-warning);
+  --review-added: var(--color-text-success);
+  --review-modified: var(--color-text-warning);
   --review-deleted: var(--color-text-danger);
   display: flex;
   flex-direction: column;
@@ -329,15 +356,16 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
 }
 
 .change-review__toolbar-group :deep(.base-icon-button[aria-pressed="true"]) {
-  background: color-mix(in srgb, var(--color-accent) 22%, var(--color-bg-control));
-  color: var(--color-accent);
+  border-color: var(--color-border-selected);
+  background: color-mix(in srgb, var(--color-accent) 30%, var(--color-bg-control));
+  color: var(--color-text-accent);
 }
 
 .change-review__hidden-badge {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  color: var(--color-warning);
+  color: var(--color-text-warning);
   font-size: var(--font-size-xs);
   cursor: default;
 }
@@ -370,6 +398,7 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
 
 .change-review__card {
   --item-accent: var(--color-text-muted);
+  animation: change-review-card-in var(--duration-normal) ease;
   flex: none;
   padding: var(--space-1) var(--space-2);
   border: var(--border-width) solid var(--color-border-subtle);
@@ -391,6 +420,15 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
 
 .change-review__chevron {
   margin-left: calc(-1 * var(--space-1));
+  transition: transform var(--duration-normal) ease;
+}
+
+.change-review__chevron svg {
+  transition: transform var(--duration-normal) ease;
+}
+
+.change-review__chevron:not(.change-review__chevron--open) svg {
+  transform: rotate(-90deg);
 }
 
 .change-review__name {
@@ -432,6 +470,21 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   cursor: default;
+}
+
+.change-review__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-normal) ease;
+}
+
+.change-review__collapse--open {
+  grid-template-rows: 1fr;
+}
+
+.change-review__collapse-inner {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .change-review__details {
@@ -547,6 +600,30 @@ const symbols: Record<ChangeReviewStatus, string> = { added: '+', modified: '~',
   flex-wrap: wrap;
   gap: var(--space-2);
   padding-top: var(--space-2);
+}
+
+@keyframes change-review-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .change-review__card {
+    animation: none;
+  }
+
+  .change-review__collapse,
+  .change-review__chevron,
+  .change-review__chevron svg {
+    transition: none;
+  }
 }
 
 @media (width < 700px) {

@@ -27,6 +27,14 @@
   --color-text-disabled: #646876;
   --color-text-on-accent: #ffffff;
 
+  /* Foreground-safe status/accent colours for text, icons and small badges on
+     panel backgrounds. All measure >= 4.5:1 on --color-bg-panel-header (WCAG AA);
+     the base --color-success/--color-warning/--color-accent tokens are fill
+     colours and do not have enough contrast as foregrounds. */
+  --color-text-success: #52c177;
+  --color-text-warning: #e0aa40;
+  --color-text-accent: #8ab4f8;
+
   --color-handle: #d8dbe2;
   --color-handle-hover: #ffffff;
 
@@ -140,6 +148,10 @@
   --color-text-subtle: #737c8e;
   --color-text-disabled: #a2a9b6;
   --color-text-on-accent: #ffffff;
+
+  --color-text-success: #1e6b38;
+  --color-text-warning: #8a5a00;
+  --color-text-accent: #2a4ab4;
 
   --color-handle: #596174;
   --color-handle-hover: #1d2230;
