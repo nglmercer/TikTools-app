@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
 import { isAnalyticsMetric, type AnalyticsMetric } from '@/entities/analytics/lib/analytics-metrics.ts';
@@ -100,6 +100,21 @@ function refresh(): void {
 }
 
 watch([span, creator], refresh, { immediate: true });
+
+// The desktop projection deliberately drops analytics.updated events (they
+// fire every few seconds during a stream), so the page resyncs itself on a
+// slow cadence — only while visible, cheap enough for the local host and
+// race-safe because the store keeps the newest request only.
+const POLL_MS = 30_000;
+let poll: ReturnType<typeof setInterval> | null = null;
+onMounted(() => {
+  poll = setInterval(() => {
+    if (document.visibilityState === 'visible' && creator.value && !loading.value) refresh();
+  }, POLL_MS);
+});
+onBeforeUnmount(() => {
+  if (poll) clearInterval(poll);
+});
 
 const persist = debounce(() => {
   saveViewState('analytics', {
