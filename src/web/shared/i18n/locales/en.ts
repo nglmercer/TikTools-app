@@ -340,6 +340,8 @@ export default {
       bestHour: 'Peak {hour}',
       hourlyHint: 'Hourly bars stack every metric in its color; pick a metric above to highlight it. Peak viewers use their own scale.',
       dailyHint: 'Daily totals for the selected metric. The dashed line marks the daily average; the callout marks the best day.',
+      pattern: 'Hour-of-day pattern',
+      patternHint: 'Totals for each hour of the day summed across every day in the range — when your audience connects.',
       approximate: 'Approximate: older data is grouped by each viewer’s last activity hour.',
     },
     facts: {

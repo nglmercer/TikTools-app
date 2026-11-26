@@ -425,7 +425,9 @@ export type AnalyticsSummaryData = {
   days: AnalyticsDayRow[];
   topViewers: AnalyticsTopViewer[];
   sessions: number;
-  /** True per-hour counters for single-day spans (empty for multi-day spans
-   * and for hosts predating the hourly table). */
+  /** True per-hour counters. Single-day spans carry that day's hours;
+   * multi-day spans carry the hour-of-day pattern summed across the range
+   * (peak viewers stay a max, not a sum). Empty for hosts predating the
+   * hourly table. */
   hours: AnalyticsHourRow[];
 };

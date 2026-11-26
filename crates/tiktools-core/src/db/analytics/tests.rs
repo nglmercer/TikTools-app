@@ -203,11 +203,14 @@ fn single_day_exposes_true_hourly_rows() {
     assert_eq!(at(9), 0);
     assert_eq!(summary.hours[21].totals.peak_viewers, 120);
 
-    // Multi-day spans keep `hours` empty (daily trend chart territory).
+    // Multi-day spans expose the hour-of-day pattern summed across the range.
     let wide = db
         .analytics_summary("creator", day - 1, day + 1, 10, 0)
         .expect("summary");
-    assert!(wide.hours.is_empty());
+    assert_eq!(wide.hours.len(), 24);
+    assert_eq!(wide.hours[8].totals.chats, 3);
+    assert_eq!(wide.hours[21].totals.chats, 5);
+    assert_eq!(wide.hours[9].totals.chats, 0);
     assert_eq!(wide.totals.chats, 8);
 }
 

@@ -50,8 +50,26 @@ function summaryFor(params: RpcParams | undefined, withData = true): AnalyticsSu
   };
 }
 
-async function mountPage(withData = true) {
-  const { client, calls } = createFakeControlClient((_, params) => ({ summary: summaryFor(params, withData) }));
+function hourRows(seed: Record<number, number>): AnalyticsSummaryData['hours'] {
+  return Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    chats: seed[hour] ?? 0,
+    giftEvents: 0,
+    gifts: 0,
+    diamonds: 0,
+    likeEvents: 0,
+    likes: 0,
+    joins: 0,
+    follows: 0,
+    shares: 0,
+    peakViewers: 0,
+  }));
+}
+
+async function mountPage(withData = true, hours: AnalyticsSummaryData['hours'] = []) {
+  const { client, calls } = createFakeControlClient((_, params) => ({
+    summary: { ...summaryFor(params, withData), hours },
+  }));
   const stores = createStoreHarness(client);
   stores.use(() => useConnectionStore()).activeCreator = 'luna';
   const wrapper = mountWithPlugins(AnalyticsPage, { attachTo: document.body, global: { plugins: stores.plugins } });
@@ -101,6 +119,17 @@ describe('AnalyticsPage', () => {
     await flushPromises();
     expect(calls.at(-2)?.params).toMatchObject({ startDay: today, endDay: today });
     expect(wrapper.text()).toContain(t('analytics.activity.today'));
+  });
+
+  it('shows the hour-of-day pattern for multi-day spans with hourly data', async () => {
+    const { wrapper } = await mountPage(true, hourRows({ 21: 30, 22: 12 }));
+    expect(wrapper.text()).toContain(t('analytics.activity.pattern'));
+    expect(wrapper.text()).toContain(t('analytics.activity.patternHint'));
+  });
+
+  it('hides the hour-of-day pattern when no hourly data exists', async () => {
+    const { wrapper } = await mountPage(true, hourRows({}));
+    expect(wrapper.text()).not.toContain(t('analytics.activity.pattern'));
   });
 
   it('filters contributors from the panel search', async () => {

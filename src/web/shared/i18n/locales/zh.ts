@@ -340,6 +340,8 @@ export default {
       bestHour: "高峰时段 {hour}",
       hourlyHint: "每小时柱状图按颜色堆叠各项指标；选择上方指标可突出显示。观众峰值使用独立刻度。",
       dailyHint: "所选指标的每日总量。虚线表示每日平均值，标注显示表现最佳的一天。",
+      pattern: '',
+      patternHint: '',
       approximate: "近似数据：较早的数据按每位观众最后活跃的小时分组。",
     },
     facts: {

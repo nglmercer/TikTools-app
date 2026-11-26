@@ -342,6 +342,8 @@ export default {
       bestHour: 'Pico {hour}',
       hourlyHint: 'As barras por hora empilham cada métrica na sua cor; escolha uma métrica acima para destacá-la. O pico de espectadores usa escala própria.',
       dailyHint: 'Totais diários da métrica selecionada. A linha tracejada marca a média diária; o destaque marca o melhor dia.',
+      pattern: 'Padrão por hora do dia',
+      patternHint: 'Totais de cada hora do dia somados em todos os dias do período — quando sua audiência se conecta.',
       approximate: 'Aproximado: os dados antigos são agrupados pela hora da última atividade de cada espectador.',
     },
     facts: {

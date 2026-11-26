@@ -342,6 +342,8 @@ export default {
       bestHour: 'Pic {hour}',
       hourlyHint: 'Les barres horaires empilent chaque indicateur dans sa couleur ; choisissez un indicateur ci-dessus pour le mettre en évidence. Le pic de spectateurs utilise sa propre échelle.',
       dailyHint: 'Totaux quotidiens de l’indicateur sélectionné. La ligne en pointillés marque la moyenne quotidienne ; l’encadré signale le meilleur jour.',
+      pattern: 'Tendance par heure de la journée',
+      patternHint: 'Totaux de chaque heure de la journée additionnés sur tous les jours de la période — quand votre audience se connecte.',
       approximate: 'Approximatif : les données plus anciennes sont regroupées par heure de dernière activité de chaque spectateur.',
     },
     facts: {

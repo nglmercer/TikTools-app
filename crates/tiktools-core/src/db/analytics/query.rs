@@ -93,10 +93,10 @@ impl DatabaseManager {
                     continue;
                 }
                 add_hour_totals(by_day.entry(day).or_default(), sample);
-                if start_day == end_day {
-                    let wall_hour = local.rem_euclid(86_400) / 3_600;
-                    add_hour_totals(by_hour.entry(wall_hour).or_default(), sample);
-                }
+                // Multi-day spans aggregate into the hour-of-day pattern:
+                // same 24 buckets, totals summed across every day in range.
+                let wall_hour = local.rem_euclid(86_400) / 3_600;
+                add_hour_totals(by_hour.entry(wall_hour).or_default(), sample);
             }
             let mut local_totals = AnalyticsTotals::default();
             let mut local_days = Vec::new();
@@ -107,13 +107,11 @@ impl DatabaseManager {
                     totals: day_totals.clone(),
                 });
             }
-            if start_day == end_day {
-                for hour in 0..24 {
-                    hours.push(AnalyticsHourRow {
-                        hour,
-                        totals: by_hour.get(&hour).cloned().unwrap_or_default(),
-                    });
-                }
+            for hour in 0..24 {
+                hours.push(AnalyticsHourRow {
+                    hour,
+                    totals: by_hour.get(&hour).cloned().unwrap_or_default(),
+                });
             }
             totals = Some(local_totals);
             days = Some(local_days);
@@ -230,9 +228,9 @@ impl DatabaseManager {
             |row| row.get(0),
         )?;
 
-        // UTC single-day spans keep the previous single-bar behavior on the
-        // frontend; still expose true hourly rows so the chart can use them.
-        if offset == 0 && start_day == end_day && !samples.is_empty() {
+        // Hour-of-day totals across the span, exact for single days and the
+        // audience-pattern aggregate for longer ranges.
+        if offset == 0 && !samples.is_empty() {
             use std::collections::BTreeMap;
             let mut by_hour: BTreeMap<i64, AnalyticsTotals> = BTreeMap::new();
             for (hour, sample) in &samples {

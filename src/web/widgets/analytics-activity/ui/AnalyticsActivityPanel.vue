@@ -25,6 +25,11 @@ const { t, locale } = useI18n();
 const span = computed(() => ({ startDay: props.summary.startDay, endDay: props.summary.endDay }));
 const singleDay = computed(() => isSingleDaySpan(span.value));
 const hourly = computed(() => hourRowsToSeries(props.summary.hours));
+const hasHourly = computed(() =>
+  props.summary.hours.some((row) =>
+    Object.entries(row).some(([key, value]) => key !== 'hour' && typeof value === 'number' && value > 0),
+  ),
+);
 const subtitle = computed(() => {
   if (!singleDay.value) return formatSpan(span.value, locale.value);
   const zone = formatZoneShort(locale.value);
@@ -58,6 +63,21 @@ const metricOptions = computed(() => analyticsMetrics.map((value) => ({ value, l
       :metric="metric"
       :previous-days="previous?.days"
     />
+    <section
+      v-if="!singleDay && hasHourly"
+      class="activity-panel__pattern"
+    >
+      <h3 class="activity-panel__pattern-title">
+        {{ t('analytics.activity.pattern') }}
+      </h3>
+      <AnalyticsHourlyChart
+        :series="hourly"
+        :metric="metric"
+      />
+      <p class="activity-panel__note">
+        {{ t('analytics.activity.patternHint') }}
+      </p>
+    </section>
     <p
       v-if="singleDay && !summary.hours.length"
       class="activity-panel__note"
@@ -68,6 +88,19 @@ const metricOptions = computed(() => analyticsMetrics.map((value) => ({ value, l
 </template>
 
 <style scoped>
+.activity-panel__pattern {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.activity-panel__pattern-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-text-subtle);
+}
+
 .activity-panel__note {
   margin: var(--space-3) 0 0;
   color: var(--color-text-subtle);
