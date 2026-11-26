@@ -28,7 +28,6 @@ import BaseEmptyState from '@/shared/ui/empty-state/BaseEmptyState.vue';
 import IconChart from '@/shared/ui/icon/icons/IconChart.vue';
 import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
-import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import type { TableSort } from '@/shared/ui/table/table-types.ts';
@@ -136,18 +135,7 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
         <h1 class="analytics-page__title">
           {{ t('analytics.title') }}
         </h1>
-        <p
-          v-if="summary"
-          class="analytics-page__subtitle"
-        >
-          <BaseDateText
-            :value="summary.startDay * 86400"
-            :end-value="summary.endDay * 86400"
-            utc
-          />
-          <span aria-hidden="true">·</span>
-          {{ t('analytics.facts.sessionsValue', { count: summary.sessions }) }}
-        </p>
+
       </div>
       <div class="analytics-page__controls">
         <AnalyticsRangeBar
@@ -156,10 +144,6 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
           v-model:start="customStart"
           v-model:end="customEnd"
         />
-        <span
-          v-if="creator"
-          class="analytics-page__creator"
-        >@{{ creator.replace(/^@/, '') }}</span>
         <BaseIconButton
           :label="t('analytics.refresh')"
           :disabled="loading"
@@ -330,28 +314,11 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
   letter-spacing: -0.01em;
 }
 
-.analytics-page__subtitle {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-variant-numeric: tabular-nums;
-}
-
 .analytics-page__controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
-}
-
-.analytics-page__creator {
-  padding: 2px var(--space-4);
-  border: var(--border-width) solid var(--color-border-subtle);
-  border-radius: 999px;
-  background: var(--color-bg-panel);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
 }
 
 .analytics-page__empty {

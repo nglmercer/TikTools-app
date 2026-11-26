@@ -138,7 +138,10 @@ describe('AnalyticsPage', () => {
     expect(tiles[3]!.text()).toContain('900');
     expect(tiles[4]!.text()).toContain(t('analytics.facts.peakViewers'));
     expect(tiles[4]!.text()).toContain('210');
-    expect(wrapper.text()).toContain('3 sessions');
+    const sessionsRow = wrapper
+      .findAll('.insights__row')
+      .find((row: { text: () => string }) => row.text().includes(t('analytics.insights.sessions')));
+    expect(sessionsRow?.text()).toContain('3');
     // The contributors table lives behind its own tab.
     await openTab(wrapper, 'contributors');
     expect(wrapper.findAll('tbody tr')).toHaveLength(2);
