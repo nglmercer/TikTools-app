@@ -11,6 +11,7 @@ export async function contractSources(): Promise<Record<string, string>> {
   return Object.fromEntries(await Promise.all(paths.sort().map(async (path) => [path, digest(await readFile(resolve(root, path)))])));
 }
 export async function checkControlContract(): Promise<void> {
-  const provenance = JSON.parse(await readFile(resolve(root, 'docs/contracts/provenance.json'), 'utf8')) as { schemaSha256: string; sources: Record<string, string> };
-  if (provenance.schemaSha256 !== digest(await readFile(resolve(root, 'docs/contracts/control-api.json'))) || JSON.stringify(provenance.sources) !== JSON.stringify(await contractSources())) throw new Error('The versioned RPC reference is stale. Regenerate with bun docs/scripts/regenerate-control.ts after changing Rust sources. Normal docs builds do not run Cargo.');
+  const provenance = JSON.parse(await readFile(resolve(root, 'docs/contracts/provenance.json'), 'utf8')) as { schemaSha256: string; cliHelpSha256?: string; sources: Record<string, string> };
+  const staleCliHelp = provenance.cliHelpSha256 !== digest(await readFile(resolve(root, 'docs/contracts/cli-help.json')));
+  if (provenance.schemaSha256 !== digest(await readFile(resolve(root, 'docs/contracts/control-api.json'))) || staleCliHelp || JSON.stringify(provenance.sources) !== JSON.stringify(await contractSources())) throw new Error('The versioned RPC/CLI reference is stale. Regenerate with bun docs/scripts/regenerate-control.ts after changing Rust sources. Normal docs builds do not run Cargo.');
 }

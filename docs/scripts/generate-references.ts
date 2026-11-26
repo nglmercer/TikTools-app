@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { docLocales, docCopy } from '../locales.ts';
 import { componentFamilies } from './component-families.ts';
 import { renderControlReference, type ReferenceMethod } from './control-reference.ts';
+import { renderCliReference, type CliHelp } from './cli-reference.ts';
 const root = resolve(import.meta.dirname, '../..');
 const check = process.argv.includes('--check');
 async function output(path: string, value: string) {
@@ -63,6 +64,10 @@ for (const [family, definition] of Object.entries(componentFamilies)) {
 const schema = JSON.parse(await readFile(resolve(root, 'docs/contracts/control-api.json'), 'utf8')) as { methods: ReferenceMethod[] };
 for (const locale of docLocales) {
   await output(`docs/.generated/control-api.${locale}.md`, renderControlReference(schema.methods, locale));
+}
+const cliHelp = JSON.parse(await readFile(resolve(root, 'docs/contracts/cli-help.json'), 'utf8')) as CliHelp;
+for (const locale of docLocales) {
+  await output(`docs/.generated/cli.${locale}.md`, renderCliReference(cliHelp, locale));
 }
 const eventSchema = JSON.parse(await readFile(resolve(root, 'src/automation/contracts/generated/automation-events.schema.json'), 'utf8'));
 await output('docs/.generated/schema-provenance.json', JSON.stringify({ controlMethods: schema.methods.length, controlSha256: createHash('sha256').update(await readFile(resolve(root, 'docs/contracts/control-api.json'))).digest('hex'), eventDefinitions: Object.keys(eventSchema.$defs).sort() }, null, 2) + '\n');

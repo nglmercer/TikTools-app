@@ -1,0 +1,84 @@
+/**
+ * CLI command coverage report: for every verb in the checked-in CLI help
+ * contract, measure guide coverage (mentioned in English documentation prose
+ * outside the generated reference) and test coverage (verb tokens exercised
+ * in Rust test sources). Informational: always exits 0; adopt `--strict` once
+ * the numbers mean something to gate on.
+ *
+ * Test coverage is heuristic — CLI tests pass verbs as separate args rather
+ * than contiguous invocations, so a verb counts when its distinguishing
+ * tokens co-occur in one test file. Treat it as a floor, not proof.
+ */
+import { readFile, readdir } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import type { CliHelp, CliVerb } from './cli-reference.ts';
+
+const root = resolve(import.meta.dirname, '../..');
+const help = JSON.parse(await readFile(resolve(root, 'docs/contracts/cli-help.json'), 'utf8')) as CliHelp;
+
+async function files(directory: string, extension: RegExp): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const groups = await Promise.all(entries.filter((entry) => !entry.name.startsWith('.') && entry.name !== 'node_modules').map((entry) =>
+    entry.isDirectory() ? files(join(directory, entry.name), extension) : extension.test(entry.name) ? [join(directory, entry.name)] : []));
+  return groups.flat();
+}
+
+// Guide coverage: English prose, excluding the generated reference page itself.
+const guideFiles = (await files(resolve(root, 'docs/content/en'), /\.md$/))
+  .filter((path) => !path.endsWith('developer/cli.md'));
+const guides = new Map(await Promise.all(guideFiles.map(async (path) => [path, await readFile(path, 'utf8')] as const)));
+
+// Test coverage: unit tests live inside command modules, integration tests in tests/.
+const testFiles = [
+  ...await files(resolve(root, 'crates/tiktools-cli/src'), /\.rs$/),
+  ...await files(resolve(root, 'crates/tiktools-cli/tests'), /\.rs$/),
+];
+const tests = new Map(await Promise.all(testFiles.map(async (path) => [path, await readFile(path, 'utf8')] as const)));
+
+/** Minimal invocation tokens: the verb-path words. Flags stay when they are
+ * part of the verb identity (`update --all`, `host --stdio`); positional
+ * arguments never appear in the name, so nothing is dropped. */
+function invocationTokens(domain: string, verb: CliVerb): string[] {
+  const tokens = verb.name.split(' ');
+  // Forms whose name repeats the domain (`host --stdio` in domain host, the
+  // bare `web` serve form) invoke as `host --stdio`, not `host host --stdio`.
+  if (tokens[0] === domain) tokens.shift();
+  return tokens;
+}
+
+function guideHits(domain: string, verb: CliVerb): string[] {
+  const tokens = invocationTokens(domain, verb);
+  const pattern = new RegExp(`\\b${domain}\\s+${tokens.map((token) => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+')}\\b`);
+  return [...guides.entries()].filter(([, source]) => pattern.test(source)).map(([path]) => path);
+}
+
+function testHits(domain: string, verb: CliVerb): string[] {
+  const tokens = invocationTokens(domain, verb).filter((token) => token.length > 2 && !token.startsWith('--'));
+  if (!tokens.length) return [];
+  return [...tests.entries()]
+    .filter(([, source]) => source.includes('#[test]') && tokens.every((token) => source.includes(`"${token}"`)))
+    .map(([path]) => path);
+}
+
+let totalVerbs = 0;
+let totalGuide = 0;
+let totalTest = 0;
+const lines: string[] = [];
+for (const domain of help.commands) {
+  let guideCovered = 0;
+  let testCovered = 0;
+  const uncoveredGuide: string[] = [];
+  for (const verb of domain.verbs) {
+    totalVerbs += 1;
+    const inGuides = guideHits(domain.domain, verb).length > 0;
+    const inTests = testHits(domain.domain, verb).length > 0;
+    if (inGuides) { guideCovered += 1; totalGuide += 1; } else uncoveredGuide.push(verb.name);
+    if (inTests) { testCovered += 1; totalTest += 1; }
+  }
+  const pct = (part: number) => `${part}/${domain.verbs.length} (${Math.round((part / domain.verbs.length) * 100)}%)`;
+  lines.push(`${domain.domain.padEnd(12)} guides: ${pct(guideCovered).padEnd(14)} tests: ${pct(testCovered)}${uncoveredGuide.length ? `  undocumented: ${uncoveredGuide.join(', ')}` : ''}`);
+}
+console.log('CLI verb coverage (heuristic; see script header)\n');
+console.log(lines.join('\n'));
+const pct = (part: number) => `${part}/${totalVerbs} (${Math.round((part / totalVerbs) * 100)}%)`;
+console.log(`\n${'TOTAL'.padEnd(12)} guides: ${pct(totalGuide).padEnd(14)} tests: ${pct(totalTest)}`);

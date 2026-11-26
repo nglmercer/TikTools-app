@@ -13,6 +13,7 @@ pub mod automation;
 pub mod cloud;
 pub mod competitions;
 pub mod globals;
+pub mod i18n;
 pub mod live;
 pub mod media;
 pub mod packages;
@@ -178,7 +179,15 @@ pub fn parse_command(args: &[String]) -> Result<Plan, CommandError> {
         // `serve_plan` handles every `host` form before parsing commands;
         // reaching here means host was misrouted, so report its usage.
         "host" => return Err(raw::U_HOST.to_owned().into()),
-        other => return Err(format!("unknown command `{other}`").into()),
+        other => {
+            return Err(i18n::text(
+                i18n::Locale::resolve(),
+                "chrome.unknown-command",
+                "unknown command `{name}`",
+            )
+            .replace("{name}", other)
+            .into())
+        }
     };
     Ok(plan)
 }

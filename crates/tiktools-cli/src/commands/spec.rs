@@ -8,6 +8,26 @@
 
 use serde_json::{json, Value};
 
+use super::i18n::{self, Locale};
+
+/// Catalog key of one verb summary: `verb.<domain>.<name>` with the spaces
+/// of compound names collapsed to dots (`settings reset` →
+/// `verb.plugin.settings.reset`).
+pub fn verb_key(domain: &str, name: &str) -> String {
+    format!("verb.{domain}.{}", name.replace(' ', "."))
+}
+
+/// Catalog key of one domain summary: `domain.<domain>`.
+pub fn domain_key(domain: &str) -> String {
+    format!("domain.{domain}")
+}
+
+/// Catalog key of one convention text: `convention.<topic>` with spaces as
+/// dashes.
+pub fn convention_key(topic: &str) -> String {
+    format!("convention.{}", topic.replace(' ', "-"))
+}
+
 /// One callable form. `usage` is the full line (`plugin get <id>`); it is the
 /// exact string the parser reports when the form is malformed.
 pub struct VerbSpec {
@@ -69,7 +89,7 @@ const CONVENTIONS: &[(&str, &str)] = &[
     ),
     (
         "output",
-        "stdout carries the result; diagnostics go to stderr. --json prints the raw result object; without it, lists print one line per item. json values may use @path to read from a file.",
+        "stdout carries the result; diagnostics go to stderr. --json prints the raw result object; without it, lists print one line per item. json values may use @path to read from a file. Human help follows the display locale: TIKTOOLS_LANG overrides the LC_ALL/LC_MESSAGES/LANG chain, and machine output stays locale-independent.",
     ),
     (
         "exit codes",
@@ -112,11 +132,20 @@ pub fn registry() -> Vec<DomainSpec> {
     domains
 }
 
-fn verb_json(verb: &VerbSpec) -> Value {
+fn translations_json(key: &str) -> Value {
+    i18n::all_translations(key)
+        .into_iter()
+        .map(|(locale, text)| (locale.to_owned(), json!(text)))
+        .collect::<serde_json::Map<String, Value>>()
+        .into()
+}
+
+fn verb_json(domain: &str, verb: &VerbSpec) -> Value {
     json!({
         "name": verb.name,
         "usage": verb.usage,
         "summary": verb.summary,
+        "summaries": translations_json(&verb_key(domain, verb.name)),
         "destructive": verb.destructive,
     })
 }
@@ -124,28 +153,39 @@ fn verb_json(verb: &VerbSpec) -> Value {
 /// Machine-readable help for agents: every command form with its usage line,
 /// summary and destructive marker, plus the global CLI conventions.
 /// Pass a filtered slice for one-domain output.
+/// Version of the machine-readable help contract. Additive fields keep the
+/// version; a breaking reshape bumps it so agents and documentation
+/// generators can detect the change.
+pub const JSON_SCHEMA: u32 = 1;
+
 pub fn render_json(domains: &[&DomainSpec]) -> Value {
     json!({
+        "schema": JSON_SCHEMA,
         "usage": "tiktools [--json] [--standalone] <command> [args]",
         "commands": domains.iter().map(|domain| json!({
             "domain": domain.domain,
             "summary": domain.summary,
-            "verbs": domain.verbs.iter().map(verb_json).collect::<Vec<_>>(),
+            "summaries": translations_json(&domain_key(domain.domain)),
+            "verbs": domain.verbs.iter().map(|verb| verb_json(domain.domain, verb)).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
         "conventions": CONVENTIONS.iter().map(|(topic, text)| json!({
             "topic": topic,
+            "topics": translations_json(&format!("topic.{}", topic.replace(' ', "-"))),
             "text": text,
+            "texts": translations_json(&convention_key(topic)),
         })).collect::<Vec<_>>(),
     })
 }
 
-fn render_domain(text: &mut String, domain: &DomainSpec) {
+fn render_domain(text: &mut String, domain: &DomainSpec, locale: Locale) {
     use std::fmt::Write;
-    let _ = writeln!(text, "\n{} — {}", domain.domain, domain.summary);
+    let summary = i18n::text(locale, &domain_key(domain.domain), domain.summary);
+    let _ = writeln!(text, "\n{} — {}", domain.domain, summary);
     for verb in domain.verbs {
         let _ = writeln!(text, "  {}", verb.usage);
         if !verb.summary.is_empty() {
-            let _ = writeln!(text, "      {}", verb.summary);
+            let summary = i18n::text(locale, &verb_key(domain.domain, verb.name), verb.summary);
+            let _ = writeln!(text, "      {}", summary);
         }
     }
 }
@@ -155,6 +195,7 @@ fn render_domain(text: &mut String, domain: &DomainSpec) {
 pub fn select<'a>(
     domains: &'a [DomainSpec],
     filter: Option<&str>,
+    locale: Locale,
 ) -> Result<Vec<&'a DomainSpec>, String> {
     match filter {
         Some(name) => {
@@ -163,9 +204,12 @@ pub fn select<'a>(
                 .filter(|domain| domain.domain == name)
                 .collect();
             if found.is_empty() {
-                return Err(format!(
-                    "unknown command `{name}`; run `tiktools help` for the full list"
-                ));
+                return Err(i18n::text(
+                    locale,
+                    "chrome.unknown-command",
+                    "unknown command `{name}`",
+                )
+                .replace("{name}", name));
             }
             Ok(found)
         }
@@ -173,19 +217,28 @@ pub fn select<'a>(
     }
 }
 
-/// Human help page. `filter` selects one domain (`tiktools help plugin`);
-/// the full page renders when it is `None`.
-pub fn render(domains: &[DomainSpec], filter: Option<&str>) -> Result<String, String> {
+/// Human help page in the resolved display locale. `filter` selects one
+/// domain (`tiktools help plugin`); the full page renders when it is `None`.
+/// Usage lines are parser syntax and stay in English in every locale.
+pub fn render(
+    domains: &[DomainSpec],
+    filter: Option<&str>,
+    locale: Locale,
+) -> Result<String, String> {
     use std::fmt::Write;
-    let selected = select(domains, filter)?;
-    let mut text = String::from("usage: tiktools [--json] [--standalone] <command> [args]\n");
+    let selected = select(domains, filter, locale)?;
+    let usage_label = i18n::text(locale, "chrome.usage-label", "usage");
+    let mut text = format!("{usage_label}: tiktools [--json] [--standalone] <command> [args]\n");
     for domain in selected {
-        render_domain(&mut text, domain);
+        render_domain(&mut text, domain, locale);
     }
     if filter.is_none() {
-        text.push_str("\nconventions\n");
+        let header = i18n::text(locale, "chrome.conventions", "conventions");
+        let _ = writeln!(text, "\n{header}");
         for (topic, description) in CONVENTIONS {
-            let _ = writeln!(text, "  {topic}: {description}");
+            let label = i18n::text(locale, &format!("topic.{}", topic.replace(' ', "-")), topic);
+            let description = i18n::text(locale, &convention_key(topic), description);
+            let _ = writeln!(text, "  {label}: {description}");
         }
     }
     Ok(text)
@@ -280,6 +333,7 @@ mod tests {
         let json = render_json(&refs);
         assert!(json["commands"].as_array().unwrap().len() >= DISPATCHED.len() - 2);
         assert!(json["conventions"].as_array().unwrap().len() >= 3);
+        assert_eq!(json["schema"].as_u64(), Some(JSON_SCHEMA as u64));
         let first = &json["commands"][0]["verbs"][0];
         assert!(first.get("usage").is_some());
         assert!(first.get("destructive").is_some());

@@ -23,7 +23,7 @@ export function audienceSidebar(content: string, locale: DocLocale, audience: st
   ] : [
     { label: labels[8], accepts: (path) => ['index.md', 'setup.md', 'platforms.md'].includes(path) },
     { label: labels[9], accepts: (path) => ['architecture.md', 'frontend.md', 'lifecycle.md', 'storage.md', 'events.md', 'performance.md', 'transports.md'].includes(path) },
-    { label: labels[10], accepts: (path) => ['control-api.md', 'agents.md', 'remote-client.md', 'collaboration.md', 'cloud.md'].includes(path) },
+    { label: labels[10], accepts: (path) => ['control-api.md', 'cli.md', 'agents.md', 'remote-client.md', 'collaboration.md', 'cloud.md'].includes(path) },
     { label: labels[3], accepts: (path) => ['automations.md', 'templates.md'].includes(path) },
     { label: labels[11], accepts: (path) => path.startsWith('plugins/') },
     { label: labels[12], accepts: (path) => path === 'overlays.md' },

@@ -23,12 +23,23 @@ mod web;
 fn help_render(filter: Option<&str>, json: bool) -> Result<String, String> {
     let domains = commands::spec::registry();
     if json {
-        let selected = commands::spec::select(&domains, filter)?;
+        let selected = commands::spec::select(&domains, filter, commands::i18n::Locale::resolve())?;
         return Ok(
             serde_json::to_string(&commands::spec::render_json(&selected)).unwrap_or_default(),
         );
     }
-    commands::spec::render(&domains, filter)
+    commands::spec::render(&domains, filter, commands::i18n::Locale::resolve())
+}
+
+/// Localized usage-error hint. Humans hit it on every malformed command, so
+/// it follows the display locale like the help page itself.
+fn usage_hint() -> String {
+    commands::i18n::text(
+        commands::i18n::Locale::resolve(),
+        "chrome.hint",
+        "hint: try `tiktools help` or `tiktools help <command>`",
+    )
+    .to_owned()
 }
 
 fn main() {
@@ -58,13 +69,20 @@ fn run() -> i32 {
             None
         };
         if args.len() > 2 {
-            eprintln!("tiktools: help takes at most one command name");
+            eprintln!(
+                "tiktools: {}",
+                commands::i18n::text(
+                    commands::i18n::Locale::resolve(),
+                    "chrome.help-arity",
+                    "help takes at most one command name",
+                )
+            );
             return 2;
         }
         match help_render(filter.map(String::as_str), json_mode) {
             Ok(text) => println!("{text}"),
             Err(error) => {
-                eprintln!("tiktools: {error}");
+                eprintln!("tiktools: {error}\n{}", usage_hint());
                 return 2;
             }
         }
@@ -111,9 +129,7 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
         }
         Ok(None) => {}
         Err(message) => {
-            eprintln!(
-                "tiktools: {message}\nhint: try `tiktools help` or `tiktools help <command>`"
-            );
+            eprintln!("tiktools: {message}\n{}", usage_hint());
             return 2;
         }
     }
@@ -121,9 +137,7 @@ async fn dispatch(args: Vec<String>, json_mode: bool, standalone: bool) -> i32 {
     let plan = match commands::parse_command(&args) {
         Ok(parsed) => parsed,
         Err(commands::CommandError::Usage(message)) => {
-            eprintln!(
-                "tiktools: {message}\nhint: try `tiktools help` or `tiktools help <command>`"
-            );
+            eprintln!("tiktools: {message}\n{}", usage_hint());
             return 2;
         }
         Err(commands::CommandError::Call(error)) => {
