@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "89e0189daf4193853d17ec9e576a4ff9973cdfc5df06d0b27fc59296d9ee66de"
-translationRevision: "1c62559d59061fda5f9bac5b936baf1d7391f9b2dd4bba9108c76cc5aa9f6163"
+sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
+translationRevision: "7e34723eee24dd2dd44fb258f9ba78c1464b8d7a9a35e4aa7e739522067e3e6c"
 order: 10
 ---
 
@@ -54,3 +54,11 @@ Salve apenas a regra de chat a 1 ponto e confira o mesmo espectador antes e depo
 O menu da linha zera os pontos de um espectador, define nível 1 e acrescenta um marcador. **Zerar todos** afeta todos os espectadores salvos nesta instalação, entre criadores: zera saldos, define nível 1 e apaga o histórico de transações de pontos. Mantém os registros e contadores acumulados. Não limpa o feed nem o Analytics. Desconecte a LIVE, faça uma cópia com o aplicativo fechado e confira o alcance antes de confirmar.
 
 Ajustes manuais positivos recebem o bônus de assinante salvo: +100 com bônus de 50% concede +150 a um assinante. Descontar 100 não recebe esse bônus; o saldo mínimo é zero. Confira o saldo final em vez de presumir um delta exato. A tabela busca apenas na sua captura dos 100 primeiros; um nome ausente não comprova ausência de registro.
+
+## Operações de linha de comando {#command-line-operations}
+
+Cada operação deste guia também está disponível na CLI — offline, scriptável e apta para agentes. As linhas de uso são sintaxe do parser e permanecem em inglês em todos os idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-points.pt.md-->
+
+Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.

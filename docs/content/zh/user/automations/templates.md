@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
-translationRevision: "82274eaa2e4b3162b5db46f9f2d805a14b92572a8fe8fe64bfe985371a495dda"
+sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
+translationRevision: "34d9b0cf04ea43e9f065d4c34caa50a67e8548b04d092404617fe2510a2e851b"
 order: 50
 ---
 
@@ -46,3 +46,15 @@ JSON 无效时，请依据报告的解析错误及预期文档类型修正；重
 手动模板导入先保存目录文档；应用模板才创建关联动作/事件。解析器在缺少 `enabled` 时默认 true，应用流程保留这些值。手动配置导入也将条目交给所有者审核。Cloud 目录模板导入保存模板；Cloud 配置导入携带来源信息准备配置变更。不能因来源或预览成功就断言全部禁用。检查最终比较及已保存状态。CLI 导入应明确使用 `tiktools template import file.tiktemplate.json --disabled` 或 `tiktools template profile-import file.tikprofile.json --disabled`。
 
 切换配置会改变启用状态：确认后启用目标成员，禁用所有非成员动作/事件，包括独立记录。目标中原先禁用的成员可能重新启用。确认前检查两类清单。实际副作用仍要求匹配触发器、条件及可用运行时；切换本身不发送 Cloud 同步。
+
+在改动真实配置之前先交互式试用:
+
+<DemoFrame scenario="automation" locale="zh" panel="automation" title="试用自动化工作区" />
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-template.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "43a103ef68e43d691eec2214ffefb5e2e0e6b663afa9f4e63b5dac0ccec162ea"
-translationRevision: "43a103ef68e43d691eec2214ffefb5e2e0e6b663afa9f4e63b5dac0ccec162ea"
+sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
+translationRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
 order: 30
 ---
 
@@ -51,3 +51,8 @@ These triggers, field filters and cooldown controls are available in the local e
 ## Recovery {#recovery}
 
 If a recipe fails, return to a single log action, inspect the payload and temporarily simplify conditions. Do not disable limits on a busy stream while investigating. Audio, points, HTTP and plugin tests can perform real effects. Check [audio setup](../plugins/audio.md), [variables](variables.md) and [run diagnostics](../preferences/troubleshooting.md) before adding those dependencies.
+
+Try it interactively before touching your real setup:
+
+<DemoFrame scenario="automation" locale="en" panel="automation" title="Try the automations workspace" />
+

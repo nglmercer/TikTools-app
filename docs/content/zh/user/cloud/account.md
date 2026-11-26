@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
-translationRevision: "dcdf6b0e0597904e86b677257bceda1e83a272fbe55075253c580e829a37db83"
+sourceRevision: "898570b9036f2717f38381d86ec16968f768264097b84fb7524e87d15daeb961"
+translationRevision: "84a7286106a9070a9fe2095704e79ffb3bb642ef62bceaf806460220d82c4aaf"
 order: 10
 ---
 
@@ -42,3 +42,11 @@ order: 10
 ## 运行细节 {#operational-details}
 
 退出登录先删除本地凭据并清空账户上下文，再尽力尝试服务器撤销。界面显示已退出只确认本地移除，不证明网络故障时远程令牌已撤销。若服务提供会话管理，可在那里检查。退出或切换已知账户前请导出 Diagnostics，因为该界面历史会清空。TikTok cookie 与远程宿主会话是独立身份。
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-cloud.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

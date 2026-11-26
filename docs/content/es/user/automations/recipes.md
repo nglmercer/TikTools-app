@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "43a103ef68e43d691eec2214ffefb5e2e0e6b663afa9f4e63b5dac0ccec162ea"
-translationRevision: "62260f3a7dbf8660eb393810941b3772ec6787a7a86f07ec07050f6f30a19df7"
+sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
+translationRevision: "8531aa930b09116a8380d67cba4d728e903eedef0d35e5e684c089c59d7788a3"
 order: 30
 ---
 
@@ -51,3 +51,8 @@ Estos disparadores, filtros y tiempos de espera están disponibles en el motor l
 ## Recuperación {#recovery}
 
 Si falla una receta, vuelve a una sola acción de registro, inspecciona los datos y simplifica temporalmente las condiciones. Evita quitar los límites durante una emisión concurrida. Las pruebas de audio, puntos, HTTP y plugins pueden producir efectos reales. Consulta [audio](../plugins/audio.md), [variables](variables.md) y [diagnósticos](../preferences/troubleshooting.md) antes de añadir esas dependencias.
+
+Pruébalo interactivamente antes de tocar tu configuración real:
+
+<DemoFrame scenario="automation" locale="es" panel="automation" title="Prueba el espacio de automatizaciones" />
+

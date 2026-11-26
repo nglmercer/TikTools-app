@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
-translationRevision: "84e2ef69f16a3be871639b862da514db1e1d22be5504770b81153cad74f0d880"
+sourceRevision: "1c45cf6e9355092d95dc9f90025b2965e0a6a4cddb453fb25680192ab41e873c"
+translationRevision: "267e433365a264faff533593247e3712b10513b2cbdce046e8ef2410630e9028"
 order: 30
 ---
 
@@ -43,3 +43,17 @@ Vérifiez le créateur, la salle, l’activation des sources, la fenêtre et l�
 ## Détails de fonctionnement {#operational-details}
 
 Le tableau Points demande 100 spectateurs et filtre/trie uniquement ces lignes. Actualiser ou trier par nom ne recherche pas toute la base. Les classements du fil affichent 10 lignes par session créateur/salle : diamants des cadeaux pour Top et quantités pour Likes, avec un suivi limité à 5 000 spectateurs. Ils ne mesurent pas les points enregistrés. Comparez d’abord unités et périodes.
+
+Essayez interactivement avant de toucher à votre vraie configuration :
+
+<DemoFrame scenario="points" locale="fr" panel="points" title="Essayez classements et points des spectateurs" />
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-ranking.fr.md-->
+
+<!--@include: ../../../../.generated/cli-domain-competition.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

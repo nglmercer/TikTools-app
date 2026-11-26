@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
-translationRevision: "64776a7488c087fd24c2ab47fe38337704bd2d5f90df391eebae64bd310b8048"
+sourceRevision: "898570b9036f2717f38381d86ec16968f768264097b84fb7524e87d15daeb961"
+translationRevision: "b59838a6a5dfad321e52d3d2d203004d444456c757dfc9823b29b8db421a436a"
 order: 10
 ---
 
@@ -42,3 +42,11 @@ Pour une tentative annulée ou expirée, lancez une nouvelle connexion après av
 ## Détails de fonctionnement {#operational-details}
 
 La déconnexion supprime les identifiants locaux et le contexte avant une tentative de révocation serveur au mieux. L’UI déconnectée confirme la suppression locale, pas la révocation distante en cas de panne réseau. Utilisez l’administration des sessions du service si elle existe. Exportez Diagnostics avant déconnexion/changement d’un compte connu : cet historique UI est effacé. Cookies TikTok et sessions d’hôte distant sont des identités distinctes.
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-cloud.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

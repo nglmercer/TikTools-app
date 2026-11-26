@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
-translationRevision: "8b1eb642c045b49c1335ee05f654a44e666e5cf6ef855fb47579c0781c99a4ab"
+sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
+translationRevision: "428631380bdd7ec1bd66987025794817a1925260664c8574914f2169c9b81fa6"
 order: 50
 ---
 
@@ -46,3 +46,15 @@ Para JSON inválido, use os erros de análise informados e o tipo de documento e
 Importar template manual primeiro salva um documento no catálogo; aplicá-lo cria ações/eventos vinculados. O parser usa true quando `enabled` falta e a aplicação preserva esses valores. Importar perfil manual prepara entradas para revisão do proprietário. O catálogo Cloud salva templates; um perfil Cloud prepara uma mutação com procedência. Origem ou prévia bem-sucedida não garantem desativação universal. Confira comparação final e estados salvos. Na CLI use explicitamente `tiktools template import file.tiktemplate.json --disabled` ou `tiktools template profile-import file.tikprofile.json --disabled`.
 
 Trocar perfil muda ativação: confirmar habilita membros do destino e desabilita todas as ações/eventos externos, incluindo registros avulsos. Membros antes desativados podem ser ativados. Revise ambas as listas. Efeitos ainda exigem gatilhos, condições e runtime disponíveis; a troca não envia sincronização Cloud por si só.
+
+Experimente interativamente antes de tocar na sua configuração real:
+
+<DemoFrame scenario="automation" locale="pt" panel="automation" title="Experimente o espaço de automações" />
+
+## Operações de linha de comando {#command-line-operations}
+
+Cada operação deste guia também está disponível na CLI — offline, scriptável e apta para agentes. As linhas de uso são sintaxe do parser e permanecem em inglês em todos os idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-template.pt.md-->
+
+Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.

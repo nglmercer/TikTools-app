@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "37f7274550d3010051ab456da2a2091b650e5e7aaaf30756b6695435bcfc08c7"
-translationRevision: "37f7274550d3010051ab456da2a2091b650e5e7aaaf30756b6695435bcfc08c7"
+sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
+translationRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
 order: 10
 ---
 
@@ -37,3 +37,15 @@ Direct connections, monitoring and plugin connection controls are available. Rec
 ## Recovery {#recovery}
 
 For offline rooms, verify that the creator is live. For session or rate-limit errors, follow the reported retry condition. Repeated reconnect clicks do not refresh authentication. Use [troubleshooting](../preferences/troubleshooting.md) to collect the failing component and time without exposing credentials.
+
+Try it interactively before touching your real setup:
+
+<DemoFrame scenario="connection" locale="en" panel="connection" title="Try the LIVE connection panel" />
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-live.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ff33cc9431cab4491b09c4bcf5219c2dc0881c83862c2d7961c56881d04465e5"
-translationRevision: "ff33cc9431cab4491b09c4bcf5219c2dc0881c83862c2d7961c56881d04465e5"
+sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
+translationRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
 order: 10
 ---
 
@@ -44,3 +44,17 @@ For no run, check active profile, enabled states, trigger, filters, cooldown and
 ## Operational details {#operational-details}
 
 Before changing profiles or importing, read the [activation rules by surface](templates.md#operational-details). Profile switching can enable members that you had individually disabled. Cooldown state is in memory, capped at 24 hours; missing viewer uniqueId shares one anonymous scope. The table clears when it reaches 8,192 retained keys, so overload or restart can allow extra runs. It is not a durable quota or replay guarantee.
+
+Try it interactively before touching your real setup:
+
+<DemoFrame scenario="automation" locale="en" panel="automation" title="Try the automations workspace" />
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-automation.en.md-->
+
+<!--@include: ../../../../.generated/cli-domain-workflow.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

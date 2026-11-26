@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
-translationRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
+sourceRevision: "2182472a23e41229c1665cfa2b621c39b05cd0c899ae8e81889ba59fda126525"
+translationRevision: "2182472a23e41229c1665cfa2b621c39b05cd0c899ae8e81889ba59fda126525"
 order: 30
 ---
 
@@ -49,3 +49,11 @@ Retry after correcting the specific cause. For revision conflicts, reload and re
 Diagnostics is an in-memory UI log, limited to 2,000 entries or 2 MiB. Repeated entries within five seconds are grouped. The view initially shows 100; export includes all matching filtered entries, whereas **Clear** deletes the whole log. Copy/export evidence before closing, restarting, clearing, or switching/signing out of a known Cloud account: those account changes clear this UI history.
 
 If no window opens, inspect native `tiktools.log` (controller mode: `controller.log`) in `%LOCALAPPDATA%/TikTools/logs` on Windows or `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` on Linux. `TIKTOOLS_HOME` changes the root and `TIKTOOLS_LOG_DIR` overrides the log directory. If logging itself failed, the file may not exist; retain a terminal/startup error when available. Native logs are not guaranteed to have UI redaction: review all exports before sharing.
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-system.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

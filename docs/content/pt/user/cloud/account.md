@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
-translationRevision: "78ce7c124fefac65fc37718d87fb15fd386130fc9a16414febfc481f33749dba"
+sourceRevision: "898570b9036f2717f38381d86ec16968f768264097b84fb7524e87d15daeb961"
+translationRevision: "f69ac733ac75584284a39fe5523e36b8ccc09c4a3bc6f7b2d858052dcd2ebdb7"
 order: 10
 ---
 
@@ -42,3 +42,11 @@ Para uma tentativa cancelada ou expirada, inicie um login novo após fechar o an
 ## Detalhes de operação {#operational-details}
 
 Sair apaga credenciais locais e limpa o contexto antes de tentar revogação remota de melhor esforço. A interface desconectada confirma remoção local, não revogação remota durante falha de rede. Use administração de sessões do serviço se disponível. Exporte Diagnostics antes de sair/trocar conta conhecida: esse histórico UI é apagado. Cookies TikTok e sessões de host remoto são identidades separadas.
+
+## Operações de linha de comando {#command-line-operations}
+
+Cada operação deste guia também está disponível na CLI — offline, scriptável e apta para agentes. As linhas de uso são sintaxe do parser e permanecem em inglês em todos os idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-cloud.pt.md-->
+
+Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.

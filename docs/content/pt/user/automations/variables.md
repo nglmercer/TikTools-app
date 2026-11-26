@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
-translationRevision: "da5006cdf4a12e413ed520649c53995d33e7a0ed4d8d25223cfd00cc25a8451e"
+sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
+translationRevision: "1e2596f78bb00a2dc39c3fd2dee5bb852d0164049616910a67feadd3aaee0d99"
 order: 40
 ---
 
@@ -46,3 +46,8 @@ Valores secretos ou bloqueados ficam mascarados nas comparações e não podem s
 ## Resultado esperado, status e recuperação {#expected-result-status-and-recovery}
 
 Variáveis locais e compartilhamento revisado condicionado às capacidades estão disponíveis; salvar localmente nunca envia automaticamente. Chaves inválidas, valores tipados inválidos e revisões desatualizadas bloqueiam o salvamento. Corrija o campo destacado ou recarregue antes de tentar novamente. Para falhas de conta, consulte [conta do Cloud](../cloud/account.md); para o comportamento de comparação, consulte [Changes](../cloud/changes.md).
+
+Experimente interativamente antes de tocar na sua configuração real:
+
+<DemoFrame scenario="automation" locale="pt" panel="automation" title="Experimente o espaço de automações" />
+

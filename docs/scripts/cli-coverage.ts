@@ -26,7 +26,21 @@ async function files(directory: string, extension: RegExp): Promise<string[]> {
 // Guide coverage: English prose, excluding the generated reference page itself.
 const guideFiles = (await files(resolve(root, 'docs/content/en'), /\.md$/))
   .filter((path) => !path.endsWith('developer/cli.md'));
-const guides = new Map(await Promise.all(guideFiles.map(async (path) => [path, await readFile(path, 'utf8')] as const)));
+
+/** Readers see the rendered article, so coverage expands `@include` fragments
+ * (one level is enough today: generated fragments never include further). */
+async function expandIncludes(path: string, source: string): Promise<string> {
+  const pattern = /<!--@include:\s*(\S+?)\s*-->/g;
+  const matches = [...source.matchAll(pattern)];
+  let expanded = source;
+  for (const match of matches) {
+    const target = resolve(path, '..', match[1]!);
+    const fragment = await readFile(target, 'utf8').catch(() => '');
+    expanded = expanded.replace(match[0], fragment);
+  }
+  return expanded;
+}
+const guides = new Map(await Promise.all(guideFiles.map(async (path) => [path, await expandIncludes(path, await readFile(path, 'utf8'))] as const)));
 
 // Test coverage: unit tests live inside command modules, integration tests in tests/.
 const testFiles = [

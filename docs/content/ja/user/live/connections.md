@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "37f7274550d3010051ab456da2a2091b650e5e7aaaf30756b6695435bcfc08c7"
-translationRevision: "20124290a32ce05492ac2ebac69dc4f7e2bc39193ddf118eaaa42e849d95abb5"
+sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
+translationRevision: "c7753dbf5f8630bf5fbaec65d02370c405f5e7e33d34b3583d935a7e312bb4d2"
 order: 10
 ---
 
@@ -37,3 +37,15 @@ order: 10
 ## 問題が起きたとき {#recovery}
 
 オフラインのルームでは配信中か確認します。セッションやレート制限のエラーでは示された再試行条件に従います。再接続の連打では認証は更新されません。[トラブルシューティング](../preferences/troubleshooting.md) に従い、認証情報を出さずに失敗した要素と時刻を記録します。
+
+実際の設定に触れる前にインタラクティブに試せます:
+
+<DemoFrame scenario="connection" locale="ja" panel="connection" title="LIVE接続パネルを試す" />
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-live.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

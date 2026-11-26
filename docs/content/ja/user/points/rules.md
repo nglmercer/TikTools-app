@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "89e0189daf4193853d17ec9e576a4ff9973cdfc5df06d0b27fc59296d9ee66de"
-translationRevision: "b0975c3b1240234a27221f06e291404ff594db539566cd70290dd34f21254996"
+sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
+translationRevision: "f12aa69445979e77bdc1e789192eb7d8961523bb4cf7ed252430e6a5448442cd"
 order: 10
 ---
 
@@ -64,3 +64,11 @@ order: 10
 </DocCallout>
 
 手動の加算にも保存済みサブスクライバーのボーナスが適用されます。50% の場合、サブスクライバーへの +100 は +150 になります。−100 の減算には加算ボーナスを適用せず、残高は 0 未満になりません。入力した差分だけで判断せず、結果の残高を確認してください。表の検索は取得済み上位 100 人だけが対象で、見つからなくても保存レコードがないとは限りません。
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-points.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

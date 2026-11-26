@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "89e0189daf4193853d17ec9e576a4ff9973cdfc5df06d0b27fc59296d9ee66de"
-translationRevision: "e57738cda53ced5da0c5a8c0992b85a4f80a1f950e0676a1a6d4f9a83554a7d2"
+sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
+translationRevision: "6568459d5532d1927941a2dde62654d70c5c95b38e83f35ee82389ec014cfd49"
 order: 10
 ---
 
@@ -64,3 +64,11 @@ Le menu d’une ligne remet un spectateur à 0 point et au niveau 1 et ajoute un
 </DocCallout>
 
 Les ajustements manuels positifs appliquent le bonus d’abonné enregistré : +100 avec un bonus de 50 % accorde +150 à un abonné. Un ajustement de −100 n’applique pas ce bonus ; le solde reste au minimum à zéro. Vérifiez le solde final plutôt que de supposer que la variation saisie est exacte. La recherche du tableau porte seulement sur son instantané des 100 premiers ; une absence ne prouve pas l’absence de fiche enregistrée.
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-points.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
-translationRevision: "52e2f7b0e6813e58d7111183ce40b19a618c74aea41e6c7815fca48b8eba2f98"
+sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
+translationRevision: "528ac578422938ab854000a75b66fdee8519220adc991e7450f245776331b285"
 order: 10
 ---
 
@@ -38,3 +38,11 @@ order: 10
 安装失败时，阅读作业错误，检查兼容性、签名、运行时或下载问题。不要为了消除错误而降低验证要求。更新导致问题时，检查保留版本，并在可用时回滚。禁用或卸载插件前，审查依赖它的自动化。移除插件数据与配置前，请做好[备份](../preferences/backups.md)。
 
 <TourFrame id="plugin" locale="zh" title="演示：插件" />
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-plugin.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

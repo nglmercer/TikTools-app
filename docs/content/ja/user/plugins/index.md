@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
-translationRevision: "c7841fea6235a200d8ac5af1cc2d0ccf17495167fc3803e4f8892cf3bb4ba6b6"
+sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
+translationRevision: "9d148a06fc67a3f99bb4c01e814f2e3ba0ddc2ea07dc13f11d556f34310f7e44"
 order: 10
 ---
 
@@ -38,3 +38,11 @@ order: 10
 失敗時はジョブのエラーから互換性、署名、ランタイム、取得の問題を読みます。エラーを消すために検証を弱めないでください。更新後の問題では保持版を確認し、可能ならロールバックします。無効化・削除前に依存する自動化を確認し、プラグインのデータと設定を[バックアップ](../preferences/backups.md) します。
 
 <TourFrame id="plugin" locale="ja" title="デモ: プラグイン" />
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-plugin.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

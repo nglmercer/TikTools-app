@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
-translationRevision: "7efb2f20a170e42ae53d494e5e48a44dbfa7f3bd0fbe4d4192b558626493e8b9"
+sourceRevision: "1c45cf6e9355092d95dc9f90025b2965e0a6a4cddb453fb25680192ab41e873c"
+translationRevision: "447a776409112cc39aca6a49c8f68a797eb76d702e66cf8774a0e72a6c364e3e"
 order: 30
 ---
 
@@ -43,3 +43,17 @@ order: 30
 ## 运行细节 {#operational-details}
 
 Points 表格请求 100 位观众，只对收到的行搜索和排序。刷新或按姓名排序不会搜索整个数据库。动态流榜单按主播/房间会话显示 10 行：Top 统计礼物钻石，Likes 统计点赞数量，最多跟踪 5,000 位观众。这些榜单不表示已保存积分。比较总数前，请先确认单位及会话范围。
+
+在改动真实配置之前先交互式试用:
+
+<DemoFrame scenario="points" locale="zh" panel="points" title="试用排行榜和观众积分" />
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-ranking.zh.md-->
+
+<!--@include: ../../../../.generated/cli-domain-competition.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

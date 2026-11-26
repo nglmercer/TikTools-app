@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "89e0189daf4193853d17ec9e576a4ff9973cdfc5df06d0b27fc59296d9ee66de"
-translationRevision: "19492ea15ca52a025bf7120e4dbc719d64f6e86f23aed323a802d6cad3f045fe"
+sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
+translationRevision: "1836f98a334fa32daef8fcafb7937908b2e0adb47c6f30b8a72f623856b8ee32"
 order: 10
 ---
 
@@ -62,3 +62,11 @@ El menú de una fila reinicia un espectador a 0 puntos y nivel 1 y añade un mar
 </DocCallout>
 
 Los ajustes manuales positivos aplican el bonus de suscriptor guardado: +100 con bonus del 50% entrega +150 a un suscriptor. Descontar 100 no aplica ese bonus; el saldo mínimo es cero. Comprueba el saldo final, sin asumir que el delta coincide siempre con lo escrito. La tabla solo busca en su instantánea de los 100 primeros; no encontrar un nombre no demuestra que no tenga registro.
+
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-points.es.md-->
+
+Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

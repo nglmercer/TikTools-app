@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
-translationRevision: "8f6bb5652c09403045d011580eb26d84b27fd4f0ec24005072b11276eb76c2d4"
+sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
+translationRevision: "88ecfb447104f0f2fe5209529c08e3bc00afc635d85c8fe9b35acba86638631b"
 order: 40
 ---
 
@@ -46,3 +46,8 @@ order: 40
 ## 预期结果、状态与恢复 {#expected-result-status-and-recovery}
 
 本地变量及按能力启用的审查式共享均可使用；本地保存从不自动上传。无效键、无效类型值和过期修订会阻止保存。重试前，请修正高亮字段或重新加载。账户故障见 [Cloud 账户](../cloud/account.md)，比较行为见[变更](../cloud/changes.md)。
+
+在改动真实配置之前先交互式试用:
+
+<DemoFrame scenario="automation" locale="zh" panel="automation" title="试用自动化工作区" />
+

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ff33cc9431cab4491b09c4bcf5219c2dc0881c83862c2d7961c56881d04465e5"
-translationRevision: "f5b83c32de83c8d83122fa23fc1bdb24c0ec380043f0c7fe2ff78fef9b9aa8fd"
+sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
+translationRevision: "21418d5e43873d05197f9291010893eed584cc38ca18832ec1d3ad859f59c1a4"
 order: 10
 ---
 
@@ -44,3 +44,17 @@ En l’absence d’exécution, vérifiez dans cet ordre le profil actif, les ét
 ## Détails de fonctionnement {#operational-details}
 
 Avant import ou changement de profil, lisez [l’activation par surface](templates.md#operational-details). Le changement peut réactiver des membres désactivés individuellement. Le cooldown est en mémoire, limité à 24 heures ; les spectateurs sans uniqueId partagent un contexte anonyme. À 8 192 clés conservées, la table est vidée : surcharge ou redémarrage peuvent autoriser des exécutions supplémentaires. Ce n’est ni quota durable ni garantie de replay.
+
+Essayez interactivement avant de toucher à votre vraie configuration :
+
+<DemoFrame scenario="automation" locale="fr" panel="automation" title="Essayez l'espace des automatisations" />
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-automation.fr.md-->
+
+<!--@include: ../../../../.generated/cli-domain-workflow.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

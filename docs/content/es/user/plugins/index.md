@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
-translationRevision: "ce29bc14e959f6c892ccf842b0732c2c7cda15e87872a7a2d03b7f95b85836d3"
+sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
+translationRevision: "91a52bc5ab8506b54fcd3171f53e0ab43645b664a54b8b44a9f54bebe151536d"
 order: 10
 ---
 
@@ -38,3 +38,11 @@ Están disponibles la revisión de paquetes, los trabajos de instalación, las p
 Ante un fallo, lee el error del trabajo para identificar incompatibilidad, firma, entorno o descarga. Evita debilitar la verificación para eliminar un aviso. Si una actualización falla, revisa las versiones conservadas y usa la reversión cuando esté disponible. Comprueba automatizaciones dependientes antes de desactivar o desinstalar. Conserva [copias](../preferences/backups.md) de datos y configuración antes de eliminarlos.
 
 <TourFrame id="plugin" locale="es" title="Demo de plugins" />
+
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-plugin.es.md-->
+
+Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

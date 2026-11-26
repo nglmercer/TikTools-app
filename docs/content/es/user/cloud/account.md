@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
-translationRevision: "c621eebc98665ab57a08cd00eae611a2fee2925a81854f247fbfcf5042ec4b6a"
+sourceRevision: "898570b9036f2717f38381d86ec16968f768264097b84fb7524e87d15daeb961"
+translationRevision: "a9523ee4552f93622cd330d2639715dc75a0ae74101a8021ebb7191a606dc52d"
 order: 10
 ---
 
@@ -42,3 +42,11 @@ Si el intento caducó o se canceló, ciérralo e inicia uno nuevo. Ante fallos d
 ## Detalles de operación {#operational-details}
 
 Cerrar sesión elimina credenciales locales y limpia el contexto antes de intentar revocación remota de mejor esfuerzo. La UI sin sesión confirma retirada local, no revocación remota durante fallo de red. Usa administración de sesiones del servicio si existe. Exporta Diagnostics antes de cerrar/cambiar cuenta conocida: se limpia ese historial UI. Cookies TikTok y sesiones de host remoto son identidades separadas.
+
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-cloud.es.md-->
+
+Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

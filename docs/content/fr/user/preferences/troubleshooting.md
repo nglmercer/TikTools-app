@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
-translationRevision: "358c176924fa0efc897dea7824cdd6e54f73abf33aa1668785ac3c977f993c2b"
+sourceRevision: "2182472a23e41229c1665cfa2b621c39b05cd0c899ae8e81889ba59fda126525"
+translationRevision: "164da88918108c8c94811362c60532eba100603e01edb0624748a065fb912029"
 order: 30
 ---
 
@@ -49,3 +49,11 @@ Réessayez après correction de la cause précise. Pour les conflits de révisio
 Diagnostics est un journal UI en mémoire, limité à 2 000 entrées ou 2 MiB. Les répétitions en cinq secondes sont regroupées. La vue montre d’abord 100 entrées ; l’export contient toutes les entrées filtrées, mais **Effacer** supprime le journal entier. Exportez avant de fermer, redémarrer, effacer, changer de compte Cloud connu ou vous déconnecter : ces changements vident cet historique.
 
 Sans fenêtre, cherchez le journal natif `tiktools.log` (`controller.log` en mode contrôleur) dans `%LOCALAPPDATA%/TikTools/logs` sous Windows ou `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` sous Linux. `TIKTOOLS_HOME` change la racine et `TIKTOOLS_LOG_DIR` remplace le répertoire des journaux. Si leur initialisation échoue, aucun fichier n’est garanti ; conservez l’erreur du terminal/démarrage disponible. La rédaction UI n’est pas garantie pour les journaux natifs : relisez avant partage.
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-system.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
-translationRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
+sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
+translationRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
 order: 40
 ---
 
@@ -46,3 +46,8 @@ Secret or blocked values are masked in comparisons and cannot be sent through th
 ## Expected result, status and recovery {#expected-result-status-and-recovery}
 
 Local variables and capability-gated reviewed sharing are available; saving locally never uploads automatically. Invalid keys, invalid typed values and stale revisions block saving. Correct the highlighted field or reload before retrying. For account failures see [Cloud account](../cloud/account.md); for comparison behavior see [Changes](../cloud/changes.md).
+
+Try it interactively before touching your real setup:
+
+<DemoFrame scenario="automation" locale="en" panel="automation" title="Try the automations workspace" />
+

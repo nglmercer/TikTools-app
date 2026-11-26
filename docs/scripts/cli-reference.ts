@@ -62,3 +62,22 @@ export function renderCliReference(help: CliHelp, locale: DocLocale): string {
     `- **${topics?.[locale] ?? topic}**: ${texts?.[locale] ?? body}`).join('\n') + '\n';
   return text;
 }
+
+/**
+ * Renders one domain's verb table for embedding inside a guide article: the
+ * same data as the full reference, scoped so a feature guide can cross-link
+ * its commands without duplicating the whole registry.
+ */
+export function renderCliDomainFragment(help: CliHelp, domain: string, locale: DocLocale): string {
+  const t = labels[locale];
+  const local = (entry: { summary?: string; summaries?: Partial<Record<DocLocale, string>> }) =>
+    entry.summaries?.[locale] ?? entry.summary ?? '';
+  const entry = help.commands.find((candidate) => candidate.domain === domain);
+  if (!entry) throw new Error(`Unknown CLI domain in fragment request: ${domain}`);
+  let text = `| ${t.command} | ${t.summary} |\n| --- | --- |\n`;
+  text += entry.verbs.map((verb) => {
+    const marker = verb.destructive ? ` **${t.destructive}**` : '';
+    return `| ${cell('tiktools ' + verb.usage)} | ${local(verb)}${marker} |`;
+  }).join('\n') + '\n';
+  return text;
+}

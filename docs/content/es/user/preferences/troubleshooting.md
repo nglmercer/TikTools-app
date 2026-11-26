@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
-translationRevision: "e8a3b91363b7da4b40d5e5fa8711756a255facd97cf5218cbddf7df18e7d0040"
+sourceRevision: "2182472a23e41229c1665cfa2b621c39b05cd0c899ae8e81889ba59fda126525"
+translationRevision: "8c1757aa2512bd54435e67f0b327f05240c4ec6e0620262ec6a34009c83aa86b"
 order: 30
 ---
 
@@ -49,3 +49,11 @@ Repite después de corregir la causa concreta. Ante conflictos de revisión, car
 Diagnostics es un registro UI en memoria, limitado a 2.000 entradas o 2 MiB. Agrupa repeticiones dentro de cinco segundos. Muestra inicialmente 100; exportar incluye todas las entradas filtradas, mientras **Limpiar** borra el registro entero. Copia/exporta antes de cerrar, reiniciar, limpiar o cambiar/cerrar una cuenta Cloud conocida: esos cambios vacían este historial.
 
 Si no aparece ventana, revisa `tiktools.log` nativo (`controller.log` en modo controlador) en `%LOCALAPPDATA%/TikTools/logs` en Windows o `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` en Linux. `TIKTOOLS_HOME` cambia la raíz y `TIKTOOLS_LOG_DIR` sustituye el directorio de logs. Si falla el propio registro, puede no existir archivo; conserva el error de terminal/inicio disponible. Los logs nativos no garantizan la redacción de la UI: revisa todo antes de compartir.
+
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-system.es.md-->
+
+Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

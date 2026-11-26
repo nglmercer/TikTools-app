@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "43a103ef68e43d691eec2214ffefb5e2e0e6b663afa9f4e63b5dac0ccec162ea"
-translationRevision: "6d71c3a0b25f94ce7e39fa1aed1b7b605c3f0bfe6f6d003a34c247df92ed1326"
+sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
+translationRevision: "c40d5d1bd44b951d7bbd21e3cdc5288d8390529870c6849230a701c1bf868b30"
 order: 30
 ---
 
@@ -51,3 +51,8 @@ Ces déclencheurs, filtres de champs et commandes de délai sont disponibles dan
 ## Récupération {#recovery}
 
 Si une recette échoue, revenez à une seule action de journalisation, examinez la charge utile et simplifiez temporairement les conditions. Ne désactivez pas les limites sur une diffusion chargée pendant l’enquête. Les tests audio, points, HTTP et plugins peuvent produire des effets réels. Consultez la [configuration audio](../plugins/audio.md), les [variables](variables.md) et les [diagnostics d’exécution](../preferences/troubleshooting.md) avant d’ajouter ces dépendances.
+
+Essayez interactivement avant de toucher à votre vraie configuration :
+
+<DemoFrame scenario="automation" locale="fr" panel="automation" title="Essayez l'espace des automatisations" />
+

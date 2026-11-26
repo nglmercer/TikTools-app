@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
-translationRevision: "f517d7ab316b64468d86c6044fb1eccd89d74a0ce77c4c83288c625ddff100c7"
+sourceRevision: "2182472a23e41229c1665cfa2b621c39b05cd0c899ae8e81889ba59fda126525"
+translationRevision: "854e5abe2b02ba6bdac44511dd074caece762332b1d0602c0ea2ec430e14dab7"
 order: 30
 ---
 
@@ -49,3 +49,11 @@ order: 30
 Diagnostics 是内存中的界面日志，上限为 2,000 条或 2 MiB；五秒内的重复项会合并。界面初始显示 100 条，导出包含所有匹配筛选的条目，而**清空**会删除整个日志。关闭、重启、清空或切换/退出已知 Cloud 账户前，请先复制或导出证据；这些账户切换会清空该界面历史。
 
 窗口无法打开时，查看原生日志 `tiktools.log`（控制器模式为 `controller.log`）：Windows 默认在 `%LOCALAPPDATA%/TikTools/logs`，Linux 在 `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs`。`TIKTOOLS_HOME` 改变根目录，`TIKTOOLS_LOG_DIR` 覆盖日志目录。日志初始化自身失败时文件可能不存在，请保留可获得的终端/启动错误。原生日志不保证具备界面脱敏，分享前务必人工检查。
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-system.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

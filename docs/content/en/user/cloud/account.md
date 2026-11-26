@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
-translationRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
+sourceRevision: "898570b9036f2717f38381d86ec16968f768264097b84fb7524e87d15daeb961"
+translationRevision: "898570b9036f2717f38381d86ec16968f768264097b84fb7524e87d15daeb961"
 order: 10
 ---
 
@@ -42,3 +42,11 @@ For a cancelled or expired attempt, start a fresh login after closing the old on
 ## Operational details {#operational-details}
 
 Sign-out deletes local credentials and clears the local account context before attempting server revocation on a best-effort basis. A signed-out UI confirms local removal, not successful remote token revocation during network failure. Use service-side session administration if your service provides it. Export relevant Diagnostics before signing out or changing a known account; that UI history is cleared. TikTok cookies and remote-host sessions are separate identities.
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-cloud.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

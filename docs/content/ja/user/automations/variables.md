@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
-translationRevision: "5d752a550428dc6c612bce4f3351ec0fa3c26f664191f370e9e92308c1d138f7"
+sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
+translationRevision: "e066113bcff74e0aa7eb9289b4fe6335be9210f30ca62f56c411c7d44000de07"
 order: 40
 ---
 
@@ -46,3 +46,8 @@ order: 40
 ## 期待される結果・提供状況と対処 {#expected-result-status-and-recovery}
 
 ローカル変数と、ホスト機能に応じた確認付き共有を利用できます。ローカル保存で自動アップロードは行われません。不正なキー、型に合わない値、古いリビジョンでは保存できません。強調された欄を修正するか、再読み込みしてから再試行します。アカウントの問題は [Cloud アカウント](../cloud/account.md)、比較の動作は [変更](../cloud/changes.md) を参照してください。
+
+実際の設定に触れる前にインタラクティブに試せます:
+
+<DemoFrame scenario="automation" locale="ja" panel="automation" title="自動化ワークスペースを試す" />
+

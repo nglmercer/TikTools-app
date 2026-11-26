@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "43a103ef68e43d691eec2214ffefb5e2e0e6b663afa9f4e63b5dac0ccec162ea"
-translationRevision: "6036b9f6cb69c79d63178d1d073a3cea0474624992308039b1d9246735262c61"
+sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
+translationRevision: "8420e1fc351c522562291e8812f7573ca5b90ebde73cd692f191c25738d383de"
 order: 30
 ---
 
@@ -51,3 +51,8 @@ Esses acionadores, filtros de campo e controles de espera estão disponíveis no
 ## Recuperação {#recovery}
 
 Se uma receita falhar, volte a uma única ação de registro, inspecione os dados e simplifique temporariamente as condições. Não desative os limites de uma transmissão movimentada durante a investigação. Testes de áudio, pontos, HTTP e plugins podem produzir efeitos reais. Confira a [configuração de áudio](../plugins/audio.md), as [variáveis](variables.md) e os [diagnósticos de execução](../preferences/troubleshooting.md) antes de adicionar essas dependências.
+
+Experimente interativamente antes de tocar na sua configuração real:
+
+<DemoFrame scenario="automation" locale="pt" panel="automation" title="Experimente o espaço de automações" />
+

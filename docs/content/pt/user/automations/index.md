@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ff33cc9431cab4491b09c4bcf5219c2dc0881c83862c2d7961c56881d04465e5"
-translationRevision: "51c052e9867eb33af5bf679b32f10001709ccb4b8c710f207c683241aec466e3"
+sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
+translationRevision: "3c7c9ec9f4bc8629ddafea78351826baceec2f53440cb8180e3aa195589f272b"
 order: 10
 ---
 
@@ -44,3 +44,17 @@ Quando não houver execução, verifique perfil ativo, estados de ativação, ac
 ## Detalhes de operação {#operational-details}
 
 Antes de trocar perfil/importar, leia [ativação por superfície](templates.md#operational-details). A troca pode ativar membros desativados individualmente. Cooldown fica em memória, limitado a 24 horas; sem uniqueId os espectadores compartilham escopo anônimo. A tabela esvazia ao atingir 8.192 chaves: sobrecarga ou reinício podem permitir execuções adicionais. Não é cota durável nem garantia contra replay.
+
+Experimente interativamente antes de tocar na sua configuração real:
+
+<DemoFrame scenario="automation" locale="pt" panel="automation" title="Experimente o espaço de automações" />
+
+## Operações de linha de comando {#command-line-operations}
+
+Cada operação deste guia também está disponível na CLI — offline, scriptável e apta para agentes. As linhas de uso são sintaxe do parser e permanecem em inglês em todos os idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-automation.pt.md-->
+
+<!--@include: ../../../../.generated/cli-domain-workflow.pt.md-->
+
+Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.

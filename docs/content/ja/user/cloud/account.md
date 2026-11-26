@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "02b7718e7fc7b2a53b68ee1c6e19e622608a6fdfc7eac553879c474ca69ea74b"
-translationRevision: "e1b72a8f3e8f5ab3f79d0dbcf3e9709e58093e6afc3c0ba4178433531bcc5fd6"
+sourceRevision: "898570b9036f2717f38381d86ec16968f768264097b84fb7524e87d15daeb961"
+translationRevision: "3c7e6cb2c5ba8ea6b148ed5be4116d6385caa4abec44ce63b1d592966952622c"
 order: 10
 ---
 
@@ -42,3 +42,11 @@ Cloud 認証付きでビルドされたホストでは、ネイティブのサ�
 ## 運用の詳細 {#operational-details}
 
 ログアウトは先にローカル資格情報・アカウント文脈を消し、サーバー失効を最善努力で試します。ログアウト表示はローカル削除を示し、通信失敗時の遠隔 token 失効は保証しません。サービスにセッション管理があれば利用します。既知アカウントの変更・終了前に Diagnostics を書き出します。その UI 履歴は消去されます。TikTok Cookie・遠隔ホストセッションは別 ID です。
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-cloud.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "89e0189daf4193853d17ec9e576a4ff9973cdfc5df06d0b27fc59296d9ee66de"
-translationRevision: "89e0189daf4193853d17ec9e576a4ff9973cdfc5df06d0b27fc59296d9ee66de"
+sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
+translationRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
 order: 10
 ---
 
@@ -64,3 +64,11 @@ The row menu resets one viewer to 0 points and level 1 and adds a reset marker. 
 </DocCallout>
 
 Positive manual adjustments use the saved subscriber bonus: +100 with a 50% bonus awards +150 to a subscriber. A −100 adjustment does not receive that bonus; balances stop at zero. Check the resulting balance rather than assuming the entered delta is exact. The table searches only its current top-100 snapshot; a missing match does not prove that the viewer has no saved record.
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-points.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "89e0189daf4193853d17ec9e576a4ff9973cdfc5df06d0b27fc59296d9ee66de"
-translationRevision: "db47b381b3bcb19eddf6b0af8c3292f45ed3e82e1204499e8d5e4b571e6bf14f"
+sourceRevision: "ab201868f1511c20d8d26bb222e53b871620b44d591f083abf2d1b61bb340e31"
+translationRevision: "10c79e51bf15c1d48a68663989f92f599c477d0c2b4ef0bf716b2ca771878ab2"
 order: 10
 ---
 
@@ -64,3 +64,11 @@ order: 10
 </DocCallout>
 
 手动增加积分也应用已保存的订阅者加成：加成为 50% 时，给订阅者增加 100 实际得到 150。扣除 100 不应用该加成，余额最低为零。请核对最终余额，不要假定输入的增减值就是实际变化。表格搜索仅覆盖当前前 100 名快照；未找到观众不代表没有保存记录。
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-points.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

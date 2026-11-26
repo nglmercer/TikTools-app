@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ff33cc9431cab4491b09c4bcf5219c2dc0881c83862c2d7961c56881d04465e5"
-translationRevision: "8a81f4eb88e19a110f6d85c6640bb3da922b960dbe83127ebeaf9f7c0b573778"
+sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
+translationRevision: "162a454d168e0cc1cd00af24d3c72645f9aa44762f8fad19cba79a5cfb943a45"
 order: 10
 ---
 
@@ -44,3 +44,17 @@ LIVE のイベントに反応する、小さく分かりやすいライブラリ
 ## 運用の詳細 {#operational-details}
 
 取り込み・切り替え前に[経路ごとの有効化規則](templates.md#operational-details)を読みます。個別に無効化した項目も再び有効になる場合があります。cooldown はメモリ内で最大 24 時間、uniqueId 不在の視聴者は匿名範囲を共有します。保持キー 8,192 件で表を空にするため、過負荷や再起動で追加実行が起こり得ます。永続 quota・replay 保証ではありません。
+
+実際の設定に触れる前にインタラクティブに試せます:
+
+<DemoFrame scenario="automation" locale="ja" panel="automation" title="自動化ワークスペースを試す" />
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-automation.ja.md-->
+
+<!--@include: ../../../../.generated/cli-domain-workflow.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

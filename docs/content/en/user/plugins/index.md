@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
-translationRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
+sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
+translationRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
 order: 10
 ---
 
@@ -38,3 +38,11 @@ Package review, installation jobs, plugin preferences and version management are
 For installation failure, read the job error for compatibility, signature, runtime or download problems. Do not weaken verification just to clear an error. If an update causes trouble, inspect retained versions and use rollback where available. Review dependent automations before disabling or uninstalling a plugin. Keep [backups](../preferences/backups.md) of plugin data and configuration before removing them.
 
 <TourFrame id="plugin" locale="en" title="Demo: plugins" />
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-plugin.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

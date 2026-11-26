@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "ff33cc9431cab4491b09c4bcf5219c2dc0881c83862c2d7961c56881d04465e5"
-translationRevision: "c66c98524a4de5b81bca2d8cf3e2dc563153434b4b1c11454c0b23b5dfff717e"
+sourceRevision: "08bb26a20687b58094e908a4e8395abeae3b9adc3932c86d9c3b08f5ebbf8ce3"
+translationRevision: "f9ccfae0d2905076b3688226f55ef6869fafcf3b17065e8f9e82085364aafc75"
 order: 10
 ---
 
@@ -44,3 +44,17 @@ order: 10
 ## 运行细节 {#operational-details}
 
 导入或切换配置前，请阅读[各入口的启用规则](templates.md#operational-details)。切换可能启用曾单独禁用的成员。冷却状态保存在内存中，上限 24 小时；无 uniqueId 的观众共享匿名范围。保留键达到 8,192 时表会清空，因此过载或重启可能允许额外执行。它不是持久配额，也不保证阻止重放。
+
+在改动真实配置之前先交互式试用:
+
+<DemoFrame scenario="automation" locale="zh" panel="automation" title="试用自动化工作区" />
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-automation.zh.md-->
+
+<!--@include: ../../../../.generated/cli-domain-workflow.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

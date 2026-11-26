@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
-translationRevision: "e8c07fdcb5d0d3eb2b22d6577bbad8949d3af80d713151e95baf00bfe5df158c"
+sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
+translationRevision: "b59ccf352faff1ab16c509529e22edada5284665261ff415e53ab498a76f6dbd"
 order: 50
 ---
 
@@ -46,3 +46,15 @@ Si el JSON es inválido, sigue los errores del analizador y comprueba el tipo de
 Importar plantilla manual primero guarda un documento de catálogo; aplicarla crea acciones/eventos enlazados. El parser usa true si falta `enabled` y la aplicación conserva esos valores. Importar perfil manual también prepara sus entradas para revisión del propietario. El catálogo Cloud guarda plantillas; un perfil Cloud prepara mutación con procedencia. Ni el origen ni una vista previa correcta garantizan desactivación universal. Revisa comparación final y estados guardados. En CLI usa expresamente `tiktools template import file.tiktemplate.json --disabled` o `tiktools template profile-import file.tikprofile.json --disabled`.
 
 Cambiar perfil modifica activación: confirmar habilita miembros destino y deshabilita todas las acciones/eventos ajenos, incluidos registros sueltos. Miembros destino previamente desactivados pueden activarse. Revisa ambas listas antes de confirmar. Los efectos requieren disparadores, condiciones y runtime; el cambio no envía sincronización Cloud por sí mismo.
+
+Pruébalo interactivamente antes de tocar tu configuración real:
+
+<DemoFrame scenario="automation" locale="es" panel="automation" title="Prueba el espacio de automatizaciones" />
+
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-template.es.md-->
+
+Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

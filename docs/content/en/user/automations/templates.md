@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
-translationRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
+sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
+translationRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
 order: 50
 ---
 
@@ -46,3 +46,15 @@ For invalid JSON, use the reported parser errors and the expected document kind;
 Manual template import first stores a catalog document; applying it creates linked actions/events. The parser defaults omitted `enabled` to true and application preserves those values. Manual profile import also prepares its entries for the owner review. Cloud catalog template import stores templates; Cloud profile import stages a profile mutation with source provenance. Neither origin nor a successful preview is a universal disabled-state guarantee. Inspect the final comparison and saved states. For CLI imports explicitly use `tiktools template import file.tiktemplate.json --disabled` or `tiktools template profile-import file.tikprofile.json --disabled`.
 
 Switching profiles is an activation change: confirmation enables destination members and disables every nonmember action/event, including loose records. Previously disabled destination members may become enabled. Review both lists before confirming. Effects still require matching triggers, conditions and available runtime; the switch does not itself send a Cloud sync.
+
+Try it interactively before touching your real setup:
+
+<DemoFrame scenario="automation" locale="en" panel="automation" title="Try the automations workspace" />
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-template.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

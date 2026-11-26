@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
-translationRevision: "db4ed3e2de80298897ca58bc1fdc06c3206fd77c55dc41eb84ae3e670c91ead6"
+sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
+translationRevision: "a535084ff35f7f75075c3ef80a175a6352fa326b4e9917ab916d5945dfc2747b"
 order: 40
 ---
 
@@ -46,3 +46,8 @@ Les valeurs secrètes ou bloquées sont masquées dans les comparaisons et ne pe
 ## Résultat attendu, état et récupération {#expected-result-status-and-recovery}
 
 Les variables locales et le partage avec examen conditionné aux capacités sont disponibles ; enregistrer localement ne téléverse jamais automatiquement. Les clés invalides, valeurs typées invalides et révisions obsolètes bloquent l’enregistrement. Corrigez le champ signalé ou rechargez avant de réessayer. Pour les erreurs de compte, consultez le [compte Cloud](../cloud/account.md) ; pour les comparaisons, consultez [Changes](../cloud/changes.md).
+
+Essayez interactivement avant de toucher à votre vraie configuration :
+
+<DemoFrame scenario="automation" locale="fr" panel="automation" title="Essayez l'espace des automatisations" />
+

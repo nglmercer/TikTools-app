@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
-translationRevision: "2d6df3086138f8664c78c8f1d89c518c3924874d33f2174277feeddf7dd822f3"
+sourceRevision: "2182472a23e41229c1665cfa2b621c39b05cd0c899ae8e81889ba59fda126525"
+translationRevision: "515aecc2267adb9d189edc100930e5e2055b24075f7665ae7106a3cd7109ef72"
 order: 30
 ---
 
@@ -49,3 +49,11 @@ Tente novamente após corrigir a causa específica. Para conflitos de revisão, 
 Diagnostics é um registro da interface em memória, limitado a 2.000 entradas ou 2 MiB. Agrupa repetições em cinco segundos. Mostra inicialmente 100; exportar inclui todas as entradas filtradas, enquanto **Limpar** apaga o registro inteiro. Copie/exporte antes de fechar, reiniciar, limpar ou trocar/sair de uma conta Cloud conhecida: essas mudanças esvaziam o histórico.
 
 Sem janela, procure o `tiktools.log` nativo (`controller.log` no modo controlador) em `%LOCALAPPDATA%/TikTools/logs` no Windows ou `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` no Linux. `TIKTOOLS_HOME` altera a raiz e `TIKTOOLS_LOG_DIR` substitui o diretório dos logs. Se o próprio registro falhar, o arquivo pode não existir; preserve o erro de terminal/inicialização disponível. Logs nativos não garantem a redação da interface: revise tudo antes de compartilhar.
+
+## Operações de linha de comando {#command-line-operations}
+
+Cada operação deste guia também está disponível na CLI — offline, scriptável e apta para agentes. As linhas de uso são sintaxe do parser e permanecem em inglês em todos os idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-system.pt.md-->
+
+Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
-translationRevision: "bba53a054128e811c8c5a701f58ff993a2fafa918bee549db0174177a52da66d"
+sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
+translationRevision: "4233076cebaa58e29349cfdaa0818570bc43e6f4db561260fdaf7b3764a5ce00"
 order: 10
 ---
 
@@ -38,3 +38,11 @@ L’examen des paquets, les tâches d’installation, les préférences de plugi
 En cas d’échec d’installation, lisez l’erreur de tâche pour identifier un problème de compatibilité, signature, exécution ou téléchargement. N’affaiblissez pas la vérification simplement pour effacer l’erreur. Si une mise à jour pose problème, examinez les versions conservées et utilisez le retour arrière lorsqu’il est disponible. Examinez les automatisations dépendantes avant de désactiver ou désinstaller un plugin. Gardez des [sauvegardes](../preferences/backups.md) des données et configurations des plugins avant de les supprimer.
 
 <TourFrame id="plugin" locale="fr" title="Démo : plugins" />
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-plugin.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

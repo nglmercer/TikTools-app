@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
-translationRevision: "b66c4ce6f03e8711db80b9d853304814c9afa05d3da7a929e7b1dce3fe1b058d"
+sourceRevision: "1c45cf6e9355092d95dc9f90025b2965e0a6a4cddb453fb25680192ab41e873c"
+translationRevision: "62a33f021f41b45102866afaa423702348436a09e0a026f1536c0929eec74158"
 order: 30
 ---
 
@@ -43,3 +43,17 @@ order: 30
 ## 運用の詳細 {#operational-details}
 
 Points 表は 100 人を取得し、その行だけを検索・並べ替えます。更新や名前順への変更でデータベース全体を検索するわけではありません。フィードのランキングは配信者・ルームのセッションごとに 10 行を表示し、Top はギフトのダイヤ、Likes はいいね数を集計します。追跡上限は 5,000 人です。保存ポイントとは単位と期間を分けて比較してください。
+
+実際の設定に触れる前にインタラクティブに試せます:
+
+<DemoFrame scenario="points" locale="ja" panel="points" title="ランキングと視聴者ポイントを試す" />
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-ranking.ja.md-->
+
+<!--@include: ../../../../.generated/cli-domain-competition.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

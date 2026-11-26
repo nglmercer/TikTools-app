@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "43a103ef68e43d691eec2214ffefb5e2e0e6b663afa9f4e63b5dac0ccec162ea"
-translationRevision: "449d85fd6184648ff673b6248625fdc5b417a6f9f76266f83181b4ea3552774f"
+sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
+translationRevision: "748da8e1a2b19176f98f5c6be019c5c1ed2785b62f34a22839fab3e43480db79"
 order: 30
 ---
 
@@ -51,3 +51,8 @@ order: 30
 ## 恢复方法 {#recovery}
 
 配方失败时，请恢复到单个日志操作，查看载荷，并暂时简化条件。排查期间不要在繁忙直播中关闭限流。音频、积分、HTTP 和插件测试可能产生实际效果。添加这些依赖前，先检查[音频设置](../plugins/audio.md)、[变量](variables.md)和[运行诊断](../preferences/troubleshooting.md)。
+
+在改动真实配置之前先交互式试用:
+
+<DemoFrame scenario="automation" locale="zh" panel="automation" title="试用自动化工作区" />
+

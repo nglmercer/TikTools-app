@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "37f7274550d3010051ab456da2a2091b650e5e7aaaf30756b6695435bcfc08c7"
-translationRevision: "0114d352743971a04daab4955a1ffc6c828b1f1f417e62656def1b292763e63b"
+sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
+translationRevision: "78856793407bc9b944189e635b13628c244375f460d97f685fa20cd102ed28d3"
 order: 10
 ---
 
@@ -37,3 +37,15 @@ Están disponibles las conexiones directas, la supervisión y los controles de p
 ## Recuperación {#recovery}
 
 Si la sala está desconectada, confirma que el creador está en directo. Ante errores de sesión o límites de solicitudes, respeta la condición de reintento indicada. Reconectar repetidamente no renueva la autenticación. Consulta [solución de problemas](../preferences/troubleshooting.md) para registrar el componente y la hora sin revelar credenciales.
+
+Pruébalo interactivamente antes de tocar tu configuración real:
+
+<DemoFrame scenario="connection" locale="es" panel="connection" title="Prueba el panel de conexión LIVE" />
+
+## Operaciones de línea de comandos {#command-line-operations}
+
+Cada operación de esta guía también está disponible desde la CLI: sin conexión, scriptable y apta para agentes. Las líneas de uso son sintaxis del parser y permanecen en inglés en todos los idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-live.es.md-->
+
+Consulta la [referencia completa de comandos](../../developer/cli.md) para las convenciones, la salida JSON y los marcadores de operaciones destructivas.

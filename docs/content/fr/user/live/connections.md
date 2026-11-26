@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "37f7274550d3010051ab456da2a2091b650e5e7aaaf30756b6695435bcfc08c7"
-translationRevision: "72f34d378dffe2fb1f50b1738513b1dfe93af4a03d57c70f93c76e27f0fa759f"
+sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
+translationRevision: "20f0c5aed39f39927d1743b1760ee52eda296227c609ad9ed0ae63f81ab1a9bc"
 order: 10
 ---
 
@@ -37,3 +37,15 @@ Les connexions directes, la surveillance et les commandes de connexion des plugi
 ## Récupération {#recovery}
 
 Pour une salle hors ligne, vérifiez que le créateur diffuse en direct. En cas d’erreur de session ou de limitation de débit, respectez la condition de nouvelle tentative indiquée. Cliquer plusieurs fois sur la reconnexion ne renouvelle pas l’authentification. Consultez le [dépannage](../preferences/troubleshooting.md) pour recueillir le composant en échec et l’heure sans exposer d’identifiants.
+
+Essayez interactivement avant de toucher à votre vraie configuration :
+
+<DemoFrame scenario="connection" locale="fr" panel="connection" title="Essayez le panneau de connexion LIVE" />
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-live.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
-translationRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
+sourceRevision: "1c45cf6e9355092d95dc9f90025b2965e0a6a4cddb453fb25680192ab41e873c"
+translationRevision: "1c45cf6e9355092d95dc9f90025b2965e0a6a4cddb453fb25680192ab41e873c"
 order: 30
 ---
 
@@ -43,3 +43,17 @@ Check creator, room, source enablement, window and pause state when scores stay 
 ## Operational details {#operational-details}
 
 The Points table requests 100 viewers and filters/sorts only those received rows. Refreshing or sorting by name does not search the entire database. Feed rankings show 10 rows per creator/room session: gift diamonds for Top and counts for Likes, with tracking bounded to 5,000 viewers. They do not measure saved points. Compare units and session boundaries before comparing totals.
+
+Try it interactively before touching your real setup:
+
+<DemoFrame scenario="points" locale="en" panel="points" title="Try rankings and viewer points" />
+
+## Command line operations {#command-line-operations}
+
+Every operation in this guide is also available from the CLI — offline, scriptable and agent-friendly. Usage lines are parser syntax and stay in English in every locale.
+
+<!--@include: ../../../../.generated/cli-domain-ranking.en.md-->
+
+<!--@include: ../../../../.generated/cli-domain-competition.en.md-->
+
+See the [full command reference](../../developer/cli.md) for conventions, JSON output and destructive-operation markers.

@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "experimental"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "dcf08e4ef08a28fc3e32216b2017b5f208afc57a91e537fd3b90a6f0ed1f041e"
-translationRevision: "ffee3cf8b07660848410ca5f46613ff8ffd5781d5078321dc4dc55a8622f401d"
+sourceRevision: "1c45cf6e9355092d95dc9f90025b2965e0a6a4cddb453fb25680192ab41e873c"
+translationRevision: "08ea2808d500c768abf0721cd821a148cee5fce642749bca082492a5ae29a9ed"
 order: 30
 ---
 
@@ -43,3 +43,17 @@ Confira criador, sala, ativação de fontes, janela e estado de pausa quando as 
 ## Detalhes de operação {#operational-details}
 
 A tabela Points solicita 100 espectadores e filtra/ordena apenas essas linhas. Atualizar ou ordenar por nome não pesquisa toda a base. Os rankings do feed mostram 10 linhas por sessão de criador/sala: diamantes de presentes em Top e quantidades em Likes, acompanhando até 5.000 espectadores. Não medem pontos salvos. Confira unidades e limites da sessão antes de comparar totais.
+
+Experimente interativamente antes de tocar na sua configuração real:
+
+<DemoFrame scenario="points" locale="pt" panel="points" title="Experimente rankings e pontos de espectadores" />
+
+## Operações de linha de comando {#command-line-operations}
+
+Cada operação deste guia também está disponível na CLI — offline, scriptável e apta para agentes. As linhas de uso são sintaxe do parser e permanecem em inglês em todos os idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-ranking.pt.md-->
+
+<!--@include: ../../../../.generated/cli-domain-competition.pt.md-->
+
+Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.

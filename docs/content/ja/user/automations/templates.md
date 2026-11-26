@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
-translationRevision: "bb935b9e554f85730342832841cff07c20b62e331eebe76cd184628493d84164"
+sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
+translationRevision: "1606358225000643706921b8107a480656645e6c2a8764a087ac36c6bd8feec3"
 order: 50
 ---
 
@@ -46,3 +46,15 @@ order: 50
 手動テンプレート import はまずカタログ文書を保存し、適用で関連アクション・イベントを作ります。`enabled` 省略時の parser 既定は true で、適用も値を保持します。手動プロファイル import も項目を所有者レビューへ渡します。Cloud カタログはテンプレートを保存し、Cloud プロファイルは来歴付き変更を準備します。出所・プレビュー成功だけで一律無効とは保証できません。最終比較と保存状態を確認します。CLI では明示的に `tiktools template import file.tiktemplate.json --disabled` または `tiktools template profile-import file.tikprofile.json --disabled` を使います。
 
 プロファイル切り替えは有効状態を変えます。確定すると移動先の全メンバーを有効化し、その他すべてのアクション・イベント（単独項目を含む）を無効化します。以前無効にした移動先メンバーも有効になる場合があります。両方のリストを確認します。副作用にはトリガー・条件・利用可能 runtime が必要で、切り替え自体は Cloud 同期を送りません。
+
+実際の設定に触れる前にインタラクティブに試せます:
+
+<DemoFrame scenario="automation" locale="ja" panel="automation" title="自動化ワークスペースを試す" />
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-template.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

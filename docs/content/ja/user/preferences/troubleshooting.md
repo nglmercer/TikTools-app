@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7c0419c9196e15a17fa2658add7a071214b8b37d091b0c68bc313f2cc8cce649"
-translationRevision: "31091599623f47a7da5cb44bd46ce34d43072996a61d0d617b66cf95911bc2f1"
+sourceRevision: "2182472a23e41229c1665cfa2b621c39b05cd0c899ae8e81889ba59fda126525"
+translationRevision: "9e169a7b82c38b2dd79bebca21119b5e84fb87dfd4d278310ed114549273f21e"
 order: 30
 ---
 
@@ -49,3 +49,11 @@ order: 30
 Diagnostics は UI のメモリ内ログで、上限は 2,000 件または 2 MiB です。5 秒以内の重複をまとめ、初期表示は 100 件ですが、書き出しはフィルターに一致する全件を含みます。**クリア**はログ全体を消します。終了・再起動・消去・既知 Cloud アカウントの切り替えやログアウト前に証拠を書き出してください。アカウント変更でもこの履歴は消えます。
 
 ウィンドウが開かない場合、ネイティブの `tiktools.log`（コントローラーモードは `controller.log`）を確認します。Windows は `%LOCALAPPDATA%/TikTools/logs`、Linux は `${XDG_DATA_HOME:-~/.local/share}/TikTools/logs` が既定です。`TIKTOOLS_HOME` はルート、`TIKTOOLS_LOG_DIR` はログ先を変更します。ログ自体の初期化失敗ではファイルがない場合もあるため、得られる端末・起動エラーを残します。ネイティブログに UI と同じ秘匿処理は保証されません。共有前に確認してください。
+
+## コマンドライン操作 {#command-line-operations}
+
+このガイドのすべての操作はCLIからも利用できます——オフライン、スクリプト可能、エージェント対応。使用法の行はパーサー構文であり、すべての言語で英語のままです。
+
+<!--@include: ../../../../.generated/cli-domain-system.ja.md-->
+
+規約、JSON出力、破壊的操作のマーカーについては[完全なコマンドリファレンス](../../developer/cli.md)を参照してください。

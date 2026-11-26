@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "7f138056e942bd0494883ff978bbfb5d30c2ac8969ab6a5910ca0dc2850cfed5"
-translationRevision: "627d6a6c3bc2aa399fffe5a55cdfe5c643a1080862b76f6f8c273a8243bd2988"
+sourceRevision: "cc029dbc60932f22e0db495ed3c47aa70c1c3d47c4c8c5fb64f9ab366da5efde"
+translationRevision: "c34892a7f293f705d417695ddbe1cc37b1397580a80f5b040f82701202bd0ee2"
 order: 10
 ---
 
@@ -38,3 +38,11 @@ Revisão de pacotes, tarefas de instalação, preferências de plugins e gerenci
 Para uma falha de instalação, leia o erro da tarefa para problemas de compatibilidade, assinatura, ambiente de execução ou download. Não enfraqueça a verificação apenas para eliminar um erro. Se uma atualização causar problemas, inspecione as versões mantidas e use a reversão quando disponível. Revise automações dependentes antes de desativar ou desinstalar um plugin. Mantenha [backups](../preferences/backups.md) dos dados e configurações de plugins antes de removê-los.
 
 <TourFrame id="plugin" locale="pt" title="Demonstração: plugins" />
+
+## Operações de linha de comando {#command-line-operations}
+
+Cada operação deste guia também está disponível na CLI — offline, scriptável e apta para agentes. As linhas de uso são sintaxe do parser e permanecem em inglês em todos os idiomas.
+
+<!--@include: ../../../../.generated/cli-domain-plugin.pt.md-->
+
+Consulte a [referência completa de comandos](../../developer/cli.md) para as convenções, a saída JSON e os marcadores de operações destrutivas.

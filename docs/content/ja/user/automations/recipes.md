@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "43a103ef68e43d691eec2214ffefb5e2e0e6b663afa9f4e63b5dac0ccec162ea"
-translationRevision: "7cf62155024ff018d9d7546a36872ecab40632a41167439bbaaeb853272f69e5"
+sourceRevision: "965a59a41c6330f1329be6e35858a2984a01be9515d373ed184b0c4ae8be2f23"
+translationRevision: "073e5863c383c2eaf7bc7f92552a0577c43700b5b6fbb38e8d123503950a6ed9"
 order: 30
 ---
 
@@ -51,3 +51,8 @@ order: 30
 ## 問題が起きたとき {#recovery}
 
 失敗したらログ1つに戻し、ペイロードを確認して一時的に条件を簡単にします。調査中も混雑した配信の制限を解除しないでください。音声、ポイント、HTTP、プラグインのテストでは実際の処理が動きます。追加前に[音声設定](../plugins/audio.md)、[変数](variables.md)、[実行時の診断](../preferences/troubleshooting.md) を確認します。
+
+実際の設定に触れる前にインタラクティブに試せます:
+
+<DemoFrame scenario="automation" locale="ja" panel="automation" title="自動化ワークスペースを試す" />
+

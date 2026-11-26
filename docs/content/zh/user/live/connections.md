@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "37f7274550d3010051ab456da2a2091b650e5e7aaaf30756b6695435bcfc08c7"
-translationRevision: "a4d215f043de405759f16050ee99abdb357e8f61d6f31b6b243f81e64569b9ca"
+sourceRevision: "446118d4c202b645dd93867f1715484cbd9876f940ba229ac26e4b7f24bc4cbc"
+translationRevision: "8424562b5daf6456792d7c1035b284535552166887f745d2079e4511f8a31db1"
 order: 10
 ---
 
@@ -37,3 +37,15 @@ order: 10
 ## 恢复方法 {#recovery}
 
 直播间离线时，请确认主播已经开播。会话或限流错误请遵循显示的重试条件。反复点击重新连接不会刷新身份验证。通过[故障排查](../preferences/troubleshooting.md)收集故障组件及发生时间，不要泄露凭据。
+
+在改动真实配置之前先交互式试用:
+
+<DemoFrame scenario="connection" locale="zh" panel="connection" title="试用 LIVE 连接面板" />
+
+## 命令行操作 {#command-line-operations}
+
+本指南中的每个操作也可通过 CLI 使用——离线、可编写脚本、适合代理。用法行是解析器语法,在所有语言中保持英文。
+
+<!--@include: ../../../../.generated/cli-domain-live.zh.md-->
+
+查看[完整命令参考](../../developer/cli.md)了解约定、JSON 输出和破坏性操作标记。

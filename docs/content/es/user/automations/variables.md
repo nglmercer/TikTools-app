@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "444dca847ad4c048d8db77e3fef5c7de4b7563a222908da9dbe906c83d762857"
-translationRevision: "cdc69918ebe2ccea33b7347692053ea6575b77b921ef0e4606a1de16e48c51c4"
+sourceRevision: "d60768cad1ee5373038b070f51a5ae8789e29ca37075d288ac60ac22e5ef1732"
+translationRevision: "9c771c283242b44215dbd5e05186e296d349648bab283c7d88c39a96d36c2859"
 order: 40
 ---
 
@@ -46,3 +46,8 @@ Los valores secretos o bloqueados se ocultan en las comparaciones y no pueden en
 ## Resultado esperado, estado y recuperación {#expected-result-status-and-recovery}
 
 Están disponibles las variables locales y el intercambio revisado según capacidades; guardar localmente nunca sube datos automáticamente. Las claves o valores inválidos y las revisiones antiguas bloquean el guardado. Corrige el campo señalado o vuelve a cargar antes de repetir. Para fallos de sesión, consulta [cuenta de Cloud](../cloud/account.md); para comparaciones, [Changes](../cloud/changes.md).
+
+Pruébalo interactivamente antes de tocar tu configuración real:
+
+<DemoFrame scenario="automation" locale="es" panel="automation" title="Prueba el espacio de automatizaciones" />
+

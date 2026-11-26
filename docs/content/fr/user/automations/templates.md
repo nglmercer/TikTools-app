@@ -7,8 +7,8 @@ audience: "user"
 featureStatus: "available"
 contentStatus: "reviewed"
 sourceLocale: "en"
-sourceRevision: "e9847c93a8a75fd5a58cd115b49b8e0bcb091ceda1dbdf2c226b52667eb17e23"
-translationRevision: "a3bd159033aeb74889a6f66601928ca79f91621d843c5c82165f22e6c7c0e3a0"
+sourceRevision: "74217892395ddea29ed42ae4105097d815949c11029e1598a32cd2e978963f11"
+translationRevision: "fa2bc77eeeb4ab8a49d2e3144865a58ab1b3f3fd894d58782fdd3b64c6daa36c"
 order: 50
 ---
 
@@ -46,3 +46,15 @@ Pour du JSON invalide, utilisez les erreurs d’analyse indiquées et le type de
 L’import manuel de modèle enregistre d’abord un document de catalogue ; son application crée actions/événements liés. Le parseur utilise true si `enabled` manque et l’application conserve ces valeurs. L’import manuel de profil prépare ses entrées pour revue propriétaire. Le catalogue Cloud stocke des modèles ; un profil Cloud prépare une mutation avec provenance. Ni origine ni aperçu réussi ne garantissent une désactivation universelle. Examinez comparaison finale et états enregistrés. En CLI, utilisez explicitement `tiktools template import file.tiktemplate.json --disabled` ou `tiktools template profile-import file.tikprofile.json --disabled`.
 
 Changer de profil modifie l’activation : la confirmation active les membres du profil cible et désactive toutes les actions/événements hors profil, y compris les éléments isolés. Des membres précédemment désactivés peuvent être activés. Vérifiez les deux listes. Les effets exigent encore déclencheur, conditions et runtime ; le changement n’envoie pas de synchronisation Cloud à lui seul.
+
+Essayez interactivement avant de toucher à votre vraie configuration :
+
+<DemoFrame scenario="automation" locale="fr" panel="automation" title="Essayez l'espace des automatisations" />
+
+## Opérations en ligne de commande {#command-line-operations}
+
+Chaque opération de ce guide est aussi disponible depuis la CLI — hors ligne, scriptable et adaptée aux agents. Les lignes d'usage sont la syntaxe du parseur et restent en anglais dans toutes les langues.
+
+<!--@include: ../../../../.generated/cli-domain-template.fr.md-->
+
+Consultez la [référence complète des commandes](../../developer/cli.md) pour les conventions, la sortie JSON et les marqueurs d’opérations destructives.
