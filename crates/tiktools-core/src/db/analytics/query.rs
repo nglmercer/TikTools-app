@@ -4,7 +4,8 @@ use super::super::sqlite::DatabaseError;
 use super::super::DatabaseManager;
 use super::aggregate::add_hour_totals;
 use super::{
-    AnalyticsDayRow, AnalyticsHourRow, AnalyticsSummaryData, AnalyticsTopViewer, AnalyticsTotals,
+    AnalyticsDayRow, AnalyticsHourRow, AnalyticsSessionRow, AnalyticsSummaryData, AnalyticsTopViewer,
+    AnalyticsTotals,
 };
 
 impl DatabaseManager {
@@ -228,6 +229,49 @@ impl DatabaseManager {
             |row| row.get(0),
         )?;
 
+        // Broadcast rows overlapping the span. Counter totals reuse the
+        // in-memory hourly samples: an hour overlapping the session window
+        // attributes its whole count, exact when the creator is offline
+        // outside sessions and approximate at the edges otherwise.
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| elapsed.as_secs() as i64)
+            .unwrap_or(0);
+        let mut sessions_statement = connection.prepare(
+            "SELECT started_at, ended_at, peak_viewers FROM live_sessions
+             WHERE creator_unique_id = ?1
+               AND CAST((started_at + ?2) / 86400 AS INTEGER) BETWEEN ?3 AND ?4
+             ORDER BY started_at DESC
+             LIMIT 200",
+        )?;
+        let session_list = sessions_statement
+            .query_map(params![creator_unique_id, offset, start_day, end_day], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, Option<i64>>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(|(started_at, ended_at, peak_viewers)| {
+                let end = ended_at.unwrap_or(now_secs);
+                let mut totals = AnalyticsTotals::default();
+                for (hour, sample) in &samples {
+                    let hour_start = hour * 3_600;
+                    if hour_start < end && hour_start + 3_600 > started_at {
+                        add_hour_totals(&mut totals, sample);
+                    }
+                }
+                AnalyticsSessionRow {
+                    started_at,
+                    ended_at,
+                    peak_viewers,
+                    totals,
+                }
+            })
+            .collect();
+
         // Hour-of-day totals across the span, exact for single days and the
         // audience-pattern aggregate for longer ranges.
         if offset == 0 && !samples.is_empty() {
@@ -254,6 +298,7 @@ impl DatabaseManager {
             top_viewers,
             sessions,
             hours,
+            session_list,
         })
     }
 

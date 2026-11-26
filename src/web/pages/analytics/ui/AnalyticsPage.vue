@@ -16,6 +16,7 @@ import {
 } from '@/entities/analytics/lib/analytics-range.ts';
 import { useAnalyticsStore } from '@/entities/analytics/model/analytics-store.ts';
 import AnalyticsContributorsTable from '@/entities/analytics/ui/AnalyticsContributorsTable.vue';
+import AnalyticsSessionsTable from '@/entities/analytics/ui/AnalyticsSessionsTable.vue';
 import AnalyticsInsights from '@/entities/analytics/ui/AnalyticsInsights.vue';
 import AnalyticsMetricStrip from '@/entities/analytics/ui/AnalyticsMetricStrip.vue';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
@@ -28,6 +29,7 @@ import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
 import IconSearch from '@/shared/ui/icon/icons/IconSearch.vue';
 import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import BaseTabs from '@/shared/ui/tabs/BaseTabs.vue';
 import type { TableSort } from '@/shared/ui/table/table-types.ts';
 import BaseTextField from '@/shared/ui/text-field/BaseTextField.vue';
 import AnalyticsActivityPanel from '@/widgets/analytics-activity/ui/AnalyticsActivityPanel.vue';
@@ -45,6 +47,15 @@ const query = ref(saved?.contributorQuery ?? '');
 const customStart = ref(saved?.customStart ?? dayToIsoDate(today - 6));
 const customEnd = ref(saved?.customEnd ?? dayToIsoDate(today));
 const sort = ref<TableSort | null>(null);
+type AnalyticsTab = 'overview' | 'contributors' | 'sessions';
+const savedTab = saved?.tab;
+const tab = ref<AnalyticsTab>(savedTab === 'contributors' || savedTab === 'sessions' ? savedTab : 'overview');
+
+const tabOptions = computed(() => [
+  { value: 'overview' as const, label: t('analytics.tabs.overview') },
+  { value: 'contributors' as const, label: t('analytics.tabs.contributors') },
+  { value: 'sessions' as const, label: t('analytics.tabs.sessions') },
+]);
 
 const creator = computed(() => connection.activeCreator);
 const span = computed(() => {
@@ -86,9 +97,10 @@ const persist = debounce(() => {
     contributorQuery: query.value,
     customStart: customStart.value,
     customEnd: customEnd.value,
+    tab: tab.value,
   });
 });
-watch([range, metric, query, customStart, customEnd], persist);
+watch([range, metric, query, customStart, customEnd, tab], persist);
 </script>
 
 <template>
@@ -150,54 +162,85 @@ watch([range, metric, query, customStart, customEnd], persist);
       </template>
     </BaseEmptyState>
 
-    <template v-else>
-      <AnalyticsMetricStrip
-        data-guide="analytics-metrics"
-        :totals="summary.totals"
-        :previous-totals="previous?.totals ?? null"
-        :days="summary.days"
-        :start-day="summary.startDay"
-        :end-day="summary.endDay"
-      />
-      <div class="analytics-page__main">
-        <AnalyticsActivityPanel
-          data-guide="analytics-activity"
-          class="analytics-page__activity"
-          v-model:metric="metric"
-          :summary="summary"
-          :previous="previous"
-        />
-        <BasePanel data-guide="analytics-facts" :title="t('analytics.insights.title')">
-          <AnalyticsInsights :summary="summary" />
+    <BaseTabs
+      v-else
+      v-model="tab"
+      class="analytics-page__tabs"
+      :tabs="tabOptions"
+      :label="t('analytics.title')"
+    >
+      <template #default="{ value }">
+        <div
+          v-if="value === 'overview'"
+          class="analytics-page__tab"
+        >
+          <AnalyticsMetricStrip
+            data-guide="analytics-metrics"
+            :totals="summary.totals"
+            :previous-totals="previous?.totals ?? null"
+            :days="summary.days"
+            :start-day="summary.startDay"
+            :end-day="summary.endDay"
+          />
+          <div class="analytics-page__main">
+            <AnalyticsActivityPanel
+              data-guide="analytics-activity"
+              class="analytics-page__activity"
+              v-model:metric="metric"
+              :summary="summary"
+              :previous="previous"
+            />
+            <BasePanel data-guide="analytics-facts" :title="t('analytics.insights.title')">
+              <AnalyticsInsights :summary="summary" />
+            </BasePanel>
+          </div>
+        </div>
+        <BasePanel
+          v-else-if="value === 'contributors'"
+          data-guide="analytics-contributors"
+          class="analytics-page__contributors"
+          :title="t('analytics.contributors.title')"
+          flush
+        >
+          <template #actions>
+            <BaseTextField
+              v-model="query"
+              class="analytics-page__search"
+              type="search"
+              size="sm"
+              :placeholder="t('analytics.contributors.search')"
+              :aria-label="t('analytics.contributors.search')"
+            >
+              <template #prefix>
+                <IconSearch />
+              </template>
+            </BaseTextField>
+          </template>
+          <AnalyticsContributorsTable
+            v-model:sort="sort"
+            :viewers="summary.topViewers"
+            :query="query"
+          />
         </BasePanel>
-      </div>
-      <BasePanel
-        data-guide="analytics-contributors"
-        class="analytics-page__contributors"
-        :title="t('analytics.contributors.title')"
-        flush
-      >
-        <template #actions>
-          <BaseTextField
-            v-model="query"
-            class="analytics-page__search"
-            type="search"
-            size="sm"
-            :placeholder="t('analytics.contributors.search')"
-            :aria-label="t('analytics.contributors.search')"
+        <BasePanel
+          v-else
+          data-guide="analytics-sessions"
+          :title="t('analytics.sessions.title')"
+          flush
+        >
+          <AnalyticsSessionsTable
+            v-if="summary.sessionList.length"
+            :sessions="summary.sessionList"
+          />
+          <p
+            v-else
+            class="analytics-page__sessions-empty"
           >
-            <template #prefix>
-              <IconSearch />
-            </template>
-          </BaseTextField>
-        </template>
-        <AnalyticsContributorsTable
-          v-model:sort="sort"
-          :viewers="summary.topViewers"
-          :query="query"
-        />
-      </BasePanel>
-    </template>
+            {{ t('analytics.sessions.empty') }}
+          </p>
+        </BasePanel>
+      </template>
+    </BaseTabs>
   </div>
 </template>
 
@@ -211,6 +254,25 @@ watch([range, metric, query, customStart, customEnd], persist);
   min-height: 0;
   padding: var(--space-6);
   overflow-y: auto;
+}
+
+.analytics-page__tabs {
+  flex: 1;
+  min-height: 0;
+}
+
+.analytics-page__tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-5);
+}
+
+.analytics-page__sessions-empty {
+  margin: 0;
+  padding: var(--space-5);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-sm);
 }
 
 .analytics-page__header {

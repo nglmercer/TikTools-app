@@ -346,6 +346,20 @@ export default {
       patternHint: 'Totales de cada hora del día sumados a lo largo de todos los días del rango: cuándo conecta tu audiencia.',
       approximate: 'Aproximado: los datos antiguos se agrupan por la última hora de actividad de cada espectador.',
     },
+    tabs: {
+      overview: 'Resumen',
+      contributors: 'Espectadores',
+      sessions: 'Sesiones',
+    },
+    sessions: {
+      title: 'Emisiones',
+      started: 'Inicio',
+      duration: 'Duración',
+      live: 'En vivo',
+      durationHm: '{h} h {m} min',
+      durationM: '{m} min',
+      empty: 'Sin emisiones grabadas en este rango.',
+    },
     facts: {
       title: 'Sesión',
       sessions: 'Sesiones',

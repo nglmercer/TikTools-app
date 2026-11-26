@@ -167,6 +167,21 @@ pub struct AnalyticsTopViewer {
     pub avatar_url: Option<String>,
 }
 
+/// One broadcast inside the requested span. Counter totals aggregate the
+/// hourly rows overlapping the session window, so hours shared with time
+/// outside the stream attribute their whole count — exact for the common
+/// case where the creator is offline outside sessions. `ended_at` is None
+/// while the session is still live.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalyticsSessionRow {
+    pub started_at: i64,
+    pub ended_at: Option<i64>,
+    pub peak_viewers: i64,
+    #[serde(flatten)]
+    pub totals: AnalyticsTotals,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalyticsSummaryData {
@@ -177,11 +192,14 @@ pub struct AnalyticsSummaryData {
     pub days: Vec<AnalyticsDayRow>,
     pub top_viewers: Vec<AnalyticsTopViewer>,
     pub sessions: i64,
-    /// True per-hour counters for single-day spans, in the requested frame
-    /// (system-local hours when `tz_offset_secs != 0`). Empty for multi-day
-    /// spans and for days recorded before `analytics_hourly` existed.
+    /// True per-hour counters. Single-day spans carry that day's hours;
+    /// multi-day spans carry the hour-of-day pattern summed across the
+    /// range. Empty for days recorded before `analytics_hourly` existed.
     #[serde(default)]
     pub hours: Vec<AnalyticsHourRow>,
+    /// Broadcasts overlapping the span, newest first, capped at 200.
+    #[serde(default)]
+    pub session_list: Vec<AnalyticsSessionRow>,
 }
 
 #[cfg(feature = "native-tiktok")]

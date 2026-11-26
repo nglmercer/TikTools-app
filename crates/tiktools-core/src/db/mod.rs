@@ -76,8 +76,8 @@ pub(crate) use sqlite::{PluginApplyIntent, PluginApplyPhase, PluginApplyReason};
 
 #[cfg(feature = "persistence")]
 pub use analytics::{
-    utc_day, AnalyticsDayRow, AnalyticsEventRecord, AnalyticsSummaryData, AnalyticsTopViewer,
-    AnalyticsTotals,
+    utc_day, AnalyticsDayRow, AnalyticsEventRecord, AnalyticsSessionRow, AnalyticsSummaryData,
+    AnalyticsTopViewer, AnalyticsTotals,
 };
 
 use std::{

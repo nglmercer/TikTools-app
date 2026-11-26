@@ -344,6 +344,20 @@ export default {
       patternHint: 'Totals for each hour of the day summed across every day in the range — when your audience connects.',
       approximate: 'Approximate: older data is grouped by each viewer’s last activity hour.',
     },
+    tabs: {
+      overview: 'Overview',
+      contributors: 'Contributors',
+      sessions: 'Sessions',
+    },
+    sessions: {
+      title: 'Broadcasts',
+      started: 'Started',
+      duration: 'Duration',
+      live: 'Live',
+      durationHm: '{h}h {m}m',
+      durationM: '{m}m',
+      empty: 'No broadcasts recorded in this range.',
+    },
     facts: {
       title: 'Session',
       sessions: 'Sessions',

@@ -153,6 +153,48 @@ fn sessions_open_close_and_count() {
 }
 
 #[test]
+fn session_list_exposes_rows_newest_first_with_overlapping_totals() {
+    let db = test_manager();
+    db.ensure_analytics_schema().expect("schema");
+    let start = 1_751_616_000; // 2026-07-06 08:00 UTC
+
+    // Two closed sessions: the older one silent, the newer one chatty.
+    db.open_live_session("creator", Some("room-1"), start)
+        .expect("open");
+    db.close_live_sessions("creator", start + 1_800)
+        .expect("close");
+    let second = start + 7_200;
+    db.open_live_session("creator", Some("room-1"), second)
+        .expect("reopen");
+    db.record_analytics_event("creator", &record_chats("alice", 5), second + 120)
+        .expect("record");
+    db.record_analytics_viewers("creator", 64, second + 130)
+        .expect("viewers");
+    db.close_live_sessions("creator", second + 3_600)
+        .expect("close");
+
+    let summary = db
+        .analytics_summary("creator", utc_day(start), utc_day(start), 10, 0)
+        .expect("summary");
+    assert_eq!(summary.session_list.len(), 2);
+    // Newest first: the chatty session leads.
+    let newest = &summary.session_list[0];
+    assert_eq!(newest.started_at, second);
+    assert_eq!(newest.ended_at, Some(second + 3_600));
+    assert_eq!(newest.peak_viewers, 64);
+    assert_eq!(newest.totals.chats, 5);
+    let oldest = &summary.session_list[1];
+    assert_eq!(oldest.started_at, start);
+    assert_eq!(oldest.totals.chats, 0);
+
+    // Other creators never leak into the list.
+    let empty = db
+        .analytics_summary("other", utc_day(start), utc_day(start), 10, 0)
+        .expect("summary");
+    assert!(empty.session_list.is_empty());
+}
+
+#[test]
 fn empty_creator_returns_zero_summary() {
     let db = test_manager();
     db.ensure_analytics_schema().expect("schema");

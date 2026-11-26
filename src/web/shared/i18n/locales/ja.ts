@@ -344,6 +344,20 @@ export default {
       patternHint: '',
       approximate: "概算値：古いデータは各視聴者の最終アクティビティ時刻でグループ化されています。",
     },
+    tabs: {
+      overview: '概要',
+      contributors: '視聴者',
+      sessions: 'セッション',
+    },
+    sessions: {
+      title: '配信',
+      started: '開始',
+      duration: '長さ',
+      live: 'ライブ中',
+      durationHm: '{h}時間{m}分',
+      durationM: '{m}分',
+      empty: 'この期間に記録された配信はありません。',
+    },
     facts: {
       title: "セッション",
       sessions: "セッション数",

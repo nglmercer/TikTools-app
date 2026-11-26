@@ -344,6 +344,20 @@ export default {
       patternHint: '',
       approximate: "近似数据：较早的数据按每位观众最后活跃的小时分组。",
     },
+    tabs: {
+      overview: '概览',
+      contributors: '观众',
+      sessions: '场次',
+    },
+    sessions: {
+      title: '直播场次',
+      started: '开始时间',
+      duration: '时长',
+      live: '直播中',
+      durationHm: '{h}小时{m}分',
+      durationM: '{m}分钟',
+      empty: '该范围内没有直播记录。',
+    },
     facts: {
       title: "会话",
       sessions: "会话数",

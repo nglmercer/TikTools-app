@@ -417,6 +417,16 @@ export type AnalyticsHourRow = {
   hour: number;
 } & AnalyticsTotals;
 
+/** One broadcast inside the requested span. Counter totals aggregate the
+ * hourly rows overlapping the session window — exact when the creator is
+ * offline outside sessions, approximate at the edges otherwise.
+ * `endedAt` is null while the session is still live. */
+export type AnalyticsSessionRow = {
+  startedAt: number;
+  endedAt: number | null;
+  peakViewers: number;
+} & AnalyticsTotals;
+
 export type AnalyticsSummaryData = {
   creatorUniqueId: string;
   startDay: number;
@@ -430,4 +440,6 @@ export type AnalyticsSummaryData = {
    * (peak viewers stay a max, not a sum). Empty for hosts predating the
    * hourly table. */
   hours: AnalyticsHourRow[];
+  /** Broadcasts overlapping the span, newest first, capped at 200. */
+  sessionList: AnalyticsSessionRow[];
 };

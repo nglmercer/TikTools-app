@@ -47,6 +47,7 @@ function summaryFor(params: RpcParams | undefined, withData = true): AnalyticsSu
       : [],
     sessions: withData ? 3 : 0,
     hours: [],
+    sessionList: [],
   };
 }
 
@@ -66,15 +67,52 @@ function hourRows(seed: Record<number, number>): AnalyticsSummaryData['hours'] {
   }));
 }
 
-async function mountPage(withData = true, hours: AnalyticsSummaryData['hours'] = []) {
+function sessionRows(): AnalyticsSummaryData['sessionList'] {
+  return [
+    {
+      startedAt: Math.floor(Date.UTC(2026, 10, 23, 20, 0) / 1_000),
+      endedAt: Math.floor(Date.UTC(2026, 10, 23, 22, 14) / 1_000),
+      peakViewers: 4,
+      chats: 192,
+      giftEvents: 0,
+      gifts: 0,
+      diamonds: 0,
+      likeEvents: 30,
+      likes: 1005,
+      joins: 23,
+      follows: 0,
+      shares: 0,
+    },
+  ];
+}
+
+async function mountPage(
+  withData = true,
+  hours: AnalyticsSummaryData['hours'] = [],
+  sessionList: AnalyticsSummaryData['sessionList'] = [],
+) {
   const { client, calls } = createFakeControlClient((_, params) => ({
-    summary: { ...summaryFor(params, withData), hours },
+    summary: { ...summaryFor(params, withData), hours, sessionList },
   }));
   const stores = createStoreHarness(client);
   stores.use(() => useConnectionStore()).activeCreator = 'luna';
   const wrapper = mountWithPlugins(AnalyticsPage, { attachTo: document.body, global: { plugins: stores.plugins } });
   await flushPromises();
   return { wrapper, calls };
+}
+
+
+async function openTab(
+  wrapper: ReturnType<typeof mountWithPlugins>,
+  label: 'overview' | 'contributors' | 'sessions',
+): Promise<void> {
+  const key = `analytics.tabs.${label}`;
+  const tab = wrapper
+    .findAll('[role="tab"]')
+    .find((node: { text: () => string }) => node.text() === testMessage('en', key));
+  expect(tab, `tab ${label}`).toBeTruthy();
+  await tab!.trigger('click');
+  await flushPromises();
 }
 
 describe('AnalyticsPage', () => {
@@ -85,7 +123,8 @@ describe('AnalyticsPage', () => {
   });
 
   it('shows metric totals, insights and contributors', async () => {
-    const { wrapper } = await mountPage();
+    const { wrapper } = await mountPage(true, [], sessionRows());
+    // Overview tab is active by default: KPIs and insights live there.
     const tiles = wrapper.findAll('.kpi-strip__card');
     expect(tiles).toHaveLength(5);
     expect(tiles[0]!.text()).toContain('Chats');
@@ -99,6 +138,8 @@ describe('AnalyticsPage', () => {
     expect(tiles[4]!.text()).toContain(t('analytics.facts.peakViewers'));
     expect(tiles[4]!.text()).toContain('210');
     expect(wrapper.text()).toContain('3 sessions');
+    // The contributors table lives behind its own tab.
+    await openTab(wrapper, 'contributors');
     expect(wrapper.findAll('tbody tr')).toHaveLength(2);
   });
 
@@ -134,8 +175,24 @@ describe('AnalyticsPage', () => {
 
   it('filters contributors from the panel search', async () => {
     const { wrapper } = await mountPage();
+    await openTab(wrapper, 'contributors');
     await wrapper.get('input[type="search"]').setValue('man');
     expect(wrapper.findAll('tbody tr').map((row) => row.text())).toEqual([expect.stringContaining('@mango')]);
+  });
+
+  it('lists broadcasts with duration and engagement in the sessions tab', async () => {
+    const { wrapper } = await mountPage(true, [], sessionRows());
+    await openTab(wrapper, 'sessions');
+    const rows = wrapper.findAll('tbody tr');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.text()).toContain('192');
+    expect(rows[0]!.text()).toContain('2h 14m');
+  });
+
+  it('explains when the range has no broadcasts', async () => {
+    const { wrapper } = await mountPage();
+    await openTab(wrapper, 'sessions');
+    expect(wrapper.text()).toContain(t('analytics.sessions.empty'));
   });
 
   it('explains when there is no data', async () => {
