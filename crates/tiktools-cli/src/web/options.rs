@@ -1,4 +1,5 @@
 use super::*;
+use crate::commands::web::{U_PRINT_CODE, U_RESET_SESSION};
 use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -13,9 +14,6 @@ struct CliAction {
     summary: &'static str,
     handler: fn(u16) -> i32,
 }
-
-pub(super) const U_PRINT_CODE: &str = "web --print-code [--port N]";
-pub(super) const U_RESET_SESSION: &str = "web --reset-session [--port N]";
 
 const CLI_ACTIONS: &[CliAction] = &[
     CliAction {

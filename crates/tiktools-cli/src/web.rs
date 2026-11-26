@@ -29,33 +29,6 @@ use readout::{
     write_pairing_file,
 };
 
-use crate::commands::spec::{DomainSpec, VerbSpec};
-
-/// Offline actions and the server form, rendered into the CLI help. The
-/// action flags are the same registry [`options`] dispatches on.
-pub(crate) const SPEC: DomainSpec = DomainSpec {
-    domain: "web",
-    summary: "local browser adapter (requires the local-web feature)",
-    verbs: &[
-        VerbSpec::new(
-            "web",
-            "web --assets <directory> [--port N] [--join-origin URL] [--multi-session]",
-            "serve the local browser adapter; host --ipc must be running",
-        ),
-        VerbSpec::new(
-            "print-code",
-            options::U_PRINT_CODE,
-            "print the active pairing code without restarting",
-        ),
-        VerbSpec::new(
-            "reset-session",
-            options::U_RESET_SESSION,
-            "revoke every paired browser and print a fresh code",
-        )
-        .destructive(),
-    ],
-};
-
 use server::start;
 #[cfg(test)]
 use socket::bounded_owner_message;

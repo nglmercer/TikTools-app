@@ -127,8 +127,7 @@ pub fn registry() -> Vec<DomainSpec> {
         domains.insert(1, super::cloud::SPEC);
         domains.insert(2, super::publishers::SPEC);
     }
-    #[cfg(feature = "local-web")]
-    domains.push(crate::web::SPEC);
+    domains.push(super::web::SPEC);
     domains
 }
 

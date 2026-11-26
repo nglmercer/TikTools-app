@@ -27,6 +27,7 @@ pub mod raw;
 pub mod spec;
 pub mod system;
 pub mod template;
+pub mod web;
 pub mod workflows;
 
 use serde_json::Value;
