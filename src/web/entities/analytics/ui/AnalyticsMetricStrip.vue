@@ -14,10 +14,10 @@ import IconDiamond from '@/shared/ui/icon/icons/IconDiamond.vue';
 import IconEye from '@/shared/ui/icon/icons/IconEye.vue';
 
 /**
- * Summary KPI cards: value, delta against the previous same-length period and
- * a sparkline of the daily series. Hovering a card (fine pointers) or tapping
- * it (touch) floats a preview with the enlarged series and the key derivations
- * — a miniature of what the full activity chart would show for that metric.
+ * Summary KPI cards: value and delta against the previous same-length period.
+ * No inline charts — the single miniature lives in the preview that hovering
+ * (fine pointers) or tapping (touch) floats over the card, so a metric's
+ * shape never renders twice on the page.
  */
 const props = defineProps<{
   totals: AnalyticsTotals;
@@ -35,7 +35,6 @@ const icons: Record<AnalyticsMetric, typeof IconChat> = {
   diamonds: IconDiamond,
   peakViewers: IconEye,
 };
-const sparkBox = { width: 120, height: 28, pad: 1 };
 const previewBox = { width: 264, height: 96, pad: 8 };
 const HOVER_DELAY_MS = 250;
 
@@ -61,18 +60,13 @@ function seriesOf(metric: AnalyticsMetric): number[] {
 }
 
 const cards = computed(() =>
-  analyticsMetrics.map((metric) => {
-    const series = seriesOf(metric);
-    const geometry = buildLineGeometry(series, sparkBox);
-    return {
-      metric,
-      label: t(`analytics.metrics.${metric}`),
-      value: formatCount(props.totals[metric] ?? 0, locale.value),
-      delta: deltaOf(metric),
-      spark: geometry.line,
-      empty: (props.totals[metric] ?? 0) === 0,
-    };
-  }),
+  analyticsMetrics.map((metric) => ({
+    metric,
+    label: t(`analytics.metrics.${metric}`),
+    value: formatCount(props.totals[metric] ?? 0, locale.value),
+    delta: deltaOf(metric),
+    empty: (props.totals[metric] ?? 0) === 0,
+  })),
 );
 
 // ── Preview ──────────────────────────────────────────────────────────────
@@ -204,16 +198,6 @@ const preview = computed(() => {
         >{{ card.delta.text }}</span>
       </span>
       <span class="kpi-strip__value">{{ card.value }}</span>
-      <svg
-        class="kpi-strip__spark"
-        :viewBox="`0 0 ${sparkBox.width} ${sparkBox.height}`"
-        aria-hidden="true"
-      >
-        <path
-          v-if="card.spark"
-          :d="card.spark"
-        />
-      </svg>
     </div>
   </div>
 
@@ -344,17 +328,6 @@ const preview = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.kpi-strip__spark {
-  width: 100%;
-  height: 28px;
-}
-
-.kpi-strip__spark path {
-  fill: none;
-  stroke: var(--metric-color);
-  stroke-width: 1.6;
-}
-
 .kpi-preview {
   z-index: var(--z-dropdown);
   width: 280px;
@@ -433,7 +406,7 @@ const preview = computed(() => {
   }
 
   .kpi-strip__card {
-    flex: 0 0 148px;
+    flex: 0 0 132px;
     scroll-snap-align: start;
   }
 }

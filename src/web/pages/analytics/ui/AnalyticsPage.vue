@@ -135,6 +135,14 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
         <h1 class="analytics-page__title">
           {{ t('analytics.title') }}
         </h1>
+        <BaseIconButton
+          class="analytics-page__refresh"
+          :label="t('analytics.refresh')"
+          :disabled="loading"
+          @click="refresh"
+        >
+          <IconRefresh />
+        </BaseIconButton>
       </div>
       <div class="analytics-page__controls">
         <AnalyticsRangeBar
@@ -143,13 +151,6 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
           v-model:start="customStart"
           v-model:end="customEnd"
         />
-        <BaseIconButton
-          :label="t('analytics.refresh')"
-          :disabled="loading"
-          @click="refresh"
-        >
-          <IconRefresh />
-        </BaseIconButton>
       </div>
     </header>
 
@@ -301,8 +302,8 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
 
 .analytics-page__heading {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: var(--space-2);
   min-width: 0;
 }
 
