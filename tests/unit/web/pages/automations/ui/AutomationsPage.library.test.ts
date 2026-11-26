@@ -1,4 +1,4 @@
-import { t, mountPage, buttonByLabel, goBack, documentButton, selectRow, it, expect, nextTick, libraryJournal, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
+import { t, mountPage, buttonByLabel, goBack, documentButton, selectRow, it, expect, vi, nextTick, libraryJournal, flushPromises, afterEach, beforeEach, resetResolutionPreference } from '../../../../../../src/web/pages/automations/ui/automations-page-fixture.ts';
 import { runGuideAction } from '../../../../../../src/web/features/guided-help/model/guide-actions.ts';
 
 beforeEach(() => { localStorage.clear(); resetResolutionPreference('manual'); });
@@ -123,6 +123,21 @@ it('blocks profile and template changes until the initial coherent library is re
     const unified = await mountPage(undefined, true, { announce: ['catalog.items'] });
     expect(unified.wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Events (2)', 'Actions (1)', t('automations.library.variables')]);
     expect(document.querySelector('dialog[open]')).toBeNull();
+  });
+
+  it('does not persist the selection once the page is unmounted', async () => {
+    // Regression: the debounced view-state write must be cancelled on unmount.
+    // A dead page's late write restores a stale selection into the next mount,
+    // which auto-opens the editor and hides the library (worker-shared storage).
+    const f = await mountPage();
+    vi.useFakeTimers();
+    await selectRow(f.wrapper, 'Big gifts');
+    f.wrapper.unmount();
+    vi.advanceTimersByTime(500);
+    vi.useRealTimers();
+    const stored = localStorage.getItem('tiktok-live-view-state');
+    const behavior = stored ? (JSON.parse(stored) as { behavior?: { selected?: string } }).behavior : undefined;
+    expect(behavior?.selected).toBeUndefined();
   });
 
   it('opens the templates dialog on its Cloud tab from a saved ?view=cloud link and clears the link when it closes', async () => {

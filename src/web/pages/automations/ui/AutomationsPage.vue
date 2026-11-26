@@ -189,6 +189,11 @@ const persist = debounce(() => {
   });
 });
 watch([tab, selected, eventQuery, eventSort, actionQuery, actionSort], persist);
+// A pending debounced write must not outlive the page: after unmount the refs
+// freeze with the editor still open, and the late write would restore a stale
+// selection into whatever mounts next (in the real app, a remounted page; in
+// tests, the next mount sharing the storage).
+onBeforeUnmount(() => persist.cancel());
 
 const guideScope = useTemplateRef<HTMLElement>('guideScope');
 let unregisterGuideActions: (() => void) | undefined;
