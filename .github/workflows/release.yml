@@ -142,7 +142,6 @@ jobs:
           # which satisfies wry 0.57 while keeping the glibc ceiling at 2.35.
           time $SUDO apt-get "${apt_opts[@]}" install --no-install-recommends -y \
             libasound2-dev \
-            libappindicator3-dev \
             libayatana-appindicator3-1 \
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev \
