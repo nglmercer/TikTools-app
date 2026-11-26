@@ -346,6 +346,8 @@ export default {
       dailyHint: 'Totales diarios de la métrica elegida. La línea punteada marca el promedio diario; la etiqueta marca el mejor día.',
       pattern: 'Patrón por hora del día',
       patternHint: 'Totales de cada hora del día sumados a lo largo de todos los días del rango: cuándo conecta tu audiencia.',
+      weekdayPattern: 'Patrón por día de la semana',
+      weekdayPatternHint: 'Actividad promedio de cada día de la semana en el rango: qué días conecta tu audiencia.',
       approximate: 'Aproximado: los datos antiguos se agrupan por la última hora de actividad de cada espectador.',
     },
     tabs: {

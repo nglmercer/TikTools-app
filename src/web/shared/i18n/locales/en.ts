@@ -344,6 +344,8 @@ export default {
       dailyHint: 'Daily totals for the selected metric. The dashed line marks the daily average; the callout marks the best day.',
       pattern: 'Hour-of-day pattern',
       patternHint: 'Totals for each hour of the day summed across every day in the range — when your audience connects.',
+      weekdayPattern: 'Weekday pattern',
+      weekdayPatternHint: 'Average activity on each weekday across the range — which days your audience connects.',
       approximate: 'Approximate: older data is grouped by each viewer’s last activity hour.',
     },
     tabs: {

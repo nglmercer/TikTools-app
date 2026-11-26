@@ -346,6 +346,8 @@ export default {
       dailyHint: 'Totaux quotidiens de l’indicateur sélectionné. La ligne en pointillés marque la moyenne quotidienne ; l’encadré signale le meilleur jour.',
       pattern: 'Tendance par heure de la journée',
       patternHint: 'Totaux de chaque heure de la journée additionnés sur tous les jours de la période — quand votre audience se connecte.',
+      weekdayPattern: 'Tendance par jour de la semaine',
+      weekdayPatternHint: 'Activité moyenne de chaque jour de la semaine sur la période — quels jours votre audience se connecte.',
       approximate: 'Approximatif : les données plus anciennes sont regroupées par heure de dernière activité de chaque spectateur.',
     },
     tabs: {

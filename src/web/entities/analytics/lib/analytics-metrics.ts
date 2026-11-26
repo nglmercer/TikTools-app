@@ -72,6 +72,37 @@ export function viewersToHourlySeries(viewers: readonly AnalyticsTopViewer[], da
   return series;
 }
 
+export const WEEKDAYS_PER_WEEK = 7;
+
+/**
+ * Average activity per weekday (0 = Sunday, JS convention) across the span.
+ * Day numbers are UTC-pinned epoch days; epoch day 0 was a Thursday.
+ * Averages instead of totals because a span rarely contains every weekday
+ * the same number of times — totals would inflate the overrepresented days.
+ */
+export function dayRowsToWeekdaySeries(days: readonly AnalyticsDayRow[], startDay: number, endDay: number): MetricSeries {
+  const sums = Object.fromEntries(analyticsMetrics.map((metric) => [metric, new Array<number>(WEEKDAYS_PER_WEEK).fill(0)])) as MetricSeries;
+  const counts = new Array<number>(WEEKDAYS_PER_WEEK).fill(0);
+  const weekdayOf = (day: number): number => (((day + 4) % WEEKDAYS_PER_WEEK) + WEEKDAYS_PER_WEEK) % WEEKDAYS_PER_WEEK;
+  for (let day = startDay; day <= endDay; day += 1) counts[weekdayOf(day)]! += 1;
+  const byDay = new Map(days.map((row) => [row.day, row]));
+  for (let day = startDay; day <= endDay; day += 1) {
+    const row = byDay.get(day);
+    if (!row) continue;
+    const weekday = weekdayOf(day);
+    for (const metric of analyticsMetrics) sums[metric][weekday]! += Math.max(0, row[metric] ?? 0);
+  }
+  return Object.fromEntries(
+    analyticsMetrics.map((metric) => [
+      metric,
+      sums[metric].map((sum, weekday) => {
+        const count = counts[weekday] ?? 0;
+        return count > 0 ? Math.round(sum / count) : 0;
+      }),
+    ]),
+  ) as MetricSeries;
+}
+
 export function formatHourLabel(hour: number): string {
   return `${String(Math.min(HOURS_PER_DAY - 1, Math.max(0, Math.floor(hour)))).padStart(2, '0')}:00`;
 }

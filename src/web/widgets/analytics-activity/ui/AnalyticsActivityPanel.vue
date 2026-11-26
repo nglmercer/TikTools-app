@@ -2,10 +2,18 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AnalyticsSummaryData } from '../../../../shared/messages.ts';
-import { analyticsMetrics, hourRowsToSeries, metricColor, type AnalyticsMetric, type AnalyticsMetricSelection } from '@/entities/analytics/lib/analytics-metrics.ts';
+import {
+  analyticsMetrics,
+  dayRowsToWeekdaySeries,
+  hourRowsToSeries,
+  metricColor,
+  type AnalyticsMetric,
+  type AnalyticsMetricSelection,
+} from '@/entities/analytics/lib/analytics-metrics.ts';
 import { formatZoneShort, isSingleDaySpan } from '@/entities/analytics/lib/analytics-range.ts';
 import AnalyticsDailyChart from '@/entities/analytics/ui/AnalyticsDailyChart.vue';
 import AnalyticsHourlyChart from '@/entities/analytics/ui/AnalyticsHourlyChart.vue';
+import AnalyticsWeekdayChart from '@/entities/analytics/ui/AnalyticsWeekdayChart.vue';
 import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
 import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
@@ -33,6 +41,7 @@ const narrowPicker = useMediaQuery('(width < 720px)');
 const span = computed(() => ({ startDay: props.summary.startDay, endDay: props.summary.endDay }));
 const singleDay = computed(() => isSingleDaySpan(span.value));
 const hourly = computed(() => hourRowsToSeries(props.summary.hours));
+const weekdays = computed(() => dayRowsToWeekdaySeries(props.summary.days, props.summary.startDay, props.summary.endDay));
 const hasHourly = computed(() =>
   props.summary.hours.some((row) =>
     Object.entries(row).some(([key, value]) => key !== 'hour' && typeof value === 'number' && value > 0),
@@ -114,6 +123,21 @@ const metricOptions = computed(() => [
       />
       <p class="activity-panel__note">
         {{ t('analytics.activity.patternHint') }}
+      </p>
+    </section>
+    <section
+      v-if="!singleDay"
+      class="activity-panel__pattern"
+    >
+      <h3 class="activity-panel__pattern-title">
+        {{ t('analytics.activity.weekdayPattern') }}
+      </h3>
+      <AnalyticsWeekdayChart
+        :series="weekdays"
+        :metric="metric"
+      />
+      <p class="activity-panel__note">
+        {{ t('analytics.activity.weekdayPatternHint') }}
       </p>
     </section>
     <p

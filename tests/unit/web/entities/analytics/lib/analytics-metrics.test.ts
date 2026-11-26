@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AnalyticsDayRow, AnalyticsHourRow, AnalyticsTopViewer, AnalyticsTotals } from '../../../../../../src/shared/messages.ts';
 import {
+  dayRowsToWeekdaySeries,
   fillDaySeries,
   formatHourLabel,
   hourBucketOfTimestamp,
@@ -66,6 +67,26 @@ describe('analytics metrics', () => {
     expect(series.chats[8]).toBe(5);
     expect(series.gifts[8]).toBe(1);
     expect(series.peakViewers[8]).toBe(2);
+  });
+
+  it('averages activity per weekday across the span', () => {
+    // 2026-11-23 is a Monday — epoch day 20780, and (20780 + 4) % 7 === 1.
+    const monday = 20780;
+    expect((monday + 4) % 7).toBe(1);
+    const days: AnalyticsDayRow[] = [
+      { ...zero, day: monday, chats: 10, likes: 100 },
+      { ...zero, day: monday + 1, chats: 30, likes: 50 }, // Tuesday
+      { ...zero, day: monday + 7, chats: 20, likes: 200 }, // next Monday
+    ];
+    // Span of 8 days: Monday appears twice, Tuesday through Sunday once each.
+    const series = dayRowsToWeekdaySeries(days, monday, monday + 7);
+    // Monday index 1: (10 + 20) / 2 occurrences = 15; Tuesday index 2: 30 / 1 = 30.
+    expect(series.chats[1]).toBe(15);
+    expect(series.chats[2]).toBe(30);
+    expect(series.likes[1]).toBe(150);
+    // Wednesday is inside the span but has no rows — zeros, never NaN.
+    expect(series.chats[3]).toBe(0);
+    expect(series.chats).toHaveLength(7);
   });
 
   it('validates metric names and formats hour ticks', () => {

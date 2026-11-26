@@ -195,6 +195,13 @@ describe('AnalyticsPage', () => {
     expect(wrapper.text()).toContain(t('analytics.activity.patternHint'));
   });
 
+  it('shows the weekday pattern for multi-day spans', async () => {
+    const { wrapper } = await mountPage();
+    expect(wrapper.text()).toContain(t('analytics.activity.weekdayPattern'));
+    expect(wrapper.text()).toContain(t('analytics.activity.weekdayPatternHint'));
+    expect(wrapper.find('svg.weekday-chart').exists()).toBe(true);
+  });
+
   it('hides the hour-of-day pattern when no hourly data exists', async () => {
     const { wrapper } = await mountPage(true, hourRows({}));
     expect(wrapper.text()).not.toContain(t('analytics.activity.pattern'));

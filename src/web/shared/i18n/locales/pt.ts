@@ -346,6 +346,8 @@ export default {
       dailyHint: 'Totais diários da métrica selecionada. A linha tracejada marca a média diária; o destaque marca o melhor dia.',
       pattern: 'Padrão por hora do dia',
       patternHint: 'Totais de cada hora do dia somados em todos os dias do período — quando sua audiência se conecta.',
+      weekdayPattern: 'Padrão por dia da semana',
+      weekdayPatternHint: 'Atividade média de cada dia da semana no período — em quais dias sua audiência se conecta.',
       approximate: 'Aproximado: os dados antigos são agrupados pela hora da última atividade de cada espectador.',
     },
     tabs: {
