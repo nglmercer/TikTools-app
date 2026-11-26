@@ -184,14 +184,6 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
           v-if="value === 'overview'"
           class="analytics-page__tab"
         >
-          <AnalyticsMetricStrip
-            data-guide="analytics-metrics"
-            :totals="summary.totals"
-            :previous-totals="previous?.totals ?? null"
-            :days="summary.days"
-            :start-day="summary.startDay"
-            :end-day="summary.endDay"
-          />
           <div class="analytics-page__main">
             <AnalyticsActivityPanel
               data-guide="analytics-activity"
@@ -200,9 +192,19 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
               :summary="summary"
               :previous="previous"
             />
-            <BasePanel data-guide="analytics-facts" :title="t('analytics.insights.title')">
-              <AnalyticsInsights :summary="summary" />
-            </BasePanel>
+            <aside class="analytics-page__side">
+              <BasePanel data-guide="analytics-facts" :title="t('analytics.insights.title')">
+                <AnalyticsInsights :summary="summary" />
+              </BasePanel>
+              <AnalyticsMetricStrip
+                data-guide="analytics-metrics"
+                :totals="summary.totals"
+                :previous-totals="previous?.totals ?? null"
+                :days="summary.days"
+                :start-day="summary.startDay"
+                :end-day="summary.endDay"
+              />
+            </aside>
           </div>
         </div>
         <BasePanel
@@ -332,6 +334,13 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
   grid-template-columns: minmax(0, 2.1fr) minmax(280px, 1fr);
   gap: var(--space-5);
   align-items: start;
+}
+
+.analytics-page__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
 }
 
 .analytics-page__activity {

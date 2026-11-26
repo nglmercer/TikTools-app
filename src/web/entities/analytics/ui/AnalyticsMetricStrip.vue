@@ -256,8 +256,8 @@ const preview = computed(() => {
 <style scoped>
 .kpi-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: var(--space-3);
 }
 
 .kpi-strip__card {
@@ -390,24 +390,4 @@ const preview = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 
-@media (width < 1100px) {
-  .kpi-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (width < 720px) {
-  .kpi-strip {
-    display: flex;
-    gap: var(--space-3);
-    overflow-x: auto;
-    scroll-snap-type: x proximity;
-    padding-bottom: var(--space-1);
-  }
-
-  .kpi-strip__card {
-    flex: 0 0 132px;
-    scroll-snap-align: start;
-  }
-}
 </style>
