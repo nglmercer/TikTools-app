@@ -294,6 +294,10 @@ try {
     case 'version':
       await versionCommand(args);
       break;
+    case 'release':
+      if (args[0] !== 'cut') throw new Error(`unknown release subcommand: ${args[0] ?? '(none)'} (expected cut).\n${USAGE}`);
+      await script('release-cut.ts', ...args.slice(1));
+      break;
     case 'contracts':
       await script('generate-contracts.ts', ...args);
       break;

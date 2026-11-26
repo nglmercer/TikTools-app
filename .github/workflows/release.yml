@@ -143,6 +143,7 @@ jobs:
           time $SUDO apt-get "${apt_opts[@]}" install --no-install-recommends -y \
             libasound2-dev \
             libappindicator3-dev \
+            libayatana-appindicator3-1 \
             libgtk-3-dev \
             libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev libsoup-3.0-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
@@ -266,6 +267,10 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      # actions:write lets the final step dispatch the documentation deploy;
+      # it uses this repository's own token, not the release PAT, so the fork
+      # setup needs no extra cross-account scope.
+      actions: write
     env:
       RELEASE_TAG: ${{ github.ref_name }}
       # Releases and the update feed may live in another repository (repository
@@ -401,3 +406,12 @@ jobs:
           done
           echo "::error::${base%/}/updates/$channel.json did not serve $version within 10 minutes"
           exit 1
+
+      # The docs site renders release cards and download links; deploying it is
+      # part of publishing, not a separate human chore. The snapshot refresh
+      # happens inside the site workflow itself. Pin the tag ref so the deploy
+      # documents exactly what was released.
+      - name: Dispatch documentation deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run site.yml --ref "$RELEASE_TAG" -f publish=true

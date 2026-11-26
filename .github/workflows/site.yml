@@ -42,6 +42,12 @@ jobs:
       - name: Install locked workspace dependencies
         run: bun ci
 
+      # The deployed site always reflects what is actually published; the
+      # checked-in snapshot remains the offline fallback for local builds.
+      # An API outage must not block a deploy over release cards.
+      - name: Refresh release snapshot from published releases
+        run: bun scripts/refresh-docs-releases.ts || echo "::warning::release snapshot refresh failed; using the checked-in snapshot"
+
       - name: Check public content and translations
         run: bun scripts/task.ts docs check
 

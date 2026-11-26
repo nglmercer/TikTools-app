@@ -148,6 +148,26 @@ if [ -z "$xkb_libdir" ] || [ ! -f "$xkb_libdir/libxkbcommon-x11.so.0" ]; then
 fi
 install -m 0755 "$xkb_libdir/libxkbcommon-x11.so.0" "$xkb_library"
 
+# tray-icon's libappindicator-sys dlopens libayatana-appindicator3.so.1 first
+# and libappindicator3.so.1 second, panicking when neither loads. Neither SONAME
+# is in the binary's DT_NEEDED, so linuxdeploy never seeds them — and a host
+# copy is worse than a missing one: the bundle carries jammy's glib while a
+# modern host's libdbusmenu references newer glib symbols, so the dlopen fails
+# and the process dies the same way. The ayatana runtime package ships the real
+# library plus both compat SONAMEs, all built against the same glib generation
+# the bundle already carries; seeding it makes the tray deterministic instead
+# of host-dependent.
+shopt -s nullglob
+appindicator_candidates=(/usr/lib/*/libayatana-appindicator3.so.1.0.0)
+shopt -u nullglob
+if [ "${#appindicator_candidates[@]}" -eq 0 ]; then
+  echo "linuxdeploy-plugin-tiktoolswebkit: missing libayatana-appindicator3.so.1.0.0; install libayatana-appindicator3-1" >&2
+  exit 1
+fi
+appindicator_library="$APPDIR/usr/lib/libayatana-appindicator3.so.1"
+install -m 0755 "${appindicator_candidates[0]}" "$appindicator_library"
+ln -sf "libayatana-appindicator3.so.1" "$APPDIR/usr/lib/libappindicator3.so.1"
+
 # Deploy XKB and codec dependencies without flattening the plugin directory. This child
 # has no --plugin option, so it cannot invoke this input plugin recursively.
 tiktools_linuxdeploy="$(dirname "${BASH_SOURCE[0]}")/linuxdeploy-x86_64.AppImage"
@@ -155,7 +175,7 @@ if [ ! -x "$tiktools_linuxdeploy" ]; then
   echo "linuxdeploy-plugin-tiktoolswebkit: missing dependency deployer $tiktools_linuxdeploy" >&2
   exit 1
 fi
-"$tiktools_linuxdeploy" --appdir "$APPDIR" --deploy-deps-only "$gst_target" --deploy-deps-only "$scanner_target" --deploy-deps-only "$xkb_library"
+"$tiktools_linuxdeploy" --appdir "$APPDIR" --deploy-deps-only "$gst_target" --deploy-deps-only "$scanner_target" --deploy-deps-only "$xkb_library" --deploy-deps-only "$appindicator_library"
 
 # Keep the host's Wayland client stack (see the header). Mixed versions make
 # Mesa's EGL initialization fail in the WebKit web process on newer distros.
