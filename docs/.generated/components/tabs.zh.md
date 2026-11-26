@@ -7,6 +7,7 @@
 | --- | --- | --- | --- |
 | `tabs` | `readonly TabOption<T>[]` | 必需 | `—` |
 | `label` | `string` | 可选 | `undefined` |
+| `listEnd` | `boolean` | 可选 | `false` |
 
 组件自身的事件（原生控件属性按组件约定透传）:
 

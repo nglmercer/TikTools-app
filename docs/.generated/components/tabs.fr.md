@@ -7,6 +7,7 @@
 | --- | --- | --- | --- |
 | `tabs` | `readonly TabOption<T>[]` | Obligatoire | `—` |
 | `label` | `string` | Facultative | `undefined` |
+| `listEnd` | `boolean` | Facultative | `false` |
 
 Événements propres (les attributs des contrôles natifs sont transmis selon le composant):
 

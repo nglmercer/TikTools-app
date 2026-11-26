@@ -18,7 +18,7 @@
 
 独自の v-model はありません。
 
-Slots: `leading`, `status`, `actions`, `default`, `footer`.
+Slots: `leading`, `status`, `subtitle`, `actions`, `default`, `footer`.
 
 ### OverlayLibraryPreview.vue
 

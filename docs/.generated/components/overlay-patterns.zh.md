@@ -18,7 +18,7 @@
 
 没有组件自身的 v-model。
 
-Slots: `leading`, `status`, `actions`, `default`, `footer`.
+Slots: `leading`, `status`, `subtitle`, `actions`, `default`, `footer`.
 
 ### OverlayLibraryPreview.vue
 

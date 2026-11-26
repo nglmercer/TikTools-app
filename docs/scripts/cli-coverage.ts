@@ -60,7 +60,7 @@ function invocationTokens(domain: string, verb: CliVerb): string[] {
   return tokens;
 }
 
-function guideHits(domain: string, verb: CliVerb): string[] {
+function guideHits(verb: CliVerb): string[] {
   const escape = (token: string) => token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // The usage line is the single source of truth for how a verb is invoked:
   // the domain grouping is organizational (`tiktools rpc` carries no `host`
@@ -114,7 +114,7 @@ for (const domain of help.commands) {
   const uncoveredGuide: string[] = [];
   for (const verb of domain.verbs) {
     totalVerbs += 1;
-    const inGuides = guideHits(domain.domain, verb).length > 0;
+    const inGuides = guideHits(verb).length > 0;
     const inTests = testHits(domain.domain, verb).length > 0;
     if (inGuides) { guideCovered += 1; totalGuide += 1; } else uncoveredGuide.push(verb.name);
     if (inTests) { testCovered += 1; totalTest += 1; }

@@ -7,6 +7,7 @@
 | --- | --- | --- | --- |
 | `tabs` | `readonly TabOption<T>[]` | 必須 | `—` |
 | `label` | `string` | 任意 | `undefined` |
+| `listEnd` | `boolean` | 任意 | `false` |
 
 独自のイベント（ネイティブコントロールの属性はコンポーネントの仕様に従って転送されます）:
 

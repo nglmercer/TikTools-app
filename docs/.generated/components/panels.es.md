@@ -18,7 +18,7 @@ Modelos:
 
 Sin v-model propio.
 
-Slots: `leading`, `status`, `actions`, `default`, `footer`.
+Slots: `leading`, `status`, `subtitle`, `actions`, `default`, `footer`.
 
 ### BaseDialog.vue
 
