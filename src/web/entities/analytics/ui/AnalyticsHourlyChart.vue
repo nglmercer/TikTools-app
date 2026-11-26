@@ -2,17 +2,19 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatCount } from '@/shared/lib/intl.ts';
+import { buildLineGeometry, seriesMax } from '../lib/chart-geometry.ts';
 import {
+  analyticsMetrics,
   formatHourLabel,
   HOURS_PER_DAY,
   metricColor,
-  type AnalyticsMetric,
+  type AnalyticsMetricSelection,
   type MetricSeries,
 } from '../lib/analytics-metrics.ts';
 
 const props = defineProps<{
   series: MetricSeries;
-  metric: AnalyticsMetric;
+  metric: AnalyticsMetricSelection;
 }>();
 
 const box = { width: 720, height: 220, pad: 20 };
@@ -20,8 +22,28 @@ const gridSteps = [0, 0.5, 1];
 const tickHours = [0, 6, 12, 18, 23];
 
 const { t, locale } = useI18n();
-const values = computed(() => props.series[props.metric].map((value) => Math.max(0, value ?? 0)));
-const max = computed(() => values.value.reduce((top, value) => Math.max(top, value), 0));
+const isAll = computed(() => props.metric === 'all');
+const values = computed(() =>
+  isAll.value ? [] : props.series[props.metric as Exclude<AnalyticsMetricSelection, 'all'>].map((value) => Math.max(0, value ?? 0)),
+);
+// 'all' overlays every metric as lines — stacking bars would pretend the
+// units are additive when they are not (diamonds are a value, peak a ceiling).
+const overlaid = computed(() =>
+  isAll.value
+    ? analyticsMetrics.map((metric) => ({
+        metric,
+        values: props.series[metric].map((value) => Math.max(0, value ?? 0)),
+      }))
+    : [],
+);
+const max = computed(() =>
+  isAll.value
+    ? overlaid.value.reduce((top, series) => Math.max(top, seriesMax(series.values)), 0)
+    : values.value.reduce((top, value) => Math.max(top, value), 0),
+);
+const overlaidGeometry = computed(() =>
+  overlaid.value.map((series) => ({ metric: series.metric, geometry: buildLineGeometry(series.values, box, max.value) })),
+);
 const label = computed(() => t(`analytics.metrics.${props.metric}`));
 const slot = (box.width - box.pad * 2) / HOURS_PER_DAY;
 const width = Math.max(2, Math.min(18, slot * 0.62));
@@ -62,19 +84,30 @@ const bars = computed(() =>
           text-anchor="end"
         >{{ formatCount(max * step, locale) }}</text>
       </g>
-      <rect
-        v-for="bar in bars"
-        :key="bar.hour"
-        :x="bar.x"
-        :y="box.height - box.pad - bar.height"
-        :width="width"
-        :height="bar.height"
-        rx="2"
-        :fill="metricColor[metric]"
-        opacity="0.9"
-      >
-        <title>{{ formatHourLabel(bar.hour) }} — {{ label }}: {{ formatCount(bar.value, locale) }}</title>
-      </rect>
+      <template v-if="isAll">
+        <path
+          v-for="series in overlaidGeometry"
+          :key="series.metric"
+          class="hourly-chart__line"
+          :style="{ '--metric-color': metricColor[series.metric] }"
+          :d="series.geometry.line"
+        />
+      </template>
+      <template v-else>
+        <rect
+          v-for="bar in bars"
+          :key="bar.hour"
+          :x="bar.x"
+          :y="box.height - box.pad - bar.height"
+          :width="width"
+          :height="bar.height"
+          rx="2"
+          :fill="metricColor[metric as Exclude<AnalyticsMetricSelection, 'all'>]"
+          opacity="0.9"
+        >
+          <title>{{ formatHourLabel(bar.hour) }} — {{ label }}: {{ formatCount(bar.value, locale) }}</title>
+        </rect>
+      </template>
       <text
         v-for="hour in tickHours"
         :key="hour"
@@ -116,6 +149,14 @@ const bars = computed(() =>
   font-family: var(--font-family);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.hourly-chart__line {
+  fill: none;
+  stroke: var(--metric-color);
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
 }
 
 .hourly-chart__empty {

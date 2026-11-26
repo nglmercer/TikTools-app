@@ -47,7 +47,7 @@ export interface PointsViewState {
 
 export interface AnalyticsViewState {
   range?: 'today' | '7d' | '30d' | '90d' | 'custom';
-  metric?: 'chats' | 'gifts' | 'likes' | 'diamonds' | 'peakViewers';
+  metric?: 'all' | 'chats' | 'gifts' | 'likes' | 'diamonds' | 'peakViewers';
   tab?: 'overview' | 'engagement' | 'contributors' | 'sessions';
   contributorQuery?: string;
   customStart?: string;
@@ -195,7 +195,7 @@ function cleanAnalytics(value: unknown): AnalyticsViewState | undefined {
   if (!isRecord(value)) return undefined;
   const cleaned = pickDefined({
     range: oneOf(value['range'], ['today', '7d', '30d', '90d', 'custom']),
-    metric: oneOf(value['metric'], ['chats', 'gifts', 'likes', 'diamonds', 'peakViewers']),
+    metric: oneOf(value['metric'], ['all', 'chats', 'gifts', 'likes', 'diamonds', 'peakViewers']),
     tab: oneOf(value['tab'], ['overview', 'engagement', 'contributors', 'sessions']),
     contributorQuery: cleanString(value['contributorQuery']),
     customStart: cleanDate(value['customStart']),

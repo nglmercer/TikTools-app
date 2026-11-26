@@ -318,6 +318,7 @@ export default {
       to: 'To',
     },
     metrics: {
+  all: 'All',
       chats: 'Chats',
       gifts: 'Gifts',
       likes: 'Likes',

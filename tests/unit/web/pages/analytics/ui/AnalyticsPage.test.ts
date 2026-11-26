@@ -154,10 +154,24 @@ describe('AnalyticsPage', () => {
   it('switches the charted metric from the activity panel selector', async () => {
     const { wrapper } = await mountPage();
     expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toMatch(/^Chats:/);
-    // The metric segmented lives inside the activity panel; Diamonds is its 4th option.
+    // The metric segmented lives inside the activity panel; Diamonds follows the 'all' entry.
     const panel = wrapper.get('[data-guide="analytics-activity"]');
-    await panel.findAll('.base-segmented__option')[3]!.trigger('click');
+    await panel.findAll('.base-segmented__option')[4]!.trigger('click');
     expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toMatch(/^Diamonds:/);
+  });
+
+  it('overlays every metric with a legend when the all option is selected', async () => {
+    const { wrapper } = await mountPage();
+    const panel = wrapper.get('[data-guide="analytics-activity"]');
+    await panel.findAll('.base-segmented__option')[0]!.trigger('click');
+    const chart = wrapper.get('svg[role="img"]');
+    expect(chart.attributes('aria-label')).toMatch(new RegExp(`^${t('analytics.metrics.all')}:`));
+    // One line per metric on the shared scale, and the legend names each color.
+    expect(chart.findAll('.daily-chart__line')).toHaveLength(5);
+    expect(chart.find('.daily-chart__previous').exists()).toBe(false);
+    const legend = panel.get('.activity-panel__legend');
+    expect(legend.text()).toContain(t('analytics.metrics.chats'));
+    expect(legend.text()).toContain(t('analytics.metrics.peakViewers'));
   });
 
   it('requests a new span when the range changes', async () => {

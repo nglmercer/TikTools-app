@@ -156,6 +156,14 @@ watch(range, (value) => {
   box-shadow: var(--shadow-popup);
 }
 
+@media (width < 720px) {
+  /* Inside the merged header the bar scrolls horizontally as one unit —
+     wrapping would drop the custom-range trigger onto the tab row. */
+  .range-bar {
+    flex-wrap: nowrap;
+  }
+}
+
 @media (width < 600px) {
   .range-bar__popover {
     position: fixed;

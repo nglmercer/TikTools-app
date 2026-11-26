@@ -320,6 +320,7 @@ export default {
       to: 'Au',
     },
     metrics: {
+  all: 'Tout',
       chats: 'Messages',
       gifts: 'Cadeaux',
       likes: 'J’aime',

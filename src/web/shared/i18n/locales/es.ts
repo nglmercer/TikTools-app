@@ -320,6 +320,7 @@ export default {
       to: 'Hasta',
     },
     metrics: {
+  all: 'Todo',
       chats: 'Chats',
       gifts: 'Regalos',
       likes: 'Me gusta',

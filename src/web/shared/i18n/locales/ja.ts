@@ -318,6 +318,7 @@ export default {
       to: "終了",
     },
     metrics: {
+  all: 'すべて',
       chats: "チャット",
       gifts: "ギフト",
       likes: "いいね",

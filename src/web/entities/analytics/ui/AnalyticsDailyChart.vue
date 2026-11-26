@@ -4,13 +4,13 @@ import { useI18n } from 'vue-i18n';
 import type { AnalyticsDayRow } from '../../../../shared/messages.ts';
 import { formatCount } from '@/shared/lib/intl.ts';
 import { formatDayDate, formatDayLabel, type AnalyticsDaySpan } from '../lib/analytics-range.ts';
-import { fillDaySeries, metricColor, type AnalyticsMetric } from '../lib/analytics-metrics.ts';
+import { analyticsMetrics, fillDaySeries, metricColor, type AnalyticsMetricSelection } from '../lib/analytics-metrics.ts';
 import { buildLineGeometry, seriesMax } from '../lib/chart-geometry.ts';
 
 const props = defineProps<{
   days: readonly AnalyticsDayRow[];
   span: AnalyticsDaySpan;
-  metric: AnalyticsMetric;
+  metric: AnalyticsMetricSelection;
   /** Same-length period immediately before, drawn as a dashed reference line. */
   previousDays?: readonly AnalyticsDayRow[];
 }>();
@@ -19,18 +19,38 @@ const box = { width: 720, height: 220, pad: 20 };
 const gridSteps = [0, 0.5, 1];
 
 const { t, locale } = useI18n();
-const values = computed(() => fillDaySeries(props.days, props.span.startDay, props.span.endDay, props.metric));
+const isAll = computed(() => props.metric === 'all');
+const values = computed(() =>
+  isAll.value ? [] : fillDaySeries(props.days, props.span.startDay, props.span.endDay, props.metric as Exclude<AnalyticsMetricSelection, 'all'>),
+);
+// 'all' overlays every metric on the shared scale; the previous-period
+// reference is dropped there — five dashed echoes would drown the signal.
+const overlaid = computed(() =>
+  isAll.value
+    ? analyticsMetrics.map((metric) => ({
+        metric,
+        values: fillDaySeries(props.days, props.span.startDay, props.span.endDay, metric),
+      }))
+    : [],
+);
 const previousValues = computed(() => {
-  if (!props.previousDays) return null;
+  if (!props.previousDays || isAll.value) return null;
   const length = props.span.endDay - props.span.startDay + 1;
-  return fillDaySeries(props.previousDays, props.span.startDay - length, props.span.endDay - length, props.metric);
+  return fillDaySeries(props.previousDays, props.span.startDay - length, props.span.endDay - length, props.metric as Exclude<AnalyticsMetricSelection, 'all'>);
 });
 // The scale must cover both series or the comparison line lies about proportion.
-const scaleMax = computed(() => Math.max(seriesMax(values.value), previousValues.value ? seriesMax(previousValues.value) : 0));
+const scaleMax = computed(() =>
+  isAll.value
+    ? overlaid.value.reduce((top, series) => Math.max(top, seriesMax(series.values)), 0)
+    : Math.max(seriesMax(values.value), previousValues.value ? seriesMax(previousValues.value) : 0),
+);
 const geometry = computed(() => buildLineGeometry(values.value, box, scaleMax.value));
+const overlaidGeometry = computed(() =>
+  overlaid.value.map((series) => ({ metric: series.metric, values: series.values, geometry: buildLineGeometry(series.values, box, scaleMax.value) })),
+);
 const previousGeometry = computed(() => (previousValues.value ? buildLineGeometry(previousValues.value, box, scaleMax.value) : null));
 const label = computed(() => t(`analytics.metrics.${props.metric}`));
-const showDots = computed(() => values.value.length <= 62);
+const showDots = computed(() => !isAll.value && values.value.length <= 62);
 const peakIndex = computed(() => {
   let best = -1;
   let bestValue = -1;
@@ -64,8 +84,8 @@ const gridLines = computed(() =>
     class="daily-chart"
     :viewBox="`0 0 ${box.width} ${box.height}`"
     role="img"
-    :aria-label="`${label}: ${formatCount(geometry.max, locale)}`"
-    :style="{ '--metric-color': metricColor[metric] }"
+    :aria-label="`${label}: ${formatCount(scaleMax, locale)}`"
+    :style="isAll ? undefined : { '--metric-color': metricColor[metric as Exclude<AnalyticsMetricSelection, 'all'>] }"
   >
     <g
       v-for="line in gridLines"
@@ -92,8 +112,17 @@ const gridLines = computed(() =>
     >
       <title>{{ t('analytics.comparePrevious') }}</title>
     </path>
+    <template v-if="isAll">
+      <path
+        v-for="series in overlaidGeometry"
+        :key="series.metric"
+        class="daily-chart__line"
+        :style="{ '--metric-color': metricColor[series.metric] }"
+        :d="series.geometry.line"
+      />
+    </template>
     <path
-      v-if="geometry.line"
+      v-else-if="geometry.line"
       class="daily-chart__line"
       :d="geometry.line"
     />

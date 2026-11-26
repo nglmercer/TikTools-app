@@ -3,7 +3,7 @@ import { storeToRefs } from 'pinia';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useConnectionStore } from '@/entities/connection/model/connection-store.ts';
-import { isAnalyticsMetric, type AnalyticsMetric } from '@/entities/analytics/lib/analytics-metrics.ts';
+import { isAnalyticsMetricSelection, type AnalyticsMetricSelection } from '@/entities/analytics/lib/analytics-metrics.ts';
 import {
   analyticsRangeKeys,
   dayToIsoDate,
@@ -42,7 +42,7 @@ const { summary, previous, loading, error } = storeToRefs(store);
 const saved = loadViewState().analytics;
 const today = systemDay(Date.now());
 const range = ref<AnalyticsRangeKey>(analyticsRangeKeys.includes(saved?.range as AnalyticsRangeKey) ? saved!.range! : '7d');
-const metric = ref<AnalyticsMetric>(isAnalyticsMetric(saved?.metric) ? saved.metric : 'chats');
+const metric = ref<AnalyticsMetricSelection>(isAnalyticsMetricSelection(saved?.metric) ? saved.metric : 'chats');
 const query = ref(saved?.contributorQuery ?? '');
 const customStart = ref(saved?.customStart ?? dayToIsoDate(today - 6));
 const customEnd = ref(saved?.customEnd ?? dayToIsoDate(today));

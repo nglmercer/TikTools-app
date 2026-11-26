@@ -22,6 +22,13 @@ export function isAnalyticsMetric(value: unknown): value is AnalyticsMetric {
   return analyticsMetrics.includes(value as AnalyticsMetric);
 }
 
+/** Chart selection: one metric or every metric overlaid in a single chart. */
+export type AnalyticsMetricSelection = AnalyticsMetric | 'all';
+
+export function isAnalyticsMetricSelection(value: unknown): value is AnalyticsMetricSelection {
+  return value === 'all' || isAnalyticsMetric(value);
+}
+
 export function totalFor(totals: AnalyticsTotals, metric: AnalyticsMetric): number {
   return totals[metric] ?? 0;
 }

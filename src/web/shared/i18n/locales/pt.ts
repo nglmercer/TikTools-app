@@ -320,6 +320,7 @@ export default {
       to: 'Até',
     },
     metrics: {
+  all: 'Tudo',
       chats: 'Chats',
       gifts: 'Presentes',
       likes: 'Curtidas',

@@ -2,10 +2,11 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AnalyticsSummaryData } from '../../../../shared/messages.ts';
-import { analyticsMetrics, hourRowsToSeries, type AnalyticsMetric } from '@/entities/analytics/lib/analytics-metrics.ts';
+import { analyticsMetrics, hourRowsToSeries, metricColor, type AnalyticsMetricSelection } from '@/entities/analytics/lib/analytics-metrics.ts';
 import { formatZoneShort, isSingleDaySpan } from '@/entities/analytics/lib/analytics-range.ts';
 import AnalyticsDailyChart from '@/entities/analytics/ui/AnalyticsDailyChart.vue';
 import AnalyticsHourlyChart from '@/entities/analytics/ui/AnalyticsHourlyChart.vue';
+import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
@@ -16,8 +17,12 @@ const props = defineProps<{
 }>();
 
 /** The charted metric is picked here, in the panel it affects — not by the KPI cards. */
-const metric = defineModel<AnalyticsMetric>('metric', { required: true });
+const metric = defineModel<AnalyticsMetricSelection>('metric', { required: true });
 const { t, locale } = useI18n();
+// Narrow viewports trade the segmented row for a native select — five
+// Spanish labels never fit a phone screen, and the select collapses them
+// into the one control mobile users already know.
+const narrowPicker = useMediaQuery('(width < 720px)');
 const span = computed(() => ({ startDay: props.summary.startDay, endDay: props.summary.endDay }));
 const singleDay = computed(() => isSingleDaySpan(span.value));
 const hourly = computed(() => hourRowsToSeries(props.summary.hours));
@@ -27,7 +32,12 @@ const hasHourly = computed(() =>
   ),
 );
 const zoneSuffix = computed(() => formatZoneShort(locale.value));
-const metricOptions = computed(() => analyticsMetrics.map((value) => ({ value, label: t(`analytics.metrics.${value}`) })));
+const metricOptions = computed(() => [
+  { value: 'all' as const, label: t('analytics.metrics.all') },
+  ...analyticsMetrics.map((value) => ({ value, label: t(`analytics.metrics.${value}`) })),
+]);
+const legendMetrics = analyticsMetrics;
+const legendColor = metricColor;
 </script>
 
 <template>
@@ -43,13 +53,44 @@ const metricOptions = computed(() => analyticsMetrics.map((value) => ({ value, l
       <template v-if="singleDay && zoneSuffix"> · {{ zoneSuffix }}</template>
     </template>
     <template #actions>
+      <select
+        v-if="narrowPicker"
+        v-model="metric"
+        class="activity-panel__metric-select"
+        :aria-label="t('analytics.metricPicker')"
+      >
+        <option
+          v-for="option in metricOptions"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
+      </select>
       <BaseSegmented
+        v-else
         v-model="metric"
         :options="metricOptions"
         size="sm"
         :aria-label="t('analytics.metricPicker')"
       />
     </template>
+    <ul
+      v-if="metric === 'all'"
+      class="activity-panel__legend"
+    >
+      <li
+        v-for="value in legendMetrics"
+        :key="value"
+        class="activity-panel__legend-item"
+      >
+        <span
+          class="activity-panel__legend-swatch"
+          :style="{ background: legendColor[value] }"
+        />
+        {{ t(`analytics.metrics.${value}`) }}
+      </li>
+    </ul>
     <AnalyticsHourlyChart
       v-if="singleDay"
       :series="hourly"
@@ -87,6 +128,33 @@ const metricOptions = computed(() => analyticsMetrics.map((value) => ({ value, l
 </template>
 
 <style scoped>
+.activity-panel__metric-select {
+  max-width: 180px;
+}
+
+.activity-panel__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.activity-panel__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.activity-panel__legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-sm, 3px);
+}
+
 .activity-panel__pattern {
   margin-top: var(--space-4);
   padding-top: var(--space-3);

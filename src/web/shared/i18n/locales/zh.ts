@@ -318,6 +318,7 @@ export default {
       to: "结束",
     },
     metrics: {
+  all: '全部',
       chats: "聊天",
       gifts: "礼物",
       likes: "点赞",
