@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { activateLocale, i18n, isLocale, mergePluginMessages, nestMessages, supportedLocales } from '../../../../../src/web/shared/i18n/i18n.ts';
+import { activateLocale, i18n, isLocale, localizedText, mergePluginMessages, nestMessages, supportedLocales } from '../../../../../src/web/shared/i18n/i18n.ts';
 
 afterEach(async () => {
   await activateLocale('en');
@@ -55,5 +55,10 @@ describe('mergePluginMessages', () => {
     mergePluginMessages({ en: { 'sample.greeting': 'Hello {name}' }, xx: { 'sample.greeting': 'ignored' } });
     expect(i18n.global.t('sample.greeting', { name: 'Ana' })).toBe('Hello Ana');
     expect(i18n.global.availableLocales).not.toContain('xx');
+  });
+
+  it('uses the raw localized catalog string when placeholder documentation is not compilable interpolation', () => {
+    mergePluginMessages({ en: { 'sample.template': 'Use {{ event.data.comment }} verbatim' } });
+    expect(localizedText({ default: 'English fallback', i18key: 'sample.template' })).toBe('Use {{ event.data.comment }} verbatim');
   });
 });

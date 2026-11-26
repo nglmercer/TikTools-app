@@ -77,6 +77,15 @@ export function mergePluginMessages(catalog: TranslationCatalog): void {
   }
 }
 
+function rawMessage(key: string, locale: string): string | undefined {
+  let value: unknown = i18n.global.getLocaleMessage(locale);
+  for (const part of key.split('.')) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    value = (value as Record<string, unknown>)[part];
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
 export function localizedText(value: unknown): string {
   if (typeof value === 'string') return value;
   if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
@@ -85,6 +94,12 @@ export function localizedText(value: unknown): string {
     try {
       return i18n.global.t(i18key);
     } catch {
+      // Plugin copy often documents automation placeholders such as
+      // `{{ event.data.comment }}`. Those braces are data, not vue-i18n
+      // interpolation; if the message compiler rejects them, prefer the raw
+      // catalog string in the active locale over the English descriptor fallback.
+      const raw = rawMessage(i18key, i18n.global.locale.value) ?? rawMessage(i18key, fallbackLocale);
+      if (raw) return raw;
       return typeof fallback === 'string' ? fallback : i18key;
     }
   }
