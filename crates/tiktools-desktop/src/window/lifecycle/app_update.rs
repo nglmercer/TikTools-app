@@ -79,7 +79,7 @@ impl DesktopApp {
                 gtk::DialogFlags::MODAL,
                 gtk::MessageType::Warning,
                 gtk::ButtonsType::YesNo,
-                &title,
+                title,
             );
             dialog.set_secondary_text(Some(&description));
             let confirmed = dialog.run() == gtk::ResponseType::Yes;

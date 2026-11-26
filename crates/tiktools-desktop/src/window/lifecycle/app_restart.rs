@@ -36,9 +36,9 @@ impl DesktopApp {
                 gtk::DialogFlags::MODAL,
                 gtk::MessageType::Warning,
                 gtk::ButtonsType::YesNo,
-                &native_messages::restart_title(&locale),
+                native_messages::restart_title(&locale),
             );
-            dialog.set_secondary_text(Some(&native_messages::restart_description(&locale)));
+            dialog.set_secondary_text(Some(native_messages::restart_description(&locale)));
             let confirmed = dialog.run() == gtk::ResponseType::Yes;
             unsafe { dialog.destroy() };
             confirmed
