@@ -32,6 +32,7 @@ env:
 
 jobs:
   version:
+    timeout-minutes: 20
     name: validate release version
     runs-on: ubuntu-24.04
     outputs:
@@ -71,6 +72,7 @@ jobs:
           bun -e 'const version = process.env.RELEASE_TAG.slice(1).split("+")[0]; console.log(`prerelease=${version.includes("-")}`)' >> "$GITHUB_OUTPUT"
 
   build:
+    timeout-minutes: 120
     name: package (${{ matrix.platform }})
     needs: version
     runs-on: ${{ matrix.os }}
@@ -329,6 +331,7 @@ jobs:
           retention-days: 7
 
   publish:
+    timeout-minutes: 30
     name: publish GitHub release
     needs: [version, build]
     if: ${{ inputs.publish && inputs.platform == 'all' }}
@@ -447,29 +450,23 @@ jobs:
         run: gh release edit "$RELEASE_TAG" -R "$RELEASE_REPO" --draft=false
 
       # The feed is updated last: it must never reference unpublished assets.
+      # The tagged source predates the CAS publisher, so the publish runs from
+      # the reviewed tooling that generated this workflow: the write re-reads
+      # the remote, re-verifies and retries on races, exactly like release.yml.
       - name: Publish update feed
         if: env.UPDATE_FEED == '1'
+        env:
+          RECOVERY_TOOLING_SHA: ${{ github.sha }}
         run: |
-          gh auth setup-git
-          git clone --quiet --depth 1 --branch gh-pages "https://github.com/$RELEASE_REPO.git" feed
-          mode=()
-          if [ ! -e feed/updates/stable.json ] && [ ! -e feed/updates/beta.json ]; then
-            mode=(--bootstrap)
-          elif [ ! -e feed/updates/stable.json ]; then
-            mode=(--allow-missing-stable)
-          fi
-          mkdir -p feed/updates
-          bun scripts/stage-update-channels.ts update-candidate feed/updates feed-snapshot "${mode[@]}"
-          cp -f feed-snapshot/* feed/updates/
-          cd feed
-          git add updates
-          if git diff --cached --quiet; then
-            echo "Update feed unchanged"
-            exit 0
-          fi
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit --quiet -m "update feed: $RELEASE_TAG"
-          git push --quiet origin gh-pages
+          gh auth setup-git --hostname github.com
+          tooling="$RUNNER_TEMP/tiktools-recovery-tooling"
+          git init --quiet "$tooling"
+          git -C "$tooling" -c credential.helper= -c 'credential.helper=!gh auth git-credential' \
+            fetch --quiet --depth=1 "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$RECOVERY_TOOLING_SHA"
+          git -C "$tooling" checkout --quiet --detach FETCH_HEAD
+          test "$(git -C "$tooling" rev-parse HEAD)" = "$RECOVERY_TOOLING_SHA"
+          bun "$tooling/scripts/publish-site.ts" --feed-candidate "$GITHUB_WORKSPACE/update-candidate" \
+            --repository "$RELEASE_REPO" --publish
 
       - name: Wait for the live update feed
         if: env.UPDATE_FEED == '1'

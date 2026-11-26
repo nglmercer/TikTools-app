@@ -18,6 +18,7 @@ env:
 
 jobs:
   version:
+    timeout-minutes: 20
     name: validate release version
     runs-on: ubuntu-24.04
     outputs:
@@ -47,6 +48,7 @@ jobs:
           bun -e 'const version = process.env.RELEASE_TAG.slice(1).split("+")[0]; console.log(`prerelease=${version.includes("-")}`)' >> "$GITHUB_OUTPUT"
 
   build:
+    timeout-minutes: 120
     name: package (${{ matrix.platform }})
     needs: version
     runs-on: ${{ matrix.os }}
@@ -253,6 +255,7 @@ jobs:
           retention-days: 7
 
   publish:
+    timeout-minutes: 30
     name: publish GitHub release
     needs: [version, build]
     runs-on: ubuntu-24.04

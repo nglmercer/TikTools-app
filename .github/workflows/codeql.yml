@@ -60,6 +60,7 @@ jobs:
           fi
 
   analyze:
+    timeout-minutes: 60
     needs: gate
     if: needs.gate.outputs.should_run == 'true'
     name: analyze (${{ matrix.language }})

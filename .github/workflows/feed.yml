@@ -25,6 +25,7 @@ env:
 
 jobs:
   publish:
+    timeout-minutes: 20
     name: publish signed update feed
     runs-on: ubuntu-24.04
     env:

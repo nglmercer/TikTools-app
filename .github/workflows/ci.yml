@@ -62,6 +62,7 @@ jobs:
         run: node scripts/ci-scope.mjs
 
   frontend:
+    timeout-minutes: 20
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
     name: frontend
@@ -114,6 +115,7 @@ jobs:
         run: bun scripts/task.ts frontend-build
 
   rust:
+    timeout-minutes: 60
     needs: changes
     if: needs.changes.outputs.rust == 'true'
     name: rust
@@ -267,6 +269,7 @@ jobs:
           ./target/debug/tiktools api verify --sandbox
 
   msrv:
+    timeout-minutes: 60
     needs: changes
     if: needs.changes.outputs.msrv == 'true'
     name: msrv
@@ -337,6 +340,7 @@ jobs:
         run: node scripts/cargo-with-linker.mjs +${{ env.MSRV_TOOLCHAIN }} test -p tiktools-client -p tiktools-cli --locked
 
   plugin-runtime:
+    timeout-minutes: 60
     needs: changes
     if: needs.changes.outputs.pluginRuntime == 'true'
     # The QuickJS plugin runtime and its in-process Node-API host (native
@@ -389,6 +393,7 @@ jobs:
           node scripts/cargo-with-linker.mjs +${{ env.RUSTUP_TOOLCHAIN }} test -p tiktools-plugin-loader --locked --doc
 
   desktop:
+    timeout-minutes: 60
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
     name: desktop (${{ matrix.os }})
