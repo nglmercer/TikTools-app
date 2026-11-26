@@ -140,6 +140,9 @@ jobs:
           # Inside ubuntu:22.04 the job runs as root and has no sudo. Keep the
           # sudo path for anyone reproducing this step on a hosted runner.
           if command -v sudo >/dev/null 2>&1; then SUDO=sudo; else SUDO=; fi
+          # Exported once: inline `VAR=value` after `time` is executed as a
+          # command when SUDO is empty inside the container (exit 127).
+          export DEBIAN_FRONTEND=noninteractive
           # Avoid hanging indefinitely on an unresponsive Ubuntu package mirror.
           apt_opts=(
             -o Acquire::Retries=2
@@ -152,7 +155,7 @@ jobs:
           echo "::group::Install native build dependencies"
           # jammy's libwebkit2gtk-4.1-dev comes from jammy-security as 2.50.4,
           # which satisfies wry 0.57 while keeping the glibc ceiling at 2.35.
-          time $SUDO DEBIAN_FRONTEND=noninteractive apt-get "${apt_opts[@]}" install --no-install-recommends -y \
+          time $SUDO apt-get "${apt_opts[@]}" install --no-install-recommends -y \
             libasound2-dev \
             libappindicator3-dev \
             libgtk-3-dev \
