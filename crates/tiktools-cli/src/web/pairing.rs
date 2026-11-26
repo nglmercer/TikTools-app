@@ -45,8 +45,8 @@ pub(super) async fn pair(
     let Ok(mut auth) = app.auth.lock() else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
-    if auth.attempts >= 8
-        || auth.issued.elapsed() > Duration::from_secs(300)
+    if auth.attempts >= PAIRING_MAX_ATTEMPTS
+        || auth.issued.elapsed() > PAIRING_TTL
         || auth.pairing.is_none()
     {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -101,7 +101,7 @@ pub(super) async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMa
         )
             .into_response();
     }
-    if auth.attempts >= 8 {
+    if auth.attempts >= PAIRING_MAX_ATTEMPTS {
         return (
             StatusCode::TOO_MANY_REQUESTS,
             Json(json!({"error":"pairing_locked"})),
@@ -143,8 +143,10 @@ pub(super) async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMa
         }
     };
     eprintln!(
-        "One-use pairing code (valid 5 minutes): {code}\nOne-click join: {} (same one-use code, valid 5 minutes)",
-        join_link(&app.join_base, &code)
+        "One-use pairing code (valid {} minutes): {code}\nOne-click join: {} (same one-use code, valid {} minutes)",
+        PAIRING_TTL_SECS / 60,
+        join_link(&app.join_base, &code),
+        PAIRING_TTL_SECS / 60
     );
     auth.pairing = Some(code.clone());
     auth.issued = Instant::now();
@@ -152,7 +154,7 @@ pub(super) async fn renew_pairing(State(app): State<Arc<App>>, headers: HeaderMa
     publish_pairing_code(&app.pairing_file, &code);
     (
         StatusCode::OK,
-        Json(json!({"ok":true,"expiresInSeconds":PAIRING_TTL_SECS,"retryAfterSeconds":30})),
+        Json(json!({"ok":true,"expiresInSeconds":PAIRING_TTL_SECS,"retryAfterSeconds":PAIRING_RENEW_COOLDOWN.as_secs()})),
     )
         .into_response()
 }
@@ -174,7 +176,9 @@ pub(super) async fn reset_session(
         return StatusCode::UNAUTHORIZED.into_response();
     };
     {
-        let reset = app.reset_token.lock().unwrap();
+        let Ok(reset) = app.reset_token.lock() else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        };
         if !token_matches(provided, &reset) {
             return StatusCode::UNAUTHORIZED.into_response();
         }
@@ -191,11 +195,15 @@ pub(super) async fn reset_session(
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     {
-        let mut reset = app.reset_token.lock().unwrap();
+        let Ok(mut reset) = app.reset_token.lock() else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        };
         *reset = next_token;
     }
     {
-        let mut auth = app.auth.lock().unwrap();
+        let Ok(mut auth) = app.auth.lock() else {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        };
         auth.clear_sessions();
         auth.pairing = Some(code.clone());
         auth.issued = Instant::now();
@@ -204,7 +212,8 @@ pub(super) async fn reset_session(
     }
     publish_pairing_code(&app.pairing_file, &code);
     eprintln!(
-        "Session reset; all paired browsers were revoked.\nOne-use pairing code (valid 5 minutes): {code}\nOne-click join: {}",
+        "Session reset; all paired browsers were revoked.\nOne-use pairing code (valid {} minutes): {code}\nOne-click join: {}",
+        PAIRING_TTL_SECS / 60,
         join_link(&app.join_base, &code)
     );
     (

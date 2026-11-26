@@ -86,6 +86,9 @@ use tiktools_control_api::{
 use tokio::{sync::Semaphore, task::JoinSet};
 
 const PAIRING_RENEW_COOLDOWN: Duration = Duration::from_secs(30);
+/// Failed pair attempts before the pending code locks out. Shared by `pair`
+/// and `renew_pairing`, which enforce it on the same counter.
+const PAIRING_MAX_ATTEMPTS: u8 = 8;
 /// Sliding idle window. Authenticated activity on the socket or session touch
 /// endpoint renews it, so an open tab is never logged out for being open.
 const SESSION_LIFETIME: Duration = Duration::from_secs(3600);
@@ -99,6 +102,7 @@ const MAX_FRAME: usize = 1024 * 1024;
 /// Lifetime of a pairing code, in seconds. Bounds the in-memory check in
 /// `pair` and the runtime-file readout the same way.
 const PAIRING_TTL_SECS: u64 = 300;
+const PAIRING_TTL: Duration = Duration::from_secs(PAIRING_TTL_SECS);
 /// Deterministic pairing override for automated login tests. Never set in
 /// production: anyone holding the value can pair without the terminal.
 const PAIRING_FIXTURE_ENV: &str = "TIKTOOLS_PAIRING_FIXTURE";

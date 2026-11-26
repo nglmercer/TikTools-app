@@ -36,8 +36,10 @@ pub(super) async fn start(
     }
     let join_base = join_origin.unwrap_or_else(|| origin.clone());
     eprintln!(
-        "TikTools local browser: {origin}\nOne-use pairing code (valid 5 minutes): {pairing}\nOne-click join: {} (same one-use code, valid 5 minutes)",
-        join_link(&join_base, &pairing)
+        "TikTools local browser: {origin}\nOne-use pairing code (valid {} minutes): {pairing}\nOne-click join: {} (same one-use code, valid {} minutes)",
+        PAIRING_TTL_SECS / 60,
+        join_link(&join_base, &pairing),
+        PAIRING_TTL_SECS / 60
     );
     let multi_session = multi_session_enabled(multi_session);
     if multi_session {
