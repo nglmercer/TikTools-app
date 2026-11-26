@@ -35,6 +35,6 @@ pub use validation::{
     is_valid_native_lib_tag, is_valid_native_lib_version, is_valid_native_package_name,
     is_valid_plugin_id, select_host_native_binary, validate_action_type,
     validate_declarative_action, validate_event_type, validate_http_config,
-    validate_plugin_autocomplete, validate_plugin_guide, validate_plugin_page, validate_plugin_template, ManifestError,
-    NativeBinarySelectError, NAPI_TARGETS,
+    validate_plugin_autocomplete, validate_plugin_guide, validate_plugin_page,
+    validate_plugin_template, ManifestError, NativeBinarySelectError, NAPI_TARGETS,
 };

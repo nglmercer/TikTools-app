@@ -50,7 +50,9 @@ fn action_field_keys(action_type: &Value) -> Vec<&str> {
         .and_then(Value::as_object)
     {
         for key in properties.keys() {
-            if !keys.contains(&key.as_str()) { keys.push(key.as_str()); }
+            if !keys.contains(&key.as_str()) {
+                keys.push(key.as_str());
+            }
         }
     }
     keys
@@ -62,10 +64,16 @@ fn allowed_keys(object: &serde_json::Map<String, Value>, allowed: &[&str]) -> bo
 
 fn validate_step(step: &Value, field_keys: &[&str]) -> Result<(), ManifestError> {
     let object = step.as_object().ok_or_else(invalid)?;
-    if !allowed_keys(object, &["id", "target", "title", "description", "optional"]) {
+    if !allowed_keys(
+        object,
+        &["id", "target", "title", "description", "optional"],
+    ) {
         return Err(invalid());
     }
-    let id = object.get("id").and_then(Value::as_str).ok_or_else(invalid)?;
+    let id = object
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?;
     if !valid_slug(id, 64) {
         return Err(invalid());
     }
@@ -87,7 +95,10 @@ fn validate_step(step: &Value, field_keys: &[&str]) -> Result<(), ManifestError>
     if !allowed_keys(target, &["kind", "key"]) {
         return Err(invalid());
     }
-    let kind = target.get("kind").and_then(Value::as_str).ok_or_else(invalid)?;
+    let kind = target
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?;
     match kind {
         // Closed host-owned regions of the action editor.
         "editor" | "settings" | "permissions" => {
@@ -99,7 +110,10 @@ fn validate_step(step: &Value, field_keys: &[&str]) -> Result<(), ManifestError>
         // type, so a manifest edit cannot leave the tour pointing at a field
         // that no longer exists.
         "field" => {
-            let key = target.get("key").and_then(Value::as_str).ok_or_else(invalid)?;
+            let key = target
+                .get("key")
+                .and_then(Value::as_str)
+                .ok_or_else(invalid)?;
             if key.len() > 128 || !field_keys.contains(&key) {
                 return Err(invalid());
             }
@@ -114,13 +128,28 @@ fn validate_step(step: &Value, field_keys: &[&str]) -> Result<(), ManifestError>
 /// snapshot; invalid entries are skipped there rather than breaking discovery.
 pub fn validate_plugin_guide(entry: &Value, action_types: &[Value]) -> Result<(), ManifestError> {
     let object = entry.as_object().ok_or_else(invalid)?;
-    if !allowed_keys(object, &["id", "kind", "actionType", "mode", "title", "description", "icon", "steps"]) {
+    if !allowed_keys(
+        object,
+        &[
+            "id",
+            "kind",
+            "actionType",
+            "mode",
+            "title",
+            "description",
+            "icon",
+            "steps",
+        ],
+    ) {
         return Err(invalid());
     }
     if entry.to_string().len() > MAX_DESCRIPTOR_GUIDE_BYTES {
         return Err(invalid());
     }
-    let id = object.get("id").and_then(Value::as_str).ok_or_else(invalid)?;
+    let id = object
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(invalid)?;
     if !valid_slug(id, 64) {
         return Err(invalid());
     }
