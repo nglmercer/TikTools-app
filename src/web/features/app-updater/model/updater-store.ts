@@ -11,7 +11,7 @@ const INTERVAL_SECONDS = 12 * 60 * 60;
 export const useAppUpdaterStore = defineStore('app-updater', () => {
   const client = useControlClient();
   const status = shallowRef<UpdateStatus | null>(null);
-  const preferences = ref<UpdatePreferences>({ channel: 'stable', automaticChecks: true, notifications: true, lastChecked: 0, lastAttempt: 0 });
+  const preferences = ref<UpdatePreferences>({ channel: 'stable', automaticChecks: true, notifications: true, lastChecked: 0, lastAttempt: 0, upToDateChannel: null });
   const error = ref('');
   let initialized = false;
   let eventRevision = 0;
@@ -43,8 +43,13 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
       eventRevision++;
       status.value = state;
       latestChecked = Math.max(latestChecked, state.lastChecked ?? 0);
-      if (preferencesLoaded.value && latestChecked > preferences.value.lastChecked) {
-        preferences.value.lastChecked = latestChecked;
+      const outcome = state.state === 'upToDate' ? state.channel : null;
+      const outcomeChanged = state.state === 'upToDate' || state.state === 'available' || state.state === 'failed'
+        ? preferences.value.upToDateChannel !== outcome
+        : false;
+      if (outcomeChanged) preferences.value.upToDateChannel = outcome;
+      if (preferencesLoaded.value && (latestChecked > preferences.value.lastChecked || outcomeChanged)) {
+        preferences.value.lastChecked = Math.max(preferences.value.lastChecked, latestChecked);
         void save();
       }
     });
@@ -57,6 +62,7 @@ export const useAppUpdaterStore = defineStore('app-updater', () => {
         notifications: parsed.notifications !== false,
         lastChecked: typeof parsed.lastChecked === 'number' && Number.isFinite(parsed.lastChecked) ? parsed.lastChecked : 0,
         lastAttempt: typeof parsed.lastAttempt === 'number' && Number.isFinite(parsed.lastAttempt) ? parsed.lastAttempt : 0,
+        upToDateChannel: parsed.upToDateChannel === 'beta' ? 'beta' : parsed.upToDateChannel === 'stable' ? 'stable' : null,
       };
       stagedChannel = preferences.value.channel;
       preferencesLoaded.value = true;

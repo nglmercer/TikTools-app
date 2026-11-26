@@ -180,4 +180,60 @@ describe('AppUpdater', () => {
       window.ipc = previous;
     }
   });
+
+  it('shows the persisted up-to-date outcome while the session state is idle', async () => {
+    const { client } = createFakeControlClient((method) => {
+      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' } };
+      if (method === 'app.update.status') return status();
+      return {};
+    });
+    const harness = createStoreHarness(client);
+    await harness.use(useAppUpdaterStore).initialize();
+    const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
+    expect(wrapper.text()).toContain(t('appUpdater.upToDate'));
+  });
+
+  it('hides the persisted outcome after the channel changes and when an update appears', async () => {
+    const { client } = createFakeControlClient((method) => {
+      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false,"lastChecked":1700000000,"upToDateChannel":"stable"}' } };
+      if (method === 'app.update.status') return status();
+      return {};
+    });
+    let emit: ((state: UpdateStatus) => void) | undefined;
+    client.onTopic = (topic, handler) => {
+      if (topic === 'app.update.stateChanged') emit = (state) => handler({ state } as never);
+      return () => {};
+    };
+    const harness = createStoreHarness(client);
+    await harness.use(useAppUpdaterStore).initialize();
+    const wrapper = mountWithPlugins(AppUpdater, { global: { plugins: harness.plugins } });
+    expect(wrapper.text()).toContain(t('appUpdater.upToDate'));
+    wrapper.findComponent(BaseComboBox).vm.$emit('update:modelValue', 'beta');
+    await flushPromises();
+    expect(wrapper.text()).not.toContain(t('appUpdater.upToDate'));
+    wrapper.findComponent(BaseComboBox).vm.$emit('update:modelValue', 'stable');
+    await flushPromises();
+    emit?.(status({ state: 'available', availableVersion: '9.9.9', lastChecked: 1700000100 }));
+    await flushPromises();
+    expect(wrapper.text()).not.toContain(t('appUpdater.upToDate'));
+  });
+
+  it('persists the up-to-date outcome when a check completes', async () => {
+    const { client, calls } = createFakeControlClient((method) => {
+      if (method === 'app.state.get') return { state: { 'app.update.preferences': '{"automaticChecks":false}' } };
+      if (method === 'app.update.status') return status();
+      return {};
+    });
+    let emit: ((state: UpdateStatus) => void) | undefined;
+    client.onTopic = (topic, handler) => {
+      if (topic === 'app.update.stateChanged') emit = (state) => handler({ state } as never);
+      return () => {};
+    };
+    const harness = createStoreHarness(client);
+    await harness.use(useAppUpdaterStore).initialize();
+    emit?.(status({ state: 'upToDate', lastChecked: 1700000200 }));
+    await flushPromises();
+    const write = calls.filter((call) => call.method === 'app.state.set').pop();
+    expect(JSON.parse(String(write?.params?.value))).toMatchObject({ upToDateChannel: 'stable', lastChecked: 1700000200 });
+  });
 });

@@ -23,4 +23,8 @@ export interface UpdatePreferences {
   notifications: boolean;
   lastChecked: number;
   lastAttempt: number;
+  // Channel whose most recent completed check found no update. Null when the
+  // last outcome was anything else — the up-to-date reassurance must never
+  // outlive a contradictory result or leak across channels.
+  upToDateChannel: UpdateChannel | null;
 }
