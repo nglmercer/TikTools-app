@@ -327,6 +327,7 @@ export default {
       peakViewers: 'Pico de espectadores',
     },
     kpi: {
+      average: 'Média diária',
       new: 'novo',
       vsPrevious: 'vs período anterior',
       peakAvg: 'pico {peak} · média {avg}',

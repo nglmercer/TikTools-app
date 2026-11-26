@@ -327,6 +327,7 @@ export default {
       peakViewers: 'Pic de spectateurs',
     },
     kpi: {
+      average: 'Moyenne quotidienne',
       new: 'nouveau',
       vsPrevious: 'vs période précédente',
       peakAvg: 'pic {peak} · moyenne {avg}',

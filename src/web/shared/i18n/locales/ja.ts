@@ -325,6 +325,7 @@ export default {
       peakViewers: "最大同時視聴者数",
     },
     kpi: {
+      average: '1日平均',
       new: '新規',
       vsPrevious: '前期比',
       peakAvg: "最大{peak}・平均{avg}",

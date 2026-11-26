@@ -148,7 +148,7 @@ watch(range, (value) => {
   position: absolute;
   z-index: var(--z-dropdown);
   top: calc(100% + var(--space-2));
-  left: 0;
+  right: 0;
   padding: var(--space-4);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);

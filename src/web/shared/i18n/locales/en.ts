@@ -325,6 +325,7 @@ export default {
       peakViewers: 'Peak viewers',
     },
     kpi: {
+      average: 'Daily avg',
       new: 'new',
       vsPrevious: 'vs previous period',
       peakAvg: 'peak {peak} · avg {avg}',

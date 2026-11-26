@@ -135,7 +135,6 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
         <h1 class="analytics-page__title">
           {{ t('analytics.title') }}
         </h1>
-
       </div>
       <div class="analytics-page__controls">
         <AnalyticsRangeBar
@@ -368,8 +367,13 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
     width: 100%;
   }
 
+  .analytics-page__controls {
+    flex-wrap: nowrap;
+  }
+
   .analytics-page__controls > :first-child {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     overflow-x: auto;
   }
 

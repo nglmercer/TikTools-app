@@ -325,6 +325,7 @@ export default {
       peakViewers: "观众峰值",
     },
     kpi: {
+      average: '日均',
       new: '',
       vsPrevious: '',
       peakAvg: "峰值 {peak} · 平均 {avg}",
