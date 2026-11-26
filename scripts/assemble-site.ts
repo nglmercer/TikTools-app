@@ -8,7 +8,8 @@ const root = resolve(import.meta.dirname, '..');
 const output = resolve(root, 'dist/site');
 const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
 const sourceCommit = git('rev-parse', 'HEAD');
-const dirty = git('status', '--porcelain') !== '';
+// The release snapshot refreshes inside the site workflow by design (see build-provenance.ts).
+const dirty = git('status', '--porcelain', '--', '.', ':(exclude)docs/experience/releases.json') !== '';
 if (dirty && process.env.TIKTOOLS_SITE_ALLOW_DIRTY !== '1') throw new Error('Commit the site source before assembling an artifact, or set TIKTOOLS_SITE_ALLOW_DIRTY=1 for a local preview.');
 for (const path of ['dist/docs/index.html', 'dist/demo/index.html']) await readFile(resolve(root, path));
 for (const kind of ['docs', 'demo']) {
