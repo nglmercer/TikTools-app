@@ -2010,9 +2010,9 @@ export default {
   },
   guides: { progress: "{total}件中{current}件目", help: "ガイドを表示", next: "次へ", previous: "前へ", done: "完了", pluginsSearchTitle: "プラグインを検索", pluginsSearch: "このセクションでプラグインを探せます。", changesTitle: "変更", changes: "同期する前に、変更と競合を確認してください。", installTitle: "プラグインをインストール", install: "パッケージを選択して、確認後にインストールしてください。", catalog: {
     button: "ガイドとチュートリアル", title: "ガイドとチュートリアル",
-    search: "チュートリアルを検索", tagsLabel: "チュートリアルの絞り込み", allTags: "すべて", start: "ガイドを開始", steps: "{count} ステップ",
+    search: "チュートリアルを検索", tagsLabel: "チュートリアルの絞り込み", allTags: "すべて", start: "ガイドを開始", steps: "{count} ステップ | {count} ステップ",
     back: "戻る", overview: "概要",
-    guides: "{count}件のガイド", specializedGuides: "特化ガイド",
+    guides: "{count}件のガイド | {count}件のガイド", specializedGuides: "特化ガイド",
     wizardLabel: "チュートリアルカタログの進行", stepPreview: "ステッププレビュー", demoPreview: "ミニデモ", demoSchematic: "簡易レイアウトマップ",
     screens: { catalog: "カタログ", category: "カテゴリ", guide: "ガイド" },
     empty: "検索に一致するチュートリアルはありません。",

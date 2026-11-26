@@ -2010,9 +2010,9 @@ export default {
   },
   guides: { progress: "第 {current} 步，共 {total} 步", help: "显示指南", next: "下一步", previous: "上一步", done: "完成", pluginsSearchTitle: "搜索插件", pluginsSearch: "在此部分查找插件。", changesTitle: "更改", changes: "同步前请审查更改和冲突。", installTitle: "安装插件", install: "选择一个包进行审查并安装。", catalog: {
     button: "指南和教程", title: "指南和教程",
-    search: "搜索教程", tagsLabel: "教程筛选", allTags: "全部", start: "开始指南", steps: "{count} 个步骤",
+    search: "搜索教程", tagsLabel: "教程筛选", allTags: "全部", start: "开始指南", steps: "{count} 个步骤 | {count} 个步骤",
     back: "返回", overview: "概览",
-    guides: "{count} 个指南", specializedGuides: "专项指南",
+    guides: "{count} 个指南 | {count} 个指南", specializedGuides: "专项指南",
     wizardLabel: "教程目录进度", stepPreview: "步骤预览", demoPreview: "迷你演示", demoSchematic: "简化布局图",
     screens: { catalog: "目录", category: "分类", guide: "指南" },
     empty: "没有符合搜索条件的教程。",
