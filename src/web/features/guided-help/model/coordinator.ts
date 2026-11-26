@@ -7,6 +7,7 @@ import { tourCatalogs, type TourCatalog } from '../catalogs/index.ts';
 import { isTourId, tourRegistry } from './registry.ts';
 import { readTourProgress, writeTourProgress } from './progress.ts';
 import { hasGuideAction, runGuideAction } from './guide-actions.ts';
+import { automationActionExampleAvailable } from './tour-requirements.ts';
 import type { GuideOutcome, GuideSession, GuideStep, StartTourOptions, TourLocale, TourStepDefinition, TourTaskState } from './types.ts';
 
 type DriverFactory = (config: Config) => Driver;
@@ -389,6 +390,12 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
     const existingScope = options.scope && query(options.scope, `[data-guide-scope="${definition.scope}"]`);
     const accountAvailable = () => definition.availability?.account !== 'signed-in'
       || (typeof options.signedIn === 'function' ? options.signedIn() : options.signedIn) === true;
+    const requirementsAvailable = () => {
+      const requirement = definition.requirements?.automationActionExample;
+      if (!requirement) return true;
+      const snapshot = typeof options.automationSnapshot === 'function' ? options.automationSnapshot() : options.automationSnapshot;
+      return !!snapshot && automationActionExampleAvailable(requirement, snapshot);
+    };
     return run({
       ...options, id, version: definition.version, route: existingScope?.isConnected ? undefined : definition.route, scopeName: definition.scope, task: definition.task,
       labels: catalog.controls,
@@ -396,7 +403,7 @@ export function createTourCoordinator(dependencies: CoordinatorDependencies = {}
         id: step.id, version: step.version, selector: `[data-guide="${step.target}"]`,
         title: textAt(step.titleKey), description: textAt(step.descriptionKey), missingTargetPolicy: step.missingTargetPolicy, prepareClick: step.prepareClick, prepareActions: step.prepareActions,
         popoverSide: step.popoverSide, popoverAlign: step.popoverAlign,
-        available: () => accountAvailable() && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
+        available: () => accountAvailable() && requirementsAvailable() && step.requiredCapabilities.every((method) => !options.capabilities || ('supports' in options.capabilities ? options.capabilities.supports(method) !== false : options.capabilities.includes(method))),
       })),
     });
   }

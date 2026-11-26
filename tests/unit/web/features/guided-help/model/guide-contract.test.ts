@@ -61,6 +61,14 @@ describe('guide contract', () => {
     }
   });
 
+
+  it('requires declared examples for every specialized action-editor tour', () => {
+    const generic = new Set(['automationActions', 'automationActionVars']);
+    for (const module of tourModules.filter((module) => module.shape === 'action' && !generic.has(module.id))) {
+      expect(tourRegistry[module.id].requirements?.automationActionExample, module.id).toBeTruthy();
+    }
+  });
+
   it('requires both an active action type and an existing matching record', () => {
     const fetchType = { id: 'core.fetch', tag: 'fetch', title: { default: 'Call a URL', i18key: '' }, source: { kind: 'builtin' as const } };
     const ttsType = { id: 'demo.tts', tag: 'tts', title: { default: 'Speak', i18key: '' }, source: { kind: 'plugin' as const, pluginId: 'demo.audio' } };

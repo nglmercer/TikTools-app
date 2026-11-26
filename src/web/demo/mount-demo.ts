@@ -20,6 +20,7 @@ import { demoTourScenarios, demoTourUrl, isDemoTour, scenarioTour, tourForRoute,
 import type { GuideOutcome } from '@/features/guided-help/model/types.ts';
 import { experienceCopy } from '../../../docs/experience/copy.ts';
 import { useNavigationStore } from '@/shared/model/navigation-store.ts';
+import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import type { BuiltinAppTab } from '@/types.ts';
 import { parseFrameCommand, type ConnectionCase, type DemoFrameState } from './frame-messages.ts';
 import { demoPreviewUrl } from './preview-url.ts';
@@ -99,6 +100,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     const stopRecommendation = workspaceRouter.afterEach(refreshRecommendation);
     app.onUnmount(stopRecommendation);
   }
+  const automation = app.runWithContext(() => useAutomationStore());
   const discovery = await client.call<{ methods: Array<{ name: string }> }>('rpc.discover', {});
   let tour: GuideSession | undefined;
   const taskState = () => ({
@@ -120,7 +122,7 @@ export async function bootDemo(options: ReturnType<typeof parseDemoOptions>, sto
     }
     tour?.stop('replaced');
     toolbarState.guideState = 'preparing';
-    const session = startTour(id, { router: app.config.globalProperties.$router, capabilities: discovery.methods.map((method) => method.name), locale: options.locale, trigger, taskState });
+    const session = startTour(id, { router: app.config.globalProperties.$router, capabilities: discovery.methods.map((method) => method.name), locale: options.locale, trigger, taskState, automationSnapshot: () => automation.behavior });
     tour = session;
     void session.ready.then((active) => { if (tour === session && active) toolbarState.guideState = 'active'; });
     void session.done.then((outcome) => { if (tour === session) { toolbarState.guideState = outcomeState(outcome); tour = undefined; } });

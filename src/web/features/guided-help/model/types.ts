@@ -1,5 +1,6 @@
 import type { Router } from 'vue-router';
 import type { Locale } from '@/shared/i18n/supported-locales.ts';
+import type { ActionTypeDefinition, LiveAction } from '../../../../automation/behavior/types.ts';
 
 import type { TourId } from '../tours/index.ts';
 export type { TourId } from '../tours/index.ts';
@@ -32,6 +33,11 @@ export interface AutomationActionExampleRequirement {
   /** Type tag for plugin-contributed families such as `tts`. */
   tag?: string;
 }
+export interface TourRequirementSnapshot {
+  actions: readonly Pick<LiveAction, 'typeId'>[];
+  actionTypes: readonly Pick<ActionTypeDefinition, 'id' | 'tag' | 'source' | 'title'>[];
+  plugins: readonly { installed: boolean; enabled: boolean; descriptor: { id: string } }[];
+}
 export interface TourRequirements {
   /** An existing configured action of this type/tag must be available; guides never create user records to satisfy it. */
   automationActionExample?: AutomationActionExampleRequirement;
@@ -62,6 +68,8 @@ export interface StartTourOptions {
   capabilities?: TourCapabilities;
   /** Current account state for tours that declare an account prerequisite. Account-required tours fail closed when this is not true. */
   signedIn?: boolean | (() => boolean | undefined);
+  /** Live automation definitions used to verify declared example-record requirements. Requirement-bearing tours fail closed while this is absent. */
+  automationSnapshot?: TourRequirementSnapshot | (() => TourRequirementSnapshot | undefined);
   /** Observed host state only. Advancing/dismissing help never sets these task flags. */
   taskState?: TourTaskState | (() => TourTaskState);
   locale?: TourLocale;

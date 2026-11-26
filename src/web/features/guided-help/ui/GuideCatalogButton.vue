@@ -68,7 +68,7 @@ watch(catalogOpen, (isOpen) => { if (isOpen) void account.ensureRestored(); });
       :on-launch="props.onLaunch ?? catalogContext.onLaunch"
       :preview-url="catalogContext.previewUrl"
       :signed-in="signedIn"
-      :automation-snapshot="automation.persistent === null ? undefined : automation.behavior"
+      :automation-snapshot="automation.behavior"
     />
   </Teleport>
 </template>

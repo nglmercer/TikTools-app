@@ -261,6 +261,7 @@ async function launch(id: TourId): Promise<void> {
     locale: tourLocale.value,
     capabilities: props.capabilities,
     signedIn: props.signedIn,
+    automationSnapshot: () => props.automationSnapshot,
     taskState: () => (typeof props.taskState === 'function' ? props.taskState() : props.taskState) ?? {},
   });
 }

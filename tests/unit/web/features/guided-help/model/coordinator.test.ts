@@ -455,6 +455,22 @@ describe('versioned registry and localized copy', () => {
   });
 });
 
+
+describe('declared action example requirements', () => {
+  it('fails closed when a requirement-bearing tour starts without a satisfying automation snapshot', async () => {
+    for (const automationSnapshot of [undefined, { actions: [], actionTypes: [], plugins: [] }] as const) {
+      const test = setup();
+      const root = mountTargets('automations', tourRegistry.automationActionHttp.steps.map((step) => step.target));
+      const session = test.coordinator.startTour('automationActionHttp', { scope: root, locale: 'en', automationSnapshot });
+      await flushPromises();
+      expect(await session.ready).toBe(false);
+      expect(await session.done).toBe('unavailable');
+      expect(test.loadDriver).not.toHaveBeenCalled();
+      root.remove();
+    }
+  });
+});
+
 describe('account and backup tour', () => {
   it('has text in every locale and steps through plan, create, tools and list', async () => {
     for (const catalog of Object.values(tourCatalogs)) {

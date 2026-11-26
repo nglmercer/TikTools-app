@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { isLocale } from '@/shared/i18n/supported-locales.ts';
 import { routerKey } from 'vue-router';
 import BaseIconButton from '@/shared/ui/button/BaseIconButton.vue';
+import { useAutomationStore } from '@/entities/automation/model/automation-store.ts';
 import { startInlineGuide, startTour } from '../model/coordinator.ts';
 import { tourRegistry } from '../model/registry.ts';
 import { tourCatalogs } from '../catalogs/index.ts';
@@ -21,6 +22,10 @@ const props = withDefaults(defineProps<{
 const { t, locale } = useI18n();
 const router = inject(routerKey, null);
 const guideLocale = computed<TourLocale>(() => isLocale(locale.value) ? locale.value : 'en');
+const automationSnapshot = () => {
+  if (!props.tour || !tourRegistry[props.tour].requirements?.automationActionExample) return undefined;
+  return useAutomationStore().behavior;
+};
 const label = computed(() => {
   if (!props.tour) return t('guides.help');
   const tour = tourRegistry[props.tour];
@@ -40,6 +45,7 @@ function start(event: MouseEvent): void {
     ...context, router: router ?? undefined, locale: guideLocale.value,
     capabilities: props.capabilities,
     signedIn: props.signedIn,
+    automationSnapshot,
     taskState: () => ({
       ...(typeof props.taskState === 'function' ? props.taskState() : props.taskState),
       ...(props.completed === true && tourRegistry[props.tour!].task ? { [tourRegistry[props.tour!].task!]: true } : {}),

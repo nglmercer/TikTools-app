@@ -1,11 +1,5 @@
-import type { ActionTypeDefinition, LiveAction } from '../../../../automation/behavior/types.ts';
-import type { AutomationActionExampleRequirement } from './types.ts';
-
-export interface TourRequirementSnapshot {
-  actions: readonly Pick<LiveAction, 'typeId'>[];
-  actionTypes: readonly Pick<ActionTypeDefinition, 'id' | 'tag' | 'source' | 'title'>[];
-  plugins: readonly { installed: boolean; enabled: boolean; descriptor: { id: string } }[];
-}
+import type { AutomationActionExampleRequirement, TourRequirementSnapshot } from './types.ts';
+export type { TourRequirementSnapshot } from './types.ts';
 
 function actionTypeActive(type: TourRequirementSnapshot['actionTypes'][number], plugins: TourRequirementSnapshot['plugins']): boolean {
   const source = type.source;
