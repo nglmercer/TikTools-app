@@ -83,6 +83,7 @@ export const guideTargets = {
   'analytics-facts': { zone: 'preview', ...bottomStart },
   'analytics-activity': { zone: 'list', ...topStart },
   'analytics-contributors': { zone: 'list', ...topStart },
+  'analytics-sessions': { zone: 'list', ...topStart },
   'diagnostics-log': { zone: 'list', ...rightStart },
   'diagnostics-actions': { zone: 'toolbar', ...bottomEnd },
 

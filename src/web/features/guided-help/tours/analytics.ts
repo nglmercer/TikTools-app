@@ -14,6 +14,7 @@ export default defineTour({
     { id: 'activity', target: 'analytics-activity', policy: 'skip' },
     { id: 'facts', target: 'analytics-facts', policy: 'skip' },
     { id: 'contributors', target: 'analytics-contributors', policy: 'skip' },
+    { id: 'sessions', target: 'analytics-sessions', policy: 'skip' },
   ],
   steps: {
     range: {
@@ -25,12 +26,12 @@ export default defineTour({
       zh: ['选择日期范围', '选择预设或自定义日期。摘要会针对当前创作者重新加载；更改范围永远不会修改已保存的事件。'],
     },
     metrics: {
-      es: ['Elige la métrica', 'Las tarjetas comparan chats, regalos, likes y entradas. La métrica seleccionada controla la gráfica sin modificar los datos.'],
-      en: ['Pick the metric', 'Cards compare chats, gifts, likes and joins. The selected metric drives the activity chart without mutating analytics data.'],
-      pt: ['Escolha a métrica', 'Os cartões comparam chats, presentes, gostos e entradas. A métrica selecionada controla o gráfico de atividade sem modificar os dados de análise.'],
-      fr: ['Choisissez la métrique', 'Les cartes comparent chats, cadeaux, likes et arrivées. La métrique sélectionnée pilote le graphique d’activité sans modifier les données d’analyse.'],
-      ja: ['指標を選択', 'カードはチャット、ギフト、いいね、参加を比較します。選択した指標は分析データを変更せずにアクティビティグラフだけを切り替えます。'],
-      zh: ['选择指标', '卡片比较聊天、礼物、点赞和进入。所选指标只驱动活动图表，不会修改分析数据。'],
+      es: ['Lee las métricas de un vistazo', 'Cada tarjeta resume un total del rango con su variación respecto al periodo anterior y una mini-gráfica de tendencia. La métrica de la gráfica grande se elige dentro del panel de actividad.'],
+      en: ['Read the metrics at a glance', 'Each card summarizes a range total with its delta against the previous period and a trend sparkline. The large chart metric is picked inside the activity panel.'],
+      pt: ['Leia as métricas de relance', 'Cada cartão resume um total do período com sua variação em relação ao período anterior e uma mini-tendência. A métrica do gráfico grande é escolhida dentro do painel de atividade.'],
+      fr: ['Lisez les métriques d’un coup d’œil', 'Chaque carte résume un total de la période avec sa variation par rapport à la période précédente et une mini-tendance. La métrique du grand graphique se choisit dans le panneau d’activité.'],
+      ja: ['指標を一目で確認', '各カードは期間の合計を前期間との差分とトレンドのスパークライン付きで要約します。大きなグラフの指標はアクティビティパネル内で選びます。'],
+      zh: ['一览各项指标', '每张卡片汇总范围内总计，并显示与前一时期的差值和趋势迷你图。大图表的指标在活动面板内选择。'],
     },
     activity: {
       es: ['Lee la actividad', 'Usa la gráfica para detectar días y horas activos. Un periodo vacío puede significar que no hubo LIVE o no hubo eventos coincidentes.'],
@@ -41,12 +42,20 @@ export default defineTour({
       zh: ['阅读活动图表', '使用图表找出活跃的日期和时段。空白时段可能表示没有 LIVE 或没有匹配事件。'],
     },
     facts: {
-      es: ['Revisa los datos clave', 'Los totales y sesiones ofrecen una vista compacta antes de comparar espectadores concretos.'],
-      en: ['Check the facts', 'Totals and session counts give a compact overview before comparing individual viewers.'],
-      pt: ['Verifique os dados principais', 'Totais e contagem de sessões oferecem uma visão compacta antes de comparar espectadores individuais.'],
-      fr: ['Vérifiez les faits clés', 'Les totaux et le nombre de sessions donnent une vue compacte avant de comparer des spectateurs individuels.'],
-      ja: ['主要指標を確認', '合計とセッション数で、個別の視聴者を比較する前にコンパクトな概要を確認できます。'],
-      zh: ['查看关键数据', '总数和会话次数提供紧凑概览，便于之后比较单个观众。'],
+      es: ['Revisa los datos clave', 'Mejor día, hora pico, medias por sesión y la mezcla de interacciones se derivan solos del rango — sin cálculos a mano.'],
+      en: ['Check the key facts', 'Best day, peak hour, per-session averages and the interaction mix are derived from the range automatically — no manual math.'],
+      pt: ['Verifique os dados principais', 'Melhor dia, horário de pico, médias por sessão e a mistura de interações são derivados do período automaticamente — sem contas manuais.'],
+      fr: ['Vérifiez les faits clés', 'Meilleur jour, heure de pointe, moyennes par session et répartition des interactions sont calculés automatiquement sur la période — sans calculs manuels.'],
+      ja: ['主要指標を確認', '最高の日・ピーク時間・セッション平均・インタラクション構成は期間から自動で導かれます。手計算は不要です。'],
+      zh: ['查看关键数据', '最佳日期、高峰时段、每场平均和互动构成都会根据范围自动推导——无需手动计算。'],
+    },
+    sessions: {
+      es: ['Revisa cada emisión', 'La pestaña de sesiones lista cada directo del rango con su duración, pico de espectadores y actividad. Los que siguen en vivo aparecen marcados.'],
+      en: ['Review each broadcast', 'The sessions tab lists every broadcast in the range with its duration, viewer peak and engagement. Ongoing ones are badged live.'],
+      pt: ['Revise cada transmissão', 'A aba de sessões lista cada transmissão do período com duração, pico de espectadores e engajamento. As que continuam ao vivo aparecem marcadas.'],
+      fr: ['Passez en revue chaque diffusion', 'L’onglet sessions liste chaque diffusion de la période avec sa durée, son pic de spectateurs et son engagement. Celles encore en direct sont marquées.'],
+      ja: ['各配信を確認', 'セッションタブは期間内の各配信を長さ・視聴者ピーク・エンゲージメント付きで一覧します。進行中のものはライブ表示されます。'],
+      zh: ['查看每场直播', '场次标签页列出范围内每场直播的时长、观众峰值和互动数据。正在进行的直播会有标记。'],
     },
     contributors: {
       es: ['Busca contribuyentes', 'Ordena o busca en la tabla para encontrar los espectadores más activos. Es una clasificación de solo lectura.'],
