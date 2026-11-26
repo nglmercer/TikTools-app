@@ -3,6 +3,8 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatCount } from '@/shared/lib/intl.ts';
 import { buildLineGeometry, seriesMax } from '../lib/chart-geometry.ts';
+import { useChartHover } from '../lib/use-chart-hover.ts';
+import ChartHoverTooltip from './ChartHoverTooltip.vue';
 import {
   analyticsMetrics,
   metricColor,
@@ -56,6 +58,28 @@ const overlaid = computed(() =>
       }))
     : [],
 );
+const hoverTitle = computed(() => (hoverIndex.value === null ? '' : weekdayLabels.value[hoverIndex.value] ?? ''));
+const hoverRows = computed(() => {
+  const index = hoverIndex.value;
+  if (index === null) return [];
+  const metrics = isAll.value ? analyticsMetrics : [props.metric as Exclude<AnalyticsMetricSelection, 'all'>];
+  return metrics.map((metric) => ({
+    key: metric,
+    color: metricColor[metric],
+    label: t(`analytics.metrics.${metric}`),
+    value: formatCount(reorder(props.series[metric])[index] ?? 0, locale.value),
+    before: null,
+  }));
+});
+const tooltipStyle = computed(() => {
+  const index = hoverIndex.value;
+  if (index === null) return {};
+  const ratio = slotX(index) / box.width;
+  const translate = ratio < 0.15 ? '0' : ratio > 0.85 ? '-100%' : '-50%';
+  return { left: `${ratio * 100}%`, transform: `translateX(${translate})` };
+});
+const hoverX = computed(() => (hoverIndex.value === null ? null : slotX(hoverIndex.value)));
+
 const max = computed(() =>
   isAll.value
     ? overlaid.value.reduce((top, series) => Math.max(top, seriesMax(series.values)), 0)
@@ -65,6 +89,11 @@ const overlaidGeometry = computed(() =>
   overlaid.value.map((series) => ({ metric: series.metric, geometry: buildLineGeometry(series.values, box, max.value) })),
 );
 const label = computed(() => t(`analytics.metrics.${props.metric}`));
+
+// ── Hover inspection — indices are display-order positions, matching the
+// reordered series and the label ticks exactly. ───────────────────────────
+const slotCount = computed(() => WEEKDAYS_PER_WEEK);
+const { hoverIndex, onPointermove, onPointerleave, slotX } = useChartHover(box, slotCount);
 const slot = (box.width - box.pad * 2) / WEEKDAYS_PER_WEEK;
 const width = Math.max(2, Math.min(40, slot * 0.5));
 const innerHeight = box.height - box.pad * 2;
@@ -80,12 +109,15 @@ const bars = computed(() =>
 </script>
 
 <template>
-  <svg
-    class="weekday-chart"
-    :viewBox="`0 0 ${box.width} ${box.height}`"
-    role="img"
-    :aria-label="`${label}: ${formatCount(max, locale)}`"
-  >
+  <div class="weekday-chart">
+    <svg
+      class="weekday-chart__svg"
+      :viewBox="`0 0 ${box.width} ${box.height}`"
+      role="img"
+      :aria-label="`${label}: ${formatCount(max, locale)}`"
+      @pointermove="onPointermove"
+      @pointerleave="onPointerleave"
+    >
     <g
       v-for="step in gridSteps"
       :key="step"
@@ -123,11 +155,17 @@ const bars = computed(() =>
         :height="bar.height"
         rx="2"
         :fill="metricColor[metric as Exclude<AnalyticsMetricSelection, 'all'>]"
-        opacity="0.9"
-      >
-        <title>{{ weekdayLabels[bar.index] }} — {{ label }}: {{ formatCount(bar.value, locale) }}</title>
-      </rect>
+        :opacity="hoverIndex === null || hoverIndex === bar.index ? 0.9 : 0.35"
+      />
     </template>
+    <line
+      v-if="hoverX !== null"
+      class="weekday-chart__guide"
+      :x1="hoverX"
+      :x2="hoverX"
+      :y1="box.pad"
+      :y2="box.height - box.pad"
+    />
     <text
       v-for="(tick, index) in weekdayLabels"
       :key="index"
@@ -136,14 +174,34 @@ const bars = computed(() =>
       :y="box.height - 4"
       text-anchor="middle"
     >{{ tick }}</text>
-  </svg>
+    </svg>
+    <ChartHoverTooltip
+      v-if="hoverIndex !== null"
+      :style="tooltipStyle"
+      :title="hoverTitle"
+      :rows="hoverRows"
+    />
+  </div>
 </template>
 
 <style scoped>
 .weekday-chart {
+  position: relative;
+}
+
+.weekday-chart__svg {
   display: block;
   width: 100%;
   height: auto;
+  cursor: crosshair;
+}
+
+.weekday-chart__guide {
+  stroke: var(--color-text-subtle);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: .6;
+  pointer-events: none;
 }
 
 .weekday-chart__grid {

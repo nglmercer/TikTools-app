@@ -160,6 +160,23 @@ describe('AnalyticsPage', () => {
     expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toMatch(/^Diamonds:/);
   });
 
+  it('shows a value tooltip when hovering the daily chart', async () => {
+    const { wrapper } = await mountPage();
+    const svg = wrapper.get('svg[role="img"]');
+    // happy-dom reports zero-size boxes; pretend the svg renders at viewBox size.
+    const element = svg.element as SVGSVGElement;
+    element.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 720, height: 220, right: 720, bottom: 220, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    expect(wrapper.find('.chart-tooltip').exists()).toBe(false);
+    await svg.trigger('pointermove', { clientX: 360, clientY: 100 });
+    const tooltip = wrapper.get('.chart-tooltip');
+    expect(tooltip.text()).toContain(t('analytics.metrics.chats'));
+    // The guide line and hover dot appear while the pointer is over the chart…
+    expect(svg.find('.daily-chart__guide').exists()).toBe(true);
+    await svg.trigger('pointerleave');
+    expect(wrapper.find('.chart-tooltip').exists()).toBe(false);
+  });
+
   it('overlays every metric when the all option is selected', async () => {
     const { wrapper } = await mountPage();
     const panel = wrapper.get('[data-guide="analytics-activity"]');
@@ -199,7 +216,7 @@ describe('AnalyticsPage', () => {
     const { wrapper } = await mountPage();
     expect(wrapper.text()).toContain(t('analytics.activity.weekdayPattern'));
     expect(wrapper.text()).toContain(t('analytics.activity.weekdayPatternHint'));
-    expect(wrapper.find('svg.weekday-chart').exists()).toBe(true);
+    expect(wrapper.find('.weekday-chart svg').exists()).toBe(true);
   });
 
   it('hides the hour-of-day pattern when no hourly data exists', async () => {

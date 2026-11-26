@@ -3,6 +3,8 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatCount } from '@/shared/lib/intl.ts';
 import { buildLineGeometry, seriesMax } from '../lib/chart-geometry.ts';
+import { useChartHover } from '../lib/use-chart-hover.ts';
+import ChartHoverTooltip from './ChartHoverTooltip.vue';
 import {
   analyticsMetrics,
   formatHourLabel,
@@ -45,6 +47,31 @@ const overlaidGeometry = computed(() =>
   overlaid.value.map((series) => ({ metric: series.metric, geometry: buildLineGeometry(series.values, box, max.value) })),
 );
 const label = computed(() => t(`analytics.metrics.${props.metric}`));
+
+// ── Hover inspection ─────────────────────────────────────────────────────
+const slotCount = computed(() => HOURS_PER_DAY);
+const { hoverIndex, onPointermove, onPointerleave, slotX } = useChartHover(box, slotCount);
+const hoverTitle = computed(() => (hoverIndex.value === null ? '' : formatHourLabel(hoverIndex.value)));
+const hoverRows = computed(() => {
+  const index = hoverIndex.value;
+  if (index === null) return [];
+  const metrics = isAll.value ? analyticsMetrics : [props.metric as Exclude<AnalyticsMetricSelection, 'all'>];
+  return metrics.map((metric) => ({
+    key: metric,
+    color: metricColor[metric],
+    label: t(`analytics.metrics.${metric}`),
+    value: formatCount(props.series[metric][index] ?? 0, locale.value),
+    before: null,
+  }));
+});
+const tooltipStyle = computed(() => {
+  const index = hoverIndex.value;
+  if (index === null) return {};
+  const ratio = slotX(index) / box.width;
+  const translate = ratio < 0.15 ? '0' : ratio > 0.85 ? '-100%' : '-50%';
+  return { left: `${ratio * 100}%`, transform: `translateX(${translate})` };
+});
+const hoverX = computed(() => (hoverIndex.value === null ? null : slotX(hoverIndex.value)));
 const slot = (box.width - box.pad * 2) / HOURS_PER_DAY;
 const width = Math.max(2, Math.min(18, slot * 0.62));
 const innerHeight = box.height - box.pad * 2;
@@ -60,12 +87,15 @@ const bars = computed(() =>
 
 <template>
   <div class="hourly-chart">
-    <svg
-      class="hourly-chart__svg"
-      :viewBox="`0 0 ${box.width} ${box.height}`"
-      role="img"
-      :aria-label="`${label}: ${formatCount(max, locale)}`"
-    >
+    <div class="hourly-chart__plot">
+      <svg
+        class="hourly-chart__svg"
+        :viewBox="`0 0 ${box.width} ${box.height}`"
+        role="img"
+        :aria-label="`${label}: ${formatCount(max, locale)}`"
+        @pointermove="onPointermove"
+        @pointerleave="onPointerleave"
+      >
       <g
         v-for="step in gridSteps"
         :key="step"
@@ -103,11 +133,17 @@ const bars = computed(() =>
           :height="bar.height"
           rx="2"
           :fill="metricColor[metric as Exclude<AnalyticsMetricSelection, 'all'>]"
-          opacity="0.9"
-        >
-          <title>{{ formatHourLabel(bar.hour) }} — {{ label }}: {{ formatCount(bar.value, locale) }}</title>
-        </rect>
+          :opacity="hoverIndex === null || hoverIndex === bar.hour ? 0.9 : 0.35"
+        />
       </template>
+      <line
+        v-if="hoverX !== null"
+        class="hourly-chart__guide"
+        :x1="hoverX"
+        :x2="hoverX"
+        :y1="box.pad"
+        :y2="box.height - box.pad"
+      />
       <text
         v-for="hour in tickHours"
         :key="hour"
@@ -116,7 +152,14 @@ const bars = computed(() =>
         :y="box.height - 4"
         :text-anchor="hour === 0 ? 'start' : hour === 23 ? 'end' : 'middle'"
       >{{ formatHourLabel(hour) }}</text>
-    </svg>
+      </svg>
+      <ChartHoverTooltip
+        v-if="hoverIndex !== null"
+        :style="tooltipStyle"
+        :title="hoverTitle"
+        :rows="hoverRows"
+      />
+    </div>
     <p
       v-if="max === 0"
       class="hourly-chart__empty"
@@ -133,10 +176,23 @@ const bars = computed(() =>
   gap: var(--space-3);
 }
 
+.hourly-chart__plot {
+  position: relative;
+}
+
 .hourly-chart__svg {
   display: block;
   width: 100%;
   height: auto;
+  cursor: crosshair;
+}
+
+.hourly-chart__guide {
+  stroke: var(--color-text-subtle);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: .6;
+  pointer-events: none;
 }
 
 .hourly-chart__grid {
