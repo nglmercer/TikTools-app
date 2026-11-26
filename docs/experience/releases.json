@@ -1,7 +1,95 @@
 {
   "source": "https://api.github.com/repos/nglmercer/TikTools-app/releases?per_page=5",
-  "checkedAt": "2026-11-23T23:23:16.708Z",
+  "checkedAt": "2026-11-26T22:02:25.801Z",
   "releases": [
+    {
+      "tag": "v4.5.2",
+      "name": "v4.5.2",
+      "url": "https://github.com/nglmercer/TikTools-app/releases/tag/v4.5.2",
+      "publishedAt": "2026-11-26T22:00:03Z",
+      "prerelease": false,
+      "highlights": [
+        "Linux: the install confirmation dialog now actually appears. On 4.5.1 the confirmation was created without a parent window, and compositors with focus-stealing prevention (notably KDE Plasma) presented it behind the main window — the Install button looked dead. The dialog is now a native GTK dialog transient for the app window. The same fix applies to the plugin restart confirmation.",
+        "The updater now shows its outcome next to the installed version: after a restart you still see \"up to date\" instead of an empty area, downloads show progress inside the button itself, failed downloads offer a visible retry, and the buttons collapse to icons on narrow windows.",
+        "Linux: el diálogo de confirmación de instalación ahora sí aparece. En 4.5.1 se creaba sin ventana padre y compositores con prevención de robo de foco (como KDE Plasma) lo mostraban detrás de la ventana principal — el botón Instalar parecía muerto. Ahora es un diálogo GTK nativo asociado a la ventana de la app. El mismo fix aplica al diálogo de reinicio de plugins."
+      ],
+      "assets": [
+        {
+          "name": "SHA256SUMS.txt",
+          "size": 526,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.2/SHA256SUMS.txt"
+        },
+        {
+          "name": "TikTools-4.5.2-linux-x86_64-installer.deb",
+          "size": 22952812,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.2/TikTools-4.5.2-linux-x86_64-installer.deb"
+        },
+        {
+          "name": "TikTools-4.5.2-linux-x86_64.tar.gz",
+          "size": 22960631,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.2/TikTools-4.5.2-linux-x86_64.tar.gz"
+        },
+        {
+          "name": "TikTools-4.5.2-windows-x86_64-installer.exe",
+          "size": 15994519,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.2/TikTools-4.5.2-windows-x86_64-installer.exe"
+        },
+        {
+          "name": "TikTools-4.5.2-windows-x86_64.zip",
+          "size": 21908756,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.2/TikTools-4.5.2-windows-x86_64.zip"
+        },
+        {
+          "name": "TikTools-4.5.2-x86_64-installer.AppImage",
+          "size": 148154872,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.2/TikTools-4.5.2-x86_64-installer.AppImage"
+        }
+      ]
+    },
+    {
+      "tag": "v4.5.1",
+      "name": "v4.5.1",
+      "url": "https://github.com/nglmercer/TikTools-app/releases/tag/v4.5.1",
+      "publishedAt": "2026-11-26T18:25:54Z",
+      "prerelease": false,
+      "highlights": [
+        "Optimize live event processing and feed rendering",
+        "Add plugin-owned live platform ingestion",
+        "@devin-ai-integration[bot] made their first contribution in"
+      ],
+      "assets": [
+        {
+          "name": "SHA256SUMS.txt",
+          "size": 526,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.1/SHA256SUMS.txt"
+        },
+        {
+          "name": "TikTools-4.5.1-linux-x86_64-installer.deb",
+          "size": 22946156,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.1/TikTools-4.5.1-linux-x86_64-installer.deb"
+        },
+        {
+          "name": "TikTools-4.5.1-linux-x86_64.tar.gz",
+          "size": 22953394,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.1/TikTools-4.5.1-linux-x86_64.tar.gz"
+        },
+        {
+          "name": "TikTools-4.5.1-windows-x86_64-installer.exe",
+          "size": 16001064,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.1/TikTools-4.5.1-windows-x86_64-installer.exe"
+        },
+        {
+          "name": "TikTools-4.5.1-windows-x86_64.zip",
+          "size": 21900780,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.1/TikTools-4.5.1-windows-x86_64.zip"
+        },
+        {
+          "name": "TikTools-4.5.1-x86_64-installer.AppImage",
+          "size": 148134392,
+          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.5.1/TikTools-4.5.1-x86_64-installer.AppImage"
+        }
+      ]
+    },
     {
       "tag": "v4.5.0",
       "name": "v4.5.0",
@@ -129,84 +217,6 @@
           "name": "TikTools-4.2.3-windows-x86_64.zip",
           "size": 29208954,
           "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.3/TikTools-4.2.3-windows-x86_64.zip"
-        }
-      ]
-    },
-    {
-      "tag": "v4.2.2",
-      "name": "v4.2.2",
-      "url": "https://github.com/nglmercer/TikTools-app/releases/tag/v4.2.2",
-      "publishedAt": "2026-11-13T21:55:57Z",
-      "prerelease": false,
-      "highlights": [
-        "feat(variables): add reviewed sync and repair CI validation",
-        "fix(variables): preserve exact numbers across browser edits",
-        "test(variables): handle an absent browser fixture value"
-      ],
-      "assets": [
-        {
-          "name": "SHA256SUMS.txt",
-          "size": 532,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.2/SHA256SUMS.txt"
-        },
-        {
-          "name": "TikTools-4.2.2-linux-x86_64-installer.AppImage",
-          "size": 167795192,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.2/TikTools-4.2.2-linux-x86_64-installer.AppImage"
-        },
-        {
-          "name": "TikTools-4.2.2-linux-x86_64-installer.deb",
-          "size": 31403876,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.2/TikTools-4.2.2-linux-x86_64-installer.deb"
-        },
-        {
-          "name": "TikTools-4.2.2-linux-x86_64.tar.gz",
-          "size": 31455303,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.2/TikTools-4.2.2-linux-x86_64.tar.gz"
-        },
-        {
-          "name": "TikTools-4.2.2-windows-x86_64-installer.exe",
-          "size": 20426928,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.2/TikTools-4.2.2-windows-x86_64-installer.exe"
-        },
-        {
-          "name": "TikTools-4.2.2-windows-x86_64.zip",
-          "size": 28464403,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.2/TikTools-4.2.2-windows-x86_64.zip"
-        }
-      ]
-    },
-    {
-      "tag": "v4.2.1-rc.3",
-      "name": "TikTools 4.2.1-rc.3 (Linux)",
-      "url": "https://github.com/nglmercer/TikTools-app/releases/tag/v4.2.1-rc.3",
-      "publishedAt": "2026-11-13T13:46:59Z",
-      "prerelease": true,
-      "highlights": [
-        "Retains RC2's correction for concurrent Changes/conflict reads and its local retry with the native failure reason.",
-        "Variables now persist explicit text, number, boolean, list and local-secret types. Saves are atomic and reject a changed host or stale editor revision. Existing text rendering in automation templates remains compatible.",
-        "A secret stays masked in the editor and never falls back to a legacy write after switching hosts. Native classification also blocks publication of values queued before the variable became secret; Changes projections omit those values. Saving Variables remains local."
-      ],
-      "assets": [
-        {
-          "name": "SHA256SUMS.txt",
-          "size": 337,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.1-rc.3/SHA256SUMS.txt"
-        },
-        {
-          "name": "TikTools-4.2.1-rc.3-linux-x86_64-installer.AppImage",
-          "size": 173304312,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.1-rc.3/TikTools-4.2.1-rc.3-linux-x86_64-installer.AppImage"
-        },
-        {
-          "name": "TikTools-4.2.1-rc.3-linux-x86_64-installer.deb",
-          "size": 31218458,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.1-rc.3/TikTools-4.2.1-rc.3-linux-x86_64-installer.deb"
-        },
-        {
-          "name": "TikTools-4.2.1-rc.3-linux-x86_64.tar.gz",
-          "size": 31271566,
-          "url": "https://github.com/nglmercer/TikTools-app/releases/download/v4.2.1-rc.3/TikTools-4.2.1-rc.3-linux-x86_64.tar.gz"
         }
       ]
     }
