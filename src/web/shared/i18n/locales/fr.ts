@@ -125,6 +125,7 @@ export default {
     retryHelp: 'Réessayez, vérifiez votre connexion ou téléchargez la version manuellement.',
     retryDownload: 'Réessayer le téléchargement',
     downloading: 'Téléchargement de la mise à jour…', progress: 'Téléchargement : {percent} %', verifying: 'Vérification de la mise à jour…', closing: 'Fermeture de TikTools pour installer la mise à jour…',
+    installing: 'En attente de la confirmation d’installation…',
     manualRecovery: 'Vous pouvez aussi télécharger une version manuellement :',
     manual: 'L’installation automatique n’est pas disponible. Téléchargez une version manuellement :',
   },

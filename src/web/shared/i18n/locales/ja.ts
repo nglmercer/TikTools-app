@@ -123,6 +123,7 @@ export default {
     retryHelp: "再試行するか、接続を確認するか、リリースを手動でダウンロードしてください。",
     retryDownload: "ダウンロードを再試行",
     downloading: "アップデートをダウンロード中…", progress: "ダウンロード中：{percent}%", verifying: "アップデートを検証中…", closing: "アップデートをインストールするためTikToolsを終了中…",
+    installing: 'インストールの確認待ち…',
     manualRecovery: "リリースを手動でダウンロードすることもできます：",
     manual: "自動インストールを利用できません。リリースを手動でダウンロードしてください：",
   },

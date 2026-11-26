@@ -123,6 +123,7 @@ export default {
     retryHelp: 'Try again, check your connection, or download the release manually.',
     retryDownload: 'Retry download',
     downloading: 'Downloading update…', progress: 'Downloading: {percent}%', verifying: 'Verifying update…', closing: 'Closing TikTools to install the update…',
+    installing: 'Waiting for install confirmation…',
     manualRecovery: 'You can also download a release manually:',
     manual: 'Automatic installation is unavailable. Download a release manually:',
   },

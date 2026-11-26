@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import DiagnosticStatusAction from "@/shared/diagnostics/DiagnosticStatusAction.vue";
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAppUpdaterStore } from '../model/updater-store.ts';
 import type { UpdateChannel } from '../api/updater-types.ts';
@@ -9,6 +9,10 @@ import BaseSwitch from '@/shared/ui/switch/BaseSwitch.vue';
 import BaseComboBox from '@/shared/ui/combo-box/BaseComboBox.vue';
 import SettingsRow from '@/shared/ui/settings-row/SettingsRow.vue';
 import BaseGroupBox from '@/shared/ui/group-box/BaseGroupBox.vue';
+import IconRefresh from '@/shared/ui/icon/icons/IconRefresh.vue';
+import IconDownload from '@/shared/ui/icon/icons/IconDownload.vue';
+import IconHardDrive from '@/shared/ui/icon/icons/IconHardDrive.vue';
+import IconWarning from '@/shared/ui/icon/icons/IconWarning.vue';
 
 const { t, locale } = useI18n();
 const updater = useAppUpdaterStore();
@@ -27,6 +31,17 @@ function setChannel(value: UpdateChannel | undefined): void {
 }
 function install(): void {
   window.ipc?.postMessage(JSON.stringify({ type: 'app-update-install', locale: locale.value }));
+}
+const checking = computed(() => status.value?.state === 'checking');
+const downloading = computed(() => status.value?.state === 'downloading');
+const downloadFailed = computed(() => status.value?.state === 'failed' && status.value?.error?.code === 'download_failed');
+// The install handoff is fire-and-forget by design (the process exits on
+// success), so the button must latch its own pending feedback: the user
+// otherwise sees a live-looking button while the native confirmation is up.
+const installRequested = ref(false);
+function requestInstall(): void {
+  installRequested.value = true;
+  install();
 }
 </script>
 
@@ -102,31 +117,50 @@ function install(): void {
       <div class="app-updater__actions">
         <BaseButton
           :disabled="busy || !updater.preferencesLoaded || !status?.checkSupported"
+          :aria-label="t('appUpdater.check')"
           @click="updater.check()"
         >
-          {{ t('appUpdater.check') }}
+          <template #icon>
+            <IconRefresh :class="{ 'app-updater__spin': checking }" />
+          </template>
+          <span class="app-updater__label">{{ checking ? t('appUpdater.checking') : t('appUpdater.check') }}</span>
         </BaseButton>
         <BaseButton
-          v-if="(status?.state === 'available' || (status?.state === 'failed' && status.error?.code === 'download_failed')) && status.installSupported && matchingChannel"
+          v-if="(status?.state === 'available' || downloadFailed) && status?.installSupported && matchingChannel"
+          :variant="downloadFailed ? 'danger' : 'default'"
           :disabled="busy"
+          :aria-label="t(downloadFailed ? 'appUpdater.retryDownload' : 'appUpdater.download')"
           @click="updater.download()"
         >
-          {{ t(status?.state === 'failed' ? 'appUpdater.retryDownload' : 'appUpdater.download') }}
+          <template #icon>
+            <IconWarning v-if="downloadFailed" />
+            <IconDownload v-else />
+          </template>
+          <span class="app-updater__label">{{ t(downloadFailed ? 'appUpdater.retryDownload' : 'appUpdater.download') }}</span>
+        </BaseButton>
+        <BaseButton
+          v-if="downloading"
+          disabled
+          :aria-label="t('appUpdater.downloading')"
+        >
+          <template #icon>
+            <IconDownload class="app-updater__pulse" />
+          </template>
+          <span class="app-updater__label">{{ progress === null ? t('appUpdater.downloading') : t('appUpdater.progress', { percent: progress }) }}</span>
         </BaseButton>
         <BaseButton
           v-if="status?.state === 'readyToInstall' && status.installSupported && matchingChannel"
           variant="primary"
-          @click="install"
+          :disabled="installRequested"
+          :aria-label="t('appUpdater.install')"
+          @click="requestInstall"
         >
-          {{ t('appUpdater.install') }}
+          <template #icon>
+            <IconHardDrive :class="{ 'app-updater__pulse': installRequested }" />
+          </template>
+          <span class="app-updater__label">{{ installRequested ? t('appUpdater.installing') : t('appUpdater.install') }}</span>
         </BaseButton>
       </div>
-      <p v-if="status?.state === 'checking'">
-        {{ t('appUpdater.checking') }}
-      </p>
-      <p v-if="status?.state === 'downloading'">
-        {{ progress === null ? t('appUpdater.downloading') : t('appUpdater.progress', { percent: progress }) }}
-      </p>
       <progress
         v-if="status?.state === 'downloading'"
         class="app-updater__progress"
@@ -178,5 +212,12 @@ function install(): void {
 .app-updater__progress { width: 100%; max-width: 360px; accent-color: var(--color-accent); }
 .app-updater__notes { white-space: pre-wrap; overflow-wrap: anywhere; }
 .app-updater__url { color: var(--color-text-muted); overflow-wrap: anywhere; user-select: text; }
-@media (width < 600px) { .app-updater__channel { max-width: none; } }
+.app-updater__spin { animation: app-updater-spin 1s linear infinite; }
+.app-updater__pulse { animation: app-updater-pulse 1.2s ease-in-out infinite; }
+@keyframes app-updater-spin { to { transform: rotate(360deg); } }
+@keyframes app-updater-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (width < 600px) {
+  .app-updater__channel { max-width: none; }
+  .app-updater__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}
 </style>

@@ -123,6 +123,7 @@ export default {
     retryHelp: "请重试、检查连接，或手动下载发布版本。",
     retryDownload: "重试下载",
     downloading: "正在下载更新…", progress: "下载进度：{percent}%", verifying: "正在验证更新…", closing: "正在关闭 TikTools 以安装更新…",
+    installing: '等待安装确认…',
     manualRecovery: "你也可以手动下载发布版本：",
     manual: "无法自动安装。请手动下载发布版本：",
   },
