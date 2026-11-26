@@ -14,7 +14,7 @@ export async function fetchAnalyticsSummary(
   request: AnalyticsSummaryRequest,
 ): Promise<AnalyticsSummaryData | null> {
   const result = await client.call<{ summary: AnalyticsSummaryData | null }>('analytics.summary', {
-    limit: 10,
+    limit: 100,
     ...request,
   });
   return result.summary;

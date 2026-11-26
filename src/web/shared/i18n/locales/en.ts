@@ -289,6 +289,18 @@ export default {
     },
   },
   analytics: {
+    comparePrevious: 'Previous period',
+    noHourly: 'Hourly detail is only available for activity recorded with the current version.',
+    contributorsShare: 'Share',
+    insights: {
+      title: 'Insights',
+      bestDay: 'Best day',
+      peakHour: 'Peak hour',
+      perSession: 'Per session',
+      sessions: 'Sessions',
+      mix: 'Engagement mix',
+    },
+    
     title: 'Analytics',
     refresh: 'Refresh',
     loading: 'Loading analytics…',
@@ -313,6 +325,8 @@ export default {
       peakViewers: 'Peak viewers',
     },
     kpi: {
+      new: 'new',
+      vsPrevious: 'vs previous period',
       peakAvg: 'peak {peak} · avg {avg}',
       single: '{value} in range',
     },

@@ -17,7 +17,7 @@ import {
 } from '@/entities/analytics/lib/analytics-range.ts';
 import { useAnalyticsStore } from '@/entities/analytics/model/analytics-store.ts';
 import AnalyticsContributorsTable from '@/entities/analytics/ui/AnalyticsContributorsTable.vue';
-import AnalyticsFacts from '@/entities/analytics/ui/AnalyticsFacts.vue';
+import AnalyticsInsights from '@/entities/analytics/ui/AnalyticsInsights.vue';
 import AnalyticsMetricStrip from '@/entities/analytics/ui/AnalyticsMetricStrip.vue';
 import { debounce, loadViewState, saveViewState } from '@/shared/lib/view-state.ts';
 import AnalyticsRangeBar from '@/features/select-analytics-range/ui/AnalyticsRangeBar.vue';
@@ -35,7 +35,7 @@ import AnalyticsActivityPanel from '@/widgets/analytics-activity/ui/AnalyticsAct
 const { t, locale } = useI18n();
 const connection = useConnectionStore();
 const store = useAnalyticsStore();
-const { summary, loading, error } = storeToRefs(store);
+const { summary, previous, loading, error } = storeToRefs(store);
 
 const saved = loadViewState().analytics;
 const today = systemDay(Date.now());
@@ -153,21 +153,22 @@ watch([range, metric, query, customStart, customEnd], persist);
     <template v-else>
       <AnalyticsMetricStrip
         data-guide="analytics-metrics"
-        v-model="metric"
         :totals="summary.totals"
+        :previous-totals="previous?.totals ?? null"
+        :days="summary.days"
+        :start-day="summary.startDay"
+        :end-day="summary.endDay"
       />
       <div class="analytics-page__main">
         <AnalyticsActivityPanel
           data-guide="analytics-activity"
           class="analytics-page__activity"
+          v-model:metric="metric"
           :summary="summary"
-          :metric="metric"
+          :previous="previous"
         />
-        <BasePanel data-guide="analytics-facts" :title="t('analytics.facts.title')">
-          <AnalyticsFacts
-            :totals="summary.totals"
-            :sessions="summary.sessions"
-          />
+        <BasePanel data-guide="analytics-facts" :title="t('analytics.insights.title')">
+          <AnalyticsInsights :summary="summary" />
         </BasePanel>
       </div>
       <BasePanel

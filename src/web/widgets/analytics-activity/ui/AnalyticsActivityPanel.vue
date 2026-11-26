@@ -2,37 +2,35 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AnalyticsSummaryData } from '../../../../shared/messages.ts';
-import { hourRowsToSeries, viewersToHourlySeries, type AnalyticsMetric } from '@/entities/analytics/lib/analytics-metrics.ts';
+import { analyticsMetrics, hourRowsToSeries, type AnalyticsMetric } from '@/entities/analytics/lib/analytics-metrics.ts';
 import {
   formatDayDate,
   formatSpan,
   formatZoneShort,
   isSingleDaySpan,
-  tzOffsetSecsForDay,
 } from '@/entities/analytics/lib/analytics-range.ts';
 import AnalyticsDailyChart from '@/entities/analytics/ui/AnalyticsDailyChart.vue';
 import AnalyticsHourlyChart from '@/entities/analytics/ui/AnalyticsHourlyChart.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
+import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 
 const props = defineProps<{
   summary: AnalyticsSummaryData;
-  metric: AnalyticsMetric;
+  previous: AnalyticsSummaryData | null;
 }>();
 
+/** The charted metric is picked here, in the panel it affects — not by the KPI cards. */
+const metric = defineModel<AnalyticsMetric>('metric', { required: true });
 const { t, locale } = useI18n();
 const span = computed(() => ({ startDay: props.summary.startDay, endDay: props.summary.endDay }));
 const singleDay = computed(() => isSingleDaySpan(span.value));
-const approximate = computed(() => singleDay.value && props.summary.hours.length === 0);
-const hourly = computed(() =>
-  approximate.value
-    ? viewersToHourlySeries(props.summary.topViewers, span.value.startDay, tzOffsetSecsForDay(span.value.startDay))
-    : hourRowsToSeries(props.summary.hours),
-);
+const hourly = computed(() => hourRowsToSeries(props.summary.hours));
 const subtitle = computed(() => {
   if (!singleDay.value) return formatSpan(span.value, locale.value);
   const zone = formatZoneShort(locale.value);
   return [formatDayDate(span.value.startDay, locale.value), zone].filter(Boolean).join(' · ');
 });
+const metricOptions = computed(() => analyticsMetrics.map((value) => ({ value, label: t(`analytics.metrics.${value}`) })));
 </script>
 
 <template>
@@ -40,6 +38,14 @@ const subtitle = computed(() => {
     :title="singleDay ? t('analytics.activity.today') : t('analytics.activity.title')"
     :subtitle="subtitle"
   >
+    <template #actions>
+      <BaseSegmented
+        v-model="metric"
+        :options="metricOptions"
+        size="sm"
+        :aria-label="t('analytics.metricPicker')"
+      />
+    </template>
     <AnalyticsHourlyChart
       v-if="singleDay"
       :series="hourly"
@@ -50,12 +56,13 @@ const subtitle = computed(() => {
       :days="summary.days"
       :span="span"
       :metric="metric"
+      :previous-days="previous?.days"
     />
     <p
-      v-if="singleDay && approximate"
+      v-if="singleDay && !summary.hours.length"
       class="activity-panel__note"
     >
-      {{ t('analytics.activity.approximate') }}
+      {{ t('analytics.activity.noHourly') }}
     </p>
   </BasePanel>
 </template>

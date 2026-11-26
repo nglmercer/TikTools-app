@@ -9,6 +9,8 @@ import { tzOffsetSecsForDay, type AnalyticsDaySpan } from '../lib/analytics-rang
 export const useAnalyticsStore = defineStore('analytics', () => {
   const client = useControlClient();
   const summary = shallowRef<AnalyticsSummaryData | null>(null);
+  /** Same-length span immediately before the selected one, for deltas and the comparison series. */
+  const previous = shallowRef<AnalyticsSummaryData | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
   let latest = 0;
@@ -17,14 +19,18 @@ export const useAnalyticsStore = defineStore('analytics', () => {
     const request = ++latest;
     loading.value = true;
     error.value = null;
+    const creatorUniqueId = creator.trim().replace(/^@/, '');
+    const length = span.endDay - span.startDay + 1;
+    const tzOffsetSecs = tzOffsetSecsForDay(span.endDay);
     try {
-      const result = await fetchAnalyticsSummary(client, {
-        creatorUniqueId: creator.trim().replace(/^@/, ''),
-        startDay: span.startDay,
-        endDay: span.endDay,
-        tzOffsetSecs: tzOffsetSecsForDay(span.endDay),
-      });
-      if (request === latest) summary.value = result;
+      const [result, previousResult] = await Promise.all([
+        fetchAnalyticsSummary(client, { creatorUniqueId, startDay: span.startDay, endDay: span.endDay, tzOffsetSecs }),
+        fetchAnalyticsSummary(client, { creatorUniqueId, startDay: span.startDay - length, endDay: span.endDay - length, tzOffsetSecs }),
+      ]);
+      if (request === latest) {
+        summary.value = result;
+        previous.value = previousResult;
+      }
     } catch (failure) {
       if (request === latest) error.value = errorMessage(failure);
     } finally {
@@ -32,5 +38,5 @@ export const useAnalyticsStore = defineStore('analytics', () => {
     }
   }
 
-  return { summary, loading, error, load };
+  return { summary, previous, loading, error, load };
 });

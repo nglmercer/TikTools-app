@@ -289,6 +289,18 @@ export default {
     },
   },
   analytics: {
+    comparePrevious: '前期',
+    noHourly: '時間別の詳細は現在のバージョンで記録されたアクティビティのみ利用できます。',
+    contributorsShare: 'シェア',
+    insights: {
+      title: 'インサイト',
+      bestDay: '最高の日',
+      peakHour: 'ピーク時間',
+      perSession: 'セッション平均',
+      sessions: 'セッション',
+      mix: 'エンゲージメント構成',
+    },
+    
     title: "分析",
     refresh: "更新",
     loading: "分析データを読み込み中…",
@@ -313,6 +325,8 @@ export default {
       peakViewers: "最大同時視聴者数",
     },
     kpi: {
+      new: '新規',
+      vsPrevious: '前期比',
       peakAvg: "最大{peak}・平均{avg}",
       single: "期間内{value}",
     },

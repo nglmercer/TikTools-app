@@ -289,6 +289,18 @@ export default {
     },
   },
   analytics: {
+    comparePrevious: '',
+    noHourly: '。',
+    contributorsShare: '',
+    insights: {
+      title: '',
+      bestDay: '',
+      peakHour: '',
+      perSession: '',
+      sessions: '',
+      mix: '',
+    },
+    
     title: "数据分析",
     refresh: "刷新",
     loading: "正在加载数据分析…",
@@ -313,6 +325,8 @@ export default {
       peakViewers: "观众峰值",
     },
     kpi: {
+      new: '',
+      vsPrevious: '',
       peakAvg: "峰值 {peak} · 平均 {avg}",
       single: "范围内共 {value}",
     },

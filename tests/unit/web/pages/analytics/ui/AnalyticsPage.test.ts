@@ -66,9 +66,9 @@ describe('AnalyticsPage', () => {
     expect(calls[0]?.params).toMatchObject({ creatorUniqueId: 'luna', startDay: today - 6, endDay: today });
   });
 
-  it('shows metric totals, session facts and contributors', async () => {
+  it('shows metric totals, insights and contributors', async () => {
     const { wrapper } = await mountPage();
-    const tiles = wrapper.findAll('[role="radio"][aria-checked]').filter((tile) => tile.classes('kpi-strip__card'));
+    const tiles = wrapper.findAll('.kpi-strip__card');
     expect(tiles).toHaveLength(5);
     expect(tiles[0]!.text()).toContain('Chats');
     expect(tiles[0]!.text()).toContain('1,520');
@@ -84,19 +84,22 @@ describe('AnalyticsPage', () => {
     expect(wrapper.findAll('tbody tr')).toHaveLength(2);
   });
 
-  it('switches the charted metric from the strip', async () => {
+  it('switches the charted metric from the activity panel selector', async () => {
     const { wrapper } = await mountPage();
     expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toMatch(/^Chats:/);
-    await wrapper.findAll('.kpi-strip__card')[3]!.trigger('click');
+    // The metric segmented lives inside the activity panel; Diamonds is its 4th option.
+    const panel = wrapper.get('[data-guide="analytics-activity"]');
+    await panel.findAll('.base-segmented__option')[3]!.trigger('click');
     expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toMatch(/^Diamonds:/);
   });
 
   it('requests a new span when the range changes', async () => {
     const { wrapper, calls } = await mountPage();
     const today = systemDay(Date.now());
-    await wrapper.findAll('.base-segmented__option')[0]!.trigger('click');
+    const rangeBar = wrapper.get('[data-guide="analytics-range"]');
+    await rangeBar.findAll('.base-segmented__option')[0]!.trigger('click');
     await flushPromises();
-    expect(calls.at(-1)?.params).toMatchObject({ startDay: today, endDay: today });
+    expect(calls.at(-2)?.params).toMatchObject({ startDay: today, endDay: today });
     expect(wrapper.text()).toContain(t('analytics.activity.today'));
   });
 

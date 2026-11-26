@@ -291,6 +291,18 @@ export default {
     },
   },
   analytics: {
+    comparePrevious: 'Période précédente',
+    noHourly: 'Le détail horaire n’est disponible que pour l’activité enregistrée avec la version actuelle.',
+    contributorsShare: 'Part',
+    insights: {
+      title: 'Points clés',
+      bestDay: 'Meilleur jour',
+      peakHour: 'Heure de pointe',
+      perSession: 'Par session',
+      sessions: 'Sessions',
+      mix: 'Mix d’engagement',
+    },
+    
     title: 'Statistiques',
     refresh: 'Actualiser',
     loading: 'Chargement des statistiques…',
@@ -315,6 +327,8 @@ export default {
       peakViewers: 'Pic de spectateurs',
     },
     kpi: {
+      new: 'nouveau',
+      vsPrevious: 'vs période précédente',
       peakAvg: 'pic {peak} · moyenne {avg}',
       single: '{value} sur la période',
     },

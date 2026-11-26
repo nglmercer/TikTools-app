@@ -5,12 +5,14 @@ import type { AnalyticsDayRow } from '../../../../shared/messages.ts';
 import { formatCount } from '@/shared/lib/intl.ts';
 import { formatDayDate, formatDayLabel, type AnalyticsDaySpan } from '../lib/analytics-range.ts';
 import { fillDaySeries, metricColor, type AnalyticsMetric } from '../lib/analytics-metrics.ts';
-import { buildLineGeometry } from '../lib/chart-geometry.ts';
+import { buildLineGeometry, seriesMax } from '../lib/chart-geometry.ts';
 
 const props = defineProps<{
   days: readonly AnalyticsDayRow[];
   span: AnalyticsDaySpan;
   metric: AnalyticsMetric;
+  /** Same-length period immediately before, drawn as a dashed reference line. */
+  previousDays?: readonly AnalyticsDayRow[];
 }>();
 
 const box = { width: 720, height: 220, pad: 20 };
@@ -18,7 +20,15 @@ const gridSteps = [0, 0.5, 1];
 
 const { t, locale } = useI18n();
 const values = computed(() => fillDaySeries(props.days, props.span.startDay, props.span.endDay, props.metric));
-const geometry = computed(() => buildLineGeometry(values.value, box));
+const previousValues = computed(() => {
+  if (!props.previousDays) return null;
+  const length = props.span.endDay - props.span.startDay + 1;
+  return fillDaySeries(props.previousDays, props.span.startDay - length, props.span.endDay - length, props.metric);
+});
+// The scale must cover both series or the comparison line lies about proportion.
+const scaleMax = computed(() => Math.max(seriesMax(values.value), previousValues.value ? seriesMax(previousValues.value) : 0));
+const geometry = computed(() => buildLineGeometry(values.value, box, scaleMax.value));
+const previousGeometry = computed(() => (previousValues.value ? buildLineGeometry(previousValues.value, box, scaleMax.value) : null));
 const label = computed(() => t(`analytics.metrics.${props.metric}`));
 const showDots = computed(() => values.value.length <= 62);
 const peakIndex = computed(() => {
@@ -44,7 +54,7 @@ const gridLines = computed(() =>
   gridSteps.map((step) => ({
     step,
     y: box.pad + (box.height - box.pad * 2) * (1 - step),
-    label: formatCount(geometry.value.max * step, locale.value),
+    label: formatCount(scaleMax.value * step, locale.value),
   })),
 );
 </script>
@@ -75,6 +85,13 @@ const gridLines = computed(() =>
         text-anchor="end"
       >{{ line.label }}</text>
     </g>
+    <path
+      v-if="previousGeometry?.line"
+      class="daily-chart__previous"
+      :d="previousGeometry.line"
+    >
+      <title>{{ t('analytics.comparePrevious') }}</title>
+    </path>
     <path
       v-if="geometry.line"
       class="daily-chart__line"
@@ -120,6 +137,14 @@ const gridLines = computed(() =>
   fill: var(--color-text-subtle);
   font-family: var(--font-family);
   font-size: 11px;
+}
+
+.daily-chart__previous {
+  fill: none;
+  stroke: var(--color-text-subtle);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: .55;
 }
 
 .daily-chart__line {

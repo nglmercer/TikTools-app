@@ -5,7 +5,7 @@ import type { AnalyticsTopViewer } from '../../../../shared/messages.ts';
 import BaseTable from '@/shared/ui/table/BaseTable.vue';
 import type { TableSort } from '@/shared/ui/table/table-types.ts';
 import { formatCount } from '@/shared/lib/intl.ts';
-import { formatClockTime } from '../lib/analytics-range.ts';
+import { formatClockTime, formatDayDate, isoDateToDay, systemDay } from '../lib/analytics-range.ts';
 import {
   filterContributors,
   rankContributors,
@@ -31,17 +31,32 @@ const columns = computed(() => [
   {
     key: 'interactions',
     label: t('analytics.contributors.interactions'),
-    width: '120px',
+    width: '110px',
     align: 'end' as const,
     sortable: true,
   },
+  { key: 'share', label: t('analytics.contributorsShare'), width: '90px', align: 'end' as const, sortable: false },
   { key: 'lastSeen', label: t('analytics.contributors.lastActive'), width: '96px', align: 'end' as const, sortable: true },
 ]);
 
 const rows = computed(() => {
   const filtered = filterContributors(rankContributors(props.viewers), props.query);
-  return sort.value ? sortContributors(filtered, sort.value.key as ContributorSortKey, sort.value.direction) : filtered;
+  const sorted = sort.value ? sortContributors(filtered, sort.value.key as ContributorSortKey, sort.value.direction) : filtered;
+  const totalInteractions = props.viewers.reduce((sum, viewer) => sum + Math.max(0, viewer.interactions ?? 0), 0);
+  return sorted.map((row) => ({
+    ...row,
+    share: totalInteractions > 0 ? Math.max(0, row.interactions) / totalInteractions : 0,
+  }));
 });
+
+/** Clock time for same-day activity, date + time when the range spans days. */
+function formatLastSeen(unixSecs: number): string {
+  const day = isoDateToDay(new Date(unixSecs * 1000).toISOString().slice(0, 10));
+  const today = systemDay(Date.now());
+  const time = formatClockTime(unixSecs, locale.value);
+  if (day !== null && day !== today) return `${formatDayDate(day, locale.value)} · ${time}`;
+  return time;
+}
 </script>
 
 <template>
@@ -55,8 +70,22 @@ const rows = computed(() => {
     <template #cell-rank="{ value }">
       <span class="contributors-table__rank">#{{ value }}</span>
     </template>
-    <template #cell-uniqueId="{ value }">
-      @{{ value }}
+    <template #cell-uniqueId="{ row, value }">
+      <span class="contributors-table__viewer">
+        <img
+          v-if="row.avatarUrl"
+          class="contributors-table__avatar"
+          :src="row.avatarUrl"
+          :alt="''"
+          loading="lazy"
+        >
+        <span
+          v-else
+          class="contributors-table__avatar contributors-table__avatar--fallback"
+          aria-hidden="true"
+        >{{ String(value).slice(0, 1).toUpperCase() }}</span>
+        @{{ value }}
+      </span>
     </template>
     <template #cell-chats="{ value }">
       {{ formatCount(Number(value), locale) }}
@@ -70,8 +99,17 @@ const rows = computed(() => {
     <template #cell-interactions="{ value }">
       {{ formatCount(Number(value), locale) }}
     </template>
+    <template #cell-share="{ row }">
+      <span class="contributors-table__share">
+        <span
+          class="contributors-table__share-bar"
+          :style="{ width: `${Math.round(row.share * 100)}%` }"
+        />
+        {{ Math.round(row.share * 100) }}%
+      </span>
+    </template>
     <template #cell-lastSeen="{ value }">
-      {{ formatClockTime(Number(value), locale) }}
+      {{ formatLastSeen(Number(value)) }}
     </template>
     <template #empty>
       {{ query ? t('analytics.contributors.noMatches') : t('analytics.contributors.empty') }}
@@ -87,6 +125,48 @@ const rows = computed(() => {
 .contributors-table__rank {
   color: var(--color-text-subtle);
   font-variant-numeric: tabular-nums;
+}
+
+.contributors-table__viewer {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.contributors-table__avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+}
+
+.contributors-table__avatar--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-control);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.contributors-table__share {
+  position: relative;
+  display: inline-block;
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.contributors-table__share-bar {
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--color-chart-1);
+  opacity: .8;
 }
 
 @media (width < 720px) {

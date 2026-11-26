@@ -39,8 +39,8 @@ export function seriesMax(values: readonly number[]): number {
   return values.reduce((top, value) => Math.max(top, value), 0);
 }
 
-export function buildLineGeometry(values: readonly number[], box: ChartBox): LineGeometry {
-  const max = seriesMax(values);
+export function buildLineGeometry(values: readonly number[], box: ChartBox, explicitMax?: number): LineGeometry {
+  const max = explicitMax ?? seriesMax(values);
   const innerWidth = Math.max(0, box.width - box.pad * 2);
   const innerHeight = Math.max(0, box.height - box.pad * 2);
   const base = round(box.pad + innerHeight);
