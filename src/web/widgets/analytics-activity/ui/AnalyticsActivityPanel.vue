@@ -2,12 +2,18 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AnalyticsSummaryData } from '../../../../shared/messages.ts';
-import { analyticsMetrics, hourRowsToSeries, metricColor, type AnalyticsMetricSelection } from '@/entities/analytics/lib/analytics-metrics.ts';
+import { analyticsMetrics, hourRowsToSeries, metricColor, type AnalyticsMetric, type AnalyticsMetricSelection } from '@/entities/analytics/lib/analytics-metrics.ts';
 import { formatZoneShort, isSingleDaySpan } from '@/entities/analytics/lib/analytics-range.ts';
 import AnalyticsDailyChart from '@/entities/analytics/ui/AnalyticsDailyChart.vue';
 import AnalyticsHourlyChart from '@/entities/analytics/ui/AnalyticsHourlyChart.vue';
 import { useMediaQuery } from '@/shared/lib/media-query.ts';
 import BaseDateText from '@/shared/ui/date-text/BaseDateText.vue';
+import IconChat from '@/shared/ui/icon/icons/IconChat.vue';
+import IconCoins from '@/shared/ui/icon/icons/IconCoins.vue';
+import IconHeart from '@/shared/ui/icon/icons/IconHeart.vue';
+import IconDiamond from '@/shared/ui/icon/icons/IconDiamond.vue';
+import IconEye from '@/shared/ui/icon/icons/IconEye.vue';
+import BaseIconSelect from '@/shared/ui/menu/BaseIconSelect.vue';
 import BasePanel from '@/shared/ui/panel/BasePanel.vue';
 import BaseSegmented from '@/shared/ui/segmented/BaseSegmented.vue';
 
@@ -32,12 +38,24 @@ const hasHourly = computed(() =>
   ),
 );
 const zoneSuffix = computed(() => formatZoneShort(locale.value));
+// Every option carries its metric icon tinted in the chart color, so the
+// picker itself is the legend — no separate swatch row repeating the labels.
+const metricIcons: Record<AnalyticsMetric, typeof IconChat> = {
+  chats: IconChat,
+  gifts: IconCoins,
+  likes: IconHeart,
+  diamonds: IconDiamond,
+  peakViewers: IconEye,
+};
 const metricOptions = computed(() => [
   { value: 'all' as const, label: t('analytics.metrics.all') },
-  ...analyticsMetrics.map((value) => ({ value, label: t(`analytics.metrics.${value}`) })),
+  ...analyticsMetrics.map((value) => ({
+    value,
+    label: t(`analytics.metrics.${value}`),
+    icon: metricIcons[value],
+    color: metricColor[value],
+  })),
 ]);
-const legendMetrics = analyticsMetrics;
-const legendColor = metricColor;
 </script>
 
 <template>
@@ -53,20 +71,14 @@ const legendColor = metricColor;
       <template v-if="singleDay && zoneSuffix"> · {{ zoneSuffix }}</template>
     </template>
     <template #actions>
-      <select
+      <BaseIconSelect
         v-if="narrowPicker"
-        v-model="metric"
-        class="activity-panel__metric-select"
-        :aria-label="t('analytics.metricPicker')"
-      >
-        <option
-          v-for="option in metricOptions"
-          :key="option.value"
-          :value="option.value"
-        >
-          {{ option.label }}
-        </option>
-      </select>
+        :model-value="metric"
+        :options="metricOptions"
+        :label="t('analytics.metricPicker')"
+        placement="bottom-start"
+        @update:model-value="metric = $event as AnalyticsMetricSelection"
+      />
       <BaseSegmented
         v-else
         v-model="metric"
@@ -75,22 +87,7 @@ const legendColor = metricColor;
         :aria-label="t('analytics.metricPicker')"
       />
     </template>
-    <ul
-      v-if="metric === 'all'"
-      class="activity-panel__legend"
-    >
-      <li
-        v-for="value in legendMetrics"
-        :key="value"
-        class="activity-panel__legend-item"
-      >
-        <span
-          class="activity-panel__legend-swatch"
-          :style="{ background: legendColor[value] }"
-        />
-        {{ t(`analytics.metrics.${value}`) }}
-      </li>
-    </ul>
+
     <AnalyticsHourlyChart
       v-if="singleDay"
       :series="hourly"
@@ -128,33 +125,6 @@ const legendColor = metricColor;
 </template>
 
 <style scoped>
-.activity-panel__metric-select {
-  max-width: 180px;
-}
-
-.activity-panel__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: 0 0 var(--space-3);
-  padding: 0;
-  list-style: none;
-}
-
-.activity-panel__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.activity-panel__legend-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-sm, 3px);
-}
-
 .activity-panel__pattern {
   margin-top: var(--space-4);
   padding-top: var(--space-3);

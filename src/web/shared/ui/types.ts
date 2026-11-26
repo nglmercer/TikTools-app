@@ -7,4 +7,6 @@ export interface SelectOption<T> {
   label: string;
   disabled?: boolean;
   icon?: Component;
+  /** Tints the option icon — for pickers whose options double as a color legend. */
+  color?: string;
 }

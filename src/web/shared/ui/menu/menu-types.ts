@@ -5,6 +5,8 @@ export interface MenuAction {
   id: string;
   label: string;
   icon?: Component;
+  /** Tints the item icon — for pickers whose options double as a color legend. */
+  color?: string;
   shortcut?: string;
   /** Secondary line rendered under the label in muted mono — for long
    *  technical values (variable paths, identifiers) that must never compete

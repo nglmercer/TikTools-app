@@ -160,18 +160,22 @@ describe('AnalyticsPage', () => {
     expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toMatch(/^Diamonds:/);
   });
 
-  it('overlays every metric with a legend when the all option is selected', async () => {
+  it('overlays every metric when the all option is selected', async () => {
     const { wrapper } = await mountPage();
     const panel = wrapper.get('[data-guide="analytics-activity"]');
     await panel.findAll('.base-segmented__option')[0]!.trigger('click');
     const chart = wrapper.get('svg[role="img"]');
     expect(chart.attributes('aria-label')).toMatch(new RegExp(`^${t('analytics.metrics.all')}:`));
-    // One line per metric on the shared scale, and the legend names each color.
+    // One line per metric on the shared scale; the picker itself is the legend
+    // (tinted icons), so no separate swatch row exists.
     expect(chart.findAll('.daily-chart__line')).toHaveLength(5);
     expect(chart.find('.daily-chart__previous').exists()).toBe(false);
-    const legend = panel.get('.activity-panel__legend');
-    expect(legend.text()).toContain(t('analytics.metrics.chats'));
-    expect(legend.text()).toContain(t('analytics.metrics.peakViewers'));
+    expect(panel.find('.activity-panel__legend').exists()).toBe(false);
+    // The metric options carry tinted icons — 'all' first without one, then a
+    // colored icon per metric.
+    const options = panel.findAll('.base-segmented__option');
+    expect(options[1]!.find('[style*="color"]').exists()).toBe(true);
+    expect(options[0]!.find('[style*="color"]').exists()).toBe(false);
   });
 
   it('requests a new span when the range changes', async () => {

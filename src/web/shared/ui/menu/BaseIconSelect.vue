@@ -8,7 +8,7 @@ import type { MenuAction } from './menu-types.ts';
 defineOptions({ inheritAttrs: false });
 const props = defineProps<{
   modelValue: string;
-  options: readonly { value: string; label: string; short?: string; icon?: Component }[];
+  options: readonly { value: string; label: string; short?: string; icon?: Component; color?: string }[];
   label: string;
   placement?: Placement;
   testId?: string;
@@ -22,6 +22,7 @@ const items = computed<MenuAction[]>(() => props.options.map((option) => ({
   id: option.value,
   label: option.label,
   icon: option.icon,
+  color: option.color,
   checked: option.value === props.modelValue,
 })));
 
@@ -46,6 +47,7 @@ function select(action: MenuAction): void {
       :is="selected?.icon"
       v-if="selected?.icon"
       class="icon-select__icon"
+      :style="selected?.color ? { color: selected.color } : undefined"
       aria-hidden="true"
     />
     <span class="icon-select__value">{{ selected?.short ?? selected?.label ?? modelValue }}</span>

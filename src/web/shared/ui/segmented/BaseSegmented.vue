@@ -43,6 +43,7 @@ const { focusIndex, select, onKeydown, setElement } = useRovingSelection(toRef(p
         :is="option.icon"
         v-if="option.icon"
         :size="14"
+        :style="option.color ? { color: option.color } : undefined"
         aria-hidden="true"
       />
       {{ option.label }}

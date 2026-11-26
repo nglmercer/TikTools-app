@@ -173,6 +173,7 @@ onBeforeUnmount(() => {
             <component
               :is="entry.icon"
               v-else-if="entry.icon"
+              :style="entry.color ? { color: entry.color } : undefined"
             />
           </span>
           <span class="menu-list__text">
