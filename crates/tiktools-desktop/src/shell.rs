@@ -63,6 +63,16 @@ impl ShellWindow {
         }
     }
 
+    /// The GTK window itself, for transient parenting of native dialogs:
+    /// unparented portal dialogs surface behind the shell on focus-stealing-
+    /// preventing compositors, which reads exactly like a dead button.
+    #[cfg(target_os = "linux")]
+    pub fn gtk_window(&self) -> Option<&gtk::Window> {
+        match self {
+            ShellWindow::Gtk { window, .. } => Some(window),
+        }
+    }
+
     pub fn focus(&self) {
         match self {
             #[cfg(target_os = "linux")]

@@ -24,21 +24,40 @@ impl DesktopApp {
         }
         // The guard stays set after the dialog, whatever the answer. A second
         // plugin install must not trigger a second prompt in the same session.
-        let dialog = rfd::MessageDialog::new()
-            .set_title(native_messages::restart_title(&locale))
-            .set_description(native_messages::restart_description(&locale))
-            .set_level(rfd::MessageLevel::Warning)
-            .set_buttons(rfd::MessageButtons::YesNo);
-        // Native dialog parenting needs a raw window handle; the GTK shell
-        // window does not expose one through the shell abstraction, so on
-        // Linux the dialog is simply unparented (still modal by default).
-        #[cfg(not(target_os = "linux"))]
-        let dialog = if let Some(window) = self.window.as_ref() {
-            dialog.set_parent(window.winit_window())
-        } else {
-            dialog
+        // Same parenting rule as the update confirmation: on Linux a
+        // GTK-native dialog transient for the shell window, because the
+        // unparented portal dialog can surface behind it (a dead-looking
+        // button); elsewhere rfd parents through the raw window handle.
+        #[cfg(target_os = "linux")]
+        let confirmed = {
+            use gtk::prelude::*;
+            let dialog = gtk::MessageDialog::new(
+                self.window.as_ref().and_then(|shell| shell.gtk_window()),
+                gtk::DialogFlags::MODAL,
+                gtk::MessageType::Warning,
+                gtk::ButtonsType::YesNo,
+                &native_messages::restart_title(&locale),
+            );
+            dialog.set_secondary_text(Some(&native_messages::restart_description(&locale)));
+            let confirmed = dialog.run() == gtk::ResponseType::Yes;
+            unsafe { dialog.destroy() };
+            confirmed
         };
-        if dialog.show() != rfd::MessageDialogResult::Yes {
+        #[cfg(not(target_os = "linux"))]
+        let confirmed = {
+            let dialog = rfd::MessageDialog::new()
+                .set_title(native_messages::restart_title(&locale))
+                .set_description(native_messages::restart_description(&locale))
+                .set_level(rfd::MessageLevel::Warning)
+                .set_buttons(rfd::MessageButtons::YesNo);
+            let dialog = if let Some(window) = self.window.as_ref() {
+                dialog.set_parent(window.winit_window())
+            } else {
+                dialog
+            };
+            dialog.show() == rfd::MessageDialogResult::Yes
+        };
+        if !confirmed {
             return;
         }
         self.restart_requested = Some(locale);

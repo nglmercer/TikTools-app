@@ -25,21 +25,35 @@ impl DesktopApp {
         }
         let _reset = ResetPrompt(self.emitter.clone());
         if self.shutting_down || generation != self.emitter.generation.load(Ordering::Acquire) {
+            tracing::warn!(
+                shutting_down = self.shutting_down,
+                generation,
+                current = self.emitter.generation.load(Ordering::Acquire),
+                "update install request dropped: stale generation or shutdown in progress"
+            );
             return;
         }
         let Some(updater) = self.core.app_updater() else {
+            tracing::warn!("update install request dropped: updater unavailable");
             return;
         };
         let status = updater.status();
         if !status.install_supported
             || status.state != tiktools_core::app_update::Phase::ReadyToInstall
         {
+            tracing::warn!(
+                install_supported = status.install_supported,
+                state = ?status.state,
+                "update install request dropped: updater not ready to install"
+            );
             return;
         }
         let Some(version) = status.available_version.as_deref() else {
+            tracing::warn!("update install request dropped: no available version in status");
             return;
         };
         let Some(location) = updater.installation_location() else {
+            tracing::warn!("update install request dropped: installation location unknown");
             return;
         };
         let location = location
@@ -52,21 +66,41 @@ impl DesktopApp {
         } else {
             ("Install TikTools update", format!("Install TikTools {version} and restart? Active LIVE sessions and automations will stop.\n\nLocation: {location}"))
         };
-        let dialog = rfd::MessageDialog::new()
-            .set_title(title)
-            .set_description(description)
-            .set_level(rfd::MessageLevel::Warning)
-            .set_buttons(rfd::MessageButtons::YesNo);
-        // Native dialog parenting needs a raw window handle; the GTK shell
-        // window does not expose one through the shell abstraction, so on
-        // Linux the dialog is simply unparented (still modal by default).
-        #[cfg(not(target_os = "linux"))]
-        let dialog = if let Some(window) = self.window.as_ref() {
-            dialog.set_parent(window.winit_window())
-        } else {
-            dialog
+        // Linux gets a GTK-native dialog transient for the shell window:
+        // the rfd xdg-portal backend cannot be parented through the shell
+        // abstraction, and an unparented portal dialog surfaces behind the
+        // main window on compositors with focus-stealing prevention — the
+        // confirmation then reads exactly like a dead install button.
+        #[cfg(target_os = "linux")]
+        let confirmed = {
+            use gtk::prelude::*;
+            let dialog = gtk::MessageDialog::new(
+                self.window.as_ref().and_then(|shell| shell.gtk_window()),
+                gtk::DialogFlags::MODAL,
+                gtk::MessageType::Warning,
+                gtk::ButtonsType::YesNo,
+                &title,
+            );
+            dialog.set_secondary_text(Some(&description));
+            let confirmed = dialog.run() == gtk::ResponseType::Yes;
+            unsafe { dialog.destroy() };
+            confirmed
         };
-        if dialog.show() != rfd::MessageDialogResult::Yes {
+        #[cfg(not(target_os = "linux"))]
+        let confirmed = {
+            let dialog = rfd::MessageDialog::new()
+                .set_title(title.clone())
+                .set_description(description.clone())
+                .set_level(rfd::MessageLevel::Warning)
+                .set_buttons(rfd::MessageButtons::YesNo);
+            let dialog = if let Some(window) = self.window.as_ref() {
+                dialog.set_parent(window.winit_window())
+            } else {
+                dialog
+            };
+            dialog.show() == rfd::MessageDialogResult::Yes
+        };
+        if !confirmed {
             return;
         }
         match updater.prepare_install() {
