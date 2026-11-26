@@ -13,6 +13,10 @@ import IconHeart from '@/shared/ui/icon/icons/IconHeart.vue';
 import IconDiamond from '@/shared/ui/icon/icons/IconDiamond.vue';
 import IconEye from '@/shared/ui/icon/icons/IconEye.vue';
 
+// The Teleport makes this a fragment root, so attrs must land explicitly —
+// data-guide carries the tour target and falling through silently drops it.
+defineOptions({ inheritAttrs: false });
+
 /**
  * Summary KPI cards: value and delta against the previous same-length period.
  * No inline charts — the single miniature lives in the preview that hovering
@@ -168,6 +172,7 @@ const preview = computed(() => {
 
 <template>
   <div
+    v-bind="$attrs"
     class="kpi-strip"
     role="list"
     :aria-label="t('analytics.metricPicker')"

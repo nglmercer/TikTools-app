@@ -337,6 +337,16 @@ watch([range, metric, query, customStart, customEnd, tab], persist);
   min-width: 0;
 }
 
+@media (width >= 1100px) {
+  /* The main column is far taller than the sidebar; pinning it keeps the
+     key facts and KPI totals visible while scrolling the charts, instead
+     of leaving a blank column trailing the content. */
+  .analytics-page__side {
+    position: sticky;
+    top: var(--space-4);
+  }
+}
+
 .analytics-page__activity {
   min-width: 0;
 }
