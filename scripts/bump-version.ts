@@ -265,7 +265,10 @@ async function main(): Promise<void> {
         'Run a cargo command to refresh the lockfile if needed.',
     );
   }
-  console.log(`Next steps to cut the release:\n  git add Cargo.toml Cargo.lock package.json\n  git commit -m "chore: release v${version}"\n  git tag v${version}\n  git push origin HEAD --tags`);
+  // The bump touches every crate Cargo.toml, and the docs contract provenance
+  // hashes those sources — without regenerating it, the post-release site
+  // deploy fails its staleness check.
+  console.log(`Next steps to cut the release:\n  bun docs/scripts/regenerate-control.ts\n  git add Cargo.toml Cargo.lock package.json Packager.toml crates docs/contracts\n  git commit -m "chore: release v${version}"\n  git tag v${version}\n  git push origin HEAD --tags`);
 }
 
 if (import.meta.main) {
