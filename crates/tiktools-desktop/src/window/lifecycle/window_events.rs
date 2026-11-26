@@ -2,6 +2,8 @@
 //! before the main-window identity filter.
 
 use super::super::{DesktopApp, StartupState};
+#[cfg(not(target_os = "linux"))]
+use crate::platform;
 
 use std::sync::atomic::Ordering;
 #[cfg(not(target_os = "linux"))]

@@ -34,7 +34,7 @@ impl DesktopApp {
         // Linux the dialog is simply unparented (still modal by default).
         #[cfg(not(target_os = "linux"))]
         let dialog = if let Some(window) = self.window.as_ref() {
-            dialog.set_parent(window)
+            dialog.set_parent(window.winit_window())
         } else {
             dialog
         };

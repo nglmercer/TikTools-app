@@ -112,8 +112,11 @@ describe('Linux installer metadata', () => {
       await expect(verifyAppImageWebKit(root)).rejects.toThrow('missing GStreamer plugin');
       const gst = join(root, 'usr/lib/gstreamer-1.0');
       await mkdir(gst, { recursive: true });
-      const plugins = (await readFile(resolve(import.meta.dir, '../../../../scripts/appimage/gstreamer-plugins.txt'), 'utf8')).trim().split(/\s+/);
-      for (const plugin of plugins) await writeFile(join(gst, `libgst${plugin}.so`), elf);
+      // Mirror the distro reality behind the alternatives syntax: only one
+      // variant per line exists (jammy carries videoscale, never the merge).
+      const pluginLines = (await readFile(resolve(import.meta.dir, '../../../../scripts/appimage/gstreamer-plugins.txt'), 'utf8'))
+        .trim().split('\n').map((line) => line.trim().split(/\s+/));
+      for (const alternatives of pluginLines) await writeFile(join(gst, `libgst${alternatives[alternatives.length - 1]}.so`), elf);
       await expect(verifyAppImageWebKit(root)).rejects.toThrow('missing GStreamer plugin scanner');
       await mkdir(join(root, 'usr/libexec/gstreamer-1.0'), { recursive: true });
       await writeFile(join(root, 'usr/libexec/gstreamer-1.0/gst-plugin-scanner'), elf);

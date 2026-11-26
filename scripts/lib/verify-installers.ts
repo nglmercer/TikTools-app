@@ -168,10 +168,15 @@ export async function verifyAppImageWebKit(appDir: string): Promise<void> {
       }
     }
   }
-  const requiredPlugins = (await readFile(resolve(import.meta.dir, '../appimage/gstreamer-plugins.txt'), 'utf8')).trim().split(/\s+/);
-  for (const plugin of requiredPlugins) {
-    const path = join(libDir, 'gstreamer-1.0', `libgst${plugin}.so`);
-    if (!await isElf(path).catch(() => false)) throw new Error(`AppImage is missing GStreamer plugin ${plugin}`);
+  // Manifest lines may name alternatives for one feature (GStreamer 1.22
+  // merged videoconvert+videoscale into videoconvertscale): the bundler copies
+  // every variant the distro carries, so any one present satisfies the line.
+  const requiredPlugins = (await readFile(resolve(import.meta.dir, '../appimage/gstreamer-plugins.txt'), 'utf8'))
+    .trim().split('\n').map((line) => line.trim().split(/\s+/)).filter((line) => line[0] !== '');
+  for (const alternatives of requiredPlugins) {
+    const present = await Promise.all(alternatives.map(async (plugin) =>
+      isElf(join(libDir, 'gstreamer-1.0', `libgst${plugin}.so`)).catch(() => false)));
+    if (!present.some(Boolean)) throw new Error(`AppImage is missing GStreamer plugin ${alternatives.join(' or ')}`);
   }
   if (!await isElf(join(appDir, 'usr/libexec/gstreamer-1.0/gst-plugin-scanner')).catch(() => false)) {
     throw new Error('AppImage is missing GStreamer plugin scanner');

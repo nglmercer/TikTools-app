@@ -71,6 +71,21 @@ impl ShellWindow {
             ShellWindow::Winit(window) => window.focus_window(),
         }
     }
+
+    /// Non-Linux platforms keep the plain Winit window underneath the shell
+    /// abstraction; dialog parenting, identity checks and the child-webview
+    /// builder all operate on it directly.
+    #[cfg(not(target_os = "linux"))]
+    pub fn winit_window(&self) -> &winit::window::Window {
+        match self {
+            ShellWindow::Winit(window) => window,
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    pub fn id(&self) -> winit::window::WindowId {
+        self.winit_window().id()
+    }
 }
 
 /// Builds the Linux shell window: a GTK window whose single container fills

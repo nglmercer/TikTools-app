@@ -152,7 +152,7 @@ impl DesktopApp {
         }
         platform::sync_gtk_display();
         #[cfg(not(target_os = "linux"))]
-        let result = self.build_main_webview(&window);
+        let result = self.build_main_webview(window.winit_window());
         #[cfg(target_os = "linux")]
         let result = match window.gtk_content() {
             Some(content) => {
